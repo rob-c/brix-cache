@@ -20,6 +20,7 @@
 #include <fuse3/fuse.h>
 
 #include "cvmfs/client/client.h"
+#include "platform/platform_api.h"   /* BRIX_WEAK_REF */
 
 /* ---- owned by brixcvmfs.c ------------------------------------------------ */
 
@@ -48,17 +49,17 @@ extern int brixcvmfs_rw;                         /* 1 = mount with the rw table
 /* Prepare <mnt>/.brixwrites (or `writes_override`) BEFORE fuse_main hides the
  * mountpoint, and bind the overlay to it. 0 / -1 (message already printed). */
 int brixcvmfs_setup_rw(const char *mnt, const char *writes_override)
-    __attribute__((weak));
-void brixcvmfs_teardown_rw(void) __attribute__((weak));
+    BRIX_WEAK_REF;
+void brixcvmfs_teardown_rw(void) BRIX_WEAK_REF;
 
-extern const struct fuse_operations brixcvmfs_rw_ops __attribute__((weak));
+extern const struct fuse_operations brixcvmfs_rw_ops BRIX_WEAK_REF;
 
 /* brixMount driver entry: `cvmfs-rw` (sets brixcvmfs_rw, delegates). */
-int brixcvmfs_rw_main(int argc, char **argv) __attribute__((weak));
+int brixcvmfs_rw_main(int argc, char **argv) BRIX_WEAK_REF;
 
 /* ---- owned by brixcvmfs_repo.c (Stratum-0 publishing plane, phase-96;
  * defined only when the repo driver is linked) ------------------------------ */
-int brixcvmfs_repo_main(int argc, char **argv) __attribute__((weak));
-int brixcvmfs_ingest_main(int argc, char **argv) __attribute__((weak));
+int brixcvmfs_repo_main(int argc, char **argv) BRIX_WEAK_REF;
+int brixcvmfs_ingest_main(int argc, char **argv) BRIX_WEAK_REF;
 
 #endif /* BRIXCVMFS_INTERNAL_H */

@@ -53,6 +53,7 @@
 #include "auth/token/oauth2.h"
 #include "core/compat/subprocess.h"   /* shared SIGCHLD-safe fork/exec capture */
 #include "core/types/tunables.h"       /* BRIX_TPC_TOKEN_MAX, BRIX_TPC_TOKEN_ERR_MAX */
+#include "platform/platform_api.h"
 
 
 #include <stdio.h>
@@ -61,13 +62,6 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/wait.h>
-
-/* macOS lacks secure_getenv - use getenv as fallback */
-#if defined(__APPLE__) && defined(__MACH__)
-#ifndef secure_getenv
-#define secure_getenv(name) getenv(name)
-#endif
-#endif
 #include <ctype.h>
 
 #define TPC_TOKEN_HELPER_PATH  "/usr/local/sbin/nginx-xrootd-tpc-token"
@@ -178,7 +172,7 @@ resolve_oidc_token_binary(void)
         "/usr/bin/oidc-token", "/usr/local/bin/oidc-token", NULL
     };
     const char *const *p;
-    const char *override = secure_getenv("BRIX_OIDC_TOKEN_BIN");
+    const char *override = brix_plat_secure_getenv("BRIX_OIDC_TOKEN_BIN");
 
     if (override != NULL && access(override, X_OK) == 0) {
         return override;

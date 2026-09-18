@@ -33,6 +33,8 @@ from brix_suite.client_build import client_make
 
 import pytest
 
+from lib_py.preload_shim import SHIM_NAME
+
 REPO = pathlib.Path(__file__).resolve().parent.parent
 CLIENT = REPO / "client"
 MAKEFILE = CLIENT / "Makefile"
@@ -59,9 +61,10 @@ def _dry_run(goal: str) -> subprocess.CompletedProcess:
     return client_make(str(CLIENT), "-n", "-B", "MAKE=true", f"PROTO_LIB={ABSENT}", goal, capture_output=True, text=True)
 
 
-@pytest.mark.parametrize("goal", ["libbrixposix_preload.so", "lib"])
+@pytest.mark.parametrize("goal", [SHIM_NAME, "lib"])
 def test_shared_object_goals_resolve_with_the_archive_missing(goal: str) -> None:
-    """The clean-tree regression: both .so goals must have a rule for the archive."""
+    """The clean-tree regression: both shared-object goals (the preload shim
+    under its host's name, libbrix) must have a rule for the archive."""
     proc = _dry_run(goal)
     combined = proc.stdout + proc.stderr
     assert "No rule to make target" not in combined, (

@@ -29,7 +29,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include <sys/xattr.h>
+#include "platform/platform.h"   /* PAL: Linux-shaped xattr calls on every host */
 
 /* Linux reports "no such attribute" as ENODATA; some libcs alias ENOATTR. */
 #ifndef ENOATTR

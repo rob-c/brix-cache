@@ -28,6 +28,77 @@
 /* Globus limited-proxy policy language OID: 1.3.6.1.4.1.3536.1.1.1.9. */
 static const char *BRIX_PX_LIMITED_OID = "1.3.6.1.4.1.3536.1.1.1.9";
 
+/* The one trailing CN of a GT2-shaped subject, or NULL: the subject must be
+ * the issuer plus exactly one CN entry (RFC 3820 §3.4's shape, which GT2
+ * proxies already had). */
+static const ASN1_STRING *
+gt2_trailing_cn(X509 *cert)
+{
+    const X509_NAME  *subject = X509_get_subject_name(cert);
+    const X509_NAME  *issuer  = X509_get_issuer_name(cert);
+    int               ns = X509_NAME_entry_count(subject);
+    int               ni = X509_NAME_entry_count(issuer);
+    X509_NAME_ENTRY  *last;
+    X509_NAME        *prefix;
+    int               i, same;
+
+    if (ni == 0 || ns != ni + 1) {
+        return NULL;
+    }
+    last = X509_NAME_get_entry(subject, ns - 1);
+    if (OBJ_obj2nid(X509_NAME_ENTRY_get_object(last)) != NID_commonName) {
+        return NULL;
+    }
+    prefix = X509_NAME_new();
+    if (prefix == NULL) {
+        return NULL;
+    }
+    for (i = 0; i < ni; i++) {
+        X509_NAME_add_entry(prefix, X509_NAME_get_entry(subject, i), -1, 0);
+    }
+    same = (X509_NAME_cmp(prefix, issuer) == 0);
+    X509_NAME_free(prefix);
+    return same ? X509_NAME_ENTRY_get_data(last) : NULL;
+}
+
+static int
+gt2_cn_is_numeric(const unsigned char *s, int n)
+{
+    int i;
+
+    for (i = 0; i < n; i++) {
+        if (s[i] < '0' || s[i] > '9') {
+            return 0;
+        }
+    }
+    return n > 0;
+}
+
+brix_px_kind_t
+brix_gt2_proxy_kind(X509 *cert)
+{
+    const ASN1_STRING   *cn;
+    const unsigned char *s;
+    int                  n;
+
+    if (cert == NULL || X509_get_ext_by_NID(cert, NID_proxyCertInfo, -1) >= 0) {
+        return BRIX_PX_NONE;
+    }
+    cn = gt2_trailing_cn(cert);
+    if (cn == NULL) {
+        return BRIX_PX_NONE;
+    }
+    s = ASN1_STRING_get0_data(cn);
+    n = ASN1_STRING_length(cn);
+    if (n == 5 && strncasecmp((const char *) s, "proxy", 5) == 0) {
+        return BRIX_PX_FULL;
+    }
+    if (n == 13 && strncasecmp((const char *) s, "limited proxy", 13) == 0) {
+        return BRIX_PX_LIMITED;
+    }
+    return gt2_cn_is_numeric(s, n) ? BRIX_PX_FULL : BRIX_PX_NONE;
+}
+
 brix_px_kind_t
 brix_px_classify(X509 *cert)
 {
@@ -37,6 +108,10 @@ brix_px_classify(X509 *cert)
     if (X509_get_extension_flags(cert) & EXFLAG_PROXY) {
         kind = BRIX_PX_FULL;
         pci = X509_get_ext_d2i(cert, NID_proxyCertInfo, NULL, NULL);
+        if (pci == NULL) {
+            /* flagged without proxyCertInfo: a GT2 proxy the verifier marked */
+            return brix_gt2_proxy_kind(cert);
+        }
         if (pci != NULL) {
             char oid[128];
             int  n = OBJ_obj2txt(oid, sizeof(oid),
@@ -49,28 +124,8 @@ brix_px_classify(X509 *cert)
         return kind;
     }
 
-    /* Legacy Globus proxy: last RDN is CN=proxy or CN=limited proxy. */
-    {
-        X509_NAME *nm = X509_get_subject_name(cert);
-        int        last = X509_NAME_entry_count(nm) - 1;
-        if (last >= 0) {
-            X509_NAME_ENTRY     *e = X509_NAME_get_entry(nm, last);
-            ASN1_STRING         *v = X509_NAME_ENTRY_get_data(e);
-            const unsigned char *s = ASN1_STRING_get0_data(v);
-            int                  len = ASN1_STRING_length(v);
-            if (len == (int) sizeof("limited proxy") - 1
-                && strncasecmp((const char *) s, "limited proxy", len) == 0)
-            {
-                return BRIX_PX_LIMITED;
-            }
-            if (len == (int) sizeof("proxy") - 1
-                && strncasecmp((const char *) s, "proxy", len) == 0)
-            {
-                return BRIX_PX_FULL;
-            }
-        }
-    }
-    return BRIX_PX_NONE;
+    /* Legacy Globus proxy (no proxyCertInfo): the GT2 shape, issuer-prefixed. */
+    return brix_gt2_proxy_kind(cert);
 }
 
 int

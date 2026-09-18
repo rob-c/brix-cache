@@ -2,13 +2,15 @@
  * Requires: platform_api.h platform selection and system types before inclusion.
  * Include platform/platform_api.h at call sites.
  */
-#pragma once
+#ifndef BRIX_PLATFORM_WINDOWS_HOST_API_H
+#define BRIX_PLATFORM_WINDOWS_HOST_API_H
+
+#include "win32_compat.h"
 
 /* ==========================================================================
  * WINDOWS PLATFORM DETECTION (Windows only)
  * ========================================================================== */
 
-#if BRIX_PLATFORM_WINDOWS
 
 /**
  * Check if running on Windows
@@ -71,4 +73,59 @@ int brix_plat_windows_version_at_least(unsigned long min_major,
                                        unsigned long min_minor,
                                        unsigned long min_build);
 
-#endif /* BRIX_PLATFORM_WINDOWS */
+/* --- event and Winsock readiness entry points (event_wrapper.c, socket_event.c) --- */
+
+/**
+ * Initialize Windows event subsystem (IOCP)
+ *
+ * Phase 1: No-op (uses WaitForMultipleObjects)
+ * Phase 2: Create IOCP for scalable event handling
+ *
+ * @return 0 on success, -1 on error
+ */
+int brix_plat_event_init(void);
+
+/**
+ * Wait for Windows event
+ *
+ * Phase 1: WaitForMultipleObjects (limited to 64 handles)
+ * Phase 2: GetQueuedCompletionStatus (IOCP, scalable)
+ *
+ * @param efd Event fd/handle
+ * @param timeout_ms Timeout in milliseconds (-1 = infinite)
+ * @return 0 on event, -1 on timeout/error
+ */
+int brix_plat_event_wait(int efd, int timeout_ms);
+
+/**
+ * Create Windows socket event monitor
+ *
+ * Uses WSAEventSelect to associate socket with event object.
+ * Maps PAL events to WSA network events:
+ * - BRIX_EVENT_READ → FD_READ | FD_ACCEPT | FD_CLOSE
+ * - BRIX_EVENT_WRITE → FD_WRITE | FD_CONNECT
+ *
+ * @param sock Socket to monitor (SOCKET type)
+ * @param events Event mask (BRIX_EVENT_*)
+ * @return Event handle, or -1 on error
+ */
+int brix_plat_socket_event_create(SOCKET sock, uint32_t events);
+
+/**
+ * Wait for Windows socket event
+ *
+ * @param event_handle Event handle from brix_plat_socket_event_create()
+ * @param timeout_ms Timeout in milliseconds (-1 = infinite)
+ * @return 0 on event, -1 on timeout/error
+ */
+int brix_plat_socket_event_wait(int event_handle, int timeout_ms);
+
+/**
+ * Destroy Windows socket event
+ *
+ * @param event_handle Event handle to destroy
+ */
+void brix_plat_socket_event_destroy(int event_handle);
+
+
+#endif /* BRIX_PLATFORM_WINDOWS_HOST_API_H */

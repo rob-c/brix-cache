@@ -67,6 +67,7 @@ from test_zip_member import _open, _read_all, _session, kXR_ok
 from lib.tokenconf import (_raw_handshake, _read_response, _send_auth_ztn,
                            _send_login, _send_stat, kXR_error)
 from utils.make_token import TokenIssuer
+from lib_py.util import pid_alive
 
 NAME = "lc-audit16x-secoff"
 _EXTRA = LIFECYCLE_SHARED_PORTS[NAME]["extra"]
@@ -659,4 +660,4 @@ class TestTwelvePlanesOneWorker:
         pid_file = secoff["ep"].pidfile
         assert os.path.exists(pid_file), pid_file
         pid = int(open(pid_file).read().strip())
-        assert os.path.exists(f"/proc/{pid}"), pid
+        assert pid_alive(pid), pid

@@ -44,7 +44,7 @@ def _guard_test_raw_fattr_multi_attr_set_then_list_2(tails, set_o, set_f):
 
 _reexport(globals(), "_test_conf_prepfattr_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_prepfattr_b")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_prepfattr_b")]
 
 @pytest.mark.parametrize("name,value", XATTR_CASES)
 def test_xattr_set_get_roundtrip_value_parity(srv, name, value):

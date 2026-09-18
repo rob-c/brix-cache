@@ -23,6 +23,7 @@
 #include <sys/types.h>
 
 #include "protocols/root/protocol/protocol.h"   /* wire structs + kXR_* constants (-I src) */
+#include <sys/socket.h>
 #include "protocols/root/protocol/codec/wire_codec.h" /* shared per-opcode wire-body codec */
 
 /* Public-API fixed sizes. Kept under their stable libbrix-public XRDC_* names, but

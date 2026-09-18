@@ -387,25 +387,74 @@ aio_opt_cache_value(const char *a, char *v)
  *       `--token` passes through to fuse, exactly as before). Returns -1 to
  *       proceed with the mount, or a process exit code (--version/--help/-h
  *       inside the line exit immediately with 0). */
+/* The options that take a following word, tried in the original order: the
+ * first setter that claims `a` consumes argv[i+1].  Returns 1 when one did. */
+static int
+aio_opt_value_pair(int argc, char **argv, int i)
+{
+    const char *a = argv[i];
+
+    if (i + 1 >= argc) {
+        return 0;
+    }
+    return aio_opt_conn_value(a, argv[i + 1])
+        || aio_opt_cache_value(a, argv[i + 1])
+        || aio_opt_ident_value(a, argv[i + 1]);
+}
+
+
+/* "-o list" / "-olist": keep only the elements this host's libfuse accepts
+ * (macFUSE rejects the Linux-only auto_unmount outright).  An option list
+ * nothing survived is dropped WHOLE — an empty "-o" is a libfuse parse error,
+ * not a no-op — and *spent says how many extra argv slots that drop covers
+ * (1 for the two-word form).  A list that kept elements is left for the
+ * caller's passthrough, exactly as an unfiltered one would be.
+ * @return 1 when the caller must drop the option
+ */
+static int
+aio_opt_list_dropped(int argc, char **argv, int i, int *spent)
+{
+    *spent = 0;
+    if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
+        *spent = 1;
+        return xfs_filter_fuse_opts(argv[i + 1]) == 0;
+    }
+    if (strncmp(argv[i], "-o", 2) == 0 && argv[i][2] != '\0') {
+        return xfs_filter_fuse_opts(argv[i] + 2) == 0;
+    }
+    return 0;
+}
+
+
+/* The options that print and end the run rather than configuring the mount.
+ * Returns 1 when `a` was one of them (the caller returns 0 to its own caller,
+ * which exits successfully), 0 otherwise. */
+static int
+aio_opt_terminal(const char *a)
+{
+    if (strcmp(a, "--version") == 0) {
+        printf("xrootdfs (BriX-Cache client) %s\n", brix_client_version());
+        return 1;
+    }
+    if (strcmp(a, "--help") == 0) { usage_fp(stdout); return 1; }   /* WS-2 */
+    if (strcmp(a, "-h") == 0)     { usage();          return 1; }   /* C1 */
+    return 0;
+}
+
+
 static int
 aio_parse_args(int argc, char **argv, char **fuse_argv, int *fuse_argc,
                const char **endpoint)
 {
-    int i;
+    int i, spent;
 
     for (i = 1; i < argc; i++) {
         char *a = argv[i];
         if (a[0] == '-') {
             if (aio_opt_novalue(a)) { continue; }
-            if (i + 1 < argc && aio_opt_conn_value(a, argv[i + 1]))  { i++; continue; }
-            if (i + 1 < argc && aio_opt_cache_value(a, argv[i + 1])) { i++; continue; }
-            if (i + 1 < argc && aio_opt_ident_value(a, argv[i + 1])) { i++; continue; }
-            if (strcmp(a, "--version") == 0) {
-                printf("xrootdfs (BriX-Cache client) %s\n", brix_client_version());
-                return 0;
-            }
-            if (strcmp(a, "--help") == 0) { usage_fp(stdout); return 0; }  /* WS-2 */
-            if (strcmp(a, "-h") == 0)     { usage();          return 0; }  /* C1 */
+            if (aio_opt_value_pair(argc, argv, i)) { i++; continue; }
+            if (aio_opt_terminal(a)) { return 0; }
+            if (aio_opt_list_dropped(argc, argv, i, &spent)) { i += spent; continue; }
         }
         xfs_arg_passthrough(a, a[0] == '-', fuse_argv, fuse_argc, endpoint);
     }

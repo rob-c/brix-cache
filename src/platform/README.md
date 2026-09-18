@@ -7,16 +7,18 @@ be checked against native build and runtime results for each supported host.
 
 | Entry | Responsibility |
 | --- | --- |
-| [platform.h](platform.h) | Host/architecture detection and feature gates; requires configured nginx headers. |
+| [platform.h](platform.h) | Host selection: one computed `#include` of `<host>/host.h` from the build's `-DBRIX_PLATFORM_HOST=linux\|darwin\|windows`; no host conditional. |
+| [platform_arch.h](platform_arch.h) | `BRIX_ARCH_ARM64` / `BRIX_ARCH_X86_64` from the compiler's target macros (instruction set, not OS). |
+| [openat2_abi.h](openat2_abi.h) | The openat2(2) `RESOLVE_*` / `struct open_how` ABI for hosts without `<linux/openat2.h>`. |
 | [platform_api.h](platform_api.h) | Public umbrella for the API families below; callers keep this include. |
 | [platform_api_info.h](platform_api_info.h), [platform_api_lifecycle.h](platform_api_lifecycle.h) | Runtime host information and PAL lifecycle. |
 | [platform_api_file.h](platform_api_file.h), [platform_api_xattr.h](platform_api_xattr.h) | File descriptor, transfer, synchronization, and extended attribute declarations. |
 | [platform_api_event.h](platform_api_event.h) | Events, pipes, and filesystem-watch types and declarations. |
 | [platform_api_security.h](platform_api_security.h), [platform_api_process.h](platform_api_process.h) | Confinement, identity, entropy, and process execution. |
-| [platform_api_endian.h](platform_api_endian.h) | Inline byte-order conversions. |
-| [platform_api_apple.h](platform_api_apple.h), [platform_api_windows.h](platform_api_windows.h) | Conditionally available platform extensions. |
-| [platform_compat.h](platform_compat.h) | Compatibility macros for existing call sites. |
-| [platform_runtime.c](platform_runtime.c) | Runtime host, CPU, memory, and initialization helpers. |
+| [platform_api_endian.h](platform_api_endian.h) | Inline byte-order conversions over the host's `host_endian.h` natives. |
+| [platform_api_posix.h](platform_api_posix.h) | The POSIX surface guaranteed on every host: Linux names (byte order, Linux-shaped xattr calls, O_PATH, SOCK_CLOEXEC, RESOLVE_*, PR_*, CAP_*) and the `brix_plat_*` entry points whose Darwin semantics differ (openat2, renameat2, wake descriptors, peer credentials, birth time, block-device size, ...). |
+| [platform_runtime.c](platform_runtime.c) | Host-free runtime: kernel release, architecture, root check, init. |
+| `<host>/host.h`, `host_endian.h`, `host_posix.h`, `host_api.h`, `host_info.c` | Each host directory's answer to the interface: platform flags and `BRIX_HAS_*` gates, native byte order, its part of the POSIX surface, host-only extensions (Apple Silicon, Win32), name/CPU/memory. Every `#if` on the host lives in these directories. |
 | [linux/](linux/README.md) | Linux syscall, epoll, inotify, optional io_uring/libseccomp, and ARM64 adapters. |
 | [darwin/](darwin/README.md) | macOS syscall, kqueue, filesystem-watch, copy, and CPU/checksum adapters. |
 | [windows/](windows/README.md) | Windows adapters and their platform-specific documentation. |
@@ -47,7 +49,15 @@ for anonymous descriptors, sync, and read-only mappings. Keep existing owners
 when adding PAL entry points to avoid duplicate or unresolved definitions.
 
 Include `platform/platform_api.h` where its declarations are needed and use
-the declared API for platform work. Storage operations continue through the
+the declared API for platform work. The build passes `-DBRIX_PLATFORM_HOST=<host>`
+(`./config`, `client/Makefile`, the host Makefiles); the interface headers select
+the host with that name and carry no `#if`. No production file outside
+`src/platform/<host>/`, `client/lib/platform/<host>/` and `shared/cvmfs/platform/`
+may test an OS macro
+(`__APPLE__`, `__linux__`, `_WIN32`, `BRIX_PLATFORM_*`) or include an
+OS-private header; `tools/ci/check_platform_leak.py` enforces that with no
+backlog and no waiver. Optional features are gated on the `BRIX_HAS_*`
+capability macros `platform.h` defines. Storage operations continue through the
 [VFS](../fs/vfs/), which owns storage and mutation policy.
 
 ## Tests

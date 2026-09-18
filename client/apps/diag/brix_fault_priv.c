@@ -46,6 +46,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -143,30 +145,41 @@ cut_clear(void)
 
 /* ------------------------------------------------------------------- mtu ----- */
 
+/* SIOCGIFMTU / SIOCSIFMTU on a throwaway datagram socket: the one MTU
+ * interface every BSD-derived and Linux kernel shares, so no sysfs read and
+ * no ip(8) child is needed.  `set` < 0 reads; otherwise writes (root only). */
+static int
+mtu_ioctl(int set)
+{
+    struct ifreq ifr;
+    int          fd = socket(AF_INET, SOCK_DGRAM, 0);
+    int          rc;
+
+    if (fd < 0) {
+        return -1;
+    }
+    memset(&ifr, 0, sizeof(ifr));
+    snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s", g_iface);
+    if (set >= 0) {
+        ifr.ifr_mtu = set;
+        rc = ioctl(fd, SIOCSIFMTU, &ifr) == 0 ? 0 : -1;
+    } else {
+        rc = ioctl(fd, SIOCGIFMTU, &ifr) == 0 ? ifr.ifr_mtu : -1;
+    }
+    close(fd);
+    return rc;
+}
+
 static int
 mtu_current(void)
 {
-    char path[64 + IFNAMSIZ];
-    snprintf(path, sizeof(path), "/sys/class/net/%s/mtu", g_iface);
-    FILE *fp = fopen(path, "r");
-    if (!fp) {
-        return -1;
-    }
-    int v = -1;
-    if (fscanf(fp, "%d", &v) != 1) {
-        v = -1;
-    }
-    fclose(fp);
-    return v;
+    return mtu_ioctl(-1);
 }
 
 static int
 mtu_set(int bytes)
 {
-    char bt[16];
-    snprintf(bt, sizeof(bt), "%d", bytes);
-    char *argv[] = { "ip", "link", "set", "dev", g_iface, "mtu", bt, NULL };
-    return priv_run(argv) == 0 ? 0 : -1;
+    return mtu_ioctl(bytes);
 }
 
 /* Handle `priv mtu <bytes>|restore`. Caller holds g_lock. */

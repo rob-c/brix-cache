@@ -24,6 +24,7 @@ from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from fleet_ports import cmdscript_ports
 from lib_py.util import wait_tcp
 from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, SERVER_CERT, SERVER_HOST, SERVER_KEY, TEST_ROOT
+from cmdscripts.compile_run import LZ4_LINK_FLAGS
 
 _PORTS = cmdscript_ports("tap_proxy_live")
 
@@ -410,7 +411,7 @@ CVMFS_CORE = [
 
 BRIX_CONN_LDLIBS = [
     "-lssl", "-lcrypto", "-lz", "-lkrb5", "-lk5crypto", "-lcom_err", "-lzstd", "-llzma",
-    "-lbrotlienc", "-lbrotlidec", "-lbz2", "-l:liblz4.so.1", "-luring", "-lpthread",
+    "-lbrotlienc", "-lbrotlidec", "-lbz2", *LZ4_LINK_FLAGS, "-luring", "-lpthread",
 ]
 
 from split_continuation import load as _load_continuations

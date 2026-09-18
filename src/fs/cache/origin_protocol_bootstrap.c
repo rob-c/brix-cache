@@ -8,12 +8,6 @@
 #include "auth/krb5/carry.h"                /* §5.7 krb5: re-import delegated TGT from carried FILE ccache */
 #include <stdio.h>                        /* fdopen/fgets for the keytab reader */
 
-
-#if defined(__linux__)
-/* PAL endian ops now in platform_api.h
- * brix_plat_htobe64/brix_plat_be64toh cross-platform
- */
-#endif
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>

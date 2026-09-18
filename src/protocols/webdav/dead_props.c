@@ -15,7 +15,7 @@
 
 #include <errno.h>
 #include <string.h>
-#include <sys/xattr.h>
+#include "platform/platform_api.h"
 #include "core/compat/alloc_guard.h"
 
 #include "dead_props_internal.h"
@@ -238,6 +238,10 @@ webdav_dead_prop_read_value(const webdav_dead_prop_target_t *t,
         if (errno == ENODATA || errno == ENOATTR) {
             return NGX_DECLINED;
         }
+        /* Anything else fails the whole PROPFIND with a 500; say why. */
+        ngx_log_error(NGX_LOG_WARN, t->r->connection->log, errno,
+                      "brix_webdav: dead property \"%s\" read on \"%s\" failed",
+                      attr, t->path);
         return NGX_ERROR;
     }
 

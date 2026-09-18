@@ -10,7 +10,7 @@ def _check_test_xattr_key_set_parity_2(keys_o, common, keys_f):
 
 _reexport(globals(), "_test_conf_xrdcl_locate_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_xrdcl_locate_b")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_xrdcl_locate_b")]
 
 CKSUM_FILES = ["/cksum.bin", "/data.bin", "/hello.txt"]
 CKSUM_ALGOS = [("adler32", ref_adler32), ("crc32", ref_crc32),

@@ -56,6 +56,7 @@ from settings import BIND_HOST, HOST, SERVER_HOST
 
 # The client wire is test_zip_member.py's: handshake, login, kXR_open.
 from test_zip_member import _open, _session, kXR_ok
+from lib_py.util import pid_alive
 
 NAME = "lc-audit16y-uptls"
 _EXTRA = LIFECYCLE_SHARED_PORTS[NAME]["extra"]
@@ -458,7 +459,7 @@ class TestEightPlanesOneWorker:
     def test_one_pid_owns_all_eight(self, uptls):
         with open(uptls["endpoint"].pidfile, encoding="utf-8") as handle:
             pid = int(handle.read().strip())
-        assert os.path.isdir(f"/proc/{pid}")
+        assert pid_alive(pid), f"the worker that owns every plane is gone: {pid}"
 
     def test_the_stub_ports_are_the_only_other_listeners(self, uptls):
         for name in ("STUB_GOOD_PORT", "STUB_EVIL_PORT", "STUB_OTHER_PORT"):

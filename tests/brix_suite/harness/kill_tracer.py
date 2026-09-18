@@ -108,11 +108,34 @@ def _group_server(pgid):
     return None
 
 
+def _killpg_target(pgid, sig, fatal):
+    """A label for a fatal killpg worth recording, else None.
+
+    Two cases matter. A group holding a fleet server is the one this tracer was
+    written for. The other is a group that is OURS: the pytest session — the
+    controller and every xdist worker — shares one process group, so a killpg
+    on it ends the whole run at once, with no summary and no traceback, and
+    every worker reporting only "cannot send (already closed?)". That is always
+    a bug (a recycled pid whose group is now ours, or a server started without
+    its own session), and until now it was the one kill the tracer could not
+    see, because the group holds no server for _group_server to recognise.
+    """
+    if int(sig) not in fatal:
+        return None
+    try:
+        if pgid == os.getpgrp():
+            return f"THE PYTEST SESSION'S OWN process group (pg{pgid})"
+    except OSError:
+        pass
+    name = _group_server(pgid)
+    return f"{name}(pg{pgid})" if name else None
+
+
 def _trace_killpg(pgid, sig, *, real_killpg, fatal):
     try:
-        name = _group_server(pgid) if int(sig) in fatal else None
-        if name:
-            _log(f"{name}(pg{pgid})", sig, "os.killpg")
+        target = _killpg_target(pgid, sig, fatal)
+        if target:
+            _log(target, sig, "os.killpg")
     except Exception:
         pass
     return real_killpg(pgid, sig)

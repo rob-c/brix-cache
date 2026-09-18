@@ -15,11 +15,11 @@
 #include <krb5.h>
 #include <gssapi/gssapi.h>
 #include <gssapi/gssapi_krb5.h>
+#include "platform/platform_api.h"   /* BRIX_HAS_GSS_KRB5_IMPORT_CRED */
 
-/* macOS Heimdal lacks gss_krb5_import_cred (MIT Kerberos-specific) */
-#if defined(__APPLE__) && defined(__MACH__)
-/* Heimdal doesn't have gss_krb5_import_cred or gss_acquire_cred_from */
-/* For now, skip GSS cred import on macOS - krb5 ccache still works */
+/* Heimdal (Darwin) lacks gss_krb5_import_cred / gss_acquire_cred_from
+ * (MIT Kerberos-specific): skip GSS cred import there - krb5 ccache still works */
+#if !BRIX_HAS_GSS_KRB5_IMPORT_CRED
 #define BRIX_SKIP_GSS_IMPORT 1
 #endif
 

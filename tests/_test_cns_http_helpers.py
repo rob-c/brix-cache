@@ -121,9 +121,12 @@ def _await_link(mgr_port, ds_port):
 
     Sleeping a fixed interval instead would either flake on a slow host or waste
     the difference on a fast one; this waits on the actual precondition."""
-    probe = f"/link-probe-{uuid.uuid4().hex}.dat"
     from test_cns import _write_file
     for _ in range(12):
+        # A FRESH name per round: _write_file opens with kXR_new, so reusing
+        # one name makes the retry this loop exists for fail with "file
+        # already exists" the moment the first round does not win.
+        probe = f"/link-probe-{uuid.uuid4().hex}.dat"
         _write_file(ds_port, probe, b"link-probe")
         if _poll_manager(mgr_port, probe, want_ok=True, tries=8) == kXR_ok:
             return

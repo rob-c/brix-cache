@@ -140,6 +140,21 @@ k8s-tests/remote-suite/tests/nginx-bin
 # versioned shared-lib artifacts (the *.so pattern misses these)
 client/libbrix.so.*
 
+# macOS build outputs. A Mach-O shared library carries its version BEFORE the
+# extension (libbrix.dylib -> libbrix.0.dylib -> libbrix.0.1.0.dylib, alongside
+# libbrixposix_preload.dylib), so unlike the .so soname chain above a single
+# pattern catches every link in the chain. *.dSYM is the debug-info bundle a
+# -g link splits out. The object / archive / dependency intermediates a Darwin
+# build drops are the same shapes the *.o, *.a and *.d rules above cover, and
+# the tools themselves land in the already-ignored client/bin/.
+*.dylib
+*.dSYM
+
+# AppleDouble sidecars: macFUSE mirrors every file it creates as "._name"
+# unless the mount carries -o noappledouble, and unzip / tar / a copy onto a
+# non-native volume do the same. They are metadata, never source.
+._*
+
 # committed-by-accident compiled server binary
 tests/nginx-bin
 

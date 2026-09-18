@@ -7,7 +7,13 @@ The nginx build supplies the configured headers and optional library flags.
 
 | File | Responsibility |
 | --- | --- |
+| [host.h](host.h), [host_endian.h](host_endian.h), [host_posix.h](host_posix.h), [host_api.h](host_api.h) | The Linux answer to the PAL interface: platform flags and `BRIX_HAS_*` gates (io_uring/seccomp/CephFS/FUSE from the build probes), `<endian.h>` natives, the glibc/kernel headers of the POSIX surface, no host-only extensions. |
+| [host_info.c](host_info.c) | `brix_plat_name`, CPU count, total/available memory (sysconf, sysinfo). |
 | [posix_wrapper.c](posix_wrapper.c) | File transfers, descriptor operations, filesystem identity, randomness, xattrs, and process execution. |
+| [path_wrapper.c](path_wrapper.c) | openat2(2), the confined stat (O_PATH + fstat), renameat2(2) and the statx birth time. |
+| [process_wrapper.c](process_wrapper.c) | eventfd wake descriptors, accept4, SO_PEERCRED, close_range / procfs close-from, getgrouplist, `/proc/self/exe` and the boot id; libc-only, also linked by the native client. |
+| [storage_wrapper.c](storage_wrapper.c) | BLKGETSIZE64, F_ADD_SEALS, fallocate(KEEP_SIZE) reserve with ENOSPC release, preadv2, pwrite on O_APPEND, pipe2, copy_file_range; libc-only, also linked by the native client. |
+| [priv_wrapper.c](priv_wrapper.c) | setres*/getres*, prctl, capget/capset, secure_getenv, crypt (module-only: libcrypt). |
 | [event_wrapper.c](event_wrapper.c) | The `brix_platform_event_*` epoll interface. |
 | [fs_watcher.c](fs_watcher.c) | Inotify watcher registration, removal, and event decoding; unavailable builds return `ENOSYS`. |
 | [aio_wrapper.c](aio_wrapper.c) | io_uring submission and completion handling when liburing is enabled; unavailable builds return `ENOSYS`. |

@@ -114,6 +114,8 @@ brix_merge_srv_x509(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_uint_value(conf->signing_policy_mode,
                               prev->signing_policy_mode, BRIX_SP_MODE_ON);
     ngx_conf_merge_uint_value(conf->crl_mode, prev->crl_mode, BRIX_CRL_MODE_TRY);
+    ngx_conf_merge_uint_value(conf->legacy_proxy_mode, prev->legacy_proxy_mode,
+                              BRIX_LEGACY_PROXY_ON);
     /* 2.0 F19: same defaults as the http plane — widest CRL reach, silent log. */
     ngx_conf_merge_uint_value(conf->crl_scope, prev->crl_scope,
                               BRIX_CRL_SCOPE_ALL);

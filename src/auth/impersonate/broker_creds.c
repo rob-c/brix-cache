@@ -4,64 +4,10 @@
  */
 #include "broker_internal.h"
 #include "core/seccomp/seccomp_core.h"
+#include "platform/platform_api.h"
 
 #include <unistd.h>
 
-/* macOS lacks Linux capabilities - provide stubs */
-#if defined(__APPLE__) && defined(__MACH__)
-#include <stdint.h>
-typedef uint32_t __u32;
-/* Stub capability structures */
-struct __user_cap_header_struct {
-    __u32 version;
-    int pid;
-};
-struct __user_cap_data_struct {
-    __u32 effective;
-    __u32 permitted;
-    __u32 inheritable;
-};
-static inline int getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid) {
-    *rgid = getgid();
-    *egid = getegid();
-    *sgid = getgid();
-    return 0;
-}
-#ifndef _LINUX_CAPABILITY_VERSION_3
-#define _LINUX_CAPABILITY_VERSION_3 0x20080522
-#endif
-#ifndef CAP_SETUID
-#define CAP_SETUID 7
-#endif
-#ifndef CAP_SETGID
-#define CAP_SETGID 6
-#endif
-#ifndef CAP_LAST_CAP
-#define CAP_LAST_CAP 40
-#endif
-/* macOS lacks setresuid/setresgid/getresuid - use seteuid/setegid */
-static inline int setresuid(uid_t ruid, uid_t euid, uid_t suid) {
-    (void)ruid; (void)suid;
-    return seteuid(euid);
-}
-static inline int setresgid(gid_t rgid, gid_t egid, gid_t sgid) {
-    (void)rgid; (void)sgid;
-    return setegid(egid);
-}
-static inline int getresuid(uid_t *ruid, uid_t *euid, uid_t *suid) {
-    *ruid = getuid();
-    *euid = geteuid();
-    *suid = getuid();
-    return 0;
-}
-/* prctl stubs for macOS */
-#ifndef PR_SET_KEEPCAPS
-#define PR_SET_KEEPCAPS 8
-#endif
-#ifndef PR_CAPBSET_DROP
-#define PR_CAPBSET_DROP 24
-#endif
-#endif
 
 
 /* Broker base credentials, captured at startup; restored after each op. */
@@ -127,7 +73,7 @@ imp_capset_setuid_setgid(int with_effective, ngx_log_t *log)
     data[0].permitted   = (1u << CAP_SETUID) | (1u << CAP_SETGID);
     data[0].effective   = with_effective ? data[0].permitted : 0;
     data[0].inheritable = 0;
-    if (syscall(SYS_capset, &hdr, data) != 0) {
+    if (brix_plat_capset(&hdr, data) != 0) {
         if (log) ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
                                "impersonate broker: capset failed");
         return -1;
@@ -189,15 +135,15 @@ imp_apply_service_drop(ngx_log_t *log, uid_t svc_uid, gid_t svc_gid)
 {
     gid_t one[1];
 
-    if (prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) != 0) {
+    if (brix_plat_prctl(PR_SET_KEEPCAPS, 1) != 0) {
         if (log) ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
                                "impersonate broker: PR_SET_KEEPCAPS failed");
         return -1;
     }
     one[0] = svc_gid;
     if (syscall(SYS_setgroups, (size_t) 1, one) != 0
-        || setresgid(svc_gid, svc_gid, svc_gid) != 0
-        || setresuid(svc_uid, svc_uid, svc_uid) != 0)
+        || brix_plat_setresgid(svc_gid, svc_gid, svc_gid) != 0
+        || brix_plat_setresuid(svc_uid, svc_uid, svc_uid) != 0)
     {
         if (log) BRIX_DIAG_EMERG(log, ngx_errno,
             "impersonate broker: cannot drop to service uid %d",
@@ -208,7 +154,7 @@ imp_apply_service_drop(ngx_log_t *log, uid_t svc_uid, gid_t svc_gid)
             (int) svc_uid);
         return -1;
     }
-    (void) prctl(PR_SET_KEEPCAPS, 0, 0, 0, 0);
+    (void) brix_plat_prctl(PR_SET_KEEPCAPS, 0);
 
     /* Effective caps were cleared by the uid transition; re-raise the two we kept
      * (permitted retained them via KEEPCAPS). */
@@ -239,7 +185,7 @@ imp_verify_service_drop(ngx_log_t *log, uid_t svc_uid, gid_t svc_gid)
     uid_t ru, eu, su;
     gid_t rg, eg, sg;
 
-    if (getresuid(&ru, &eu, &su) != 0 || getresgid(&rg, &eg, &sg) != 0
+    if (brix_plat_getresuid(&ru, &eu, &su) != 0 || brix_plat_getresgid(&rg, &eg, &sg) != 0
         || ru != svc_uid || eu != svc_uid || su != svc_uid
         || rg != svc_gid || eg != svc_gid || sg != svc_gid)
     {
@@ -304,7 +250,7 @@ imp_drop_bounding_caps(ngx_log_t *log)
         if (cap == CAP_SETUID || cap == CAP_SETGID) {
             continue;
         }
-        if (prctl(PR_CAPBSET_DROP, cap, 0, 0, 0) != 0 && ngx_errno != EINVAL) {
+        if (brix_plat_prctl(PR_CAPBSET_DROP, cap) != 0 && ngx_errno != EINVAL) {
             if (log) ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
                                    "impersonate broker: CAPBSET_DROP(%d) failed",
                                    cap);
@@ -348,7 +294,7 @@ int
 brix_imp_broker_drop_caps(ngx_log_t *log)
 {
     /* No new privileges (defence in depth: no setuid-binary escalation). */
-    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
+    if (brix_plat_prctl(PR_SET_NO_NEW_PRIVS, 1) != 0) {
         if (log) ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
                                "impersonate broker: PR_SET_NO_NEW_PRIVS failed");
         return -1;
@@ -442,18 +388,18 @@ imp_become(const brix_idmap_creds_t *cr)
     if (syscall(SYS_setgroups, (size_t) cr->ngroups, cr->groups) != 0) {
         return -1;
     }
-    (void) setfsgid(cr->gid);
-    if ((gid_t) setfsgid((gid_t) -1) != cr->gid) {
+    (void) brix_plat_setfsgid(cr->gid);
+    if ((gid_t) brix_plat_setfsgid((gid_t) -1) != cr->gid) {
         return -1;
     }
-    (void) setfsuid(cr->uid);
-    if ((uid_t) setfsuid((uid_t) -1) != cr->uid) {
+    (void) brix_plat_setfsuid(cr->uid);
+    if ((uid_t) brix_plat_setfsuid((uid_t) -1) != cr->uid) {
         return -1;                       /* fsuid did not take — refuse the op */
     }
 
     /* Re-verify the realized fs-credentials are non-reserved before any file op. */
-    got_uid = (uid_t) setfsuid((uid_t) -1);
-    got_gid = (gid_t) setfsgid((gid_t) -1);
+    got_uid = (uid_t) brix_plat_setfsuid((uid_t) -1);
+    got_gid = (gid_t) brix_plat_setfsgid((gid_t) -1);
     /* phase74-fp: the "== 0" clauses are subsumed by "< BRIX_IMP_HARD_MIN_ID"
      * only while the floor stays above 0 — root exclusion is an independent
      * invariant that must survive any future lowering of the floor, so the
@@ -471,8 +417,8 @@ imp_become(const brix_idmap_creds_t *cr)
 void
 imp_restore(void)
 {
-    (void) setfsuid(brix_imp_get_base_uid());
-    (void) setfsgid(brix_imp_get_base_gid());
+    (void) brix_plat_setfsuid(brix_imp_get_base_uid());
+    (void) brix_plat_setfsgid(brix_imp_get_base_gid());
     (void) syscall(SYS_setgroups, (size_t) brix_imp_get_base_ngroups(),
                    brix_imp_get_base_groups());
 }

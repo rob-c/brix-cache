@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_statx_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_statx")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_statx")]
 
 @pytest.mark.parametrize("path", [
     "/hello.txt", "/data.bin", "/empty.txt", "/cksum.bin", "/big1m.bin",

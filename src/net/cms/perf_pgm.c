@@ -23,36 +23,12 @@
 
 #include "cms_internal.h"
 #include "perf_pgm.h"
+#include "platform/platform_api.h"
 
 #include <spawn.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
-
-/* macOS compatibility */
-#if defined(__APPLE__) && defined(__MACH__)
-/* pipe2 doesn't exist on macOS - use pipe + fcntl */
-static int brix_pipe2_compat(int pipefd[2], int flags) {
-    if (pipe(pipefd) < 0) return -1;
-    if (flags & O_CLOEXEC) {
-        fcntl(pipefd[0], F_SETFD, FD_CLOEXEC);
-        fcntl(pipefd[1], F_SETFD, FD_CLOEXEC);
-    }
-    return 0;
-}
-#define pipe2(pipefd, flags) brix_pipe2_compat(pipefd, flags)
-/* posix_spawn_file_actions_addclosefrom_np doesn't exist on macOS - stub it */
-static int brix_posix_spawn_file_actions_addclosefrom_np_compat(posix_spawn_file_actions_t *fa, int fromfd) {
-    /* macOS lacks addclosefrom_np - close fds 3-256 individually */
-    int fd, rc = 0;
-    for (fd = fromfd; fd < BRIX_CMS_MAX_CONNECTIONS_PER_IP; fd++) {
-        rc = posix_spawn_file_actions_addclose(fa, fd);
-        if (rc != 0) break;
-    }
-    return rc;
-}
-#define posix_spawn_file_actions_addclosefrom_np(fa, fromfd) brix_posix_spawn_file_actions_addclosefrom_np_compat(fa, fromfd)
-#endif
 #include <sys/wait.h>
 
 extern char **environ;
@@ -258,12 +234,13 @@ perf_spawn(brix_cms_perf_t *pf)
 {
     int                          fds[2];
     posix_spawn_file_actions_t   fa;
+    posix_spawnattr_t            attr;
     char                        *argv[4];
     ngx_connection_t            *c;
     pid_t                        pid;
     int                          rc;
 
-    if (pipe2(fds, O_CLOEXEC) != 0) {
+    if (brix_plat_pipe2(fds, BRIX_PIPE_CLOEXEC) != 0) {
         ngx_log_error(NGX_LOG_ERR, pf->cycle->log, ngx_errno,
                       "brix: cms perf pgm: pipe2 failed");
         perf_teardown(pf);
@@ -271,6 +248,7 @@ perf_spawn(brix_cms_perf_t *pf)
     }
 
     posix_spawn_file_actions_init(&fa);
+    posix_spawnattr_init(&attr);
     posix_spawn_file_actions_adddup2(&fa, fds[1], 1);
 
     /* The nginx worker's listening sockets are intentionally inherited by
@@ -279,8 +257,9 @@ perf_spawn(brix_cms_perf_t *pf)
      * fail to bind the same CMS-node ports.  closefrom runs after dup2, so the
      * child keeps stdin/stdout/stderr while every inherited descriptor >= 3
      * is closed before /bin/sh starts. */
-    rc = posix_spawn_file_actions_addclosefrom_np(&fa, 3);
+    rc = brix_plat_spawn_closefrom(&fa, &attr, 3);
     if (rc != 0) {
+        posix_spawnattr_destroy(&attr);
         posix_spawn_file_actions_destroy(&fa);
         close(fds[0]);
         close(fds[1]);
@@ -295,7 +274,8 @@ perf_spawn(brix_cms_perf_t *pf)
     argv[2] = (char *) pf->pgm.data;
     argv[3] = NULL;
 
-    rc = posix_spawn(&pid, "/bin/sh", &fa, NULL, argv, environ);
+    rc = posix_spawn(&pid, "/bin/sh", &fa, &attr, argv, environ);
+    posix_spawnattr_destroy(&attr);
     posix_spawn_file_actions_destroy(&fa);
     close(fds[1]);
 

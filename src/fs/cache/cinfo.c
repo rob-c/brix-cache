@@ -20,7 +20,7 @@
 #include <string.h>
 #include <sys/file.h>
 #include <sys/stat.h>
-#include <sys/xattr.h>
+#include "platform/platform_api.h"   /* Linux-shaped xattr calls on every host */
 #include <time.h>
 #include <unistd.h>
 

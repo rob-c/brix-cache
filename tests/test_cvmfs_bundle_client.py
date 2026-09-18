@@ -78,6 +78,7 @@ def _guard_bd_mount_3(proc):
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402
+from lib_py.fuse_host import FUSE_READY  # noqa: E402
 from repo_forge import Dir, File, RepoForge  # noqa: E402
 from settings import BIND_HOST, HOST
 
@@ -85,8 +86,7 @@ REPO = "test.cern.ch"
 TTL = 3600
 MISS = 0xFFFFFFFFFFFFFFFF
 
-_FUSE_READY = (os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
-               and os.path.exists(BRIXMOUNT))
+_FUSE_READY = FUSE_READY and os.path.exists(BRIXMOUNT)
 pytestmark = pytest.mark.skipif(not _FUSE_READY, reason="fuse mount prerequisites missing")
 
 

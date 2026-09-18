@@ -47,6 +47,7 @@ import time
 
 import pytest
 
+from lib_py import fuse_host
 from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 
 def _guard_built_1():
@@ -55,7 +56,7 @@ def _guard_built_1():
 
 def _guard_built_2():
     if not _FUSE_OK:
-        pytest.skip("no /dev/fuse or fusermount3")
+        pytest.skip(fuse_host.SKIP_REASON)
 
 def _guard_built_3(proc):
     if proc.returncode != 0:
@@ -75,7 +76,7 @@ XROOTDFS = _XROOTDFS_NAME if os.path.isabs(_XROOTDFS_NAME) \
     else os.path.join(CLIENT_DIR, "bin", _XROOTDFS_NAME)
 ANON_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}/"
 
-_FUSE_OK = os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
+_FUSE_OK = fuse_host.FUSE_READY
 
 # Long enough that a slow-but-working read still passes, short enough that the
 # regression (an infinite block) is reported as a failure in reasonable time.
@@ -131,11 +132,11 @@ class _DaemonMount:
     def detach(self):
         """Lazily unmount. Idempotent, and safe while a read is wedged.
 
-        `-z` (detach now, clean up when idle) is required, not cosmetic: a plain
-        `fusermount3 -u` refuses a busy mount, and the mount is busy precisely
+        A lazy detach (clean up when idle) is required, not cosmetic: a plain
+        unmount refuses a busy mount, and the mount is busy precisely
         when a reader is stuck in it.
         """
-        subprocess.run(["fusermount3", "-u", "-z", self.mnt], capture_output=True)
+        fuse_host.unmount(self.mnt, lazy=True)
         for _ in range(100):
             if not os.path.ismount(self.mnt):
                 return
@@ -166,7 +167,7 @@ def _mount_daemonized(*conn_args):
     proc = subprocess.run([XROOTDFS, *conn_args, ANON_URL, mnt],
                           env=env, capture_output=True, text=True, timeout=60)
     if proc.returncode != 0 or not os.path.ismount(mnt):
-        subprocess.run(["fusermount3", "-u", "-z", mnt], capture_output=True)
+        fuse_host.unmount(mnt, lazy=True)
         try:
             os.rmdir(mnt)
         except OSError:
@@ -226,7 +227,7 @@ def _read_with_deadline(m, path):
     return _run_with_deadline(m, ["cat", path])
 
 
-@pytest.mark.skipif(not _FUSE_OK, reason="no /dev/fuse or fusermount3")
+@pytest.mark.skipif(not _FUSE_OK, reason=fuse_host.SKIP_REASON)
 def test_daemonized_read_returns_bytes(built, remote_file):
     """The regression: metadata worked, read() blocked forever."""
     name, payload = remote_file
@@ -244,7 +245,7 @@ def test_daemonized_read_returns_bytes(built, remote_file):
             "daemonized FUSE read bytes differ from origin"
 
 
-@pytest.mark.skipif(not _FUSE_OK, reason="no /dev/fuse or fusermount3")
+@pytest.mark.skipif(not _FUSE_OK, reason=fuse_host.SKIP_REASON)
 def test_daemonized_metadata_still_works(built, remote_file):
     """readdir + stat: healthy both before and after the fix — the control."""
     name, payload = remote_file
@@ -253,7 +254,7 @@ def test_daemonized_metadata_still_works(built, remote_file):
         assert os.stat(os.path.join(m.mnt, name)).st_size == len(payload)
 
 
-@pytest.mark.skipif(not _FUSE_OK, reason="no /dev/fuse or fusermount3")
+@pytest.mark.skipif(not _FUSE_OK, reason=fuse_host.SKIP_REASON)
 def test_daemonized_mount_is_live_when_launcher_returns(built, remote_file):
     """No sleep, no poll: `xrootdfs … && cat` must not race the mount.
 
@@ -271,7 +272,7 @@ def test_daemonized_mount_is_live_when_launcher_returns(built, remote_file):
         assert _md5(out) == _md5(payload)
 
 
-@pytest.mark.skipif(not _FUSE_OK, reason="no /dev/fuse or fusermount3")
+@pytest.mark.skipif(not _FUSE_OK, reason=fuse_host.SKIP_REASON)
 def test_daemonized_write_reaches_origin(built):
     """A write through a daemonized mount lands in the export."""
     payload = os.urandom(65536)
@@ -297,7 +298,7 @@ def test_daemonized_write_reaches_origin(built):
             pass
 
 
-@pytest.mark.skipif(not _FUSE_OK, reason="no /dev/fuse or fusermount3")
+@pytest.mark.skipif(not _FUSE_OK, reason=fuse_host.SKIP_REASON)
 def test_daemonized_unreachable_endpoint_exits_nonzero(built):
     """Daemonizing must not swallow the failure.
 
@@ -319,14 +320,14 @@ def test_daemonized_unreachable_endpoint_exits_nonzero(built):
             f"connect failure produced no diagnostic on stderr: {p.stderr!r}"
         assert not os.path.ismount(mnt), "failed mount left something mounted"
     finally:
-        subprocess.run(["fusermount3", "-u", "-z", mnt], capture_output=True)
+        fuse_host.unmount(mnt, lazy=True)
         try:
             os.rmdir(mnt)
         except OSError:
             pass
 
 
-@pytest.mark.skipif(not _FUSE_OK, reason="no /dev/fuse or fusermount3")
+@pytest.mark.skipif(not _FUSE_OK, reason=fuse_host.SKIP_REASON)
 def test_daemonized_detaches_from_terminal_and_cwd(built, remote_file):
     """security-neg: the daemon must not keep a handle on the invoking shell.
 

@@ -31,17 +31,8 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <sys/wait.h>
+#include "platform/platform_api.h"
 
-
-/* Additional macOS compatibility */
-#if defined(__APPLE__) && defined(__MACH__)
-#ifndef SOCK_CLOEXEC
-#define SOCK_CLOEXEC 0
-#endif
-#ifndef O_PATH
-#define O_PATH O_RDONLY
-#endif
-#endif
 
 extern ngx_uint_t ngx_test_config;       /* set during `nginx -t` */
 

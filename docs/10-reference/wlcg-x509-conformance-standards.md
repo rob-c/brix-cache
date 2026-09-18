@@ -54,7 +54,7 @@ wire.
 |---|---|---|---|
 | **RFC 5280** | Internet X.509 PKI Certificate and CRL Profile | Chain building and PKIX path validation; certificate validity windows; `keyUsage` (`digitalSignature`, `keyCertSign`); `extendedKeyUsage` (`clientAuth`/`anyExtendedKeyUsage`); `basicConstraints` (CA:TRUE/FALSE, pathlen); serial-number limits (≤20 octets, no NUL bytes in DN); CRL structure, `nextUpdate`, revocation, and delta-CRL indicators | CHN, CRL, per-cert policy (`brix_cert_policy_violation`, `brix_leaf_purpose_violation`) |
 | **RFC 3820** | Internet X.509 PKI Proxy Certificate Profile | Proxy certificates: the `proxyCertInfo` (PCI) extension **must be critical**; recognized policy-language OIDs (`1.3.6.1.5.5.7.21.1` impersonation / `.21.2` independent / Globus limited `1.3.6.1.4.1.3536.1.1.1.9`); path-length delegation limits; and the **§3.8 monotonicity rule** — a full proxy must not appear beneath a limited proxy | PXY (proxy classification + monotonicity) |
-| **RFC 5755** | An Internet Attribute Certificate Profile for Authorization | VOMS attribute certificates (VO/group/role FQANs) carried as X.509 ACs | VMS / VOMS boundary (via `libvomsapi`, on the `root://` surface) |
+| **RFC 5755** | An Internet Attribute Certificate Profile for Authorization | VOMS attribute certificates (VO/group/role FQANs) carried as X.509 ACs | VMS / VOMS (native verifier `shared/voms/`, every GSI surface) |
 | **RFC 6960** | X.509 Internet PKI Online Certificate Status Protocol (OCSP) | Real-time revocation status | *Out of scope* beyond not regressing the existing optional OCSP path (design non-goal) |
 | **RFC 5246 / RFC 8446** | TLS 1.2 / TLS 1.3 | The mutual-TLS transport that carries the client certificate on the `davs://` surface — the X.509 credential is the client-authentication side of the TLS handshake | the `davs://` wire surface (all e2e families) |
 
@@ -201,7 +201,8 @@ upstream-behaviour evidence.
 - **EUGridPMA `.namespaces`** enforcement is intentionally not implemented
   (`signing_policy` is the operative WLCG mechanism, matching Globus/XRootD).
 - **OCSP** is out of scope beyond not regressing the existing optional path.
-- **VOMS AC** validation is unchanged (via `libvomsapi`, `root://` surface).
+- **VOMS AC** validation is the native verifier in `shared/voms/` (holder binding,
+  validity, signature, signer chain against `brix_voms_cert_dir`, vomsdir LSC).
 - An **MD5-only** CA hash link is not found by OpenSSL's new-SHA-1 `X509_STORE`
   lookup and therefore rejected — a documented interaction, not a bug (WLCG ships
   both hash links).

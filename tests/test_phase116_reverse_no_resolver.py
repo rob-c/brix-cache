@@ -37,6 +37,7 @@ from _phase116_helpers import HAVE_NGINX, BIND_HOST, kXR_error, kXR_ok, stat
 from config_parse import nginx_t
 from fleet_lifecycle_ports import SHARED_PARSE_PLACEHOLDER_PORT
 from server_registry import NginxInstanceSpec
+from lib_py.util import loopback_alias_usable
 
 pytestmark = [pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness,
@@ -64,12 +65,21 @@ def peer_name() -> str:
 
 @pytest.fixture(scope="module")
 def nameless_peer() -> str:
-    """A loopback source address the host resolves to no name at all."""
+    """A loopback source address the host resolves to no name at all AND can
+    bind as a connection source.
+
+    Both halves matter. Linux answers for the whole 127/8 range, so nameless
+    implies usable there. macOS binds only 127.0.0.1, so every other address is
+    nameless and unusable at once: picking one produced a refused connection
+    that said nothing about the reverse-DNS behaviour under test. Requiring the
+    bind keeps Linux identical and turns this into an honest skip elsewhere.
+    """
     for last in range(3, 24):
         ip = f"127.0.0.{last}"          # net-literal-allow: loopback peer probe
-        if _ptr(ip) is None:
+        if _ptr(ip) is None and loopback_alias_usable(ip):
             return ip
-    pytest.skip("every loopback address on this host has a PTR name")
+    pytest.skip("no loopback address here is both nameless and bindable as a "
+                "source; sudo ifconfig lo0 alias 127.0.0.3 up provides one")
 
 
 @pytest.fixture()

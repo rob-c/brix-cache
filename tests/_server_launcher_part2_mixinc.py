@@ -157,6 +157,12 @@ class _RegistryLauncherMixinC:
             with open(f"/proc/{pid}/stat", "rb") as fh:
                 suffix = fh.read().rsplit(b")", 1)[1].split()
         except (OSError, IndexError):
+            if not os.path.isdir("/proc"):
+                # No procfs (Darwin/BSD): ask ps(1); "every pid has exited"
+                # left the reference xrootd daemons alive through stop-all.
+                from brix_suite.launcher.internals import (  # noqa: PLC0415
+                    _process_exited_without_procfs)
+                return _process_exited_without_procfs(pid)
             return True
         # Field 3 is the first token after the rightmost ')' of comm.  Do not
         # split the complete line: a process name may itself contain spaces or
@@ -212,9 +218,9 @@ class _RegistryLauncherMixinC:
         try:
             # <prefix>/logs/nginx.pid -> <prefix>, matched as-passed to `nginx -p`.
             prefix = os.path.dirname(os.path.dirname(str(pidfile)))
-            with open(f"/proc/{pid}/cmdline", "rb") as _fh:
-                cmdline = _fh.read().replace(b"\0", b" ").decode("utf-8", "replace")
-            if prefix and prefix not in cmdline:
+            from lib_py.util import process_cmdline  # noqa: PLC0415
+            cmdline = process_cmdline(pid).decode("utf-8", "replace")
+            if prefix and prefix not in cmdline:      # empty cmdline: gone/foreign
                 return
         except OSError:
             return

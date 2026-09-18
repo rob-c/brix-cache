@@ -12,6 +12,9 @@ import time
 from pathlib import Path
 
 import pytest
+
+from lib_py.util import budget_scale
+from brix_suite import host_caps
 import fleet_declares
 from brix_suite.harness.xdist_groups import (
     configure_group_failfast,
@@ -127,11 +130,69 @@ def _force_loadgroup(config):
             "mass bind() 'Address already in use' cascades.\n")
 
 
+def _float_or_zero(value):
+    """``value`` as a float, or 0.0 when it is absent or not a number."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _timeout_base(config, opt):
+    """The per-test timeout in force before scaling: an explicit ``--timeout``
+    outranks pytest.ini's default, matching pytest-timeout's own order."""
+    base = getattr(opt, "timeout", None)
+    if base is not None:
+        return _float_or_zero(base)
+    return _float_or_zero(config.getini("timeout"))
+
+
+def _announce_timeout(config, base, scaled, scale):
+    """Say so once. Every xdist worker runs this hook, so only the controller
+    (the process without a workerinput) writes the line."""
+    if hasattr(config, "workerinput"):
+        return
+    sys.stderr.write(
+        "\n[conftest] per-test timeout %.0fs -> %.0fs "
+        "(TEST_BUDGET_SCALE=%g)\n" % (base, scaled, scale))
+
+
+def _scale_timeout(config):
+    """Stretch pytest.ini's per-test timeout by ``TEST_BUDGET_SCALE``.
+
+    The 30 s default is sized for the CI reference host. On a slower or busier
+    machine the operator already declares how much slower it is, and every
+    other wall-clock budget in the suite scales through ``budget_scale()``; a
+    per-test timeout that ignores it turns ordinary host load into a lane
+    abort. Seen on a 12-core laptop at load average 200+: a module fixture's
+    plain localhost connect to a just-started instance exceeded 30 s, killing
+    the lane at 8% while the same file passed standalone in 8 s.
+
+    Only ever lengthens (``budget_scale()`` floors at 1.0), and a host that
+    declares nothing keeps the reference 30 s exactly.
+    """
+    opt = getattr(config, "option", None)
+    scale = budget_scale()
+
+    if opt is None or scale <= 1.0:
+        return
+    base = _timeout_base(config, opt)
+    if base <= 0:
+        return
+
+    scaled = base * scale
+    opt.timeout = scaled
+    if getattr(config, "_env_timeout", None):
+        config._env_timeout = scaled   # the plugin may already have resolved it
+    _announce_timeout(config, base, scaled, scale)
+
+
 def pytest_configure(config):
     """Register markers and confine process scratch beneath ``TEST_ROOT``."""
     global _pytest_config
     _pytest_config = config
     _force_loadgroup(config)   # never let plain --dist load defeat the port pins
+    _scale_timeout(config)     # a busy host must not read as a test failure
     configure_group_failfast(config)
 
     os.makedirs(TMP_DIR, exist_ok=True)
@@ -333,10 +394,11 @@ def _required_specs_for(items) -> set:
 
 
 def _specs_to_boot(items):
-    """Return the registered fixed-port fleet after collection."""
+    """Return the registered fixed-port fleet after collection, minus members
+    this host cannot start (``brix_suite.host_caps``; their tests are skipped)."""
     del items
     _register_fleet()
-    return registered_specs()
+    return host_caps.boot_specs(registered_specs())
 
 
 def _autouse_specs_for(items) -> set:
@@ -679,6 +741,37 @@ def _pin_lifecycle_family(item, filename):
     item.add_marker(pytest.mark.xdist_group(f"lifecycle-{family}"))
 
 
+def _scaled_timeout_marker(marker, scale):
+    """A copy of a ``timeout`` marker with its seconds stretched, or None when
+    the marker carries no number this can scale."""
+    args = list(marker.args)
+    kwargs = dict(marker.kwargs)
+    if args:
+        args[0] = _float_or_zero(args[0]) * scale
+    elif "timeout" in kwargs:
+        kwargs["timeout"] = _float_or_zero(kwargs["timeout"]) * scale
+    else:
+        return None
+    return pytest.mark.timeout(*args, **kwargs)
+
+
+def _scale_item_timeout(item, scale):
+    """Stretch this item's own ``@pytest.mark.timeout(N)`` by ``scale``.
+
+    _scale_timeout above moves pytest.ini's DEFAULT, but a marker overrides
+    that default outright, so the suite's 518 files carrying an explicit
+    timeout would keep a budget sized for the CI reference host. The
+    directory-ingest publish is the worked example: 164 s standalone here,
+    over its fixed 900 s inside a lane (2026-09-17). Appending the scaled
+    marker is enough — pytest reads the closest one, and an item's own markers
+    are closer than the module's, the last added winning.
+    """
+    marker = item.get_closest_marker("timeout")
+    scaled = _scaled_timeout_marker(marker, scale) if marker else None
+    if scaled is not None:
+        item.add_marker(scaled)
+
+
 def pytest_collection_modifyitems(config, items):
     """Apply suite scheduling, skip, declaration, and sampling policies."""
     try:
@@ -691,6 +784,7 @@ def pytest_collection_modifyitems(config, items):
 def _modify_collected_items(config, items):
     cms_items = []
     other_items = []
+    timeout_scale = budget_scale()
     for item in items:
         name = os.path.basename(str(item.fspath))
         _mark_collection_item(item, name)
@@ -698,10 +792,13 @@ def _modify_collected_items(config, items):
         _pin_resilience_family(item)
         _pin_lifecycle_family(item, name)
         materialize_xdist_group(item)
+        if timeout_scale > 1.0:
+            _scale_item_timeout(item, timeout_scale)
         target = cms_items if name == "test_cms.py" else other_items
         target.append(item)
     if cms_items:
         items[:] = other_items + cms_items
     _register_fleet()
+    host_caps.skip_unavailable_items(items, registered_specs(), pytest.mark.skip)
     _enforce_declarations_and_flush(config, items)
     _apply_first_percent(config, items)

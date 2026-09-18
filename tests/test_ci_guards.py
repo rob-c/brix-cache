@@ -1,5 +1,6 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_ci_guards_helpers")
+from lib_py.util import budget_scale
 
 # Most guards need more than the 30s default on a loaded host. Duplication
 # scans the combined corpus and each tree separately; allow that bounded job
@@ -30,6 +31,7 @@ _REPO = Path(__file__).resolve().parents[1]
         ("client/lib/_brix_ns_probe.h", "struct xrdc_probe { int x; };\n"),
     ],
 )
+@pytest.mark.timeout(300 * budget_scale())   # check_brix_namespace scans the whole tree: slow under a loaded host
 def test_brix_namespace_guard_catches_drift(rel: str, content: str) -> None:
     probe = _REPO / rel
     probe.write_text(content)
@@ -192,6 +194,7 @@ _PROBE_1 = "nginx_zz_template_ref_probe" + ".conf"
 _PROBE_2 = "nginx_zz_template_regen_probe" + ".conf"
 
 
+@pytest.mark.timeout(300 * budget_scale())   # check_template_refs scans the whole tree (~20 s idle; slower under a loaded host)
 def test_template_ref_guard_catches_a_new_dead_template() -> None:
     probe = _REPO / "tests" / "configs" / _PROBE_1
     probe.write_text("# nothing in the repo names this file\n")
@@ -203,6 +206,7 @@ def test_template_ref_guard_catches_a_new_dead_template() -> None:
     assert _PROBE_1 in out, out
 
 
+@pytest.mark.timeout(300 * budget_scale())   # check_template_refs scans the whole tree (~20 s idle; slower under a loaded host)
 def test_template_ref_guard_refuses_to_grow_its_own_backlog(tmp_path) -> None:
     """``--regen`` is the shrink handle; it must not be usable to bless a new
     dead template, which is the only way a ratchet quietly stops ratcheting."""

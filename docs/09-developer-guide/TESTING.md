@@ -465,7 +465,9 @@ Fixed in `config`.
   the repo root from the script location.
 - `utils/make_proxy.py` cryptography-≥42 API → naive-accessor fallback (§1).
 - `nginx-mod-brix-cache.spec` required `voms-libs` (EL8 name) → the soname
-  `libvomsapi.so.1()(64bit)` (works on EL8 `voms-libs` and EL9 `voms`). See BUILD.md.
+  `libvomsapi.so.1()(64bit)` (worked on EL8 `voms-libs` and EL9 `voms`). Since
+  superseded: VOMS ACs are verified natively (`shared/voms/`) and the spec has no
+  VOMS dependency at all. See BUILD.md.
 
 ### 6f. xrootd's thread floor
 `xrd.sched mint 2 maxt 4 avlt 2` caps the **scheduler worker pool** at 4 (the only

@@ -49,8 +49,8 @@ SYN_NAMES = NAMES[:2]          # the synthetic mock has no .cvmfsreflog
 TTL = 2                        # short-TTL fixtures: expiry waits stay cheap
 EXPIRE = TTL + 0.6             # sleep that guarantees the entry is expired
 
-pytestmark = pytest.mark.skipif(
-    not os.path.exists(NGINX_BIN), reason=f"nginx binary not found: {NGINX_BIN}")
+pytestmark = [pytest.mark.skipif(
+    not os.path.exists(NGINX_BIN), reason=f"nginx binary not found: {NGINX_BIN}")]
 
 # One shared allocator for the module-scoped fixtures (3 mock/nginx pairs).
 _BLOCK = PortBlock("srv_manifest")

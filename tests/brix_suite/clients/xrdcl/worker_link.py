@@ -62,6 +62,37 @@ _WORKER = WORKER_SCRIPT
 _CALL_TIMEOUT = float(os.environ.get("XRDCL_PROXY_TIMEOUT", "90"))
 
 
+#: Why each interpreter probe failed, newest last — surfaced in the
+#: XrdClWorkerError so a session-wide "no interpreter" verdict is diagnosable.
+_probe_failures = []
+
+
+def _probe_bindings(candidate):
+    """Run the worker's import probe once under ``candidate``; True on rc 0.
+
+    The environment is sanitized exactly as the fleet launcher does: the
+    XRootD/GSI C bindings call ``putenv`` concurrently and can briefly leave a
+    malformed name in ``os.environ``, which makes ``subprocess`` reject the
+    whole env (``ValueError``) — one such race must not mark every candidate
+    unusable for the rest of the session."""
+    from brix_suite.nginx_tools import sanitized_env  # noqa: PLC0415
+
+    try:
+        result = subprocess.run(
+            [candidate, "-u", _WORKER], input="", text=True,
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            timeout=10, env=sanitized_env({"XRDCL_IMPORT_PROBE": "1"}),
+        )
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        _probe_failures.append(f"{candidate}: {exc!r}")
+        return False
+    if result.returncode == 0:
+        return True
+    _probe_failures.append(
+        f"{candidate}: rc={result.returncode} {result.stderr.strip()[-300:]}")
+    return False
+
+
 @functools.lru_cache(maxsize=1)
 def _worker_python():
     """Return an interpreter able to import the real XRootD bindings.
@@ -95,17 +126,9 @@ def _worker_python():
         if candidate in seen or not os.access(candidate, os.X_OK):
             continue
         seen.add(candidate)
-        try:
-            probe_env = dict(os.environ)
-            probe_env["XRDCL_IMPORT_PROBE"] = "1"
-            result = subprocess.run(
-                [candidate, "-u", _WORKER], input="", text=True,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                timeout=10, env=probe_env,
-            )
-        except (OSError, subprocess.SubprocessError):
-            continue
-        if result.returncode == 0:
+        # One retry: a transient spawn failure (env race, EAGAIN under a
+        # 120-member fleet boot) is cached for the session otherwise.
+        if _probe_bindings(candidate) or _probe_bindings(candidate):
             return candidate
     return None
 
@@ -128,10 +151,13 @@ class _Worker:
         if worker_python is None:
             raise XrdClWorkerError(
                 "no Python interpreter with real XRootD bindings found; "
-                "set TEST_XRDCL_PYTHON=/path/to/python")
-        env = dict(os.environ)
+                "set TEST_XRDCL_PYTHON=/path/to/python; probes: "
+                + ("; ".join(_probe_failures[-4:]) or "none attempted"))
+        from brix_suite.nginx_tools import sanitized_env  # noqa: PLC0415
+
         # The worker must import the REAL bindings; keep it off the shadow.
-        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        # Sanitized for the same putenv race as the probe above.
+        env = sanitized_env({"PYTHONDONTWRITEBYTECODE": "1"})
         self._proc = subprocess.Popen(
             [worker_python, "-u", _WORKER],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,

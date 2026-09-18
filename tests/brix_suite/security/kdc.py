@@ -76,20 +76,39 @@ _KDC_LOG = os.path.join(KRB5_DIR, "krb5kdc.log")
 _MASTER_PASSWORD = "masterpw"  # noqa: S105 — throwaway test-realm master key
 
 # MIT KDC binaries usually live in sbin dirs that are not on a non-root PATH.
-_TOOL_SEARCH_DIRS = ("/usr/sbin", "/sbin", "/usr/lib/krb5/bin", "/usr/lib64/krb5/bin")
+# Homebrew's MIT krb5 keg first: it is never on PATH, and on macOS
+# /usr/sbin/kadmin.local and /usr/bin/kinit are Apple's Heimdal builds, which
+# cannot drive the MIT realm this module creates (absent on Linux: harmless).
+_TOOL_SEARCH_DIRS = ("/usr/local/opt/krb5/sbin", "/usr/local/opt/krb5/bin",
+                     "/opt/homebrew/opt/krb5/sbin", "/opt/homebrew/opt/krb5/bin",
+                     "/usr/sbin", "/sbin", "/usr/lib/krb5/bin", "/usr/lib64/krb5/bin")
 _REQUIRED_TOOLS = ("kdb5_util", "kadmin.local", "krb5kdc", "kinit")
 
 
-def _find_tool(name):
-    """Resolve a krb5 tool to an absolute path, also scanning common sbin dirs."""
-    found = shutil.which(name)
-    if found:
-        return found
+def _tool_in_search_dirs(name):
     for d in _TOOL_SEARCH_DIRS:
         cand = os.path.join(d, name)
         if os.path.isfile(cand) and os.access(cand, os.X_OK):
             return cand
     return None
+
+
+def _find_tool(name):
+    """Resolve a krb5 tool to an absolute path, also scanning common sbin dirs.
+
+    On macOS the PATH hit for ``kinit``/``klist`` is Apple's Heimdal build, which
+    does not speak to the MIT realm this module creates; prefer the MIT keg
+    (searched first) and only then fall back to PATH."""
+    if sys.platform == "darwin":
+        return _tool_in_search_dirs(name) or shutil.which(name)
+    return shutil.which(name) or _tool_in_search_dirs(name)
+
+
+def krb5_tool(name):
+    """Public form of ``_find_tool`` for tests that drive the realm's clients:
+    the MIT ``kinit``/``klist`` that match the KDC, never Apple's Heimdal pair
+    (whose ``klist`` has no ``-f`` and prints no ``Flags:`` line)."""
+    return _find_tool(name)
 
 
 def krb5_tools_available():

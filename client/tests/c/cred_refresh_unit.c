@@ -32,6 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>     /* mkdtemp: <stdlib.h> on glibc, <unistd.h> on Darwin */
 
 /* structurally valid JWT, exp=1000000000 (year 2001) → parses + expired, so
  * token_needs_refresh() returns 1 regardless of any real token on the host. */

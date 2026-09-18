@@ -31,6 +31,7 @@ import html
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -379,7 +380,7 @@ def render(example: Example, prefix: Path) -> Rendered:
 
 # --- validation --------------------------------------------------------------
 
-_NOISE = re.compile(r"\[notice\]|could not open error log file|libvomsapi|postconfig")
+_NOISE = re.compile(r"\[notice\]|could not open error log file|postconfig")
 # The one [emerg] that is a property of the checker's uid, not of the example.
 _NEEDS_ROOT = re.compile(r"requires the nginx master to run as root")
 
@@ -407,6 +408,32 @@ def unsupported_reason(example: Example, binary: str) -> str:
     return ""
 
 
+#: nginx -t diagnostics that describe a limitation of the checking HOST, not
+#: a broken example: Linux-only socket tuning and Darwin's libc ignoring
+#: HOSTALIASES (so an upstream hostname the example aliases cannot resolve).
+#: VOMS is not on this list: attribute certificates are verified natively, so
+#: a brix_require_vo example parses on every host.
+_HOST_LIMITS = (
+    (re.compile(r'"so_keepalive" parameter accepts only "on" or "off" on this platform'),
+     "so_keepalive tuning is Linux-only"),
+    (re.compile(r"host not found in upstream"),
+     "this libc ignores HOSTALIASES (Darwin)"),
+)
+
+
+def host_limitation(stderr: str) -> str:
+    """Why this HOST cannot parse the example (empty string if it is a real failure).
+
+    Only the platform-specific diagnostics above qualify, and the aliases case
+    only where HOSTALIASES is known to be ignored (non-Linux)."""
+    for pattern, reason in _HOST_LIMITS:
+        if pattern.search(stderr):
+            if "HOSTALIASES" in reason and sys.platform.startswith("linux"):
+                return ""
+            return reason
+    return ""
+
+
 def _without_noise(stderr: str) -> str:
     return "\n".join(l for l in stderr.splitlines() if not _NOISE.search(l))
 
@@ -427,7 +454,16 @@ def nginx_t(rendered: Rendered, binary: str | None = None) -> tuple[bool, str]:
         capture_output=True, text=True, env=env, timeout=120)
     stderr = _without_noise(proc.stderr)
     ok = proc.returncode == 0 or (os.geteuid() != 0 and _only_needs_root(stderr))
+    if not ok:
+        stderr += _host_limit_emergs(proc.stderr)
     return ok, stderr.strip()
+
+
+def _host_limit_emergs(raw_stderr: str) -> str:
+    """The [emerg] lines naming a host limitation, kept even when the noise
+    filter would drop them, so callers can classify."""
+    kept = [l for l in raw_stderr.splitlines() if "[emerg]" in l and host_limitation(l)]
+    return "\n" + "\n".join(kept) if kept else ""
 
 
 def prepare_nginx(rendered: Rendered, binary: str) -> None:

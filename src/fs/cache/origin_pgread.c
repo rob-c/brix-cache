@@ -50,13 +50,6 @@
 #include "protocols/root/protocol/frame_hdr.h"    /* xrd_get_u32/u64_be, error decode */
 #include "protocols/root/protocol/flags.h"        /* kXR_pgPageSZ, kXR_suppgrw */
 
-/* macOS doesn't have endian.h - use libkern/OSByteOrder.h */
-#if defined(__APPLE__) && defined(__MACH__)
-#elif defined(__linux__)
-/* PAL endian ops now in platform_api.h
- * brix_plat_htobe64/brix_plat_be64toh cross-platform
- */
-#endif
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>

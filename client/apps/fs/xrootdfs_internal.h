@@ -23,7 +23,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
-#include <sys/xattr.h>
+#include "platform/platform.h"   /* PAL: Linux-shaped xattr calls on every host */
 
 #define XFS_CKS_XATTR_PFX "user.XrdCks."
 typedef struct {

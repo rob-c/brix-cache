@@ -357,7 +357,7 @@ The GSI exchange is two `kXR_auth` rounds (`kXGC_certreq` 1000 → server DH key
 - The server's ephemeral DH private key MUST persist across the two rounds (per-connection state).
 - RFC 3820 proxy verification requires `X509_V_FLAG_ALLOW_PROXY_CERTS` on **both** the `X509_STORE` and the `X509_STORE_CTX` — store-only silently fails.
 
-Above the handshake, chain policy is where the module is deliberately **stricter than stock** — Globus `signing_policy` enforcement, RFC 3820 limited-proxy monotonicity, CRL-expiry rejection, GT2/GT3 legacy-proxy rejection — with identity keyed on the **EEC DN, not the proxy leaf** (stable across proxy re-mints; the enabler for zero-provisioning multi-user). All [LOCAL] strictness choices, tabled for experts in §11.3. VOMS attributes are extracted via `libvomsapi` at runtime; delegated proxies (direct upload and GridSite two-step CSR) are chain-verified rather than DN-trusted.
+Above the handshake, chain policy is where the module is deliberately **stricter than stock** — Globus `signing_policy` enforcement, RFC 3820 limited-proxy monotonicity, CRL-expiry rejection, GT2/GT3 legacy-proxy rejection — with identity keyed on the **EEC DN, not the proxy leaf** (stable across proxy re-mints; the enabler for zero-provisioning multi-user). All [LOCAL] strictness choices, tabled for experts in §11.3. VOMS attributes are decoded and verified natively (`shared/voms/`, no VOMS library); delegated proxies (direct upload and GridSite two-step CSR) are chain-verified rather than DN-trusted.
 
 ### 6.3 `ztn` — bearer tokens on the binary plane
 

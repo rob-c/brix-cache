@@ -51,8 +51,8 @@ BLOCK.nginx()
 MINI_ORIGIN_PORT = BLOCK.base + 8   # inside our mock sub-block, never handed out
 DEAD_ORIGIN_PORT = BLOCK.base + 9   # nothing ever listens here
 
-pytestmark = pytest.mark.skipif(not os.path.exists(NGINX_BIN),
-                                reason=f"nginx binary not found: {NGINX_BIN}")
+pytestmark = [pytest.mark.skipif(not os.path.exists(NGINX_BIN),
+                                reason=f"nginx binary not found: {NGINX_BIN}")]
 
 # --------------------------------------------------------------------------- #
 # helpers

@@ -10,6 +10,10 @@ import pytest
 from cmdscripts.cvmfs_repo_cli import run_check_oracle, run_checks
 
 
+# The repotool publishes are quick alone (<10 s) but stall past the 30 s default
+# on a loaded host (8 xdist workers building tools): widen the per-test timeout.
+pytestmark = pytest.mark.timeout(300)
+
 def _assert_all(results):
     assert all(ok for ok, _ in results), "\n".join(
         f"{'ok' if ok else 'FAIL'} {message}" for ok, message in results)

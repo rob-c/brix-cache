@@ -17,11 +17,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <openssl/evp.h>
-
-/* macOS uses st_mtimespec instead of st_mtim */
-#if defined(__APPLE__) && defined(__MACH__)
-#define st_mtim st_mtimespec
-#endif
+#include "platform/platform_api.h"   /* st_mtim on every host */
 
 /* INTEGRITY_XATTR_VAL_MAX (the shared xattr/record value-buffer size) now lives
  * in integrity_info_internal.h so both this file and integrity_info_record.c use

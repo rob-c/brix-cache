@@ -11,9 +11,9 @@ All paths reference `/tmp/xrd-test/` — the same PKI and tokens used by the tes
 ```bash
 # Build tools
 yum install gcc make nginx-mod-devel openssl-devel pcre2-devel zlib-devel \
-            libxml2-devel jansson-devel curl voms-libs   # AlmaLinux/RHEL
+            libxml2-devel jansson-devel curl             # AlmaLinux/RHEL
 apt install build-essential nginx-dev libssl-dev libpcre2-dev zlib1g-dev \
-            libxml2-dev libjansson-dev curl libvoms-dev  # Debian/Ubuntu
+            libxml2-dev libjansson-dev curl              # Debian/Ubuntu
 
 # Docker or Podman for the container image
 docker --version || podman --version

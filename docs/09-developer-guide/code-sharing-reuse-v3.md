@@ -478,7 +478,7 @@ Each task touches a different file. No build required for `.md` tasks. `disconne
  *                  | login_user, login_pid  | client-supplied values from login body
  *   kXR_auth(GSI)  | auth_done=1            | DH exchange + cert chain validation OK
  *                  | dn[512]                | GSI subject DN from peer certificate
- *                  | primary_vo, vo_list    | VOMS extensions (if libvomsapi present)
+ *                  | primary_vo, vo_list    | VOMS extensions (native verifier, shared/voms)
  *   kXR_auth(token)| auth_done=1            | JWT signature + scope verified
  *                  | token_auth=1           | distinguishes token from GSI auth path
  *                  | token_scopes[]         | parsed WLCG scope strings

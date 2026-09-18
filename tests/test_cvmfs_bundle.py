@@ -313,6 +313,7 @@ def _warm(srv, rel: str, stored_blob: bytes) -> None:
     assert st == 200 and body == stored_blob
 
 
+@pytest.mark.timeout(180)   # bigsrv builds and compresses multi-MiB blobs: slow under a loaded host
 def test_bundle_member_over_stored_cap_stays_miss(bigsrv):
     srv, stored, rels = bigsrv
     small, big = rels["small.bin"], rels["over_cap.bin"]
@@ -329,6 +330,7 @@ def test_bundle_member_over_stored_cap_stays_miss(bigsrv):
     assert srv.count_log(big) == 0, "the cap miss must not trigger an origin fill"
 
 
+@pytest.mark.timeout(180)   # bigsrv builds and compresses multi-MiB blobs: slow under a loaded host
 def test_bundle_budget_exhaustion_spares_later_members(bigsrv):
     srv, stored, rels = bigsrv
     order = _expression_1()

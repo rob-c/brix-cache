@@ -39,7 +39,7 @@
 | `src/auth/gsi/*.c` | GSI/x509 proxy certificate authentication exchange (DH key exchange, cert chain validation) |
 | `src/auth/token/*.c` | JWT/JWKS validation, WLCG scope and group parsing, bearer-token (`ztn`) auth |
 | `src/auth/crypto/pki_*.c` (+ `src/auth/gsi/pki.c`, `src/protocols/webdav/pki.c` adapters) | PKI/CRL startup consistency checks |
-| `src/auth/voms/*.c` | Runtime VOMS support via `dlopen("libvomsapi.so.1")` — VO extraction from proxy certs |
+| `src/auth/voms/*.c` (+ `shared/voms/`) | VO/FQAN extraction from proxy certs over the native VOMS AC verifier (no VOMS library) |
 | `src/protocols/root/read/*.c` | Read-side operations: open, read, readv, pgread, stat, statx, dirlist, locate, close |
 | `src/fs/cache/*.c` | Read-through cache origin fetch, locking, and fill callbacks |
 | `src/protocols/root/query/*.c` | kXR_query subtypes (cksum, space, config, stats, xattr, finfo, fsinfo) and kXR_prepare, kXR_set |

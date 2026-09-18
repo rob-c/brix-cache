@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_srv_http_helpers")
 
-pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_srv_http")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("test_cvmfs_conformance_srv_http")]
 
 @pytest.mark.parametrize("spec", [s[1] for s in SINGLE_RANGES],
                          ids=[s[0] for s in SINGLE_RANGES])

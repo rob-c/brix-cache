@@ -10,7 +10,7 @@ Proxy cert received and verified
           │
           ▼
 VOMS AC extraction (src/auth/voms/collect.c)
-    libvomsapi parses the AC extension from the proxy cert
+    shared/voms/ (native verifier) decodes + verifies the AC extension
     For each VOMS AC entry:
         voName           → "cms"
         fqan[0]          → "/cms/Role=NULL/Capability=NULL" → extract "cms"
@@ -139,9 +139,9 @@ subsequent file traffic.
 | Proxy chain verification (WebDAV) | `src/protocols/webdav/auth_cert.c:webdav_verify_proxy_cert()` |
 | TLS auth cache (WebDAV) | `src/protocols/webdav/auth_cert.c`, `SSL_get_ex_data` / `SSL_SESSION_get_ex_data` |
 | `X509_V_FLAG_ALLOW_PROXY_CERTS` setup | `src/protocols/webdav/postconfig.c:ngx_http_brix_webdav_postconfiguration()` (lines 104-106) |
-| VOMS AC parsing | `src/auth/voms/loader.c` (dlopen of libvomsapi) |
+| VOMS AC decode + verification | `shared/voms/` (native, `brix_voms_retrieve()`), called from `src/auth/voms/extract.c` |
 | VOMS VO extraction | `src/auth/voms/collect.c:brix_collect_voms_vos()` |
-| vomsdir LSC lookup | delegated to libvomsapi |
+| vomsdir LSC lookup | `shared/voms/voms_lsc.c:brix_voms_lsc_match()` |
 | VO path ACL enforcement | `src/auth/authz/find_rule.c`, `src/core/config/policy.c` |
 | CA bundle load | `src/auth/crypto/pki_load.c` |
 | CRL signature verification | `src/auth/crypto/pki_check.c:brix_pki_verify_crls()` |

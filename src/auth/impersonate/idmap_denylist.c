@@ -20,26 +20,11 @@
 #include "core/compat/cstr.h"
 #include "idmap_internal.h"
 #include "impersonate_state.h"
+#include "platform/platform_api.h"
 
 #include <pwd.h>
 #include <grp.h>
 
-/* macOS getgrouplist expects int* not gid_t* - provide wrapper */
-#if defined(__APPLE__) && defined(__MACH__)
-static int brix_getgrouplist_compat(const char *user, gid_t base_gid, gid_t *gids, int *ngroups) {
-    int *gids_int = malloc(*ngroups * sizeof(int));
-    int result;
-    int i;
-    if (gids_int == NULL) return -1;
-    result = getgrouplist(user, (int)base_gid, gids_int, ngroups);
-    for (i = 0; i < *ngroups && i < BRIX_IDMAP_MAXGROUPS; i++) {
-        gids[i] = (gid_t)gids_int[i];
-    }
-    free(gids_int);
-    return result;
-}
-#define getgrouplist(user, base_gid, gids, ngroups) brix_getgrouplist_compat(user, base_gid, gids, ngroups)
-#endif
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
@@ -105,7 +90,7 @@ idmap_resolve_user(const char *user, brix_idmap_creds_t *out)
         return 0;
     }
 
-    if (getgrouplist(user, pw->pw_gid, gids, &ng) < 0) {
+    if (brix_plat_getgrouplist(user, pw->pw_gid, gids, &ng) < 0) {
         /*
          * OVERFLOW: the user belongs to MORE than BRIX_IDMAP_MAXGROUPS groups.
          * `ng` now holds the TRUE total; `gids` holds only a 32-entry PREFIX in
@@ -122,7 +107,7 @@ idmap_resolve_user(const char *user, brix_idmap_creds_t *out)
         if (full == NULL) {
             return -1;                       /* OOM -> deny (fail closed) */
         }
-        if (getgrouplist(user, pw->pw_gid, full, &total) < 0) {
+        if (brix_plat_getgrouplist(user, pw->pw_gid, full, &total) < 0) {
             free(full);
             return -1;                       /* grew again / still failing -> deny */
         }

@@ -1,6 +1,7 @@
 #include "proxy_internal.h"
 #include "protocols/root/connection/handler.h"
 #include "protocols/root/connection/write_helpers.h"   /* brix_queue_response_base */
+#include "platform/platform_api.h"
 #include <sys/socket.h>
 #include <sys/ioctl.h>   /* FIONREAD — only splice a fully-buffered body */
 #include <unistd.h>      /* read() — drain pipe residual on a spurious drain EAGAIN */
@@ -9,7 +10,7 @@
  * Split verbatim out of events_splice.c; the pump it kicks off
  * (brix_proxy_splice_pump) lives in events_splice.c and is prototyped in
  * proxy_internal.h. */
-#ifdef __linux__
+#if BRIX_HAS_SPLICE
 
 /*
  * brix_proxy_splice_eligible — WHAT: gate the zero-copy splice fast-path for
@@ -79,7 +80,7 @@ brix_proxy_splice_pipe_ensure(brix_proxy_ctx_t *proxy)
         return NGX_OK;
     }
 
-    if (pipe2(proxy->splice_pipe, O_NONBLOCK) < 0) {
+    if (brix_plat_pipe2(proxy->splice_pipe, BRIX_PIPE_NONBLOCK) < 0) {
         ngx_log_error(NGX_LOG_WARN, proxy->client_conn->log, ngx_errno,
                       "xrootd proxy: pipe2 failed, using buffered path");
         return NGX_DECLINED;
@@ -190,4 +191,4 @@ brix_proxy_try_splice(brix_proxy_ctx_t *proxy)
     return NGX_OK;
 }
 
-#endif /* __linux__ */
+#endif /* BRIX_HAS_SPLICE */

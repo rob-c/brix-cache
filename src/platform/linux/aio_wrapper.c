@@ -5,6 +5,8 @@
  * This integrates with the existing Phase 44 io_uring backend.
  */
 
+#include <ngx_config.h>
+#include <ngx_core.h>
 #include "../platform.h"
 #include "../platform_api.h"
 

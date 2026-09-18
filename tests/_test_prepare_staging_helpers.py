@@ -54,6 +54,28 @@ PREPARE_NOCMD_DATA_DIR = os.path.join(TEST_ROOT, "data-prepare-nocmd")
 PREPARE_CMD_LOG = os.path.join(TEST_ROOT, "data-prepare-command", "staged.log")
 
 
+def wait_for_prepare_log(path=PREPARE_CMD_LOG, seconds=3.0):
+    """Wait for the prepare hook to write something, and say how long it got.
+
+    The hook runs in a process the server forks, so how long it takes to
+    appear is a property of the HOST, not of the code under test: a flat 3 s
+    expired inside a lane on a busy machine while the same test passed
+    standalone (2026-09-17). Scaling by TEST_BUDGET_SCALE keeps the CI
+    reference at 3 s and gives a slower host the same number of chances.
+    Returns the size seen, so a caller can assert on it and name the budget.
+    """
+    from lib_py.util import budget_scale   # noqa: PLC0415 — helper-module import
+    budget = seconds * budget_scale()
+    deadline = time.time() + budget
+    size = 0
+    while time.time() < deadline:
+        size = os.path.getsize(path) if os.path.exists(path) else 0
+        if size > 0:
+            return size, budget
+        time.sleep(0.1)
+    return (os.path.getsize(path) if os.path.exists(path) else 0), budget
+
+
 # ---------------------------------------------------------------------------
 # Wire constants
 # ---------------------------------------------------------------------------

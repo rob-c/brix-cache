@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdio.h>
 #if BRIX_PLATFORM_LINUX
 #include <sys/random.h>
 #include <sys/syscall.h>
@@ -58,15 +59,6 @@ brix_plat_splice(int in_fd, int out_fd, size_t nbytes, unsigned int flags)
     return splice(in_fd, NULL, out_fd, NULL, nbytes, flags);
 }
 
-ssize_t
-brix_plat_copy_range(int in_fd, off_t *in_off,
-                     int out_fd, off_t *out_off,
-                     size_t len, unsigned int flags)
-{
-    (void)flags;  /* Linux copy_file_range doesn't use flags parameter */
-    return copy_file_range(in_fd, in_off, out_fd, out_off, len, 0); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
-}
-
 /* ==========================================================================
  * EVENT & NOTIFICATION
  * ========================================================================== */
@@ -74,13 +66,10 @@ brix_plat_copy_range(int in_fd, off_t *in_off,
 int
 brix_plat_eventfd(unsigned int initial_value, int flags)
 {
-    return eventfd(initial_value, flags);
-}
-
-int
-brix_plat_pipe2(int pipefd[2], int flags)
-{
-    return pipe2(pipefd, flags);
+    /* BRIX_EVENTFD_* are PAL values, not the kernel's EFD_* bits */
+    return eventfd(initial_value,
+                   ((flags & BRIX_EVENTFD_CLOEXEC) ? EFD_CLOEXEC : 0)
+                   | ((flags & BRIX_EVENTFD_NONBLOCK) ? EFD_NONBLOCK : 0));
 }
 
 /* ==========================================================================
@@ -176,3 +165,4 @@ brix_plat_execvpe(const char *file, char *const argv[], char *const envp[])
 }
 
 #endif /* BRIX_PLATFORM_LINUX */
+

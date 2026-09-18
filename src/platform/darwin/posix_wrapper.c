@@ -18,6 +18,9 @@
 #include <Security/Security.h>
 #include <sys/syscall.h>
 #include <sys/xattr.h>
+#include <sys/param.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 
 /* ==========================================================================
  * FILE DESCRIPTOR OPERATIONS
@@ -55,14 +58,30 @@ brix_plat_fadvise(int fd, off_t offset, off_t len, int advice)
     return 0;
 }
 
+/* Whether to force the drive's write cache to media (F_FULLFSYNC, the Linux
+ * fdatasync equivalent) or stop at the cache-level fsync(2).  F_FULLFSYNC is
+ * the default: durability parity with Linux.  BRIX_PLAT_FSYNC_FULL=0 is a
+ * development/test-host knob only — it costs ~28 ms per file on a laptop SSD
+ * (50x fsync) and serialises every writer on the host. */
+static int
+darwin_fsync_full(void)
+{
+    static int cached = -1;
+
+    if (cached < 0) {
+        const char *knob = getenv("BRIX_PLAT_FSYNC_FULL");
+        cached = (knob != NULL && knob[0] == '0' && knob[1] == '\0') ? 0 : 1;
+    }
+    return cached;
+}
+
 int
 brix_plat_fsync_data(int fd)
 {
-    /* Try F_FULLFSYNC first (guaranteed flush to physical media) */
-    if (fcntl(fd, F_FULLFSYNC) == 0) {
+    /* F_FULLFSYNC (guaranteed flush to physical media) unless disabled */
+    if (darwin_fsync_full() && fcntl(fd, F_FULLFSYNC) == 0) {
         return 0;
     }
-    /* Fallback to fsync */
     return fsync(fd);
 }
 
@@ -112,18 +131,6 @@ brix_plat_splice(int in_fd, int out_fd, size_t nbytes, unsigned int flags)
     return -1;
 }
 
-ssize_t
-brix_plat_copy_range(int in_fd, off_t *in_off,
-                     int out_fd, off_t *out_off,
-                     size_t len, unsigned int flags)
-{
-    /* macOS lacks copy_file_range - use buffered copy */
-    (void)in_fd; (void)in_off; (void)out_fd; (void)out_off;
-    (void)len; (void)flags;
-    errno = ENOSYS;
-    return -1;
-}
-
 /* ==========================================================================
  * EVENT & NOTIFICATION
  * ========================================================================== */
@@ -154,30 +161,6 @@ brix_plat_eventfd(unsigned int initial_value, int flags)
     
     /* Return read end - caller manages both ends */
     return pipefd[0];
-}
-
-int
-brix_plat_pipe2(int pipefd[2], int flags)
-{
-    if (pipe(pipefd) < 0) {
-        return -1;
-    }
-    
-    /* Apply flags via fcntl */
-    if (flags & BRIX_PIPE_CLOEXEC) {
-        fcntl(pipefd[0], F_SETFD, FD_CLOEXEC);
-        fcntl(pipefd[1], F_SETFD, FD_CLOEXEC);
-    }
-    
-    if (flags & BRIX_PIPE_NONBLOCK) {
-        int fflags;
-        fflags = fcntl(pipefd[0], F_GETFL, 0);
-        fcntl(pipefd[0], F_SETFL, fflags | O_NONBLOCK);
-        fflags = fcntl(pipefd[1], F_GETFL, 0);
-        fcntl(pipefd[1], F_SETFL, fflags | O_NONBLOCK);
-    }
-    
-    return 0;
 }
 
 /* ==========================================================================
@@ -225,17 +208,40 @@ brix_plat_random(void *buf, size_t len)
  * EXTENDED ATTRIBUTES
  * ========================================================================== */
 
+/* Darwin reports a missing attribute as ENOATTR (93); Linux, and every
+ * ENODATA check in the tree, expects ENODATA (96).  Normalise on failure. */
+static ssize_t
+darwin_xattr_rc(ssize_t rc)
+{
+    if (rc < 0 && errno == ENOATTR) {
+        errno = ENODATA;
+    }
+    return rc;
+}
+
+/* Read-side (get/list/remove): Darwin limits names to XATTR_MAXNAMELEN (127)
+ * where Linux allows 255 and reports ENAMETOOLONG; such a name cannot exist
+ * here, so readers see it as absent.  Writes keep ENAMETOOLONG. */
+static ssize_t
+darwin_xattr_read_rc(ssize_t rc)
+{
+    if (rc < 0 && errno == ENAMETOOLONG) {
+        errno = ENODATA;
+    }
+    return darwin_xattr_rc(rc);
+}
+
 ssize_t
 brix_plat_getxattr(const char *path, const char *name, void *value, size_t size)
 {
     /* macOS getxattr has 6 parameters (position, options) */
-    return getxattr(path, name, value, size, 0, 0); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
+    return darwin_xattr_read_rc((getxattr)(path, name, value, size, 0, 0)); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 ssize_t
 brix_plat_fgetxattr(int fd, const char *name, void *value, size_t size)
 {
-    return fgetxattr(fd, name, value, size, 0, 0); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
+    return darwin_xattr_read_rc((fgetxattr)(fd, name, value, size, 0, 0)); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 int
@@ -243,40 +249,40 @@ brix_plat_setxattr(const char *path, const char *name,
                    const void *value, size_t size, int flags)
 {
     /* macOS setxattr has 6 parameters */
-    return setxattr(path, name, value, size, 0, flags); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
+    return darwin_xattr_rc((setxattr)(path, name, value, size, 0, flags)); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 int
 brix_plat_fsetxattr(int fd, const char *name,
                     const void *value, size_t size, int flags)
 {
-    return fsetxattr(fd, name, value, size, 0, flags); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
+    return darwin_xattr_rc((fsetxattr)(fd, name, value, size, 0, flags)); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 int
 brix_plat_removexattr(const char *path, const char *name)
 {
     /* macOS removexattr has 3 parameters (options) */
-    return removexattr(path, name, 0); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
+    return darwin_xattr_read_rc((removexattr)(path, name, 0)); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 int
 brix_plat_fremovexattr(int fd, const char *name)
 {
-    return fremovexattr(fd, name, 0); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
+    return darwin_xattr_read_rc((fremovexattr)(fd, name, 0)); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 ssize_t
 brix_plat_listxattr(const char *path, char *list, size_t size)
 {
     /* macOS listxattr has 4 parameters (options) */
-    return listxattr(path, list, size, 0); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
+    return darwin_xattr_read_rc((listxattr)(path, list, size, 0)); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 ssize_t
 brix_plat_flistxattr(int fd, char *list, size_t size)
 {
-    return flistxattr(fd, list, size, 0); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
+    return darwin_xattr_read_rc((flistxattr)(fd, list, size, 0)); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
 }
 
 /* ==========================================================================
@@ -318,3 +324,4 @@ brix_plat_execvpe(const char *file, char *const argv[], char *const envp[])
     /* If we get here, child exited - mimic execvpe behavior */
     _exit(WEXITSTATUS(status));
 }
+

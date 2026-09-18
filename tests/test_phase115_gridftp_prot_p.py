@@ -36,7 +36,7 @@ import time
 
 import pytest
 
-from pki_helpers import blitz_test_pki
+from pki_helpers import ensure_test_pki
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import (
@@ -151,7 +151,7 @@ class _ProtLab:
 def lab(tmp_path_factory):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    blitz_test_pki()
+    ensure_test_pki()          # the standing fleet's CA, never a fresh one
     if not Path(PROXY_STD).is_file():
         pytest.skip("standard X.509 proxy unavailable")
     harness = LifecycleHarness()

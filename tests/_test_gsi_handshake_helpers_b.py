@@ -68,8 +68,10 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
 NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
-STOCK_XRDFS = "/usr/bin/xrdfs"
-STOCK_XRDCP = "/usr/bin/xrdcp"
+# The distro path on the Linux CI host; Homebrew puts them under
+# /usr/local/bin (Intel) or /opt/homebrew/bin (Apple silicon).
+STOCK_XRDFS = shutil.which("xrdfs") or "/usr/bin/xrdfs"
+STOCK_XRDCP = shutil.which("xrdcp") or "/usr/bin/xrdcp"
 
 # All nginx GSI servers here are registry LifecycleHarness instances on
 # OS-assigned (free_port) ports with pid-suffixed names, so xdist workers and
@@ -87,6 +89,19 @@ P_STOCK_ROOT_FCA = worker_port(21131)  # foreign-CA stock server
 # --------------------------------------------------------------------------- #
 # Small process / port helpers
 # --------------------------------------------------------------------------- #
+def _pki_hostname():
+    """The name the host cert is issued to AND the URL host every client dials:
+    the FQDN where it resolves (the CI hosts), else ``localhost`` — a laptop
+    whose short hostname has no DNS entry would otherwise mint a cert for a
+    name nothing can connect to."""
+    fqdn = socket.getfqdn()
+    try:
+        socket.getaddrinfo(fqdn, None)
+    except socket.gaierror:
+        return "localhost"
+    return fqdn
+
+
 @pytest.fixture(scope="module")
 def pki(tmp_path_factory):
     """Trusted CA + untrusted CA + host cert + valid/untrusted/expired creds.
@@ -99,7 +114,7 @@ def pki(tmp_path_factory):
     data = os.path.join(base, "data")
     for d in (certs, data, os.path.join(data, "sub")):
         os.makedirs(d, exist_ok=True)
-    fqdn = socket.getfqdn()
+    fqdn = _pki_hostname()
 
     # Trusted CA (host + valid/expired creds chain to this; it is in certs/).
     ca_key, ca_pem = _make_ca(base, "/O=XrdTest/CN=XrdTest Trusted CA")

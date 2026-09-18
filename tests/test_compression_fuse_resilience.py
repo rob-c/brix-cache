@@ -32,6 +32,7 @@ import time
 
 import pytest
 
+from lib_py import fuse_host
 from settings import (DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST, HOST, BIND_HOST,
                       LOG_DIR)
 
@@ -41,7 +42,7 @@ def _guard_built_1():
 
 def _guard_built_2():
     if not _FUSE_OK:
-        pytest.skip("FUSE unavailable (/dev/fuse or fusermount3 missing)")
+        pytest.skip(fuse_host.SKIP_REASON)
 
 def _guard_built_3(proc):
     if proc.returncode != 0 or not os.path.exists(XROOTDFS):
@@ -65,7 +66,7 @@ FAULT_PROXY = os.path.join(CLIENT_DIR, "bin", "brix-fault-proxy")
 ANON_ACCESS_LOG = os.path.join(LOG_DIR, "brix_access_anon.log")
 
 SIZE = 8 * 1024 * 1024
-_FUSE_OK = os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
+_FUSE_OK = fuse_host.FUSE_READY
 
 
 def _free_port():
@@ -147,11 +148,11 @@ def mount(proxy):
         time.sleep(0.1)
     else:
         p.kill()
-        subprocess.run(["fusermount3", "-u", mnt], capture_output=True)
+        fuse_host.unmount(mnt)
         os.rmdir(mnt)
         pytest.skip("xrootdfs --compress failed to mount through the proxy")
     yield mnt
-    subprocess.run(["fusermount3", "-u", mnt], capture_output=True)
+    fuse_host.unmount(mnt)
     p.wait(timeout=10)
     try:
         os.rmdir(mnt)

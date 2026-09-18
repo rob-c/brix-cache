@@ -119,7 +119,7 @@ import requests
 
 from config_parse import nginx_t
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS, PARSE_PLACEHOLDER_PORT
-from lib_py.util import pids_on_port
+from lib_py.util import pids_on_port, process_cmdline
 from server_registry import NginxInstanceSpec
 from settings import HOST, BIND_HOST, NGINX_BIN
 
@@ -247,12 +247,10 @@ def _holders(port):
     port assertion is not actionable without knowing who the occupant was."""
     named = []
     for pid in pids_on_port(port):
-        try:
-            with open(f"/proc/{pid}/cmdline", "rb") as handle:
-                argv = handle.read().replace(b"\0", b" ").decode(
-                    "utf-8", "replace").strip()
-        except OSError:
-            argv = "(gone)"
+        # process_cmdline, not a direct procfs read: a host without /proc
+        # (Darwin) would otherwise name every occupant "(gone)" and leave the
+        # port assertion as unactionable as the bare number it replaces.
+        argv = process_cmdline(pid).decode("utf-8", "replace").strip() or "(gone)"
         named.append(f"{pid} {argv[:120]}")
     return "; ".join(named) or "nobody"
 

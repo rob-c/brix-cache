@@ -7,6 +7,7 @@
 #include "core/progname.h"  /* brix_prog_*(): argv[0]-derived identity + exec prefix */
 #include "cli/suggest.h"    /* brix_suggest(): did-you-mean at unknown-command sites */
 #include "cli/cli_hint.h"   /* brix_cli_hint(): TTY-gated hint output */
+#include "platform/platform.h"  /* PAL: brix_plat_self_exe (the sibling-tool search) */
 
 const char *FS_VERBS[] = {
     "ls", "stat", "mkdir", "rm", "rmdir", "mv", "chmod", "touch", "ln", "readlink",
@@ -60,10 +61,8 @@ exec_tool(const char *prefix, const char *tool, char **argv)
     char    dirbuf[PATH_MAX];
     char    prefixed[256];
     char   *dir = NULL;
-    ssize_t n   = readlink("/proc/self/exe", self, sizeof(self) - 1);
 
-    if (n > 0) {
-        self[n] = '\0';
+    if (brix_plat_self_exe(self, sizeof(self)) == 0) {
         snprintf(dirbuf, sizeof(dirbuf), "%s", self);
         dir = dirname(dirbuf);
     }

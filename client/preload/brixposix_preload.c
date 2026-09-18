@@ -2,20 +2,25 @@
  * brixposix_preload.c — an LD_PRELOAD shim that routes POSIX reads of a configured
  * path prefix to an XRootD root:// export via libbrix.
  *
- * WHAT: Interpose open/read/pread/lseek/close, the stat family (incl. statx and
- *       the LFS *64 variants) and access on libc. Any
+ * WHAT: Interpose open/read/pread/lseek/close, the stat family and access on
+ *       libc (the glibc-only statx and LFS *64 names are forwarded to these by
+ *       lib/platform/linux/preload_lfs.c). Any
  *       path under the prefix named by $BRIX_VMP is served from a remote XRootD
  *       server; every other path passes straight through to the real libc call.
  * WHY:  Legacy tools that only know POSIX paths (cat, md5sum, ls, analysis jobs)
  *       can read remote XRootD data with no recompile and NO libXrdCl/XrdPosix --
- *       just LD_PRELOAD=libbrixposix_preload.so BRIX_VMP=/xrd=root://host:port/.
+ *       just LD_PRELOAD=libbrixposix_preload.so BRIX_VMP=/xrd=root://host:port/
+ *       (DYLD_INSERT_LIBRARIES=libbrixposix_preload.dylib on macOS).
  * HOW:  $BRIX_VMP = "<localprefix>=root://host[:port][/base]". A path that
  *       starts with <localprefix> is rewritten to the remote logical path and
  *       opened through a single lazily-connected libbrix session (one request in
  *       flight, mutex-guarded). Remote descriptors live in a shadow fd table at
  *       fds >= XFS_FD_BASE so read/lseek/close/fstat can tell them apart from
- *       real fds. Real libc symbols are resolved with dlsym(RTLD_NEXT) via the
- *       __typeof__-based REAL() helper (so each wrapper inherits libc's prototype).
+ *       real fds. Real libc symbols are reached through the host's rule in
+ *       lib/platform/<host>/preload.h (dlsym(RTLD_NEXT) under LD_PRELOAD, the
+ *       plain symbol under dyld interposing) via the __typeof__-based REAL()
+ *       helper, so each wrapper inherits libc's prototype; BRIXPOSIX_WRAP names
+ *       the wrapper itself per host.
  *
  * Scope (first cut): the READ path. Files opened for write under the prefix fall
  * through to libc (a documented follow-up), as do fopen/mmap and the legacy
@@ -25,13 +30,12 @@
  * Clean-room: composes the public libbrix API + dlsym only; no XrdPosix code.
  */
 #ifndef _GNU_SOURCE
-#define _GNU_SOURCE   /* RTLD_NEXT, *64 variants (the build also passes -D_GNU_SOURCE) */
+#define _GNU_SOURCE   /* RTLD_NEXT (the build also passes -D_GNU_SOURCE) */
 #endif
 #include "brix.h"
 #include "posix/posix_map.h"    /* brix_statinfo_to_stat — the ONE statinfo→stat map */
 #include "brixposix_internal.h" /* shared shim state/helpers (hidden visibility) */
 
-#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -314,7 +318,7 @@ xfs_write_force(int flags)
 }
 
 int
-open(const char *path, int flags, ...)
+BRIXPOSIX_WRAP(open)(const char *path, int flags, ...)
 {
     char    remote[XRDC_PATH_MAX];
     mode_t  mode = 0;
@@ -340,10 +344,8 @@ open(const char *path, int flags, ...)
     return real_open(path, flags, mode);
 }
 
-int open64(const char *path, int flags, ...) __attribute__((alias("open")));
-
 int
-openat(int dirfd, const char *path, int flags, ...)
+BRIXPOSIX_WRAP(openat)(int dirfd, const char *path, int flags, ...)
 {
     char    remote[XRDC_PATH_MAX];
     mode_t  mode = 0;
@@ -366,13 +368,10 @@ openat(int dirfd, const char *path, int flags, ...)
     return real_openat(dirfd, path, flags, mode);
 }
 
-int openat64(int dirfd, const char *path, int flags, ...)
-    __attribute__((alias("openat")));
-
 /* read / pread / lseek / close                                        */
 
 ssize_t
-read(int fd, void *buf, size_t count)
+BRIXPOSIX_WRAP(read)(int fd, void *buf, size_t count)
 {
     xfs_slot *s;
     REAL(read);
@@ -403,7 +402,7 @@ read(int fd, void *buf, size_t count)
 }
 
 ssize_t
-pread(int fd, void *buf, size_t count, off_t offset)
+BRIXPOSIX_WRAP(pread)(int fd, void *buf, size_t count, off_t offset)
 {
     xfs_slot *s;
     REAL(pread);
@@ -430,14 +429,11 @@ pread(int fd, void *buf, size_t count, off_t offset)
     }
 }
 
-ssize_t pread64(int fd, void *buf, size_t count, off_t offset)
-    __attribute__((alias("pread")));
-
 /* write / pwrite (§7.8): stream into the remote write handle at the slot's
  * current (or explicit) offset. Non-shim fds and read-only shim slots pass
  * through / error exactly as the kernel would. */
 ssize_t
-write(int fd, const void *buf, size_t count)
+BRIXPOSIX_WRAP(write)(int fd, const void *buf, size_t count)
 {
     xfs_slot *s;
     REAL(write);
@@ -469,7 +465,7 @@ write(int fd, const void *buf, size_t count)
 }
 
 ssize_t
-pwrite(int fd, const void *buf, size_t count, off_t offset)
+BRIXPOSIX_WRAP(pwrite)(int fd, const void *buf, size_t count, off_t offset)
 {
     xfs_slot *s;
     REAL(pwrite);
@@ -497,11 +493,8 @@ pwrite(int fd, const void *buf, size_t count, off_t offset)
     }
 }
 
-ssize_t pwrite64(int fd, const void *buf, size_t count, off_t offset)
-    __attribute__((alias("pwrite")));
-
 off_t
-lseek(int fd, off_t offset, int whence)
+BRIXPOSIX_WRAP(lseek)(int fd, off_t offset, int whence)
 {
     xfs_slot *s;
     REAL(lseek);
@@ -519,10 +512,8 @@ lseek(int fd, off_t offset, int whence)
     return (off_t) s->pos;
 }
 
-off_t lseek64(int fd, off_t offset, int whence) __attribute__((alias("lseek")));
-
 int
-close(int fd)
+BRIXPOSIX_WRAP(close)(int fd)
 {
     xfs_slot *s;
     REAL(close);

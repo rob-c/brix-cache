@@ -38,6 +38,7 @@ root, a fleet, or a built binary.
 from __future__ import annotations
 
 import ctypes
+import sys
 import ctypes.util
 import errno
 import os
@@ -181,7 +182,9 @@ def test_no_beneath_helper_refuses_for_lack_of_a_broker_verb():
 # --------------------------------------------------------------------------
 
 def _renameat2(old: str, new: str, flags: int) -> int:
-    libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.so.6", use_errno=True)
+    libc = ctypes.CDLL(ctypes.util.find_library("c")
+                  or ("libc.dylib" if sys.platform == "darwin" else "libc.so.6"),
+                  use_errno=True)
     ctypes.set_errno(0)
     rc = libc.syscall(
         ctypes.c_long(316),                       # SYS_renameat2 on x86_64

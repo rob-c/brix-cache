@@ -46,11 +46,14 @@ from test_cvmfs_scvmfs_x509 import _leaf, _self_signed
 FQRN = "s0sec.brix.io"
 FILES = {"payload.txt": b"gated stratum-zero payload\n"}
 
+# The repotool publishes are quick alone (<10 s) but stall past the 30 s default
+# on a loaded host (8 xdist workers building tools): widen the per-test timeout.
 pytestmark = [
     pytest.mark.skipif(not os.path.exists(NGINX_BIN),
                        reason=f"nginx binary not found: {NGINX_BIN}"),
     pytest.mark.skipif(shutil.which("openssl") is None,
                        reason="openssl not installed"),
+    pytest.mark.timeout(300),
 ]
 
 _BLOCK = PortBlock("srv_s0_scvmfs")

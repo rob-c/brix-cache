@@ -23,7 +23,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
-#include <sys/xattr.h>
+#include "platform/platform.h"   /* PAL: Linux-shaped xattr calls on every host */
 
 /* extended attributes (opt-in via --xattr) *//* FUSE uses "user.<x>" names; the server stores them under its own "user.U."
  * prefix, so we send the bare "<x>" and the module re-prefixes. Only the user.*
@@ -366,6 +366,7 @@ xrootdfs_legacy_main(int argc, char **argv)
      * tag the kernel mount subtype explicitly: mounts then show as
      * fuse.xrootdfs_legacy and `xrd mount` can still tell the two apart. */
     fuse_argv[fuse_argc++] = (char *) "-osubtype=xrootdfs_legacy";
+    xfs_add_host_opts(fuse_argv, &fuse_argc);   /* e.g. macFUSE noappledouble */
 
     rc = lg_xfs_parse_args(argc, argv, fuse_argv, &fuse_argc, &endpoint);
     if (rc >= 0) {

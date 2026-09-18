@@ -8,9 +8,9 @@ decision) and proves both:
   * authdb path scoping — with `u * /cms rl` + `u * /restricted rl`, an authenticated reader is
     served under those subtrees but REFUSED elsewhere (/private) with 403.
   * VO ACL — with `require_vo /restricted cms`, a VO=cms proxy reads /restricted but a VO=atlas
-    proxy is refused 403. This exercises the VOMS VO extraction fix: WebDAV now (a) loads
-    libvomsapi even in a WebDAV-only deployment and (b) re-derives the VO on cached TLS
-    connections, so the identity carries its VOs (previously vos="-").
+    proxy is refused 403. This exercises the VOMS VO extraction fix: WebDAV now (a) warms
+    the native VOMS trust store even in a WebDAV-only deployment and (b) re-derives the VO
+    on cached TLS connections, so the identity carries its VOs (previously vos="-").
 
 Run: PYTHONPATH=tests pytest tests/test_mu_webdav_authz.py -v   (no root needed)
 """

@@ -30,6 +30,7 @@
 #include "protocols/root/session/admin_socket.h"
 #include "net/cms/cms_admin.h"
 #include "protocols/root/session/bind_migrate.h" /* §1.4 cross-worker bind */  /* §1.16 admin unix socket */
+#include "fs/vfs/vfs_backend_registry.h"   /* brix_vfs_backend_release_prefork */
 #include "core/compat/checksum_plugin.h" /* brix_cks_plugins_init_worker */
 
 #if defined(__SANITIZE_ADDRESS__)   /* Phase 27 W6: explicit LSan check at exit */
@@ -188,6 +189,20 @@ brix_warn_openat2_unavailable(ngx_cycle_t *cycle)
  * HOW : Chain the pre-existing impersonation init (its return is the module
  *       verdict) with the channel creation.
  */
+/* True when this process is about to fork workers, i.e. the config asked for a
+ * master. ngx_process is still NGX_PROCESS_SINGLE here — nginx promotes it to
+ * NGX_PROCESS_MASTER only after ngx_init_cycle returns — so read the same core
+ * conf main() reads. In single-process mode nothing forks and this process goes
+ * on to serve, so it must keep everything it composed. */
+static int
+brix_init_module_will_fork(ngx_cycle_t *cycle)
+{
+    ngx_core_conf_t *ccf = (ngx_core_conf_t *)
+        ngx_get_conf(cycle->conf_ctx, ngx_core_module);
+
+    return (ccf != NULL && ccf->master && ngx_process != NGX_PROCESS_WORKER);
+}
+
 ngx_int_t
 brix_stream_init_module(ngx_cycle_t *cycle)
 {
@@ -197,6 +212,16 @@ brix_stream_init_module(ngx_cycle_t *cycle)
         return rc;
     }
     brix_bind_migrate_create_channels(cycle);
+
+    /* Last thing before the fork: drop the storage stacks this process composed
+     * while validating the config. A driver holding a process-affine kernel
+     * object — the pblock catalog's SQLite connection and its write-ahead-log
+     * shared memory — would otherwise hand every worker inherited state whose
+     * locks belong to the parent, and the worker's own open fails. Workers
+     * rebuild their own stacks on first resolve. */
+    if (brix_init_module_will_fork(cycle)) {
+        brix_vfs_backend_release_prefork();
+    }
     return NGX_OK;
 }
 

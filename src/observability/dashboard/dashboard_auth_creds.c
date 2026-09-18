@@ -1,17 +1,13 @@
 #include "dashboard_auth_internal.h"
+#include "sha_crypt.h"
 #include "core/compat/alloc_guard.h"
+#include "platform/platform_api.h"
 
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
 #include <openssl/crypto.h>
 #include <stdio.h>
 #include <string.h>
-/* macOS has crypt in unistd.h, not crypt.h */
-#if defined(__APPLE__) && defined(__MACH__)
-#include <unistd.h>
-#else
-#include <crypt.h>
-#endif
 
 /*
  * dashboard/dashboard_auth_creds.c — credential store and session-cookie HMAC
@@ -109,6 +105,20 @@ dashboard_copy_str0(ngx_pool_t *pool, ngx_str_t *src, char **out)
  *       Both comparisons use CRYPTO_memcmp to avoid leaking length/content via
  *       timing. Returns NGX_OK / NGX_DECLINED / NGX_ERROR (alloc failure).
  */
+/* Whether crypt(3)'s answer carries the same "$id$" method prefix as the
+ * stored hash — i.e. the platform actually implements that method. */
+static int
+dashboard_crypt_same_method(const char *candidate, const char *hash)
+{
+    size_t n;
+
+    if (candidate == NULL || hash[0] != '$') {
+        return 0;
+    }
+    n = strcspn(hash + 1, "$") + 2;          /* "$<id>$" */
+    return strncmp(candidate, hash, n) == 0;
+}
+
 ngx_int_t
 dashboard_verify_user_password(ngx_pool_t *pool,
     ngx_http_brix_dashboard_user_t *user,
@@ -134,7 +144,18 @@ dashboard_verify_user_password(ngx_pool_t *pool,
     /* crypt(3) hash: the stored hash doubles as the salt; crypt re-derives the
      * full hash string, which must match byte-for-byte (incl. length). */
     if (hash[0] == '$') {
-        candidate = crypt(plain, hash);
+        char sha_out[BRIX_SHA_CRYPT_MAX];
+
+        candidate = brix_plat_crypt(plain, hash);
+        /* A libc whose crypt(3) lacks the hash's method (Darwin: no $5$/$6$)
+         * returns NULL or a hash under a different method; derive the
+         * SHA-crypt string ourselves in that case. */
+        if (!dashboard_crypt_same_method(candidate, hash)
+            && brix_sha_crypt_handles(hash)
+            && brix_sha_crypt(plain, hash, sha_out, sizeof(sha_out)) == 0)
+        {
+            candidate = sha_out;
+        }
         if (candidate == NULL) {
             return NGX_DECLINED;
         }

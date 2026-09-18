@@ -28,6 +28,7 @@ extern ngx_conf_enum_t brix_cache_verify_modes[];
 extern ngx_conf_enum_t brix_seccomp_modes[];
 extern ngx_conf_enum_t brix_signing_policy_modes[];
 extern ngx_conf_enum_t brix_crl_modes[];
+extern ngx_conf_enum_t brix_legacy_proxy_modes[];   /* GT2 proxy acceptance */
 extern ngx_conf_enum_t brix_crl_scopes[];        /* 2.0 F19 */
 extern ngx_conf_enum_t brix_tls_verify_logs[];   /* 2.0 F19 */
 

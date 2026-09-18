@@ -36,6 +36,7 @@ brix_rebuild_gsi_store(ngx_stream_brix_srv_conf_t *xcf, ngx_log_t *log,
 
     pol.sp_mode    = (brix_sp_mode_t) xcf->signing_policy_mode;
     pol.crl_mode   = (int) xcf->crl_mode;
+    pol.legacy_proxy = (int) xcf->legacy_proxy_mode;
     pol.crl_scope  = (int) xcf->crl_scope;
     pol.verify_log = (int) xcf->tls_verify_log;
 

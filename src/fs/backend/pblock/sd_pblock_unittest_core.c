@@ -283,14 +283,14 @@ test_xattr(brix_sd_instance_t *inst)
     ssize_t n;
 
     CHECK(write_file(inst, "/xa", "z", 1) == 0, "seed");
-    CHECK(D->setxattr(inst, "/xa", "user.tag", "v1", 2, 0) == NGX_OK, "set");
-    n = D->getxattr(inst, "/xa", "user.tag", buf, sizeof(buf));
+    CHECK((D->setxattr)(inst, "/xa", "user.tag", "v1", 2, 0) == NGX_OK, "set");
+    n = (D->getxattr)(inst, "/xa", "user.tag", buf, sizeof(buf));
     CHECK(n == 2 && memcmp(buf, "v1", 2) == 0, "get n=%zd", n);
-    n = D->listxattr(inst, "/xa", buf, sizeof(buf));
+    n = (D->listxattr)(inst, "/xa", buf, sizeof(buf));
     CHECK(n == (ssize_t) sizeof("user.tag"), "list n=%zd", n);
-    CHECK(D->removexattr(inst, "/xa", "user.tag") == NGX_OK, "remove");
+    CHECK((D->removexattr)(inst, "/xa", "user.tag") == NGX_OK, "remove");
     errno = 0;
-    n = D->getxattr(inst, "/xa", "user.tag", buf, sizeof(buf));
+    n = (D->getxattr)(inst, "/xa", "user.tag", buf, sizeof(buf));
     CHECK(n == -1 && errno == ENODATA, "get after remove");
 }
 

@@ -1,11 +1,15 @@
 from split_continuation import reexport as _reexport
+from lib_py.util import budget_scale
 _reexport(globals(), "_test_manager_mode_helpers")
 
 # TestClusterUnregister kills the shared cluster-ds (its `cluster` fixture
 # restarts it on module teardown), so this module and its _b split must run
 # sequentially on one worker — interleaved, the DS-down window ERRORs the
 # sibling's cluster-fixture setup.
-pytestmark = pytest.mark.xdist_group("manager-mode-cluster")
+# The cluster fixture waits for two workers' CMS logins and the cells retry
+# locate until the link is up; both exceed the 30 s default on a loaded host.
+pytestmark = [pytest.mark.xdist_group("manager-mode-cluster"),
+              pytest.mark.timeout(300 * budget_scale())]
 
 @pytest.mark.registry_server("manager")
 def test_locate_redirect_basic(manager_nginx):
@@ -337,20 +341,24 @@ class TestClusterMultiServer:
 # XRootD client session — no cross-worker IPC is required.
 # ═══════════════════════════════════════════════════════════════════════════
 class TestPerWorkerCMS:
-    """Each nginx worker must open its own independent CMS connection."""
+    """A multi-worker node registers upward over ONE connection, not one per
+    worker (src/net/cms/cms_start.c, brix_cms_role_worker_init)."""
 
     @pytest.mark.registry_servers("cluster-mw", "cluster-mw-mgr")
-    def test_each_worker_connects_independently(self, cluster_multi_worker):
-        """With worker_processes 2 and one CMS manager, expect 2 connections.
+    def test_the_node_registers_over_a_single_connection(self, cluster_multi_worker):
+        """With worker_processes 2 and one CMS manager, expect ONE connection.
 
-        Each worker forks from the master with cms_ctx == NULL and runs its own
-        init_process hook, so both workers call ngx_brix_cms_start and open
-        an independent TCP connection to the CMS manager.
+        A node's CMS identity is its SID (host:listen_port), which every worker
+        shares, and a stock cmsd admits one connection per identity: a second
+        worker logging in collides as "already logged in" and earns the node a
+        30 s blacklist.  The outbound client is therefore started on worker 0
+        only, and this pins that — a count that climbs with worker_processes
+        again is the self-collision coming back.
         """
         count = cluster_multi_worker["connection_count"][0]
-        assert count >= 2, (
-            f"expected >= 2 CMS connections (one per worker), got {count}; "
-            "check that ngx_brix_cms_start is not guarded to a single worker"
+        assert count == 1, (
+            f"expected exactly 1 CMS connection for the node, got {count}; "
+            "the outbound client is gated to worker 0 (one login per SID)"
         )
 
 

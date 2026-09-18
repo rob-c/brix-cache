@@ -18,7 +18,7 @@
 
 #include <errno.h>
 #include <string.h>
-#include <sys/xattr.h>
+#include "platform/platform_api.h"
 #include "core/compat/alloc_guard.h"
 
 #include "dead_props_internal.h"

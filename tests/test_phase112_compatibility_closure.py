@@ -46,8 +46,11 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from lib_py.util import budget_scale
 
-pytestmark = [pytest.mark.timeout(120),
+# The closure scans the whole tracked tree; that is seconds idle and minutes
+# inside an 8-worker lane, so the budget scales with the host.
+pytestmark = [pytest.mark.timeout(120 * budget_scale()),
               pytest.mark.xdist_group("phase112-closure")]
 
 ROOT = Path(__file__).resolve().parent.parent

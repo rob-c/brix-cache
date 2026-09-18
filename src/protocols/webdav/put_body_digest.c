@@ -147,18 +147,16 @@ webdav_put_verify_ingest_digest(ngx_http_request_t *r,
     ngx_memzero(&o, sizeof(o));
     o.require_regular_file = 1;   /* hash the staged bytes fresh (no xattr cache) */
     {
-        char    procpath[32];
         ngx_int_t irc;
         int     rfd;
 
         /* The staged temp is opened write-only (staged_open_posix, O_WRONLY), and
          * has no final path yet (pre-commit), so it cannot be pread directly nor
-         * reopened by name.  Re-open the same open file description read-only via
-         * /proc/self/fd/<fd> — valid on Linux for an unlinked/O_TMPFILE staged
-         * temp — and hash the already-written bytes over the read handle. */
-        (void) ngx_snprintf((u_char *) procpath, sizeof(procpath),
-                            "/proc/self/fd/%d%Z", (int) fd);
-        rfd = open(procpath, O_RDONLY | O_CLOEXEC);  /* vfs-seam-allow: DOMAIN_STAGE — read-back of staged PUT bytes for pre-commit ingest-digest verify (no final path yet) */
+         * reopened by name.  Ask the PAL for a read-only alias of the same open
+         * file (Linux: /proc/self/fd/<fd>, valid even for an unlinked/O_TMPFILE
+         * temp; Darwin: the F_GETPATH name) and hash the already-written bytes
+         * over the read handle. */
+        rfd = brix_plat_fd_reopen_readonly((int) fd);
         if (rfd < 0) {
             /* Cannot obtain a readable view of what we must verify: fail closed. */
             return NGX_HTTP_BAD_REQUEST;

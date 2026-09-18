@@ -111,6 +111,7 @@ from _test_conf_stattypes_helpers import _stat_fields, _stat_path, _statx
 from _test_conf_write_helpers import (_connect, _err, _login, _open, _resp,
                                       kXR_new, kXR_ok, kXR_open_read,
                                       kXR_open_updt)
+from lib_py.util import pid_alive
 
 NAME = "lc-audit16aj-storeep"
 _L = LIFECYCLE_SHARED_PORTS[NAME]
@@ -139,7 +140,7 @@ def _dead_pid():
     threads (2 is kthreadd, which never exits), so the search starts above
     anything a running system would have handed out."""
     for candidate in range(4_000_000, 4_000_400):
-        if not Path(f"/proc/{candidate}").exists():
+        if not pid_alive(candidate):
             return candidate
     raise RuntimeError("no free pid found")
 
@@ -166,6 +167,13 @@ RESERVED_IDS = ("cinfo", "xrdcinfo", "meta", "xrdt", "commit", "xrd-tmp",
 NEAR_MISS = ("keep.dat.CINFO", "keep.dat.cinfoX", "keep.dat.cinf", "cinfo",
              "keep.dat.commitX", "keep.datxrd-tmp.1.2", "keep.dat.meta.txt")
 NEAR_BYTES = b"NEARMISS-BYTES"
+
+
+def seeded_exactly(directory, name):
+    """Whether ``name`` is its own entry in ``directory`` (not a case-folded
+    alias of another seeded file, as ``keep.dat.CINFO`` is on APFS)."""
+    return name in os.listdir(directory)
+
 
 # The subtrees the server-scope vhost's three children address.
 SUBTREES = ("optout", "reassert")
@@ -197,6 +205,11 @@ def _seed(directory):
     for name in RESERVED + (DEAD_TMP,):
         (directory / name).write_bytes(SECRET)
     for name in NEAR_MISS:
+        if (directory / name).exists():
+            # A case-only near miss (keep.dat.CINFO) resolves to the reserved
+            # file itself on a case-folding filesystem (APFS default on macOS);
+            # writing it would overwrite the secret it exists to contrast with.
+            continue
         (directory / name).write_bytes(NEAR_BYTES)
     # A dot-file whose WHOLE basename is a reserved suffix: the predicate is a
     # suffix test on the final component, not a "stem plus extension" test.

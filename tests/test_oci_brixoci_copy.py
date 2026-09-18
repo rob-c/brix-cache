@@ -7,6 +7,7 @@
 import hashlib, json, os, subprocess, sys, time, urllib.request
 import pytest
 from settings import HOST
+from lib_py.util import loopback_alias_usable
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BRIXOCI = os.path.join(REPO_ROOT, "client", "bin", "brixoci")
@@ -32,6 +33,13 @@ pytestmark = [
     # worker's corrupt-blob setup poisons a concurrent push/pull roundtrip
     # (digest mismatch / exit-5 not seen) — keep the module on one worker.
     pytest.mark.xdist_group("brixoci-copy"),
+    # The CDN twin must answer on a DIFFERENT host string than the origin, so
+    # the lane binds the second loopback address; Linux routes all of
+    # 127.0.0.0/8 to lo, macOS assigns only 127.0.0.1.
+    pytest.mark.skipif(
+        not loopback_alias_usable(CDN_HOST),
+        reason=f"{CDN_HOST} is not bindable on this host "
+               f"(sudo ifconfig lo0 alias {CDN_HOST} up)"),
 ]
 
 

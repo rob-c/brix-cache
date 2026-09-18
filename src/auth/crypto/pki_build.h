@@ -77,4 +77,11 @@ X509_STORE *brix_build_ca_store_cached(void *scope, ngx_log_t *log,
     int *crl_count_out,
     const brix_trust_policy_t *pol);
 
+/* brix_build_ca_store_peek — the store brix_build_ca_store_cached already
+ * built for these inputs (up_ref'd; the caller frees its ref), or NULL. Never
+ * builds and never logs: the request-time lookup. */
+X509_STORE *brix_build_ca_store_peek(const char *cadir, const char *cafile,
+    const char *crl_path, unsigned long extra_flags,
+    const brix_trust_policy_t *pol);
+
 #endif /* CRYPTO_PKI_BUILD_H */

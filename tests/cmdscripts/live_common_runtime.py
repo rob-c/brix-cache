@@ -6,6 +6,7 @@ class LiveRun(AbstractContextManager["LiveRun"]):
         self.nginx = freeze_nginx(nginx or os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"))
         self.processes: list[subprocess.Popen[str]] = []
         self.pidfiles: list[Path] = []
+        self.listen_ports: list[int] = []
 
     def __enter__(self) -> "LiveRun":
         return self
@@ -17,6 +18,11 @@ class LiveRun(AbstractContextManager["LiveRun"]):
         _terminate_pidfiles(self.pidfiles)
         _terminate_processes(self.processes)
         _wait_processes(self.processes)
+        # Belt and braces: a server whose pidfile never appeared (or vanished)
+        # is invisible to the pass above and would outlive the run holding its
+        # fixed port.  Reap whatever still listens on the ports this run bound.
+        for listen_port in self.listen_ports:
+            _reap_port(listen_port)
         _reap_fuse_mounts(self.root)
         if os.environ.get("BRIX_LIVE_KEEP_TREE"):
             # Debug aid: preserve the ephemeral LiveRun tree (nginx configs +
@@ -128,6 +134,7 @@ class LiveRun(AbstractContextManager["LiveRun"]):
             raise LiveFailure(result.stderr or result.stdout or f"nginx failed to start for {config}")
         pidfile = prefix / "nginx.pid"
         self.pidfiles.append(pidfile)
+        self.listen_ports.extend(config_listen_ports(config) or [port])
         if not wait_tcp(BIND_HOST, port, timeout):
             detail = _nginx_error_detail(prefix)
             raise LiveFailure(f"nginx was not ready on {port}: {detail}")

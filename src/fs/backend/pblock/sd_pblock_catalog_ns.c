@@ -34,7 +34,7 @@
 #include <stdlib.h>
 
 #include <sqlite3.h>
-#include <sys/xattr.h>    /* XATTR_CREATE / XATTR_REPLACE */
+#include "platform/platform_api.h"   /* XATTR_CREATE / XATTR_REPLACE */
 
 struct pblock_catalog_iter {
     sqlite3_stmt *stmt;

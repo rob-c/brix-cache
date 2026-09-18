@@ -113,10 +113,16 @@ def test_asan_preflight_skip_vs_strict(monkeypatch):
 
 def test_asan_uses_provided_binary(monkeypatch):
     asan = _load("tools/ci/asan.py", "asan_bp")
-    # a runnable provided binary short-circuits the build and is returned
-    monkeypatch.setenv("TEST_ASAN_NGINX_BIN", "/bin/true")
+    # A runnable provided binary short-circuits the build and is returned.
+    # Any executable will do, and it has to be one that EXISTS here: /bin/true
+    # is Linux's path for it and macOS keeps true(1) in /usr/bin, so hardcoding
+    # it made this cell run the real sanitizer build instead of the short
+    # circuit it is testing (2026-09-17). The interpreter running the suite is
+    # always present and always executable.
+    runnable = sys.executable
+    monkeypatch.setenv("TEST_ASAN_NGINX_BIN", runnable)
     assert asan._prepare_binary({"tests": "/tmp", "nginx_src": "/tmp"}) \
-        == "/bin/true"
+        == runnable
 
 
 # --------------------------------------------------------------------------- #

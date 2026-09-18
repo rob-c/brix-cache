@@ -28,7 +28,7 @@ rc_worker_main(void *arg)
             ac->rc_result = 0;
             __atomic_store_n(&ac->rc_finished, 1, __ATOMIC_RELEASE);
             uint64_t one = 1;
-            ssize_t  w = write(ac->loop->evfd, &one, sizeof(one));
+            ssize_t  w = write(ac->loop->evfd_w, &one, sizeof(one));
             (void) w;
             return NULL;
         }
@@ -62,7 +62,7 @@ rc_worker_main(void *arg)
     ac->rc_st = st;
     __atomic_store_n(&ac->rc_finished, 1, __ATOMIC_RELEASE);
     uint64_t one = 1;
-    ssize_t  w = write(ac->loop->evfd, &one, sizeof(one));
+    ssize_t  w = write(ac->loop->evfd_w, &one, sizeof(one));
     (void) w;
     return NULL;
 }
@@ -83,7 +83,7 @@ loop_push_cmd(brix_loop *l, cmd *c)
     pthread_mutex_unlock(&l->cq_lock);
 
     uint64_t one = 1;
-    ssize_t wr = write(l->evfd, &one, sizeof(one));
+    ssize_t wr = write(l->evfd_w, &one, sizeof(one));
     (void) wr;
 }
 
@@ -272,6 +272,7 @@ brix_loop_create(brix_status *st)
     pthread_mutex_init(&l->cq_lock, NULL);
     l->epfd = -1;
     l->evfd = -1;
+    l->evfd_w = -1;
     l->use_uring = brix_loop_want_uring();   /* phase-44 loop engine (default off) */
     l->use_rxtx  = l->use_uring && brix_loop_want_rxtx();   /* ii-b tier (P44-C) */
 
@@ -301,7 +302,7 @@ brix_loop_destroy(brix_loop *l)
         } else {
             l->stop = 1;                /* fallback: still wakes via any traffic */
             uint64_t one = 1;
-            ssize_t wr = write(l->evfd, &one, sizeof(one));
+            ssize_t wr = write(l->evfd_w, &one, sizeof(one));
             (void) wr;
         }
         pthread_join(l->thread, NULL);
@@ -424,6 +425,8 @@ brix_aio_submit_ex(brix_aconn *ac, const void *hdr24,
     c->deadline_ms = opts ? opts->deadline_ms : 0;
     c->max_retries = opts ? opts->max_retries : -1;
     c->retry_safe  = opts ? opts->retry_safe : 0;
+    c->dst         = opts ? (uint8_t *) opts->dst : NULL;
+    c->dst_cap     = opts ? opts->dst_cap : 0;
 
     loop_push_cmd(ac->loop, c);
     return 0;
@@ -435,7 +438,7 @@ brix_aio_submit(brix_aconn *ac, const void *hdr24,
                 const void *payload, uint32_t plen,
                 brix_aio_cb cb, void *ctx, int deadline_ms, brix_status *st)
 {
-    brix_aio_opts o = { deadline_ms, -1, 0 };   /* default: not auto-retried */
+    brix_aio_opts o = { deadline_ms, -1, 0, NULL, 0 };  /* not auto-retried */
     return brix_aio_submit_ex(ac, hdr24, payload, plen, &o, cb, ctx, st);
 }
 
@@ -515,6 +518,6 @@ brix_aio_call(brix_aconn *ac, const void *hdr24,
               uint16_t *kxr, uint8_t **body, uint32_t *blen,
               int deadline_ms, brix_status *st)
 {
-    brix_aio_opts o = { deadline_ms, -1, 0 };
+    brix_aio_opts o = { deadline_ms, -1, 0, NULL, 0 };
     return brix_aio_call_ex(ac, hdr24, payload, plen, &o, kxr, body, blen, st);
 }

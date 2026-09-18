@@ -565,6 +565,19 @@ brix_store_crl_scope(X509_STORE_CTX *ctx)
 }
 
 int
+brix_store_legacy_proxy(X509_STORE *store)
+{
+    brix_store_policy_t *sp;
+    int                  idx = sp_store_ex_index();
+
+    if (store == NULL || idx < 0) {
+        return BRIX_LEGACY_PROXY_OFF;
+    }
+    sp = X509_STORE_get_ex_data(store, idx);
+    return sp ? sp->pol.legacy_proxy : BRIX_LEGACY_PROXY_OFF;
+}
+
+int
 brix_store_verify_log(X509_STORE_CTX *ctx)
 {
     brix_store_policy_t *sp = sp_from_ctx(ctx);

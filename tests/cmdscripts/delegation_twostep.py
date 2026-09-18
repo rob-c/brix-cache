@@ -8,6 +8,7 @@ import hashlib
 import os
 import signal
 import subprocess
+import sys
 import time
 
 from cmdscripts import handoff_credential_store, run
@@ -32,7 +33,7 @@ def ensure_pki(base: Path) -> tuple[bool, str]:
     if _pki_available():
         return True, ""
     result = subprocess.run(
-        ["python3", "-c", "import pki_helpers; pki_helpers.blitz_test_pki()"],
+        [sys.executable, "-c", "import pki_helpers; pki_helpers.blitz_test_pki()"],
         cwd=REPO_ROOT / "tests",
         env={**os.environ, "PYTHONPATH": "."},
         stdout=subprocess.PIPE,
@@ -55,7 +56,7 @@ def mint_certs(base: Path) -> tuple[bool, str, dict[str, str]]:
     certs = base / "certs"
     certs.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
-        ["python3", "mint_delegation_certs.py", CA_CERT, CA_KEY, str(certs)],
+        [sys.executable, "mint_delegation_certs.py", CA_CERT, CA_KEY, str(certs)],
         cwd=REPO_ROOT / "tests",
         env={**os.environ, "PYTHONPATH": "."},
         stdout=subprocess.PIPE,

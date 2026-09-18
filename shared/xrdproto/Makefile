@@ -22,6 +22,13 @@ PROTO  := $(REPO)/src/protocols/root/protocol
 HARDEN := -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector-strong \
           -fstack-clash-protection -fcf-protection=full \
           -Wformat -Werror=format-security
+# BRIX_PLATFORM_HOST names the PAL host directory (src/platform/<host>/);
+# the PAL headers carry no OS conditional and require it.
+ifeq ($(shell uname -s),Darwin)
+HARDEN += -DBRIX_PLATFORM_HOST=darwin
+else
+HARDEN += -DBRIX_PLATFORM_HOST=linux
+endif
 
 # Optimize profile — same knob/default as the module (BRIX_OPTIMIZE, default v2).
 BRIX_OPTIMIZE ?= v2
@@ -104,7 +111,11 @@ GSI   := $(REPO)/src/auth/gsi
 GSI_OBJS := $(BUILD)/gsi_core.o $(BUILD)/gsi_core_cresp.o \
             $(BUILD)/gsi_core_cresp_util.o $(BUILD)/gsi_buf.o $(BUILD)/gsi_dh.o \
             $(BUILD)/gsi_cipher.o $(BUILD)/gsi_rsa.o $(BUILD)/proxy_req.o \
-            $(BUILD)/proxy_req_sign.o $(BUILD)/proxy_req_assemble.o
+            $(BUILD)/proxy_req_sign.o $(BUILD)/proxy_req_assemble.o \
+            $(BUILD)/store_policy_conformance.o
+# proxy_req_sign.c classifies the signer through the GT2/RFC proxy classifier
+# (brix_px_classify / brix_gt2_proxy_kind), which lives with the store policy.
+CRYPTO := $(REPO)/src/auth/crypto
 # Token kernels shared with the module's src/auth/token (WLCG scope authz + JWT
 # base64url decode — the DECODE/scope core, not the JWKS signature-verify path).
 TOKEN := $(REPO)/src/auth/token
@@ -161,7 +172,16 @@ OBJS  := $(COMPAT_OBJS) $(GSI_OBJS) $(TOKEN_OBJS) $(BACKEND_OBJS) $(ZIP_OBJS) \
 .PHONY: all check clean
 all: $(LIB)
 
+# Recreate the archive rather than update it in place. `ar r` only replaces the
+# members it is given: it never drops a member whose source was deleted, and it
+# never rewrites the archive HEADER. An archive left behind by a build for
+# another host therefore keeps that host's format — a GNU archive's "/" and
+# "//" extended-name-table members stay put while every real member is replaced
+# natively, and the link then fails with "archive member '/' not a mach-o file"
+# no matter how often the objects are rebuilt (seen 2026-09-17). Same reason
+# client/Makefile recreates libbrix.a.
 $(LIB): $(OBJS)
+	rm -f $@
 	$(AR) rcs $@ $^
 	@echo " + built $@ ($(words $(OBJS)) objects, BRIX_OPTIMIZE=$(BRIX_OPTIMIZE))"
 
@@ -175,6 +195,8 @@ $(BUILD)/gsi_core_cresp_util.o: $(GSI)/gsi_core_cresp_util.c | $(BUILD)
 $(BUILD)/proxy_req_sign.o: $(GSI)/proxy_req_sign.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 $(BUILD)/proxy_req_assemble.o: $(GSI)/proxy_req_assemble.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/store_policy_conformance.o: $(CRYPTO)/store_policy_conformance.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 $(BUILD)/gsi_core.o: $(GSI)/gsi_core.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@

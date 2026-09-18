@@ -1,6 +1,5 @@
 /* WebDAV postconfiguration: keep the complete implementation on non-Darwin hosts.
  * The Darwin fallback is selected only when compiling for macOS. */
-#if !defined(__APPLE__) || !defined(__MACH__)
 
 /*
  * postconfig.c - content handler registration and HTTP SSL/thread setup.
@@ -17,6 +16,9 @@
 #include "protocols/shared/proto_exclusive.h"
 #include "protocols/shared/protocol.h"
 #include "core/http/ktls.h"
+#include "auth/crypto/gsi_verify.h"
+#include "auth/crypto/store_policy.h"
+#include <stdint.h>
 #include "tpc/common/registry.h"
 #include "net/mirror/http_mirror.h"
 #include "net/ratelimit/ratelimit.h"
@@ -230,6 +232,29 @@ webdav_postconf_load_client_capath(ngx_conf_t *cf,
  * common.ktls is set it calls brix_http_ktls_enable_ctx(). Registration
  * effects are identical whether or not this is split out.
  */
+/*
+ * WHAT: nginx's handshake-time client-certificate verification with legacy
+ *       (GT2) proxies marked first.
+ * WHY:  ssl_verify_client runs X509_verify_cert inside the TLS handshake,
+ *       before any brix handler: a GT2 proxy (no proxyCertInfo) fails there
+ *       with "key usage does not include certificate signing" and the request
+ *       never reaches auth_cert.c, whatever brix_gsi_legacy_proxy says.
+ * HOW:  the same marking brix_gsi_verify_chain performs, then OpenSSL's
+ *       default verification.  `arg` carries the merged BRIX_LEGACY_PROXY_*
+ *       mode; full-only is enforced afterwards by the module's own verifier,
+ *       which auth_cert.c always runs for a GT2 chain.
+ */
+static int
+webdav_legacy_cert_verify_cb(X509_STORE_CTX *vctx, void *arg)
+{
+    int mode = (int) (uintptr_t) arg;
+
+    (void) brix_gsi_mark_legacy_proxies(X509_STORE_CTX_get0_cert(vctx),
+                                        X509_STORE_CTX_get0_untrusted(vctx),
+                                        mode);
+    return X509_verify_cert(vctx);
+}
+
 static ngx_int_t
 webdav_postconf_setup_ssl_ctx(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf)
 {
@@ -256,6 +281,22 @@ webdav_postconf_setup_ssl_ctx(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf)
                           "brix_webdav: enabled X509_V_FLAG_ALLOW_PROXY_CERTS"
                           " on SSL context for server %V",
                           &cscf->server_name);
+        }
+        {
+            ngx_uint_t mode = wdcf->common.legacy_proxy_mode;
+
+            if (mode == NGX_CONF_UNSET_UINT) {
+                mode = BRIX_LEGACY_PROXY_ON;
+            }
+            if (mode != BRIX_LEGACY_PROXY_OFF) {
+                SSL_CTX_set_cert_verify_callback(sslcf->ssl.ctx,
+                                                 webdav_legacy_cert_verify_cb,
+                                                 (void *) (uintptr_t) mode);
+                ngx_log_error(NGX_LOG_INFO, cf->log, 0,
+                              "brix_webdav: legacy (GT2) proxies admitted at the"
+                              " TLS handshake for server %V (brix_gsi_legacy_proxy)",
+                              &cscf->server_name);
+            }
         }
     }
 
@@ -408,49 +449,3 @@ ngx_http_brix_webdav_postconfiguration(ngx_conf_t *cf)
 
     return NGX_OK;
 }
-
-#else /* macOS */
-
-/*
- * postconfig_stub.c - macOS stub for postconfig
- * 
- * This stub allows compilation on macOS where nginx SSL module internals
- * may differ. Full implementation requires nginx SSL module access.
- */
-
-#include <ngx_core.h>
-#include <ngx_http.h>
-#include "darwin_config_stub.h"
-#include "webdav.h"
-
-ngx_int_t
-brix_webdav_postconfig_init(ngx_conf_t *cf)
-{
-    (void)cf;
-    /* Stub - SSL config requires nginx SSL module */
-    return NGX_OK;
-}
-
-/* Stub postconfiguration function */
-ngx_int_t
-ngx_http_brix_webdav_postconfiguration(ngx_conf_t *cf)
-{
-    (void)cf;
-    /* Stub - full implementation in postconfig_full.c requires nginx SSL module */
-    return NGX_OK;
-}
-
-/* Stub directive handlers for SSL config - macOS lacks nginx SSL module access */
-char *
-webdav_conf_client_cert_folder(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    return brix_webdav_darwin_config_stub(cf, cmd, conf);
-}
-
-char *
-webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    return brix_webdav_darwin_config_stub(cf, cmd, conf);
-}
-
-#endif /* macOS */

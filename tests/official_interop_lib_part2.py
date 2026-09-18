@@ -336,7 +336,13 @@ def start_pair(base=None, rich=True, our_port=None, off_port=None):
     tag = worker_tag()
     harness = LifecycleHarness()
     try:
-        prefname_host = socket.gethostbyname(socket.gethostname())
+        # A host whose own name does not resolve (a laptop off its DNS domain,
+        # macOS with a .local name) must still launch the pair: fall back to
+        # the loopback bind and skip the preferred-name listener.
+        try:
+            prefname_host = socket.gethostbyname(socket.gethostname())
+        except OSError:
+            prefname_host = BIND
         prefname_listen = ""
         if prefname_host != BIND:
             prefname_listen = f"listen {prefname_host}:{our_port};"

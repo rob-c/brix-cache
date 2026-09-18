@@ -10,15 +10,9 @@
 #include "fs/backend/cache/sd_cache.h" /* brix_sd_cache_create (slice decorator) */
 #include "fs/backend/stage/sd_stage.h" /* brix_sd_stage_create (write-through) */
 #include "fs/tier/tier.h"              /* brix_cache_policy_t */
+#include "platform/platform_api.h"     /* O_PATH on every host */
 
 #include <fcntl.h>
-
-/* macOS lacks O_PATH - use O_RDONLY as fallback */
-#if defined(__APPLE__) && defined(__MACH__)
-#ifndef O_PATH
-#define O_PATH O_RDONLY
-#endif
-#endif
 #include <string.h>
 #include <unistd.h>
 

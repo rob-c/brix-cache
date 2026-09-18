@@ -22,6 +22,7 @@
 #include "../platform_api.h"
 #include <sys/sysctl.h>
 #include <stdio.h>
+#include <stdlib.h>   /* atoi */
 #include <string.h>
 #include <ctype.h>
 #include "cpu_cache.h"

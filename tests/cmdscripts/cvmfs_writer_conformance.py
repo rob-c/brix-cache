@@ -83,7 +83,7 @@ def _build_driver(base: Path) -> tuple[Path | None, str]:
     binary = base / "wconf"
     built = compile_binary(
         binary,
-        ["-Wall", "-Wextra", "-Werror", "-I", "shared"]
+        ["-Wall", "-Wextra", "-Werror", "-I", "shared", "-I", "src"]
         + CONFORMANCE_SOURCES + CONFORMANCE_LIBS,
         cwd=REPO_ROOT,
     )

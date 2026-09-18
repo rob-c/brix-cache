@@ -57,7 +57,7 @@ requires_openssl = pytest.mark.skipif(shutil.which("openssl") is None,
 requires_tokens = pytest.mark.skipif(not _HAVE_TOKENFORGE,
                                      reason="tokenforge (cryptography) unavailable")
 
-pytestmark = requires_nginx
+pytestmark = [requires_nginx]
 
 _BLOCK = PortBlock("srv_config")         # file-owned ports 13240-13259
 _seq = itertools.count()

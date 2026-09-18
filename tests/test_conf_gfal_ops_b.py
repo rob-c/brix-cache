@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_gfal_ops_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_gfal_ops_b")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_gfal_ops_b")]
 
 def test_rm_file(ctx):
     """gfal-rm of an uploaded file: rc match stock; file gone afterward."""

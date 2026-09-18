@@ -108,7 +108,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | `XrdSecztn` | `ztn` | ✅ | WLCG/JWT bearer token |
 | `XrdMacaroons` | bearer | ✅ | HMAC-SHA256 validation + caveats + third-party discharge bundles; `POST /.oauth2/token` issues scoped delegation macaroons; `GET /.well-known/oauth-authorization-server` discovery |
 | `XrdSciTokens` | scitokens | ✅ | JWT/WLCG bearer + scope enforcement |
-| `XrdVoms` | gsi ext | ✅ | Runtime dlopen of libvomsapi |
+| `XrdVoms` | gsi ext | ✅ | Native AC verifier (`shared/voms/`), no VOMS library |
 
 **Completed high-priority gap**: inbound `krb5` support is implemented for Kerberos sites. The nginx addon detects Kerberos 5 at configure time and compiles the plugin when `pkg-config krb5` is available; configuring `brix_auth krb5` without compiled Kerberos support fails at nginx config validation.
 

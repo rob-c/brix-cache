@@ -130,7 +130,17 @@ def _worker_settled(endpoint):
     harness's TCP readiness proves only that the MASTER bound the listener,
     so reading the error log straight after lifecycle.start races the
     worker's first write (and loses on a warm back-to-back restart)."""
-    sock, status, _ = _login(endpoint.port)
+    try:
+        sock, status, _ = _login(endpoint.port)
+    except (TimeoutError, socket.timeout, ConnectionError):
+        # A worker asked for a filter this binary cannot build (no libseccomp:
+        # every macOS build, a Linux build without the -devel package) fails
+        # closed with an [emerg] and never reaches its event loop — the
+        # master keeps the listener, so only the login shows it.  That is a
+        # host limitation, not the ratchet defect this class pins.
+        if "built without libseccomp" in _errlog(endpoint):
+            pytest.skip("brix_seccomp needs a libseccomp build (unavailable on this host)")
+        raise
     sock.close()
     assert status == KXR_OK, ("login while settling the worker", status)
     return endpoint

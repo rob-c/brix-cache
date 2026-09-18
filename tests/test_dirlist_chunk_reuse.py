@@ -21,7 +21,7 @@ servers provisioned; only OUR server is probed here).
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_dirlist_helpers")
 
-pytestmark = pytest.mark.xdist_group("dirlist_chunk_reuse")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("dirlist_chunk_reuse")]
 
 
 def _drain_names(body):

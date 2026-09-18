@@ -14,7 +14,7 @@ Driver
 ------
 Two probes, matching how a real operator would triage a repo:
   * ``brixcvmfs --check <fqrn>`` — verifies the whole trust chain + root catalog
-    WITHOUT mounting (fast, no /dev/fuse). Exit 0 = healthy, nonzero + a
+    WITHOUT mounting (fast, no FUSE mount). Exit 0 = healthy, nonzero + a
     ``trust/catalog error -N`` diagnostic on tamper. The full tamper matrix is
     driven here, concurrently (each ``--check`` on a persistent tamper pays the
     client's ~10 s trust-chain retry-with-backoff, so the matrix runs in a thread
@@ -62,14 +62,15 @@ from cmdscripts.cvmfs_driver_units import (  # noqa: E402
     BRIXCVMFS_CORE_DEPS,
     BRIXCVMFS_DRIVER_SRCS,
 )
+from lib_py.fuse_host import FUSE_READY  # noqa: E402
 from repo_forge import Dir, File, RepoForge  # noqa: E402
 from settings import HOST
+from cmdscripts.compile_run import LZ4_LINK_FLAGS
 
 REPO = "trust.cern.ch"
 pytestmark = pytest.mark.timeout(180)
 
-_FUSE_READY = (os.path.exists("/dev/fuse")
-               and shutil.which("fusermount3") is not None)
+_FUSE_READY = FUSE_READY
 requires_fuse = pytest.mark.skipif(not _FUSE_READY,
                                    reason="fuse prerequisites missing")
 
@@ -402,7 +403,7 @@ _CLIENT_ARCHIVES = ["client/libbrix.a", "shared/xrdproto/libxrdproto.a"]
 _EXTRA_LIBS = [
     "-lcurl", "-lsqlite3", "-lssl", "-lcrypto", "-lz", "-lkrb5", "-lk5crypto",
     "-lcom_err", "-lzstd", "-llzma", "-lbrotlienc", "-lbrotlidec", "-lbz2",
-    "-l:liblz4.so.1", "-luring", "-lpthread",
+    *LZ4_LINK_FLAGS, "-luring", "-lpthread",
 ]
 
 _BUILD_ERR = ""   # last compile failure, surfaced in the skip reason

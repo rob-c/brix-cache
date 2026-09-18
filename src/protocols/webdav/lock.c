@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/xattr.h>
+#include "platform/platform_api.h"
 #include <time.h>
 
 #include "lock_internal.h"

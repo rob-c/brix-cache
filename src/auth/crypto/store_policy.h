@@ -93,16 +93,26 @@ typedef struct brix_sp_table_s brix_sp_table_t;
  * HOW:  initialise with BRIX_TRUST_POLICY_INIT (everything off / widest scope)
  *       and set the fields the caller actually configures.
  */
+/* Legacy (pre-RFC 3820, "GT2") proxy acceptance: a proxy whose subject is its
+ * issuer plus one CN (proxy / limited proxy / a number) and that carries no
+ * proxyCertInfo.  OpenSSL recognises only RFC 3820 proxies on its own; the
+ * verifier marks GT2 proxies with X509_set_proxy_flag() so the same chain
+ * rules apply to them. */
+#define BRIX_LEGACY_PROXY_OFF       0   /* refuse GT2 proxies (RFC 3820 only) */
+#define BRIX_LEGACY_PROXY_ON        1   /* accept full and limited GT2 proxies */
+#define BRIX_LEGACY_PROXY_FULL_ONLY 2   /* accept full GT2, refuse "limited proxy" */
+
 typedef struct {
-    brix_sp_mode_t  sp_mode;     /* BRIX_SP_MODE_*        */
-    int             crl_mode;    /* BRIX_CRL_MODE_*       */
-    int             crl_scope;   /* BRIX_CRL_SCOPE_*      */
-    int             verify_log;  /* BRIX_TLS_VERIFY_LOG_* */
+    brix_sp_mode_t  sp_mode;      /* BRIX_SP_MODE_*        */
+    int             crl_mode;     /* BRIX_CRL_MODE_*       */
+    int             crl_scope;    /* BRIX_CRL_SCOPE_*      */
+    int             verify_log;   /* BRIX_TLS_VERIFY_LOG_* */
+    int             legacy_proxy; /* BRIX_LEGACY_PROXY_*   */
 } brix_trust_policy_t;
 
 #define BRIX_TRUST_POLICY_INIT                                                \
     { BRIX_SP_MODE_OFF, BRIX_CRL_MODE_OFF, BRIX_CRL_SCOPE_ALL,                \
-      BRIX_TLS_VERIFY_LOG_OFF }
+      BRIX_TLS_VERIFY_LOG_OFF, BRIX_LEGACY_PROXY_OFF }
 
 /* Logging callback: level is one of the BRIX_SP_LOG_* values below. */
 #define BRIX_SP_LOG_WARN  1
@@ -164,6 +174,8 @@ brix_sp_mode_t   brix_store_policy_mode(X509_STORE_CTX *ctx);
 int              brix_store_crl_mode(X509_STORE_CTX *ctx);
 int              brix_store_crl_scope(X509_STORE_CTX *ctx);
 int              brix_store_verify_log(X509_STORE_CTX *ctx);
+/* The BRIX_LEGACY_PROXY_* mode attached to a store (OFF when none). */
+int              brix_store_legacy_proxy(X509_STORE *store);
 
 /*
  * Shared DN canonicaliser — OpenSSL oneline slash form into buf.  Used on
@@ -181,6 +193,13 @@ char *brix_x509_oneline(X509_NAME *name, char *buf, size_t buflen);
 typedef enum { BRIX_PX_NONE, BRIX_PX_FULL, BRIX_PX_LIMITED } brix_px_kind_t;
 
 brix_px_kind_t brix_px_classify(X509 *cert);
+
+/* The GT2 (pre-RFC 3820) proxy shape of `cert`: BRIX_PX_FULL for a subject
+ * that is the issuer plus "CN=proxy" or a numeric CN, BRIX_PX_LIMITED for
+ * "CN=limited proxy", BRIX_PX_NONE otherwise or when proxyCertInfo is present
+ * (an RFC proxy, classified by brix_px_classify). Shape only: the signature
+ * and the issuer's identity are the verifier's business. */
+brix_px_kind_t brix_gt2_proxy_kind(X509 *cert);
 
 /*
  * Per-certificate WLCG/IGTF conformance policy applied to every cert in a

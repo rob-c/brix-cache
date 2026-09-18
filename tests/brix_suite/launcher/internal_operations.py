@@ -176,7 +176,9 @@ def wait_ready(host, port, readiness):
     kind = _readiness_kind(readiness)
     if kind != "tcp":
         raise ValueError(f"unknown registry readiness probe: {kind}")
-    deadline = time.time() + 10
+    # 10 s is generous on the Linux CI host; a laptop running 8 xdist workers
+    # plus tool builds can stall a fresh nginx past it (TEST_READY_TIMEOUT).
+    deadline = time.time() + float(os.environ.get("TEST_READY_TIMEOUT", "10"))
     while time.time() < deadline:
         if _tcp_ready(host, port):
             return

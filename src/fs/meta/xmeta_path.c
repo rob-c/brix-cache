@@ -13,9 +13,7 @@
 #include <string.h>
 #include <sys/file.h>
 #include <sys/stat.h>
-#include <sys/xattr.h>
-
-#include "core/compat/xattr_path_compat.h"
+#include "platform/platform_api.h"   /* Linux-shaped xattr calls on every host */
 #include <unistd.h>
 
 int

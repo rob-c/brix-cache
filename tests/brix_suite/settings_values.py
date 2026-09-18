@@ -92,6 +92,11 @@ COMPRESS_DATA_ROOT = os.path.join(TEST_ROOT, "data-compress")
 INTEROP_OUR_PORT = int(os.environ.get("TEST_INTEROP_OUR_PORT", "21200"))
 INTEROP_OFF_PORT = int(os.environ.get("TEST_INTEROP_OFF_PORT", "21201"))
 TMP_DIR = os.path.join(TEST_ROOT, "tmp")
+# Where the module stages delegated credentials by default: tmpfs /dev/shm on
+# Linux; Darwin has no /dev/shm and the module (cred_stage.c, shared_conf.h)
+# falls back to the sticky /tmp there.  Tests derive the per-uid store from it.
+CRED_STORE_BASE = "/dev/shm/brix-creds" if os.path.isdir("/dev/shm") else "/tmp/brix-creds"
+CRED_STORE_PARENT = os.path.dirname(CRED_STORE_BASE)
 ARTIFACTS_DIR = os.path.join(TEST_ROOT, "artifacts")
 # Scratch working directory the whole test session chdir()s into, so any
 # cwd-relative artifact a spawned process makes (e.g. an xrootd `-n` instance

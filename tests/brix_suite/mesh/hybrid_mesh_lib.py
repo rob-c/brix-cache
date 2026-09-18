@@ -353,9 +353,10 @@ def stop_all():
 
 
 def _socket_table():
+    from lib_py.util import listener_table_lines  # noqa: PLC0415
+
     try:
-        return subprocess.run(["ss", "-tlnp"], capture_output=True,
-                              text=True).stdout
+        return "\n".join(listener_table_lines())   # ss(8), or lsof-derived
     except Exception:
         return ""
 

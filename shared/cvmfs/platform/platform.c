@@ -38,9 +38,23 @@ int brix_plat_anon_fd(const char *label, const char *spill_dir) {
     return fd;
 }
 
+#if defined(__APPLE__)
+/* BRIX_PLAT_FSYNC_FULL=0: development/test-host knob that stops at the
+ * cache-level fsync(2) instead of F_FULLFSYNC (~28 ms per file on a laptop
+ * SSD, 50x fsync); the default keeps durability parity with Linux fdatasync. */
+static int darwin_fsync_full(void) {
+    static int cached = -1;
+    if (cached < 0) {
+        const char *knob = getenv("BRIX_PLAT_FSYNC_FULL");
+        cached = (knob != NULL && knob[0] == '0' && knob[1] == '\0') ? 0 : 1;
+    }
+    return cached;
+}
+#endif
+
 int brix_plat_fsync_data(int fd) {
 #if defined(__APPLE__)
-    if (fcntl(fd, F_FULLFSYNC) == 0) return 0;
+    if (darwin_fsync_full() && fcntl(fd, F_FULLFSYNC) == 0) return 0;
     return fsync(fd);
 #elif defined(__linux__)
     return fdatasync(fd);

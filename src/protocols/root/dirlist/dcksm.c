@@ -12,7 +12,7 @@
 
 #include <ctype.h>
 #include <string.h>
-#include <sys/xattr.h>
+#include "platform/platform_api.h"
 
 /*
  * Parse a raw algorithm string into lowercase and validate it.

@@ -43,6 +43,7 @@ from brix_suite.client_build import client_make
 import pytest
 
 from settings import HOST, NGINX_BIN
+from lib_py.util import linked_libraries
 from server_registry import NginxInstanceSpec
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
@@ -349,8 +350,10 @@ class TestSsiClientStructure:
         proves interop WITH the stock stack and skips where it is absent; this
         driver must reach the same surface with none of it linked in."""
         _ensure_driver()
-        linked = subprocess.run(["ldd", str(DRIVER)],
-                                capture_output=True, text=True).stdout
+        # linked_libraries, not a bare ldd: macOS has no ldd, so this raised
+        # FileNotFoundError instead of checking anything (otool -L reports the
+        # same linkage there).
+        linked = linked_libraries(str(DRIVER))
 
         for library in ("libXrdSsi", "libXrdCl", "libXrdSec", "libXrdUtils"):
             assert library not in linked, (

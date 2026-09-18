@@ -275,7 +275,7 @@ def _login(port):
     handshake and kXR_protocol steps are imported rather than restated.
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(10)
+    sock.settimeout(30)
     sock.connect((HOST, port))
     _send_initial(sock)
     _send_protocol(sock)

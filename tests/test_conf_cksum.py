@@ -24,7 +24,7 @@ def _check_test_dirlist_directory_has_no_file_checksum_4(line, val):
 
 _reexport(globals(), "_test_conf_cksum_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_cksum")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_cksum")]
 
 @pytest.mark.parametrize("name", ROOT_FILES)
 def test_reply_shape_two_tokens(srv, name):

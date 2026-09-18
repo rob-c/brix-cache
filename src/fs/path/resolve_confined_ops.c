@@ -14,33 +14,9 @@
 #include <sys/syscall.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/xattr.h>
+#include "platform/platform_api.h"   /* xattr calls, RESOLVE_* on every host */
 #include <time.h>
 #include <unistd.h>
-/* macOS lacks openat2 - provide compatibility stubs */
-#if defined(__APPLE__) && defined(__MACH__)
-/* RESOLVE_* flags stubs for macOS */
-#ifndef RESOLVE_BENEATH
-#define RESOLVE_BENEATH 0x8
-#endif
-#ifndef RESOLVE_IN_ROOT
-#define RESOLVE_IN_ROOT 0x10
-#endif
-#ifndef RESOLVE_NO_XDEV
-#define RESOLVE_NO_XDEV 0x01
-#endif
-#ifndef RESOLVE_NO_MAGICLINKS
-#define RESOLVE_NO_MAGICLINKS 0x02
-#endif
-#ifndef RESOLVE_NO_SYMLINKS
-#define RESOLVE_NO_SYMLINKS 0x04
-#endif
-#ifndef RESOLVE_CACHED
-#define RESOLVE_CACHED 0x20
-#endif
-#else
-#include <linux/openat2.h>
-#endif
 
 /*
  * Confinement model for the open/op helpers in this file: defence-in-depth in
@@ -140,7 +116,6 @@ brix_open_confined_canon(ngx_log_t *log, const char *root_canon,
         return -1;
     }
 
-#if (BRIX_HAVE_OPENAT2)
     fd = brix_openat2_confined(rootfd, rel, flags, mode);
     if (fd >= 0
         || (errno != ENOSYS && errno != EINVAL && errno != EOPNOTSUPP))
@@ -148,7 +123,6 @@ brix_open_confined_canon(ngx_log_t *log, const char *root_canon,
         close(rootfd);
         return fd;
     }
-#endif
 
     /*
      * Root-directory case: rel="." means the target IS the export root.
@@ -221,7 +195,7 @@ brix_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
         return -1;
     }
 
-    rc = unlinkat(parentfd, base, is_dir ? AT_REMOVEDIR : 0);
+    rc = brix_plat_unlinkat(parentfd, base, is_dir ? AT_REMOVEDIR : 0);
     close(parentfd);
     return rc;
 }

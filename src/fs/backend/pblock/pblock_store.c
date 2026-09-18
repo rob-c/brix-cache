@@ -8,6 +8,7 @@
  */
 
 #include "pblock_store.h"
+#include "platform/platform_api.h"   /* brix_plat_random */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -18,28 +19,6 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
-
-/* macOS lacks getrandom() - use SecRandomCopyBytes or /dev/urandom */
-#if defined(__APPLE__) && defined(__MACH__)
-#include <Security/Security.h>
-static ssize_t brix_getrandom_compat(void *buf, size_t buflen, unsigned int flags) {
-    (void)flags;
-    if (SecRandomCopyBytes(kSecRandomDefault, buflen, (uint8_t *)buf) == errSecSuccess) {
-        return (ssize_t)buflen;
-    }
-    /* Fallback to /dev/urandom */
-    int fd = open("/dev/urandom", O_RDONLY);
-    if (fd < 0) {
-        return -1;
-    }
-    ssize_t n = read(fd, buf, buflen);
-    close(fd);
-    return n;
-}
-#define getrandom(buf, len, flags) brix_getrandom_compat(buf, len, flags)
-#else
-#include <sys/random.h>
-#endif
 
 /* ---- small helpers -------------------------------------------------------- */
 
@@ -111,19 +90,10 @@ pblock_gen_blob_id(char out[PBLOCK_BLOB_ID_CAP])
 {
     static const char hex[] = "0123456789abcdef";
     unsigned char     raw[16];
-    size_t            got = 0;
     int               i;
 
-    while (got < sizeof(raw)) {
-        ssize_t n = getrandom(raw + got, sizeof(raw) - got, 0);
-
-        if (n < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            return -1;
-        }
-        got += (size_t) n;
+    if (brix_plat_random(raw, sizeof(raw)) != 0) {
+        return -1;
     }
     for (i = 0; i < 16; i++) {
         out[i * 2]     = hex[raw[i] >> 4];

@@ -28,8 +28,12 @@ import sys
 from pathlib import Path
 
 import pytest
+from lib_py.util import budget_scale
 
-pytestmark = pytest.mark.xdist_group("ci-guards")
+# Drives check_vfs_seam over the whole tree: seconds idle, minutes inside an
+# 8-worker lane, so the budget scales with the host like the other ci-guards.
+pytestmark = [pytest.mark.xdist_group("ci-guards"),
+              pytest.mark.timeout(300 * budget_scale())]
 
 REPO = Path(__file__).resolve().parents[1]
 CI = REPO / "tools" / "ci"

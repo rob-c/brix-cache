@@ -23,16 +23,10 @@
  */
 
 #include "sd_http_internal.h"    /* endpoint + inst_state + req_t layout */
+#include "platform/platform_api.h"   /* ENOKEY on every host */
 
 #include <errno.h>
 #include <stdint.h>
-
-/* macOS lacks ENOKEY - define as EACCES fallback */
-#if defined(__APPLE__) && defined(__MACH__)
-#ifndef ENOKEY
-#define ENOKEY EACCES  /* "Required key not available" -> access denied */
-#endif
-#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

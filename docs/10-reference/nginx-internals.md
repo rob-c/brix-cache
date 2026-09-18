@@ -464,7 +464,7 @@ src/protocols/root/session/         ← login, auth, bind, ping, per-session opc
 src/auth/gsi/                       ← GSI/x509 proxy handshake (protocol-specific)
 src/auth/token/                     ← JWT/WLCG validation
 src/auth/sss/                       ← SSS shared-secret auth
-src/auth/voms/                      ← VOMS VO extraction (via libvomsapi)
+src/auth/voms/                      ← VOMS VO extraction (native verifier in shared/voms/)
 src/auth/crypto/                    ← PKI/CRL load and consistency checks
 src/auth/authz/                     ← path ACLs, authdb, VO/group policy
 src/protocols/root/read/            ← kXR_open, kXR_read, kXR_readv, kXR_pgread, kXR_stat

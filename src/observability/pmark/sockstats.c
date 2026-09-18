@@ -23,6 +23,7 @@
  */
 
 #include "pmark.h"
+#include "platform/platform_api.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -31,7 +32,7 @@
 #include <time.h>
 #include <stdio.h>
 
-#if defined(__linux__)
+#if BRIX_HAS_TCP_INFO
 #include <netinet/tcp.h>     /* TCP_INFO constant only (not struct tcp_info) */
 
 /* Fixed offsets into the kernel `struct tcp_info` (bytes).  8-byte u8 preamble,
@@ -49,7 +50,7 @@ brix_pmark_sockstats(int fd, brix_pmark_sockstats_t *st)
 {
     ngx_memzero(st, sizeof(*st));
 
-#if defined(__linux__)
+#if BRIX_HAS_TCP_INFO
     {
         unsigned char  buf[256];
         socklen_t      len = sizeof(buf);

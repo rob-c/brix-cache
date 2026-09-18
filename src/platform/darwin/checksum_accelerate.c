@@ -12,6 +12,8 @@
  * Build integration: Add -framework Accelerate to linker flags on macOS
  */
 
+#include <ngx_config.h>
+#include <ngx_core.h>
 #include "../platform.h"
 
 #if BRIX_PLATFORM_DARWIN

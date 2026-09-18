@@ -38,7 +38,6 @@ auto-detected and are therefore declared explicitly.
 | Package | Why explicit |
 |---|---|
 | `nginx-mod-stream` | Provides the `stream {}` core the modules load into |
-| `libvomsapi.so.1()(64bit)` | Loaded at runtime via `dlopen()` for VOMS VO/FQAN ACL enforcement; no ELF dependency. Required by soname — on EL9 the provider is the EPEL `voms` package (the old `voms-libs` package name does not exist there) |
 | `librados2`, `libradosstriper1` | The compiled-in Ceph storage backends link these; the sonames are auto-detected, the package names are stated explicitly as a contract |
 | `curl` | The `curl(1)` binary is `fork/exec`'d by the WebDAV HTTP-TPC handler; not a library dependency |
 | `openssl-libs` | Directly linked (`-lssl -lcrypto`) and auto-detected, but listed explicitly for clarity |
@@ -84,11 +83,13 @@ repository before building if those packages are not in the base distro repos.
 
 ### Target-host repositories (EL9)
 
-Two dependencies come from add-on repositories; enable them once before
-installing the RPMs:
+The Ceph client libraries come from add-on repositories; enable them once
+before installing the RPMs (VOMS attribute certificates are verified natively
+by the module, so no `voms` / `voms-libs` package and no WLCG repository is
+needed):
 
 ```bash
-# libvomsapi.so.1 (the EPEL `voms` package):
+# nginx-mod-stream and the EPEL build of nginx:
 dnf install -y epel-release
 
 # libradosstriper1 / libcephfs2 (EPEL carries only librados2; the striper and
@@ -99,9 +100,6 @@ dnf install -y centos-release-ceph-reef
 
 dnf install -y ./nginx-mod-brix-cache-*.rpm ./brix-tools-*.rpm
 ```
-
-The WLCG repository's `voms-libs` also satisfies the VOMS dependency (it
-provides the same `libvomsapi.so.1` soname) for sites that already run it.
 
 ## SELinux (hardened / enforcing hosts)
 
@@ -238,8 +236,6 @@ the Dockerfile before the `dnf install` step.
 - `nginx-mod-devel` is available via EPEL 8.  If absent, uncomment the nginx
   stable upstream repo block in `Dockerfile.alma8`.
 - The built RPM carries the `.el8` dist tag.
-- Enable the WLCG EL8 repository for `voms-libs` on the installation target:
-  `dnf install -y https://linuxsoft.cern.ch/wlcg/el8/x86_64/wlcg-repo-*.noarch.rpm`
 
 ### AlmaLinux 10 notes
 
@@ -247,9 +243,6 @@ the Dockerfile before the `dnf install` step.
 - `nginx-mod-devel` should be available via EPEL 10.  If not yet published,
   uncomment the nginx stable upstream repo block in `Dockerfile.alma10`.
 - The built RPM carries the `.el10` dist tag.
-- The `voms-libs` runtime dependency requires the WLCG EL10 repository on
-  the installation target.  If the WLCG EL10 repo is not yet available, test
-  against the EL9 WLCG package under compatibility — verify before production.
 
 ### AlmaLinux 11 notes
 
@@ -258,8 +251,6 @@ the Dockerfile before the `dnf install` step.
 - If `nginx-mod-devel` is absent from EPEL 11, uncomment the nginx stable
   upstream repo block in `Dockerfile.alma11`.
 - The built RPM carries the `.el11` dist tag.
-- The WLCG EL11 repository for `voms-libs` does not yet exist.  Monitor
-  https://linuxsoft.cern.ch/wlcg/ for availability.
 
 ## Release build (mock)
 

@@ -18,6 +18,7 @@
 #define FUSE_USE_VERSION 31
 
 #include "brixcvmfs_internal.h"
+#include "platform/platform.h"   /* brix_plat_fuse_opt_supported */
 #include "brixcvmfs_split.h"
 
 #include <curl/curl.h>
@@ -122,6 +123,8 @@ static void opts_o_list(char *list, brix_opts_t *o) {
     for (char *t = strtok_r(list, ",", &save); t; t = strtok_r(NULL, ",", &save)) {
         if (opts_o_flag(t, o) || opts_o_kv(t, o))
             continue;
+        if (!brix_plat_fuse_opt_supported(t))
+            continue;                       /* Linux-only spelling on this host */
         /* forward to libfuse */
         size_t cur = strlen(o->fuse_extra);
         snprintf(o->fuse_extra + cur, sizeof(o->fuse_extra) - cur,
@@ -197,6 +200,9 @@ static int brixcvmfs_run_fuse(char *arg0, const char *mnt, const brix_opts_t *o)
     if (!brixcvmfs_rw) { fargv[fargc++] = (char *) "-o"; fargv[fargc++] = (char *) "ro"; }
     for (int i = 0; i < o->nflags && fargc < 20; i++) fargv[fargc++] = o->flags[i];
     if (o->fuse_extra[0]) { fargv[fargc++] = (char *) "-o"; fargv[fargc++] = (char *) o->fuse_extra; }
+    if (brix_plat_fuse_host_opts() != NULL) {   /* e.g. macFUSE noappledouble */
+        fargv[fargc++] = (char *) "-o"; fargv[fargc++] = (char *) brix_plat_fuse_host_opts();
+    }
 
     return fuse_main(fargc, fargv,
                      brixcvmfs_rw ? &brixcvmfs_rw_ops : &brixcvmfs_ops, NULL);

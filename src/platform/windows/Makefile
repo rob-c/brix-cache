@@ -14,7 +14,7 @@ AR ?= x86_64-w64-mingw32-ar
 
 # Platform detection
 PLATFORM = windows
-PLATFORM_FLAG = -DBRIX_PLATFORM_WINDOWS=1
+PLATFORM_FLAG = -DBRIX_PLATFORM_WINDOWS=1 -DBRIX_PLATFORM_HOST=windows
 
 # Windows version: Windows 8 / Server 2012 minimum
 WIN_VER = -D_WIN32_WINNT=0x0602

@@ -4,6 +4,7 @@
 # namespace (private helpers included) in here, so each test reads exactly as it
 # did before the split.
 from split_continuation import reexport as _reexport
+from lib_py.util import budget_scale
 _reexport(globals(), "_test_cms_parity_wave_helpers")
 
 
@@ -414,36 +415,54 @@ def test_altds_advertises_foreign_port(lifecycle):
         stub.stop()
 
 
+def _closed_free_port():
+    """A leased port that is genuinely closed: the monitor sees a live altds and
+    never suspends otherwise (seen under the 8-worker lane, where another
+    instance held the leased number).  None when the mock range has none."""
+    return next((p for p in free_ports(4, BIND_HOST)
+                 if socket.socket().connect_ex((BIND_HOST, p)) != 0), None)
+
+
+def _resumed_after(stub, n_before, timeout=None):
+    """True once a STATUS frame after index n_before carries CMS_ST_RESUME."""
+    deadline = time.time() + (timeout if timeout is not None else 40.0 * budget_scale())
+    while time.time() < deadline:
+        if any(c == CMS_RR_STATUS and (m & CMS_ST_RESUME)
+               for c, m, _p in stub.frames[n_before:]):
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def _serve_altds_and_expect_resume(stub, altds_port):
+    n_before = len(stub.frames)
+    lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        lsock.bind((BIND_HOST, altds_port))
+        lsock.listen(4)
+        assert _resumed_after(stub, n_before), "altds recovery never resumed the node"
+    finally:
+        lsock.close()
+
+
 def test_altds_monitor_suspends_and_resumes(lifecycle):
     """§2.12 monitor: with nothing on the altds port the node suspends
     itself; a listener appearing resumes it."""
     stub = StubManager()
-    altds_port = free_port(BIND_HOST)
+    altds_port = _closed_free_port()
+    if altds_port is None:
+        pytest.skip("no closed port available in the mock range")
     try:
         _node(lifecycle, "lc-cms-parity-node", stub,
               f"brix_cms_altds {altds_port} monitor; brix_cms_altds_interval 300ms;",
               "§2.12 cms.altds liveness monitor.")
+        # 300 ms interval, but the node first has to log in to the stub; on a
+        # loaded host (8 xdist workers) that alone has taken over 12 s.
         frame = stub.wait(CMS_RR_STATUS,
-                          pred=lambda m, p: m & CMS_ST_SUSPEND, timeout=12.0)
+                          pred=lambda m, p: m & CMS_ST_SUSPEND, timeout=40.0 * budget_scale())
         assert frame is not None, "altds-down never suspended the node"
-
-        n_before = len(stub.frames)
-        lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        lsock.bind((BIND_HOST, altds_port))
-        lsock.listen(4)
-        try:
-            deadline = time.time() + 12
-            resumed = None
-            while time.time() < deadline and resumed is None:
-                for c, m, _p in stub.frames[n_before:]:
-                    if c == CMS_RR_STATUS and (m & CMS_ST_RESUME):
-                        resumed = True
-                        break
-                time.sleep(0.1)
-            assert resumed, "altds recovery never resumed the node"
-        finally:
-            lsock.close()
+        _serve_altds_and_expect_resume(stub, altds_port)
     finally:
         stub.stop()
 
@@ -461,7 +480,7 @@ def test_perf_pgm_overrides_meter(lifecycle, tmp_path):
               "§2.11 cms.perf pgm external load feed.")
         frame = stub.wait(CMS_RR_LOAD,
                           pred=lambda m, p: len(p) >= 8 and p[2] == 77,
-                          timeout=15.0)
+                          timeout=15.0 * budget_scale())
         assert frame is not None, (
             f"no LOAD carried the fed cpu=77: {stub.frames[-5:]}")
     finally:

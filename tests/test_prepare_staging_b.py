@@ -4,9 +4,10 @@ def _check_test_stage_noerrs_missing_file_collected_1(status, body):
         f"kXR_stage|kXR_noerrs for missing file must return ok: " \
         f"status={status} body={body!r}"
 
-def _check_test_stage_noerrs_missing_file_collected_2():
-    assert os.path.getsize(PREPARE_CMD_LOG) > 0, \
-        "prepare_command not invoked for missing-file kXR_stage|kXR_noerrs"
+def _check_test_stage_noerrs_missing_file_collected_2(size, budget):
+    assert size > 0, \
+        "prepare_command not invoked for missing-file kXR_stage|kXR_noerrs " \
+        f"(log empty after {budget:.0f}s)"
 
 def _check_test_stage_noerrs_missing_file_collected_3(content):
     assert content.endswith("/on_tape_not_disk.dat"), \
@@ -56,13 +57,10 @@ class TestPrepareStageCommand:
         assert status == kXR_ok, \
             f"kXR_prepare kXR_stage failed: status={status} body={body!r}"
 
-        for _ in range(30):
-            if os.path.getsize(PREPARE_CMD_LOG) > 0:
-                break
-            time.sleep(0.1)
+        size, budget = wait_for_prepare_log()
 
-        assert os.path.getsize(PREPARE_CMD_LOG) > 0, \
-            "brix_prepare_command was not invoked (log file empty after 3s)"
+        assert size > 0, \
+            f"brix_prepare_command was not invoked (log empty after {budget:.0f}s)"
 
         content = open(PREPARE_CMD_LOG).read().strip()
         assert content.endswith("/tape_file.dat"), \
@@ -126,12 +124,9 @@ class TestPrepareStageCommand:
 
         _check_test_stage_noerrs_missing_file_collected_1(status, body)
 
-        for _ in range(30):
-            if os.path.getsize(PREPARE_CMD_LOG) > 0:
-                break
-            time.sleep(0.1)
+        size, budget = wait_for_prepare_log()
 
-        _check_test_stage_noerrs_missing_file_collected_2()
+        _check_test_stage_noerrs_missing_file_collected_2(size, budget)
         content = open(PREPARE_CMD_LOG).read().strip()
         _check_test_stage_noerrs_missing_file_collected_3(content)
 
@@ -171,12 +166,9 @@ class TestPrepareStageCommand:
 
         assert status == kXR_ok
 
-        for _ in range(30):
-            if os.path.getsize(PREPARE_CMD_LOG) > 0:
-                break
-            time.sleep(0.1)
+        size, budget = wait_for_prepare_log()
 
-        assert os.path.getsize(PREPARE_CMD_LOG) > 0
+        assert size > 0, f"prepare_command log empty after {budget:.0f}s"
 
         content = open(PREPARE_CMD_LOG).read()
         assert "COLOC=1" in content, f"COLOC=1 missing from log: {content!r}"

@@ -129,7 +129,7 @@ with XRootD unless noted). Tests column gives the pinning clause IDs.
 
 | Area | Standard | Our behavior | XRootD v6.1.0 | Verdict | Tests |
 |---|---|---|---|---|---|
-| AC cryptographic validation | RFC 5755 | `dlopen libvomsapi.so.1` → `VOMS_Retrieve` (`extract.c:91`) | pluggable `XrdSecgsiVOMSFun` over `libvomsapi` | Conformant (aligned) | VMS-01..03, 32 |
+| AC cryptographic validation | RFC 5755 | native `brix_voms_retrieve()` (`shared/voms/voms_verify.c`): holder, validity, signature, issuer, signer chain, vomsdir LSC | pluggable `XrdSecgsiVOMSFun` over `libvomsapi` | Conformant (native, same checks) | VMS-01..03, 32; `test_voms_native_ac_unit.py`, `test_voms_native_ac.py` |
 | FQAN → VO-name derivation | GFD-C.182 | First-component parse + dedup (`collect.c:80`) | inside VOMS plug-in; core consumes `Entity.vorg` | Conformant | VMS-06 |
 | VO-name sanitization (list/log/label) | INVARIANT #8 | Reject ctrl/space/`,`/`/`/`\`/non-ASCII (`vo_token.h:32`) | None — `strdup` verbatim | Stricter | VMS-04..31 |
 | No-library graceful degradation | (optional infra) | dlopen-optional, best-effort (`loader.c:39`) | `vatIgnore` default, skipped | Conformant (aligned) | — |

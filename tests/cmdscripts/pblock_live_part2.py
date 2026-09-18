@@ -25,6 +25,7 @@ from lib_py.pki import regenerate_pki
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, TEST_ROOT
 from fleet_ports import cmdscript_ports
+from cmdscripts.compile_run import LZ4_LINK_FLAGS
 
 _PORTS = cmdscript_ports("pblock_live")
 
@@ -155,7 +156,7 @@ def _build_meta_bench(run: LiveRun) -> Path:
             "cc", "-O2", "-Wall", "-I", REPO_ROOT / "client/lib", "-I", REPO_ROOT / "src",
             "-DXRDPROTO_NO_NGX", META_BENCH_SRC, LIBXRDC, PROTOLIB,
             "-lssl", "-lcrypto", "-lz", "-lkrb5", "-lk5crypto", "-lcom_err", "-lzstd",
-            "-llzma", "-lbrotlienc", "-lbrotlidec", "-lbz2", "-l:liblz4.so.1",
+            "-llzma", "-lbrotlienc", "-lbrotlidec", "-lbz2", *LZ4_LINK_FLAGS,
             "-luring", "-lpthread", *_gcov_flags([LIBXRDC, PROTOLIB]), "-o", bench,
         ],
         check=False,

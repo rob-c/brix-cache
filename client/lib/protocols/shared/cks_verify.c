@@ -35,7 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/xattr.h>
+#include "platform/platform.h"   /* PAL: Linux-shaped xattr calls on every host */
 #include <unistd.h>
 
 #define CKV_XATTR_PREFIX "user.XrdCks."

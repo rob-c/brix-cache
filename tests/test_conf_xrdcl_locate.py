@@ -37,7 +37,7 @@ def _check_test_qconfig_shape_parity_2(key, line_f, line_o, o_first):
 
 _reexport(globals(), "_test_conf_xrdcl_locate_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_xrdcl_locate")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_xrdcl_locate")]
 
 @pytest.mark.parametrize("path", TREE_FILES)
 @pytest.mark.parametrize("flagname,flag", LOCATE_FLAGS)

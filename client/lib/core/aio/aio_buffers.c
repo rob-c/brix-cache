@@ -90,6 +90,18 @@ areq_accumulate(brix_areq *r, const uint8_t *body, uint32_t n)
     if (n == 0) {
         return 0;
     }
+    /* Caller landing buffer: no growth, no ownership — just a bounds-checked
+     * copy. The direct receive path in aio_io.c normally reads the bytes into
+     * dst itself and never calls here; this covers the head of a frame that was
+     * already sitting in rbuf when its header was parsed. */
+    if (r->dst != NULL) {
+        if (n > r->dst_cap - r->acc_len) {
+            return -1;
+        }
+        memcpy(r->dst + r->acc_len, body, n);
+        r->acc_len += n;
+        return 0;
+    }
     if (r->acc_len + n > r->acc_cap) {
         uint32_t ncap = (r->acc_cap == 0) ? n : r->acc_cap;
         while (ncap < r->acc_len + n) {
@@ -117,7 +129,9 @@ areq_complete(brix_areq *r, int rc, uint16_t kxr, const brix_status *st)
     uint32_t  blen = 0;
 
     if (rc == 0) {
-        body = r->acc;
+        /* A dst request's body was written into the caller's own buffer, so the
+         * callback is handed that pointer and ownership never moves. */
+        body = (r->dst != NULL) ? r->dst : r->acc;
         blen = r->acc_len;
         r->acc = NULL;          /* ownership moves to the callback */
     }

@@ -8,8 +8,7 @@
 #include "aio.h"
 #include "uring.h"                 
 #include "protocols/root/protocol/frame_hdr.h"   
-#include <sys/epoll.h>
-#include <sys/eventfd.h>
+#include "platform/platform.h"   /* PAL: epoll_* readiness set + wake fds on every host */
 #include <sys/socket.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -51,6 +50,11 @@ typedef struct brix_areq {
     uint8_t    *acc;         /* accumulated reply body (owned until delivered) */
     uint32_t    acc_len;
     uint32_t    acc_cap;
+
+    /* Caller-owned landing buffer (brix_aio_opts.dst). When set, body bytes are
+     * read straight into it and `acc` stays NULL — see aio.h for the contract. */
+    uint8_t    *dst;
+    uint32_t    dst_cap;
 
     brix_aio_cb cb;
     void       *ctx;
@@ -99,6 +103,16 @@ struct brix_aconn {
     int            tls_want_write_on_read;/* SSL_read returned WANT_WRITE */
     int            tls_want_read_on_write;/* SSL_write returned WANT_READ */
 
+    /* Direct-body receive state: the request whose reply body is currently being
+     * read straight into its caller buffer, and how many of its bytes are still
+     * owed. rbuf is empty for as long as this is set (the switch only happens
+     * once every buffered byte has been consumed), so the two receive modes never
+     * compete for the same bytes. */
+    brix_areq     *rx_direct;
+    uint32_t       rx_need;
+    uint16_t       rx_stat;               /* the in-progress frame's status */
+    uint16_t       rx_sid;                /* ...and its streamid */
+
     /* resilience (M2) */
     aconn_state    state;
     int            max_stall_ms;          /* reconnect patience budget */
@@ -141,6 +155,8 @@ typedef struct cmd {
     int          deadline_ms;
     int          max_retries;   /* < 0 ⇒ aconn default */
     int          retry_safe;    /* idempotent + not handle-bound */
+    uint8_t     *dst;           /* caller landing buffer, or NULL (see aio.h) */
+    uint32_t     dst_cap;
 
     /* synchronous control ops signal the caller through these (NULL for SUBMIT) */
     pthread_mutex_t *dmx;
@@ -167,7 +183,9 @@ struct brix_poll_slot {
 
 struct brix_loop {
     int             epfd;
-    int             evfd;
+    int             evfd;     /* wake fd registered for readiness (read side)  */
+    int             evfd_w;   /* fd the waker writes to: == evfd on Linux
+                               * (eventfd); the pipe's write end elsewhere     */
     pthread_t       thread;
     int             thread_ok;
 

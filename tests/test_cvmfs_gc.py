@@ -6,9 +6,11 @@ exact-sweep reachability, refusals (active transaction, missing/tampered
 reflog), the mark-skip mutation guard, and tag pinning.
 """
 
+import pytest
 from cmdscripts.cvmfs_admin_checks import run_gc_checks
 
 
+@pytest.mark.timeout(300)   # builds and drives the repotool through several publishes: slow on a loaded host
 def test_cvmfs_gc(tmp_path):
     results = run_gc_checks(tmp_path)
     assert all(ok for ok, _ in results), "\n".join(

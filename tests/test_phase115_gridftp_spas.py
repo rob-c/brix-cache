@@ -43,9 +43,15 @@ from fleet_lifecycle_ports import lifecycle_ports_for
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, NGINX_BIN, SERVER_HOST
+from lib_py.util import loopback_alias_usable
 
 
 pytestmark = [
+    pytest.mark.skipif(
+        not loopback_alias_usable("127.0.0.2"),
+        reason="127.0.0.2 is not bindable on this host (the bounce address the driver must not dial); "
+               "sudo ifconfig lo0 alias 127.0.0.2 up"),
+
     pytest.mark.serial,
     pytest.mark.timeout(300),
     pytest.mark.uses_lifecycle_harness,

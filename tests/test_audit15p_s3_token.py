@@ -278,12 +278,20 @@ class TestTheGraceIsTheConfiguredNumber:
         """THE differential: one token string, two arms, two verdicts.
 
         The token is minted once and presented to both arms, so nothing about
-        the token can explain the disagreement — 30 < 60 can, and the arms
-        differ in nothing but that 60 (which /skewdef/ does not even write:
-        it is the merge default at module_merge.c:132).
+        the token can explain the disagreement — being inside the grace can,
+        and the arms differ in nothing but that 60 (which /skewdef/ does not
+        even write: it is the merge default at module_merge.c:132).
+
+        The token is minted only just past expiry rather than 30 s past it.
+        Both are inside the 60 s grace, but the verdict is taken when the
+        request ARRIVES, so a 30 s token leaves only 30 s for two round trips
+        to complete — which a busy host can exceed, turning the served arm's
+        200 into a 403 (seen in a lane on 2026-09-17, while the file passed
+        standalone). A few seconds past expiry is just as dead to the 0-grace
+        arm and leaves the differential unarguable.
         """
         endpoint, forge_a, _ = s3token
-        token = forge_a.temporal(-30)
+        token = forge_a.temporal(-5)
         refused = _get(endpoint, "skew0", token)
         served = _get(endpoint, "skewdef", token)
         assert refused.status_code == 403, (refused.status_code, refused.text)

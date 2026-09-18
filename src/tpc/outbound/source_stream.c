@@ -8,10 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* macOS doesn't have endian.h - use libkern/OSByteOrder.h */
-#if defined(__APPLE__) && defined(__MACH__)
-#else
-#endif
 #include <strings.h>   /* strcasecmp — case-insensitive hex compare */
 #include <errno.h>
 #include <limits.h>
@@ -19,9 +15,6 @@
 #include <time.h>
 #include <sys/socket.h>
 #include <sys/time.h>
-
-#if defined(__linux__)
-#endif
 
 /* File: source_stream.c — TPC remote source pull, Phase 2/3 (kXR_read stream
  * loop + fsync) and the best-effort remote close, split from source.c in the

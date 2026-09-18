@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include "observability/pmark/pmark.h"
+#include "platform/platform_api.h"   /* BRIX_PLAT_SHM_DIR */
 
 /* Default per-user credential store: a RAM-backed (tmpfs) directory, so
  * delegated private keys never persist across a reboot, never land in
@@ -21,7 +22,7 @@
  * the directory itself is created 0700 at config time (see
  * brix_shared_credential_dir_ensure below). Opt out with an explicit
  * `brix_storage_credential_dir "";`. */
-#define BRIX_CREDENTIAL_DIR_DEFAULT  "/dev/shm/brix-creds"
+#define BRIX_CREDENTIAL_DIR_DEFAULT  BRIX_PLAT_SHM_DIR "/brix-creds"
 
 #include "shared_conf_types.h"
 #include "auth/crypto/store_policy.h"   /* BRIX_SP_MODE_* / BRIX_CRL_MODE_* (W4 x509 merge defaults) */
@@ -153,6 +154,7 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->upload_resume    = NGX_CONF_UNSET;        /* phase-101 W4 */
     conf->signing_policy_mode = NGX_CONF_UNSET_UINT; /* phase-101 W4 */
     conf->crl_mode           = NGX_CONF_UNSET_UINT;  /* phase-101 W4 */
+    conf->legacy_proxy_mode  = NGX_CONF_UNSET_UINT;
     conf->crl_scope          = NGX_CONF_UNSET_UINT;  /* 2.0 F19 */
     conf->tls_verify_log     = NGX_CONF_UNSET_UINT;  /* 2.0 F19 */
     conf->token_clock_skew   = NGX_CONF_UNSET;       /* phase-101 W4 */

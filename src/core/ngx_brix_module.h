@@ -49,7 +49,7 @@
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
-#include <sys/xattr.h>
+#include "platform/platform_api.h"
 #include <fcntl.h>
 #include <dirent.h>
 #include <limits.h>
@@ -475,17 +475,19 @@ void ngx_brix_cms_start(ngx_cycle_t *cycle,
 void brix_cms_role_worker_init(ngx_cycle_t *cycle,
     ngx_stream_brix_srv_conf_t *xcf);
 
-/* voms/ — VOMS attribute-certificate extraction (runtime dlopen) */
-/* dlopen libvomsapi.so.1 and resolve its symbols once at startup.
- * NGX_OK (or already loaded), NGX_DECLINED if the lib is absent (graceful
- * degradation), NGX_ERROR if a required symbol is missing. */
+/* voms/ — native VOMS attribute-certificate verification (shared/voms/) */
+/* Log the verifier once at startup; always NGX_OK (nothing to load). */
 ngx_int_t  brix_voms_init(ngx_log_t *log);
-/* 1 if VOMS was loaded successfully, else 0 (immutable after startup). */
+/* Always 1: the verifier is compiled in. Kept for the config-time gates. */
 ngx_flag_t brix_voms_available(void);
+/* Build (and cache for the workers) the trust store for a brix_voms_cert_dir
+ * at configuration time, so the first VOMS proxy pays no CRL-load latency.
+ * NGX_ERROR when the directory cannot be loaded. */
+ngx_int_t  brix_voms_warm(ngx_log_t *log, const ngx_str_t *cert_dir);
 /* Extract VO membership from a verified proxy chain into the caller's
- * primary_vo/vo_list buffers (always NUL-set first; sizes are buffer caps).
- * NGX_OK on success, NGX_DECLINED if VOMS unavailable / no extension,
- * NGX_ERROR on bad args or oversized dir paths. Borrows leaf/chain. */
+ * views. Every attribute certificate is verified natively (signature by the
+ * embedded VOMS server certificate, its chain against cert_dir, the
+ * vomsdir LSC match, holder binding and validity) before it grants anything. */
 ngx_int_t  brix_extract_voms_info(ngx_log_t *log, X509 *leaf,
     STACK_OF(X509) *chain, const ngx_str_t *vomsdir,
     const ngx_str_t *cert_dir, char *primary_vo, size_t primary_vo_sz,

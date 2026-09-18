@@ -2,6 +2,7 @@
 #include "frame_io.h"
 #include "perf_pgm.h"               /* §2.11: external load-feed override */
 #include "net/manager/registry.h"
+#include "core/compat/host_identity.h"   /* brix_host_identity: the advertised node name */
 
 #include <unistd.h>
 
@@ -163,10 +164,11 @@ ngx_brix_cms_send_login(ngx_brix_cms_ctx_t *ctx)
      * Server identity "<host>:<dport>" — opaque to the manager but must be
      * stable and reasonably unique for this node.
      */
-    if (gethostname((char *) hostbuf, sizeof(hostbuf)) != 0) {
+    if (brix_host_identity()[0] == '\0') {
         ngx_memcpy(hostbuf, "nginx", sizeof("nginx"));
+    } else {
+        ngx_cpystrn(hostbuf, (u_char *) brix_host_identity(), sizeof(hostbuf));
     }
-    hostbuf[sizeof(hostbuf) - 1] = '\0';
     sid_len = (size_t) (ngx_snprintf(sid, sizeof(sid), "%s:%d", hostbuf,
                                      (int) ctx->conf->listen_port) - sid);
 

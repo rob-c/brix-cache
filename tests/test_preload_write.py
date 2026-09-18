@@ -25,8 +25,11 @@ import pytest
 
 from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 
+from lib_py import preload_shim
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PRELOAD = os.path.join(REPO, "client", "libbrixposix_preload.so")
+PRELOAD = preload_shim.SHIM_PATH
+PYTHON = preload_shim.interposable_python()
 
 pytestmark = [
     pytest.mark.requires_local_server,
@@ -43,15 +46,11 @@ from sanitizer_preload import sanitizer_runtimes
 _ASAN_RT = sanitizer_runtimes(PRELOAD)
 
 
-def _preload_chain():
-    """LD_PRELOAD value: sanitizer runtimes (empty on a plain build) prepended so
-    the ASan/UBSan shim loads into the uninstrumented host process."""
-    return " ".join(x for x in (_ASAN_RT, PRELOAD) if x)
-
-
 def _env(extra=None):
-    env = {k: v for k, v in os.environ.items()}
-    env["LD_PRELOAD"] = _preload_chain()
+    """The host's insertion variable (LD_PRELOAD / DYLD_INSERT_LIBRARIES) with
+    the sanitizer runtimes (empty on a plain build) prepended so the ASan/UBSan
+    shim loads into the uninstrumented host process."""
+    env = preload_shim.preload_env(None, _ASAN_RT)
     if _ASAN_RT:
         env.setdefault("ASAN_OPTIONS", "detect_leaks=0:verify_asan_link_order=0")
     env["BRIX_VMP"] = f"/xrd=root://{SERVER_HOST}:{NGINX_ANON_PORT}/"
@@ -68,19 +67,21 @@ class TestPreloadWrite:
 
     def test_cp_into_prefix_lands_byte_exact(self, tmp_path):
         """(success) cp a local file into /xrd → uploaded byte-exact, and it
-        reads back through the shim identically."""
+        reads back through the shim identically.  (cp/cat are the system tools
+        on Linux; on macOS SIP hides the insertion from Apple's coreutils, so
+        lib_py.preload_shim supplies an interposable stand-in.)"""
         src = tmp_path / "src.bin"
         src.write_bytes(CONTENT)
         name = "preload-w-cp.bin"
         try:
-            up = subprocess.run(["cp", str(src), f"/xrd/{name}"],
+            up = subprocess.run([*preload_shim.posix_tool("cp"), str(src), f"/xrd/{name}"],
                                 env=_env(), capture_output=True, text=True,
                                 timeout=60)
             assert up.returncode == 0, up.stderr
             with open(_server_path(name), "rb") as f:
                 assert f.read() == CONTENT, "uploaded bytes differ from source"
 
-            back = subprocess.run(["cat", f"/xrd/{name}"], env=_env(),
+            back = subprocess.run([*preload_shim.posix_tool("cat"), f"/xrd/{name}"], env=_env(),
                                   capture_output=True, timeout=60)
             assert back.returncode == 0, back.stderr
             assert back.stdout == CONTENT
@@ -107,7 +108,7 @@ class TestPreloadWrite:
             os.close(fd)
         """))
         try:
-            r = subprocess.run(["python3", str(driver)], env=_env(),
+            r = subprocess.run([PYTHON, str(driver)], env=_env(),
                                capture_output=True, text=True, timeout=60)
             assert r.returncode == 0, r.stderr
             with open(_server_path(name), "rb") as f:
@@ -145,7 +146,7 @@ class TestPreloadWrite:
             os.close(fd)
         """))
         try:
-            r = subprocess.run(["python3", str(driver)], env=_env(),
+            r = subprocess.run([PYTHON, str(driver)], env=_env(),
                                capture_output=True, text=True, timeout=60)
             assert r.returncode == 0, r.stderr
             assert r.stdout.strip() == "EBADF", r.stdout

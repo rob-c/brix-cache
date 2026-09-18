@@ -268,6 +268,7 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_gridftp_pasv_port_range` | stream | `<value> <value>` | `src/protocols/gridftp/ftp_module.c` |
 | `brix_gridftp_require_allo_size` | stream | `on|off` | `src/protocols/gridftp/ftp_module.c` |
 | `brix_gsi_ciphers` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_gsi_legacy_proxy` | http, stream | `off|on|full-only` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
 | `brix_gsi_keypool_seed` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
 | `brix_gsi_keypool_size` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
 | `brix_gsi_max_inflight_handshakes` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
@@ -851,6 +852,21 @@ stream {
 ```
 
 Without `brix_root on`, nginx ignores all other `brix_*` directives in the block.
+
+---
+
+#### Advertised node identity (`XRDNET_IDENTITY`)
+
+The name a server publishes wherever a client may dial it back — the
+`kXR_locate` token when the client sets `kXR_prefname` (stock `xrdfs
+spaceinfo`, `locate -h`) and the `cms.d` registration `<host>:<port>` — is
+`gethostname(2)`, unless the environment variable `XRDNET_IDENTITY` names a
+syntactically valid host name (letters, digits, `.`, `-`, `:`; at most 255
+bytes). It is the same short-circuit stock XRootD honours, read once by the
+master at configuration time, so it needs no `env` whitelist in `nginx.conf`
+and every worker advertises the same name. Use it on a host whose
+`gethostname(2)` has no DNS record (a laptop, a container without a FQDN):
+clients would otherwise be handed a name they cannot resolve.
 
 ---
 
@@ -2441,7 +2457,7 @@ brix_chkpnt_maxsz 200m;
 
 ### `brix_vomsdir <path>`
 
-Path to the directory containing VOMS server information (`.lsc` files), one per VO. Required when `brix_require_vo` is used. Requires `libvomsapi.so.1` at runtime (install `voms-libs` on EL9 or `libvomsapi1` on Debian/Ubuntu).
+Path to the directory containing VOMS server information (`vomsdir/<vo>/<host>.lsc` files — subject DN then issuer DN of the VOMS signing certificate — or legacy PEM copies of that certificate), one subdirectory per VO. Required when `brix_require_vo` is used. VOMS attribute certificates are verified natively by the module; no VOMS library is needed on the host.
 
 ```nginx
 brix_vomsdir /etc/voms;
@@ -2451,7 +2467,7 @@ brix_vomsdir /etc/voms;
 
 ### `brix_voms_cert_dir <path>`
 
-Path to the hashed CA certificate directory used for verifying VOMS attribute certificates. Required when `brix_require_vo` is used.
+Path to the hashed CA certificate directory used to chain the VOMS signing certificate embedded in each attribute certificate, with the same CRL and `signing_policy` handling as the GSI identity chain. Required when `brix_require_vo` is used.
 
 ```nginx
 brix_voms_cert_dir /etc/grid-security/certificates;
@@ -2463,7 +2479,7 @@ brix_voms_cert_dir /etc/grid-security/certificates;
 
 Restricts access to `<path>` (and all descendants) to clients whose VO list includes `<vo>`. For GSI, the VO list comes from VOMS proxy attributes. For token authentication, `wlcg.groups` claims are mapped into the same VO list. Can be specified multiple times for different paths.
 
-`brix_auth gsi`, `brix_auth token`, or `brix_auth both` must be enabled, and `libvomsapi.so.1` must be available at runtime. The directive also requires `brix_vomsdir` and `brix_voms_cert_dir` because the same ACL machinery is used for GSI and token groups.
+`brix_auth gsi`, `brix_auth token`, or `brix_auth both` must be enabled. The directive also requires `brix_vomsdir` and `brix_voms_cert_dir` because the same ACL machinery is used for GSI and token groups.
 
 ```nginx
 brix_require_vo /atlas atlas;   # only ATLAS members can access /atlas

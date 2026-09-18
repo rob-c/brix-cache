@@ -123,6 +123,7 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->common.verify_depth = NGX_CONF_UNSET_UINT;
     conf->common.signing_policy_mode = NGX_CONF_UNSET_UINT;
     conf->common.crl_mode     = NGX_CONF_UNSET_UINT;
+    conf->common.legacy_proxy_mode = NGX_CONF_UNSET_UINT;
     conf->common.crl_scope    = NGX_CONF_UNSET_UINT;      /* 2.0 F19 */
     conf->common.tls_verify_log = NGX_CONF_UNSET_UINT;    /* 2.0 F19 */
     conf->auth         = NGX_CONF_UNSET_UINT;

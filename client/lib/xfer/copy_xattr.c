@@ -20,7 +20,7 @@
  */
 #include "copy_internal.h"
 
-#include <sys/xattr.h>
+#include "platform/platform.h"   /* PAL: Linux-shaped xattr calls on every host */
 
 #define XATTR_VAL_MAX   (64u * 1024u)
 #define XATTR_NAME_MAX_ 256

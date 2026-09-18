@@ -1,14 +1,13 @@
-/* Apple Silicon extensions.
- * Requires: platform_api.h platform selection and system types before inclusion.
- * Include platform/platform_api.h at call sites.
- */
-#pragma once
+/* src/platform/darwin/host_api.h - Apple Silicon extensions (macOS ARM64 only).
+ * Reached through platform/platform_api.h; never included directly. */
+#ifndef BRIX_PLATFORM_DARWIN_HOST_API_H
+#define BRIX_PLATFORM_DARWIN_HOST_API_H
 
 /* ==========================================================================
  * DARWIN / APPLE SILICON APIs (macOS ARM64 only)
  * ========================================================================== */
 
-#if BRIX_PLATFORM_DARWIN && BRIX_ARCH_ARM64
+#if BRIX_ARCH_ARM64
 
 /* ==========================================================================
  * APPLE SILICON CHIP DETECTION
@@ -246,4 +245,6 @@ void brix_apple_init(void);
  */
 const char *brix_apple_get_optimization_info(void);
 
-#endif /* BRIX_PLATFORM_DARWIN && BRIX_ARCH_ARM64 */
+#endif /* BRIX_ARCH_ARM64 */
+
+#endif /* BRIX_PLATFORM_DARWIN_HOST_API_H */

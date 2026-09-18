@@ -44,7 +44,6 @@ from __future__ import annotations
 
 import errno
 import os
-import shutil
 import stat as st_mod
 import sqlite3
 import subprocess
@@ -60,14 +59,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 
 from conformance_common import BRIXMOUNT, MOCK, PortBlock, fuse_mount
 from lib_py.util import wait_tcp
+from lib_py.fuse_host import FUSE_READY
 from repo_forge import Dir, File, RepoForge, Symlink, md5path
 from repo_forge import (FLAG_DIR, FLAG_DIR_NESTED_MOUNT, FLAG_FILE)
 from settings import BIND_HOST, HOST
 
 _IFDIR, _IFREG = 0o040000, 0o100000
 
-_FUSE_READY = (os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
-               and os.path.exists(BRIXMOUNT))
+_FUSE_READY = FUSE_READY and os.path.exists(BRIXMOUNT)
 pytestmark = pytest.mark.skipif(not _FUSE_READY,
                                 reason="fuse mount prerequisites missing")
 

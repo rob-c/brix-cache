@@ -19,7 +19,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
-#include <sys/xattr.h>
+#include "platform/platform.h"   /* PAL: Linux-shaped xattr calls on every host */
 
 #define XMETA_STOCK_VERSION 4
 #define XMETA_EXT_MAGIC     0x31584358u   /* "XCX1" */

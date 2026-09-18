@@ -15,6 +15,8 @@ skipped.
 
 import os
 import shutil
+import functools
+import glob
 import subprocess
 import sys
 import tempfile
@@ -81,10 +83,39 @@ def _require(program):
         pytest.skip(f"{program} not found on PATH")
 
 
+@functools.lru_cache(maxsize=1)
+def _xrdcp_plugin_conf_dir():
+    """Directory to hand xrdcp as ``XRD_PLUGINCONFDIR`` so http/davs URLs load
+    the XrdClHttp client plugin, or None when the host already has one.
+
+    Distribution packages install ``/etc/xrootd/client.plugins.d``; a
+    Homebrew/source xrootd ships ``libXrdClHttp`` next to ``libXrdCl`` but no
+    plugin config, so stock xrdcp reports "Operation not supported" for the
+    destination.  Generate the one-file config beside the test tree."""
+    if os.environ.get("XRD_PLUGINCONFDIR") or os.path.isdir("/etc/xrootd/client.plugins.d"):
+        return None
+    binary = shutil.which(XRDCP_BIN)
+    if binary is None:
+        return None
+    libdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(binary))), "lib")
+    libs = sorted(glob.glob(os.path.join(libdir, "libXrdClHttp*.so"))
+                  + glob.glob(os.path.join(libdir, "libXrdClHttp*.dylib")))
+    if not libs:
+        return None
+    conf_dir = os.path.join(tempfile.gettempdir(), f"xrdcl-plugins-{os.getuid()}")
+    os.makedirs(conf_dir, exist_ok=True)
+    with open(os.path.join(conf_dir, "xrdcl-http-plugin.conf"), "w", encoding="utf-8") as fh:
+        fh.write(f"url = http://*;https://*;davs://*\nlib = {libs[-1]}\nenable = true\n")
+    return conf_dir
+
+
 def _xrd_env():
     env = os.environ.copy()
     env["X509_USER_PROXY"] = PROXY_PEM
     env["X509_CERT_DIR"] = CA_DIR
+    plugin_dir = _xrdcp_plugin_conf_dir()
+    if plugin_dir:
+        env["XRD_PLUGINCONFDIR"] = plugin_dir
     return env
 
 
@@ -100,8 +131,21 @@ def _assert_path_content(path, expected):
     assert actual == expected
 
 
+@functools.lru_cache(maxsize=1)
+def _xrdcp_http_args():
+    """Stock xrdcp 5.x gates http/davs URLs behind ``--allow-http``; 6.x dropped
+    the gate and rejects the flag as an invalid option.  Probe the binary's
+    help text once so both generations run the same transfer."""
+    try:
+        res = _run([XRDCP_BIN, "--help"])
+    except OSError:
+        return ("--allow-http",)
+    text = (res.stdout or b"") + (res.stderr or b"")
+    return ("--allow-http",) if b"--allow-http" in text else ()
+
+
 def _xrd_download(remote_url, output, env, cwd=None):
-    result = _run([XRDCP_BIN, "--allow-http", "--verbose", remote_url, output],
+    result = _run([XRDCP_BIN, *_xrdcp_http_args(), "--verbose", remote_url, output],
                   env=env, cwd=cwd)
     _assert_success(result)
     return result
@@ -141,7 +185,7 @@ def _fallback_xrd(upload, local, remote_url, url_base, remote_name, env, cwd, co
                  f"{url_base}/{remote_name}"])
     _assert_success(seed)
     output = local + ".from_xrdcp"
-    download = _run([XRDCP_BIN, "--allow-http", "--verbose", remote_url, output],
+    download = _run([XRDCP_BIN, *_xrdcp_http_args(), "--verbose", remote_url, output],
                     env=env, cwd=cwd)
     if download.returncode != 0:
         pytest.fail(_xrd_failure_message(upload, download, _log_tail()))
@@ -160,7 +204,7 @@ def _xrd_failure_message(upload, download, log_tail):
 
 
 def _xrd_upload(local, remote_url, env, cwd):
-    result = _run([XRDCP_BIN, "--allow-http", "--verbose", local, remote_url],
+    result = _run([XRDCP_BIN, *_xrdcp_http_args(), "--verbose", local, remote_url],
                   env=env, cwd=cwd)
     _assert_success(result)
     return result

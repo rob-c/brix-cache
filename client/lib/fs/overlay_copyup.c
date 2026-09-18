@@ -17,7 +17,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/xattr.h>
+#include "platform/platform.h"   /* PAL: Linux-shaped xattr calls on every host */
 
 /* ---- copy-up ------------------------------------------------------------- */
 

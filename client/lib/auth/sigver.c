@@ -26,7 +26,7 @@
 #include "protocols/root/protocol/frame_hdr.h" /* unaligned-safe BE field accessors (libxrdproto) */
 
 #include <arpa/inet.h>
-#include <endian.h>
+#include "platform/platform.h"   /* PAL: htobe64/be64toh names on every host */
 #include <stdlib.h>
 #include <string.h>
 

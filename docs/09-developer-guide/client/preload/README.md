@@ -14,6 +14,7 @@ other path falls straight through to the real libc call.
 
 ```
 LD_PRELOAD=libbrixposix_preload.so BRIX_VMP=/xrd=root://host:port/ cat /xrd/file
+# macOS: DYLD_INSERT_LIBRARIES=libbrixposix_preload.dylib (SIP keeps it out of Apple-signed tools)
 ```
 
 `$BRIX_VMP = "<localprefix>=root://host[:port][/base]"`. A path starting with

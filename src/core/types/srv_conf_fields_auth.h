@@ -59,6 +59,8 @@
                                      <hash>.signing_policy file is present) */
     ngx_uint_t  crl_mode;         /* [brix_crl_mode off|try|require]
                                      BRIX_CRL_MODE_*; default TRY */
+    ngx_uint_t  legacy_proxy_mode; /* [brix_gsi_legacy_proxy off|on|full-only]
+                                     BRIX_LEGACY_PROXY_*; default ON */
     ngx_uint_t  crl_scope;        /* [brix_crl_scope all|last] BRIX_CRL_SCOPE_*;
                                      default ALL.  `last` checks only the
                                      certificate's own issuer's CRL (stock

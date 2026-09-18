@@ -284,6 +284,12 @@ typedef struct {
     int         has_proxy;   /* §14 X.509 proxy credential configured */
 } brix_vfs_backend_info_t;
 
+/* Release every storage stack composed in THIS process and clear the memo, so
+ * no driver state (notably the pblock catalog's SQLite connection) is carried
+ * across fork into the workers. Called from the master's last pre-fork hook;
+ * each worker rebuilds its own stacks on first resolve. */
+void brix_vfs_backend_release_prefork(void);
+
 /* Number of registered exports (config-time count; stable after config load). */
 ngx_uint_t brix_vfs_backend_export_count(void);
 

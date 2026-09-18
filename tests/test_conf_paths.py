@@ -437,6 +437,9 @@ def test_ls_empty_dir_matches_stock(pair):
 # =========================================================================== #
 def test_stat_case_sensitive_not_found_both(pair):
     """stat '/HELLO.TXT' must be not-found on both (case-sensitive namespace)."""
+    if os.path.exists(os.path.join(pair["our_data"], "HELLO.TXT")):
+        pytest.skip("export filesystem folds case (APFS default): "
+                    "'/HELLO.TXT' resolves to hello.txt on both servers")
     o_rc = _stat_size(pair["our"], "/HELLO.TXT")[0]
     f_rc = _stat_size(pair["off"], "/HELLO.TXT")[0]
     assert (not _ok(o_rc)) and (not _ok(f_rc)), \

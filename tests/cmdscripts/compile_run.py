@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 import os
 import subprocess
 
@@ -73,8 +74,59 @@ def sanitizer_link_flags(args: list[str]) -> list[str]:
     return flags
 
 
+#: The PAL host selector every tree source needs (src/platform/platform.h
+#: refuses to compile without it); mirrors ./config and client/Makefile.
+PLATFORM_HOST_FLAGS = (
+    ["-DBRIX_PLATFORM_HOST=darwin", "-D_DARWIN_C_SOURCE"]
+    if sys.platform == "darwin" else ["-DBRIX_PLATFORM_HOST=linux"])
+
+
+#: The PAL host bodies a standalone build must link when it calls ``brix_plat_*``
+#: (the module and client Makefiles compile the whole ``<host>/`` directory; a
+#: hand-rolled test build lists only what it needs).
+PAL_HOST_DIR = f"src/platform/{'darwin' if sys.platform == 'darwin' else 'linux'}"
+
+
+#: The CLIENT PAL host bodies (client/lib/platform/<host>/), which carry the
+#: client-only verbs: FUSE option support, host mount options, unmount tiers.
+CLIENT_PAL_HOST_DIR = (
+    f"client/lib/platform/{'darwin' if sys.platform == 'darwin' else 'linux'}")
+
+
+def client_pal_host_sources(*names: str) -> list[str]:
+    """``client/lib/platform/<host>/<name>.c`` for each body the build needs."""
+    return [f"{CLIENT_PAL_HOST_DIR}/{name}.c" for name in names]
+
+
+def pal_host_sources(*names: str) -> list[str]:
+    """``src/platform/<host>/<name>.c`` for each wrapper the build calls into."""
+    return [f"{PAL_HOST_DIR}/{name}.c" for name in names]
+
+
+#: How to name liblz4 on the link line.  ``-l:<soname>`` is GNU-ld syntax that
+#: Apple's ld64 has no form of, so Darwin links the plain ``-llz4`` (Homebrew's
+#: dylib sits on the default loader path) — the same split client/Makefile
+#: makes.  ``BRIX_LZ4_LIBS`` overrides both, as it does for the Makefile.
+LZ4_LINK_FLAGS = (
+    os.environ["BRIX_LZ4_LIBS"].split() if os.environ.get("BRIX_LZ4_LIBS")
+    else ["-llz4"] if sys.platform == "darwin"
+    else ["-l:liblz4.so.1"])
+
+
+def weak_undefined_flags(*symbols: str) -> list[str]:
+    """Link flags allowing ``symbols`` to stay undefined (an optional front-end
+    the umbrella may be linked without).  ELF resolves an undefined weak symbol
+    to NULL on its own; Mach-O's ld64 refuses one in a static link unless the
+    name is listed with ``-U``, so BRIX_WEAK_REF alone is not enough there.
+    """
+    if sys.platform != "darwin":
+        return []
+    return [f"-Wl,-U,_{name}" for name in symbols]
+
+
 def compile_binary(output: Path, args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess:
-    return run(["gcc", *args, *sanitizer_link_flags(args), "-o", str(output)], cwd=cwd)
+    return run(["gcc", *PLATFORM_HOST_FLAGS, *args, *sanitizer_link_flags(args),
+                "-o", str(output)], cwd=cwd)
 
 
 def result(ok: bool, message: str) -> tuple[bool, str]:

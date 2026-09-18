@@ -18,17 +18,13 @@
  *       can never read or scribble into its neighbour.
  */
 #include "sd_block_internal.h"
+#include "platform/platform_api.h"   /* brix_plat_blockdev_size */
 
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-#ifdef __linux__
-#include <linux/fs.h>   /* BLKGETSIZE64 */
-#endif
 
 /* Per-export instance state: the device path, its probed capacity, and the
  * fixed extent geometry derived at init. */
@@ -113,14 +109,12 @@ sd_block_init(brix_sd_instance_t *inst, void *driver_conf)
         return NGX_ERROR;
     }
     cap = sb.st_size;
-#ifdef BLKGETSIZE64
     if (S_ISBLK(sb.st_mode)) {
         uint64_t sz = 0;
-        if (ioctl(fd, BLKGETSIZE64, &sz) == 0) {
+        if (brix_plat_blockdev_size(fd, &sz) == 0) {
             cap = (off_t) sz;
         }
     }
-#endif
     close(fd);
 
     if (cap <= 0) {

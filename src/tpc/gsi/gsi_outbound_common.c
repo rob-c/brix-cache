@@ -22,10 +22,6 @@
 #include <stdio.h>
 #include <errno.h>
 
-#if defined(__linux__)
-#include <endian.h>
-#endif
-
 
 /* TPC buffer size constants now in src/core/types/tunables.h:
  *   - BRIX_TPC_BEARER_MAX: 65536 bytes (64 KiB JWT buffer)

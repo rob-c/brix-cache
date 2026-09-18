@@ -104,8 +104,10 @@ RAW_RE = re.compile(r"(^|[^._>a-zA-Z])(" + _RAWOPS + r")" + _SP + r"*\(")
 # syscalls still need a same-line SEAM_CORRECT marker; the aliases are checked
 # in callers, including native clients, so wrapping libc cannot evade the VFS.
 PAL_OWNER_RE = re.compile(
-    r"^src/platform/(?:"
-    r"(?:linux|darwin)/posix_wrapper|(?:linux|darwin)/copy_range"
+    r"^client/lib/platform/(?:linux|darwin)/posix\.c:"
+    r"|^src/platform/(?:"
+    r"(?:linux|darwin)/posix_wrapper|(?:linux|darwin)/storage_wrapper"
+    r"|(?:linux|darwin)/copy_range"
     r"|darwin/(?:clonefile_optimized|apple_silicon)"
     r"|windows/(?:copy_range(?:_unittest)?|copy_fallback|xattr_list"
     r"|xattr(?:_(?:(?:complete|fd|list)_)?unittest)?)"

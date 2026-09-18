@@ -43,6 +43,9 @@ jobs:
       - name: pal ownership — public headers and configured common API bodies
         if: '!cancelled()'
         run: tools/ci/check_pal_seam.py
+      - name: platform leak — OS branches only inside PAL owner directories (phase-119)
+        if: '!cancelled()'
+        run: tools/ci/check_platform_leak.py
       - name: dns seam — one resolver path, no bypasses (phase-116)
         if: '!cancelled()'
         run: tools/ci/check_dns_seam.py

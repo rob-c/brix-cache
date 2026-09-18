@@ -57,6 +57,7 @@ from settings import (
     NGINX_BIN,
     url_host,
 )
+from lib_py.util import linked_libraries
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-krb5-cache-origin")]
@@ -105,8 +106,7 @@ def _client_has_krb5():
     if "krb5" not in subprocess.run([XRDFS, "-h"],
                                     capture_output=True, text=True).stderr:
         return False
-    linked = subprocess.run(["ldd", XRDFS], capture_output=True, text=True).stdout
-    return "libkrb5" in linked
+    return "libkrb5" in linked_libraries(XRDFS)   # ldd, or otool -L on Darwin
 
 
 def _wait_port(host, port, deadline):
@@ -124,7 +124,7 @@ def _kinit_forwardable():
     env = {k: v for k, v in os.environ.items()}
     env["KRB5_CONFIG"] = KRB5_CONF
     proc = subprocess.run(
-        [shutil.which("kinit") or "kinit", "-f", "-k", "-t", KRB5_CLIENT_KEYTAB,
+        [kdc_helpers.krb5_tool("kinit") or "kinit", "-f", "-k", "-t", KRB5_CLIENT_KEYTAB,
          "-c", FWD_CCACHE, KRB5_CLIENT_PRINCIPAL],
         capture_output=True, text=True, env=env, timeout=30)
     return proc.returncode == 0

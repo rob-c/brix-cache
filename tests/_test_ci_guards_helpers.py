@@ -24,8 +24,15 @@ import sys
 from pathlib import Path
 
 import pytest
+from lib_py.util import budget_scale
 
-pytestmark = pytest.mark.xdist_group("ci-guards")
+# Every guard scans the tree; several take 20 s idle and stall past the 30 s
+# default on a loaded host (8 xdist workers), so the module carries 300 s.
+# 300 s covers every guard on the CI host with room to spare; the tree scans
+# slow down ~linearly with the host's load (check_template_refs: 18 s idle,
+# >300 s inside an 8-worker lane on a laptop), so the budget scales with it.
+pytestmark = [pytest.mark.xdist_group("ci-guards"),
+              pytest.mark.timeout(300 * budget_scale())]
 
 CI = Path(__file__).resolve().parents[1] / "tools" / "ci"
 
@@ -76,6 +83,7 @@ _FAST = [
     "check_vfs_seam",
     "check_pal_seam",
     "check_dns_seam",
+    "check_platform_leak",
     "check_vfs_mutation_gate",
     "check_authz_backstop",
     "check_vfs_identity_branch",

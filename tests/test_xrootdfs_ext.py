@@ -26,6 +26,7 @@ import time
 
 import pytest
 
+from lib_py import fuse_host
 from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 
 def _guard_built_1():
@@ -52,7 +53,7 @@ CLIENT_DIR = os.path.join(REPO, "client")
 XROOTDFS = os.path.join(CLIENT_DIR, "bin", "xrootdfs")
 ANON_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}/"
 
-_FUSE_OK = os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
+_FUSE_OK = fuse_host.FUSE_READY
 
 
 def _port_up(host, port):
@@ -86,7 +87,7 @@ def mount(built):
         time.sleep(0.1)
     else:
         p.kill(); fh.close()
-        subprocess.run(["fusermount3", "-u", mnt], capture_output=True)
+        fuse_host.unmount(mnt)
         os.rmdir(mnt)
         pytest.skip("xrootdfs failed to mount")
     time.sleep(0.2)
@@ -94,7 +95,7 @@ def mount(built):
     with open(banner_path) as bf:
         banner = bf.read()
     yield mnt, banner
-    subprocess.run(["fusermount3", "-u", mnt], capture_output=True)
+    fuse_host.unmount(mnt)
     p.wait(timeout=10)
     fh.close()
     for pth in (mnt, banner_path):

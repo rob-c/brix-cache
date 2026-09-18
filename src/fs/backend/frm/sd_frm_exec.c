@@ -8,6 +8,7 @@
 
 #include "sd_frm_mss.h"
 #include "core/compat/subprocess.h"   /* shared SIGCHLD-safe reparented runner */
+#include "platform/platform_api.h"     /* brix_plat_renameat2 */
 
 #include <dirent.h>
 #include <errno.h>
@@ -16,7 +17,6 @@
 #include <poll.h>
 #include <signal.h>
 #include <spawn.h>
-#include <sys/syscall.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -312,17 +312,13 @@ exec_mkpath(void *mss, const char *key, mode_t mode)
 /* frm_mss_exchange — atomic swap of two ONLINE-BUFFER copies (phase-107 C6).
  * Head-generic (frm_mss_head_t), shared by the exec and lib adapters; lives
  * here because sd_frm_stub.c, home of the other frm_mss_* head ops, is at the
- * 600-line cap. Raw SYS_renameat2 (glibc's wrapper postdates 2.28); a
- * kernel/filesystem without RENAME_EXCHANGE answers ENOSYS/EINVAL, reported
- * as ENOTSUP and never degraded to two renames (§3.5).
+ * 600-line cap. brix_plat_renameat2(BRIX_RENAME_EXCHANGE); a
+ * kernel/filesystem without the flag answers ENOTSUP (normalised by the PAL)
+ * and is never degraded to two renames (§3.5).
  * WHAT: Return 0 after an atomic swap, or -1 with errno and no emulation.
  * WHY: A plain rename destroys one online name instead of exchanging both.
- * HOW: 1. Resolve both online paths. 2. Use Linux RENAME_EXCHANGE when available.
+ * HOW: 1. Resolve both online paths. 2. Exchange through the PAL.
  *      3. Report an unsupported primitive as ENOTSUP without mutating files. */
-#ifndef RENAME_EXCHANGE
-#define RENAME_EXCHANGE (1u << 1)    /* <linux/fs.h>; avoided for its struct
-                                      * collisions, same as fs/path/beneath.c */
-#endif
 
 int
 frm_mss_exchange(void *mss, const char *a, const char *b)
@@ -337,20 +333,12 @@ frm_mss_exchange(void *mss, const char *a, const char *b)
         errno = ENAMETOOLONG;
         return -1;
     }
-#if defined(__linux__) && defined(SYS_renameat2)
-    if (syscall(SYS_renameat2, AT_FDCWD, pa, AT_FDCWD, pb,
-                (unsigned int) RENAME_EXCHANGE) != 0)
+    if (brix_plat_renameat2(AT_FDCWD, pa, AT_FDCWD, pb,
+                            BRIX_RENAME_EXCHANGE) != 0)
     {
-        if (errno == ENOSYS || errno == EINVAL) {
-            errno = ENOTSUP;
-        }
         return -1;
     }
     return 0;
-#else
-    errno = ENOTSUP;
-    return -1;
-#endif
 }
 
 const brix_mss_adapter_t brix_mss_exec_adapter = {

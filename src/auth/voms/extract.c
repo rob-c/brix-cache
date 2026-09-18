@@ -1,98 +1,38 @@
 #include "voms_internal.h"
-
 #include <limits.h>
 
 /*
- * The caller-owned output bundle (primary_vo / vo_list / fqan_list) now lives in
- * auth/voms/voms_io.h, so the HTTP side can name the same type without pulling
- * in the stream umbrella header.  voms_internal.h includes it.
+ * extract.c — VO / FQAN extraction from a verified proxy chain
+ *
+ * WHAT: brix_extract_voms_fqans (the full form) and brix_extract_voms_info
+ *       (VO views only), declared in ngx_brix_module.h and voms_http.h.
+ * WHY:  Every GSI path (root://, davs://, gsiftp://, cvmfs) fills the
+ *       connection identity's VO and FQAN views from here after the proxy
+ *       chain has been verified; VO-scoped authorization (brix_require_vo,
+ *       the authdb selectors) reads those views.
+ * HOW:  brix_voms_retrieve over the shared native engine with the module's
+ *       trust: the VOMS server chain against the brix_voms_cert_dir store and
+ *       the configured brix_vomsdir LSC files. Only entries whose verdict is
+ *       BRIX_VOMS_OK reach the views. A proxy without the extension yields
+ *       NGX_DECLINED (a plain grid proxy); an extension that fails
+ *       verification is logged at WARN and yields NGX_ERROR with empty views.
  */
 
-/*
- * WHAT: Public entry point for extracting VOMS virtual organisation membership
- * from an x509 proxy certificate. Called by the GSI authentication path after
- * the proxy chain is verified to populate ctx->primary_vo and ctx->vo_list.
- *
- * WHY: VO-based ACL enforcement (brix_require_vo) requires knowledge of which
- * virtual organisations the user belongs to. VOMS extensions embedded in the
- * certificate provide this information. This function encapsulates the entire
- * extraction pipeline — chain preparation, API call, and result collection.
- *
- * HOW: Four-phase flow:
- *   1. Pre-checks — return NGX_DECLINED if VOMS library not loaded or parameters
- *      missing (graceful degradation per INVARIANT #8: metric labels low-cardinality)
- *   2. Buffer preparation — convert ngx_str_t paths to NUL-terminated buffers with
- *      bounds validation against PATH_MAX
- *   3. VOMS extraction — initialise API, duplicate certificate chain and remove the
- *      leaf (VOMS needs parent certificates for extension lookup), call retrieve()
- *      with VOMS_RECURSE_CHAIN flag; non-critical errors (VOMS_VERR_NOEXT /
- *      VOMS_VERR_NODATA) are silently skipped per GSI auth convention
- *   4. Result collection — delegate to brix_collect_voms_vos(); cleanup chain and
- *      API state regardless of outcome
- *
- * INVARIANT: All wire paths → resolve_path() before open(). This function operates
- * on certificate data, not filesystem paths, so the invariant does not apply directly.
- */
-
-/*
- * WHAT: Validate that VOMS extraction can proceed and that the caller-supplied
- * directory paths fit their fixed on-stack buffers.
- *
- * WHY: Splits the pre-flight guard ladder out of the main entry point so the
- * latter stays under the complexity cap. Preserves the original two-tier
- * disposition exactly: unavailable/missing inputs degrade gracefully
- * (NGX_DECLINED) while over-length paths are a hard error (NGX_ERROR).
- *
- * HOW: Mirror the original guard order — VOMS library loaded, mandatory
- * non-empty inputs present, then path lengths bounded below the destination
- * buffer size. Returns NGX_OK when extraction may continue.
- */
 static ngx_int_t
-brix_voms_precheck(X509 *leaf, const ngx_str_t *vomsdir,
-    const ngx_str_t *cert_dir, size_t buf_sz)
+brix_voms_precheck(const brix_voms_in_t *in, const ngx_str_t *vomsdir,
+    const ngx_str_t *cert_dir)
 {
-    if (!brix_voms_available()) {
-        return NGX_DECLINED;
-    }
-
-    if (leaf == NULL || vomsdir == NULL || cert_dir == NULL
+    if (in == NULL || in->leaf == NULL || vomsdir == NULL || cert_dir == NULL
         || vomsdir->len == 0 || cert_dir->len == 0)
     {
         return NGX_DECLINED;
     }
-
-    if (vomsdir->len >= buf_sz || cert_dir->len >= buf_sz) {
+    if (vomsdir->len >= PATH_MAX || cert_dir->len >= PATH_MAX) {
         return NGX_ERROR;
     }
-
     return NGX_OK;
 }
 
-/*
- * WHAT: Copy an ngx_str_t path into a NUL-terminated on-stack buffer.
- *
- * WHY: The VOMS init() API takes C strings; ngx_str_t is not NUL-terminated.
- * Factored out to avoid duplicating the copy-and-terminate idiom per path.
- *
- * HOW: Bounds have already been validated by brix_voms_precheck(); copy the
- * bytes and append the terminator.
- */
-static void
-brix_voms_path_to_buf(const ngx_str_t *src, char *dst)
-{
-    ngx_memcpy(dst, src->data, src->len);
-    dst[src->len] = '\0';
-}
-
-/*
- * WHAT: Reset every requested output buffer to empty.
- *
- * WHY: Callers expect well-defined (empty) output even when no VOMS data is
- * found. Keeping this together documents the output contract in one place.
- *
- * HOW: Terminate each buffer at offset 0 when present and non-zero-sized.  The
- * 2.0 F20 fqan_list is optional — an older caller leaves it NULL.
- */
 static void
 brix_voms_reset_outputs(const brix_voms_out_t *out)
 {
@@ -107,148 +47,70 @@ brix_voms_reset_outputs(const brix_voms_out_t *out)
     }
 }
 
-/*
- * WHAT: Duplicate the verified certificate chain and drop the leaf, producing
- * the parent-only stack that the VOMS retrieve() call expects.
- *
- * WHY: VOMS looks up the AC extension in the parent certificates, so the leaf
- * (index 0, matching *leaf) must be removed. Isolating this keeps the pointer
- * juggling and its NULL/empty edge cases out of the main flow.
- *
- * HOW: For a non-empty chain, sk_X509_dup() the stack; on allocation failure
- * signal via *ok = 0 (caller must clean up the API handle). If the duplicated
- * head equals the leaf, delete it. A NULL/empty input yields a NULL chain,
- * which is valid input to retrieve(). Sets *ok = 1 on success.
- */
-static STACK_OF(X509) *
-brix_voms_build_parent_chain(STACK_OF(X509) *chain, X509 *leaf, int *ok)
+/* One WARN line per rejected AC: the VO it claimed and why it was refused,
+ * with the AC's own strings sanitised before they reach the log. */
+static void
+brix_voms_log_rejections(ngx_log_t *log, const brix_voms_result_t *res)
 {
-    STACK_OF(X509) *voms_chain = NULL;
+    int  i;
+    char vo[64];
 
-    *ok = 1;
+    for (i = 0; i < res->n; i++) {
+        const brix_voms_entry_t *e = &res->entries[i];
 
-    if (chain == NULL || sk_X509_num(chain) <= 0) {
-        return NULL;
-    }
-
-    voms_chain = sk_X509_dup(chain);
-    if (voms_chain == NULL) {
-        *ok = 0;
-        return NULL;
-    }
-
-    if (sk_X509_num(voms_chain) > 0
-        && X509_cmp(sk_X509_value(voms_chain, 0), leaf) == 0)
-    {
-        sk_X509_delete(voms_chain, 0);
-    }
-
-    return voms_chain;
-}
-
-/*
- * WHAT: Perform the VOMS retrieve() call and, on success, collect the VO/FQAN
- * results into the caller's buffers.
- *
- * WHY: Concentrates the retrieve/error/collect decision in one helper so the
- * entry point reads as a linear pipeline. Preserves the original disposition:
- * VOMS_VERR_NOEXT / VOMS_VERR_NODATA are silently ignored (NGX_DECLINED per
- * initial rc); other retrieve failures WARN-log and return NGX_ERROR.
- *
- * HOW: Call retrieve() with VOMS_RECURSE_CHAIN. On failure, classify the error;
- * on success, delegate to brix_collect_voms_vos(). Uses a local error buffer for
- * the human-readable message.
- */
-static ngx_int_t
-brix_voms_retrieve_and_collect(ngx_log_t *log, X509 *leaf,
-    STACK_OF(X509) *voms_chain, struct voms_data *vd,
-    const brix_voms_out_t *out)
-{
-    brix_voms_api_t  *api = brix_voms_get_api_internal();
-    char              errbuf[512];
-    int               error = 0;
-
-    if (!api->retrieve(leaf, voms_chain, VOMS_RECURSE_CHAIN, vd, &error))
-    {
-        if (error != VOMS_VERR_NOEXT && error != VOMS_VERR_NODATA) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "brix: VOMS extraction failed: %s",
-                          api->error_message(vd, error, errbuf,
-                                                        (int) sizeof(errbuf)));
-            return NGX_ERROR;
+        if (e->verdict == BRIX_VOMS_OK) {
+            continue;
         }
-
-        return NGX_DECLINED;
+        brix_sanitize_log_string(e->vo, vo, sizeof(vo));
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "brix: VOMS attribute certificate for VO \"%s\" rejected: %s",
+                      vo, brix_voms_strerror(e->verdict));
     }
-
-    return brix_collect_voms_vos(vd, out);
 }
 
-/*
- * WHAT: brix_extract_voms_fqans — the full-fidelity entry point: everything
- *       brix_extract_voms_info() produces, plus the raw-FQAN CSV.
- * WHY:  2.0 F20 — the VO-name views cannot carry a VOMS role (their safety
- *       predicate rejects '/'), so an identity built from them alone has an
- *       empty acc_role_csv and the authdb `l` selector / XrdAcc `role` template
- *       can never match.  Callers that build an identity want this form;
- *       callers that only gate on VO membership can keep the older one.
- * HOW:  identical pipeline; `out` simply carries one more destination.  The
- *       chain input is bundled through brix_voms_in_t so the signature stays
- *       within the five-parameter limit.
- */
 ngx_int_t
 brix_extract_voms_fqans(ngx_log_t *log, const brix_voms_in_t *in,
     const ngx_str_t *vomsdir, const ngx_str_t *cert_dir,
     const brix_voms_out_t *out)
 {
-    struct voms_data *vd;
-    X509            *leaf = in->leaf;
-    STACK_OF(X509)  *chain = in->chain;
-    STACK_OF(X509)  *voms_chain = NULL;
-    char             vomsdir_buf[PATH_MAX];
-    char             cert_dir_buf[PATH_MAX];
-    int              chain_ok = 0;
-    ngx_int_t        rc;
+    brix_voms_trust_t   trust;
+    brix_voms_result_t *res = NULL;
+    brix_voms_status_t  status;
+    char                vomsdir_buf[PATH_MAX];
+    ngx_int_t           rc;
 
-    rc = brix_voms_precheck(leaf, vomsdir, cert_dir, sizeof(vomsdir_buf));
+    rc = brix_voms_precheck(in, vomsdir, cert_dir);
     if (rc != NGX_OK) {
         return rc;
     }
-
-    brix_voms_path_to_buf(vomsdir, vomsdir_buf);
-    brix_voms_path_to_buf(cert_dir, cert_dir_buf);
     brix_voms_reset_outputs(out);
+    ngx_memcpy(vomsdir_buf, vomsdir->data, vomsdir->len);
+    vomsdir_buf[vomsdir->len] = '\0';
 
-    {
-        brix_voms_api_t  *api = brix_voms_get_api_internal();
-
-        vd = api->init(vomsdir_buf, cert_dir_buf);
-        if (vd == NULL) {
-            return NGX_ERROR;
-        }
-
-        voms_chain = brix_voms_build_parent_chain(chain, leaf, &chain_ok);
-        if (!chain_ok) {
-            api->destroy(vd);
-            return NGX_ERROR;
-        }
-
-        rc = brix_voms_retrieve_and_collect(log, leaf, voms_chain, vd, out);
-
-        if (voms_chain != NULL) {
-            sk_X509_free(voms_chain);
-        }
-        api->destroy(vd);
+    trust.store = brix_voms_trust_store(log, cert_dir);
+    if (trust.store == NULL) {
+        return NGX_ERROR;   /* fail closed: no CA directory, no VO */
     }
+    trust.vomsdir = vomsdir_buf;
+    trust.now = 0;
+    trust.skew_seconds = BRIX_VOMS_SKEW_SECONDS;
+
+    status = brix_voms_retrieve(in->leaf, in->chain, &trust, &res);
+    X509_STORE_free(trust.store);
+    if (status == BRIX_VOMS_ERR_NOEXT) {
+        return NGX_DECLINED;   /* a plain grid proxy */
+    }
+    if (res == NULL) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "brix: VOMS extension rejected: %s", brix_voms_strerror(status));
+        return NGX_ERROR;
+    }
+    brix_voms_log_rejections(log, res);
+    rc = (status == BRIX_VOMS_OK) ? brix_collect_voms_vos(res, out) : NGX_ERROR;
+    brix_voms_result_free(res);
     return rc;
 }
 
-/*
- * brix_extract_voms_info — the pre-2.0 signature, kept for the callers that
- * only need VO membership (cvmfs secure_x509.c and anything gating on
- * brix_require_vo).  Delegates to brix_extract_voms_fqans with no FQAN sink,
- * which the collector reads as "this caller does not want the raw FQANs".
- */
 ngx_int_t
 brix_extract_voms_info(ngx_log_t *log, X509 *leaf, STACK_OF(X509) *chain,
     const ngx_str_t *vomsdir, const ngx_str_t *cert_dir,
@@ -259,12 +121,10 @@ brix_extract_voms_info(ngx_log_t *log, X509 *leaf, STACK_OF(X509) *chain,
 
     in.leaf = leaf;
     in.chain = chain;
-
     ngx_memzero(&out, sizeof(out));
     out.primary_vo = primary_vo;
     out.primary_vo_sz = primary_vo_sz;
     out.vo_list = vo_list;
     out.vo_list_sz = vo_list_sz;
-
     return brix_extract_voms_fqans(log, &in, vomsdir, cert_dir, &out);
 }

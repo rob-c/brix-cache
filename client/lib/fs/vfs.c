@@ -17,6 +17,8 @@
 
 #include <string.h>
 #include <pthread.h>
+#include <sys/stat.h>
+#include "platform/platform_api.h"   /* BRIX_WEAK_REF */
 
 /* Backend registry */
 #define VFS_MAX_BACKENDS 8
@@ -44,14 +46,14 @@ brix_vfs_register_backend(const brix_vfs_backend *be)
 
 /*
  * Backend accessor prototypes — defined in tasks A3 (posix), A4 (block),
- * A5 (s3).  Declared __attribute__((weak)) so libbrix.{a,so} builds cleanly
+ * A5 (s3).  Declared BRIX_WEAK_REF so libbrix.{a,so} builds cleanly
  * before those tasks land; a NULL weak symbol is skipped in vfs_init_backends.
  */
 extern const brix_vfs_backend *brix_vfs_posix_backend(void);
 extern const brix_vfs_backend *brix_vfs_block_backend(void)
-    __attribute__((weak));
+    BRIX_WEAK_REF;
 extern const brix_vfs_backend *brix_vfs_s3_backend(void)
-    __attribute__((weak));
+    BRIX_WEAK_REF;
 
 /*
  * vfs_init_backends — one-time registration of all known backends.
@@ -81,11 +83,40 @@ vfs_init_backends(void)
  * HOW:
  *   s3://…  / s3s://…  → scheme "s3" / "s3s";  path = original URL (backend parses it).
  *   block://…           → scheme "block";         path = URL + 8 (strip "block://").
- *   /dev/…              → scheme "block";         path = URL (raw device path).
+ *   /dev/… (a device node) → scheme "block";      path = URL (raw device path).
+ *   /dev/shm/… and other non-device /dev paths fall through to "file".
  *   file:///…           → scheme "file";          path = URL + 7 (strip "file://").
  *   bare path / other   → scheme "file";          path = URL.
  *   http/dav (non-s3)   → *scheme_out = NULL (no VFS backend; caller errors out).
  */
+/*
+ * vfs_path_is_device — does this path name a block or character device node?
+ *
+ * WHAT: returns 1 when stat(2) says `path` is S_ISBLK or S_ISCHR, 0 otherwise
+ *       (including when it does not exist or cannot be stat'ed).
+ * WHY:  the "/dev/… means block backend" shortcut is wrong for the parts of
+ *       /dev that are not device nodes — most importantly /dev/shm, which is a
+ *       tmpfs where ordinary files live. Routing those to the block backend made
+ *       `xrdcp root://… /dev/shm/out.bin` fail with ENOENT whenever the
+ *       destination did not already exist, because that backend deliberately
+ *       opens without O_CREAT (a device node must never be created). Asking the
+ *       filesystem what the path IS costs one stat and removes the whole class
+ *       of misrouting.
+ * HOW:  stat(); a failure (e.g. the file is being created) answers 0, which
+ *       routes to the POSIX file backend — the correct default for a name that
+ *       is not an existing device.
+ */
+static int
+vfs_path_is_device(const char *path)
+{
+    struct stat sb;
+
+    if (stat(path, &sb) != 0) {
+        return 0;
+    }
+    return S_ISBLK(sb.st_mode) || S_ISCHR(sb.st_mode);
+}
+
 static void
 vfs_url_to_scheme(const char *url, const char **scheme_out,
                   const char **path_out)
@@ -109,7 +140,10 @@ vfs_url_to_scheme(const char *url, const char **scheme_out,
         return;
     }
 
-    if (strncmp(url, "/dev/", 5) == 0) {
+    /* A path under /dev/ is the block backend's only when it really is a device
+     * node: /dev/shm and /dev/fd hold ordinary files that must be created and
+     * committed like any other local destination. */
+    if (strncmp(url, "/dev/", 5) == 0 && vfs_path_is_device(url)) {
         *scheme_out = "block";
         *path_out   = url;
         return;

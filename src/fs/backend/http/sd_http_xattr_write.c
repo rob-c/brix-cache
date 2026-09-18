@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/xattr.h>
+#include "platform/platform_api.h"   /* Linux-shaped xattr calls on every host */
 
 
 /*

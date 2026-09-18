@@ -3,6 +3,7 @@
  * Phase-38 split of xrd.c; behavior-identical.
  */
 #include "xrd_internal.h"
+#include <sys/stat.h>   /* UTIME_NOW */
 
 
 /* endpoint diagnostic report (shared by the verbs below + doctor) */

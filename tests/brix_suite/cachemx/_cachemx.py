@@ -131,7 +131,7 @@ def settle():
 # --------------------------------------------------------------------------
 
 def mfetch(url: str) -> str:
-    with urllib.request.urlopen(url, timeout=10) as resp:
+    with urllib.request.urlopen(url, timeout=30) as resp:
         return resp.read().decode()
 
 

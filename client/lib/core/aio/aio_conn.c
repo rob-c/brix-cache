@@ -72,6 +72,11 @@ aconn_on_transport_error(brix_aconn *ac, const brix_status *st)
     }
     io_engine_del(ac->loop, ac);   /* epoll DEL or io_uring poll cancel */
     ac->dead = 1;
+    /* A half-received direct-body frame dies with the socket: its request is
+     * about to be failed or parked below, so the pointer must not survive into
+     * the next read (it would be a use-after-free). */
+    ac->rx_direct = NULL;
+    ac->rx_need   = 0;
 
     if (ac->max_stall_ms <= 0) {   /* reconnect disabled — fail outright */
         ac->state = ACONN_DEAD;
@@ -94,6 +99,7 @@ aconn_on_transport_error(brix_aconn *ac, const brix_status *st)
         ac->inflight.slots[i] = NULL;
         if (r->retry_safe && r->retries_left > 0) {
             r->retries_left--;
+            r->acc_len = 0;   /* a re-issued request re-accumulates from scratch */
             r->deadline_ns = ac->reconnect_deadline_ns;   /* patience through reconnect */
             r->pend_next = ac->pending;
             ac->pending = r;
@@ -362,6 +368,8 @@ aconn_submit_cmd(brix_aconn *ac, cmd *c)
     r->cb           = c->cb;
     r->ctx          = c->ctx;
     r->retry_safe   = c->retry_safe;
+    r->dst          = c->dst;
+    r->dst_cap      = c->dst_cap;
     r->retries_left = (c->max_retries >= 0) ? c->max_retries : ac->def_retries;
     r->deadline_ns  = aconn_deadline_ns(ac, c->deadline_ms);
 

@@ -176,18 +176,18 @@ protocol ≥ 10400.
   "signed-DH server path" recorded in project memory (advertise aes-128 first;
   off/auto/require; stock-interop).
 
-**VOMS.** Both delegate AC parsing to `libvomsapi`.
+**VOMS.** XRootD delegates AC parsing to `libvomsapi`; the module verifies ACs natively.
 
 - *Official:* external plugin (`libXrdVoms.so`); `XrdVomsFun::VOMSFun()`
   (`XrdVoms/XrdVomsFun.cc:185`) calls `vomsdata::Retrieve(... RECURSE_CHAIN)`
   and reads `voname`/`std`(group/role/cap)/`fqan`, filling
   `Entity.vorg/grps/role/endorsements`.
-- *Module:* `src/auth/voms/loader.c` `dlopen`s `libvomsapi.so.1` (graceful
-  `NGX_DECLINED` if absent); `extract.c` calls `VOMS_Retrieve(... RECURSE_CHAIN)`.
-  Notably the module reads **only `voname` and `fqan`** — the `std` group/role/
-  cap triples are declared but never dereferenced (`collect.c`), so VO is derived
-  by name (or first FQAN path component, `brix_fqan_to_vo()`), not from the
-  parsed role/capability structure. GSI and HTTP share one implementation behind
+- *Module:* `src/auth/voms/extract.c` calls `brix_voms_retrieve()` from the
+  native engine `shared/voms/` (RFC 5755 decode + holder / validity / signature /
+  issuer / signer-chain / vomsdir-LSC checks over OpenSSL; no VOMS library).
+  The module consumes **only the VO name and the FQANs** of each verified entry
+  (`collect.c`): VO is derived by name (or first FQAN path component,
+  `brix_fqan_to_vo()`), roles by the authdb from the raw FQAN view. GSI and HTTP share one implementation behind
   two declaring headers (`voms_http.h:50`).
 
 **Proxy chains, CA, CRL, OCSP.**
@@ -376,7 +376,7 @@ scopes.
 | GSI / X.509 proxy | `XrdSecgsi` | `src/auth/gsi/` (shared core) | 4-msg DH; signed-DH ≥10400 both |
 | GSI cipher set | aes-128/bf/3des | + aes-256 (table-driven) | module adds aes-256-cbc |
 | OCSP revocation | **none** (CRL only) | `src/auth/crypto/ocsp.c` | **module-only** |
-| VOMS | `XrdVoms`→`libvomsapi` | `src/auth/voms/`→`libvomsapi` | module reads voname/fqan only |
+| VOMS | `XrdVoms`→`libvomsapi` | `src/auth/voms/`→`shared/voms/` (native) | module needs no VOMS library; reads VO/FQANs only |
 | WLCG/SciToken `root://` | `ztn` transport + `XrdSciTokens` plugin | `src/auth/token/validate.c` in-process | module validates RS256/ES256 itself |
 | JWKS source | issuer/scitokens-cpp | **local file + mtime poll** | divergence |
 | Macaroon | `XrdMacaroons`/`libmacaroons` | `src/auth/token/macaroon.c` in-process | module: mandatory-expiry + issuer-pin |
@@ -673,7 +673,7 @@ keytab in the stock `xrdsssadmin` format (ours ships as `xrdsssadmin-brix`). See
 **Strong parity (drop-in-ish):**
 
 - GSI four-message DH handshake, cipher negotiation, signed-DH ≥10400, proxy
-  chains, VOMS via `libvomsapi` — module GSI is byte-checked against EOS.
+  chains, VOMS ACs (verified natively) — module GSI is byte-checked against EOS.
 - Native-krb5 AP-REQ (both, not GSSAPI), SSS Blowfish keytabs, self-asserted
   UNIX semantics, XrdAcc authfile grammar and `@=`/AOP-create-vs-update
   semantics (the `src/auth/authz/acc/` port deliberately mirrors upstream enum values).

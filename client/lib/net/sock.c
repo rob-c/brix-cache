@@ -13,6 +13,7 @@
 #include "net/proxy_env.h"
 #include "net/proxy_connect.h"
 #include "net/resolve.h"
+#include "platform/platform.h"   /* PAL: MSG_NOSIGNAL on every host */
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -83,6 +84,12 @@ static int
 connect_one(const brix_resolve_addr *a, int timeout_ms)
 {
     int fd = socket(a->family, a->socktype, a->protocol);
+#ifdef SO_NOSIGPIPE
+    if (fd >= 0) {              /* Darwin: stands in for MSG_NOSIGNAL on send() */
+        int on = 1;
+        (void) setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, sizeof(on));
+    }
+#endif
     if (fd < 0) {
         return -1;
     }

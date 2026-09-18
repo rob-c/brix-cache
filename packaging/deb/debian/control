@@ -33,8 +33,7 @@ Depends: ${shlibs:Depends},
          ${brix:nginx-abi},
          curl,
          librados2,
-         libradosstriper1,
-         libvomsapi1t64 | libvomsapi1v5 | libvomsapi1
+         libradosstriper1
 Provides: nginx-mod-xrootd (= ${binary:Version})
 Description: BriX-Cache - XRootD, WebDAV, S3, CMS and metrics modules for nginx
  Dynamic nginx modules that serve files over the native XRootD stream
@@ -45,9 +44,10 @@ Description: BriX-Cache - XRootD, WebDAV, S3, CMS and metrics modules for nginx
  into; this package's nginx dependency is therefore pinned to the version it
  was built for (see /usr/share/doc/nginx-mod-brix-cache/).
  .
- VOMS VO/FQAN ACL enforcement loads libvomsapi.so.1 at runtime via dlopen();
- curl(1) is fork/exec'd by legacy site scripts.  Both are declared explicitly
- because dpkg-shlibdeps cannot detect them from the ELF link records.
+ VOMS attribute certificates (VO/FQAN ACL enforcement) are verified natively
+ over OpenSSL; no VOMS library is loaded at runtime.  curl(1) is fork/exec'd
+ by legacy site scripts and is declared explicitly because dpkg-shlibdeps
+ cannot detect it from the ELF link records.
 
 Package: brix-cache-client
 Architecture: any

@@ -20,6 +20,9 @@ from pathlib import Path
 # Add tests directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from lib_py import xattr_shim  # noqa: E402
+xattr_shim.install()    # os.getxattr & co. on macOS Python (no-op on Linux)
+
 from test_platform_linux_native import native_compile  # configured C SDK fixture
 from pal_native import anon_fd, pal_native  # production C bindings
 

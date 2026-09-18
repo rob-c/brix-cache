@@ -18,75 +18,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-/* macOS lacks sys/fsuid.h - provide stubs for setfsuid/setfsgid */
-#if defined(__APPLE__) && defined(__MACH__)
-/* macOS doesn't have filesystem UID/GID - use real UID/GID as fallback */
-static inline int setfsuid(uid_t uid) {
-    /* On macOS, seteuid affects both real and effective for the process */
-    return seteuid(uid);
-}
-static inline int setfsgid(gid_t gid) {
-    return setegid(gid);
-}
-#else
-#include <sys/fsuid.h>
-#endif
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
-#include <sys/xattr.h>
-/* macOS lacks linux/openat2.h - provide compatibility stubs */
-#if defined(__APPLE__) && defined(__MACH__)
-#ifndef RESOLVE_BENEATH
-#define RESOLVE_BENEATH 0x8
-#endif
-#ifndef RESOLVE_IN_ROOT
-#define RESOLVE_IN_ROOT 0x10
-#endif
-#ifndef RESOLVE_NO_XDEV
-#define RESOLVE_NO_XDEV 0x01
-#endif
-#ifndef RESOLVE_NO_MAGICLINKS
-#define RESOLVE_NO_MAGICLINKS 0x02
-#endif
-#ifndef RESOLVE_NO_SYMLINKS
-#define RESOLVE_NO_SYMLINKS 0x04
-#endif
-#ifndef SYS_openat2
-#define SYS_openat2 -1
-#endif
-#else
-#include <linux/openat2.h>
-#endif
+#include "platform/platform_api.h"
 
-/* macOS lacks linux/capability.h - stub out capability syscalls */
-#if defined(__APPLE__) && defined(__MACH__)
-#ifndef SYS_capset
-#define SYS_capset -1
-#endif
-#ifndef SYS_capget
-#define SYS_capget -1
-#endif
-#else
-#include <linux/capability.h>
-#endif
-/* macOS lacks sys/prctl.h - provide stubs */
-#if defined(__APPLE__) && defined(__MACH__)
-/* prctl is Linux-specific; on macOS, skip these operations */
-#ifndef PR_SET_NO_NEW_PRIVS
-#define PR_SET_NO_NEW_PRIVS 38
-#endif
-#ifndef PR_GET_NO_NEW_PRIVS
-#define PR_GET_NO_NEW_PRIVS 39
-#endif
-static inline int prctl(int option, ...) {
-    (void)option;
-    /* On macOS, skip prctl operations - return success for NO_NEW_PRIVS */
-    return 0;
-}
-#else
-#include <sys/prctl.h>
-#endif
 #define IMP_BROKER_MAXCONN  BRIX_IMP_BROKER_MAXCONN
 #define IMP_REFUSE_PRIV  (-2)
 

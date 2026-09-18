@@ -35,10 +35,28 @@
  * credential lookup on identity should prefer eec_buf; dn_buf remains the
  * literal proxy-leaf DN for delegation "beneath-my-identity" binding checks.
  */
+/* What kind of credential the verified leaf is (set on NGX_OK). */
+#define BRIX_GSI_PX_NONE         0   /* an end-entity certificate, no proxy */
+#define BRIX_GSI_PX_RFC_FULL     1   /* RFC 3820 proxy, impersonation policy */
+#define BRIX_GSI_PX_RFC_LIMITED  2   /* RFC 3820 proxy, limited policy */
+#define BRIX_GSI_PX_GT2_FULL     3   /* legacy GT2 proxy (CN=proxy / numeric CN) */
+#define BRIX_GSI_PX_GT2_LIMITED  4   /* legacy GT2 "CN=limited proxy" */
+
 typedef struct {
     char dn_buf[BRIX_GSI_DN_BUF_SIZE];
     char eec_buf[BRIX_GSI_EEC_BUF_SIZE];
+    int  proxy_kind;                  /* BRIX_GSI_PX_* of the leaf */
 } brix_gsi_verify_result_t;
+
+/* Human name of a BRIX_GSI_PX_* value ("rfc3820", "rfc3820-limited", ...). */
+const char *brix_gsi_proxy_kind_name(int kind);
+
+/* Mark every GT2-shaped certificate among `leaf` and `untrusted` as a proxy
+ * for OpenSSL (X509_set_proxy_flag) when `mode` (BRIX_LEGACY_PROXY_*) is not
+ * OFF; returns the count marked. brix_gsi_verify_chain does this itself; the
+ * WebDAV TLS contexts call it from their certificate-verify callback so the
+ * handshake admits the chain the module will then verify. */
+int brix_gsi_mark_legacy_proxies(X509 *leaf, STACK_OF(X509) *untrusted, int mode);
 
 /*
  * brix_gsi_verify_chain — verify an x.509 proxy certificate chain.

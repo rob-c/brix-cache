@@ -48,7 +48,7 @@ import pytest
 
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, SERVER_HOST
-from ephemeral_port import free_port
+from ephemeral_port import free_port, free_ports
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.timeout(90),   # nginx bring-up + poll windows > 30s

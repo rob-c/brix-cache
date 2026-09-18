@@ -24,14 +24,14 @@ The numbers in the README were produced on:
 **RHEL 9 / AlmaLinux 9:**
 ```bash
 sudo dnf install -y gcc make pcre2-devel zlib-devel openssl-devel \
-    xrootd-client xrootd-server voms-libs curl \
+    xrootd-client xrootd-server curl \
     python3 python3-pip nc
 ```
 
 **Ubuntu 22.04+ / Debian 12+:**
 ```bash
 sudo apt install -y build-essential libpcre2-dev zlib1g-dev libssl-dev \
-    xrootd-client xrootd-server libvomsapi1 curl \
+    xrootd-client xrootd-server curl \
     python3 python3-pip python3-venv netcat-openbsd
 ```
 

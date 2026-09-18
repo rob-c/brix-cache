@@ -30,17 +30,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
-
-/* macOS compatibility */
-#if defined(__APPLE__) && defined(__MACH__)
-#ifndef SOCK_CLOEXEC
-#define SOCK_CLOEXEC 0
-#endif
-#ifndef MSG_CMSG_CLOEXEC
-#define MSG_CMSG_CLOEXEC 0
-#endif
-#endif
 #include <sys/un.h>
+#include "platform/platform_api.h"
 
 
 static int       imp_enabled;                       /* map mode configured */

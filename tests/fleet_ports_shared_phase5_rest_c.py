@@ -255,3 +255,19 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
     "lc-p115-eret-decoy-origin": {"port": 31247},
 })
 LIFECYCLE_SHARED_PORTS_PHASE5["lc-p115-eret"]["extra"]["DECOY_PORT"] = 31248
+
+# brix_gsi_legacy_proxy at value granularity (tests/test_gsi_legacy_proxy.py):
+# pre-RFC 3820 (GT2) proxy acceptance, `off` | `on` | `full-only` | absent, on
+# BOTH planes from ONE instance.  The directive is a `server {}`-level switch on
+# the stream plane and a location-merged one on the http plane, and its whole
+# observable is a login verdict — so four root:// listeners and four davs://
+# listeners over ONE trust anchor carry the (mode x plane x credential) table,
+# and one error log carries both planes' NOTICE/WARN lines.
+LIFECYCLE_SHARED_PORTS_PHASE5.update({
+    "lc-gsi-legacy-proxy": {"port": 31324,
+                            "extra": {"ON_PORT": 31325, "FULL_PORT": 31326,
+                                      "DEF_PORT": 31327, "HTTP_PORT": 31328,
+                                      "HTTP_ON_PORT": 31329,
+                                      "HTTP_FULL_PORT": 31330,
+                                      "HTTP_DEF_PORT": 31331}},
+})

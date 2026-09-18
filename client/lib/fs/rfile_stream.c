@@ -111,6 +111,82 @@ rfile_fd_sink(const uint8_t *data, size_t len, int64_t offset, void *arg,
     return 0;
 }
 
+/* ---- Bytes of a bounded range still owed after `done` were delivered ----
+ *
+ * WHAT: Returns the limit for the remainder of a range: -1 stays -1 (EOF-driven,
+ *       still unbounded), otherwise limit - done clamped at 0.
+ *
+ * WHY:  The fast path may stop part-way through a bounded range and hand the
+ *       rest to the serial pump; getting the residual limit wrong would either
+ *       truncate the stream or read past the caller's window, so the arithmetic
+ *       is named once instead of being inlined at the resume site.
+ *
+ * HOW:  Branch on the unbounded sentinel, else subtract with a floor of 0.
+ */
+static int64_t
+rfile_limit_left(int64_t limit, int64_t done)
+{
+    if (limit < 0) {
+        return -1;
+    }
+    return (done >= limit) ? 0 : limit - done;
+}
+
+/* ---- Stream a range: pipelined first, serial for whatever is left ----
+ *
+ * WHAT: Streams [offset, offset+limit) (limit < 0 = to EOF) of `rf` to `sink`,
+ *       filling *moved with the bytes delivered. 0 / -1 (st set).
+ *
+ * WHY:  This is the bulk-transfer entry point, so it is where the pipelined
+ *       reader earns its keep: the serial pump leaves exactly one kXR_read on
+ *       the wire and idles a round trip per chunk. The fast path is a pure
+ *       accelerator — anything it cannot finish is completed by the serial pump,
+ *       which owns the reconnect/reopen retry policy — so no reliability
+ *       behaviour depends on it succeeding.
+ *
+ * HOW:  1. Try brix_rfile_stream_fast; a 0 return means the range is done.
+ *       2. Otherwise clear the status (the fast path's failure is not the
+ *          caller's verdict) and run the serial pump over what is left, then
+ *          fold the fast path's bytes back into *moved.
+ */
+int
+brix_rfile_stream(brix_rfile *rf, int64_t offset, int64_t limit,
+                  size_t chunk_size, brix_rfile_sink_fn sink, void *arg,
+                  int64_t *moved, brix_status *st)
+{
+    int64_t fast_moved = 0;
+    int64_t left;
+    int     rc;
+
+    rc = brix_rfile_stream_fast(rf, offset, limit, sink, arg, &fast_moved, st);
+    if (rc == 0) {
+        if (moved != NULL) {
+            *moved = fast_moved;
+        }
+        return 0;
+    }
+    left = rfile_limit_left(limit, fast_moved);
+    if (rc != BRIX_RFILE_FAST_OFF && left == 0) {
+        return -1;   /* bounded range already covered: the failure IS the verdict */
+    }
+    brix_status_clear(st);
+    rc = brix_rfile_pump(rf, offset + fast_moved, left, chunk_size,
+                         sink, arg, moved, st);
+    if (moved != NULL) {
+        *moved += fast_moved;
+    }
+    return rc;
+}
+
+/* ---- Drain a range straight to a file descriptor ----
+ *
+ * WHAT: brix_rfile_stream with the built-in write(2) sink. 0 / -1 (st set).
+ *
+ * WHY:  xrdfs cat / tail's initial dump want exactly this and should not each
+ *       carry their own write loop.
+ *
+ * HOW:  Reject a bad descriptor, then delegate with rfile_fd_sink.
+ */
 int
 brix_rfile_drain_to_fd(brix_rfile *rf, int64_t offset, int64_t limit,
                        size_t chunk_size, int fd, int64_t *moved,
@@ -122,8 +198,8 @@ brix_rfile_drain_to_fd(brix_rfile *rf, int64_t offset, int64_t limit,
         brix_status_set(st, XRDC_EUSAGE, EBADF, "invalid output descriptor");
         return -1;
     }
-    return brix_rfile_pump(rf, offset, limit, chunk_size, rfile_fd_sink,
-                           &sink, moved, st);
+    return brix_rfile_stream(rf, offset, limit, chunk_size, rfile_fd_sink,
+                             &sink, moved, st);
 }
 
 static int

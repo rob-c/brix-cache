@@ -12,7 +12,7 @@ AR ?= ar
 
 # Platform detection
 PLATFORM = linux
-PLATFORM_FLAG = -DBRIX_PLATFORM_LINUX=1
+PLATFORM_FLAG = -DBRIX_PLATFORM_LINUX=1 -DBRIX_PLATFORM_HOST=linux
 
 # Compiler flags
 CFLAGS_COMMON = -Wall -Wextra -Werror -Wpedantic -std=c11

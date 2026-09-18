@@ -228,12 +228,26 @@ uring_poll_cancel(brix_loop *l, brix_aconn *ac, int freeing)
 
 /* Create the readiness set + the wake eventfd.  evfd is used by both engines;
  * epoll registers it in the set, io_uring arms a multishot poll on it. */
+/* Open the loop's wake fd pair through the PAL: an eventfd on Linux (one fd,
+ * read == write end), a non-blocking CLOEXEC pipe elsewhere; both give the
+ * same wake semantics because the loop reads (and discards) whatever
+ * accumulated. */
+static int
+io_engine_wake_open(brix_loop *l, brix_status *st)
+{
+    if (brix_plat_wakefd_open(&l->evfd, &l->evfd_w,
+                              BRIX_EVENTFD_NONBLOCK | BRIX_EVENTFD_CLOEXEC) != 0) {
+        brix_status_set(st, XRDC_ESOCK, errno, "wakefd: %s", strerror(errno));
+        return -1;
+    }
+    return 0;
+}
+
+
 int
 io_engine_setup(brix_loop *l, brix_status *st)
 {
-    l->evfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-    if (l->evfd < 0) {
-        brix_status_set(st, XRDC_ESOCK, errno, "eventfd: %s", strerror(errno));
+    if (io_engine_wake_open(l, st) != 0) {
         return -1;
     }
 
@@ -335,6 +349,8 @@ io_engine_teardown(brix_loop *l)
     }
 #endif
     if (l->epfd >= 0) { close(l->epfd); l->epfd = -1; }
+    if (l->evfd_w >= 0 && l->evfd_w != l->evfd) { close(l->evfd_w); }
+    l->evfd_w = -1;
     if (l->evfd >= 0) { close(l->evfd); l->evfd = -1; }
 }
 

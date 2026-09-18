@@ -226,6 +226,7 @@ xrootdfs_aio_main(int argc, char **argv)
     brix_crypto_init();
 
     fuse_argv[fuse_argc++] = argv[0];
+    xfs_add_host_opts(fuse_argv, &fuse_argc);   /* e.g. macFUSE noappledouble */
 
     rc = aio_parse_args(argc, argv, fuse_argv, &fuse_argc, &endpoint);
     if (rc >= 0) {

@@ -48,13 +48,20 @@ MAKEFILES: tuple[str, ...] = (
     "shared/xrdproto",
 )
 
-_WARNINGS = ("overriding recipe for target", "ignoring old recipe for target")
+# GNU make 4.x wording first; 3.81 (the make macOS ships) says "commands".
+_WARNINGS = ("overriding recipe for target", "ignoring old recipe for target",
+             "overriding commands for target", "ignoring old commands for target")
+
+
+def _make_binary() -> str | None:
+    """GNU make: ``gmake`` where the system ``make`` is an old or non-GNU one."""
+    return shutil.which("gmake") or shutil.which("make")
 
 
 def _dry_run(directory: Path) -> str:
     """stderr of `make -n` in `directory` — parse-time diagnostics, no build."""
     proc = subprocess.run(
-        ["make", "--dry-run", "--no-print-directory"],
+        [_make_binary(), "--dry-run", "--no-print-directory"],
         cwd=directory,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
@@ -83,7 +90,7 @@ def _makefile_messages(root, relative):
 
 
 def main() -> int:
-    if shutil.which("make") is None:
+    if _make_binary() is None:
         print("check_make_recipes: SKIP (no make on this runner)")
         return 0
     ok, msgs = run(ROOT)

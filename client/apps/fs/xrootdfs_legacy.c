@@ -52,7 +52,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
-#include <sys/xattr.h>   /* XATTR_CREATE/XATTR_REPLACE flags */
+#include "platform/platform.h"   /* PAL: xattr calls + XATTR_CREATE/XATTR_REPLACE flags */
 
 /* Pool of connections for short metadata/path ops; the parsed endpoint + opts so
  * each open file can spin up its own dedicated connection. */

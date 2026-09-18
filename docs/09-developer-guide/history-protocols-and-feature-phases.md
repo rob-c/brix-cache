@@ -937,8 +937,10 @@ object/HDFS); the WLCG binary UDP monitoring fabric; multi-stream XrdCl
    `lessons-migration-era-2026.md` §4 — though full migrate/purge remains
    an intentionally scoped-out capability, delegated to MSS/operator.)
 3. **No plugin loader / `xrootd.cf` config compatibility** — not
-   `xrootd.cf`-compatible; only one fixed dlopen target
-   (`libvomsapi`); no `fslib`/`osslib`/`authlib`/`namelib` N2N mechanism.
+   `xrootd.cf`-compatible; no dlopen plugin points at all (the one
+   historical target, `libvomsapi`, has since been replaced by the native
+   verifier in `shared/voms/`); no `fslib`/`osslib`/`authlib`/`namelib`
+   N2N mechanism.
    Considered structurally impossible to fully close in nginx; a
    cf-translator plus native N2N (`localroot`/`remoteroot`) was scoped as
    the feasible subset.

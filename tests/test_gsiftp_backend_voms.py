@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from pki_helpers import blitz_test_pki
+from pki_helpers import ensure_test_pki
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import (
@@ -88,7 +88,7 @@ def _make_proxy(vo: str, destination: Path, cert: Path, key: Path) -> None:
 def _prepare_credentials() -> tuple[Path, Path]:
     if not _VOMS_PROXY.is_file():
         pytest.skip("utils/voms_proxy_fake.py is unavailable")
-    blitz_test_pki()
+    ensure_test_pki()          # the standing fleet's CA, never a fresh one
     voms_root = Path(PKI_DIR) / "voms"
     cert, key = voms_root / "voms_cert.pem", voms_root / "voms_key.pem"
     _make_voms_signer(cert, key)

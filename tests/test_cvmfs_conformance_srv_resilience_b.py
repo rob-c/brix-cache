@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_srv_resilience_helpers")
 
-pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_srv_resilience")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("test_cvmfs_conformance_srv_resilience")]
 
 @pytest.mark.timeout(60)
 @pytest.mark.parametrize("mode", ["stall", "reset", "http500"])

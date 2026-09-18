@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_query2_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_query2_b")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_query2_b")]
 
 def test_qxattr_raw_parity(srv):
     """Raw Qxattr (infotype=4) on /data.bin: OUR ok-category must match stock."""

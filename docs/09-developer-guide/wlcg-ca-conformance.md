@@ -145,6 +145,7 @@ in one auditable register, `tests/clauses/_decisions.py`, which is cited by the
   `curl -k --cert`. It refuses proxy chains by design, so limited-proxy
   monotonicity is proven at the C level (`brix_proxy_chain_ok`, PX-C01..05)
   against the same forged proxy chains the wire would see.
-- **VOMS AC** extraction/validation stays with `libvomsapi` on the root:// GSI
-  path (`tests/test_webdav_voms.py`); this effort adds hostile-VO-name
+- **VOMS AC** extraction/validation is the native verifier in `shared/voms/`
+  (`tests/test_voms_native_ac_unit.py`, `tests/test_voms_native_ac.py`,
+  `tests/test_webdav_voms.py`); this effort adds hostile-VO-name
   sanitization coverage (`vo_token.h`, VMS-01..13).

@@ -23,7 +23,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <sys/types.h>
-#include <sys/xattr.h>
+#include "platform/platform_api.h"
 #include <arpa/inet.h>
 #include "core/compat/alloc_guard.h"
 

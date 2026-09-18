@@ -10,10 +10,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#if defined(__linux__)
-#include <endian.h>
-#endif
-
 /* File: gsi_outbound_finish.c — Auth path selection/dispatch for TPC pull
  * WHAT: Auth path selection via tpc_outbound_finish_login.
  *   - Parses login_body after session ID for "ztn" or "gsi"

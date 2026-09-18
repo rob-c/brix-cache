@@ -320,7 +320,7 @@ brix_sd_getxattr_maybe_cred(brix_sd_instance_t *inst, const char *path,
         errno = ENOSYS;
         return -1;
     }
-    return inst->driver->getxattr(inst, path, name, buf, cap);
+    return (inst->driver->getxattr)(inst, path, name, buf, cap);
 }
 
 static ngx_inline ssize_t
@@ -341,7 +341,7 @@ brix_sd_listxattr_maybe_cred(brix_sd_instance_t *inst, const char *path,
         errno = ENOSYS;
         return -1;
     }
-    return inst->driver->listxattr(inst, path, buf, cap);
+    return (inst->driver->listxattr)(inst, path, buf, cap);
 }
 
 static ngx_inline ngx_int_t
@@ -364,7 +364,7 @@ brix_sd_setxattr_maybe_cred(brix_sd_instance_t *inst, const char *path,
         errno = ENOSYS;
         return NGX_ERROR;
     }
-    return inst->driver->setxattr(inst, path, name, val, len, flags);
+    return (inst->driver->setxattr)(inst, path, name, val, len, flags);
 }
 
 static ngx_inline ngx_int_t
@@ -385,7 +385,7 @@ brix_sd_removexattr_maybe_cred(brix_sd_instance_t *inst, const char *path,
         errno = ENOSYS;
         return NGX_ERROR;
     }
-    return inst->driver->removexattr(inst, path, name);
+    return (inst->driver->removexattr)(inst, path, name);
 }
 
 static ngx_inline ngx_int_t

@@ -244,7 +244,10 @@ def _guard_conf(prefix, cors_lines):
         "http {\n"
         f"    client_body_temp_path {prefix}/cb;\n"
         "    server {\n"
-        "        listen 127.0.0.1:1;\n"   # net-literal-allow: never bound, -t only
+        # net-literal-allow: -t only, but nginx -t still bind()s every listen
+        # socket, so a privileged port (1) fails EACCES for an unprivileged
+        # checker; a high port that nothing in the fleet ladder uses instead.
+        "        listen 127.0.0.1:65530;\n"
         "        location / {\n"
         "            brix_webdav on;\n"
         f"            brix_storage_backend posix:{prefix}/data;\n"

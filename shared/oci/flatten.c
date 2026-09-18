@@ -28,7 +28,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include <sys/xattr.h>
+#include "platform/platform_api.h"   /* PAL: Linux-shaped xattr calls on every host */
 
 #include "cvmfs/catalog/catalog_write.h"   /* cvmfs_xattr_unpack/_count */
 

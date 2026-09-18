@@ -61,6 +61,7 @@ from settings import (
     XRDCP_BIN,
     XRDFS_BIN,
 )
+from lib_py.util import close_wait_on_ports
 from brix_suite.launcher import RegistryLauncher
 
 # The HA group is a standing registry fleet. Failover stops and restarts the
@@ -133,23 +134,12 @@ def _orphaned_handles() -> int:
     no fd (kernel-only state, lingering ~60s whenever our side closes
     first), so any earlier test on these shared ports would trip a
     TIME_WAIT-based check for a minute afterwards.
+
+    The count comes from the shared helper rather than a direct /proc read:
+    this used to swallow the missing procfs and return 0, so on a host
+    without one the leak check passed without ever looking.
     """
-    xrd_ports = {HA_HAPROXY_PORT, HA_NGINX1_PORT, HA_NGINX2_PORT}
-    count = 0
-    try:
-        with open("/proc/net/tcp", "r") as fh:
-            for line in fh:
-                parts = line.split()
-                if len(parts) < 4 or ":" not in parts[1]:
-                    continue  # skip header and malformed lines
-                local_hex = parts[1].split(":")[1]
-                state = parts[3]
-                local_port = int(local_hex, 16)
-                if local_port in xrd_ports and state == "08":  # CLOSE_WAIT
-                    count += 1
-    except FileNotFoundError:
-        pass
-    return count
+    return close_wait_on_ports({HA_HAPROXY_PORT, HA_NGINX1_PORT, HA_NGINX2_PORT})
 
 
 # ---------------------------------------------------------------------------

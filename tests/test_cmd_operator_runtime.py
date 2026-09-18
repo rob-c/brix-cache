@@ -411,8 +411,10 @@ def test_clean_test_fleet_reaps_known_listener_on_selected_ladder(monkeypatch, t
     monkeypatch.setattr(operator_runtime, "_pgrep_name", lambda name: [])
     monkeypatch.setattr(operator_runtime, "_process_cmdline",
                         lambda pid: "nginx: worker process")
-    monkeypatch.setattr(operator_runtime.Path, "resolve",
-                        lambda self: Path("/usr/sbin/nginx"))
+    # Fake the ANSWER, not one host's way of getting it: the Linux body reads
+    # /proc/<pid>/exe, the Darwin body asks ps(1), and a fabricated pid has
+    # neither — the subject here is "a listener whose program is nginx".
+    monkeypatch.setattr(operator_runtime, "_executable_name", lambda pid: "nginx")
     monkeypatch.setattr("lib_py.util.pids_in_port_range",
                         lambda start, end: [900004])
     monkeypatch.setattr("lib_py.util.kill_pid_list", lambda pids: killed.extend(pids))

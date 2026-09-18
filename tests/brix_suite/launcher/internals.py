@@ -21,6 +21,7 @@ import time
 
 from brix_suite.catalogue import session_template_values
 from brix_suite.launcher.errors import RegistryCommandFailure
+from lib_py.util import process_cmdline
 from brix_suite.launcher.internal_operations import (
     chmod_recursive as _launcher_chmod_recursive,
     nginx as _launcher_nginx,
@@ -145,6 +146,11 @@ class _LauncherInternals:
             with open(f"/proc/{pid}/stat", "rb") as fh:
                 suffix = fh.read().rsplit(b")", 1)[1].split()
         except (OSError, IndexError):
+            if not os.path.isdir("/proc"):
+                # No procfs (Darwin/BSD): ask ps(1) for the state letter instead;
+                # treating every pid as exited here left the reference xrootd
+                # daemons running through stop-all on macOS.
+                return _process_exited_without_procfs(pid)
             return True
         # Field 3 is the first token after the rightmost ')' of comm.  Do not
         # split the complete line: a process name may itself contain spaces or
@@ -200,9 +206,8 @@ class _LauncherInternals:
         try:
             # <prefix>/logs/nginx.pid -> <prefix>, matched as-passed to `nginx -p`.
             prefix = os.path.dirname(os.path.dirname(str(pidfile)))
-            with open(f"/proc/{pid}/cmdline", "rb") as _fh:
-                cmdline = _fh.read().replace(b"\0", b" ").decode("utf-8", "replace")
-            if prefix and prefix not in cmdline:
+            cmdline = process_cmdline(pid).decode("utf-8", "replace")
+            if prefix and prefix not in cmdline:      # empty cmdline: gone/foreign
                 return
         except OSError:
             return
@@ -230,3 +235,15 @@ class _LauncherInternals:
             os.kill(pid, sig)
         except OSError:
             return
+
+
+def _process_exited_without_procfs(pid: int) -> bool:
+    """``_process_exited`` for hosts without /proc: ps(1) state, 'Z' = zombie."""
+    try:
+        out = subprocess.run(
+            ["ps", "-o", "stat=", "-p", str(pid)],
+            capture_output=True, text=True, check=False, timeout=5,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return True
+    return not out or out.startswith("Z")

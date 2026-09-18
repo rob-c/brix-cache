@@ -7,7 +7,6 @@ WHAT: mount xrootdfs over http WebDAV THROUGH a counting TCP forwarder; stat man
 WHY:  proves the metadata path stopped reconnecting per getattr/readdir.
 """
 import os
-import shutil
 import socket
 import subprocess
 from brix_suite.client_build import client_make
@@ -16,12 +15,13 @@ import time
 
 import pytest
 
+from lib_py import fuse_host
 from settings import NGINX_HTTP_WEBDAV_PORT, SERVER_HOST, BIND_HOST
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XROOTDFS = os.path.join(CLIENT_DIR, "bin", "xrootdfs")
-_FUSE_OK = os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
+_FUSE_OK = fuse_host.FUSE_READY
 
 pytestmark = pytest.mark.timeout(180)
 
@@ -99,7 +99,7 @@ class CountingForwarder:
 @pytest.fixture(scope="module")
 def built():
     if not _FUSE_OK:
-        pytest.skip("FUSE unavailable (/dev/fuse or fusermount3 missing)")
+        pytest.skip(fuse_host.SKIP_REASON)
     if not _port_up(SERVER_HOST, NGINX_HTTP_WEBDAV_PORT):
         pytest.skip("WebDAV server not running (start the test fleet first)")
     r = client_make(CLIENT_DIR, "xrootdfs", capture_output=True, text=True)
@@ -122,7 +122,7 @@ def _mount(endpoint, mnt, max_conns):
         if os.path.ismount(mnt):
             return p
         time.sleep(0.1)
-    subprocess.run(["fusermount3", "-u", mnt], capture_output=True)
+    fuse_host.unmount(mnt)
     p.terminate()
     pytest.skip("xrootdfs web mount did not come up")
 
@@ -160,7 +160,7 @@ def test_stat_many_reuses_connections(built, forwarder, tmp_path):
             f"{opened} upstream conns for {stats} stats "
             f"(expected <= {max_conns}); metadata path is not reusing")
     finally:
-        subprocess.run(["fusermount3", "-u", mnt], capture_output=True)
+        fuse_host.unmount(mnt)
         p.terminate()
 
 
@@ -178,7 +178,7 @@ def test_missing_path_is_enoent_and_keeps_socket(built, forwarder, tmp_path):
             pytest.skip("WebDAV export is empty; seed it first")
         os.stat(os.path.join(mnt, entries[0]))
     finally:
-        subprocess.run(["fusermount3", "-u", mnt], capture_output=True)
+        fuse_host.unmount(mnt)
         p.terminate()
 
 
@@ -200,5 +200,5 @@ def test_upstream_sever_reconnects(built, forwarder, tmp_path):
         with pytest.raises(OSError):
             os.stat(os.path.join(mnt, "zzz-unvisited-dir", "zzz-file"))
     finally:
-        subprocess.run(["fusermount3", "-u", mnt], capture_output=True)
+        fuse_host.unmount(mnt)
         p.terminate()

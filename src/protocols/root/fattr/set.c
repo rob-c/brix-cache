@@ -1,7 +1,7 @@
 #include "ngx_brix_fattr.h"
 #include <errno.h>
 #include <sys/types.h>
-#include <sys/xattr.h>   /* XATTR_CREATE flag only — syscalls go via the VFS */
+#include "platform/platform_api.h"   /* XATTR_CREATE flag only — syscalls go via the VFS */
 #include <arpa/inet.h>
 
 /*

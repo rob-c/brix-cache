@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/xattr.h>
+#include "platform/platform.h"   /* PAL: Linux-shaped xattr calls on every host */
 
 
 /* ---- path-component parsing --------------------------------------------- */

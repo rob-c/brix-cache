@@ -215,6 +215,16 @@ brix_sd_cache_set_cold(brix_sd_instance_t *inst, brix_sd_instance_t *cold)
     }
 }
 
+/* The attached cold store tier, or NULL (no cold tier, or a non-cache inst).
+ * Read-only companion to the setter above: the registry's pre-fork release
+ * needs to reach every instance it composed, and a cold tier is the one arm of
+ * the stack no other accessor exposes. */
+brix_sd_instance_t *
+brix_sd_cache_cold_instance(const brix_sd_instance_t *inst)
+{
+    return brix_sd_cache_instance_is(inst) ? SD_CACHE_ST(inst)->cold : NULL;
+}
+
 /* Attach/detach the sibling-mesh ring (phase-85 F8). The member instances are
  * BORROWED (registry-owned, worker lifetime) so brix_sd_cache_destroy never
  * frees them. No-op for a non-cache instance; n == 0 (or an out-of-range self)

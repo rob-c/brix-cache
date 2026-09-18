@@ -8,6 +8,7 @@
 #include "core/negcache/negcache.h"
 #include "auth/impersonate/lifecycle.h"
 #include "core/aio/uring.h"
+#include "core/compat/host_identity.h"
 #include "core/compat/lifecycle_timing.h"
 #include "postconfiguration_internal.h"
 
@@ -448,12 +449,16 @@ ngx_stream_brix_postconfiguration(ngx_conf_t *cf)
     cmcf  = ngx_stream_conf_get_module_main_conf(cf, ngx_stream_core_module);
     cscfp = cmcf->servers.elts;
 
-    /*
-     * Attempt to load libvomsapi.so.1 via dlopen. If the library is not
-     * present we continue; config validation below rejects brix_require_vo
-     * directives when VOMS is unavailable.
-     */
+    /* The VOMS verifier is native (shared/voms/): announce it once. */
     (void) brix_voms_init(cf->log);
+
+    /* The advertised node identity (XRDNET_IDENTITY, else gethostname(2)) is
+     * captured HERE, in the master, before nginx narrows each worker's
+     * environment to the `env` whitelist: the cached value crosses the fork,
+     * so kXR_locate prefname tokens and cms.d registrations agree without an
+     * `env XRDNET_IDENTITY;` line in every configuration. */
+    ngx_log_error(NGX_LOG_NOTICE, cf->log, 0, "brix: node identity \"%s\"",
+                  brix_host_identity());
 
     /* E-2: reject brix_host_allow layered over a proxy_protocol listener
      * (spoofable peer address, no realip trusted-proxy allowlist in this

@@ -63,6 +63,33 @@ def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _pki_material() -> tuple[str, ...]:
+    """Every file a standing fleet was started against (module names, read at
+    call time so a test may repoint them)."""
+    return (CA_CERT, CA_KEY, SERVER_CERT, SERVER_KEY, USER_CERT, USER_KEY)
+
+
+def test_pki_complete() -> bool:
+    """True when the shared PKI carries every certificate AND key the fleet
+    trusts; a half-written or key-less tree is NOT complete."""
+    return all(os.path.isfile(path) for path in _pki_material())
+
+
+def ensure_test_pki() -> bool:
+    """Regenerate the shared PKI only when it is incomplete.
+
+    An in-session ``blitz_test_pki()`` replaces the CA under a STANDING fleet:
+    every member loaded the old CA at start, so each later GSI/VOMS test in
+    the same session then fails client-cert verification (observed as 400s and
+    "VO nginx server not ready" skips).  Tests that only need *a* PKI call this
+    instead and inherit the fleet's.  Returns True when it regenerated.
+    """
+    if test_pki_complete():
+        return False
+    blitz_test_pki()
+    return True
+
+
 def blitz_test_pki() -> None:
     """Replace the local test PKI with a clean, canonical layout."""
     pki_dir = Path(PKI_DIR)

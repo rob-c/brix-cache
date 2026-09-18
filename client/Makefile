@@ -19,6 +19,30 @@ PROTO_LIB := $(PROTO_DIR)/libxrdproto.a
 HARDEN := -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector-strong \
           -fstack-clash-protection -fcf-protection=full -fPIE \
           -Wformat -Werror=format-security
+# BRIX_PLATFORM_HOST names the PAL host directory (src/platform/<host>/,
+# client/lib/platform/<host>/); the PAL headers carry no OS conditional.
+ifeq ($(shell uname -s),Darwin)
+# -std=c11 hides Darwin's BSD/POSIX-2008 extras (UTIME_NOW, SO_NOSIGPIPE,
+# F_FULLFSYNC, ...) unless the full C level is requested explicitly.
+HARDEN += -D_DARWIN_C_SOURCE -DBRIX_PLATFORM_HOST=darwin
+# Apple clang has no stack-clash probing (the flag only warns on every TU).
+HARDEN := $(filter-out -fstack-clash-protection,$(HARDEN))
+# ld64 spellings of the GNU link idioms used below: force_load takes the
+# archive as one argument, shared objects are dylibs with an install name,
+# and executables are PIE by default (ld64 warns on an explicit -pie).
+whole_archive = -Wl,-force_load,$(1)
+SHLIB_EXT   := dylib
+SHLIB_LD     = -dynamiclib -Wl,-install_name,$(LIBDIR)/$(LIBBRIX_SONAME)
+PRELOAD_LD  := -dynamiclib
+LDFLAGS_PIE :=
+else
+HARDEN += -DBRIX_PLATFORM_HOST=linux
+whole_archive = -Wl,--whole-archive $(1) -Wl,--no-whole-archive
+SHLIB_EXT   := so
+SHLIB_LD     = -shared -Wl,-soname,$(LIBBRIX_SONAME)
+PRELOAD_LD  := -shared
+LDFLAGS_PIE := -pie
+endif
 
 # Optimize profile — same knob/default as the module (BRIX_OPTIMIZE, default v2).
 BRIX_OPTIMIZE ?= v2
@@ -86,10 +110,17 @@ endif
 # non-system liblz4 (default the bare soname from the default loader path); else
 # pkg-config.  Never propagate a non-system -L (it would pull that prefix's other
 # codec sonames, not on the runtime path) — see config's lz4 block.
+# `-l:liblz4.so.1` is GNU-ld syntax; Apple's ld64 has no soname-by-name form,
+# so on Darwin the plain -llz4 (Homebrew's dylib is on the default path) is used.
+ifeq ($(shell uname -s),Darwin)
+  LZ4_SONAME_LINK := -llz4
+else
+  LZ4_SONAME_LINK := -l:liblz4.so.1
+endif
 ifneq ($(strip $(BRIX_LZ4_CFLAGS)$(BRIX_LZ4_LIBS)),)
-  CODEC_LIBS += $(if $(strip $(BRIX_LZ4_LIBS)),$(BRIX_LZ4_LIBS),-l:liblz4.so.1)
+  CODEC_LIBS += $(if $(strip $(BRIX_LZ4_LIBS)),$(BRIX_LZ4_LIBS),$(LZ4_SONAME_LINK))
 else ifeq ($(shell pkg-config --exists liblz4 2>/dev/null && echo y),y)
-  CODEC_LIBS += -l:liblz4.so.1
+  CODEC_LIBS += $(LZ4_SONAME_LINK)
 endif
 
 # -DXRDPROTO_NO_NGX: the native client is an nginx-free consumer of the shared
@@ -109,9 +140,24 @@ endif
 # brotli/bzip2 for the shared codec kernels (gzip/deflate already via -lz).
 LDLIBS := -lssl -lcrypto -lz $(KRB5_LIBS) $(CODEC_LIBS) $(URING_LIBS)
 
+# Client PAL (phase-119): the only client sources that may branch on the host.
+# One body set per OS; check_platform_leak.py rejects OS macros anywhere else.
+# The libc-only module PAL bodies are linked here too (one body per host, no
+# copies); posix_wrapper.c is not (it owns symbols shared/cvmfs/platform
+# provides) and priv_wrapper.c is not (crypt/libcrypt, module-only).
+ifeq ($(shell uname -s),Darwin)
+PLATFORM_SRCS := lib/platform/darwin/posix.c lib/platform/darwin/mounts.c lib/platform/darwin/epoll.c \
+                 ../src/platform/darwin/storage_wrapper.c ../src/platform/darwin/process_wrapper.c
+PRELOAD_HOST_SRCS := lib/platform/darwin/preload_stream.c lib/platform/darwin/preload_interpose.c
+else
+PLATFORM_SRCS := lib/platform/linux/posix.c lib/platform/linux/mounts.c \
+                 ../src/platform/linux/storage_wrapper.c ../src/platform/linux/process_wrapper.c
+PRELOAD_HOST_SRCS := lib/platform/linux/preload_stream.c lib/platform/linux/preload_lfs.c
+endif
+
 # phase-69: client/lib reorganized into src-style concept buckets. Paths below are
 # the single source of truth for the build; every .c must be listed (no wildcards).
-LIB_SRCS   := \
+LIB_SRCS   := $(PLATFORM_SRCS) \
   lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_engine_cqe.c lib/core/aio/aio_io.c lib/core/aio/aio_mfile.c lib/core/aio/aio_mgr.c lib/core/aio/aio_timeouts.c lib/core/aio/uring.c lib/core/aio/uring_stub.c \
   lib/core/config/xrdrc.c lib/core/config/envalias.c \
   lib/core/types/status.c lib/core/types/units.c \
@@ -119,11 +165,12 @@ LIB_SRCS   := \
   lib/ops/opdsl.c \
   ../shared/net/proxy_env.c ../shared/net/proxy_connect.c \
   lib/auth/auth.c lib/auth/sigver.c \
-  lib/auth/cred/cred.c lib/auth/cred/cred_bearer.c lib/auth/cred/cred_krb5.c lib/auth/cred/cred_s3.c lib/auth/cred/cred_sss.c lib/auth/cred/cred_x509.c lib/auth/cred/credinfo.c lib/auth/cred/credrefresh.c \
+  lib/auth/cred/cred.c lib/auth/cred/cred_bearer.c lib/auth/cred/cred_krb5.c lib/auth/cred/cred_s3.c lib/auth/cred/cred_sss.c lib/auth/cred/cred_x509.c lib/auth/cred/credinfo.c lib/auth/cred/credinfo_voms.c lib/auth/cred/credrefresh.c \
+  ../shared/voms/voms_asn1.c ../shared/voms/voms_decode.c ../shared/voms/voms_verify.c ../shared/voms/voms_lsc.c \
   lib/auth/sec/sec_gsi.c lib/auth/sec/sec_host.c lib/auth/sec/sec_krb5.c lib/auth/sec/sec_pwd.c lib/auth/sec/sec_sss.c lib/auth/sec/sec_token.c lib/auth/sec/sec_unix.c \
   lib/auth/gsi/proxy.c \
   lib/auth/sss/sss_keytab.c lib/auth/sss/sss_id.c \
-  lib/fs/dirfanout.c lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/overlay_copyup.c lib/fs/path.c lib/fs/rfile_stream.c lib/fs/rmtree.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c lib/fs/walk.c \
+  lib/fs/dirfanout.c lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/overlay_copyup.c lib/fs/path.c lib/fs/rfile_fast.c lib/fs/rfile_stream.c lib/fs/rmtree.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c lib/fs/walk.c \
   lib/fs/backend/s3/vfs_s3.c lib/fs/backend/s3/vfs_s3_http.c lib/fs/backend/s3/vfs_s3_io.c lib/fs/backend/s3/vfs_s3_transport.c \
   lib/protocols/root/frame.c lib/protocols/root/frame_roundtrip.c lib/protocols/root/ops_ext.c lib/protocols/root/ops_file.c lib/protocols/root/ops_file_pg.c lib/protocols/root/ops_file_rw.c lib/protocols/root/ops_fs.c lib/protocols/root/ops_meta.c \
   lib/protocols/http/http.c lib/protocols/http/http_download.c lib/protocols/http/http_req.c lib/protocols/http/http_upload.c lib/protocols/http/web_ka.c lib/protocols/http/webfile.c lib/protocols/http/webfile_io.c lib/protocols/http/weblist.c \
@@ -153,9 +200,18 @@ LIB_OBJS   := $(LIB_SRCS:.c=.o)
 CLIENT_LIB     := libbrix.a
 BRIX_VERSION   := 0.1.0
 BRIX_SOMAJOR   := 0
+# Linux: libbrix.so -> libbrix.so.0 -> libbrix.so.0.1.0 (soname in the middle).
+# Darwin: libbrix.dylib -> libbrix.0.dylib -> libbrix.0.1.0.dylib (the version
+# sits before the extension, as every Mach-O library spells it).
+ifeq ($(SHLIB_EXT),dylib)
+LIBBRIX_SO     := libbrix.dylib
+LIBBRIX_SONAME := libbrix.$(BRIX_SOMAJOR).dylib
+LIBBRIX_REAL   := libbrix.$(BRIX_VERSION).dylib
+else
 LIBBRIX_SO     := libbrix.so
 LIBBRIX_SONAME := libbrix.so.$(BRIX_SOMAJOR)
 LIBBRIX_REAL   := libbrix.so.$(BRIX_VERSION)
+endif
 PIC_OBJS       := $(LIB_SRCS:.c=.pic.o)
 
 PREFIX     ?= /usr/local
@@ -198,8 +254,17 @@ STANDALONE_EXES := $(BINDIR)/brix-fault-proxy
 # is present. They are NOT in BINS (they need extra flags / a separate link rule).
 HAVE_FUSE3   := $(shell pkg-config --exists fuse3 2>/dev/null && echo yes)
 FUSE3_CFLAGS := $(shell pkg-config --cflags fuse3 2>/dev/null)
+ifeq ($(shell uname -s),Darwin)
+# macFUSE defaults to its Darwin-extended API (struct fuse_darwin_attr, extra
+# xattr position args); 0 selects the stock libfuse3 signatures we code to.
+FUSE3_CFLAGS += -DFUSE_DARWIN_ENABLE_EXTENSIONS=0
+endif
 FUSE3_LIBS   := $(shell pkg-config --libs fuse3 2>/dev/null)
-PRELOAD_SO   := libbrixposix_preload.so
+# The POSIX shim: LD_PRELOAD'ed on Linux, DYLD_INSERT_LIBRARIES'ed on Darwin.
+# The glibc-only surface (the LFS *64 names, statx, fopencookie) and the
+# Mach-O interposing table live in lib/platform/<host>/preload_*.c, chosen
+# with the rest of the host bodies above (PRELOAD_HOST_SRCS).
+PRELOAD_SO   := libbrixposix_preload.$(SHLIB_EXT)
 OPT_BINS     := $(PRELOAD_SO)
 OPT_EXES     :=
 OPT_LINKS    :=
@@ -301,10 +366,29 @@ xrdprep_OBJS      := apps/prep/xrdprep.o
 # and again in the link rule, and a TU added to only one of them either links
 # without dep tracking or is dep-tracked and never linked.
 PRELOAD_OBJS := preload/brixposix_preload.pic.o preload/brixposix_stat.pic.o \
-                preload/brixposix_dir.pic.o preload/brixposix_stdio.pic.o
+                preload/brixposix_dir.pic.o preload/brixposix_stdio.pic.o \
+                $(PRELOAD_HOST_SRCS:.c=.pic.o)
+# The host halves of the shim see the shim's private header.
+$(PRELOAD_HOST_SRCS:.c=.pic.o): ALL_CFLAGS += -Ipreload
 ALL_OBJS := $(LIB_OBJS) $(PIC_OBJS) $(PRELOAD_OBJS) \
             $(foreach b,$(BINS),$($(b)_OBJS))
-DEPS     := $(ALL_OBJS:.o=.d)
+# Every .d the compiler has ever written under apps/, lib/ and the shared tree
+# is included too: the FUSE / brixMount / ceph objects are not in ALL_OBJS
+# (they are OPT_EXES with their own rules), and without their .d files an edit
+# to a header or an #included .c fragment (apps/fs/_xrootdfs_part2.c,
+# 2026-09-17) left the object stale and the binary silently behind the source.
+# The shared/ globs close the same hole for the cvmfs and cache objects, which
+# live outside this directory: editing shared/cache/_cas_pack_part2.c did not
+# rebuild shared/cache/cas_pack.o, so brixMount kept serving the old code and a
+# store change could not be observed at all (found 2026-09-17 while a probe
+# added to that fragment never appeared in a fresh build).
+# Deferred (=, not :=): SHARED_DIR is defined further down, and an empty
+# prefix would turn the globs into /*/*.d — which matches /etc/paths.d and
+# stops the build with "Is a directory". Expanding at -include time also picks
+# up .d files written earlier in the same run.
+DEPS      = $(sort $(ALL_OBJS:.o=.d) \
+              $(wildcard apps/*/*.d lib/*/*.d lib/*/*/*.d \
+                         $(SHARED_DIR)/*/*.d $(SHARED_DIR)/*/*/*.d))
 
 .PHONY: all proto FORCE clean lib install install-bin install-man install-completions install-automount compat install-compat example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount brixcvmfs brixoci brixrpm
 all: $(BIN_EXES) $(LINK_EXES) $(OPT_BINS) $(OPT_EXES) $(OPT_LINKS) $(STANDALONE_EXES)
@@ -367,11 +451,22 @@ $(BIN_EXES): | proto $(BINDIR)
 %.o: %.c
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
+# Recreate the archive rather than update it in place: `ar r` never drops a
+# member whose source was deleted, and a stale member (2026-09-16: the old
+# epoll_compat.o beside platform/darwin/epoll.o) only surfaces as duplicate
+# symbols once a link force-loads the whole archive.
 $(CLIENT_LIB): $(LIB_OBJS)
+	rm -f $@
 	$(AR) rcs $@ $^
 
 # Link hardening defaults. Packagers can override by exporting LDFLAGS.
+# The -z keywords are GNU/LLD-only: Apple's ld64 rejects them ("unknown
+# options: -z"), and Mach-O has no RELRO/executable-stack notion to harden.
+ifeq ($(shell uname -s),Darwin)
+LDFLAGS ?=
+else
 LDFLAGS ?= -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack
+endif
 # Coverage is a compile-and-link setting.  Keep implicit `make <tool>` builds
 # linkable when callers provide coverage through CFLAGS (the test helpers do
 # exactly that), rather than leaving gcov symbols unresolved at link time.
@@ -382,8 +477,8 @@ else ifneq ($(wildcard lib/*/*.gcno lib/*/*/*.gcno),)
 # reference __gcov_*; keep plain re-links resolvable without a full rebuild.
 LDFLAGS += --coverage
 endif
-# Executables are PIE; the shared lib is already -shared (implicitly PIC).
-LDFLAGS_PIE := -pie
+# Executables are PIE (LDFLAGS_PIE, set per host above); the shared lib is
+# already -shared / -dynamiclib (implicitly PIC).
 
 # phase-69: ONE static-pattern link rule for every front-end. Secondary expansion
 # resolves each target's own object set ($<name>_OBJS, defined above) as its
@@ -620,7 +715,7 @@ $(CEPH_TOOL_NAMES): %: $(BINDIR)/%
 .PHONY: vfs-s3-smoke
 vfs-s3-smoke: tests/c/vfs_s3_smoke.c $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) tests/c/vfs_s3_smoke.c \
-	    -Wl,--whole-archive $(CLIENT_LIB) -Wl,--no-whole-archive \
+	    $(call whole_archive,$(CLIENT_LIB)) \
 	    $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/vfs_s3_smoke
 	@echo " + built $(BINDIR)/vfs_s3_smoke (no libXrdCl/libXrdSec*)"
 
@@ -629,7 +724,7 @@ vfs-s3-smoke: tests/c/vfs_s3_smoke.c $(CLIENT_LIB) | $(BINDIR)
 .PHONY: sd-s3-meta-smoke
 sd-s3-meta-smoke: ../tests/c/sd_s3_meta_smoke.c $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/sd_s3_meta_smoke.c \
-	    -Wl,--whole-archive $(CLIENT_LIB) -Wl,--no-whole-archive \
+	    $(call whole_archive,$(CLIENT_LIB)) \
 	    $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/sd_s3_meta_smoke
 	@echo " + built $(BINDIR)/sd_s3_meta_smoke"
 
@@ -687,7 +782,7 @@ FAULT_PROXY_SRCS := apps/diag/brix_fault_proxy.c apps/diag/brix_fault_priv.c \
 	apps/diag/brix_fault_cmd_dpi.c apps/diag/brix_fault_cmd_json.c \
 	apps/diag/brix_fault_udp.c \
 	apps/diag/brix_fault_report.c apps/diag/brix_fault_cli.c \
-	lib/net/resolve.c
+	lib/net/resolve.c $(PLATFORM_SRCS)
 FAULT_PROXY_HDRS := apps/diag/brix_fault_priv.h apps/diag/brix_fault_priv_internal.h \
 	apps/diag/brix_fault_ext.h \
 	apps/diag/brix_fault_buf.h apps/diag/brix_fault_tls.h \
@@ -731,10 +826,11 @@ nettmo: ../tests/c/nettmo_test.c $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/nettmo_test.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/nettmo_test
 	@echo " + built $(BINDIR)/nettmo_test"
 
-# §14.4 LD_PRELOAD POSIX shim — fold the PIC client + protocol kernels into a .so.
+# §14.4 the POSIX preload shim — fold the PIC client + protocol kernels into
+# one shared object (LD_PRELOAD on Linux, DYLD_INSERT_LIBRARIES on Darwin).
 $(PRELOAD_SO): $(PRELOAD_OBJS) $(PIC_OBJS) $(PROTO_LIB)
-	$(CC) -shared $(LDFLAGS) -o $@ $(PRELOAD_OBJS) $(PIC_OBJS) \
-	    -Wl,--whole-archive $(PROTO_LIB) -Wl,--no-whole-archive $(LDLIBS) -ldl
+	$(CC) $(PRELOAD_LD) $(LDFLAGS) -o $@ $(PRELOAD_OBJS) $(PIC_OBJS) \
+	    $(call whole_archive,$(PROTO_LIB)) $(LDLIBS) -ldl
 	@echo " + built $@ (no libXrdCl/libXrdSec*)"
 
 # ---- public library: libbrix.{a,so} + pkg-config (§14.1) ----
@@ -745,8 +841,8 @@ lib: $(CLIENT_LIB) $(LIBBRIX_SO) libbrix.pc
 
 # Fold the (PIC, ngx-free) protocol kernels into the .so so a single -lbrix links.
 $(LIBBRIX_SO): $(PIC_OBJS) $(PROTO_LIB)
-	$(CC) -shared $(LDFLAGS) -Wl,-soname,$(LIBBRIX_SONAME) -o $(LIBBRIX_REAL) \
-	    $(PIC_OBJS) -Wl,--whole-archive $(PROTO_LIB) -Wl,--no-whole-archive $(LDLIBS)
+	$(CC) $(SHLIB_LD) $(LDFLAGS) -o $(LIBBRIX_REAL) \
+	    $(PIC_OBJS) $(call whole_archive,$(PROTO_LIB)) $(LDLIBS)
 	ln -sf $(LIBBRIX_REAL) $(LIBBRIX_SONAME)
 	ln -sf $(LIBBRIX_SONAME) $(LIBBRIX_SO)
 	@echo " + built $(LIBBRIX_REAL) (no libXrdCl/libXrdSec*)"
@@ -953,14 +1049,14 @@ TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -
 # The cred-handler and vfs-backend registries are weak-symbol accessors: a
 # plain static-archive link would not extract their defining objects (weak
 # refs do not force member extraction; the registry would see NULL slots), so
-# those tests link --whole-archive. cred_store_unit instead OVERRIDES a strong
+# those tests link the whole archive (whole_archive above). cred_store_unit instead OVERRIDES a strong
 # lib symbol (brix_cred_s3keys) and must use the plain archive link.
 WHOLEARCH_TESTS := cli_cred_unit cred_unit vfs_posix_unit vfs_block_unit
 test: $(CLIENT_LIB) proto | $(BINDIR)
 	@set -e; for t in $(CLIENT_UNIT_TESTS); do \
 	  echo "== $$t"; \
 	  case " $(WHOLEARCH_TESTS) " in \
-	  *" $$t "*) lib='-Wl,--whole-archive $(CLIENT_LIB) -Wl,--no-whole-archive' ;; \
+	  *" $$t "*) lib='$(call whole_archive,$(CLIENT_LIB))' ;; \
 	  *)         lib='$(CLIENT_LIB)' ;; \
 	  esac; \
 	  $(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(TEST_INC) tests/c/$$t.c \
@@ -979,7 +1075,7 @@ test: $(CLIENT_LIB) proto | $(BINDIR)
 %-unit: $(CLIENT_LIB) proto | $(BINDIR)
 	@t=$(subst -,_,$@); \
 	case " $(WHOLEARCH_TESTS) " in \
-	*" $$t "*) lib='-Wl,--whole-archive $(CLIENT_LIB) -Wl,--no-whole-archive' ;; \
+	*" $$t "*) lib='$(call whole_archive,$(CLIENT_LIB))' ;; \
 	*)         lib='$(CLIENT_LIB)' ;; \
 	esac; \
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(TEST_INC) tests/c/$$t.c \

@@ -22,6 +22,7 @@ from oci.mirror_lane import (
     error_log, get, hits, manifest_layers, mirror_spec, spawn_mock,
     start_mirror, stop_mocks,
 )
+from lib_py.util import loopback_alias_usable
 
 MOCK_PORT = 14101
 EVIL_PORT = 14102
@@ -60,6 +61,17 @@ def mocks():
 
     yield _spawn
     stop_mocks(*procs)
+
+
+#: Several cases stand a second registry on ANOTHER loopback address, because
+#: the property under test is that the host differs (a CDN twin, a foreign
+#: realm).  Linux routes all of 127.0.0.0/8 to lo; macOS assigns only
+#: 127.0.0.1, so those mocks cannot bind and the case cannot be staged.
+needs_alt_loopback = pytest.mark.skipif(
+    not (loopback_alias_usable(CDN_HOST) and loopback_alias_usable(EVIL_HOST)),
+    reason=f"{CDN_HOST}/{EVIL_HOST} are not bindable on this host "
+           f"(sudo ifconfig lo0 alias {CDN_HOST} up; "
+           f"sudo ifconfig lo0 alias {EVIL_HOST} up)")
 
 
 def front(lifecycle, tmp_path, auth_lines="", extra="") -> Mirror:
@@ -243,6 +255,7 @@ def test_toomanyrequests_maps_to_429_with_retry_after(mocks, lifecycle,
     assert token_count(upstream) == 1
 
 
+@needs_alt_loopback
 def test_cdn_redirect_carries_no_authorization(mocks, lifecycle, tmp_path):
     """A blob 302 to a CDN is a hop to a different principal.
 
@@ -266,6 +279,7 @@ def test_cdn_redirect_carries_no_authorization(mocks, lifecycle, tmp_path):
     assert token_count(upstream) == 1          # the registry leg did dance
 
 
+@needs_alt_loopback
 def test_signed_cdn_redirect_arrives_with_its_signature(mocks, lifecycle,
                                                        tmp_path):
     """A CDN blob URL carries its authorization in the QUERY.
@@ -295,6 +309,7 @@ def test_signed_cdn_redirect_arrives_with_its_signature(mocks, lifecycle,
     assert token_count(upstream) == 1
 
 
+@needs_alt_loopback
 def test_cdn_refusal_is_reported_and_nothing_is_cached(mocks, lifecycle,
                                                       tmp_path):
     """When the hop IS refused, the client hears it and the cache stays empty.
@@ -338,6 +353,7 @@ def test_jwt_sized_bearer_is_presented_whole(mocks, lifecycle, tmp_path):
     assert schemes(hits(upstream, path_prefix="/v2/")) == {None, "Bearer"}
 
 
+@needs_alt_loopback
 def test_third_party_realm_is_refused_and_never_contacted(mocks, lifecycle,
                                                           tmp_path):
     """The realm is the upstream naming a host to hand a credential to.
@@ -460,6 +476,7 @@ def offdomain(mocks):
                  "--realm", "http://%s:%d/token" % (EVIL_HOST, EVIL_PORT))
 
 
+@needs_alt_loopback
 def test_an_allowlisted_off_domain_realm_completes_the_dance(mocks, lifecycle,
                                                              tmp_path):
     """Named by the operator, the off-domain token service is honoured.
@@ -481,6 +498,7 @@ def test_an_allowlisted_off_domain_realm_completes_the_dance(mocks, lifecycle,
     assert "honoured by brix_oci_upstream_auth_realm" in log
 
 
+@needs_alt_loopback
 def test_an_allowlist_entry_admits_that_host_and_no_other(mocks, lifecycle,
                                                           tmp_path):
     """The list is exact hosts, so naming one does not admit its neighbours.

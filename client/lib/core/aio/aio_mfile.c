@@ -158,7 +158,7 @@ mfile_do_open(brix_mfile *mf, int force, brix_status *st)
         xrdw_open_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    brix_aio_opts o = { mf->max_stall_ms, mf->max_retries, 1 /*open is idempotent*/ };
+    brix_aio_opts o = { mf->max_stall_ms, mf->max_retries, 1 /*open is idempotent*/, NULL, 0 };
     int rc = brix_aio_call_ex(mf->ac, &req, payload, (uint32_t) plen, &o,
                               &kxr, &body, &blen, st);
     free(payload);
@@ -299,7 +299,7 @@ brix_mfile_pread(brix_mfile *mf, int64_t off, void *buf, size_t len,
         uint16_t kxr = 0;
         uint8_t *body = NULL;
         uint32_t blen = 0;
-        brix_aio_opts o = { mf->max_stall_ms, 0, 0 /*we own reopen/retry*/ };
+        brix_aio_opts o = { mf->max_stall_ms, 0, 0 /*we own reopen/retry*/, NULL, 0 };
         if (brix_aio_call_ex(mf->ac, &req, NULL, 0, &o, &kxr, &body, &blen, st) == 0) {
             /* phase-42 W4: a compressed handle returns one self-contained codec
              * frame per request (aio_call_ex has already accumulated all
@@ -373,7 +373,7 @@ brix_mfile_pwrite(brix_mfile *mf, int64_t off, const void *buf, size_t len,
         }
 
         uint16_t kxr = 0;
-        brix_aio_opts o = { mf->max_stall_ms, 0, 0 };
+        brix_aio_opts o = { mf->max_stall_ms, 0, 0, NULL, 0 };
         int rc = brix_aio_call_ex(mf->ac, &req, payload, (uint32_t) plen, &o,
                                   &kxr, NULL, NULL, st);
         free(frame);

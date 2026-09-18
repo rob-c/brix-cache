@@ -107,6 +107,9 @@ def test_b2_prepare_evict_reaches_the_vfs():
 #      (inverted: W3)
 # --------------------------------------------------------------------------
 
+@pytest.mark.skipif(not hasattr(os, "O_PATH"),
+                    reason="O_PATH is a Linux open flag; this pins a Linux "
+                           "kernel fact and there is no equivalent to pin here")
 def test_b3_fsync_on_an_o_path_fd_fails_ebadf():
     """The kernel-level fact that makes staged_file.c:319 inert.
 

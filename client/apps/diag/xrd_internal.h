@@ -131,7 +131,6 @@ int xrd_clockskew(int argc, char **argv);
 int xrd_whoami(int argc, char **argv);
 int xrd_caps(int argc, char **argv);
 int run_cmd(char *const cmd_argv[]);
-void mountinfo_unescape(const char *in, char *out, size_t outsz);
 int xrd_list_mounts(void);
 int xrd_mount(int argc, char **argv);
 int xrd_unmount(int argc, char **argv);

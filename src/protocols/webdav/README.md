@@ -46,7 +46,6 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
 | `webdav_module_internal.h` | Private split contract shared by `module*.c`. |
 | `config.c` | Location config `create_loc_conf`/`merge_loc_conf`; startup validation: canonicalize export root, build cached `X509_STORE`, load JWKS, validate TPC/CA/CRL paths, parse upstream URLs. |
 | `postconfig.c` | Registers handlers into ACCESS/PRECONTENT/CONTENT/LOG phases; sets `X509_V_FLAG_ALLOW_PROXY_CERTS` on SSL contexts when `proxy_certs on`; resolves the async thread pool. |
-| `darwin_config_stub.h` | Shared body for the existing provisional Darwin certificate directive stubs; it performs no certificate validation. |
 | `webdav.h` | Umbrella header: `ngx_http_brix_webdav_loc_conf_t`, per-request `ngx_http_brix_webdav_req_ctx_t`, lock structs, auth enums, every cross-file prototype, and inline helpers (`webdav_send_no_body`, TPC header macros). Includes `xrdhttp.h`. |
 | `pki.c` | `webdav_check_pki_consistency` — fail `nginx -t` if CA/CRL paths are missing/invalid (delegates to `src/auth/crypto/pki_check.h`). |
 

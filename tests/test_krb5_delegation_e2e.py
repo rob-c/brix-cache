@@ -47,6 +47,7 @@ from settings import (
     NGINX_BIN,
     url_host,
 )
+from lib_py.util import linked_libraries
 
 def _guard_deleg_server_1():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
@@ -105,8 +106,7 @@ def _client_has_krb5():
     ldd = subprocess.run([XRDFS, "-h"], capture_output=True, text=True).stderr
     if "krb5" not in ldd:
         return False
-    linked = subprocess.run(["ldd", XRDFS], capture_output=True, text=True).stdout
-    return "libkrb5" in linked
+    return "libkrb5" in linked_libraries(XRDFS)   # ldd, or otool -L on Darwin
 
 
 def _kinit_forwardable():
@@ -115,7 +115,7 @@ def _kinit_forwardable():
     env = {k: v for k, v in os.environ.items()}
     env["KRB5_CONFIG"] = KRB5_CONF
     proc = subprocess.run(
-        [shutil.which("kinit") or "kinit", "-f", "-k", "-t", KRB5_CLIENT_KEYTAB,
+        [kdc_helpers.krb5_tool("kinit") or "kinit", "-f", "-k", "-t", KRB5_CLIENT_KEYTAB,
          "-c", FWD_CCACHE, KRB5_CLIENT_PRINCIPAL],
         capture_output=True, text=True, env=env, timeout=30)
     return proc.returncode == 0

@@ -266,7 +266,7 @@ xmeta_save_carrier(brix_sd_instance_t *store, const char *key,
 
     if (!force_sidecar
         && store->driver->setxattr != NULL && len <= BRIX_XMETA_XATTR_MAX) {
-        rc = store->driver->setxattr(store, key, BRIX_XMETA_XATTR_NAME,
+        rc = (store->driver->setxattr)(store, key, BRIX_XMETA_XATTR_NAME,
                                      buf, len, 0);
         if (rc == NGX_OK) {
             free(buf);
@@ -289,7 +289,7 @@ xmeta_save_carrier(brix_sd_instance_t *store, const char *key,
     }
     /* exactly one carrier: drop any (stale or just-outgrown) xattr copy */
     if (store->driver->removexattr != NULL) {
-        (void) store->driver->removexattr(store, key,
+        (void) (store->driver->removexattr)(store, key,
                                           BRIX_XMETA_XATTR_NAME);
     }
     return NGX_OK;
@@ -369,7 +369,7 @@ xmeta_load_from_xattr(brix_sd_instance_t *store, const char *key,
         errno = ENOMEM;
         return NGX_ERROR;
     }
-    n = store->driver->getxattr(store, key, BRIX_XMETA_XATTR_NAME,
+    n = (store->driver->getxattr)(store, key, BRIX_XMETA_XATTR_NAME,
                                 buf, BRIX_XMETA_XATTR_MAX);
     if (n > 0) {
         drc = brix_xmeta_decode(buf, (size_t) n, m);
@@ -426,7 +426,7 @@ brix_xmeta_remove(brix_sd_instance_t *store, const char *key)
         return NGX_OK;
     }
     if (store->driver->removexattr != NULL) {
-        (void) store->driver->removexattr(store, key,
+        (void) (store->driver->removexattr)(store, key,
                                           BRIX_XMETA_XATTR_NAME);
     }
     if (store->driver->unlink != NULL

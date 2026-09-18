@@ -14,7 +14,7 @@ AR ?= ar
 
 # Platform detection
 PLATFORM = darwin
-PLATFORM_FLAG = -DBRIX_PLATFORM_DARWIN=1
+PLATFORM_FLAG = -DBRIX_PLATFORM_DARWIN=1 -DBRIX_PLATFORM_HOST=darwin
 
 # Detect architecture
 ARCH := $(shell uname -m)

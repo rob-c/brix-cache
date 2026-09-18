@@ -76,8 +76,8 @@ from settings import HOST
 
 REPO = "test.cern.ch"
 
-pytestmark = pytest.mark.skipif(not os.path.exists(NGINX_BIN),
-                                reason=f"nginx binary not found: {NGINX_BIN}")
+pytestmark = [pytest.mark.skipif(not os.path.exists(NGINX_BIN),
+                                reason=f"nginx binary not found: {NGINX_BIN}")]
 
 # Aggressive-but-fast knobs shared by every instance in this file. The floor
 # is 100 B/s (not the 1 B/s default): curl smooths speed over a ~6 s window,

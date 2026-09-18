@@ -1,31 +1,47 @@
 /*
- * credinfo_voms_unittest.c — unit test for the VOMS attribute-certificate FQAN
- * decoder in credinfo.c (voms_scan / der_tlv / voms_is_fqan / voms_emit_values).
+ * credinfo_voms_unittest.c — unit test for the VOMS narration in
+ * credinfo_voms.c (brix_credinfo_voms_explain over the shared native decoder).
  *
- *   cc -std=c11 -Wall -Wextra -Werror -Ilib -I../src -I../shared \
- *      -DXRDPROTO_NO_NGX lib/auth/cred/credinfo_voms_unittest.c \
- *      libbrix.a ../shared/xrdproto/libxrdproto.a -lssl -lcrypto -lz -lkrb5 \
- *      -lk5crypto -lcom_err -lzstd -llzma -lbrotlienc -lbrotlidec -lbz2 \
- *      -l:liblz4.so.1 -luring -o /tmp/vut && /tmp/vut          (run from client/)
+ *   cc $(ALL_CFLAGS from client/Makefile) -Werror \
+ *      lib/auth/cred/credinfo_voms_unittest.c \
+ *      ../shared/voms/voms_asn1.c ../shared/voms/voms_decode.c \
+ *      ../shared/voms/voms_verify.c ../shared/voms/voms_lsc.c \
+ *      libbrix.a ../shared/xrdproto/libxrdproto.a $(LDLIBS from client/Makefile) \
+ *      -o /tmp/vut && /tmp/vut                                  (run from client/)
  *
- * Exit 0 = all checks pass. The REAL credinfo.c is #included (its VOMS parser is
- * static); the remaining libbrix/openssl symbols it references are pulled from
- * the archive (its own credinfo.o is NOT — the #include already defines those
- * symbols). Driven over a genuine LHCb-proxy VOMS AC extracted into the fixture.
+ * Exit 0 = all checks pass. The REAL credinfo.c and credinfo_voms.c are
+ * #included (the chain loader and the renderer's helpers are static); the
+ * remaining libbrix/openssl symbols come from the archive. Driven over the
+ * shared GENUINE LHCb-proxy VOMS extension (shared/voms/voms_ac_fixture.h).
+ *
+ * Success: the fixture on the leaf, and on a chain member, prints exactly the
+ * two FQANs once each plus a vo=lhcb summary. Error: no extension → "none";
+ * truncated DER → "undecodable". Security-negative: with trust directories
+ * present, a certificate that is NOT the AC's holder is reported "NOT
+ * verified" — never "verified".
  */
-#define _GNU_SOURCE            /* open_memstream */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE            /* open_memstream, mkdtemp, setenv */
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <openssl/evp.h>
+#include <openssl/rsa.h>
 
-#include "credinfo.c"          /* real parser under test (static functions) */
-#include "voms_ac_fixture.h"   /* genuine VOMS AC DER: two FQANs + URI noise */
+#include "credinfo.c"           /* real chain loader under test (static) */
+#include "credinfo_voms.c"      /* real renderer under test (static helpers) */
+#include "voms/voms_ac_fixture.h"
 
 static int g_fail;
 #define CHECK(cond) do { \
     if (!(cond)) { printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
                    g_fail++; } \
 } while (0)
+
+#define FQAN_USER "      VOMS:  /lhcb/Role=user/Capability=NULL\n"
+#define FQAN_NULL "      VOMS:  /lhcb/Role=NULL/Capability=NULL\n"
 
 static int
 has(const char *hay, const char *needle)
@@ -37,97 +53,179 @@ has(const char *hay, const char *needle)
 static int
 count(const char *hay, const char *needle)
 {
-    int n = 0;
+    int         n = 0;
     const char *p = hay;
-    size_t nl = strlen(needle);
+    size_t      nl = strlen(needle);
+
     while ((p = strstr(p, needle)) != NULL) { n++; p += nl; }
     return n;
 }
 
-/* Render voms_scan(der,len) to a heap string (caller frees). */
+/* A throwaway self-signed CN=nobody certificate, optionally carrying `ext_der`
+ * as its VOMS extension. Never the fixture AC's holder. */
+static X509 *
+make_cert(const unsigned char *ext_der, int ext_len)
+{
+    EVP_PKEY  *key = EVP_RSA_gen(2048);
+    X509      *cert = X509_new();
+    X509_NAME *name = X509_NAME_new();
+
+    CHECK(key != NULL && cert != NULL && name != NULL);
+    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
+                               (const unsigned char *) "nobody", -1, -1, 0);
+    X509_set_version(cert, 2);
+    X509_set_subject_name(cert, name);
+    X509_set_issuer_name(cert, name);
+    ASN1_INTEGER_set(X509_get_serialNumber(cert), 1);
+    X509_gmtime_adj(X509_getm_notBefore(cert), -3600);
+    X509_gmtime_adj(X509_getm_notAfter(cert), 3600);
+    X509_set_pubkey(cert, key);
+    if (ext_der != NULL) {
+        ASN1_OCTET_STRING *data = ASN1_OCTET_STRING_new();
+        ASN1_OBJECT       *obj = OBJ_txt2obj(BRIX_VOMS_OID_ACSEQ, 1);
+        X509_EXTENSION    *ext;
+
+        ASN1_OCTET_STRING_set(data, ext_der, ext_len);
+        ext = X509_EXTENSION_create_by_OBJ(NULL, obj, 0, data);
+        CHECK(ext != NULL && X509_add_ext(cert, ext, -1) == 1);
+        X509_EXTENSION_free(ext);
+        ASN1_OBJECT_free(obj);
+        ASN1_OCTET_STRING_free(data);
+    }
+    CHECK(X509_sign(cert, key, EVP_sha256()) > 0);
+    X509_NAME_free(name);
+    EVP_PKEY_free(key);
+    return cert;
+}
+
+/* Render brix_credinfo_voms_explain(leaf, chain) to a heap string (caller frees). */
 static char *
-scan(const unsigned char *der, int len)
+render(X509 *leaf, STACK_OF(X509) *chain)
 {
     char   *buf = NULL;
     size_t  sz = 0;
     FILE   *ms = open_memstream(&buf, &sz);
-    voms_scan(der, len, ms);
+
+    brix_credinfo_voms_explain(leaf, chain, ms);
     fclose(ms);
     return buf;
+}
+
+/* The decoded-facts pins every fixture rendering must satisfy. */
+static void
+check_fixture_facts(const char *s)
+{
+    CHECK(count(s, FQAN_USER) == 1);
+    CHECK(count(s, FQAN_NULL) == 1);
+    CHECK(count(s, "      VOMS:  /") == 2);                 /* exactly two FQAN lines */
+    CHECK(count(s, "      VOMS:  vo=lhcb server=voms-lhcb-auth.cern.ch:443 "
+                   "issuer=/DC=ch/DC=cern/OU=computers/CN=lhcb-auth.cern.ch "
+                   "valid 2026-08-03T10:34:22Z..2026-08-10T10:34:22Z\n") == 1);
+    /* none of the blind-scan noise the old byte parser emitted */
+    CHECK(!has(s, "cafiles.cern.ch"));                      /* signer CRL/AIA URI */
+    CHECK(!has(s, "ocsp.cern.ch"));                         /* signer OCSP URI */
+    CHECK(!has(s, "ldap:"));                                /* signer LDAP CRL URI */
+    CHECK(!has(s, "Capability=NULL0"));                     /* trailing tag byte */
+    CHECK(!has(s, ":4430"));                                /* URI port over-read */
+    CHECK(!has(s, "undecodable"));
+    CHECK(!has(s, "VOMS:  none"));
+}
+
+/* Success: the fixture on the leaf, no trust dirs → decoded + "unverified". */
+static void
+test_leaf_decodes(X509 *with_ext)
+{
+    char *s;
+
+    setenv("X509_CERT_DIR", "/nonexistent/certificates", 1);
+    setenv("X509_VOMS_DIR", "/nonexistent/vomsdir", 1);
+    s = render(with_ext, NULL);
+    check_fixture_facts(s);
+    CHECK(count(s, "      VOMS:  unverified (no /nonexistent/certificates)\n") == 1);
+    CHECK(count(s, "      VOMS:  ") == 4);                  /* 2 FQAN + summary + verdict */
+    CHECK(!has(s, "      VOMS:  verified\n"));
+    CHECK(!has(s, "NOT verified"));
+    free(s);
+}
+
+/* Success: a plain leaf whose CHAIN member carries the extension is found. */
+static void
+test_chain_member_decodes(X509 *plain, X509 *with_ext)
+{
+    STACK_OF(X509) *chain = sk_X509_new_null();
+    char           *s;
+
+    CHECK(sk_X509_push(chain, with_ext) == 1);
+    s = render(plain, chain);
+    check_fixture_facts(s);
+    free(s);
+    sk_X509_free(chain);                                    /* borrowed member */
+}
+
+/* Error: no extension anywhere → exactly "VOMS:  none". */
+static void
+test_no_extension(X509 *plain)
+{
+    char *s = render(plain, NULL);
+
+    CHECK(strcmp(s, "      VOMS:  none\n") == 0);
+    free(s);
+}
+
+/* Error: a truncated AC_SEQ → "present (undecodable: ...)", no FQAN lines. */
+static void
+test_truncated(void)
+{
+    X509 *bad = make_cert(VOMS_AC_FIXTURE, (int) VOMS_AC_FIXTURE_LEN / 2);
+    char *s = render(bad, NULL);
+
+    CHECK(has(s, "      VOMS:  present (undecodable: "));
+    CHECK(count(s, "      VOMS:  ") == 1);
+    CHECK(!has(s, "/lhcb/"));
+    free(s);
+    X509_free(bad);
+}
+
+/* Security-negative: trust directories present, but the certificate is not
+ * the AC's holder → "NOT verified: ..." — the verdict is never "verified". */
+static void
+test_not_holder_is_rejected(X509 *with_ext)
+{
+    const char *tmp = getenv("TMPDIR");
+    char        cert_dir[256], voms_dir[256];
+    char       *s;
+
+    snprintf(cert_dir, sizeof(cert_dir), "%s/credinfo_voms_certs_XXXXXX",
+             (tmp != NULL && tmp[0] != '\0') ? tmp : "/tmp");
+    snprintf(voms_dir, sizeof(voms_dir), "%s/credinfo_voms_vomsdir_XXXXXX",
+             (tmp != NULL && tmp[0] != '\0') ? tmp : "/tmp");
+    CHECK(mkdtemp(cert_dir) != NULL && mkdtemp(voms_dir) != NULL);
+    setenv("X509_CERT_DIR", cert_dir, 1);
+    setenv("X509_VOMS_DIR", voms_dir, 1);
+    s = render(with_ext, NULL);
+    check_fixture_facts(s);
+    CHECK(count(s, "      VOMS:  NOT verified: ") == 1);
+    CHECK(!has(s, "      VOMS:  verified\n"));
+    CHECK(!has(s, "unverified"));
+    free(s);
+    rmdir(cert_dir);
+    rmdir(voms_dir);
 }
 
 int
 main(void)
 {
-    char *s;
+    X509 *plain = make_cert(NULL, 0);
+    X509 *with_ext = make_cert(VOMS_AC_FIXTURE, (int) VOMS_AC_FIXTURE_LEN);
 
-    /* ---- der_tlv: short form, long form, truncation ---- */
-    {
-        /* SEQUENCE (0x30) len 2, content {0x04,0x00} */
-        const unsigned char a[] = { 0x30, 0x02, 0x04, 0x00 };
-        int pos = 0, tag = 0, vlen = 0;
-        CHECK(der_tlv(a, sizeof(a), &pos, &tag, &vlen) == 0);
-        CHECK(tag == 0x30 && vlen == 2 && pos == 2);
+    test_leaf_decodes(with_ext);
+    test_chain_member_decodes(plain, with_ext);
+    test_no_extension(plain);
+    test_truncated();
+    test_not_holder_is_rejected(with_ext);
 
-        /* long form: 0x82 0x01 0x00 => len 256, but buffer too short => -1 */
-        const unsigned char b[] = { 0x04, 0x82, 0x01, 0x00 };
-        pos = 0;
-        CHECK(der_tlv(b, sizeof(b), &pos, &tag, &vlen) == -1);
-
-        /* truncated header */
-        const unsigned char c[] = { 0x04 };
-        pos = 0;
-        CHECK(der_tlv(c, sizeof(c), &pos, &tag, &vlen) == -1);
-    }
-
-    /* ---- voms_is_fqan: accepts real FQAN, rejects URI / binary / '//' ---- */
-    {
-        const char *f = "/lhcb/Role=user/Capability=NULL";
-        CHECK(voms_is_fqan(f, (int) strlen(f)) == 1);
-        const char *u = "lhcb://voms-lhcb-auth.cern.ch:4430";
-        CHECK(voms_is_fqan(u, (int) strlen(u)) == 0);      /* no leading '/' */
-        const char *dd = "//voms-lhcb-auth.cern.ch:4430";
-        CHECK(voms_is_fqan(dd, (int) strlen(dd)) == 0);    /* leading '//' */
-        const char *colon = "/lhcb:4430";
-        CHECK(voms_is_fqan(colon, (int) strlen(colon)) == 0); /* ':' banned */
-        const char bin[] = { '/', 'x', 0x01, 'y' };
-        CHECK(voms_is_fqan(bin, 4) == 0);                  /* non-printable */
-        CHECK(voms_is_fqan("/", 1) == 0);                  /* too short */
-    }
-
-    /* ---- the real AC: exactly the two FQANs, no URI/junk ---- */
-    s = scan(VOMS_AC_FIXTURE, (int) VOMS_AC_FIXTURE_LEN);
-    CHECK(has(s, "/lhcb/Role=user/Capability=NULL"));
-    CHECK(has(s, "/lhcb/Role=NULL/Capability=NULL"));
-    CHECK(count(s, "      VOMS:  ") == 2);                 /* exactly two lines */
-    /* none of the blind-scan noise the old parser emitted */
-    CHECK(!has(s, "voms-lhcb-auth"));                      /* policyAuthority URI */
-    CHECK(!has(s, "cafiles.cern.ch"));                     /* signer CRL/AIA URI */
-    CHECK(!has(s, "ocsp.cern.ch"));                        /* signer OCSP URI */
-    CHECK(!has(s, "ldap:"));                               /* signer LDAP CRL URI */
-    CHECK(!has(s, "Capability=NULL0"));                    /* trailing tag byte */
-    CHECK(!has(s, ":4430"));                               /* URI port over-read */
-    CHECK(!has(s, "present (no FQAN decoded)"));           /* we DID decode */
-    free(s);
-
-    /* ---- degenerate inputs: no crash, graceful note ---- */
-    s = scan(NULL, 0);
-    CHECK(has(s, "present (no FQAN decoded)"));
-    free(s);
-    s = scan(VOMS_AC_FIXTURE, 0);
-    CHECK(has(s, "present (no FQAN decoded)"));
-    free(s);
-    {
-        /* an AC with the FQAN OID but a truncated SET => no FQANs, graceful */
-        const unsigned char oid_only[] = {
-            0x06, 0x0a, 0x2b, 0x06, 0x01, 0x04, 0x01, 0xbe, 0x45, 0x64, 0x64,
-            0x04, 0x31              /* SET tag with no length/content */
-        };
-        s = scan(oid_only, (int) sizeof(oid_only));
-        CHECK(has(s, "present (no FQAN decoded)"));
-        free(s);
-    }
-
+    X509_free(plain);
+    X509_free(with_ext);
     if (g_fail) {
         printf("%d CHECK(s) FAILED\n", g_fail);
         return 1;

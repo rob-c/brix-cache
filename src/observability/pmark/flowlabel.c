@@ -26,8 +26,9 @@
 #include "observability/metrics/metrics.h"
 #include "observability/metrics/metrics_macros.h"
 #include "core/compat/log_diag.h"
+#include "platform/platform_api.h"
 
-#if defined(__linux__)
+#if BRIX_HAS_IPV6_FLOWLABEL
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -188,29 +189,42 @@ brix_pmark_flowlabel_apply_addr(int fd, const struct sockaddr *dst,
     return pmark_flowlabel_lease(fd, &sin6->sin6_addr, exp, act, log);
 }
 
-#else  /* !__linux__ */
+#else  /* !BRIX_HAS_IPV6_FLOWLABEL */
+
+/* Per-worker one-time notice, like the Linux probe: an IPv6 flow that leases
+ * no label must be explained somewhere, and the log is the only place
+ * (DEFECT #74) — the message text is pinned by the audit suite. */
+static int  pmark_fl_reported;
 
 ngx_int_t
 brix_pmark_flowlabel_usable(ngx_log_t *log)
 {
-    (void) log;
+    if (!pmark_fl_reported) {
+        pmark_fl_reported = 1;
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "pmark: IPv6 flow-label marking unavailable "
+            "(no IPV6_FLOWLABEL_MGR on this platform); firefly-only");
+    }
     return NGX_DECLINED;
 }
 
+/* Both entry points run the (one-time, logging) probe exactly as the Linux
+ * implementation does before attempting a lease, so an operator reading the
+ * log learns why no label was leased. */
 ngx_int_t
 brix_pmark_flowlabel_apply(ngx_connection_t *c, int fd, ngx_uint_t exp,
     ngx_uint_t act, ngx_log_t *log)
 {
-    (void) c; (void) fd; (void) exp; (void) act; (void) log;
-    return NGX_DECLINED;
+    (void) c; (void) fd; (void) exp; (void) act;
+    return brix_pmark_flowlabel_usable(log);
 }
 
 ngx_int_t
 brix_pmark_flowlabel_apply_addr(int fd, const struct sockaddr *dst,
     socklen_t dstlen, ngx_uint_t exp, ngx_uint_t act, ngx_log_t *log)
 {
-    (void) fd; (void) dst; (void) dstlen; (void) exp; (void) act; (void) log;
-    return NGX_DECLINED;
+    (void) fd; (void) dst; (void) dstlen; (void) exp; (void) act;
+    return brix_pmark_flowlabel_usable(log);
 }
 
-#endif
+#endif /* BRIX_HAS_IPV6_FLOWLABEL */

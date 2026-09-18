@@ -22,6 +22,7 @@ libfuse3, Linux 6.18) — nothing is guessed.
 """
 
 import ctypes
+import ctypes.util
 import errno
 import hashlib
 import os
@@ -55,16 +56,17 @@ XATTR_NAMES = ("user.fqrn", "user.revision", "user.root_hash", "user.host",
 DIR_XATTR_NAMES = ("user.fqrn", "user.revision", "user.root_hash", "user.host",
                    "user.proxy")
 
-import shutil  # noqa: E402
+from lib_py import fuse_host  # noqa: E402
 from settings import HOST
 
-_FUSE_READY = (os.path.exists("/dev/fuse")
-               and shutil.which("fusermount3") is not None
-               and os.path.exists(BRIXMOUNT))
+_FUSE_READY = fuse_host.FUSE_READY and os.path.exists(BRIXMOUNT)
 pytestmark = pytest.mark.skipif(not _FUSE_READY,
                                 reason="fuse mount prerequisites missing")
 
-libc = ctypes.CDLL("libc.so.6", use_errno=True)
+# glibc's soname on Linux; macOS/BSD resolve "c" to libSystem / libc.dylib.
+libc = ctypes.CDLL(ctypes.util.find_library("c")
+                  or ("libc.dylib" if sys.platform == "darwin" else "libc.so.6"),
+                  use_errno=True)
 
 
 # ---- module-scoped forge + mock + mount -----------------------------------

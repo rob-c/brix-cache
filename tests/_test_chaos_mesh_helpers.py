@@ -218,18 +218,9 @@ def _reload_nginx_instance(name: str, port: int) -> None:
 
 def _get_pids_on_port(port: int):
     """Return PIDs of processes listening on the given TCP port."""
-    import subprocess as _sp
-    result = _sp.run(
-        ["ss", "-tlnp", f"sport = :{port}"],
-        capture_output=True, text=True,
-    )
-    pids = []
-    for line in result.stdout.splitlines():
-        if f":{port}" in line and "pid=" in line:
-            import re
-            for m in re.finditer(r"pid=(\d+)", line):
-                pids.append(int(m.group(1)))
-    return pids
+    from lib_py.util import pids_on_port  # ss(8), or lsof where ss is absent
+
+    return pids_on_port(port)
 
 
 def _restart_nginx_instance(name: str, port: int):

@@ -11,7 +11,7 @@ Every dependency, every compile flag, and the full test-harness setup — on one
 ```bash
 sudo dnf install -y gcc make pcre2-devel zlib-devel openssl-devel \
     xrootd-client xrootd-server \
-    voms-libs curl \
+    curl \
     python3 python3-pip
 ```
 
@@ -20,7 +20,7 @@ sudo dnf install -y gcc make pcre2-devel zlib-devel openssl-devel \
 ```bash
 sudo apt install -y build-essential libpcre2-dev zlib1g-dev libssl-dev \
     xrootd-client xrootd-server \
-    libvomsapi1 curl \
+    curl \
     python3 python3-pip python3-venv
 ```
 
@@ -32,21 +32,12 @@ Key packages and why they are needed:
 | `pcre2-devel` / `libpcre2-dev` | Regular expressions (nginx core) |
 | `zlib-devel` / `zlib1g-dev` | gzip compression (nginx core) |
 | `openssl-devel` / `libssl-dev` | TLS and x509 certificate handling (GSI auth, WebDAV) |
-| `voms-libs` / `libvomsapi1` | `libvomsapi.so.1` runtime library (VO ACL enforcement via dlopen) |
 | `xrootd-client` | `xrdcp`, `xrdfs` command-line tools for testing |
 | `xrootd-server` | Reference `xrootd` daemon for interoperability tests |
 | `curl` | Runtime helper for optional HTTP-TPC WebDAV COPY pulls |
 | Python `cryptography` | Test PKI, proxy, CRL, and JWT token generation |
 
-VOMS support is loaded at runtime via `dlopen("libvomsapi.so.1")` — no compile-time VOMS headers or link flags are needed. If the library is present at startup, VO ACL enforcement is available; if absent, the module starts normally but `brix_require_vo` directives will fail with an error telling you to install `voms-libs` (EL9) or `libvomsapi1` (Debian/Ubuntu). See [pki.md](../06-authentication/pki-config.md) for the VOMS attribute certificate model and vomsdir/LSC file setup.
-
-Verify `libvomsapi` is installed:
-
-```bash
-ls /usr/lib64/libvomsapi.so.1   # EL9
-# or
-ldconfig -p | grep libvomsapi   # any distro
-```
+VOMS support is built in: attribute certificates are decoded and verified natively (`shared/voms/`, plain C over OpenSSL), so no VOMS headers, link flags or runtime library are needed and `brix_require_vo` works on every host the module builds on. See [pki.md](../06-authentication/pki-config.md) and [certificates.md](../06-authentication/certificates.md) §VOMS for the attribute certificate model and vomsdir/LSC file setup.
 
 ---
 
@@ -120,7 +111,7 @@ The module's `config` script (at the root of this repository) runs automatically
 - Registers the **stream** modules: `ngx_stream_brix_module` for native XRootD and `ngx_stream_brix_cms_srv_module` for the CMS management listener
 - Registers the **HTTP** modules: `ngx_http_brix_metrics_module` (Prometheus), `ngx_http_brix_webdav_module` (WebDAV), and `ngx_http_brix_s3_module` (S3-compatible HTTP)
 - Links `-lssl -lcrypto` for OpenSSL/GSI support
-- VOMS support requires no compile-time flags — `libvomsapi.so.1` is loaded at runtime via `dlopen`
+- VOMS support requires no compile-time flags and no runtime library — the native verifier in `shared/voms/` is part of the module sources
 
 ### Optional performance profile (opt-in)
 
@@ -164,14 +155,7 @@ must be enabled on both the compile and link steps.
 
 ### Verifying VOMS at runtime
 
-After starting nginx, check the error log for the VOMS load message:
-
-```bash
-grep libvomsapi /tmp/xrd-test/logs/error.log
-# Expected: xrootd: libvomsapi.so.1 loaded — VOMS VO ACL enforcement available
-```
-
-If you see `libvomsapi.so.1 not found — VOMS VO ACL enforcement disabled` instead, install `voms-libs` (EL9) or `libvomsapi1` (Debian/Ubuntu). The binary itself has no link-time dependency on VOMS — `ldd objs/nginx | grep voms` should return nothing.
+There is nothing to load: the verifier is compiled in. A configuration with `brix_require_vo`, `brix_vomsdir` and `brix_voms_cert_dir` passes `nginx -t` on any host, and `ldd objs/nginx | grep voms` returns nothing. To exercise the verifier itself, run the C unit suite (`PYTHONPATH=tests pytest tests/test_voms_native_ac_unit.py`) or the end-to-end VO ACL tests below.
 
 ---
 
@@ -443,8 +427,8 @@ pytest tests/test_write.py tests/test_readv.py -v
 # GSI authentication and bridge transfers
 pytest tests/test_gsi_bridge.py -v
 
-# VO ACL enforcement (requires libvomsapi.so.1 at runtime)
-pytest tests/test_vo_acl.py -v
+# VO ACL enforcement (native VOMS verifier — no runtime library)
+pytest tests/test_vo_acl.py tests/test_voms_native_ac.py -v
 
 # Token auth
 pytest tests/test_token_auth.py -v
@@ -490,12 +474,9 @@ pytest -v
 
 ## 10. Build options reference
 
-### VOMS support (runtime, via dlopen)
+### VOMS support (native, always available)
 
-VOMS support is always compiled in but loaded at runtime. The module calls `dlopen("libvomsapi.so.1")` during nginx startup and resolves the four API symbols it needs (`VOMS_Init`, `VOMS_Retrieve`, `VOMS_Destroy`, `VOMS_ErrorMessage`). No compile-time VOMS headers or link flags are required.
-
-- **If `libvomsapi.so.1` is present** (e.g. from `voms-libs` on EL9): VO ACL enforcement is available. The startup log shows `xrootd: libvomsapi.so.1 loaded — VOMS VO ACL enforcement available`.
-- **If `libvomsapi.so.1` is absent**: The module starts normally. `brix_vomsdir`, `brix_voms_cert_dir`, and `brix_require_vo` directives are still accepted by the config parser, but validation will fail at startup with a clear error message asking you to install the runtime library.
+VOMS attribute certificates are decoded and verified by `shared/voms/` — plain C over OpenSSL >= 3.0 compiled into the module (and into the client). No compile-time VOMS headers, link flags or runtime library are involved: `brix_vomsdir`, `brix_voms_cert_dir` and `brix_require_vo` are honoured on every host, including macOS. The checks performed (holder binding, validity window, signature by the embedded VOMS server certificate, issuer match, signer chain against `brix_voms_cert_dir`, vomsdir LSC match) are listed in [certificates.md](../06-authentication/certificates.md) §VOMS.
 
 ### Debug build
 

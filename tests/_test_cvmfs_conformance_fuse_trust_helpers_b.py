@@ -14,7 +14,7 @@ Driver
 ------
 Two probes, matching how a real operator would triage a repo:
   * ``brixcvmfs --check <fqrn>`` — verifies the whole trust chain + root catalog
-    WITHOUT mounting (fast, no /dev/fuse). Exit 0 = healthy, nonzero + a
+    WITHOUT mounting (fast, no FUSE mount). Exit 0 = healthy, nonzero + a
     ``trust/catalog error -N`` diagnostic on tamper. The full tamper matrix is
     driven here, concurrently (each ``--check`` on a persistent tamper pays the
     client's ~10 s trust-chain retry-with-backoff, so the matrix runs in a thread

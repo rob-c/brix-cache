@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/sysmacros.h>
+#include "platform/platform_api.h"   /* PAL: major()/minor()/makedev() on every host */
 #include <time.h>
 
 #define SGZ_TOC_CAP0 (64u * 1024u)

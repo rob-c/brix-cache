@@ -32,8 +32,14 @@ from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
 from test_phase25_ratelimit import (
     _xrd_stat, _xrd_open, KXR_WAIT, KXR_OK,
 )
+from lib_py.util import loopback_alias_usable
 
-pytestmark = [pytest.mark.uses_lifecycle_harness,
+pytestmark = [
+    pytest.mark.skipif(
+        not loopback_alias_usable("127.0.0.2"),
+        reason="127.0.0.2 is not bindable on this host (the second client identity); "
+               "sudo ifconfig lo0 alias 127.0.0.2 up"),
+pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-negcache")]
 
 

@@ -19,6 +19,7 @@
 
 #include <stddef.h>
 
+#include "platform/platform_api.h"   /* BRIX_WEAK_REF */
 #include "cvmfs/publish/changeset.h"
 #include "oci/digest.h"
 #include "brixcvmfs_errline.h"
@@ -168,8 +169,8 @@ void bci_root_forget(const char *repo, const char *prefix, const char *digest);
  * lane) works without the registry stack; the umbrella links all three. */
 int brixcvmfs_ingest_main(int argc, char **argv);   /* argv[0] = "ingest" */
 int bci_image_main(int argc, char **argv)           /* brixcvmfs_ingest_image.c */
-    __attribute__((weak));
+    BRIX_WEAK_REF;
 int bci_prune_main(int argc, char **argv)           /* brixcvmfs_ingest_prune.c */
-    __attribute__((weak));
+    BRIX_WEAK_REF;
 
 #endif /* BRIXCVMFS_INGEST_INTERNAL_H */

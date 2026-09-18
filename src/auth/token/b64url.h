@@ -2,13 +2,8 @@
 #define TOKEN_B64URL_H
 #include <stddef.h>
 #include <stdint.h>
-#if !defined(_SSIZE_T_DEFINED) && !defined(__ssize_t_defined) && !defined(__ssize_t)
-# if defined(_WIN32) || defined(_WIN64)
-typedef long ssize_t;
-# else
-#  include <sys/types.h>
-# endif
-#endif
+#include <sys/types.h>
+#include "platform/platform_api.h"   /* ssize_t on Windows */
 ssize_t b64url_decode(const char *in, size_t in_len, uint8_t *out, size_t out_max);
 /* Decodes base64url-encoded input (RFC 4648 URL-safe variant) into raw binary.
  * in:       base64url string to decode

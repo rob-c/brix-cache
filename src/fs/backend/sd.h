@@ -186,6 +186,11 @@ struct brix_sd_obj_s {
      * pool (e.g. POSIX) leave it 0. The per-open `state` is always released by
      * driver->close, independent of this flag. */
     unsigned                  heap_shell:1;
+    /* 1 iff the open carried BRIX_SD_O_APPEND. Linux pwrite(2) ignores the
+     * offset on an O_APPEND fd and appends (documented in its BUGS section);
+     * macOS/BSD honour the offset, so the POSIX driver's pwrite must route an
+     * append handle through write(2) there to keep one wire semantic. */
+    unsigned                  append:1;
     /* BRIX_SD_CACHE_OUTCOME_* verdict for this read-open (sd_cache only). */
     unsigned                  cache_outcome:2;
     /* Logical bytes the cache decorator evicted invalidating this path on a

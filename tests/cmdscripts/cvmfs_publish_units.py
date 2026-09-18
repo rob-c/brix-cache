@@ -12,7 +12,7 @@ from pathlib import Path
 
 from cmdscripts.compile_run import REPO_ROOT, compile_binary, result, run
 
-_COMMON = ["-Wall", "-Wextra", "-Werror", "-I", "shared"]
+_COMMON = ["-Wall", "-Wextra", "-Werror", "-I", "shared", "-I", "src"]
 
 _UNITS = {
     "cvmfs_sign_ut": (

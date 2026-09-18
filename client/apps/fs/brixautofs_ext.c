@@ -27,11 +27,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+
+#include "platform/platform.h"   /* PAL: brix_plat_umount_expire */
 
 /* ---- lifecycle: signals, reaper, idle expiry, teardown ------------------ */
 
@@ -119,10 +120,11 @@ static void *af_control_thread(void *arg) {
     }
 }
 
-/* Idle expiry (root only): umount2(MNT_EXPIRE) two-phase — first call marks
- * (EAGAIN), an untouched repo expires on the next tick (0), any access in
- * between clears the mark in-kernel. The reaper frees the slot when the
- * child exits after its session ends. EPERM ⇒ no CAP_SYS_ADMIN ⇒ disable. */
+/* Idle expiry (root only): brix_plat_umount_expire two-phase — first call
+ * marks (EAGAIN), an untouched repo expires on the next tick (0), any access
+ * in between clears the mark in-kernel. The reaper frees the slot when the
+ * child exits after its session ends. EPERM ⇒ no CAP_SYS_ADMIN, or a host
+ * without expiry (Darwin) ⇒ disable. */
 static void *af_idle_thread(void *arg) {
     (void) arg;
     unsigned tick = (unsigned) g_af.o.idle_s / 2;
@@ -140,7 +142,7 @@ static void *af_idle_thread(void *arg) {
         for (int i = 0; i < n; i++) {
             char mntpath[768];
             af_child_path(repos[i], mntpath, sizeof(mntpath));
-            if (umount2(mntpath, MNT_EXPIRE) == 0) {
+            if (brix_plat_umount_expire(mntpath) == 0) {
                 af_log("idle-expired %s", repos[i]);
             } else if (errno == EPERM) {
                 af_log("idle expiry needs CAP_SYS_ADMIN — disabled");
@@ -281,9 +283,11 @@ static int
 af_fuse_bringup(char *argv0)
 {
     char oarg[600];
-    snprintf(oarg, sizeof(oarg), "fsname=brixautofs,subtype=cvmfs%s%s%s",
+    const char *host_opts = brix_plat_fuse_host_opts();   /* e.g. macFUSE noappledouble */
+    snprintf(oarg, sizeof(oarg), "fsname=brixautofs,subtype=cvmfs%s%s%s%s%s",
              g_af.o.allow_other ? ",allow_other" : "",
-             g_af.o.fuse_extra[0] ? "," : "", g_af.o.fuse_extra);
+             g_af.o.fuse_extra[0] ? "," : "", g_af.o.fuse_extra,
+             host_opts ? "," : "", host_opts ? host_opts : "");
     char *fargv[8];
     int fargc = 0;
     fargv[fargc++] = argv0;

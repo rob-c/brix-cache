@@ -81,11 +81,9 @@ sudo dnf install -y xrootd-client python3-pytest python3-pytest-timeout \
   python3-pytest-xdist python3-requests
 ```
 
-**VOMS name caveat (EL9) — FIXED in the spec, see §2d.** The C VOMS library ships as
-`voms-libs` on EL8 but as **`voms`** on EL9+; both Provide `libvomsapi.so.1()(64bit)`,
-the `.so` the module `dlopen`s at runtime (`config` line 4). The `voms` package is
-already installed here. The spec originally hardcoded `Requires: voms-libs`, which does
-not resolve on EL9; it now requires the soname directly.
+**VOMS.** No `voms` / `voms-libs` package is needed on any EL release: VOMS attribute
+certificates are verified natively by the module (`shared/voms/`), and the spec carries
+no VOMS dependency (§2d records the earlier soname workaround that this superseded).
 
 ### 1d. Ubuntu 24.04 source-build and test dependencies
 
@@ -102,7 +100,7 @@ sudo apt-get install -y \
   xrootd-voms-plugins bubblewrap gfal2-util-scripts gfal2-plugin-xrootd \
   python3-venv python3-pytest python3-pytest-timeout python3-pytest-xdist \
   python3-brotli python3-cryptography python3-requests python3-zstandard python3-xrootd \
-  krb5-kdc krb5-admin-server libvomsapi1t64 haproxy
+  krb5-kdc krb5-admin-server haproxy
 ```
 
 `libzstd-dev` and `libbrotli-dev` are required build dependencies: the module
@@ -112,9 +110,8 @@ enables the `brix_seccomp audit|enforce` integration coverage; without it those
 modes correctly refuse to start. `liburing-dev` enables the optional io_uring
 client and its full-coverage test lane. The remaining runtime services/libraries are
 required by the integration fleet:
-Kerberos test realms use `krb5-kdc` and `krb5-admin-server`, VOMS support loads
-`libvomsapi.so.1` (provided by `libvomsapi1t64` on Ubuntu 24.04), and HAProxy is
-used by the proxy scenarios. `python3-xrootd` is required for tests using real
+Kerberos test realms use `krb5-kdc` and `krb5-admin-server`, and HAProxy is
+used by the proxy scenarios (VOMS needs no package: the verifier is native). `python3-xrootd` is required for tests using real
 XRootD Python bindings. `gfal2-util-scripts` and `gfal2-plugin-xrootd` provide
 the independent GFAL2 XRootD client used by the differential conformance lane.
 The forwarding matrix also needs `xrootd-scitokens-plugins` for stock XRootD
@@ -539,9 +536,10 @@ to start clean.
 Both fixes verified by a clean rebuild (exit 0): the RPM compiles the striper backend and
 its VOMS dependency resolves against the installed `voms` package.
 
-> These edits are uncommitted. `docs/03-configuration/packaging/rpm/README.md` still describes the old
-> `voms-libs` dependency in prose and may deserve a follow-up doc pass, but the
-> build-governing spec is now correct.
+> Superseded: the module no longer dlopens any VOMS library — attribute
+> certificates are verified natively (`shared/voms/`) and the spec has no VOMS
+> `Requires:` line at all. §2b–2d above are the recorded validation of that
+> earlier build and are kept as history.
 
 ---
 
@@ -1235,3 +1233,128 @@ during fleet cleanup and also remains failed. Gateway upload fanout is still
 unresolved. Final full-suite, coverage and separately scheduled live results
 remain outstanding, and the analyzer limitations above remain open. Local
 `main` remains unpushed.
+
+## 12. macOS source build via Homebrew — 2026-09-15
+
+Dependency audit for building the module and the native client on macOS.
+Host: macOS 15 (Darwin 24.6.0), x86_64, Homebrew 7.0.1 at `/usr/local`,
+Command Line Tools with pkg-config 3.0.7 (`pkgconf`). The step-by-step
+build is in `docs/01-getting-started/macos-quickstart.md`; this section
+records which libraries come from where.
+
+The module's `config` locates each library through `pkg-config`, so the
+question is which formulae put a usable `.pc` file on the default search
+path (`/usr/local/lib/pkgconfig` plus Homebrew's macOS SDK shim directory).
+
+### 12a. Required from Homebrew
+
+```bash
+brew install pkgconf openssl@3 pcre2 zstd brotli jansson krb5
+export PKG_CONFIG_PATH="$(brew --prefix krb5)/lib/pkgconfig"
+```
+
+| `pkg-config` name | Formula | Verified version | Role |
+|---|---|---|---|
+| `openssl` | `openssl@3` | 3.6.4 | required, must be >= 3.0 |
+| `libpcre2-8` | `pcre2` | 10.48 | nginx core |
+| `libzstd` | `zstd` | 1.5.7 | mandatory codec |
+| `libbrotlienc`/`libbrotlidec` | `brotli` | 1.2.0 | mandatory codec |
+| `jansson` | `jansson` | 2.15.1 | required |
+| `krb5`/`krb5-gssapi` | `krb5` | 1.22.2 | keg-only, needs `PKG_CONFIG_PATH` |
+
+**krb5 is the one trap.** Homebrew's `krb5` is keg-only, so without
+`PKG_CONFIG_PATH` the `pkg-config --exists krb5` probe fails and `config`
+falls back to `/usr/bin/krb5-config`. That binary is Apple's Heimdal
+("Kerberos 5 release 1.7-prerelease") and `krb5-config --libs gssapi`
+returns only `-lkrb5`, so the MIT GSSAPI symbols the plugin uses are never
+linked. With the keg on the path the probe yields
+`-lgssapi_krb5 -lkrb5 -lk5crypto -lcom_err` as on Linux.
+
+### 12b. Optional from Homebrew
+
+| `pkg-config` name | Formula | Verified version | Role |
+|---|---|---|---|
+| `liblzma` | `xz` | 5.8.3 | lzma codec |
+| `liblz4` | `lz4` | 1.10.0 | lz4 codec |
+| `fuse3` | `macfuse` (cask) | 3.18.2 | client FUSE mounts; installs `/usr/local/lib/pkgconfig/fuse3.pc` |
+| — | `xrootd` | — | reference `xrdcp`/`xrdfs` for differential tests |
+
+### 12c. Satisfied by the macOS SDK
+
+`zlib` (1.2.12), `bzip2` (1.0.8), `libxml-2.0` (2.9.13), `libcurl` (8.7.1)
+and `sqlite3` (3.43.2) all resolve through Homebrew's SDK shim
+`.pc` directory without any formula. The corresponding formulae (`zlib`,
+`bzip2`, `libxml2`, `curl`, `sqlite`) are keg-only and are not needed;
+installing them has no effect unless their kegs are also added to
+`PKG_CONFIG_PATH`.
+
+### 12d. Linux-only, no Homebrew equivalent
+
+`liburing`, `libseccomp`, `librados`, `libradosstriper` and `libcephfs` do
+not exist for macOS. `config` disables io_uring, seccomp and the Ceph
+backend when their probes fail; the `BRIX_ENABLE_IO_URING` /
+`BRIX_WITHOUT_CEPH` switches are not required. The `brix-tools` Ceph
+migration utilities and the XrdCeph client tools cannot be built on macOS.
+
+### 12e. Status — first macOS build and fleet run (2026-09-15)
+
+The module, the native client and the pytest fleet now build and run on
+this host. As recorded in §9 native macOS builds are still not certified
+by the Alma9 validation; what follows is the state of the port, not a
+certification.
+
+**Build.** `./configure --add-module=$REPO` against nginx 1.28.3 with the
+§12a environment; `make` links `objs/nginx` (5.1 MB). `objs/nginx -t`
+without `-c` fails only because `/usr/local/nginx/conf/nginx.conf` does
+not exist on a source build — test with a fleet config
+(`objs/nginx -t -p <prefix> -c conf/nginx.conf`).
+
+**Fleet.** `python3 -m cmdscripts.manage_test_servers start-all` boots
+every registered member, `vo-acl` included: `brix_require_vo` is served by
+the native VOMS verifier (`shared/voms/`), so it no longer needs a library
+macOS lacks. `tests/brix_suite/host_caps.py` still drops any member whose
+third-party daemon binary is missing instead of letting one launch failure
+abort the collection-time barrier; tests that declare such a member are
+skipped with the reason.
+
+**Darwin defects fixed while bringing the suite up.** Each one was
+invisible in the error log and only showed as a test failure:
+
+| Area | Symptom on macOS | Fix |
+|---|---|---|
+| WebDAV / HTTP plane | Every `brix_webdav` request answered by nginx's static handler (plain 404/405); `nginx -t` clean | Six `#if !defined(__APPLE__)` "Phase 3" stubs (`src/protocols/webdav/{postconfig,postconfig_proxy_capath,module_directives_cert,auth_cert}.c`, `src/observability/dashboard/files.c`, `src/auth/krb5/carry.c`) compiled no-op bodies, so the postconfiguration never installed the phase handlers. Stubs removed; the real code builds against Homebrew MIT krb5 and nginx's SSL module. |
+| Path confinement | `GET /brix/api/v1/download?path=../secret.txt` served the file (and every `brix_*_beneath` caller was unconfined) | `src/fs/path/beneath.c`: the Darwin arm was a bare `openat(2)`. Replaced by `brix_plat_openat2()` (`src/platform/darwin/path_wrapper.c`, `darwin_openat_resolve()`), a component walk emulating `RESOLVE_BENEATH` / `RESOLVE_IN_ROOT` / `RESOLVE_NO_SYMLINKS` (EXDEV / ELOOP verdicts as on Linux). |
+| Atomic rename | create-if-absent and exchange renames failed closed with `ENOTSUP` | `renameatx_np(RENAME_EXCL)` / `renameatx_np(RENAME_SWAP)` in the Darwin arms of `brix_renameat_noreplace_fallback` / `beneath_two_path`. |
+| `kXR_open_apnd` | A write at offset 0 on an append handle overwrote the head of the file | Darwin `pwrite(2)` honours the offset on an `O_APPEND` fd (Linux appends). `brix_sd_obj_t.append` + a `write(2)` path in `sd_posix_pwrite` keeps the wire semantic. |
+| Dashboard file browser | `statx(2)` does not exist | `dashboard_entry_stat()` helper: `statx` on Linux, `fstatat` + `st_birthtimespec` elsewhere. |
+| Credential store | no `/dev/shm` | default store is `/tmp/brix-creds` on Darwin (`shared_conf.h`, `cred_stage.c`). |
+
+**Harness gaps closed.** No `/proc` (pid checks use `ps`), no `ss`
+(`lsof`-backed listener table), helper scripts launched as bare `python3`
+(Homebrew's interpreter has no `cryptography`; they now use
+`sys.executable`), stock xrdcp 6.x rejecting `--allow-http` and lacking a
+plugin config for `libXrdClHttp` (probed and generated by
+`test_a_webdav_clients.py`), an unresolvable hostname aborting the
+interop pair launcher, and the xrdcl worker probe caching a transient
+spawn failure for the whole session.
+
+**Known open items on macOS.** `nginx` workers log
+`impersonate: worker capset failed (78: Function not implemented)` on
+every start (no Linux capabilities; impersonation is effectively off);
+each worker logs `open socket #10 left in connection 1` at shutdown (a
+pipe registered as a connection is not closed on exit — cosmetic);
+`fleet restart` once raced its own PKI regeneration
+(`python3 fleet_prep.py` then `start-all` recovers); stock xrootd daemons
+survive `stop-all` (`pkill -f /tmp/xrd-test`).
+
+**Recorded runs (2026-09-15, attached to a `start-all` fleet).**
+
+| Run | Files | Result |
+|---|---|---|
+| Core slice (write/readv/dirlist/checksum/credential-dir/open-flags/aio/acc + dashboard files, WebDAV clients, delegation two-step) | 11 | 78 passed, 5 failed before the confinement / xrdcp fixes; 75 passed, 3 failed after (remaining 3 were the 0000-mode stat, fixed next) |
+| Confinement parity (`test_conf_stattypes*.py` interop pair vs stock xrootd 6.1.1, `test_dashboard_files.py`) | 3 | 116 passed, 1 skipped |
+| Broad sample, every 5th test file | 291 | 2106 passed, 100 failed, 392 skipped, 2282 errors in 1h27m — **contaminated**: 42 minutes in, a concurrent `operator_runtime suite --fast -n 6` run from another terminal took fleet ownership, wiped `/tmp/xrd-test` (including pytest's basetemp) and restarted the fleet. The 16 files that completed before that point passed except `test_audit15f_cms_node_legs.py` (5: CMS perf-feed / dial-timeout expectations), `test_audit15h_dashboard_session_ttl.py` (3: no session cookie issued) and `test_audit15h_tpc_lifetime.py` (1: reads `/proc`). |
+
+Two sessions must not both own the fleet: check
+`ps -axo pid,lstart,command | grep -E 'pytest|operator_runtime'` before a
+`start-all`/`stop-all` or a long sweep on a shared host.

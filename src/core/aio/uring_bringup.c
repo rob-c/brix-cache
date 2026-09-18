@@ -4,7 +4,7 @@
 #include "uring_internal.h"
 
 #if (BRIX_HAVE_LIBURING)
-#include <sys/eventfd.h>
+#include "platform/platform_api.h"   /* brix_plat_wakefd_open (eventfd) */
 #include <unistd.h>
 #include <poll.h>
 
@@ -126,8 +126,9 @@ uring_setup_rings(brix_uring_t *u, ngx_uint_t want_restrict)
      * explicitly allowed, and while the ring is R_DISABLED register ops are
      * permitted — so this must happen here, not after enable.
      */
-    u->eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-    if (u->eventfd < 0) {
+    int wfd;
+    if (brix_plat_wakefd_open(&u->eventfd, &wfd,
+                              BRIX_EVENTFD_NONBLOCK | BRIX_EVENTFD_CLOEXEC) != 0) {
         return "eventfd";
     }
     if (io_uring_register_eventfd(&u->ring, u->eventfd) < 0) {

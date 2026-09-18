@@ -116,11 +116,8 @@ def _strace_usable():
 
 
 def _worker_pids(port=PORT):
-    out = subprocess.run(
-        ["ss", "-tlnpH", f"sport = :{port}"],
-        capture_output=True, text=True,
-    ).stdout
-    return sorted(set(re.findall(r"pid=(\d+)", out)))
+    from lib_py.util import pids_on_port  # ss(8), or lsof where ss is absent
+    return sorted({str(pid) for pid in pids_on_port(port)})
 
 
 @pytest.mark.skipif(not _strace_usable(), reason="strace/ptrace not available")

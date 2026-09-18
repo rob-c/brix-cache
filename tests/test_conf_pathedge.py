@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_pathedge_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_pathedge")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_pathedge")]
 
 def test_oracle_stat_off(pair):
     rc, out, _ = fs(pair["off"], "stat", "/hello.txt")
@@ -352,6 +352,9 @@ def test_over_deep_nonexistent_path_not_found_both(pair):
 # =========================================================================== #
 def test_stat_case_wrong_not_found_both(pair):
     """stat '/HELLO.TXT' (only '/hello.txt' exists) -> not-found on both."""
+    if os.path.exists(os.path.join(pair["our_data"], "HELLO.TXT")):
+        pytest.skip("export filesystem folds case (APFS default): "
+                    "'/HELLO.TXT' resolves to hello.txt on both servers")
     o_rc = _stat_size(pair["our"], "/HELLO.TXT")[0]
     f_rc = _stat_size(pair["off"], "/HELLO.TXT")[0]
     assert (not _ok(o_rc)) and (not _ok(f_rc)), \
@@ -371,6 +374,9 @@ def test_stat_case_distinct_twins_both(pair):
 
 def test_stat_case_lower_of_upper_not_found_both(pair):
     """stat '/upper.txt' (only '/UPPER.TXT' exists) -> not-found on both."""
+    if os.path.exists(os.path.join(pair["our_data"], "upper.txt")):
+        pytest.skip("export filesystem folds case (APFS default): "
+                    "'/upper.txt' resolves to UPPER.TXT on both servers")
     o_rc = _stat_size(pair["our"], "/upper.txt")[0]
     f_rc = _stat_size(pair["off"], "/upper.txt")[0]
     assert (not _ok(o_rc)) and (not _ok(f_rc)), \

@@ -37,6 +37,12 @@ static ngx_conf_enum_t  brix_http_signing_policy_modes[] = {
     { ngx_string("require"), BRIX_SP_MODE_REQUIRE },
     { ngx_null_string, 0 }
 };
+static ngx_conf_enum_t  brix_http_legacy_proxy_modes[] = {
+    { ngx_string("off"),       BRIX_LEGACY_PROXY_OFF       },
+    { ngx_string("on"),        BRIX_LEGACY_PROXY_ON        },
+    { ngx_string("full-only"), BRIX_LEGACY_PROXY_FULL_ONLY },
+    { ngx_null_string, 0 }
+};
 static ngx_conf_enum_t  brix_http_crl_modes[] = {
     { ngx_string("off"),     BRIX_CRL_MODE_OFF     },
     { ngx_string("try"),     BRIX_CRL_MODE_TRY     },
@@ -372,6 +378,7 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_STR(crl);
     BRIX_ADOPT_VAL(signing_policy_mode, NGX_CONF_UNSET_UINT);
     BRIX_ADOPT_VAL(crl_mode,            NGX_CONF_UNSET_UINT);
+    BRIX_ADOPT_VAL(legacy_proxy_mode,   NGX_CONF_UNSET_UINT);
     /* 2.0 F19: xrd.tlsca residuals — CRL reach + verification-log level. */
     BRIX_ADOPT_VAL(crl_scope,           NGX_CONF_UNSET_UINT);
     BRIX_ADOPT_VAL(tls_verify_log,      NGX_CONF_UNSET_UINT);

@@ -91,6 +91,18 @@ typedef struct {
     int max_retries;   /* transport re-issues after a reconnect; < 0 ⇒ aconn default */
     int retry_safe;    /* 1 ⇒ idempotent + not handle-bound, so the engine may
                         * transparently re-issue it verbatim after a reconnect */
+    /* ---- optional caller-owned landing buffer (bulk reads) ----
+     * NULL (the default) ⇒ the engine mallocs the reply body, accumulates the
+     * oksofar frames into it and hands ownership to the callback, which frees it.
+     * Non-NULL ⇒ reply body bytes are read STRAIGHT off the socket into dst (no
+     * intermediate buffer, no malloc, no realloc growth), the callback receives
+     * body == dst and must NOT free it. dst must stay valid until the completion
+     * callback has run, and dst_cap must be >= the largest reply the request can
+     * produce — a server that sends more fails the connection rather than
+     * overrunning the buffer. This is what lets a bulk reader move a byte exactly
+     * once (socket → its own buffer → its sink) instead of three times. */
+    void    *dst;
+    uint32_t dst_cap;
 } brix_aio_opts;
 
 /* Submit with explicit options (see brix_aio_opts). opts may be NULL (⇒ adaptive

@@ -15,6 +15,7 @@
 #define _GNU_SOURCE          /* execvpe: PATH search + caller-supplied environ */
 #endif
 #include "xfer_spawn.h"
+#include "platform/platform_api.h"   /* brix_plat_execvpe */
 #include "../../core/types/tunables.h"
 
 #include <errno.h>
@@ -25,33 +26,6 @@
 #include <sys/syscall.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
-/* macOS lacks execvpe - provide compatibility wrapper */
-#if defined(__APPLE__) && defined(__MACH__)
-#include <spawn.h>
-#include <sys/wait.h>
-extern char **environ;
-
-static int brix_execvpe_compat(const char *file, char *const argv[], char *const envp[]) {
-    /* Use posix_spawn which searches PATH like execvpe */
-    pid_t pid;
-    int status;
-    
-    status = posix_spawn(&pid, file, NULL, NULL, argv, envp ? envp : environ);
-    if (status == 0) {
-        /* Child spawned successfully - wait for it to complete */
-        waitpid(pid, &status, 0);
-        if (WIFEXITED(status)) {
-            _exit(WEXITSTATUS(status));
-        }
-        _exit(127);
-    }
-    return -1;
-}
-#define execvpe(file, argv, envp) brix_execvpe_compat(file, argv, envp)
-#endif
-
-extern char **environ;
 
 /* Exit-code sentinels reported by the agent (kept within 0..255 so they never
  * collide with -1 "could not spawn"). */
@@ -140,8 +114,9 @@ xfer_spawn_agent(int result_fd, const char *const argv[], char *const envp[],
     if (child == 0) {
         xfer_spawn_close_inherited(fd_max);   /* the socketpair + every worker fd */
         /* execvpe: PATH search when argv[0] has no '/', matching the prior
-         * posix_spawnp; an absolute/relative path skips the search. */
-        execvpe(argv[0], (char *const *) argv, envp ? envp : environ);
+         * posix_spawnp; an absolute/relative path skips the search. The PAL
+         * substitutes the caller's environ when envp is NULL. */
+        brix_plat_execvpe(argv[0], (char *const *) argv, envp);
         _exit(XFER_SPAWN_EXEC_FAILED);
     }
 

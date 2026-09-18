@@ -23,6 +23,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "platform/platform_api.h"   /* BRIX_WEAK_REF */
 
 typedef int (*brix_driver_fn)(int argc, char **argv);
 
@@ -137,7 +138,7 @@ int brixcvmfs_rw_main(int argc, char **argv);
 int brixautofs_main(int argc, char **argv);
 int brixoci_main(int argc, char **argv);    /* apps/oci/brixoci.c */
 int brixrpm_main(int argc, char **argv);    /* apps/rpm/brixrpm.c */
-extern int xrootdfs_aio_main(int argc, char **argv) __attribute__((weak));
+extern int xrootdfs_aio_main(int argc, char **argv) BRIX_WEAK_REF;
 
 /* overlay subcommand cores (client/lib/fs/overlay.h — decls kept local so the
  * dispatch TU stays header-light for the mock-driver unit build) */

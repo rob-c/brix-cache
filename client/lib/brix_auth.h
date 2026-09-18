@@ -25,6 +25,14 @@ char *brix_token_discover(void);
  * (no signature verify). gsi cert: subject/issuer/notAfter + VOMS FQANs + skew. */
 void brix_token_explain(const char *jwt, FILE *out);
 void brix_gsi_cert_explain(const char *proxy_path, FILE *out);
+/* Narrate a proxy's VOMS extension (leaf + PEM chain; chain may be NULL) as
+ * "      VOMS:  ..." lines: FQANs, a per-VO summary and the shared native
+ * verifier's verdict under X509_CERT_DIR / X509_VOMS_DIR trust. Defined in
+ * credinfo_voms.c; the opaque forward-decls keep OpenSSL out of this header. */
+struct x509_st;
+struct stack_st_X509;
+void brix_credinfo_voms_explain(struct x509_st *leaf, struct stack_st_X509 *chain,
+                                FILE *out);
 
 /* Machine-readable bearer-token facts (validity + WLCG scope), for the auth-suite
  * to predict whether the server should allow/deny an op. No signature verify. */

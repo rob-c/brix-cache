@@ -59,7 +59,8 @@ int brix_plat_security_enter(const char *profile);
  * - Future: Implement via ImpersonateLoggedOnUser()
  *
  * @param uid User ID
- * @return 0 on success, -1 on error
+ * @return the previous filesystem uid (Linux setfsuid contract, so a
+ *         `(uid_t) -1` call reads the current value); -1 on error
  */
 int brix_plat_setfsuid(uid_t uid);
 
@@ -76,7 +77,7 @@ int brix_plat_setfsuid(uid_t uid);
  * - Future: Implement via token manipulation
  *
  * @param gid Group ID
- * @return 0 on success, -1 on error
+ * @return the previous filesystem gid (Linux setfsgid contract); -1 on error
  */
 int brix_plat_setfsgid(gid_t gid);
 

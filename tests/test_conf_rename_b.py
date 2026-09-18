@@ -16,7 +16,7 @@ def _check_test_wire_mv_cross_depth_ok_3(st, url):
 
 _reexport(globals(), "_test_conf_rename_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_rename_b")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_rename_b")]
 
 def test_confinement_mv_doubled_slash_dotdot(srv):
     """A doubled-slash + dot-dot form must still be confined on the source."""

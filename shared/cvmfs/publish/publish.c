@@ -4,6 +4,9 @@
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L         /* fsync/getpid & friends under -std=c11 */
 #endif
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE 1              /* Darwin: O_NOFOLLOW etc. survive the POSIX level; inert elsewhere */
+#endif
 #include "cvmfs/publish/publish_internal.h"
 #include "cvmfs/object/object.h"
 #include "cvmfs/platform/platform.h"

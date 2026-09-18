@@ -8,6 +8,7 @@
  */
 #include "auth/gsi/gsi_core.h"
 #include "protocols/root/protocol/gsi.h"
+#include <openssl/rsa.h>        /* EVP_PKEY_CTX_set_rsa_keygen_bits (OpenSSL 3 declares it here) */
 
 #include <stdio.h>
 #include <string.h>

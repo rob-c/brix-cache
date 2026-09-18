@@ -20,6 +20,14 @@ ngx_conf_enum_t brix_signing_policy_modes[] = {
     { ngx_null_string,       0                      }
 };
 
+/* [brix_gsi_legacy_proxy off|on|full-only] — pre-RFC 3820 proxy acceptance. */
+ngx_conf_enum_t brix_legacy_proxy_modes[] = {
+    { ngx_string("off"),       BRIX_LEGACY_PROXY_OFF       },
+    { ngx_string("on"),        BRIX_LEGACY_PROXY_ON        },
+    { ngx_string("full-only"), BRIX_LEGACY_PROXY_FULL_ONLY },
+    { ngx_null_string,         0                            }
+};
+
 /* [brix_crl_mode off|try|require] — CRL revocation strictness. */
 ngx_conf_enum_t brix_crl_modes[] = {
     { ngx_string("off"),     BRIX_CRL_MODE_OFF     },

@@ -51,8 +51,13 @@ def _check_parse(example, scratch: Path, binary: str, failures: list[str]) -> bo
         return False
     rendered = lib.render(example, scratch)
     ok, err = lib.nginx_t(rendered, binary)
-    if not ok:
-        failures.append(f"{example.source}: nginx -t failed\n    {err.replace(chr(10), chr(10) + '    ')}")
+    if ok:
+        return True
+    limit = lib.host_limitation(err)
+    if limit:
+        print(f"UNSUPPORTED {example.source}: {limit}")
+        return False
+    failures.append(f"{example.source}: nginx -t failed\n    {err.replace(chr(10), chr(10) + '    ')}")
     return True
 
 

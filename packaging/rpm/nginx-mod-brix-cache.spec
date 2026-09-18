@@ -36,7 +36,7 @@
 
 Name:           nginx-mod-brix-cache
 Version:        %{upstream_version}
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        BriX-Cache — XRootD, WebDAV, S3, CMS, and metrics dynamic modules for nginx
 
 # Rebrand (gnuBall -> BriX-Cache, 0.1.0-5): same modules, new product name.
@@ -93,16 +93,12 @@ BuildRequires:  libcephfs-devel
 # nginx-mod-stream provides the stream {} core that our modules load into.
 # openssl-libs: directly linked (-lssl -lcrypto) — auto-detected by find-requires
 # but listed explicitly for clarity.
-# VOMS: loaded at runtime via dlopen(libvomsapi.so.1); not a link-time dep so
-# find-requires cannot detect it.  Required for VOMS VO/FQAN ACL enforcement.
-# Require the soname directly rather than a package name: the C VOMS library is
-# packaged as voms-libs on EL8 but as voms on EL9+, and both Provide
-# libvomsapi.so.1()(64bit), so this one line resolves on every supported EL.
+# VOMS attribute certificates are verified natively (shared/voms/ over
+# OpenSSL); no voms / voms-libs / libvomsapi runtime dependency exists.
 # curl: used to be fork/exec'd, now primarily used via libcurl, but kept for
 # compatibility with site scripts.
 Requires:       nginx-mod-stream%{?_isa}
 Requires:       openssl-libs%{?_isa}
-Requires:       libvomsapi.so.1()(64bit)
 Requires:       curl
 # Ceph storage backends (sd_ceph / sd_cephfs_ro) are always compiled in.
 # find-requires already turns the linked sonames (librados.so.2,
@@ -816,6 +812,16 @@ fi
 %endif
 
 %changelog
+* Wed Sep 16 2026 Rob Currie <rob.currie@ed.ac.uk> - 2.0.0-2
+- VOMS attribute certificates are now verified natively (shared/voms/, plain C
+  over OpenSSL): AC holder binding, validity window, signature by the embedded
+  VOMS server certificate, issuer match, server-certificate chain against
+  brix_voms_cert_dir, and the vomsdir/<vo>/*.lsc (or legacy certificate)
+  match.  The libvomsapi.so.1 soname requirement is dropped: the module no
+  longer dlopen()s any VOMS library, so neither voms nor voms-libs needs to be
+  installed and no WLCG repository is needed on the target host.  Directives
+  and behaviour (brix_vomsdir, brix_voms_cert_dir, brix_require_vo,
+  brix_scvmfs_authz voms) are unchanged.
 * Sat Sep 05 2026 Rob Currie <rob.currie@ed.ac.uk> - 2.0.0-1
 - Version 2.0.0 — the first release distributed as RPM and Debian packages.
   Full release notes in docs/10-reference/CHANGELOG.md; packaging-relevant highlights only below.

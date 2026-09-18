@@ -26,7 +26,7 @@ int priv_run(char *const argv[]);
 /* As priv_run, but feeds `input` to the child on stdin (nft ruleset load). */
 int priv_run_stdin(char *const argv[], const char *input);
 
-/* Conservative charset AND exists under /sys/class/net. */
+/* Conservative charset AND an interface the kernel knows (if_nametoindex). */
 int valid_iface(const char *s);
 
 /* A percentage "N" or "N.M" (0..100), copied to out on accept. */

@@ -298,6 +298,58 @@ brix_vfs_backend_entry_build(brix_vfs_backend_entry_t *e, ngx_log_t *log)
     return e->inst;
 }
 
+/* ---- pre-fork release ------------------------------------------------- *
+ *
+ * WHAT: Tear down every storage stack THIS process composed, so nothing a
+ *       driver holds open crosses fork(2) into the workers.
+ *
+ * WHY:  The master composes each export once at config time (validation and
+ *       the operator-facing "backend ready" notices) and then forks. A driver
+ *       that holds a kernel object with process-affine state — the pblock
+ *       catalog's SQLite connection is the one that bites — hands the worker
+ *       an inherited descriptor plus a write-ahead-log shared-memory mapping
+ *       whose lock state belongs to the parent. The worker's own open then
+ *       fails ("locking protocol", reported as EIO) and the export never
+ *       serves. SQLite documents this: a connection must not be carried
+ *       across fork. Releasing here costs one rebuild per export per worker,
+ *       which each worker does anyway (the memo is keyed on the cycle).
+ *
+ * HOW:  Walk each entry's composed chain — a decorator's stores first, then
+ *       the tier below it — calling the driver cleanup slot at every level,
+ *       and clear the memo so the next resolve rebuilds from scratch. Each
+ *       accessor answers NULL for an instance of another kind, so the walk
+ *       needs no type switch and bottoms out at the source driver.
+ */
+static void
+brix_vbr_release_stack(brix_sd_instance_t *inst)
+{
+    if (inst == NULL) {
+        return;
+    }
+    brix_vbr_release_stack(brix_sd_cache_store_instance(inst));
+    brix_vbr_release_stack(brix_sd_cache_cold_instance(inst));
+    brix_vbr_release_stack(brix_sd_stage_store_instance(inst));
+    brix_vbr_release_stack(brix_sd_cache_source_instance(inst));
+    brix_vbr_release_stack(brix_sd_stage_source_instance(inst));
+    brix_sd_instance_destroy(inst);
+}
+
+void
+brix_vfs_backend_release_prefork(void)
+{
+    ngx_uint_t i;
+
+    for (i = 0; i < brix_vfs_backend_count; i++) {
+        brix_vfs_backend_entry_t *e = &brix_vfs_backends[i];
+
+        if (e->inst != NULL) {
+            brix_vbr_release_stack(e->inst);
+            e->inst = NULL;
+            e->inst_cycle = NULL;
+        }
+    }
+}
+
 ngx_uint_t
 brix_vfs_backend_export_count(void)
 {

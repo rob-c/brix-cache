@@ -4,12 +4,14 @@
 WHAT: `xrd mount [--legacy] <endpoint> <mountpoint> [fuse-opts]` execs the single
       FUSE driver `xrootdfs` (forwarding `--legacy` to it as a flag), in the
       driver's native arg order and resolving a ~/.xrdrc alias for the endpoint.
-      `xrd unmount [-z] <mountpoint>` runs fusermount3, then fusermount, then umount.
+      `xrd unmount [-z] <mountpoint>` runs the host's unprivileged unmount tiers
+      (client PAL brix_plat_fuse_umount_argv: fusermount3, then fusermount, then
+      umount on Linux; umount on macOS), which lib_py.fuse_host mirrors.
 WHY:  one front-end verb for the whole mount lifecycle (the drivers + fusermount
       are separate tools today).
 HOW:  hermetic — no real mount. Copy `xrd` into a sandbox with FAKE sibling drivers
       that echo their argv (exec_tool finds siblings first), and drive `xrd unmount`
-      with a FAKE fusermount3/umount on $PATH. Asserts on the forwarded argv.
+      with a FAKE first-tier tool / umount on $PATH. Asserts on the forwarded argv.
 
 Run:
     PYTHONPATH=tests pytest tests/test_client_xrd_mount.py -p no:xdist -v
@@ -22,6 +24,7 @@ from brix_suite.client_build import client_make
 import pytest
 
 from cmdscripts import fake_exec
+from lib_py import fuse_host
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -107,18 +110,32 @@ def test_unmount_no_args(built):
     assert r.returncode == 50
 
 
-def test_unmount_prefers_fusermount3(built, tmp_path):
+def test_unmount_prefers_the_hosts_first_tier(built, tmp_path):
+    # Linux: fusermount3 -u -z; macOS: umount -f (the owner unmounts its own
+    # macFUSE mount, and -f is the closest thing to a lazy detach there).
+    first = fuse_host.unmount_tiers(lazy=True)[0]
     binp = tmp_path / "pbin"
     binp.mkdir()
-    log = tmp_path / "fm3.log"
-    fake_exec.install(binp, "fusermount3", log_args=str(log))
+    log = tmp_path / "tier0.log"
+    fake_exec.install(binp, first[0], log_args=str(log))
     env = dict(os.environ, PATH=f"{binp}:{os.environ['PATH']}")
     r = subprocess.run([built, "unmount", "-z", "/mnt/x"],
                        capture_output=True, text=True, timeout=10, env=env)
     assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
-    assert log.read_text().strip() == "-u -z /mnt/x"
+    assert log.read_text().strip() == " ".join(first[1:] + ["/mnt/x"])
 
 
+def test_unmount_no_tool_on_path_is_127(built, tmp_path):
+    # (error) an empty PATH finds no tier at all: a clear 127, not a hang or a
+    # silent success.
+    r = subprocess.run([built, "unmount", "/mnt/x"], capture_output=True,
+                       text=True, timeout=10, env=dict(os.environ, PATH=str(tmp_path)))
+    assert r.returncode == 127, f"{r.stdout}\n{r.stderr}"
+    assert "no unmount tool" in r.stderr
+
+
+@pytest.mark.skipif(len(fuse_host.unmount_tiers()) < 2,
+                    reason="this host has a single unmount tier")
 def test_unmount_falls_back_to_umount(built, tmp_path):
     # PATH with ONLY a fake umount: fusermount3/fusermount aren't found, so the
     # fallback chain reaches umount.

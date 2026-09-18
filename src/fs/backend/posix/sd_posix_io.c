@@ -35,15 +35,12 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#if defined(__linux__)
-#include <linux/falloc.h>   /* FALLOC_FL_KEEP_SIZE for sd_posix_reserve */
-#endif
 #include <string.h>
-#include <sys/stat.h>     /* fstat - the reserve failure release */
-#include <sys/syscall.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "sd_posix_internal.h"
+#include "platform/platform_api.h"   /* brix_plat_pwrite_at/preadv2/copy_range/reserve */
 
 /* worker-safe raw byte I/O (no pool/metrics/log) */
 
@@ -58,11 +55,14 @@ sd_posix_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 
 /* sd_posix_pwrite — one pwrite(2) at off (bytes written, or -1). The raw
  * primitive; the VFS owns the EINTR/short-write loops (brix_vfs_pwrite_full,
- * brix_vfs_io_write_counted), so every VFS write funnels through the driver. */
+ * brix_vfs_io_write_counted), so every VFS write funnels through the driver.
+ * kXR_open_apnd means "the write lands at EOF whatever offset the client
+ * sent": Linux pwrite(2) already does that on an O_APPEND fd, but hosts whose
+ * pwrite honours the offset on an O_APPEND fd need write(2); the PAL picks. */
 ssize_t
 sd_posix_pwrite(brix_sd_obj_t *obj, const void *buf, size_t len, off_t off)
 {
-    return pwrite(obj->fd, buf, len, off);
+    return brix_plat_pwrite_at(obj->fd, buf, len, off, obj->append);
 }
 
 /* sd_posix_preadv — one preadv(2) of iovcnt segments at off (bytes read or -1):
@@ -82,13 +82,7 @@ ssize_t
 sd_posix_preadv2(brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
     off_t off, int flags)
 {
-#if defined(__APPLE__) && defined(__MACH__)
-    /* macOS lacks preadv2 - fall back to preadv (ignores flags) */
-    (void)flags;
-    return preadv(obj->fd, iov, iovcnt, off);
-#else
-    return preadv2(obj->fd, iov, iovcnt, off, flags);
-#endif
+    return brix_plat_preadv2(obj->fd, iov, iovcnt, off, flags);
 }
 
 /* sd_posix_copy_range — one copy_file_range(2) of up to len bytes src->dst (0 =
@@ -98,17 +92,10 @@ ssize_t
 sd_posix_copy_range(brix_sd_obj_t *src, off_t src_off, brix_sd_obj_t *dst,
     off_t dst_off, size_t len)
 {
-#if defined(__linux__) && defined(__NR_copy_file_range)
-    loff_t si = (loff_t) src_off;
-    loff_t di = (loff_t) dst_off;
+    off_t si = src_off;
+    off_t di = dst_off;
 
-    return (ssize_t) syscall(__NR_copy_file_range, src->fd, &si, dst->fd, &di,
-                             len, 0u);
-#else
-    (void) src; (void) src_off; (void) dst; (void) dst_off; (void) len;
-    errno = ENOSYS;
-    return -1;
-#endif
+    return brix_plat_copy_range(src->fd, &si, dst->fd, &di, len, 0);
 }
 
 /* sd_posix_read_sendfile_fd — return the object's kernel fd when the caller will
@@ -128,54 +115,16 @@ sd_posix_read_sendfile_fd(brix_sd_obj_t *obj, off_t off, size_t len,
     return obj->fd;
 }
 
-/* sd_posix_reserve — phase-107 C5: preallocate the declared final size.
- * fallocate(FALLOC_FL_KEEP_SIZE) claims the blocks WITHOUT changing st_size,
- * so a concurrent stat never sees bytes that were only promised. ENOSPC is the
- * caller's fail-the-open signal; a filesystem without the primitive returns
- * EOPNOTSUPP, which the caller treats as advisory. `fallocate` is already in
- * the seccomp allowlist (seccomp_core.c) — permitted and, until now, unused. */
+/* sd_posix_reserve — phase-107 C5: preallocate the declared final size
+ * WITHOUT changing st_size, so a concurrent stat never sees bytes that were
+ * only promised. ENOSPC is the caller's fail-the-open signal; a filesystem
+ * without the primitive returns EOPNOTSUPP, which the caller treats as
+ * advisory. brix_plat_reserve owns the primitive (fallocate KEEP_SIZE) and
+ * the ENOSPC/EDQUOT release of the beyond-EOF part of a refused range. */
 ngx_int_t
 sd_posix_reserve(brix_sd_obj_t *obj, off_t size)
 {
-#if defined(__linux__) && defined(FALLOC_FL_KEEP_SIZE)
-    int rc;
-
-    do {
-        rc = fallocate(obj->fd, FALLOC_FL_KEEP_SIZE, 0, size);
-    } while (rc != 0 && errno == EINTR);
-
-    if (rc == 0) {
-        return NGX_OK;
-    }
-
-    /* fallocate is NOT atomic on ENOSPC (ext4 allocates extent-by-extent and
-     * keeps what it got): a refused oversized declaration can park nearly all
-     * free space on a file whose st_size is still 0 - an invisible full disk
-     * behind a failed open, repeatable by any client (observed live: 66 GB
-     * stuck on a 1 TB fs from one call). Release the beyond-EOF part of the
-     * failed range before reporting. ftruncate to the UNCHANGED st_size is the
-     * release primitive: any truncate drops blocks past the new EOF - verified
-     * live; PUNCH_HOLE|KEEP_SIZE over the same range does NOT touch beyond-EOF
-     * extents on ext4. Data inside EOF survives (size 0 at this call site
-     * anyway), and a failed release changes nothing the caller can act on. */
-    if (errno == ENOSPC || errno == EDQUOT) {
-        int          err = errno;
-        struct stat  st;
-
-        if (fstat(obj->fd, &st) == 0 && st.st_size < size
-            && ftruncate(obj->fd, st.st_size) != 0)
-        {
-            /* nothing left to do: the open is failing with ENOSPC either way */
-        }
-        errno = err;
-    }
-    return NGX_ERROR;
-#else
-    (void) obj;
-    (void) size;
-    errno = EOPNOTSUPP;
-    return NGX_ERROR;
-#endif
+    return brix_plat_reserve(obj->fd, size) == 0 ? NGX_OK : NGX_ERROR;
 }
 
 /* sd_posix_ftruncate / _fsync / _fstat — direct fd ops */

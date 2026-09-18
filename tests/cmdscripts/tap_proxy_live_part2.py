@@ -140,7 +140,7 @@ def _proxy_build_specs(run, fuse_cflags, fuse_libs):
     client_lib = REPO_ROOT / "client/libbrix.a"
     protocol_lib = REPO_ROOT / "shared/xrdproto/libxrdproto.a"
     return (
-        (mkrepo, ["gcc", "-Wall", "-I", "shared", "-o", str(mkrepo),
+        (mkrepo, ["gcc", "-Wall", "-I", "shared", "-I", "src", "-o", str(mkrepo),
                   "tests/cvmfs/brix_mkrepo.c", "shared/cvmfs/grammar/hash.c",
                   "shared/cvmfs/object/object.c", "shared/cvmfs/catalog/catalog.c",
                   "-lsqlite3", "-lcrypto", "-lz"]),

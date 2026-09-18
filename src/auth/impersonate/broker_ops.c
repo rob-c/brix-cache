@@ -13,51 +13,7 @@
  * the broker_ops_internal.h contract.
  */
 #include "broker_internal.h"
-
-/* macOS compatibility */
-#if defined(__APPLE__) && defined(__MACH__)
-#ifndef O_PATH
-#define O_PATH O_RDONLY
-#endif
-#ifndef AT_EMPTY_PATH
-#define AT_EMPTY_PATH 0x1000
-#endif
-#ifndef SYS_renameat2
-#define SYS_renameat2 -1
-#endif
-/* openat2 compatibility - stub on macOS */
-struct open_how {
-    uint64_t flags;
-    uint64_t mode;
-    uint64_t resolve;
-};
-#ifndef RESOLVE_BENEATH
-#define RESOLVE_BENEATH 0x8
-#endif
-#ifndef RESOLVE_IN_ROOT
-#define RESOLVE_IN_ROOT 0x10
-#endif
-#ifndef RESOLVE_NO_MAGICLINKS
-#define RESOLVE_NO_MAGICLINKS 0x02
-#endif
-/* xattr compatibility */
-static ssize_t brix_fgetxattr_compat(int fd, const char *name, void *value, size_t size) {
-    return fgetxattr(fd, name, value, size, 0, 0);
-}
-static int brix_fsetxattr_compat(int fd, const char *name, const void *value, size_t size, int flags) {
-    return fsetxattr(fd, name, value, size, 0, flags);
-}
-static ssize_t brix_flistxattr_compat(int fd, char *list, size_t size) {
-    return flistxattr(fd, list, size, 0);
-}
-static int brix_fremovexattr_compat(int fd, const char *name) {
-    return fremovexattr(fd, name, 0);
-}
-#define fgetxattr(fd, name, value, size) brix_fgetxattr_compat(fd, name, value, size)
-#define fsetxattr(fd, name, value, size, flags) brix_fsetxattr_compat(fd, name, value, size, flags)
-#define flistxattr(fd, list, size) brix_flistxattr_compat(fd, list, size)
-#define fremovexattr(fd, name) brix_fremovexattr_compat(fd, name)
-#endif
+#include "platform/platform_api.h"
 #include "broker_ops_internal.h"
 
 
@@ -71,39 +27,21 @@ static int brix_fremovexattr_compat(int fd, const char *name) {
  *   full struct stat st_mode (with S_IFMT bits) during COPY operations.
  *
  * HOW:
- *   - Build open_how struct with flags (OR O_CLOEXEC), masked mode (07777 if O_CREAT),
- *     and resolve flags (RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS)
- *   - On Linux: syscall(SYS_openat2, rootfd, rel, &how, sizeof(how))
- *   - On macOS: openat(rootfd, rel, flags|O_CLOEXEC, mode) as compatibility fallback
+ *   - brix_plat_openat2(rootfd, rel, flags, mode, RESOLVE_BENEATH |
+ *     RESOLVE_NO_MAGICLINKS): the PAL adds O_CLOEXEC and masks the mode to
+ *     07777 when O_CREAT is set (openat2() rejects S_IFMT bits with EINVAL;
+ *     callers legitimately pass a full struct stat st_mode during COPY).
+ *     Linux issues the syscall; Darwin walks the path with the same verdicts.
  *   - Return fd on success, or -errno on failure
  */
 int
 imp_openat2(int rootfd, const char *rel, uint32_t flags, uint32_t mode)
 {
-    struct open_how how;
-    long            fd;
+    int fd;
 
-    ngx_memzero(&how, sizeof(how));
-    how.flags   = flags | O_CLOEXEC;
-    /*
-     * openat2() is stricter than open()/openat(): it rejects (EINVAL) any
-     * how.mode bit outside 07777.  Callers legitimately pass a full struct
-     * stat st_mode (e.g. staged_file copying a source's permissions during a
-     * WebDAV/S3 COPY), which carries the S_IFMT type bits.  Mask to the
-     * permission bits, exactly as the worker-local do_openat2() in
-     * src/path/beneath.c does, so a struct-stat mode is accepted instead of
-     * failing the whole impersonated COPY with EINVAL.
-     */
-    how.mode    = (flags & O_CREAT) ? (mode & 07777) : 0;
-    how.resolve = RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS;
-
-#if defined(__APPLE__) && defined(__MACH__)
-    /* macOS lacks openat2 - use openat with basic flags */
-    fd = openat(rootfd, rel, (int)(how.flags | O_CLOEXEC), how.mode);
-#else
-    fd = syscall(SYS_openat2, rootfd, rel, &how, sizeof(how));
-#endif
-    return (fd < 0) ? -errno : (int) fd;
+    fd = brix_plat_openat2(rootfd, rel, (int) flags, (mode_t) mode,
+                           RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS);
+    return (fd < 0) ? -errno : fd;
 }
 
 
@@ -242,29 +180,20 @@ imp_xattr_filter_user(char *list, size_t len)
  * must NOT, because the only emulation is two renames and that is precisely the
  * window the caller asked to avoid (sd.h exchange contract, phase-107 §3.5).
  *
- * HOW: raw SYS_renameat2 — no glibc wrapper predates 2.28 — and a kernel or
- * filesystem without the flag (ENOSYS/EINVAL) is reported as ENOTSUP, the same
- * answer the non-impersonated arm in fs/path/beneath.c gives, so a caller cannot
- * tell the two apart and no caller needs an impersonation-specific branch.
+ * HOW: brix_plat_renameat2(BRIX_RENAME_EXCHANGE) — a kernel or filesystem
+ * without the flag is reported as ENOTSUP by the PAL, the same answer the
+ * non-impersonated arm in fs/path/beneath.c gives, so a caller cannot tell the
+ * two apart and no caller needs an impersonation-specific branch.
  * Returns 0 on success, -1 with errno set.
  */
 int
 imp_do_exchange(int sfd, const char *sbase, int dfd, const char *dbase)
 {
     /* phase72-fp: sfd/sbase ARE the first (source) pair — order is correct */
-#if defined(__APPLE__) && defined(__MACH__)
-    /* A plain rename cannot implement an atomic two-name exchange. */
-    (void) sfd; (void) sbase; (void) dfd; (void) dbase;
-    errno = ENOTSUP;
-#else
-    if (syscall(SYS_renameat2, sfd, sbase, dfd, dbase,   /* NOLINT(readability-suspicious-call-argument) */
-                (unsigned int) RENAME_EXCHANGE) == 0) {
+    if (brix_plat_renameat2(sfd, sbase, dfd, dbase,   /* NOLINT(readability-suspicious-call-argument) */
+                            BRIX_RENAME_EXCHANGE) == 0) {
         return 0;
     }
-    if (errno == ENOSYS || errno == EINVAL) {
-        errno = ENOTSUP;
-    }
-#endif
     return -1;
 }
 
@@ -272,7 +201,7 @@ imp_do_exchange(int sfd, const char *sbase, int dfd, const char *dbase)
 /*
  * renameat, optionally with RENAME_NOREPLACE (atomic create-if-absent).  When
  * `noreplace` is set and the kernel/filesystem lacks RENAME_NOREPLACE
- * (ENOSYS/EINVAL) it falls back to a plain renameat so behaviour degrades to the
+ * (the PAL answers ENOTSUP) it falls back to a plain renameat so behaviour degrades to the
  * legacy last-writer-wins rather than spuriously failing; on a modern kernel
  * (>=3.15) the exclusive path is taken and a pre-existing dst yields EEXIST.
  * Returns 0 on success, -1 with errno set.
@@ -285,19 +214,14 @@ imp_do_rename(int sfd, const char *sbase, int dfd, const char *dbase,
         /* phase72-fp: sfd/sbase ARE the old (source) pair — order is correct */
         return renameat(sfd, sbase, dfd, dbase);  /* NOLINT(readability-suspicious-call-argument) */
     }
-#if defined(__APPLE__) && defined(__MACH__)
-    /* Refuse the exclusive operation without overwriting its destination. */
-    errno = ENOTSUP;
-#else
-    if (syscall(SYS_renameat2, sfd, sbase, dfd, dbase,
-                (unsigned int) RENAME_NOREPLACE) == 0) {
+    if (brix_plat_renameat2(sfd, sbase, dfd, dbase,
+                            BRIX_RENAME_NOREPLACE) == 0) {
         return 0;
     }
-    if (errno == ENOSYS || errno == EINVAL) {
+    if (errno == ENOTSUP) {
         /* phase72-fp: sfd/sbase ARE the old (source) pair — order is correct */
         return renameat(sfd, sbase, dfd, dbase);  /* NOLINT(readability-suspicious-call-argument) */
     }
-#endif
     return -1;
 }
 
@@ -359,23 +283,19 @@ imp_op_open(const imp_op_ctx_t *c)
 
 /*
  * imp_op_stat — IMP_OP_STAT / IMP_OP_LSTAT: confined stat into rep->st.
- * WHY via O_PATH + AT_EMPTY_PATH: the RESOLVE_BENEATH open both confines the
- * path and (for LSTAT, O_NOFOLLOW) pins the symlink itself.  HOW: openat2 ->
- * fstatat("", AT_EMPTY_PATH) -> imp_fill_stat.
+ * WHY via brix_plat_stat_resolve: the RESOLVE_BENEATH walk both confines the
+ * path and (for LSTAT, nofollow) pins the symlink itself, without handing a
+ * descriptor back.  HOW: stat_resolve -> imp_fill_stat.
  */
 static int
 imp_op_stat(const imp_op_ctx_t *c)
 {
     struct stat st;
-    int         fd, rc;
+    int         rc;
 
-    fd = imp_openat2(c->rootfd, c->rel,
-                     O_PATH | (c->req->op == IMP_OP_LSTAT ? O_NOFOLLOW : 0), 0);
-    if (fd < 0) {
-        return fd;
-    }
-    rc = fstatat(fd, "", &st, AT_EMPTY_PATH) == 0 ? 0 : -errno;
-    close(fd);
+    rc = brix_plat_stat_resolve(c->rootfd, c->rel, c->req->op == IMP_OP_LSTAT,
+                                RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS,
+                                &st) == 0 ? 0 : -errno;
     if (rc != 0) {
         return rc;
     }
@@ -547,8 +467,8 @@ imp_do_op(imp_op_ctx_t *c)
      * operation as uid/gid 0 or < the hard floor.  Cheap (two syscalls), and it
      * closes the window completely — no file op runs under a reserved identity.
      */
-    if ((uid_t) setfsuid((uid_t) -1) < (uid_t) BRIX_IMP_HARD_MIN_ID
-        || (gid_t) setfsgid((gid_t) -1) < (gid_t) BRIX_IMP_HARD_MIN_ID)
+    if ((uid_t) brix_plat_setfsuid((uid_t) -1) < (uid_t) BRIX_IMP_HARD_MIN_ID
+        || (gid_t) brix_plat_setfsgid((gid_t) -1) < (gid_t) BRIX_IMP_HARD_MIN_ID)
     {
         return -EPERM;
     }

@@ -24,6 +24,8 @@ import os
 from pathlib import Path
 from typing import Mapping
 
+from lib_py.util import true_command
+
 
 def _int(env: Mapping[str, str], name: str, default: int) -> int:
     try:
@@ -124,7 +126,7 @@ def session_template_values(env: Mapping[str, str] | None = None) -> dict[str, s
         "AUTHDB_PATH": env.get("AUTHDB_PATH", str(ref_dir / "authdb")),
         "BIND_HOST": env.get("BIND_HOST", "127.0.0.1"),
         "BIND6_HOST": env.get("BIND6_HOST", "[::1]"),
-        "STAGE_CMD": env.get("STAGE_CMD", "/bin/true"),
+        "STAGE_CMD": env.get("STAGE_CMD", true_command()),
         "KRB5_PRINCIPAL": env.get("KRB5_PRINCIPAL", "xrootd/localhost@NGINX.TEST"),
         "KRB5_KEYTAB": env.get("KRB5_KEYTAB", str(test_root / "krb5/xrootd.keytab")),
     }

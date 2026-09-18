@@ -137,6 +137,7 @@ from fleet_lifecycle_ports import (
 )
 from server_registry import NginxInstanceSpec
 from settings import (
+    CRED_STORE_BASE,
     HOST,
     KRB5_CCACHE,
     KRB5_CLIENT_KEYTAB,
@@ -209,7 +210,7 @@ def _writes(text, value):
 # brix_cred_write (an 8-hex entropy suffix follows), and the per-uid tmpfs
 # staging dir the VOLATILE arm always uses — the resolved shape of #96.
 CAPTURE_GLOB = "brix-krb5-fwd-*"
-DEFAULT_CAPTURE_DIR = Path(f"/dev/shm/brix-creds.{os.geteuid()}")  # cred_stage.c:26
+DEFAULT_CAPTURE_DIR = Path(f"{CRED_STORE_BASE}.{os.geteuid()}")  # cred_stage.c BRIX_CRED_STAGE_BASE
 
 MARKER = "krb5 delegation captured forwarded TGT"
 NOTICE = "brix: krb5 auth configured"
@@ -223,8 +224,8 @@ READ_FILE = "/probe.txt"
 READ_BODY = b"krb5 delegate arms\n"
 
 SYS_XRDFS = shutil.which("xrdfs")
-SYS_KINIT = shutil.which("kinit") or "/usr/bin/kinit"
-SYS_KLIST = shutil.which("klist") or "/usr/bin/klist"
+SYS_KINIT = kdc_helpers.krb5_tool("kinit") or "/usr/bin/kinit"   # MIT, matching the realm
+SYS_KLIST = kdc_helpers.krb5_tool("klist") or "/usr/bin/klist"
 BRIX_XRDFS = ROOT / "client" / "bin" / "xrdfs"
 
 

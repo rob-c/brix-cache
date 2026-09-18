@@ -67,13 +67,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 
 from cmdscripts import exec_wrapper
 from conformance_common import BRIXMOUNT, PortBlock, check_repo, fuse_mount
+from lib_py.fuse_host import FUSE_READY
 from repo_forge import Dir, File, RepoForge
 from settings import HOST
 
 REPO = "test.cern.ch"
 
-_FUSE_READY = (os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
-               and os.path.exists(BRIXMOUNT))
+_FUSE_READY = FUSE_READY and os.path.exists(BRIXMOUNT)
 requires_fuse = pytest.mark.skipif(not _FUSE_READY, reason="fuse mount prerequisites missing")
 requires_brixmount = pytest.mark.skipif(not os.path.exists(BRIXMOUNT),
                                         reason=f"brixMount not built: {BRIXMOUNT}")

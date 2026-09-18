@@ -6,7 +6,7 @@ from pathlib import Path
 import os
 import sys
 
-from .util import render_cfg, run
+from .util import render_cfg, run, true_command
 from settings import BIND_HOST, BIND_HOST6
 
 
@@ -88,7 +88,7 @@ def substitute_config(src: Path, dest: Path, env: dict[str, str] | None = None) 
         "VOMSDIR": str(pki_dir / "vomsdir"),
         "AUTHDB_PATH": values.get("AUTHDB_PATH", str(ref_dir / "authdb")),
         "CACHE_DIR": values.get("CACHE_DIR", str(data_dir / "cache")),
-        "STAGE_CMD": values.get("STAGE_CMD", "/bin/true"),
+        "STAGE_CMD": values.get("STAGE_CMD", true_command()),
         "KRB5_KEYTAB": values.get("KRB5_KEYTAB", str(test_root / "krb5/xrootd.keytab")),
     }
     values.update(computed)

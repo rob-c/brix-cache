@@ -17,7 +17,7 @@ import time
 from typing import Iterable
 
 from cmdscripts.compile_run import REPO_ROOT
-from lib_py.util import kill_pid_list, pids_on_port, wait_tcp
+from lib_py.util import pid_alive, kill_pid_list, pids_on_port, wait_tcp
 from settings import BIND_HOST
 
 
@@ -357,6 +357,8 @@ def freeze_nginx(src: str | Path) -> Path:
 
 
 def _fuse_mounts_under(prefix: str) -> list[str]:
+    if not os.path.exists("/proc/mounts"):
+        return _fuse_mounts_under_mount_cmd(prefix)
     try:
         lines = Path("/proc/mounts").read_text().splitlines()
     except OSError:
@@ -369,9 +371,140 @@ def _fuse_mounts_under(prefix: str) -> list[str]:
     return points
 
 
+# Darwin struct statfs (64-bit inode layout): the two strings we need sit at
+# fixed offsets — f_fstypename[16] at 72, f_mntonname[1024] at 88.
+_DARWIN_STATFS_SIZE = 2168
+_DARWIN_STATFS_TYPE = (72, 16)
+_DARWIN_STATFS_MNTON = (88, 1024)
+_MNT_NOWAIT = 2
+
+
+#: struct statfs f_flags (offset, width) and the MNT_* bits whose names match
+#: the /proc/self/mountinfo option spellings callers compare against.
+_DARWIN_STATFS_FLAGS = (64, 4)
+_DARWIN_MNT_FLAGS = ((0x00000004, "noexec"), (0x00000008, "nosuid"),
+                     (0x00000010, "nodev"), (0x00000002, "sync"))
+
+
+def _darwin_mount_options(path: str) -> "str | None":
+    """The mount options at ``path`` in mountinfo spelling, or None if it is
+    not a mountpoint: Darwin has no mountinfo, so they are rebuilt from the
+    statfs f_flags bitmask getfsstat already returns.
+
+    getfsstat reports f_mntonname resolved (``/private/tmp/x``), so the
+    caller's path is resolved too — on macOS ``/tmp`` is a symlink and every
+    test path under it would otherwise look unmounted."""
+    wanted = os.path.realpath(path)
+    for flags, point in _darwin_mount_flags():
+        if os.path.realpath(point) != wanted:
+            continue
+        names = ["ro" if flags & 0x00000001 else "rw"]
+        names += [name for bit, name in _DARWIN_MNT_FLAGS if flags & bit]
+        return ",".join(names)
+    return None
+
+
+def mount_options(path) -> "str | None":
+    """``[(option string)]`` for the mount at ``path``, or None when nothing is
+    mounted there.  Linux reads /proc/self/mountinfo field 6; Darwin rebuilds
+    the same spellings from statfs flags."""
+    if sys.platform == "darwin":
+        return _darwin_mount_options(str(path))
+    try:
+        lines = Path("/proc/self/mountinfo").read_text().splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        fields = line.split(" ")
+        if len(fields) > 5 and fields[4] == str(path):
+            return fields[5]
+    return None
+
+
+def _darwin_mount_table() -> list[tuple[str, str]]:
+    """``[(fstype, mountpoint)]`` from ``getfsstat(MNT_NOWAIT)``.
+
+    Cached kernel data only: unlike mount(8)/df(1) it never statfs()es a
+    filesystem, so a wedged FUSE daemon elsewhere on the host (a stalled
+    cvmfs2 mount in a home directory, say) cannot block the reaper — and a
+    child stuck in the kernel is exactly what a subprocess timeout cannot
+    kill.  Empty on any failure."""
+    import ctypes  # noqa: PLC0415
+    import ctypes.util  # noqa: PLC0415
+
+    try:
+        libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.dylib", use_errno=True)
+        getfsstat = getattr(libc, "getfsstat$INODE64", None) or libc.getfsstat
+        count = getfsstat(None, 0, _MNT_NOWAIT)
+        if count <= 0:
+            return []
+        buf = ctypes.create_string_buffer(_DARWIN_STATFS_SIZE * count)
+        count = getfsstat(buf, len(buf), _MNT_NOWAIT)
+    except (OSError, AttributeError, ValueError):
+        return []
+    table = []
+    for i in range(max(count, 0)):
+        base = i * _DARWIN_STATFS_SIZE
+        kind = buf.raw[base + _DARWIN_STATFS_TYPE[0]:][: _DARWIN_STATFS_TYPE[1]]
+        point = buf.raw[base + _DARWIN_STATFS_MNTON[0]:][: _DARWIN_STATFS_MNTON[1]]
+        table.append((kind.split(b"\0", 1)[0].decode(errors="replace"),
+                      point.split(b"\0", 1)[0].decode(errors="replace")))
+    return table
+
+
+def _darwin_mount_flags() -> list[tuple[int, str]]:
+    """``[(f_flags, mountpoint)]`` from the same cached getfsstat snapshot."""
+    import ctypes  # noqa: PLC0415
+    import ctypes.util  # noqa: PLC0415
+
+    try:
+        libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.dylib", use_errno=True)
+        getfsstat = getattr(libc, "getfsstat$INODE64", None) or libc.getfsstat
+        count = getfsstat(None, 0, _MNT_NOWAIT)
+        if count <= 0:
+            return []
+        buf = ctypes.create_string_buffer(_DARWIN_STATFS_SIZE * count)
+        count = getfsstat(buf, len(buf), _MNT_NOWAIT)
+    except (OSError, AttributeError, ValueError):
+        return []
+    out = []
+    for i in range(max(count, 0)):
+        base = i * _DARWIN_STATFS_SIZE
+        raw = buf.raw[base + _DARWIN_STATFS_FLAGS[0]:][: _DARWIN_STATFS_FLAGS[1]]
+        point = buf.raw[base + _DARWIN_STATFS_MNTON[0]:][: _DARWIN_STATFS_MNTON[1]]
+        out.append((int.from_bytes(raw, "little"),
+                    point.split(b"\0", 1)[0].decode(errors="replace")))
+    return out
+
+
+def _fuse_mounts_under_mount_cmd(prefix: str) -> list[str]:
+    """``_fuse_mounts_under`` on hosts without /proc/mounts (Darwin)."""
+    return [point for kind, point in _darwin_mount_table()
+            if point.startswith(prefix) and "fuse" in kind.lower()]
+
+
+def _darwin_umount(point: str) -> None:
+    """umount(8), then a forced unmount, each bounded: a dead FUSE daemon
+    makes the plain call hang in the kernel."""
+    for argv in (["umount", point], ["umount", "-f", point]):
+        try:
+            rc = subprocess.run(argv, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, check=False,
+                                timeout=15).returncode
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if rc == 0:
+            return
+
+
 def _unmount_fuse_points(points: list[str]) -> None:
     fusermount = shutil.which("fusermount3") or shutil.which("fusermount")
     if not fusermount:
+        # Darwin (macFUSE) has no fusermount; plain umount(8) detaches a
+        # user-owned FUSE mount there.
+        if shutil.which("umount") and not os.path.exists("/proc/mounts"):
+            for point in points:
+                _darwin_umount(point)
         return
     for point in points:
         subprocess.run(
@@ -431,11 +564,41 @@ def _reap_fuse_mounts(root: Path) -> None:
     _wait_for_fuse_unmount(prefix)
 
 
-def _terminate_pidfiles(pidfiles: list[Path]) -> None:
+def _signal_pidfiles(pidfiles: list[Path]) -> list[int]:
+    """SIGTERM each recorded server; return the pids actually signalled."""
+    pids = []
     for pidfile in reversed(pidfiles):
         try:
-            os.kill(int(pidfile.read_text().strip()), signal.SIGTERM)
+            pid = int(pidfile.read_text().strip())
+            os.kill(pid, signal.SIGTERM)
         except (OSError, ValueError):
+            continue
+        pids.append(pid)
+    return pids
+
+
+def _await_exit(pids: list[int], timeout: float = 5.0) -> list[int]:
+    """Those of ``pids`` still alive after ``timeout``."""
+    deadline = time.monotonic() + timeout
+    remaining = list(pids)
+    while remaining and time.monotonic() < deadline:
+        remaining = [pid for pid in remaining if pid_alive(pid)]
+        if remaining:
+            time.sleep(0.05)
+    return remaining
+
+
+def _terminate_pidfiles(pidfiles: list[Path]) -> None:
+    """SIGTERM every recorded server, then CONFIRM it is gone.
+
+    Signalling alone leaks: a master that is slow to finish its shutdown
+    outlives the teardown, is orphaned when the run tree is removed under it,
+    and keeps its fixed port bound for the next run of the same test.
+    """
+    for pid in _await_exit(_signal_pidfiles(pidfiles)):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
             pass
 
 

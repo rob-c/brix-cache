@@ -72,8 +72,10 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
 NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
-STOCK_XRDFS = "/usr/bin/xrdfs"
-STOCK_XRDCP = "/usr/bin/xrdcp"
+# The distro path on the Linux CI host; Homebrew puts them under
+# /usr/local/bin (Intel) or /opt/homebrew/bin (Apple silicon).
+STOCK_XRDFS = shutil.which("xrdfs") or "/usr/bin/xrdfs"
+STOCK_XRDCP = shutil.which("xrdcp") or "/usr/bin/xrdcp"
 
 # All nginx GSI servers here are registry LifecycleHarness instances on
 # OS-assigned (free_port) ports with pid-suffixed names, so xdist workers and

@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_rename_helpers")
 
+import sys
+
 
 def _write_rename_pair(srv, our_src, our_dst, off_src, off_dst,
                        src_payload, dst_payload):
@@ -253,6 +255,10 @@ def test_rename_same_path(srv):
 # 11. TRAILING-SLASH FORMS — file -> "dir-style" dst (trailing /), and dir ->
 #     "file-style" (no slash, already covered). Pin stock per case. (2 tests)
 # =========================================================================== #
+@pytest.mark.xfail(sys.platform == "darwin", strict=True,
+                   reason="stock XRootD on Darwin answers EISDIR for mv file -> "
+                          "'dst/' (its own check; the Darwin kernel says ENOENT/"
+                          "ENOTDIR), while ours keeps the Linux kernel's ENOTDIR")
 def test_rename_file_to_trailing_slash_dest(srv):
     write_disk(srv, "/rn_ts_src_our.txt", "ts")
     write_disk(srv, "/rn_ts_src_off.txt", "ts")
@@ -289,7 +295,12 @@ def test_rename_case_only_difference(srv):
         "/rn_Case_off.txt", "/rn_case_off.txt")
     if rc_o == 0:
         assert os.path.exists(our_disk(srv, "/rn_case_our.txt")), "OUR: lowercased dst missing"
-        assert not os.path.exists(our_disk(srv, "/rn_Case_our.txt")), "OUR: uppercase src remained"
+        # On a case-folding filesystem (APFS default) the old-case name still
+        # resolves to the renamed file; only its exact spelling in the listing
+        # tells the two apart.
+        names = os.listdir(os.path.dirname(our_disk(srv, "/rn_case_our.txt")))
+        assert "rn_case_our.txt" in names and "rn_Case_our.txt" not in names, \
+            f"OUR: uppercase src remained: {sorted(n for n in names if n.lower() == 'rn_case_our.txt')}"
 
 
 # =========================================================================== #

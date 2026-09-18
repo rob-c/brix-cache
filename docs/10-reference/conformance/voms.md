@@ -30,22 +30,26 @@ that library, which is where the two implementations differ.
 
 ---
 
-### AC extraction is delegated to the VOMS library (RFC 5755 AC validation)
+### AC extraction and validation (RFC 5755 AC validation)
 
 - **Requirement:** VO membership must be extracted from the AC embedded in the
-  proxy chain, and the AC's own signature/validity must be checked by trusted VOMS
-  code — not re-implemented in the server.
-- **Ours:** We `dlopen("libvomsapi.so.1", RTLD_NOW | RTLD_LOCAL)` at startup and
-  resolve `VOMS_Init`/`VOMS_Retrieve`/`VOMS_Destroy`/`VOMS_ErrorMessage`
-  (`src/auth/voms/loader.c:38`, `src/auth/voms/loader.c:63`). Extraction duplicates
-  the verified proxy chain, strips the leaf (VOMS needs the parent EEC for the AC
-  holder lookup), and calls `VOMS_Retrieve(leaf, chain, VOMS_RECURSE_CHAIN, …)`
-  (`src/auth/voms/extract.c:84`, `src/auth/voms/extract.c:91`). AC validation
-  (signature, `vomsdir` trust, validity window) happens entirely inside
-  `libvomsapi`; we consume only the resulting `voms_data`
-  (`src/auth/voms/voms_internal.h:41`). Extraction runs **only after** the GSI proxy
-  chain is verified — root:// at `src/auth/gsi/auth.c:352`, davs:// at
-  `src/protocols/webdav/auth_cert.c:396`.
+  proxy chain, and the AC's own signature/validity must be checked before any
+  attribute is trusted.
+- **Ours:** A native verifier, `shared/voms/` (plain C over OpenSSL ASN.1
+  templates, shared with the client; no VOMS library is linked or loaded).
+  `src/auth/voms/extract.c` calls `brix_voms_retrieve(leaf, chain, &trust, …)`,
+  which locates the extension on the leaf or any chain certificate, finds the
+  end-entity certificate itself, decodes the AC_SEQ and verifies every entry in
+  a fixed order: AC version 2, holder binding to the EEC (name + serial),
+  validity window (skew on `notBefore` only), embedded VOMS server certificate
+  present, signature algorithm (inner == outer, no MD5 class), signature over the
+  TBS bytes, AC issuer == signer subject, AC targets, the signer's chain against
+  the `brix_voms_cert_dir` store (same CRL / signing-policy handling as GSI) and
+  the `vomsdir/<vo>/*.lsc` (or legacy certificate) match (`shared/voms/
+  voms_verify.c`, `shared/voms/voms_lsc.c`). Only entries with verdict
+  `BRIX_VOMS_OK` reach the VO/FQAN views. Extraction runs **only after** the GSI
+  proxy chain is verified — root:// in `src/auth/gsi/auth.c`, davs:// in
+  `src/protocols/webdav/auth_cert.c`.
 - **XRootD v6.1.0:** VOMS extraction is a pluggable server-side callback. The GSI
   protocol loads a `XrdSecgsiVOMSFun` plug-in via `LoadVOMSFun()`
   (`/tmp/xrootd-src/src/XrdSecgsi/XrdSecProtocolgsi.cc:5459`) — the default plug-in
@@ -57,11 +61,13 @@ that library, which is where the two implementations differ.
   a separate `XrdHttpSecXtractor` plug-in
   (`/tmp/xrootd-src/src/XrdHttp/XrdHttpProtocol.cc:107`,
   `/tmp/xrootd-src/src/XrdHttp/XrdHttpProtocol.cc:3141`) rather than the GSI VOMSFun.
-- **Verdict:** Conformant (architecturally aligned). Both delegate AC validation to
-  `libvomsapi`; the difference is dlopen-a-known-symbol (ours) vs.
-  dlopen-a-configurable-plugin (XRootD). Extraction correctness is exercised at the
-  integration level; the string-handling surface is pinned by VMS-01..VMS-03,
-  VMS-32 (valid VO/FQAN tokens accepted end-to-end).
+- **Verdict:** Conformant (same checks, native implementation). XRootD delegates
+  AC validation to `libvomsapi` behind a configurable plug-in; we perform the
+  same checks in `shared/voms/`. The verifier is pinned by its C unit suite over a
+  genuine LHCb VOMS extension (`tests/test_voms_native_ac_unit.py`) and
+  end-to-end with good / rogue-signer / expired / wrong-holder proxies
+  (`tests/test_voms_native_ac.py`); the string-handling surface is pinned by
+  VMS-01..VMS-03, VMS-32 (valid VO/FQAN tokens accepted end-to-end).
 
 ---
 
@@ -121,17 +127,15 @@ that library, which is where the two implementations differ.
 
 ---
 
-### Graceful degradation when the VOMS library is absent
+### Graceful behaviour without VOMS attributes
 
-- **Requirement:** VOMS is optional grid infrastructure; a server without it must
-  still authenticate GSI users, simply without VO attributes.
-- **Ours:** No link-time VOMS dependency. If `libvomsapi.so.1` is not present,
-  `brix_voms_init()` logs a NOTICE and returns `NGX_DECLINED`
-  (`src/auth/voms/loader.c:39`); `brix_voms_available()` then reports unavailable
-  and every callsite skips extraction (`src/auth/gsi/auth.c:349`,
-  `src/protocols/webdav/auth_cert.c:389`). Extraction that finds no AC returns
-  `NGX_DECLINED` on `VOMS_VERR_NOEXT`/`VOMS_VERR_NODATA`, never a hard failure
-  (`src/auth/voms/extract.c:94`).
+- **Requirement:** VOMS is optional grid infrastructure; a server must still
+  authenticate GSI users whose proxies carry no VO attributes.
+- **Ours:** No VOMS library dependency at all — `brix_voms_available()` is always
+  true and `brix_voms_init()` only warms the `brix_voms_cert_dir` trust store.
+  Extraction that finds no AC returns `NGX_DECLINED` (`BRIX_VOMS_ERR_NOEXT`),
+  never a hard failure; an AC that fails verification yields empty views and a
+  WARN line naming the verdict (`src/auth/voms/extract.c`).
 - **XRootD v6.1.0:** Default `-vomsat` is `vatIgnore`
   (`/tmp/xrootd-src/src/XrdSecgsi/XrdSecProtocolgsi.cc:174`); with no VOMSFun
   configured the extraction block at
@@ -166,10 +170,10 @@ that library, which is where the two implementations differ.
 
 | Aspect | Ours | XRootD v6.1.0 | Verdict | Tests |
 |---|---|---|---|---|
-| AC validation | `dlopen libvomsapi.so.1` → `VOMS_Retrieve` (`src/auth/voms/extract.c:91`) | pluggable `XrdSecgsiVOMSFun` / `XrdHttpSecXtractor` over `libvomsapi` (`XrdSecProtocolgsi.cc:2003`) | Conformant (aligned) | VMS-01..03, VMS-32 |
+| AC validation | native `brix_voms_retrieve()` (`shared/voms/voms_verify.c`) | pluggable `XrdSecgsiVOMSFun` / `XrdHttpSecXtractor` over `libvomsapi` (`XrdSecProtocolgsi.cc:2003`) | Conformant (same checks, native) | VMS-01..03, VMS-32; `test_voms_native_ac*.py` |
 | FQAN → VO name | first-component parse + dedup (`src/auth/voms/collect.c:80`) | inside VOMS plug-in; core consumes `Entity.vorg` (`XrdSecProtocolgsi.cc:2013`) | Conformant | VMS-06 |
 | VO-name sanitization | reject ctrl/space/`,`/`/`/`\`/non-ASCII (`src/auth/voms/vo_token.h:32`) | none — `strdup` verbatim (`XrdSecProtocolgsi.cc:2231`) | Stricter-than-XRootD | VMS-04..31 |
-| No-library degradation | dlopen-optional, best-effort (`src/auth/voms/loader.c:39`) | `vatIgnore` default, skipped (`XrdSecProtocolgsi.cc:174`) | Conformant (aligned) | — |
+| No-attribute degradation | no library to be absent; no AC → `NGX_DECLINED` (`src/auth/voms/extract.c`) | `vatIgnore` default, skipped (`XrdSecProtocolgsi.cc:174`) | Conformant (aligned) | — |
 | VOMS-required mode | not implemented (advisory only) | `-vomsat:require` fatal (`XrdSecProtocolgsi.cc:2005`) | Documented-limitation | — |
 
 Notes for grid-security engineers: the one behavioral divergence that changes what
@@ -177,6 +181,7 @@ is *accepted* is VO-name sanitization — we drop a VO/FQAN token that XRootD wo
 propagate verbatim into `Entity.vorg`/`grps`, the access log, and (in our case)
 metric labels. Because rejection is per-token and non-fatal, a proxy carrying one
 legitimate VO plus one hostile AC entry still authenticates with the legitimate VO;
-the hostile string is simply never materialized. All heavy lifting for AC trust
-(signature, VOMS-server certificate, AC validity window) remains inside
-`libvomsapi` in both implementations and is not re-verified here.
+the hostile string is simply never materialized. The AC trust work (signature,
+VOMS-server certificate chain, AC validity window, holder binding, vomsdir match)
+is `libvomsapi`'s job in XRootD and `shared/voms/`'s in ours; it is pinned by the
+native verifier's own suite, not re-verified by the VMS string tests.

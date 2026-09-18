@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
+from cmdscripts.compile_run import LZ4_LINK_FLAGS
 
 
 DEFAULT_NGX_SRC = Path(os.environ.get(
@@ -190,7 +191,7 @@ def compression(base: Path) -> tuple[bool, str]:
     if not proto.exists():
         return result(True, f"SKIP: {proto} not found; build client/shared lib first")
     lz4_cflags = run(["pkg-config", "--cflags", "liblz4"], cwd=REPO_ROOT).stdout.split()
-    codec_libs = ["-lz", "-lzstd", "-llzma", "-lbrotlienc", "-lbrotlidec", "-lbz2", "-l:liblz4.so.1", "-lcrypto"]
+    codec_libs = ["-lz", "-lzstd", "-llzma", "-lbrotlienc", "-lbrotlidec", "-lbz2", *LZ4_LINK_FLAGS, "-lcrypto"]
     cm = REPO_ROOT / "src/core/compat"
     zip_write_current = base / "zip_write_test.current.c"
     zip_write_src = (TEST_C / "zip_write_test.c").read_text()

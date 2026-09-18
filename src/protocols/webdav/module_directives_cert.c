@@ -1,6 +1,5 @@
 /* WebDAV certificate directives: keep the complete implementation on non-Darwin hosts.
  * The Darwin fallback is selected only when compiling for macOS. */
-#if !defined(__APPLE__) || !defined(__MACH__)
 
 /*
  * module_directives_cert.c - extracted concern (SSL/TLS certificate directives)
@@ -456,37 +455,3 @@ webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     return NGX_CONF_OK;
 }
-
-#else /* macOS */
-
-/*
- * module_directives_cert_stub.c - macOS stub for cert directives
- * 
- * This stub allows compilation on macOS where nginx SSL module internals
- * may differ. Full implementation requires nginx SSL module access.
- */
-
-/* Stub - no header needed */
-#include <ngx_core.h>
-#include <ngx_http.h>
-#include "darwin_config_stub.h"
-
-char *
-brix_webdav_cert_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    return brix_webdav_darwin_config_stub(cf, cmd, conf);
-}
-
-char *
-brix_webdav_cert_key(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    return brix_webdav_darwin_config_stub(cf, cmd, conf);
-}
-
-char *
-brix_webdav_cert_ca(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    return brix_webdav_darwin_config_stub(cf, cmd, conf);
-}
-
-#endif /* macOS */

@@ -353,8 +353,7 @@ def test_unmount_while_file_open_busy_then_clean(rig, tmp_path):
         fd = os.open(os.path.join(str(mnt), "hello.txt"), os.O_RDONLY)
         try:
             # non-lazy unmount with an open file → busy, mount survives
-            rc = subprocess.run(["fusermount3", "-u", str(mnt)],
-                                capture_output=True).returncode
+            rc = fuse_host.unmount(str(mnt)).returncode
             assert rc != 0, "unmount succeeded despite an open file"
             assert os.path.ismount(str(mnt))
             assert os.read(fd, 5) == HELLO[:5]     # fd still serviceable
@@ -363,8 +362,7 @@ def test_unmount_while_file_open_busy_then_clean(rig, tmp_path):
         # with the fd closed a plain unmount succeeds
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
-            if subprocess.run(["fusermount3", "-u", str(mnt)],
-                              capture_output=True).returncode == 0:
+            if fuse_host.unmount(str(mnt)).returncode == 0:
                 break
             time.sleep(0.2)
         assert not os.path.ismount(str(mnt)), "mount wedged after close"

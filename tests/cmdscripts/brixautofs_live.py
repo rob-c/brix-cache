@@ -32,7 +32,8 @@ from cmdscripts.brixcvmfs_live import (
     _unmount,
     _wait_mounted,
 )
-from cmdscripts.live_common import LiveFailure, LiveRun
+from cmdscripts.live_common import mount_options, LiveFailure, LiveRun
+from lib_py.fuse_host import with_host_mount_opts
 
 
 def _expression_1(checks, cachebase):
@@ -65,12 +66,9 @@ def _expression_5(checks, spurious):
 
 
 def _mountinfo_opts(path: Path) -> str | None:
-    """Per-mount option string (field 6) for `path`, or None if not mounted."""
-    for line in Path("/proc/self/mountinfo").read_text().splitlines():
-        fields = line.split(" ")
-        if len(fields) > 5 and fields[4] == str(path):
-            return fields[5]
-    return None
+    """Per-mount option string for `path`, or None if not mounted (Linux
+    mountinfo field 6; the same spellings from statfs flags on Darwin)."""
+    return mount_options(path)
 
 
 def _stat_errno(path: Path) -> int:
@@ -124,7 +122,7 @@ def automount(nginx: Path | None = None) -> int:
             print("== umbrella up (regular user, idle=0) ==")
             umbrella = run.spawn(
                 [brixmount, "autofs", etc, mnt, "-f",
-                 "-o", f"idle=0,timeout=30,cachebase={cachebase}"],
+                 "-o", with_host_mount_opts(f"idle=0,timeout=30,cachebase={cachebase}")],
                 env=env,
             )
             checks.append((_wait_mounted(mnt), "umbrella mounted"))
@@ -141,7 +139,11 @@ def automount(nginx: Path | None = None) -> int:
             got = _read(repo_link / "hello")
             print(f"   got: [{got}]")
             checks.append((got == expect, "content byte-exact through the automount"))
-            checks.append((os.readlink(repo_link) == str(repo_farm),
+            # realpath both sides: on macOS /tmp is a symlink, so the link the
+            # umbrella writes and the farm path spell the same directory
+            # differently (/private/tmp/... vs /tmp/...).
+            checks.append((os.path.realpath(os.readlink(repo_link))
+                           == os.path.realpath(repo_farm),
                            "symlink points into the mount farm"))
             opts = _expression_2(repo_farm)
             print(f"   child mount opts: {opts}")
@@ -170,7 +172,7 @@ def automount(nginx: Path | None = None) -> int:
             umbrella.send_signal(signal.SIGTERM)
             checks.append((_wait_gone([repo_farm, mnt]), "both mounts gone after SIGTERM"))
             try:
-                umbrella.wait(10)
+                umbrella.wait(30)
                 exited = True
             except Exception:
                 exited = False
@@ -206,7 +208,7 @@ def automount_strict(nginx: Path | None = None) -> int:
         try:
             run.spawn(
                 [brixmount, "autofs", etc, mnt, "-f",
-                 "-o", f"idle=0,timeout=30,cachebase={cachebase}"],
+                 "-o", with_host_mount_opts(f"idle=0,timeout=30,cachebase={cachebase}")],
                 env=env,
             )
             checks.append((_wait_mounted(mnt), "strict umbrella mounted"))

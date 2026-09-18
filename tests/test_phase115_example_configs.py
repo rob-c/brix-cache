@@ -57,7 +57,7 @@ import check_example_configs as guard        # noqa: E402
 import example_config_lib as lib             # noqa: E402
 from settings import HOST                     # noqa: E402
 
-from compose_stack_ports import _lease_bindable  # noqa: E402
+from compose_stack_ports import _lease_bindable, lease_port_range  # noqa: E402
 
 pytestmark = [pytest.mark.timeout(600),
               pytest.mark.xdist_group("phase115-example-configs")]
@@ -557,6 +557,8 @@ def test_every_compose_conf_parses(tmp_path, conf):
     if reason:
         pytest.skip(reason)
     ok, err = lib.nginx_t(lib.render(ex, tmp_path))
+    if not ok and lib.host_limitation(err):
+        pytest.skip(f"{ex.source}: {lib.host_limitation(err)}")
     assert ok, f"{ex.source}: {err}"
 
 
@@ -591,6 +593,20 @@ def _published_ports(stack):
                 ports.add(int(container))
     ports.discard(OBS_PORT)
     return sorted(ports)
+
+
+#: A pinned FTP passive data range makes concurrent copies of the same stack
+#: fight for the same ports — the loser answers "425 Can't open data
+#: connection".  Each rendered config gets its own leased block instead.
+_PASV_RANGE = re.compile(r"(brix_gridftp_pasv_port_range\s+)(\d+)(\s+)(\d+)")
+
+
+def _lease_pasv_ranges(text):
+    def swap(m):
+        width = int(m.group(4)) - int(m.group(2)) + 1
+        low, high = lease_port_range(width)
+        return f"{m.group(1)}{low}{m.group(3)}{high}"
+    return _PASV_RANGE.sub(swap, text)
 
 
 def _remap(text, mapping):
@@ -651,6 +667,7 @@ class _Stack:
         obs = _lease_bindable()
         self.obs_ports[conf.name] = obs
         text = _localise(_remap(conf.read_text(), {**self.ports, OBS_PORT: obs}))
+        text = _lease_pasv_ranges(text)
         r = lib.render(lib.Example(f"{self.stack}/{conf.name}", text, "full"), prefix)
         lib.prepare_nginx(r, NGINX)
         log = prefix / "stderr.log"

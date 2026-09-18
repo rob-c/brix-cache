@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_srv_config_helpers")
 
-pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_srv_config")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("test_cvmfs_conformance_srv_config")]
 
 def test_delete_never_removes_cached_object(plain_srv):
     obj = plain_srv.objects()[2]

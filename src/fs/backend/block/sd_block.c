@@ -26,16 +26,12 @@
  *       ops serve both worlds from one implementation.
  */
 #include "sd_block_internal.h"
+#include "platform/platform_api.h"   /* brix_plat_blockdev_size */
 
 #include <errno.h>
 #include <fcntl.h>
-#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-#ifdef __linux__
-#include <linux/fs.h>   /* BLKGETSIZE64 */
-#endif
 
 /* Trailing-cap on a single windowed preadv so the iovec trim uses a bounded
  * stack copy; a larger iovcnt is honoured as a (legal) short read. */
@@ -189,14 +185,12 @@ sd_block_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
     out->is_dir = S_ISDIR(sb.st_mode) ? 1 : 0;
     out->is_reg = S_ISREG(sb.st_mode) ? 1 : 0;
 
-#ifdef BLKGETSIZE64
     if (S_ISBLK(sb.st_mode)) {
         uint64_t sz = 0;
-        if (ioctl(obj->fd, BLKGETSIZE64, &sz) == 0) {
+        if (brix_plat_blockdev_size(obj->fd, &sz) == 0) {
             out->size = (off_t) sz;
         }
     }
-#endif
     return NGX_OK;
 }
 

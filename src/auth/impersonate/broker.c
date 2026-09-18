@@ -4,34 +4,7 @@
  */
 #include "broker_internal.h"
 #include "impersonate_state.h"
-
-/* macOS compatibility for Linux-specific socket options */
-#if defined(__APPLE__) && defined(__MACH__)
-#include <sys/un.h>
-/* macOS uses LOCAL_PEERCRED instead of SO_PEERCRED */
-#ifndef SO_PEERCRED
-#define SO_PEERCRED LOCAL_PEERCRED
-#endif
-/* struct ucred is forward-declared on macOS - define it */
-struct ucred {
-    pid_t pid;
-    uid_t uid;
-    gid_t gid;
-};
-/* accept4 doesn't exist on macOS - use accept + fcntl */
-#ifndef SOCK_CLOEXEC
-#define SOCK_CLOEXEC 0
-#endif
-static int brix_accept4_compat(int sockfd, struct sockaddr *addr, socklen_t *addrlen, int flags) {
-    int fd = accept(sockfd, addr, addrlen);
-    if (fd >= 0 && (flags & SOCK_CLOEXEC)) {
-        int fflags = fcntl(fd, F_GETFD, 0);
-        fcntl(fd, F_SETFD, fflags | FD_CLOEXEC);
-    }
-    return fd;
-}
-#define accept4(sockfd, addr, addrlen, flags) brix_accept4_compat(sockfd, addr, addrlen, flags)
-#endif
+#include "platform/platform_api.h"
 
 /* Globals migrated to brix_imp_state_t in impersonate_state.h */
 /* Legacy aliases for backward compatibility during transition */
@@ -45,16 +18,17 @@ static int brix_accept4_compat(int sockfd, struct sockaddr *addr, socklen_t *add
 int
 imp_peer_allowed(int conn_fd)
 {
-    struct ucred cred;
-    socklen_t    len = sizeof(cred);
+    uid_t uid;
+    gid_t gid;
+    pid_t pid;
 
     if (brix_imp_get_broker_allow_uid() == 0) {
         return 1;                        /* gate disabled */
     }
-    if (getsockopt(conn_fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) != 0) {
+    if (brix_plat_peer_cred(conn_fd, &uid, &gid, &pid) != 0) {
         return 0;                        /* cannot verify -> refuse */
     }
-    return cred.uid == brix_imp_get_broker_allow_uid() || cred.uid == 0;
+    return uid == brix_imp_get_broker_allow_uid() || uid == 0;
 }
 
 
@@ -375,7 +349,7 @@ static void
 imp_broker_accept(int listen_fd, struct pollfd *pfds, nfds_t *nfds,
                   ngx_log_t *log)
 {
-    int c = accept4(listen_fd, NULL, NULL, SOCK_CLOEXEC);
+    int c = brix_plat_accept4(listen_fd, NULL, NULL, 1);
 
     if (c < 0) {
         return;

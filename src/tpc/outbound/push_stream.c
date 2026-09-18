@@ -10,11 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* macOS doesn't have endian.h - use libkern/OSByteOrder.h */
-#if defined(__APPLE__) && defined(__MACH__)
-#else
-#endif
-
 /* File: push_stream.c — F16 push, the byte mover.
  *
  * WHAT: tpc_push_stream() streams the whole local file (t->dst_fd / t->dst_obj,

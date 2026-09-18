@@ -1,10 +1,14 @@
 """Test cases for audit16g_pmark_flags — preamble (fixtures/helpers/mocks) lives in
 _test_audit16g_pmark_flags_helpers.py; reexported below so pytest resolves fixtures in
 this module's namespace (split for the 600 logical-line file cap)."""
+import sys
+
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_audit16g_pmark_flags_helpers")
 
 
+@pytest.mark.skipif(sys.platform != "linux",
+                    reason="IPV6_FLOWLABEL_MGR is a Linux kernel socket option")
 @_needs_ipv6
 def test_the_kernel_admits_one_exclusive_holder_per_label():
     """The mechanism behind #74 and #75, and the cure, in four setsockopt calls.

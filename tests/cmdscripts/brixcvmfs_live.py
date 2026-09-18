@@ -32,6 +32,9 @@ from cmdscripts.c_regression_units import _gcov_flags
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, SERVER_HOST
 
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
+from lib_py.fuse_host import FUSE_READY, SKIP_REASON as FUSE_SKIP_REASON
+
 _PORTS = cmdscript_ports("brixcvmfs_live")
 
 
@@ -121,12 +124,15 @@ def _fuse3_flags() -> tuple[list[str], list[str]]:
     exists = subprocess.run(["pkg-config", "--exists", "fuse3"], capture_output=True)
     if exists.returncode != 0:
         raise LiveSkip("fuse3 development files not present")
-    if not os.path.exists("/dev/fuse"):
-        raise LiveSkip("/dev/fuse not available (sandbox or missing fuse module)")
-    if shutil.which("fusermount3") is None and shutil.which("fusermount") is None:
-        raise LiveSkip("no fusermount/fusermount3 helper on PATH")
+    if not FUSE_READY:
+        raise LiveSkip(FUSE_SKIP_REASON)
     cflags = subprocess.run(["pkg-config", "--cflags", "fuse3"], capture_output=True, text=True).stdout.split()
     libs = subprocess.run(["pkg-config", "--libs", "fuse3"], capture_output=True, text=True).stdout.split()
+    if sys.platform == "darwin":
+        # macFUSE defaults to its Darwin-extended API (extra xattr position
+        # args, struct fuse_darwin_attr); 0 selects the stock libfuse3
+        # signatures the client codes to — the same flag client/Makefile adds.
+        cflags.append("-DFUSE_DARWIN_ENABLE_EXTENSIONS=0")
     return cflags, libs
 
 
@@ -142,7 +148,7 @@ def _build_mkrepo(run: LiveRun) -> Path:
     return _gcc(
         run,
         run.root / "brix_mkrepo",
-        ["-Wall", "-I", "shared", "tests/cvmfs/brix_mkrepo.c", *MKREPO_DEPS, "-lsqlite3", "-lcrypto", "-lz"],
+        ["-Wall", "-I", "shared", "-I", "src", "tests/cvmfs/brix_mkrepo.c", *MKREPO_DEPS, "-lsqlite3", "-lcrypto", "-lz"],
     )
 
 
@@ -169,7 +175,7 @@ def _client_link_libs() -> list[str]:
     for package in packages:
         _extend_unique(libs, _package_libraries(package))
     if _package_exists("liblz4"):
-        libs.append("-l:liblz4.so.1")
+        libs.extend(LZ4_LINK_FLAGS)
     if "-lbz2" not in libs and glob.glob("/usr/lib/*/libbz2.so*"):
         # bzip2 ships no .pc file on Debian/Ubuntu, but libxrdproto's
         # codec_bzip2.o needs it wherever the runtime library exists — the
@@ -260,15 +266,25 @@ def _prepare_umbrella_dependencies(includes, sources):
 
 def _compiler_arguments(includes, defines, cflags, frontends, sources,
                         archives, libs, syslibs):
-    args = ["-Wall", "-Wextra", "-Werror", "-I", "shared"]
+    # The PAL selects its host header from -DBRIX_PLATFORM_HOST; without it
+    # every translation unit that reaches platform.h fails to compile.
+    args = ["-Wall", "-Wextra", "-Werror", *PLATFORM_HOST_FLAGS]
+    # Caller includes (client/lib) come FIRST, exactly as client/Makefile
+    # orders them (-Ilib -I$(SRC)): "platform/platform.h" must resolve to the
+    # CLIENT PAL header, not the module's same-named one under src/.
     for include in includes:
         args += ["-I", include]
+    args += ["-I", "shared", "-I", "src"]
     args += defines
     args += cflags
     if frontends:
         args += ["-DBRIXCVMFS_NO_MAIN", *frontends]
     args += ["client/apps/fs/brixcvmfs.c", *BRIXCVMFS_APP_SPLIT, *sources, *BRIXCVMFS_CORE, *archives,
              *libs, "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-lzstd", *syslibs]
+    # The umbrella dispatches to front-ends this scenario may not link in; they
+    # are BRIX_WEAK_REF declarations, which Mach-O needs named to stay undefined.
+    args += weak_undefined_flags("brixcvmfs_ingest_main", "brixcvmfs_repo_main",
+                                 "xrootdfs_aio_main")
     return args
 
 
@@ -431,5 +447,6 @@ def brixcvmfs_live(nginx: Path | None = None) -> int:
         ])
 
 from split_continuation import load as _load_continuations
+from cmdscripts.compile_run import LZ4_LINK_FLAGS, weak_undefined_flags
 _load_continuations(globals(), __file__, "brixcvmfs_live_part2.py",
                     "brixcvmfs_live_part3.py")

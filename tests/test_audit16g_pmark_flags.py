@@ -1,6 +1,8 @@
 """Test cases for audit16g_pmark_flags — preamble (fixtures/helpers/mocks) lives in
 _test_audit16g_pmark_flags_helpers.py; reexported below so pytest resolves fixtures in
 this module's namespace (split for the 600 logical-line file cap)."""
+import sys
+
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_audit16g_pmark_flags_helpers")
 
@@ -365,6 +367,9 @@ def _origin_diagnostics(log):
 
 
 @_needs_ipv6
+@pytest.mark.skipif(sys.platform != "linux",
+                    reason="IPv6 flow-label leasing (IPV6_FLOWLABEL_MGR) is a "
+                           "Linux kernel feature; other hosts are firefly-only")
 class TestTheFlowLabel:
     """The REQUIRED SciTags technique, and the one whose `off` arm was never
     written.  Every test here dials the IPv6 loopback: brix_pmark_flowlabel_apply

@@ -2,15 +2,13 @@
  * brix_fault_oracle.c — gated external-command oracle.  See brix_fault_oracle.h.
  */
 #include "brix_fault_oracle.h"
+#include "platform/platform.h"   /* PAL: brix_plat_close_from */
 
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
-#if defined(__linux__)
-#include <sys/syscall.h>
-#endif
 
 static int g_exec_enabled = 0;
 
@@ -42,17 +40,11 @@ fp_oracle_run(const char *cmd, int timeout_ms)
     if (pid == 0) {
         setsid();                       /* own process group for a clean timeout kill */
         /* Close every inherited descriptor above stdio so the probe never holds a
-         * copy of the proxy's listen/control/relay sockets.  Prefer close_range()
-         * (one syscall for the whole range) over a loop to RLIMIT_NOFILE, which on
-         * this box is ~500k and would cost half a million syscalls per fork. */
-#if defined(SYS_close_range)
-        if (syscall(SYS_close_range, 3, ~0U, 0) != 0)
-#endif
-        {
-            for (int fd = 3; fd < 4096; fd++) {
-                close(fd);
-            }
-        }
+         * copy of the proxy's listen/control/relay sockets.  The PAL prefers
+         * close_range() (one syscall for the whole range) over a loop to
+         * RLIMIT_NOFILE, which on this box is ~500k and would cost half a
+         * million syscalls per fork. */
+        (void) brix_plat_close_from(3);
         execl("/bin/sh", "sh", "-c", cmd, (char *) NULL);
         _exit(127);
     }

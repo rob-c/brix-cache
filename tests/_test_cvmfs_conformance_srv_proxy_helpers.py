@@ -34,8 +34,8 @@ from cmdscripts.live_common import (
 )
 from settings import BIND_HOST, HOST
 
-pytestmark = pytest.mark.skipif(not os.path.exists(NGINX_BIN),
-                                reason=f"nginx binary not found: {NGINX_BIN}")
+pytestmark = [pytest.mark.skipif(not os.path.exists(NGINX_BIN),
+                                reason=f"nginx binary not found: {NGINX_BIN}")]
 
 REPO = "test.cern.ch"
 MPATH = f"/cvmfs/{REPO}/.cvmfspublished"

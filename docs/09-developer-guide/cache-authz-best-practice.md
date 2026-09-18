@@ -273,8 +273,9 @@ under a granted subtree but 403'd outside it, for GET/HEAD/PROPFIND).
 **VO ACL over WebDAV (VOMS extraction — fixed).** `brix_webdav_require_vo` enforces VOMS VO
 membership, which is now extracted correctly over the nginx-TLS WebDAV path. Two bugs were
 closed: (1) `brix_voms_init` ran only from the stream postconfig, so a WebDAV-only deployment
-(no `stream{}` block) never loaded libvomsapi and `brix_voms_available()` was false — WebDAV
-now loads it when a location sets `brix_webdav_vomsdir`; (2) the per-TLS auth cache stores only
+(no `stream{}` block) never initialised VOMS extraction (at the time a dlopen of libvomsapi;
+today the native verifier's trust-store warm-up) — WebDAV now runs it when a location sets
+`brix_webdav_vomsdir`; (2) the per-TLS auth cache stores only
 the DN, so cached follow-up requests dropped the VO — VOMS is now re-derived on both the
 cache-hit and cache-miss auth paths. Verified: a VO=cms proxy is served and a VO=atlas proxy is
 403'd under a `require_vo` rule (`test_mu_webdav_authz.py`).

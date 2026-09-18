@@ -17,7 +17,9 @@ import sys
 import time
 from pathlib import Path
 
-from cmdscripts.compile_run import REPO_ROOT, compile_binary, result, run
+from cmdscripts.compile_run import (REPO_ROOT, client_pal_host_sources,
+                                    compile_binary, pal_host_sources, result,
+                                    run, weak_undefined_flags)
 
 FQRN = "unit.brix.io"
 
@@ -47,6 +49,9 @@ REPO_CLI_SOURCES = [
     "shared/cache/cas_store.c",
     "shared/cache/cas_pack.c",
     "shared/cvmfs/platform/platform.c",
+    # brixcvmfs_publish.c reads the boot id through the PAL (transaction-lock
+    # forensics), whose body lives in the host wrapper the Makefiles compile.
+    *pal_host_sources("process_wrapper"),
 ]
 REPO_CLI_LIBS = ["-lcrypto", "-lz", "-lzstd", "-lsqlite3"]
 
@@ -55,7 +60,9 @@ def _build_repotool(base: Path) -> tuple[Path | None, str]:
     binary = base / "repotool"
     built = compile_binary(
         binary,
-        ["-Wall", "-Wextra", "-Werror", "-I", "shared", "-DBRIXCVMFS_REPO_STANDALONE"]
+        # -I src: the shared sources reach the PAL through platform/platform_api.h
+        ["-Wall", "-Wextra", "-Werror", "-I", "shared", "-I", "src",
+         "-DBRIXCVMFS_REPO_STANDALONE"]
         + REPO_CLI_SOURCES + REPO_CLI_LIBS,
         cwd=REPO_ROOT,
     )
@@ -202,6 +209,12 @@ def _build_oracle_client(base, cflags, fuse_libs, app_split, core, cpool):
         ["-Wall", "-Wextra", "-Werror", "-I", "shared", "-I", "client/lib", "-I", "src",
          "-DXRDPROTO_NO_NGX", *cflags,
          "client/apps/fs/brixcvmfs.c", *app_split, *cpool, *core,
+         # The client PAL body (FUSE option support / host mount options) and
+         # the front-ends this umbrella dispatches to but does not link.
+         *client_pal_host_sources("posix"),
+         *weak_undefined_flags("brixcvmfs_ingest_main", "brixcvmfs_repo_main",
+                               "brixcvmfs_rw_main", "brixcvmfs_rw_ops",
+                               "brixcvmfs_setup_rw", "brixcvmfs_teardown_rw"),
          *fuse_libs, "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-lzstd"],
         cwd=REPO_ROOT,
     )

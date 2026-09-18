@@ -54,9 +54,11 @@ import subprocess
 
 import pytest
 import requests
+import time
 
 from server_launcher import LifecycleHarness, NginxInstanceSpec
 from settings import BIND_HOST, HOST, XRDCP_BIN
+from lib_py.util import budget_scale
 
 def _expression_1():
     return (
@@ -198,6 +200,19 @@ def test_passthrough_serves_an_unadmissible_object(planes, plane):
     assert int(r.headers["Content-Length"]) == len(OBJECTS["mid"])
 
 
+def _await_absent(planes, plane, stem, window=10.0):
+    """The plane's stored names once ``stem`` has gone, or the last snapshot
+    when the budget expires (the caller asserts on it)."""
+    deadline = time.monotonic() + window * budget_scale()
+    names = planes.stored(plane)
+    while time.monotonic() < deadline:
+        if not any(n.endswith(f"{stem}.bin") or n.startswith(stem) for n in names):
+            return names
+        time.sleep(0.1)
+        names = planes.stored(plane)
+    return names
+
+
 @pytest.mark.parametrize("plane", PT_ON)
 def test_passthrough_object_is_evicted_not_retained(planes, plane):
     """Store-then-EVICT: the spooled key is gone once the fd is handed over.
@@ -207,7 +222,12 @@ def test_passthrough_object_is_evicted_not_retained(planes, plane):
     bypass, not a passthrough.
     """
     assert planes.get(plane, "mid").status_code == 200
-    names = planes.stored(plane)
+    # The evict lands as the handed-over fd is released, just after the
+    # response completes, so a single snapshot can catch the spooled key still
+    # on disk under load.  Waiting bounds that window without weakening the
+    # claim: a key that is genuinely RETAINED is still there when time runs
+    # out, and still fails.
+    names = _await_absent(planes, plane, "mid")
     assert not any(n.endswith("mid.bin") or n.startswith("mid") for n in names), names
     # the admitted object is the only thing that survives a passthrough fill
     assert planes.get(plane, "small").content == OBJECTS["small"]

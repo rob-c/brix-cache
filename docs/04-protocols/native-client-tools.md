@@ -528,6 +528,23 @@ BRIX_VMP=/xrd=root://store.example:1094/ \
 cat /xrd/data/file.root
 ```
 
+On macOS the same shim is built as `libbrixposix_preload.dylib` and inserted
+with dyld instead of the glibc loader:
+
+```bash
+DYLD_INSERT_LIBRARIES=/path/to/libbrixposix_preload.dylib \
+BRIX_VMP=/xrd=root://store.example:1094/ \
+python3 -c 'print(open("/xrd/data/file.root","rb").read(16))'
+```
+
+System Integrity Protection strips `DYLD_INSERT_LIBRARIES` from Apple-signed
+binaries (`/bin/cat`, `/usr/bin/python3`, the stock coreutils), so on macOS the
+shim reaches Homebrew tools, a venv interpreter and programs you build yourself.
+The wrappers are named `brixposix_<call>` there and bound to libSystem through a
+`__interpose` table (`client/lib/platform/darwin/preload_interpose.c`); the
+glibc-only `*64` names and `statx` live in
+`client/lib/platform/linux/preload_lfs.c`.
+
 The shim interposes open/read/pread/lseek/close, stat-family calls, and access.
 Paths under the local prefix from `$BRIX_VMP` are rewritten to the remote
 logical path and served through a lazily connected `libbrix` session. Other paths
@@ -577,6 +594,7 @@ that reviewers should keep in mind:
 | Upstream CLI parity | The tools implement a practical XRootD/WebDAV/S3 surface, not every upstream XrdCl flag or plugin behavior. |
 | UDP monitoring | Intentionally absent. Diagnostics use client traces/captures and server `/metrics`, not the upstream binary UDP monitoring stream. |
 | FUSE sync driver resilience | `xrootdfs --legacy` is synchronous and does not resume an in-flight transfer after a connection drop; the default `xrootdfs` (no `--legacy`) does. |
-| POSIX preload | Read-oriented first cut; writes/fopen/mmap are not implemented as remote operations. |
+| POSIX preload | Read-oriented first cut; writes/fopen/mmap are not implemented as remote operations. On macOS SIP hides the shim from Apple-signed binaries. |
+| macOS | The Ceph operator tools need librados/libcephfs headers Homebrew does not ship; `brix-fault-proxy`'s root-only `netem`/`cut` levers need `tc`/`nft`. Everything else in `client/` builds, installs and runs (see the macOS quickstart's artifact table). |
 | Native root TPC | The tools drive the stock dialect (destination pulls) with ztn/GSI outbound auth, and `-S N` becomes `tpc.str=N` so a 2.0 destination pulls multi-stream. TLS-upgraded source origins and a source `kXR_redirect` are both handled on the pull leg (2.0 F7, bounded by `brix_tpc_max_hops`). What remains site-specific is credential forwarding against a foreign source. |
 | Vendor POSIX extensions | `setattr`, symlink/readlink, and hardlink operations are emitted only when a server advertises `xrdfs.ext`; stock servers will not see those opcodes. |

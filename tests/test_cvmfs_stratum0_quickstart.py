@@ -22,7 +22,8 @@ a drift between what we document and what we install fails here:
                 personality (the umbrella still demands a type keyword).
 
 Unprivileged throughout: no root, no overlayfs, no kernel automount — the
-mount leg needs only /dev/fuse and skips cleanly without it.
+mount leg needs only unprivileged FUSE (see lib_py/fuse_host.py) and skips
+cleanly without it.
 """
 
 import os
@@ -37,6 +38,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 
 from conformance_common import BRIXMOUNT, NGINX_BIN, PortBlock, fuse_mount, request
 from cmdscripts.live_common import LiveRun
+from lib_py.fuse_host import FUSE_READY
 from settings import BIND_HOST, HOST
 from config_templates import render_config
 
@@ -131,8 +133,8 @@ def _mount(repo, port):
 
 
 def _need_fuse():
-    if not (os.path.exists("/dev/fuse") and os.path.exists(BRIXMOUNT)):
-        pytest.skip("no /dev/fuse or brixMount for the client leg")
+    if not (FUSE_READY and os.path.exists(BRIXMOUNT)):
+        pytest.skip("no unprivileged FUSE or brixMount for the client leg")
 
 
 # ---------------------------------------------------------------------------
@@ -167,11 +169,32 @@ def _assert_mounted_payload(mountpoint):
         assert stat.S_IMODE(path.lstat().st_mode) == mode, relative
 
 
+def _run_from_mount(script):
+    """Run ``script`` from the FUSE mount.
+
+    macFUSE refuses execve(2) of a file on a user-space volume with EPERM even
+    when the mode bits allow it and the volume carries no `noexec` (verified:
+    mode -rwxr-xr-x, owner the caller, options ro,nosuid,nodev,sync).  The
+    bytes and the mode still round-trip, which is what this leg is about, so
+    the interpreter runs it there; every other host must still execve it
+    directly, or a real regression would hide behind the fallback.
+    """
+    try:
+        return subprocess.run([str(script)], capture_output=True, text=True,
+                              timeout=30)
+    except PermissionError:
+        if sys.platform != "darwin":
+            raise
+        return subprocess.run(["/bin/sh", str(script)], capture_output=True,
+                              text=True, timeout=30)
+
+
 def _assert_mounted_tools(mountpoint):
     link = mountpoint / SYMLINK[0]
     assert link.is_symlink() and os.readlink(link) == SYMLINK[1]
-    run = subprocess.run([str(mountpoint / "tools/hello.sh")],
-                         capture_output=True, text=True, timeout=30)
+    script = mountpoint / "tools/hello.sh"
+    assert os.stat(script).st_mode & 0o111, "the executable bit did not survive"
+    run = _run_from_mount(script)
     assert run.returncode == 0 and "hello from stratum-0" in run.stdout
 
 

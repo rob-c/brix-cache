@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_client2_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_client2_b_b")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_client2_b_b")]
 
 @pytest.mark.parametrize("remote", ["/no_such_file.bin", "/many", "/deep/a"])
 def test_xrdcp_download_error_category_parity(srv, tmp_path, remote):

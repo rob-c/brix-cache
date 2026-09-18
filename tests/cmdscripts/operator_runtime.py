@@ -13,6 +13,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+from lib_py.util import pid_alive
 import time
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
@@ -96,7 +97,8 @@ def _safe_kill(pid: int, sig: int = signal.SIGTERM) -> None:
 
 def _process_cmdline(pid: int) -> str:
     try:
-        return Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "ignore")
+        from lib_py.util import process_cmdline  # noqa: PLC0415
+        return process_cmdline(pid).decode("utf-8", "ignore")
     except OSError:
         return ""
 
@@ -148,7 +150,7 @@ def _signal_root_processes(root_marker):
 def _wait_for_processes(owned):
     deadline = time.monotonic() + 3
     while owned and time.monotonic() < deadline:
-        owned = {pid for pid in owned if Path(f"/proc/{pid}").exists()}
+        owned = {pid for pid in owned if _pid_alive(pid)}
         if owned:
             time.sleep(0.05)
     return owned
@@ -168,12 +170,34 @@ def _kill_stale_listeners():
         kill_pid_list(stale)
 
 
+def _pid_alive(pid) -> bool:
+    """Whether ``pid`` still exists (procfs on Linux, kill(0) elsewhere)."""
+    return pid_alive(pid)
+
+
+def _executable_name(pid) -> str:
+    """Basename of the program ``pid`` runs; "" if unknown."""
+    if os.path.isdir("/proc"):
+        try:
+            return Path(f"/proc/{pid}/exe").resolve().name
+        except OSError:
+            return ""
+    try:
+        out = subprocess.run(["ps", "-o", "ucomm=", "-p", str(pid)],
+                             capture_output=True, text=True, check=False, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return os.path.basename(out.strip())
+
+
 def _is_test_server(pid):
     cmdline = _process_cmdline(pid).strip()
-    try:
-        executable = Path(f"/proc/{pid}/exe").resolve().name
-    except OSError:
+    executable = _executable_name(pid)
+    if not executable:
         return False
+    # The registry runs nginx from a per-session copy (nginx-<hash>).
+    if executable.startswith("nginx-"):
+        executable = "nginx"
     return executable in {"nginx", "xrootd", "cmsd", "haproxy"} or \
         cmdline.startswith("nginx: worker process")
 

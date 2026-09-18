@@ -21,7 +21,15 @@ from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST
 
-pytestmark = [pytest.mark.uses_lifecycle_harness,
+# The whole premise is a worker running under a seccomp filter, which is a
+# Linux kernel feature, and the proof reads the worker's Seccomp: line out of
+# /proc. A host with no procfs can neither run the filter nor establish that it
+# is running, so the assertion below would fail for a reason that has nothing
+# to do with the tape path it is testing.
+pytestmark = [pytest.mark.skipif(
+                  not os.path.isdir("/proc"),
+                  reason="seccomp enforcement and its /proc proof are Linux-only"),
+              pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-frmsec")]
 
 BIND = BIND_HOST
@@ -60,7 +68,10 @@ def _seccomp_mode(entry):
 
 
 def _worker_seccomp(prefix: str) -> "str | None":
-    """Seccomp: value from the (single) nginx worker under `prefix`'s master."""
+    """Seccomp: value from the (single) nginx worker under `prefix`'s master,
+    or None where there is no procfs to read it from."""
+    if not os.path.isdir("/proc"):
+        return None
     with open(os.path.join(prefix, "logs", "nginx.pid"), encoding="utf-8") as fh:
         master = int(fh.read().strip())
     for entry in os.listdir("/proc"):

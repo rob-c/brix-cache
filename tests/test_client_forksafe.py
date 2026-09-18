@@ -31,8 +31,10 @@ import pytest
 
 from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 
+from lib_py import preload_shim
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PRELOAD = os.path.join(REPO, "client", "libbrixposix_preload.so")
+PRELOAD = preload_shim.SHIM_PATH
 
 
 from sanitizer_preload import sanitizer_runtimes
@@ -40,10 +42,11 @@ from sanitizer_preload import sanitizer_runtimes
 _ASAN_RT = sanitizer_runtimes(PRELOAD)
 
 
-def _preload_chain():
-    """LD_PRELOAD value: sanitizer runtimes (empty on a plain build) prepended
-    before the shim so it loads into the uninstrumented host process."""
-    return " ".join(x for x in (_ASAN_RT, PRELOAD) if x)
+def _preload_env():
+    """The host's insertion variable (LD_PRELOAD / DYLD_INSERT_LIBRARIES):
+    sanitizer runtimes (empty on a plain build) prepended before the shim so
+    it loads into the uninstrumented host process."""
+    return preload_shim.preload_env(None, _ASAN_RT)
 
 
 pytestmark = [
@@ -116,13 +119,12 @@ class TestForkSafety:
             f.write(CHILD_CONTENT)
         driver = tmp_path / "driver.py"
         driver.write_text(DRIVER % (len(CONTENT), CHILD_CONTENT))
-        env = dict(os.environ)
-        env["LD_PRELOAD"] = _preload_chain()
+        env = _preload_env()
         if _ASAN_RT:
             env.setdefault("ASAN_OPTIONS", "detect_leaks=0:verify_asan_link_order=0")
         env["BRIX_VMP"] = f"/xrd=root://{SERVER_HOST}:{NGINX_ANON_PORT}/"
         try:
-            res = subprocess.run(["python3", str(driver)], env=env,
+            res = subprocess.run([preload_shim.interposable_python(), str(driver)], env=env,
                                  capture_output=True, text=True, timeout=60)
             assert res.returncode == 0, (res.returncode, res.stdout,
                                          res.stderr)

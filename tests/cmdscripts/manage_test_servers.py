@@ -22,6 +22,8 @@ from pathlib import Path
 import argparse
 import os
 import sys
+from lib_py import host_env
+
 
 def _expression_1(specs):
     return (
@@ -91,7 +93,11 @@ def start_all() -> int:
 
     Path(FLEET_READY).unlink(missing_ok=True)
     fleet_prep.prepare()
-    specs = _register()
+    from brix_suite import host_caps  # noqa: PLC0415
+
+    specs, dropped = host_caps.filter_available(_register())
+    for name, reason in sorted(dropped.items()):
+        print(f"start-all: skipping {name}: {reason}", file=sys.stderr)
     _launcher().start_registered(specs)
     marker = Path(FLEET_READY)
     marker.parent.mkdir(parents=True, exist_ok=True)
@@ -178,6 +184,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("target", nargs="?", default="all")
     ns = parser.parse_args(argv)
     _sanitize_env()
+    host_env.install()
 
     if ns.action == "start-all":
         return start_all()

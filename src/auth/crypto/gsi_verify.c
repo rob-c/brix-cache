@@ -268,6 +268,105 @@ brix_gsi_verify_log_chain(X509_STORE_CTX *vctx, ngx_log_t *log)
 }
 
 /*
+ * WHAT: legacy (GT2) proxy support — mark every GT2-shaped certificate of
+ *       the presented chain as a proxy before verification.
+ * WHY:  OpenSSL's ALLOW_PROXY_CERTS recognises only certificates carrying
+ *       proxyCertInfo; a GT2 proxy (subject = issuer + CN=proxy, no
+ *       extension) is otherwise chained as an end-entity certificate whose
+ *       issuer is not a CA, and verification stops at "unable to get local
+ *       issuer certificate".  X509_set_proxy_flag() is OpenSSL's own hook for
+ *       exactly this credential shape: once marked, the standard proxy rules
+ *       (issuer must be the EEC or a proxy, subject = issuer + one CN, path
+ *       length accounting) apply to it, and every EXFLAG_PROXY consumer here
+ *       (EEC extraction, signing-policy exemption, CRL scope) sees it.
+ * HOW:  Only when the store's policy allows legacy proxies.  The extension
+ *       cache is forced first so a later cache fill cannot drop the flag.
+ *       Returns the number of certificates marked.
+ */
+int
+brix_gsi_mark_legacy_proxies(X509 *leaf, STACK_OF(X509) *untrusted, int mode)
+{
+    int n = untrusted ? sk_X509_num(untrusted) : 0;
+    int i, marked = 0;
+
+    if (mode == BRIX_LEGACY_PROXY_OFF) {
+        return 0;
+    }
+    for (i = -1; i < n; i++) {
+        X509 *cert = (i < 0) ? leaf : sk_X509_value(untrusted, i);
+
+        if (cert == NULL || brix_gt2_proxy_kind(cert) == BRIX_PX_NONE) {
+            continue;
+        }
+        (void) X509_get_extension_flags(cert);   /* fill the cache first */
+        X509_set_proxy_flag(cert);
+        X509_set_proxy_pathlen(cert, -1);
+        marked++;
+    }
+    return marked;
+}
+
+/* The BRIX_GSI_PX_* kind of one certificate. */
+static int
+brix_gsi_proxy_kind_of(X509 *cert)
+{
+    brix_px_kind_t gt2 = brix_gt2_proxy_kind(cert);
+
+    if (gt2 == BRIX_PX_LIMITED) {
+        return BRIX_GSI_PX_GT2_LIMITED;
+    }
+    if (gt2 == BRIX_PX_FULL) {
+        return BRIX_GSI_PX_GT2_FULL;
+    }
+    switch (brix_px_classify(cert)) {
+    case BRIX_PX_LIMITED: return BRIX_GSI_PX_RFC_LIMITED;
+    case BRIX_PX_FULL:    return BRIX_GSI_PX_RFC_FULL;
+    default:              return BRIX_GSI_PX_NONE;
+    }
+}
+
+const char *
+brix_gsi_proxy_kind_name(int kind)
+{
+    switch (kind) {
+    case BRIX_GSI_PX_RFC_FULL:    return "rfc3820";
+    case BRIX_GSI_PX_RFC_LIMITED: return "rfc3820-limited";
+    case BRIX_GSI_PX_GT2_FULL:    return "legacy";
+    case BRIX_GSI_PX_GT2_LIMITED: return "legacy-limited";
+    default:                      return "eec";
+    }
+}
+
+/*
+ * WHAT: the legacy-proxy policy over the VERIFIED chain: record the leaf's
+ *       kind, and under full-only refuse a chain that contains a GT2
+ *       "limited proxy" anywhere (a limited credential is meant for data
+ *       access by a job, not for a login that could re-delegate).
+ */
+static ngx_int_t
+brix_gsi_enforce_legacy_policy(X509_STORE_CTX *vctx, X509 *leaf, int mode,
+    brix_gsi_verify_result_t *res, ngx_log_t *log)
+{
+    STACK_OF(X509) *chain = X509_STORE_CTX_get0_chain(vctx);
+    int             n = chain ? sk_X509_num(chain) : 0;
+    int             i;
+
+    res->proxy_kind = brix_gsi_proxy_kind_of(leaf);
+    if (mode != BRIX_LEGACY_PROXY_FULL_ONLY) {
+        return NGX_OK;
+    }
+    for (i = 0; i < n; i++) {
+        if (brix_gt2_proxy_kind(sk_X509_value(chain, i)) == BRIX_PX_LIMITED) {
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                "brix: GSI client cert rejected: legacy limited proxy in the "
+                "chain (brix_gsi_legacy_proxy full-only)");
+            return NGX_ERROR;
+        }
+    }
+    return NGX_OK;
+}
+
+/*
  * WHAT: Verify an x.509 proxy certificate chain against a CA trust store.
  *
  * HOW (step by step):
@@ -293,8 +392,10 @@ brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
     X509_STORE_CTX *vctx;
     char           *dn_str;
     int             ok;
+    int             legacy = brix_store_legacy_proxy(store);
 
     ngx_memzero(res, sizeof(*res));
+    (void) brix_gsi_mark_legacy_proxies(leaf, untrusted, legacy);
 
     vctx = X509_STORE_CTX_new();
     if (vctx == NULL) {
@@ -346,10 +447,19 @@ brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
     }
 
     brix_gsi_verify_log_chain(vctx, log);
+    if (legacy != BRIX_LEGACY_PROXY_OFF
+        && brix_gt2_proxy_kind(leaf) != BRIX_PX_NONE)
+    {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: GSI: legacy (pre-RFC 3820) proxy accepted; plan the "
+            "client's move to RFC 3820 proxies");
+    }
 
     if (brix_gsi_enforce_signing_policy(vctx, log) != NGX_OK
         || brix_gsi_enforce_proxy_monotonicity(vctx, log) != NGX_OK
         || brix_gsi_enforce_cert_policy(vctx, leaf, log, client_purpose)
+           != NGX_OK
+        || brix_gsi_enforce_legacy_policy(vctx, leaf, legacy, res, log)
            != NGX_OK)
     {
         X509_STORE_CTX_free(vctx);

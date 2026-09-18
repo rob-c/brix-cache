@@ -270,12 +270,6 @@ brix_config_finalize_policy(ngx_conf_t *cf,
     }
 
     if (xcf->common.vo_rules != NULL) {
-        if (!brix_voms_available()) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix_require_vo requires libvomsapi.so.1 at runtime "
-                "(install voms-libs on EL9)");
-            return NGX_ERROR;
-        }
         if (xcf->common.vomsdir.len == 0 || xcf->common.voms_cert_dir.len == 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix_require_vo requires brix_vomsdir and brix_voms_cert_dir");
@@ -290,6 +284,12 @@ brix_config_finalize_policy(ngx_conf_t *cf,
                                     BRIX_PATH_DIRECTORY, R_OK | X_OK)
                != NGX_OK)
         {
+            return NGX_ERROR;
+        }
+        if (brix_voms_warm(cf->log, &xcf->common.voms_cert_dir) != NGX_OK) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_voms_cert_dir \"%V\": cannot load the CA directory",
+                &xcf->common.voms_cert_dir);
             return NGX_ERROR;
         }
     }

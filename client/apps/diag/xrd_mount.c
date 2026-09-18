@@ -4,6 +4,7 @@
  */
 #include "xrd_internal.h"
 #include "core/progname.h"  /* brix_prog_prefix(): exec the brix-<driver> sibling */
+#include "platform/platform.h"   /* PAL: brix_plat_mounts_walk */
 
 
 /* `xrd login [--oidc-account N] [--read] [-v]` — acquire/refresh a bearer token
@@ -225,27 +226,7 @@ run_cmd(char *const cmd_argv[])
 }
 
 
-/* Decode mountinfo octal escapes (\040 space, \011 tab, \012 nl, \134 backslash)
- * from `in` into out[outsz]. */
-void
-mountinfo_unescape(const char *in, char *out, size_t outsz)
-{
-    size_t o = 0;
-    while (*in != '\0' && o + 1 < outsz) {
-        if (in[0] == '\\' && in[1] >= '0' && in[1] <= '7'
-            && in[2] >= '0' && in[2] <= '7' && in[3] >= '0' && in[3] <= '7') {
-            out[o++] = (char) ((in[1] - '0') * 64 + (in[2] - '0') * 8 + (in[3] - '0'));
-            in += 4;
-        } else {
-            out[o++] = *in++;
-        }
-    }
-    out[o] = '\0';
-}
-
-
-#ifdef __linux__
-/* ---- Classify a mountinfo entry as an XRootD FUSE mount and name its driver ----
+/* ---- Classify a mount-table entry as an XRootD FUSE mount and name its driver ----
  *
  * WHAT: Given a mountinfo filesystem type and source, returns the driver label
  * ("legacy", "aio", or "fuse") when the entry is an XRootD FUSE mount, or NULL when
@@ -274,89 +255,49 @@ xrd_mountinfo_driver(const char *fstype, const char *src)
 }
 
 
-/* ---- Parse and, if it is an XRootD mount, print one /proc mountinfo line ----
+/* ---- Print one mount-table entry when it is an XRootD mount ----
  *
- * WHAT: Tokenizes a single mountinfo line (destructively, via strtok_r), and when it
- * describes an XRootD FUSE mount prints its "ENDPOINT  MOUNTPOINT  DRIVER" row,
- * emitting the column header once on the first printed row via *header. Non-matching
- * or malformed lines produce no output.
+ * WHAT: brix_plat_mounts_walk callback. When the entry describes an XRootD FUSE
+ * mount prints its "ENDPOINT  MOUNTPOINT  DRIVER" row, emitting the column header
+ * once on the first printed row via *header (passed as `arg`). Non-matching entries
+ * produce no output. Always returns 0 so the walk continues to the end.
  *
- * WHY: The per-line parse is the whole of xrd_list_mounts' complexity; extracting it
- * turns the file loop into a flat read-a-line/emit-a-line sequence and gives the
- * field-splitting and unescape steps a single, testable owner.
- *
- * HOW:
- *   1. Split the line on spaces/newlines into up to 48 fields.
- *   2. Locate the "-" separator; bail on lines with too few fields before/after it.
- *   3. Read mountpoint (field 4), fstype (sep+1) and source (sep+2); classify via
- *      xrd_mountinfo_driver and return when it is not an XRootD mount.
- *   4. Unescape the mountpoint and source octal escapes, print the header once, then
- *      print the endpoint/mountpoint/driver row.
+ * WHY: The PAL walk owns the host's mount-table format (and its unescaping); this
+ * callback keeps only the classification and the row layout.
  */
-static void
-xrd_mountinfo_emit_line(char *line, int *header)
+static int
+xrd_mount_emit(const char *mp, const char *fstype, const char *src, void *arg)
 {
-    char       *fields[48];
-    int         nf = 0, sep = -1, i;
-    char       *tok, *save;
-    const char *mp, *fstype, *src, *driver;
-    char        mpbuf[PATH_MAX], srcbuf[PATH_MAX];
+    int        *header = arg;
+    const char *driver = xrd_mountinfo_driver(fstype, src);
 
-    for (tok = strtok_r(line, " \n", &save); tok != NULL && nf < 48;
-         tok = strtok_r(NULL, " \n", &save)) {
-        fields[nf++] = tok;
-    }
-    for (i = 0; i < nf; i++) {
-        if (strcmp(fields[i], "-") == 0) { sep = i; break; }
-    }
-    if (sep < 5 || sep + 2 >= nf) { return; }   /* malformed / too few fields */
-    mp     = fields[4];
-    fstype = fields[sep + 1];
-    src    = fields[sep + 2];
-    driver = xrd_mountinfo_driver(fstype, src);
-    if (driver == NULL) { return; }
-    mountinfo_unescape(mp, mpbuf, sizeof(mpbuf));
-    mountinfo_unescape(src, srcbuf, sizeof(srcbuf));
+    if (driver == NULL) { return 0; }
     if (!*header) {
         printf("%-36s %-28s %s\n", "ENDPOINT", "MOUNTPOINT", "DRIVER");
         *header = 1;
     }
-    printf("%-36s %-28s %s\n", srcbuf, mpbuf, driver);
+    printf("%-36s %-28s %s\n", src, mp, driver);
+    return 0;
 }
-#endif /* __linux__ */
 
 
 /* `xrd mount` (no args) / `xrd mounts` / `xrd mount -l` — list active XRootD FUSE
- * mounts by parsing /proc/self/mountinfo (override with XRD_MOUNTINFO_PATH for tests).
- * Matches fuse.xrootdfs* filesystem types, plus any fuse mount whose source looks like
- * a root:// endpoint. Prints "ENDPOINT  MOUNTPOINT  DRIVER"; honest empty output (exit
- * 0) when nothing is mounted. Pure procfs parse — no network, no credentials. */
+ * mounts from the host mount table via the PAL (Linux: /proc/self/mountinfo,
+ * override with XRD_MOUNTINFO_PATH for tests; Darwin: getmntinfo). Matches
+ * fuse.xrootdfs* filesystem types, plus any fuse mount whose source looks like a
+ * root:// endpoint. Prints "ENDPOINT  MOUNTPOINT  DRIVER"; honest empty output (exit
+ * 0) when nothing is mounted. No network, no credentials. */
 int
 xrd_list_mounts(void)
 {
-#ifndef __linux__
-    fprintf(stderr, "xrd mount: mount listing is only supported on Linux\n");
-    return 0;
-#else
-    const char *path = getenv("XRD_MOUNTINFO_PATH");
-    FILE       *fp = fopen(path != NULL ? path : "/proc/self/mountinfo", "r");
-    char       *line = NULL;
-    size_t      cap = 0;
-    ssize_t     r;
-    int         header = 0;
+    int header = 0;
 
-    if (fp == NULL) {
-        fprintf(stderr, "xrd mount: cannot read mountinfo: %s\n", strerror(errno));
+    if (brix_plat_mounts_walk(getenv("XRD_MOUNTINFO_PATH"), xrd_mount_emit,
+                              &header) < 0) {
+        fprintf(stderr, "xrd mount: cannot read mount table: %s\n", strerror(errno));
         return 1;
     }
-    while ((r = getline(&line, &cap, fp)) >= 0) {
-        (void) r;
-        xrd_mountinfo_emit_line(line, &header);
-    }
-    free(line);
-    fclose(fp);
     return 0;
-#endif
 }
 
 
@@ -495,9 +436,11 @@ xrd_mount(int argc, char **argv)
 }
 
 
-/* `xrd unmount [-z|--lazy] <mountpoint>` (alias: umount) — unmount a FUSE export,
- * preferring fusermount3 (fuse3), then fusermount, then umount. -z/--lazy maps to
- * the lazy-detach flag of whichever tool is used. */
+/* `xrd unmount [-z|--lazy] <mountpoint>` (alias: umount) — unmount a FUSE export
+ * through the host's unprivileged tiers (brix_plat_fuse_umount_argv: fusermount3,
+ * then fusermount, then umount on Linux; umount on macOS). -z/--lazy maps to the
+ * lazy-detach flag of whichever tool is used; a tool that is not installed
+ * (exit 126) hands over to the next tier. */
 int
 xrd_unmount(int argc, char **argv)
 {
@@ -518,30 +461,14 @@ xrd_unmount(int argc, char **argv)
         fprintf(stderr, "usage: xrd unmount [-z] <mountpoint>\n");
         return 50;
     }
-    {
-        char *c[5]; int k = 0;
-        c[k++] = (char *) "fusermount3"; c[k++] = (char *) "-u";
-        if (lazy) { c[k++] = (char *) "-z"; }
-        c[k++] = (char *) mp; c[k] = NULL;
-        rc = run_cmd(c);
-    }
-    if (rc == 126) {   /* fusermount3 not present → fusermount */
-        char *c[5]; int k = 0;
-        c[k++] = (char *) "fusermount"; c[k++] = (char *) "-u";
-        if (lazy) { c[k++] = (char *) "-z"; }
-        c[k++] = (char *) mp; c[k] = NULL;
-        rc = run_cmd(c);
-    }
-    if (rc == 126) {   /* neither fusermount → umount (-l = lazy) */
-        char *c[4]; int k = 0;
-        c[k++] = (char *) "umount";
-        if (lazy) { c[k++] = (char *) "-l"; }
-        c[k++] = (char *) mp; c[k] = NULL;
-        rc = run_cmd(c);
-    }
-    if (rc == 126) {
-        fprintf(stderr, "xrd unmount: no fusermount3/fusermount/umount found\n");
-        return 127;
+    rc = 126;
+    for (i = 0; rc == 126; i++) {
+        char *c[BRIX_PLAT_UMOUNT_ARGV_MAX];
+        if (brix_plat_fuse_umount_argv(mp, lazy, i, c) == 0) {
+            fprintf(stderr, "xrd unmount: no unmount tool found on PATH\n");
+            return 127;
+        }
+        rc = run_cmd(c);   /* 126: this tier's tool is not installed */
     }
     return (rc < 0) ? 1 : rc;
 }

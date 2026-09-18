@@ -1,15 +1,9 @@
 /* fill_retry.c — see header. The classification table is convention #7 of
  * the phase-68 plan; keep the two in sync. */
 #include "fill_retry.h"
+#include "platform/platform_api.h"   /* ENOKEY on every host */
 
 #include <errno.h>
-
-/* macOS lacks ENOKEY - define as EACCES fallback */
-#if defined(__APPLE__) && defined(__MACH__)
-#ifndef ENOKEY
-#define ENOKEY EACCES  /* "Required key not available" -> access denied */
-#endif
-#endif
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>

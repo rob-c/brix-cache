@@ -26,6 +26,7 @@ import urllib.request
 from cmdscripts.compile_run import REPO_ROOT
 from cmdscripts.live_common import LiveRun
 from lib_py.util import wait_tcp
+from lib_py import fuse_host
 from settings import BIND_HOST, HOST, TEST_PORT_START
 from port_ladder import CVMFS_CONFORMANCE_OFFSET
 
@@ -338,15 +339,10 @@ def srv_instance(port_block: str | PortBlock, *, webroot=None, objects=8, seed=1
 # ---- fuse mount context manager -------------------------------------------
 
 def _unmount(mnt: Path) -> None:
-    """fusermount3 -u / fusermount -u / lazy umount. Never raises. Teardown MUST
-    always run: an orphaned FUSE mount wedges the whole test fleet."""
-    for argv in (["fusermount3", "-u"], ["fusermount", "-u"], ["umount", "-l"]):
-        if shutil.which(argv[0]) is None:
-            continue
-        rc = subprocess.run([*argv, str(mnt)], stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL).returncode
-        if rc == 0:
-            return
+    """Plain unmount through the host's tool, then a lazy detach. Never raises.
+    Teardown MUST always run: an orphaned FUSE mount wedges the whole test fleet."""
+    if fuse_host.unmount(str(mnt)).returncode != 0:
+        fuse_host.unmount(str(mnt), lazy=True)
 
 
 def _wait_mounted(mnt: Path, timeout: float) -> bool:

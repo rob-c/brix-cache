@@ -103,6 +103,7 @@ from settings import (
     NGINX_BIN,
     url_host,
 )
+from lib_py.util import loopback_alias_usable
 
 pytestmark = [pytest.mark.timeout(600),
               pytest.mark.uses_lifecycle_harness,
@@ -132,8 +133,8 @@ READ_FILE = "/hello.txt"
 READ_BODY = b"krb5 ip check\n"
 
 SYS_XRDFS = shutil.which("xrdfs")
-SYS_KINIT = shutil.which("kinit") or "/usr/bin/kinit"
-SYS_KLIST = shutil.which("klist") or "/usr/bin/klist"
+SYS_KINIT = kdc_helpers.krb5_tool("kinit") or "/usr/bin/kinit"   # MIT, matching the realm
+SYS_KLIST = kdc_helpers.krb5_tool("klist") or "/usr/bin/klist"
 
 
 # --------------------------------------------------------------------------- #
@@ -301,15 +302,7 @@ class _Relay:
 
 def _foreign_address_usable():
     """Whether this host lets a socket bind the second loopback address."""
-    probe = socket.socket()
-    try:
-        from ephemeral_port import free_port
-        probe.bind((FOREIGN, free_port(FOREIGN)))
-        return True
-    except OSError:
-        return False
-    finally:
-        probe.close()
+    return loopback_alias_usable(FOREIGN)
 
 
 # --------------------------------------------------------------------------- #

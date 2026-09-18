@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_srv_geo_helpers")
 
-pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_srv_geo")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("test_cvmfs_conformance_srv_geo")]
 
 def test_passthrough_relays_identity_order(pass_srv):
     st, _, body = geo_get(pass_srv, "a.example.org,b.example.org,c.example.org")

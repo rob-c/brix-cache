@@ -15,12 +15,6 @@
 #     nginx-mod-devel, enable the nginx stable upstream repo (see the commented
 #     block below).
 #   - The resulting RPM will carry the .el10 dist tag.
-#   - voms-libs at runtime: enable the WLCG EL10 repository on the target
-#     host before installing this RPM:
-#       dnf install -y https://linuxsoft.cern.ch/wlcg/el10/x86_64/wlcg-repo-*.noarch.rpm
-#     If the WLCG EL10 repo is not yet published, voms-libs from the EL9 WLCG
-#     repo may install with --releasever=9 compatibility shims — verify before
-#     production use.
 
 FROM almalinux:10 AS builder
 

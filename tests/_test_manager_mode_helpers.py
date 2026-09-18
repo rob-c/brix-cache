@@ -71,6 +71,7 @@ from settings import (
     TEST_ROOT,
     url_host,
 )
+from lib_py.util import budget_scale
 
 def _expression_1(status, body):
     return (
@@ -118,6 +119,7 @@ def _kill_nginx_dedicated(name: str) -> None:
 
 def _wait_port(port: int, label: str = "", timeout: float = 20.0, host: str = HOST):
     """Block until host:port accepts a TCP connection or timeout expires."""
+    timeout *= budget_scale()      # a loaded host takes proportionally longer
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
@@ -442,33 +444,43 @@ def cluster_multi_server():
 
 
 
+def _await_settled_cms_count(count_now, window=30.0, settle=2.0):
+    """The node's CMS connection count once it has stopped changing.
+
+    Waits for the first connection (the budget scales with the host), then
+    keeps sampling for ``settle`` seconds: stopping at the first hit would
+    miss a SECOND connection appearing, which is exactly the self-collision
+    the worker-0 gate exists to prevent.
+    """
+    deadline = time.monotonic() + window * budget_scale()
+    settled, count = None, 0
+    while time.monotonic() < deadline:
+        count = count_now()
+        if count and settled is None:
+            settled = time.monotonic() + settle * budget_scale()
+        if settled is not None and time.monotonic() >= settled:
+            break
+        time.sleep(0.5)
+    return count
+
+
 @pytest.fixture(scope="class")
 def cluster_multi_worker():
-    """Verify both nginx workers at CLUSTER_MW_PORT connect to the real CMS manager.
+    """Count the CMS connections a TWO-worker node opens to a real manager.
 
     The pre-started cluster-mw-mgr nginx at CLUSTER_MW_CMS_PORT acts as the
-    real CMS server.  With worker_processes 2 and brix_cms_interval 2, both
-    workers open independent TCP connections to the manager.  We verify by
-    counting ESTABLISHED connections to CLUSTER_MW_CMS_PORT via ss(8).
+    real CMS server.  The node's outbound client is gated to worker 0 (one
+    login per node SID), so the expected count is one however many workers the
+    node runs.  Counted as ESTABLISHED connections to CLUSTER_MW_CMS_PORT.
     """
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
     def _count_cms_connections():
-        result = subprocess.run(["ss", "-tn"], capture_output=True, text=True)
-        return sum(
-            1 for line in result.stdout.splitlines()
-            if f":{CLUSTER_MW_CMS_PORT}" in line and "ESTAB" in line
-        )
+        from lib_py.util import established_to_port  # ss(8), or lsof
+        return established_to_port(CLUSTER_MW_CMS_PORT)
 
-    # Wait up to 30s for both workers to establish their CMS connections.
-    deadline = time.monotonic() + 30.0
-    count = 0
-    while time.monotonic() < deadline:
-        count = _count_cms_connections()
-        if count >= 2:
-            break
-        time.sleep(0.5)
+    count = _await_settled_cms_count(_count_cms_connections)
 
     yield {
         "redir_port":       CLUSTER_MW_PORT,

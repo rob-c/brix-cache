@@ -112,7 +112,7 @@ priv_run_stdin(char *const argv[], const char *input)
 /* ------------------------------------------------------------ validation ---- */
 
 /* An interface name that both matches a conservative charset and actually exists
- * under /sys/class/net (so a bad --priv-iface fails loudly, not silently). */
+ * (if_nametoindex, so a bad --priv-iface fails loudly, not silently). */
 int
 valid_iface(const char *s)
 {
@@ -127,10 +127,7 @@ valid_iface(const char *s)
             return 0;
         }
     }
-    char path[64 + IFNAMSIZ];
-    snprintf(path, sizeof(path), "/sys/class/net/%s", s);
-    struct stat sb;
-    return stat(path, &sb) == 0;
+    return if_nametoindex(s) != 0;
 }
 
 /* Format a 0..100 percentage token ("3", "0.1" -> "3%", "0.1%"). Returns 0 ok. */

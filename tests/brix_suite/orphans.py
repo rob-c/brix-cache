@@ -30,6 +30,70 @@ FLEET_EXES = ("nginx", "xrootd", "cmsd", "krb5kdc", "kadmind", "haproxy")
 FLEET_HELPER_MARKERS = ("/tests/",)
 
 
+#: procfs is the primary, read-only process source.  Hosts without it
+#: (Darwin/BSD) fall back to one ``ps`` snapshot per query burst below.
+_HAVE_PROCFS = os.path.isdir("/proc")
+
+
+def _all_pids():
+    """Every live pid on the host."""
+    if _HAVE_PROCFS:
+        return [int(entry) for entry in os.listdir("/proc") if entry.isdigit()]
+    return list(_ps_table())
+
+
+_PS_CACHE = {"at": 0.0, "table": {}}
+_PS_TTL = 1.0
+
+
+def _ps_snapshot():
+    """Raw ``ps -axE`` lines (own-uid environment appended), or none."""
+    try:
+        return subprocess.run(
+            ["ps", "-axE", "-ww", "-o", "pid=,ppid=,ucomm=,command="],
+            capture_output=True, text=True, check=False, timeout=10,
+        ).stdout.splitlines()
+    except (OSError, subprocess.SubprocessError):
+        return []
+
+
+def _ps_split_command(command):
+    """``ps -E`` command text → (argv, environ_tokens): the program word, then
+    argv words without '=', then KEY=VALUE words (a '-x=y' option stays argv)."""
+    tokens = command.split()
+    argv = tokens[:1] + [tok for tok in tokens[1:] if "=" not in tok]
+    env = [tok for tok in tokens[1:] if "=" in tok and not tok.startswith("-")]
+    return argv, env
+
+
+def _ps_parse(line):
+    """One ps row → (pid, (ppid, comm, argv, environ_tokens)) or None."""
+    parts = line.split(None, 3)
+    if len(parts) < 3 or not parts[0].isdigit():
+        return None
+    ppid = int(parts[1]) if parts[1].isdigit() else 0
+    argv, env = _ps_split_command(parts[3] if len(parts) > 3 else "")
+    return int(parts[0]), (ppid, os.path.basename(parts[2]), argv, env)
+
+
+def _ps_table():
+    """``{pid: (ppid, comm, argv, environ_tokens)}`` from one ``ps`` run.
+
+    ``ps -E`` appends ``KEY=VALUE`` environment tokens (own-uid processes
+    only) after the argv; both are whitespace-split, so a value containing a
+    space is lost — acceptable for the TEST_ROOT / harness-marker matches
+    this module makes.  Cached for ``_PS_TTL`` seconds because the reaper
+    asks about hundreds of pids per pass.
+    """
+    now = time.monotonic()
+    if now - _PS_CACHE["at"] < _PS_TTL and _PS_CACHE["table"]:
+        return _PS_CACHE["table"]
+    rows = (_ps_parse(line) for line in _ps_snapshot())
+    table = dict(row for row in rows if row is not None)
+    _PS_CACHE["at"], _PS_CACHE["table"] = now, table
+    return table
+
+
 def _cmdline(pid):
     """Argv of ``pid`` as a space-joined string, or "" if it is gone/unreadable."""
     return " ".join(_process_argv(pid)).strip()
@@ -37,6 +101,9 @@ def _cmdline(pid):
 
 def _process_argv(pid):
     """Read argument boundaries so option values cannot impersonate a program."""
+    if not _HAVE_PROCFS:
+        row = _ps_table().get(int(pid))
+        return list(row[2]) if row else []
     try:
         with open("/proc/%s/cmdline" % pid, "rb") as fh:
             return fh.read().decode("utf-8", "replace").rstrip("\0").split("\0")
@@ -50,6 +117,9 @@ def _ppid(pid):
     comm (field 2) is wrapped in parens and may itself contain spaces or ')';
     splitting on the LAST ')' makes the remaining fields positional again, so
     ppid is the second whitespace token after it."""
+    if not _HAVE_PROCFS:
+        row = _ps_table().get(int(pid))
+        return row[0] if row else 0
     try:
         with open("/proc/%s/stat" % pid, "rb") as fh:
             data = fh.read().decode("latin-1")
@@ -60,6 +130,9 @@ def _ppid(pid):
 
 def _environ(pid):
     """Environment of ``pid`` as bytes, or empty bytes if unreadable."""
+    if not _HAVE_PROCFS:
+        row = _ps_table().get(int(pid))
+        return b"\x00".join(tok.encode("utf-8", "replace") for tok in row[3]) if row else b""
     try:
         with open("/proc/%s/environ" % pid, "rb") as fh:
             return fh.read()
@@ -86,6 +159,9 @@ def _is_fleet_process(pid, cmd, exes):
 
 
 def _process_name(pid):
+    if not _HAVE_PROCFS:
+        row = _ps_table().get(int(pid))
+        return row[1] if row else None
     try:
         name = open("/proc/%s/comm" % pid, "r").read().strip()
     except OSError:
@@ -253,6 +329,10 @@ def listener_owned_by_test_root(test_root, port, exes=FLEET_EXES):
     listening socket.  Failure to prove ownership is always ``False`` and never
     licenses cleanup of the listener.
     """
+    if not _HAVE_PROCFS:
+        owners = _listener_pids_lsof(port)
+        return bool(owners) and any(pid in owners
+                                    for pid, _command in find_orphans(test_root, exes))
     listeners = _listening_socket_inodes(port)
     if not listeners:
         return False
@@ -260,8 +340,20 @@ def listener_owned_by_test_root(test_root, port, exes=FLEET_EXES):
                for pid, _command in find_orphans(test_root, exes))
 
 
+def _listener_pids_lsof(port):
+    """Pids holding a TCP listener on ``port`` (hosts without /proc/net/tcp)."""
+    try:
+        out = subprocess.run(
+            ["lsof", "-nP", "-t", "-iTCP:%d" % int(port), "-sTCP:LISTEN"],
+            capture_output=True, text=True, check=False, timeout=10,
+        ).stdout
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return set()
+    return {int(tok) for tok in out.split() if tok.isdigit()}
+
+
 def _candidate_pids(exes):
-    pids = {int(entry) for entry in os.listdir("/proc") if entry.isdigit()}
+    pids = set(_all_pids())
     for executable in exes:
         pids.update(_pgrep_pids(executable))
     return pids
@@ -351,8 +443,7 @@ def lane_claimants(test_root, exes=FLEET_EXES, exclude_self=True):
     marker = os.path.realpath(str(test_root))
     mine = set(_ancestry()) if exclude_self else set()
     claimants = {}
-    entries = filter(str.isdigit, os.listdir("/proc"))
-    for pid in map(int, entries):
+    for pid in _all_pids():
         if pid in mine:
             continue
         command = _cmdline(pid)
@@ -417,10 +508,7 @@ def live_lanes(exes=FLEET_EXES):
     cannot: not "who is in this lane" but "which lanes are anyone's".
     """
     lanes = {}
-    for entry in os.listdir("/proc"):
-        if not entry.isdigit():
-            continue
-        pid = int(entry)
+    for pid in _all_pids():
         cmd = _cmdline(pid)
         if _is_fleet_process(pid, cmd, exes):
             continue

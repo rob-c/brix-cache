@@ -16,6 +16,7 @@
  * label only — never an IP address, path, or credential.
  */
 #include "brix.h"
+#include "platform/platform.h"   /* brix_plat_tcp_rtt */
 
 #include <stdio.h>
 #include <string.h>
@@ -62,20 +63,13 @@ brix_netdiag_facts(const brix_conn *c, brix_netfacts *f)
         }
     }
 
-    /* Kernel TCP_INFO: RTT + retransmits (Linux; graceful skip elsewhere). */
-#ifdef TCP_INFO
-    {
-        struct tcp_info ti;
-        socklen_t       tl = sizeof(ti);
-        memset(&ti, 0, sizeof(ti));
-        if (getsockopt(c->io.fd, IPPROTO_TCP, TCP_INFO, &ti, &tl) == 0) {
-            f->have_tcpinfo = 1;
-            f->rtt_us    = (uint32_t) ti.tcpi_rtt;
-            f->rttvar_us = (uint32_t) ti.tcpi_rttvar;
-            f->retrans   = (uint32_t) ti.tcpi_total_retrans;
-        }
+    /* Kernel TCP statistics: RTT + retransmits, through the PAL (Linux
+     * TCP_INFO, Darwin TCP_CONNECTION_INFO); a host that reports neither
+     * simply leaves have_tcpinfo clear. */
+    if (brix_plat_tcp_rtt(c->io.fd, &f->rtt_us, &f->rttvar_us,
+                          &f->retrans) == 0) {
+        f->have_tcpinfo = 1;
     }
-#endif
 }
 
 void

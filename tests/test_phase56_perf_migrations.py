@@ -135,7 +135,6 @@ def test_b2_protocol_funnels_ride_the_seam():
         "src/fs/backend/pblock/pblock_store.c",
         "src/fs/backend/posix/sd_posix_io.c",
         "src/platform/linux/posix_wrapper.c",
-        "src/platform/platform_compat.h",
     ]
 
 

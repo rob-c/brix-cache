@@ -8,7 +8,7 @@ import shutil
 import signal
 import sys
 
-from cmdscripts.compile_run import REPO_ROOT, result, run
+from cmdscripts.compile_run import LZ4_LINK_FLAGS, REPO_ROOT, result, run
 from fleet_orphans import owns
 # Separate line, deliberately: `test_fleet_teardown_orphans` pins the
 # literal `from fleet_orphans import owns` in this file, so that this
@@ -253,7 +253,8 @@ def _configure_dynamic(destination):
             f"--add-dynamic-module={REPO_ROOT}",
         ],
         cwd=destination,
-        env={"BRIX_LZ4_LIBS": os.environ.get("BRIX_LZ4_LIBS", "-l:liblz4.so.1")},
+        env={"BRIX_LZ4_LIBS": os.environ.get("BRIX_LZ4_LIBS",
+                                           " ".join(LZ4_LINK_FLAGS))},
     )
     if configured.returncode != 0:
         message = f"SKIP configure --add-dynamic-module failed: {_command_tail(configured, 3000)}"

@@ -17,6 +17,7 @@
 #include "ftp_client.h"
 
 #include "fs/backend/gsiftp/gftp_reply.h"
+#include "platform/platform.h"   /* PAL: MSG_NOSIGNAL on every host */
 
 #include <arpa/inet.h>
 #include <errno.h>

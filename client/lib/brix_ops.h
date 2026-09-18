@@ -224,6 +224,28 @@ typedef int (*brix_rfile_sink_fn)(const uint8_t *data, size_t len,
 int brix_rfile_pump(brix_rfile *rf, int64_t offset, int64_t limit,
                     size_t chunk_size, brix_rfile_sink_fn sink, void *arg,
                     int64_t *moved, brix_status *st);
+/* brix_rfile_stream_fast() return value meaning "the pipelined path was not
+ * attempted at all" (paged/compressed handle, a signing-active session, or the
+ * XRDC_PIPELINE=0 kill switch): NOTHING was delivered and *st is clear, so the
+ * caller runs its ordinary serial loop over the whole range. */
+#define BRIX_RFILE_FAST_OFF 1
+/* Stream [offset, offset+limit) (limit < 0 = to EOF) to `sink` with several
+ * kXR_reads in flight on one connection, delivered in strict file order.
+ * Returns 0 (range complete / EOF / sink stopped it), BRIX_RFILE_FAST_OFF, or
+ * -1 (st set). *moved always reports the bytes delivered, so a caller resumes
+ * from offset+*moved with the serial pump — which owns the reconnect/reopen
+ * retry policy, so this accelerator never duplicates it. */
+int brix_rfile_stream_fast(brix_rfile *rf, int64_t offset, int64_t limit,
+                           brix_rfile_sink_fn sink, void *arg, int64_t *moved,
+                           brix_status *st);
+/* Bulk stream of a range: the pipelined reader first, the serial pump for
+ * whatever it could not finish (so reconnect/reopen resilience is unchanged).
+ * Same arguments and verdict as brix_rfile_pump; prefer this for whole-file
+ * transfers and brix_rfile_pump when the caller wants strictly one read at a
+ * time (e.g. a line-bounded `head`). */
+int brix_rfile_stream(brix_rfile *rf, int64_t offset, int64_t limit,
+                      size_t chunk_size, brix_rfile_sink_fn sink, void *arg,
+                      int64_t *moved, brix_status *st);
 int brix_rfile_drain_to_fd(brix_rfile *rf, int64_t offset, int64_t limit,
                            size_t chunk_size, int fd, int64_t *moved,
                            brix_status *st);

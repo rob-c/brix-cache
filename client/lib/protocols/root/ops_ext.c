@@ -16,7 +16,7 @@
 #include "brix.h"
 #include "core/compat/vendor_ext.h"   /* shared kXR_setattr prefix codec (libxrdproto) */
 
-#include <endian.h>
+#include "platform/platform.h"   /* PAL: htobe64/be64toh names on every host */
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <string.h>

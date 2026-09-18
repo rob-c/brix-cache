@@ -72,6 +72,8 @@ import urllib.request
 
 import pytest
 
+from lib_py.util import children_of
+
 from server_registry import NginxInstanceSpec
 from settings import HOST, BIND_HOST, NGINX_BIN
 from _test_a_robustness_helpers import make_close_req
@@ -512,21 +514,10 @@ def _kill_a_worker(endpoint):
     with open(endpoint.pidfile) as fh:
         master = int(fh.read().strip())
     killed = 0
-    for entry in os.listdir("/proc"):
-        if not entry.isdigit():
-            continue
+    for pid in children_of(master):
         try:
-            with open(f"/proc/{entry}/stat") as fh:
-                # comm can contain spaces and parens; ppid is the field after
-                # the state letter that follows the closing paren.
-                stat = fh.read()
-            ppid = int(stat[stat.rindex(")") + 2:].split()[1])
-        except (OSError, ValueError):
-            continue
-        if ppid == master:
-            try:
-                os.kill(int(entry), signal.SIGKILL)
-                killed += 1
-            except OSError:
-                pass
+            os.kill(pid, signal.SIGKILL)
+            killed += 1
+        except OSError:
+            pass
     return killed

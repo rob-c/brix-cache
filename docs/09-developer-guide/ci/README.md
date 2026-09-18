@@ -338,7 +338,39 @@ python3 tools/ci/check_pal_seam.py --quiet
 The legacy `--check-implementation` option remains accepted; source closure
 always runs. A nonexistent directory fails instead of returning an empty pass.
 
-### 3. check_vfs_seam.py
+### 3. check_platform_leak.py
+
+**Purpose**: Keep every OS-specific branch behind the PAL. Production C/C++
+under `src/`, `shared/` and `client/` may test an OS-detection macro
+(`__APPLE__`, `__MACH__`, `__linux__`, `_WIN32`, `TARGET_OS_*`,
+`BRIX_PLATFORM_*`) or include an OS-private header (`<sys/xattr.h>`,
+`<sys/epoll.h>`, `<sys/event.h>`, `<linux/*>`, `<mach/*>`, `<libkern/*>`,
+`<endian.h>`, `<windows.h>`, ...) only inside a PAL host directory:
+`src/platform/<host>/`, `client/lib/platform/<host>/` or `shared/cvmfs/platform/`.
+The PAL interface headers are host-free (one computed include from
+`-DBRIX_PLATFORM_HOST`) and are scanned too.
+Portable code calls `brix_plat_*()`; only the owners know which host they
+are on. Comments and string literals are masked, and `*_unittest.c` files
+are outside the seam.
+
+**No backlog, no waiver**: the tree was migrated to zero on 2026-09-16
+(phase 119). Any hit fails. Optional features are gated on the capability
+macros `platform.h` defines (`BRIX_HAS_SPLICE`, `BRIX_HAS_TCP_INFO`,
+`BRIX_HAS_IPV6_FLOWLABEL`, `BRIX_HAS_GSS_KRB5_IMPORT_CRED`,
+`BRIX_PLAT_SHM_DIR`), never on the OS. The Linux names the tree is written
+against (`O_PATH`, `SOCK_CLOEXEC`, `RESOLVE_*`, `htobe64`, the Linux-shaped
+xattr calls, ...) come from `platform/platform_api.h`; operations whose
+Darwin semantics differ are `brix_plat_*` calls (`platform_api_posix.h`).
+
+**Usage**:
+```bash
+python3 tools/ci/check_platform_leak.py            # exit 1 on a new leak
+python3 tools/ci/check_platform_leak.py --list     # every current hit
+```
+
+Tests: `tests/test_platform_leak_guard.py`.
+
+### 4. check_vfs_seam.py
 
 **Purpose**: Enforce the storage VFS boundary for server byte I/O, confined
 helpers, namespace operations, client byte I/O, and typed storage-domain claims.
@@ -349,7 +381,7 @@ PAL header and definition ownership is checked separately by `check_pal_seam.py`
 python3 tools/ci/check_vfs_seam.py
 ```
 
-### 4. GitHub Actions Workflow
+### 5. GitHub Actions Workflow
 
 **File**: `.github/workflows/platform-builds.yml`
 

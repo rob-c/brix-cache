@@ -40,7 +40,6 @@ Ports: fuse_read block 13380-13399 (conformance_common.PORT_BLOCKS).
 import errno
 import hashlib
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -56,6 +55,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import BRIXMOUNT, PortBlock, fuse_mount
+from lib_py.fuse_host import FUSE_READY
 from repo_forge import Chunk, Chunked, File, RepoForge
 from settings import HOST
 
@@ -63,8 +63,7 @@ REPO = "read.test.cern.ch"
 CH = 64 * 1024                      # chunk quantum for the chunked corpus
 MOCK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs", "mock_stratum1.py")
 
-_FUSE_READY = (os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
-               and os.path.exists(BRIXMOUNT))
+_FUSE_READY = FUSE_READY and os.path.exists(BRIXMOUNT)
 pytestmark = pytest.mark.skipif(not _FUSE_READY, reason="fuse mount prerequisites missing")
 
 _BLOCK = PortBlock("fuse_read")

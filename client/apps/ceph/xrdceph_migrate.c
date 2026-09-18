@@ -34,7 +34,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/xattr.h>
+#include "platform/platform_api.h"   /* PAL: Linux-shaped xattr calls on every host */
 #include <unistd.h>
 
 #include <rados/librados.h>

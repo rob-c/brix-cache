@@ -26,15 +26,29 @@ from _phase116_helpers import (HAVE_NGINX, BIND_HOST, DnsLab, kXR_error, kXR_ok,
                                metrics_text, stat, wait_until)
 from dns_stub import TYPE_PTR, ptr_name
 from server_registry import NginxInstanceSpec
-
-pytestmark = [pytest.mark.timeout(180),
-              pytest.mark.uses_lifecycle_harness,
-              pytest.mark.xdist_group("lc-p116-dns-rev")]
+from lib_py.util import loopback_alias_usable
 
 GRANTED = "client.lab.test"
 NO_PTR = "127.0.0.2"     # net-literal-allow: loopback peer with no PTR record
 OTHER = "127.0.0.3"      # net-literal-allow: loopback peer whose PTR names another host
 SPOOFED = "127.0.0.4"    # net-literal-allow: loopback peer whose PTR answer is spoofed
+
+# Each cell connects FROM one of those addresses so the reverse lookup has a
+# distinct peer to resolve. Linux answers for all of 127/8; macOS binds only
+# 127.0.0.1, so the bind fails and the failure describes a refused connection
+# rather than anything about reverse DNS. Skip with the fix, as the two sibling
+# files in this family already do.
+_UNBINDABLE = [addr for addr in (NO_PTR, OTHER, SPOOFED)
+               if not loopback_alias_usable(addr)]
+
+pytestmark = [pytest.mark.timeout(180),
+              pytest.mark.skipif(
+                  bool(_UNBINDABLE),
+                  reason="loopback aliases not bindable on this host: "
+                         + " ".join(_UNBINDABLE)
+                         + "; sudo ifconfig lo0 alias <addr> up for each"),
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-p116-dns-rev")]
 
 
 class _Server:

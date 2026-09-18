@@ -31,8 +31,8 @@ from settings import HOST
 REPO = "test.cern.ch"
 NEG_TTL = 2                       # seconds; keep expiry tests fast
 
-pytestmark = pytest.mark.skipif(not os.path.exists(NGINX_BIN),
-                                reason=f"nginx binary not found: {NGINX_BIN}")
+pytestmark = [pytest.mark.skipif(not os.path.exists(NGINX_BIN),
+                                reason=f"nginx binary not found: {NGINX_BIN}")]
 
 # One shared allocator for this file's 20-port block (mocks +0.., nginx +10..).
 BLOCK = PortBlock("srv_cas")

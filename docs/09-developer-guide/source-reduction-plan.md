@@ -641,10 +641,11 @@ heavy dependency tree.  The current code is lean and specification-correct.
 
 ### VOMS attribute certificate extraction (src/auth/voms/ — 415 LOC)
 
-The module already delegates to `libvomsapi` at runtime via `dlopen()`.  The
-local code builds VO lists from the VOMS API result structs; replacing this
-with direct OpenSSL X.509v3 extension parsing would require implementing ASN.1
-VOMS-AC-Targets decoding and would not reduce source size.  **Keep local.**
+Historically the module delegated to `libvomsapi` at runtime via `dlopen()`
+and the local code only built VO lists from the library's result structs.
+That dependency has since been removed: `shared/voms/` is a native RFC 5755
+AC decoder + verifier over OpenSSL ASN.1 templates, shared by the module and
+the client.  The nginx-side glue (`src/auth/voms/`) stays small.  **Keep local.**
 
 ---
 

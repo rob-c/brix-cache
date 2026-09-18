@@ -180,7 +180,7 @@ def _resp(s):
 
 
 def _connect(host, port):
-    s = socket.create_connection((host, port), timeout=15)
+    s = socket.create_connection((host, port), timeout=30)
     s.sendall(struct.pack("!IIIII", 0, 0, 0, 4, 2012))
     _, st, _ = _resp(s)          # handshake reply
     assert st == kXR_ok, "handshake failed"

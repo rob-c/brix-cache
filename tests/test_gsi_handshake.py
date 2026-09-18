@@ -12,7 +12,7 @@ def _expression_2(cf, kf):
 
 _reexport(globals(), "_test_gsi_handshake_helpers")
 
-pytestmark = pytest.mark.xdist_group("test_gsi_handshake")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("test_gsi_handshake")]
 
 def _rejected(http_code):
     """A WebDAV auth rejection is any non-2xx outcome — the request was refused

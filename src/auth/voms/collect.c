@@ -168,50 +168,37 @@ brix_fqan_to_vo(const char *fqan, char *vo, size_t vo_sz)
  * and vo_list_sz are sufficient (typically 256 bytes). */
 
 ngx_int_t
-brix_collect_voms_vos(struct voms_data *vd, const brix_voms_out_t *out)
+brix_collect_voms_vos(const brix_voms_result_t *res, const brix_voms_out_t *out)
 {
-    struct voms_entry **entry;
+    int i, j;
 
-    if (vd->data == NULL) {
+    if (res == NULL || res->n == 0) {
         return NGX_DECLINED;
     }
+    for (i = 0; i < res->n; i++) {
+        const brix_voms_entry_t *e = &res->entries[i];
+        char                     derived_vo[128];
 
-    for (entry = vd->data; *entry != NULL; entry++) {
-        char **fqan;
-        char   derived_vo[128];
-
-        if ((*entry)->voname != NULL && (*entry)->voname[0] != '\0') {
-            if (!brix_append_vo_token(out->primary_vo, out->primary_vo_sz,
-                                        out->vo_list, out->vo_list_sz,
-                                        (*entry)->voname)) {
-                return NGX_ERROR;
-            }
+        if (e->verdict != BRIX_VOMS_OK) {
+            continue;   /* an AC that failed verification grants nothing */
         }
-
-        if ((*entry)->fqan == NULL) {
-            continue;
+        if (e->vo[0] != '\0'
+            && !brix_append_vo_token(out->primary_vo, out->primary_vo_sz,
+                                     out->vo_list, out->vo_list_sz, e->vo))
+        {
+            return NGX_ERROR;
         }
-
-        for (fqan = (*entry)->fqan; *fqan != NULL; fqan++) {
-            /* 2.0 F20: the RAW FQAN first — it is the only carrier of the
-             * VOMS role, and the VO-name views below deliberately cannot hold
-             * one.  Best-effort: an FQAN that does not fit, or that carries a
-             * byte the predicate refuses, is dropped without failing a login
-             * that VO-name authorization would still have allowed. */
-            brix_append_fqan_token(out->fqan_list, out->fqan_list_sz, *fqan);
-
-            if (!brix_fqan_to_vo(*fqan, derived_vo, sizeof(derived_vo))) {
+        for (j = 0; j < e->nfqans; j++) {
+            brix_append_fqan_token(out->fqan_list, out->fqan_list_sz, e->fqans[j]);
+            if (!brix_fqan_to_vo(e->fqans[j], derived_vo, sizeof(derived_vo))) {
                 continue;
             }
-
             if (!brix_append_vo_token(out->primary_vo, out->primary_vo_sz,
-                                        out->vo_list, out->vo_list_sz,
-                                        derived_vo)) {
+                                      out->vo_list, out->vo_list_sz, derived_vo)) {
                 return NGX_ERROR;
             }
         }
     }
-
     return (out->vo_list != NULL && out->vo_list[0] != '\0')
            ? NGX_OK : NGX_DECLINED;
 }

@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_stattypes_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_stattypes")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_stattypes")]
 
 # =========================================================================== #
 # REGULAR FILE @ each mode -> flags integer matches stock EXACTLY.

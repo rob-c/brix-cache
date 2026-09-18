@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_pathedge_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_pathedge_b")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_pathedge_b")]
 
 def test_stat_percent_literal_resolves_both(pair):
     """'/100%ok.txt' is a LITERAL name; it must resolve (no URL-decoding). Parity."""

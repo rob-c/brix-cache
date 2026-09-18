@@ -97,10 +97,10 @@ def _kill_configured_daemons():
 
 
 def _list_listeners():
+    from lib_py.util import listener_table_lines  # noqa: PLC0415
+
     try:
-        return subprocess.run(
-            ["ss", "-tlnp"], capture_output=True, text=True
-        ).stdout.splitlines()
+        return listener_table_lines()               # ss(8), or lsof-derived
     except Exception:
         return []
 

@@ -64,6 +64,7 @@ brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
     conf->gsi_signed_dh = NGX_CONF_UNSET_UINT;
     conf->signing_policy_mode = NGX_CONF_UNSET_UINT;
     conf->crl_mode     = NGX_CONF_UNSET_UINT;
+    conf->legacy_proxy_mode = NGX_CONF_UNSET_UINT;
     conf->crl_scope    = NGX_CONF_UNSET_UINT;   /* 2.0 F19 */
     conf->tls_verify_log = NGX_CONF_UNSET_UINT; /* 2.0 F19 */
     conf->gsi_max_inflight = NGX_CONF_UNSET;

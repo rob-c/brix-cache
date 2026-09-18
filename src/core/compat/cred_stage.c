@@ -17,21 +17,20 @@
 #include <unistd.h>          /* getentropy */
 #include <sys/types.h>
 #include <sys/stat.h>
-
-/* macOS requires sys/random.h for getentropy() */
-#if defined(__APPLE__) && defined(__MACH__)
-#include <sys/random.h>
-#endif
+#include "platform/platform_api.h"   /* BRIX_PLAT_SHM_DIR, getentropy */
 
 /* Permission constants from tunables.h */
 #include "../types/tunables.h"
 
-/* Per-uid staging root on tmpfs.  /dev/shm is 1777 (sticky, world-writable), so
- * every uid can create its OWN 0700 subdirectory here that no other uid can enter
- * or delete; the security boundary is that dir's mode + ownership, checked below.
- * Per-uid naming keeps distinct workers/users from tripping over each other's dir
- * ownership on a shared host. */
-#define BRIX_CRED_STAGE_BASE "/dev/shm/brix-creds"
+/* Per-uid staging root under BRIX_PLAT_SHM_DIR (/dev/shm on Linux, /tmp on a
+ * host without it).  Both are 1777 (sticky, world-writable), so every uid can
+ * create its OWN 0700 subdirectory here that no other uid can enter or delete;
+ * the security boundary is that dir's mode + ownership, checked below.
+ * Per-uid naming keeps distinct workers/users from tripping over each other's
+ * dir ownership on a shared host.  Where BRIX_PLAT_SHM_DIR is /tmp the root is
+ * not RAM-backed, so staged secrets can touch disk — same as any Linux host
+ * whose /dev/shm is missing and falls back to a disk tmpdir. */
+#define BRIX_CRED_STAGE_BASE BRIX_PLAT_SHM_DIR "/brix-creds"
 
 /* REQUIRE a real directory, owned by us, with no group/other access. A path
  * that fails any of these (a foreign squatter, a loosened mode, a symlink) is

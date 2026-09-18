@@ -225,6 +225,7 @@ sd_posix_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     obj->inst = inst;
     obj->fd = fd;
     obj->heap_shell = 1;
+    obj->append = (sd_flags & BRIX_SD_O_APPEND) != 0;
     return obj;
 }
 

@@ -1,8 +1,8 @@
 # nginx module config — XRootD stream module + Prometheus metrics HTTP module
 # Requires: --with-stream
 # Uses OpenSSL (via -lssl -lcrypto) for GSI x509 authentication
-# VOMS support: loaded at runtime via dlopen(libvomsapi.so.1) — no compile-time
-# link needed.  Install voms-libs on EL9 to enable VO ACL enforcement.
+# VOMS support: native attribute-certificate verifier (shared/voms/, plain C over
+# OpenSSL) — no VOMS library is needed at build or run time.
 
 # Compiler hardening flags:
 #   -D_FORTIFY_SOURCE=2          runtime buffer-overflow detection via glibc wrappers
@@ -71,9 +71,16 @@ done
 # Link hardening for the dynamic module (.so). Appended unless the operator
 # already passed equivalent flags via --with-ld-opt. Full RELRO + BIND_NOW make
 # the GOT read-only after startup; noexecstack marks the stack non-executable.
-case "$NGX_LD_OPT" in
-    *relro*) : ;;  # operator already set it; don't double-add
-    *) NGX_LD_OPT="$NGX_LD_OPT -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack" ;;
+# GNU/LLD `-z` keywords only: Apple's ld64 rejects them ("unknown options: -z"),
+# and Mach-O has no GOT-relro or executable-stack concept to harden.
+case "$(uname -s 2>/dev/null)" in
+    Darwin)
+        echo " + xrootd: ELF link hardening (-z relro/now/noexecstack) skipped on macOS" ;;
+    *)
+        case "$NGX_LD_OPT" in
+            *relro*) : ;;  # operator already set it; don't double-add
+            *) NGX_LD_OPT="$NGX_LD_OPT -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack" ;;
+        esac ;;
 esac
 
 # ============================================================================
@@ -105,14 +112,16 @@ esac
 # macOS-specific configuration
 if [ "$BRIX_PLATFORM_DARWIN" = "1" ]; then
     # Define macOS platform macros
-    CFLAGS="$CFLAGS -DBRIX_PLATFORM_DARWIN=1 -DBRIX_PLATFORM_LINUX=0 -DBRIX_PLATFORM_WINDOWS=0"
+    CFLAGS="$CFLAGS -DBRIX_PLATFORM_DARWIN=1 -DBRIX_PLATFORM_LINUX=0 -DBRIX_PLATFORM_WINDOWS=0 -DBRIX_PLATFORM_HOST=darwin"
     
     # macOS frameworks required for PAL
     # -framework Accelerate: Apple Accelerate framework (vDSP, vLib for SIMD optimizations)
     #                        Used by checksum_accelerate.c and apple_silicon.c
     # -framework CoreFoundation: Core Foundation (CFBundle, CFString, etc.)
     # -framework SystemConfiguration: System configuration (network, DNS)
-    MACOS_LIBS="-framework Accelerate -framework CoreFoundation -framework SystemConfiguration"
+    # -framework Security: SecRandomCopyBytes() (platform/darwin/posix_wrapper.c,
+    #                      fs/backend/pblock/pblock_store.c) — macOS has no getrandom(2)
+    MACOS_LIBS="-framework Accelerate -framework CoreFoundation -framework SystemConfiguration -framework Security"
     CORE_LIBS="$CORE_LIBS $MACOS_LIBS"
     
     echo " + xrootd: macOS PAL enabled"
@@ -131,7 +140,7 @@ fi
 # Windows-specific configuration
 if [ "$BRIX_PLATFORM_WINDOWS" = "1" ]; then
     # Define Windows platform macros
-    CFLAGS="$CFLAGS -DBRIX_PLATFORM_WINDOWS=1 -DBRIX_PLATFORM_LINUX=0 -DBRIX_PLATFORM_DARWIN=0"
+    CFLAGS="$CFLAGS -DBRIX_PLATFORM_WINDOWS=1 -DBRIX_PLATFORM_LINUX=0 -DBRIX_PLATFORM_DARWIN=0 -DBRIX_PLATFORM_HOST=windows"
     
     # Windows version requirement: Windows 8 / Server 2012 minimum
     CFLAGS="$CFLAGS -D_WIN32_WINNT=0x0602"
@@ -161,9 +170,9 @@ else
     # Non-Windows platforms (Linux, macOS, BSD, etc.)
     CFLAGS="$CFLAGS -DBRIX_PLATFORM_WINDOWS=0"
     if [ "$BRIX_PLATFORM_LINUX" = "1" ]; then
-        CFLAGS="$CFLAGS -DBRIX_PLATFORM_LINUX=1 -DBRIX_PLATFORM_DARWIN=0"
+        CFLAGS="$CFLAGS -DBRIX_PLATFORM_LINUX=1 -DBRIX_PLATFORM_DARWIN=0 -DBRIX_PLATFORM_HOST=linux"
     elif [ "$BRIX_PLATFORM_DARWIN" = "1" ]; then
-        CFLAGS="$CFLAGS -DBRIX_PLATFORM_LINUX=0 -DBRIX_PLATFORM_DARWIN=1"
+        CFLAGS="$CFLAGS -DBRIX_PLATFORM_LINUX=0 -DBRIX_PLATFORM_DARWIN=1 -DBRIX_PLATFORM_HOST=darwin"
     fi
 fi
 
@@ -362,17 +371,34 @@ if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists krb5; then
         BRIX_KRB5_LIBS="$(pkg-config --libs krb5) -lgssapi_krb5"
     fi
     CORE_LIBS="$CORE_LIBS $BRIX_KRB5_LIBS"
+    BRIX_KRB5_CONFIG="$(pkg-config --variable=prefix krb5)/bin/krb5-config"
     echo " + xrootd auth: Kerberos 5 plugin enabled (pkg-config)"
 elif command -v krb5-config >/dev/null 2>&1; then
     CFLAGS="$CFLAGS $(krb5-config --cflags) -DBRIX_HAVE_KRB5=1"
     # krb5-config gets the GSS-API mech via the 'gssapi' library selector.
     BRIX_KRB5_LIBS="$(krb5-config --libs gssapi) $(krb5-config --libs)"
     CORE_LIBS="$CORE_LIBS $BRIX_KRB5_LIBS"
+    BRIX_KRB5_CONFIG="$(command -v krb5-config)"
     echo " + xrootd auth: Kerberos 5 plugin enabled (krb5-config)"
 else
     echo " + xrootd auth: Kerberos 5 plugin disabled" \
          "(neither 'krb5.pc' nor 'krb5-config' found; install krb5-devel" \
          "[RHEL] or libkrb5-dev [Debian] to enable brix_auth krb5)"
+fi
+
+# Which Kerberos the GSS-API mech comes from decides the credential-forwarding
+# capture path: gss_krb5_import_cred() is MIT-only (Heimdal — Apple's system
+# Kerberos, some BSDs — lacks it).  The PAL host header keys
+# BRIX_HAS_GSS_KRB5_IMPORT_CRED on BRIX_KRB5_MIT rather than on the OS, so a
+# macOS build against the Homebrew MIT keg forwards credentials like Linux.
+if [ -n "$BRIX_KRB5_CONFIG" ] && [ -x "$BRIX_KRB5_CONFIG" ]; then
+    case "$("$BRIX_KRB5_CONFIG" --vendor 2>/dev/null)" in
+        *Massachusetts*)
+            CFLAGS="$CFLAGS -DBRIX_KRB5_MIT=1"
+            echo " + xrootd auth: Kerberos 5 vendor MIT (GSS credential import enabled)" ;;
+        "")  echo " + xrootd auth: Kerberos 5 vendor unknown (GSS credential import disabled)" ;;
+        *)   echo " + xrootd auth: Kerberos 5 vendor non-MIT (GSS credential import disabled)" ;;
+    esac
 fi
 
 # Optional io_uring disk-I/O backend (phase-44). Double-gated: operator opt-in
@@ -627,8 +653,6 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/core/types/context.h \
                         $ngx_addon_dir/src/core/types/ctx_structs.h \
                         $ngx_addon_dir/src/core/types/tunables.h \
-                        $ngx_addon_dir/src/core/compat/xattr_path_compat.h \
-                        $ngx_addon_dir/src/protocols/webdav/darwin_config_stub.h \
                         $ngx_addon_dir/src/core/types/tunables_core.h \
                         $ngx_addon_dir/src/core/types/tunables_io.h \
                         $ngx_addon_dir/src/core/types/tunables_storage.h \
@@ -782,13 +806,21 @@ $ngx_addon_dir/src/fs/vfs/vfs_deleg.h \
                         $ngx_addon_dir/src/platform/platform_api_process.h \
                         $ngx_addon_dir/src/platform/platform_api_endian.h \
                         $ngx_addon_dir/src/platform/platform_api_lifecycle.h \
-                        $ngx_addon_dir/src/platform/platform_api_apple.h \
-                        $ngx_addon_dir/src/platform/platform_api_windows.h \
+                        $ngx_addon_dir/src/platform/platform_api_posix.h \
+                        $ngx_addon_dir/src/platform/platform_arch.h \
+                        $ngx_addon_dir/src/platform/openat2_abi.h \
+                        $ngx_addon_dir/src/platform/linux/host.h \
+                        $ngx_addon_dir/src/platform/linux/host_endian.h \
+                        $ngx_addon_dir/src/platform/linux/host_posix.h \
+                        $ngx_addon_dir/src/platform/linux/host_api.h \
+                        $ngx_addon_dir/src/platform/darwin/host.h \
+                        $ngx_addon_dir/src/platform/darwin/host_endian.h \
+                        $ngx_addon_dir/src/platform/darwin/host_posix.h \
+                        $ngx_addon_dir/src/platform/darwin/host_api.h \
                         $ngx_addon_dir/src/platform/windows/path_internal.h \
                         $ngx_addon_dir/src/platform/windows/xattr_internal.h \
                         $ngx_addon_dir/src/platform/darwin/cpu_cache.h \
                         $ngx_addon_dir/src/platform/darwin/sysctl_value.h \
-                        $ngx_addon_dir/src/platform/platform_compat.h \
                         $ngx_addon_dir/src/platform/windows/win32_compat.h \
                         $ngx_addon_dir/src/platform/windows/handle_abstraction.h \
                         $ngx_addon_dir/src/platform/windows/handle_internal.h \
@@ -796,6 +828,9 @@ $ngx_addon_dir/src/fs/vfs/vfs_deleg.h \
                         $ngx_addon_dir/src/platform/windows/process_internal.h \
                         $ngx_addon_dir/src/platform/windows/fs_watcher_internal.h \
                         $ngx_addon_dir/shared/cvmfs/platform/platform.h \
+                        $ngx_addon_dir/shared/voms/voms_ac.h \
+                        $ngx_addon_dir/shared/voms/voms_asn1.h \
+                        $ngx_addon_dir/shared/voms/voms_lsc.h \
                         $ngx_addon_dir/src/protocols/root/write/backend_async_root.h \
                         $ngx_addon_dir/src/protocols/root/write/chkpoint.h \
                         $ngx_addon_dir/src/protocols/root/dirlist/dirlist.h \
@@ -875,6 +910,7 @@ $ngx_addon_dir/src/fs/vfs/vfs_deleg.h \
                         $ngx_addon_dir/src/core/compat/uri.h \
                         $ngx_addon_dir/src/core/compat/xml.h \
                         $ngx_addon_dir/src/core/compat/log.h \
+                        $ngx_addon_dir/src/core/compat/host_identity.h \
                         $ngx_addon_dir/src/core/compat/namespace_ops.h \
                         $ngx_addon_dir/src/core/compat/range_vector.h \
                         $ngx_addon_dir/src/core/compat/integrity_info.h \
@@ -1013,6 +1049,11 @@ if [ "$BRIX_PLATFORM_LINUX" = "1" ]; then
     brix_shared_platform_srcs="$ngx_addon_dir/shared/cvmfs/platform/platform.c"
     brix_platform_srcs="\
     $ngx_addon_dir/src/platform/linux/posix_wrapper.c \
+    $ngx_addon_dir/src/platform/linux/host_info.c \
+    $ngx_addon_dir/src/platform/linux/path_wrapper.c \
+    $ngx_addon_dir/src/platform/linux/process_wrapper.c \
+    $ngx_addon_dir/src/platform/linux/priv_wrapper.c \
+    $ngx_addon_dir/src/platform/linux/storage_wrapper.c \
     $ngx_addon_dir/src/platform/linux/event_wrapper.c \
     $ngx_addon_dir/src/platform/linux/fs_watcher.c \
     $ngx_addon_dir/src/platform/linux/security_wrapper.c \
@@ -1025,6 +1066,11 @@ if [ "$BRIX_PLATFORM_LINUX" = "1" ]; then
 elif [ "$BRIX_PLATFORM_DARWIN" = "1" ]; then
     brix_platform_srcs="\
     $ngx_addon_dir/src/platform/darwin/posix_wrapper.c \
+    $ngx_addon_dir/src/platform/darwin/host_info.c \
+    $ngx_addon_dir/src/platform/darwin/path_wrapper.c \
+    $ngx_addon_dir/src/platform/darwin/process_wrapper.c \
+    $ngx_addon_dir/src/platform/darwin/priv_wrapper.c \
+    $ngx_addon_dir/src/platform/darwin/storage_wrapper.c \
     $ngx_addon_dir/src/platform/darwin/event_wrapper.c \
     $ngx_addon_dir/src/platform/darwin/fs_watcher.c \
     $ngx_addon_dir/src/platform/darwin/security_wrapper.c \
@@ -1041,6 +1087,8 @@ elif [ "$BRIX_PLATFORM_WINDOWS" = "1" ]; then
     $ngx_addon_dir/src/platform/windows/handle_path.c \
     $ngx_addon_dir/src/platform/windows/handle_registry.c \
     $ngx_addon_dir/src/platform/windows/posix_wrapper.c \
+    $ngx_addon_dir/src/platform/windows/host_info.c \
+    $ngx_addon_dir/src/platform/windows/posix_stubs.c \
     $ngx_addon_dir/src/platform/windows/event_wrapper.c \
     $ngx_addon_dir/src/platform/windows/socket_event.c \
     $ngx_addon_dir/src/platform/windows/fs_watcher.c \
@@ -1134,6 +1182,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/compat/host_split.c \
     $ngx_addon_dir/src/core/compat/subprocess.c \
     $ngx_addon_dir/src/core/compat/range_vector.c \
+    $ngx_addon_dir/src/core/compat/host_identity.c \
     $ngx_addon_dir/src/core/compat/namespace_ops.c \
     $ngx_addon_dir/src/core/compat/namespace_ops_copy.c \
     $ngx_addon_dir/src/core/compat/integrity_info.c \
@@ -1740,9 +1789,13 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/crypto/ocsp_request.c \
     $ngx_addon_dir/src/auth/gsi/pki.c \
     $ngx_addon_dir/src/protocols/webdav/pki.c \
-    $ngx_addon_dir/src/auth/voms/loader.c \
+    $ngx_addon_dir/src/auth/voms/trust.c \
     $ngx_addon_dir/src/auth/voms/collect.c \
     $ngx_addon_dir/src/auth/voms/extract.c \
+    $ngx_addon_dir/shared/voms/voms_asn1.c \
+    $ngx_addon_dir/shared/voms/voms_decode.c \
+    $ngx_addon_dir/shared/voms/voms_verify.c \
+    $ngx_addon_dir/shared/voms/voms_lsc.c \
     $ngx_addon_dir/src/auth/gsi/cred_load.c \
     $ngx_addon_dir/src/auth/gsi/gsi_core.c \
     $ngx_addon_dir/src/auth/gsi/gsi_core_cresp.c \
@@ -2444,6 +2497,7 @@ ngx_module_srcs="$ngx_addon_dir/src/observability/dashboard/module.c \
                  $ngx_addon_dir/src/observability/dashboard/auth.c \
                  $ngx_addon_dir/src/observability/dashboard/dashboard_auth_parse.c \
                  $ngx_addon_dir/src/observability/dashboard/dashboard_auth_creds.c \
+                 $ngx_addon_dir/src/observability/dashboard/sha_crypt.c \
                  $ngx_addon_dir/src/observability/dashboard/dashboard_auth_login.c \
                  $ngx_addon_dir/src/observability/dashboard/dashboard_json.c \
                  $ngx_addon_dir/src/observability/dashboard/api.c \
@@ -2493,8 +2547,14 @@ ngx_module_deps="$ngx_addon_dir/src/observability/dashboard/dashboard.h \
                  $ngx_addon_dir/src/tpc/common/registry.h \
                  $ngx_addon_dir/src/tpc/common/transfer.h"
 # Dashboard module .so links: OpenSSL + libcrypt (session-cookie HMAC/crypt) +
-# jansson (api.c JSON responses).
-ngx_module_libs="-lssl -lcrypto -lcrypt $BRIX_JANSSON_LIBS"
+# jansson (api.c JSON responses). macOS has no separate libcrypt: crypt(3)
+# lives in libSystem, and ld64 fails on "library 'crypt' not found".
+if [ "$BRIX_PLATFORM_DARWIN" = "1" ]; then
+    BRIX_CRYPT_LIBS=""
+else
+    BRIX_CRYPT_LIBS="-lcrypt"
+fi
+ngx_module_libs="-lssl -lcrypto $BRIX_CRYPT_LIBS $BRIX_JANSSON_LIBS"
 xrd_emit_module
 
 ngx_module_type=STREAM

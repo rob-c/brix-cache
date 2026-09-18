@@ -119,6 +119,8 @@ int transfer_pump(pump_src_fn src, void *sctx, pump_sink_fn sink, void *kctx, in
  * shrinks a read so paced transfers step in ~250 ms slices. */
 int    brix_pump_pace(const brix_copy_opts *o, uint64_t t0_ns, int64_t moved,
                       brix_status *st);
+/* Fire the optional progress callback for one tick (no-op when unset). */
+void   pump_emit_progress(const brix_copy_opts *o, int64_t cur, int64_t total);
 size_t brix_pump_pace_cap(const brix_copy_opts *o, size_t cap);
 
 /* copy_local.c */

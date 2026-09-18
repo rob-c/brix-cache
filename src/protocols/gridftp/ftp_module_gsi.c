@@ -166,6 +166,7 @@ brix_ftp_build_gsi(ngx_conf_t *cf, ngx_stream_brix_ftp_srv_conf_t *conf)
     {
         brix_trust_policy_t pol = BRIX_TRUST_POLICY_INIT;
 
+        pol.legacy_proxy = BRIX_LEGACY_PROXY_ON;   /* GT2 clients still exist on gsiftp */
         conf->ca_store = brix_build_ca_store_cached(cf->cycle, cf->log,
             ca_is_dir ? ca_raw : NULL,          /* CApath (hashed dir) */
             ca_is_dir ? NULL : ca_raw,          /* or CAfile bundle    */

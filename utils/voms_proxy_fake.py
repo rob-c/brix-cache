@@ -3,7 +3,21 @@
 Pure-Python replacement for voms-proxy-fake from the VOMS project.
 
 Generates an RFC 3820 proxy certificate containing a VOMS Attribute
-Certificate (AC) that libvomsapi's VOMS_Retrieve() accepts.
+Certificate (AC) shaped exactly as voms-proxy-init/libvoms emit it, which the
+native verifier (shared/voms/) — and libvomsapi, historically — accepts.
+
+Test-only knobs let a suite mint deliberately BAD (or merely unusual)
+credentials without touching the proxy certificate itself, so GSI still
+authenticates and only the AC verdict changes.  Every knob is optional and
+the default output is byte-identical to the knob-less fake; `--help` lists
+them all.  The two historical ones:
+
+    -ac-hours N        AC validity: notAfter = now + N hours (default: -hours).
+                       Negative N yields an AC that expired |N| hours ago while
+                       the proxy certificate stays valid.
+    -holder-serial N   serial number the AC's holder names (default: the user
+                       certificate's own serial).  A different value breaks the
+                       holder binding — the AC no longer belongs to this EEC.
 
 Usage (same flags as the C++ voms-proxy-fake):
 
@@ -19,319 +33,31 @@ Usage (same flags as the C++ voms-proxy-fake):
         -out  proxy_cms.pem \\
         -hours 24
 
+The AC bytes themselves come from utils/voms_proxy_fake_ac.py.
 Requires: cryptography (listed in requirements.txt).
 """
 
 import argparse
+import dataclasses
 import datetime
 import os
-import struct
+import random
 import sys
 import tempfile
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa, padding, utils as asym_utils
+from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509 import (
     CertificateBuilder, Name, NameAttribute, ObjectIdentifier,
     UnrecognizedExtension,
 )
 from cryptography.x509.oid import NameOID
 
-
-# ---------------------------------------------------------------------------
-# DER encoding helpers
-# ---------------------------------------------------------------------------
-
-def _der_length(length: int) -> bytes:
-    if length < 0x80:
-        return bytes([length])
-    elif length < 0x100:
-        return bytes([0x81, length])
-    elif length < 0x10000:
-        return bytes([0x82, (length >> 8) & 0xFF, length & 0xFF])
-    else:
-        return bytes([0x83, (length >> 16) & 0xFF,
-                      (length >> 8) & 0xFF, length & 0xFF])
-
-
-def _der_tlv(tag: int, value: bytes) -> bytes:
-    return bytes([tag]) + _der_length(len(value)) + value
-
-
-def _der_seq(value: bytes) -> bytes:
-    return _der_tlv(0x30, value)
-
-
-def _der_set(value: bytes) -> bytes:
-    return _der_tlv(0x31, value)
-
-
-def _der_int(n: int) -> bytes:
-    """Encode an ASN.1 INTEGER (signed, big-endian)."""
-    if n == 0:
-        return _der_tlv(0x02, b'\x00')
-    # Convert to signed big-endian bytes
-    byte_len = (n.bit_length() + 8) // 8  # +8 for sign bit headroom
-    raw = n.to_bytes(byte_len, byteorder='big', signed=False)
-    # Strip leading zero bytes, but keep one if high bit set
-    while len(raw) > 1 and raw[0] == 0 and raw[1] < 0x80:
-        raw = raw[1:]
-    return _der_tlv(0x02, raw)
-
-
-def _der_oid_content(oid_str: str) -> bytes:
-    parts = [int(x) for x in oid_str.split('.')]
-    encoded = [40 * parts[0] + parts[1]]
-    for part in parts[2:]:
-        encoded.extend(_der_oid_part(part))
-    return bytes(encoded)
-
-
-def _der_oid_part(part: int) -> list[int]:
-    if part == 0:
-        return [0]
-    chunks = _oid_chunks(part)
-    chunks.reverse()
-    return _continuation_chunks(chunks)
-
-
-def _oid_chunks(part: int) -> list[int]:
-    chunks = []
-    while part > 0:
-        chunks.append(part & 0x7F)
-        part >>= 7
-    return chunks
-
-
-def _continuation_chunks(chunks: list[int]) -> list[int]:
-    return [value | 0x80 for value in chunks[:-1]] + chunks[-1:]
-
-
-def _der_oid(oid_str: str) -> bytes:
-    return _der_tlv(0x06, _der_oid_content(oid_str))
-
-
-def _der_octet_string(value: bytes) -> bytes:
-    return _der_tlv(0x04, value)
-
-
-def _der_bit_string(value: bytes) -> bytes:
-    # Pad bits = 0 (whole bytes)
-    return _der_tlv(0x03, b'\x00' + value)
-
-
-def _der_utf8(value: str) -> bytes:
-    return _der_tlv(0x0C, value.encode('utf-8'))
-
-
-def _der_ia5(value: str) -> bytes:
-    return _der_tlv(0x16, value.encode('ascii'))
-
-
-def _der_gentime(dt: datetime.datetime) -> bytes:
-    s = dt.strftime('%Y%m%d%H%M%SZ')
-    return _der_tlv(0x18, s.encode('ascii'))
-
-
-def _der_explicit(tag_num: int, value: bytes) -> bytes:
-    """CONTEXT-SPECIFIC EXPLICIT [tag_num] CONSTRUCTED."""
-    return _der_tlv(0xA0 | tag_num, value)
-
-
-def _der_implicit_prim(tag_num: int, value: bytes) -> bytes:
-    """CONTEXT-SPECIFIC IMPLICIT [tag_num] PRIMITIVE."""
-    return _der_tlv(0x80 | tag_num, value)
-
-
-def _der_null() -> bytes:
-    return b'\x05\x00'
-
-
-def _der_bool_true() -> bytes:
-    return _der_tlv(0x01, b'\xFF')
-
-
-# ---------------------------------------------------------------------------
-# X.500 Name to DER
-# ---------------------------------------------------------------------------
-
-_NAME_OID_MAP = {
-    NameOID.DOMAIN_COMPONENT: '0.9.2342.19200300.100.1.25',
-    NameOID.COMMON_NAME: '2.5.4.3',
-    NameOID.ORGANIZATION_NAME: '2.5.4.10',
-    NameOID.ORGANIZATIONAL_UNIT_NAME: '2.5.4.11',
-    NameOID.COUNTRY_NAME: '2.5.4.6',
-    NameOID.LOCALITY_NAME: '2.5.4.7',
-    NameOID.STATE_OR_PROVINCE_NAME: '2.5.4.8',
-    NameOID.EMAIL_ADDRESS: '1.2.840.113549.1.9.1',
-}
-
-
-def _encode_name_attr(attr: x509.NameAttribute) -> bytes:
-    """Encode a single RDN attribute as SET { SEQUENCE { OID, value } }."""
-    oid_str = _NAME_OID_MAP.get(attr.oid, attr.oid.dotted_string)
-    oid_der = _der_oid(oid_str)
-
-    # domainComponent uses IA5STRING, most others use UTF8STRING
-    if attr.oid == NameOID.DOMAIN_COMPONENT:
-        val_der = _der_ia5(attr.value)
-    else:
-        val_der = _der_utf8(attr.value)
-
-    return _der_set(_der_seq(oid_der + val_der))
-
-
-def _encode_name(name: x509.Name) -> bytes:
-    """Encode an X.500 Name as DER SEQUENCE of SET of AttributeTypeAndValue."""
-    body = b''
-    for attr in name:
-        body += _encode_name_attr(attr)
-    return _der_seq(body)
-
-
-def _encode_general_name_dn(name: x509.Name) -> bytes:
-    """GeneralName [4] directoryName (EXPLICIT)."""
-    return _der_explicit(4, _encode_name(name))
-
-
-def _encode_general_names(name: x509.Name) -> bytes:
-    """GeneralNames SEQUENCE of one directoryName."""
-    return _der_seq(_encode_general_name_dn(name))
-
-
-# ---------------------------------------------------------------------------
-# VOMS Attribute Certificate builder
-# ---------------------------------------------------------------------------
-
-OID_VOMS_FQANS = '1.3.6.1.4.1.8005.100.100.4'
-OID_VOMS_CERTS = '1.3.6.1.4.1.8005.100.100.10'
-OID_NO_REV_AVAIL = '2.5.29.56'
-OID_AUTH_KEY_ID = '2.5.29.35'
-OID_SHA256_RSA = '1.2.840.113549.1.1.11'
-
-
-def _build_voms_ac(
-    user_cert: x509.Certificate,
-    voms_cert: x509.Certificate,
-    voms_key,
-    vo: str,
-    fqan: str,
-    uri: str,
-    hours: int,
-) -> bytes:
-    """Build and sign a VOMS Attribute Certificate as raw DER."""
-
-    now = datetime.datetime.now(datetime.timezone.utc)
-    not_before = now - datetime.timedelta(minutes=5)
-    not_after = now + datetime.timedelta(hours=hours)
-
-    # --- Holder (identifies the user cert) ---
-    # holder ::= SEQUENCE {
-    #   baseCertificateID [0] IMPLICIT IssuerSerial {
-    #     issuer GeneralNames,   -- user cert subject (VOMS convention)
-    #     serial INTEGER
-    #   }
-    # }
-    holder_issuer_dn = _encode_general_names(user_cert.subject)
-    holder_serial = _der_int(user_cert.serial_number)
-    holder = _der_seq(_der_explicit(0, holder_issuer_dn + holder_serial))
-
-    # --- Issuer (v2Form — the VOMS server) ---
-    # AttCertIssuer ::= [0] IMPLICIT v2Form SEQUENCE {
-    #   issuerName GeneralNames
-    # }
-    issuer_dn = _der_seq(_der_explicit(4, _encode_name(voms_cert.subject)))
-    ac_issuer = _der_explicit(0, issuer_dn)
-
-    # --- Signature algorithm identifier ---
-    sig_alg = _der_seq(_der_oid(OID_SHA256_RSA) + _der_null())
-
-    # --- Serial number ---
-    ac_serial = _der_int(1)
-
-    # --- Validity ---
-    validity = _der_seq(_der_gentime(not_before) + _der_gentime(not_after))
-
-    # --- Attributes (VOMS FQANs) ---
-    # The FQAN attribute value structure:
-    # SEQUENCE {
-    #   [0] { [6] IA5 "vo://uri" }      -- policy authority
-    #   SEQUENCE { OCTET STRING fqan }   -- list of FQANs
-    # }
-    policy_uri = f"{vo}://{uri}"
-    policy_authority = _der_explicit(0,
-        _der_implicit_prim(6, policy_uri.encode('ascii'))
-    )
-    fqan_list = _der_seq(_der_octet_string(fqan.encode('ascii')))
-    fqan_value = _der_seq(policy_authority + fqan_list)
-    fqan_attr = _der_seq(
-        _der_oid(OID_VOMS_FQANS) + _der_set(fqan_value)
-    )
-    attributes = _der_seq(fqan_attr)
-
-    # --- Extensions ---
-    # 1. Embedded VOMS signing cert (OID_VOMS_CERTS)
-    # Value is SEQUENCE OF SEQUENCE OF Certificate (chain-of-chains).
-    voms_cert_der = voms_cert.public_bytes(serialization.Encoding.DER)
-    certs_ext = _der_seq(
-        _der_oid(OID_VOMS_CERTS) +
-        _der_octet_string(_der_seq(_der_seq(voms_cert_der)))
-    )
-
-    # 2. noRevocationAvailable
-    no_rev = _der_seq(
-        _der_oid(OID_NO_REV_AVAIL) +
-        _der_octet_string(_der_null())
-    )
-
-    # 3. authorityKeyIdentifier (VOMS cert's SKI)
-    try:
-        ski_ext = voms_cert.extensions.get_extension_for_oid(
-            ObjectIdentifier('2.5.29.14')
-        )
-        ski_bytes = ski_ext.value.digest
-    except x509.ExtensionNotFound:
-        ski_bytes = None
-
-    extensions_body = certs_ext + no_rev
-    if ski_bytes is not None:
-        aki_value = _der_seq(_der_implicit_prim(0, ski_bytes))
-        aki_ext = _der_seq(
-            _der_oid(OID_AUTH_KEY_ID) +
-            _der_octet_string(aki_value)
-        )
-        extensions_body += aki_ext
-
-    extensions = _der_seq(extensions_body)
-
-    # --- TBSAttributeCertificate ---
-    # version (v2 = 1)
-    tbs = (
-        _der_int(1) +      # version
-        holder +            # holder
-        ac_issuer +         # issuer
-        sig_alg +           # signature algorithm
-        ac_serial +         # serial
-        validity +          # validity
-        attributes +        # attributes
-        extensions          # extensions
-    )
-    tbs_der = _der_seq(tbs)
-
-    # --- Sign TBS with VOMS key ---
-    signature = voms_key.sign(
-        tbs_der,
-        padding.PKCS1v15(),
-        hashes.SHA256(),
-    )
-
-    # --- AttributeCertificate ::= SEQUENCE { tbs, sigAlg, sig } ---
-    # ONE AC.  The VOMS extension value is AC_SEQ ::= SEQUENCE { SEQUENCE OF AC },
-    # so the caller wraps whatever number of ACs the proxy carries — a real
-    # multi-VO proxy holds one AC per VO, and the 2.0 F20 authdb tests need
-    # exactly that shape to build a cross-tuple credential.
-    return _der_seq(tbs_der + sig_alg + _der_bit_string(signature))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from voms_proxy_fake_ac import (  # noqa: E402
+    AcOptions, SIG_ALGS, _der_oid, _der_seq, acseq_der, build_voms_ac,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -340,6 +66,16 @@ def _build_voms_ac(
 
 OID_PROXY_CERT_INFO = '1.3.6.1.5.5.7.1.14'
 OID_VOMS_EXTENSION  = '1.3.6.1.4.1.8005.100.100.5'
+
+
+@dataclasses.dataclass
+class ProxyOptions:
+    """Proxy-level test knobs; the defaults are the historical proxy."""
+    legacy_proxy: bool = False   # GT2 shape: CN=proxy, no proxyCertInfo
+    legacy_kind: str = 'proxy'   # GT2 CN: proxy | limited ("limited proxy") | numeric
+    delegate: bool = False       # add a second-level proxy without a VOMS extension
+    empty_acseq: bool = False    # AC_SEQ with zero ACs
+    ac_count: int = 1            # repeat every AC this many times
 
 
 def _proxy_cert_info_der() -> bytes:
@@ -391,6 +127,118 @@ def _write_proxy_atomically(out_path: str, combined: bytes) -> None:
         raise
 
 
+def _load_pem_cert(path: str) -> x509.Certificate:
+    with open(path, 'rb') as f:
+        return x509.load_pem_x509_certificate(f.read())
+
+
+def _load_pem_key(path: str):
+    with open(path, 'rb') as f:
+        return serialization.load_pem_private_key(f.read(), password=None)
+
+
+def _key_usage() -> x509.KeyUsage:
+    # A GSI proxy carries a critical keyUsage of digitalSignature (see
+    # make_proxy.py).  Without it the proxy cannot be used to sign a
+    # delegated proxy request — XrdCrypto's X509SignProxyReq rejects a
+    # signing chain that lacks keyUsage.  Matching the plain proxy keeps the
+    # VOMS-decorated proxy usable everywhere the plain one is.
+    return x509.KeyUsage(
+        digital_signature=True, content_commitment=False, key_encipherment=False,
+        data_encipherment=False, key_agreement=False, key_cert_sign=False,
+        crl_sign=False, encipher_only=False, decipher_only=False,
+    )
+
+
+def _proxy_builder(issuer: x509.Certificate, cn: str, public_key, serial: int,
+                   hours: int, voms_ext: bytes | None, legacy: bool):
+    """A proxy certificate builder: subject = issuer's subject + CN=<cn>, the
+    VOMS extension when given, then basicConstraints, keyUsage and — unless
+    `legacy` (GT2 proxies predate RFC 3820) — proxyCertInfo."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    subject = Name(list(issuer.subject) + [NameAttribute(NameOID.COMMON_NAME, cn)])
+    builder = (
+        CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer.subject)
+        .public_key(public_key)
+        .serial_number(serial)
+        .not_valid_before(now - datetime.timedelta(minutes=5))
+        .not_valid_after(now + datetime.timedelta(hours=hours))
+    )
+    if voms_ext is not None:
+        builder = builder.add_extension(
+            UnrecognizedExtension(ObjectIdentifier(OID_VOMS_EXTENSION), voms_ext),
+            critical=False)
+    builder = (
+        builder
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .add_extension(_key_usage(), critical=True)
+    )
+    if legacy:
+        return builder
+    return builder.add_extension(
+        UnrecognizedExtension(ObjectIdentifier(OID_PROXY_CERT_INFO), _proxy_cert_info_der()),
+        critical=True)
+
+
+LEGACY_CN = {'proxy': 'proxy', 'limited': 'limited proxy', 'numeric': None}
+
+
+def _sign_proxy(issuer: x509.Certificate, issuer_key, hours: int,
+                voms_ext: bytes | None, legacy: bool = False,
+                legacy_kind: str = 'proxy'):
+    """Mint (certificate, key) for a proxy of `issuer`; the CN is a random
+    serial (voms-proxy-fake's behaviour) or the literal 'proxy' for GT2."""
+    proxy_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    proxy_serial = random.randint(100000000, 2147483647)
+    cn = (LEGACY_CN.get(legacy_kind) or str(proxy_serial)) if legacy else str(proxy_serial)
+    builder = _proxy_builder(issuer, cn, proxy_key.public_key(), proxy_serial,
+                             hours, voms_ext, legacy)
+    return builder.sign(issuer_key, hashes.SHA256()), proxy_key
+
+
+def _pem(cert: x509.Certificate) -> bytes:
+    return cert.public_bytes(serialization.Encoding.PEM)
+
+
+def _key_pem(key) -> bytes:
+    return key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+
+
+def _voms_extension_value(user_cert, voms_cert, voms_key, pairs, uri, ac_hours,
+                          ac_opts: AcOptions, proxy_opts: ProxyOptions) -> bytes:
+    """AC_SEQ with one AC per (vo, fqan) pair — each repeated -ac-count times,
+    or none at all for -empty-acseq."""
+    if proxy_opts.empty_acseq:
+        return acseq_der([])
+    acs = [build_voms_ac(user_cert, voms_cert, voms_key, v, f, uri, ac_hours, ac_opts)
+           for v, f in pairs]
+    return acseq_der(acs * proxy_opts.ac_count)
+
+
+def _resolved_options(ac_opts, proxy_opts, holder_serial):
+    """Defaults for absent option objects; -holder-serial lands in AcOptions."""
+    ac_opts = dataclasses.replace(ac_opts or AcOptions())
+    if holder_serial is not None:
+        ac_opts.holder_serial = holder_serial
+    return ac_opts, proxy_opts or ProxyOptions()
+
+
+def _chain_pem(proxy_cert, proxy_key, user_cert_pem: bytes, hours: int,
+               delegate: bool) -> bytes:
+    """Output: proxy cert + proxy key + user cert (chain); with `delegate` a
+    second-level proxy (no VOMS extension) leads and the VOMS proxy follows."""
+    if not delegate:
+        return b''.join([_pem(proxy_cert), _key_pem(proxy_key), user_cert_pem])
+    leaf_cert, leaf_key = _sign_proxy(proxy_cert, proxy_key, hours, None)
+    return b''.join([_pem(leaf_cert), _key_pem(leaf_key), _pem(proxy_cert), user_cert_pem])
+
+
 def build_voms_proxy(
     user_cert_path: str,
     user_key_path: str,
@@ -401,6 +249,10 @@ def build_voms_proxy(
     uri: str,
     out_path: str,
     hours: int = 24,
+    ac_hours: int | None = None,
+    holder_serial: int | None = None,
+    ac_opts: AcOptions | None = None,
+    proxy_opts: ProxyOptions | None = None,
 ):
     """Write a VOMS proxy carrying one AC per (vo, fqan) pair.
 
@@ -409,110 +261,39 @@ def build_voms_proxy(
     only way to build a credential whose derived (vorg, role) tuples must be
     paired POSITIONALLY rather than crossed (2.0 F20; see
     src/auth/authz/authdb.c::adb_pair_matches).
+
+    `ac_hours` (default `hours`) is the AC validity on its own — negative
+    mints an already-expired AC inside a still-valid proxy.  `holder_serial`
+    (default: the user certificate's serial) is the serial the AC's holder
+    names; any other value breaks the holder binding.  `ac_opts` and
+    `proxy_opts` carry the remaining test knobs (see AcOptions and
+    ProxyOptions).  All exist only so the test suite can produce bad ACs the
+    verifier must refuse.
+
+    The file holds the proxy certificate, its key and the user certificate;
+    with `proxy_opts.delegate` a second-level proxy (no VOMS extension) leads
+    and the VOMS proxy follows it, so the AC sits on chain index 1.
     """
     pairs = _ac_pairs(vo, fqan)
+    ac_opts, proxy_opts = _resolved_options(ac_opts, proxy_opts, holder_serial)
+    ac_hours = hours if ac_hours is None else ac_hours
 
-    # Load credentials
-    with open(user_cert_path, 'rb') as f:
-        user_cert = x509.load_pem_x509_certificate(f.read())
-    with open(user_key_path, 'rb') as f:
-        user_key = serialization.load_pem_private_key(f.read(), password=None)
-    with open(voms_cert_path, 'rb') as f:
-        voms_cert = x509.load_pem_x509_certificate(f.read())
-    with open(voms_key_path, 'rb') as f:
-        voms_key = serialization.load_pem_private_key(f.read(), password=None)
+    user_cert = _load_pem_cert(user_cert_path)
+    user_key = _load_pem_key(user_key_path)
+    voms_cert = _load_pem_cert(voms_cert_path)
+    voms_key = _load_pem_key(voms_key_path)
 
-    # Generate proxy key
-    proxy_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048,
-    )
-
-    # Proxy serial (random-ish, matches voms-proxy-fake's behavior)
-    import random
-    proxy_serial = random.randint(100000000, 2147483647)
-
-    # Proxy subject: user DN + CN=<serial>
-    user_name_attrs = list(user_cert.subject)
-    proxy_subject = Name(
-        user_name_attrs + [NameAttribute(NameOID.COMMON_NAME, str(proxy_serial))]
-    )
-
-    now = datetime.datetime.now(datetime.timezone.utc)
-
-    # Build the VOMS Attribute Certificates — one per (vo, fqan) pair, wrapped
-    # in AC_SEQ ::= SEQUENCE { SEQUENCE OF AC } exactly as libvoms encodes it.
-    acs = b''.join(
-        _build_voms_ac(user_cert, voms_cert, voms_key, v, f, uri, hours)
-        for v, f in pairs
-    )
-    voms_ac_der = _der_seq(_der_seq(acs))
-
-    # Build proxy certificate
-    builder = (
-        CertificateBuilder()
-        .subject_name(proxy_subject)
-        .issuer_name(user_cert.subject)
-        .public_key(proxy_key.public_key())
-        .serial_number(proxy_serial)
-        .not_valid_before(now - datetime.timedelta(minutes=5))
-        .not_valid_after(now + datetime.timedelta(hours=hours))
-        .add_extension(
-            UnrecognizedExtension(
-                ObjectIdentifier(OID_VOMS_EXTENSION),
-                voms_ac_der,
-            ),
-            critical=False,
-        )
-        .add_extension(
-            x509.BasicConstraints(ca=False, path_length=None),
-            critical=True,
-        )
-        # A GSI proxy carries a critical keyUsage of digitalSignature (see
-        # make_proxy.py).  Without it the proxy cannot be used to sign a
-        # delegated proxy request — XrdCrypto's X509SignProxyReq rejects a
-        # signing chain that lacks keyUsage.  Matching the plain proxy keeps the
-        # VOMS-decorated proxy usable everywhere the plain one is.
-        .add_extension(
-            x509.KeyUsage(
-                digital_signature=True,
-                content_commitment=False,
-                key_encipherment=False,
-                data_encipherment=False,
-                key_agreement=False,
-                key_cert_sign=False,
-                crl_sign=False,
-                encipher_only=False,
-                decipher_only=False,
-            ),
-            critical=True,
-        )
-        .add_extension(
-            UnrecognizedExtension(
-                ObjectIdentifier(OID_PROXY_CERT_INFO),
-                _proxy_cert_info_der(),
-            ),
-            critical=True,
-        )
-    )
-
-    proxy_cert = builder.sign(user_key, hashes.SHA256())
-
-    # Write output: proxy cert + proxy key + user cert (chain)
-    proxy_cert_pem = proxy_cert.public_bytes(serialization.Encoding.PEM)
-    proxy_key_pem = proxy_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
+    voms_ac_der = _voms_extension_value(user_cert, voms_cert, voms_key, pairs, uri,
+                                        ac_hours, ac_opts, proxy_opts)
+    proxy_cert, proxy_key = _sign_proxy(user_cert, user_key, hours, voms_ac_der,
+                                        proxy_opts.legacy_proxy,
+                                        proxy_opts.legacy_kind)
     with open(user_cert_path, 'rb') as f:
         user_cert_pem = f.read()
+    _write_proxy_atomically(out_path, _chain_pem(proxy_cert, proxy_key, user_cert_pem,
+                                                 hours, proxy_opts.delegate))
 
-    combined = proxy_cert_pem + proxy_key_pem + user_cert_pem
-
-    _write_proxy_atomically(out_path, combined)
-
-    not_after = now + datetime.timedelta(hours=hours)
+    not_after = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=hours)
     print(f"Your proxy is valid until {not_after.strftime('%c %Z')}")
 
 
@@ -520,15 +301,15 @@ def build_voms_proxy(
 # CLI — compatible with voms-proxy-fake flags
 # ---------------------------------------------------------------------------
 
-def main():
-    p = argparse.ArgumentParser(
-        description='Generate a VOMS proxy certificate (pure-Python replacement for voms-proxy-fake)',
-    )
+def _add_compat_flags(p: argparse.ArgumentParser) -> None:
     p.add_argument('-cert',     required=True, help='User certificate PEM')
     p.add_argument('-key',      required=True, help='User private key PEM')
-    p.add_argument('-certdir',  required=False, help='Trusted CA directory (unused, accepted for compat)')
+    p.add_argument('-certdir',  required=False,
+                   help='Trusted CA directory (only read for -certs-order/-certs-chain: '
+                        '<certdir>/ca.pem is the signer CA unless -cacert is given)')
     p.add_argument('-hostcert', required=True, help='VOMS server certificate PEM')
-    p.add_argument('-hostkey',  required=True, help='VOMS server private key PEM')
+    p.add_argument('-hostkey',  required=True,
+                   help='VOMS server private key PEM (RSA, EC P-256 or Ed25519)')
     p.add_argument('-voms',     required=True, action='append',
                    help='VO name (repeatable; pairs positionally with -fqan)')
     p.add_argument('-fqan',     required=True, action='append',
@@ -536,8 +317,124 @@ def main():
     p.add_argument('-uri',      required=True, help='VOMS server URI (hostname:port)')
     p.add_argument('-out',      required=True, help='Output proxy file path')
     p.add_argument('-hours',    type=int, default=24, help='Proxy validity in hours (default: 24)')
+    p.add_argument('-ac-hours', type=int, default=None, dest='ac_hours',
+                   help='AC validity in hours (default: same as -hours); negative = already expired')
+    p.add_argument('-holder-serial', type=int, default=None, dest='holder_serial',
+                   help='serial the AC holder names (default: the user certificate serial); '
+                        'test-only knob to break the holder binding')
     p.add_argument('-rfc',      action='store_true', help='RFC proxy (always true, accepted for compat)')
 
+
+def _add_ac_flags(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group('AC test knobs (all optional; defaults leave the AC unchanged)')
+    g.add_argument('-sig-alg', dest='sig_alg', choices=sorted(SIG_ALGS), default=None,
+                   help='AC signature algorithm (default: sha256WithRSA for an RSA host key, '
+                        'ecdsa-with-SHA256 for EC, Ed25519 for Ed25519; ecdsa/ed25519 need '
+                        'a host key of that type; md5 is what the verifier must refuse)')
+    g.add_argument('-inner-alg-mismatch', dest='inner_alg_mismatch', action='store_true',
+                   help='TBS signature algorithm says sha1WithRSA while the outer says sha256')
+    g.add_argument('-no-certs', dest='no_certs', action='store_true',
+                   help='omit the certs extension (no embedded VOMS server certificate)')
+    g.add_argument('-certs-order', dest='certs_order', choices=['reversed'], default=None,
+                   help='"reversed": embed the CA certificate first and the signer last')
+    g.add_argument('-certs-chain', dest='certs_chain', action='store_true',
+                   help='embed the signer followed by its issuer CA certificate')
+    g.add_argument('-cacert', default=None,
+                   help='the signer CA certificate PEM for -certs-order/-certs-chain '
+                        '(default: <certdir>/ca.pem)')
+    g.add_argument('-aki-mismatch', dest='aki_mismatch', action='store_true',
+                   help='authorityKeyIdentifier keyid set to garbage bytes')
+    g.add_argument('-critical-ext', dest='critical_ext', action='append', default=[],
+                   metavar='OID', help='add an unknown extension with this OID, critical (repeatable)')
+    g.add_argument('-noncritical-ext', dest='noncritical_ext', action='append', default=[],
+                   metavar='OID', help='add an unknown extension with this OID, non-critical')
+    g.add_argument('-no-policy-uri', dest='no_policy_uri', action='store_true',
+                   help='omit the policyAuthority (VO must come from the FQAN)')
+    g.add_argument('-uri-noport', dest='uri_noport', action='store_true',
+                   help='policy URI "vo://host" without the :port')
+    g.add_argument('-utf8-fqan', dest='utf8_fqan', action='store_true',
+                   help='encode FQAN values as UTF8String instead of OCTET STRING')
+    g.add_argument('-fqan-bad', dest='fqan_bad', action='store_true',
+                   help='add an extra FQAN value containing a comma and a 0x01 byte')
+    g.add_argument('-targets', default=None, metavar='HOST1,HOST2',
+                   help='targetInformation extension naming these dNSName targets')
+    g.add_argument('-gen-attr', dest='gen_attr', action='append', default=[],
+                   metavar='NAME=VALUE:QUALIFIER',
+                   help='a generic attribute (repeatable); the grantor is the VOMS cert subject')
+    g.add_argument('-holder-utf8', dest='holder_utf8', action='store_true',
+                   help='encode every holder DN attribute as UTF8String (default: DC as IA5String)')
+    g.add_argument('-holder-entity-name', dest='holder_entity_name', action='store_true',
+                   help='holder uses [1] entityName instead of baseCertificateID')
+    g.add_argument('-ac-not-before-offset', dest='ac_not_before_offset', type=int, default=None,
+                   metavar='SECONDS', help='AC notBefore = now + SECONDS (default: now - 300)')
+
+
+def _add_proxy_flags(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group('proxy test knobs')
+    g.add_argument('-empty-acseq', dest='empty_acseq', action='store_true',
+                   help='VOMS extension holding an AC_SEQ with zero ACs')
+    g.add_argument('-ac-count', dest='ac_count', type=int, default=1, metavar='N',
+                   help='repeat every AC N times in the AC_SEQ (e.g. 40 to exceed the cap)')
+    g.add_argument('-legacy-proxy', dest='legacy_proxy', action='store_true',
+                   help='GT2-style proxy: subject = user DN + CN=proxy, no proxyCertInfo')
+    g.add_argument('-legacy-proxy-kind', dest='legacy_kind', default='proxy',
+                   choices=('proxy', 'limited', 'numeric'),
+                   help='with -legacy-proxy: the GT2 CN — "proxy" (default), '
+                        '"limited proxy" (a limited proxy), or a numeric CN')
+    g.add_argument('-delegate', action='store_true',
+                   help='write a second-level proxy (no VOMS extension) signed by the VOMS '
+                        'proxy; the file holds leaf, VOMS proxy, user cert (AC on index 1)')
+
+
+def _parse_gen_attr(spec: str) -> tuple[str, str, str]:
+    """'name=value:qualifier' -> (name, value, qualifier); qualifier may be empty."""
+    name, _, rest = spec.partition('=')
+    value, _, qualifier = rest.partition(':')
+    if not name or not rest:
+        raise SystemExit(f"-gen-attr expects NAME=VALUE[:QUALIFIER], got {spec!r}")
+    return name, value, qualifier
+
+
+def _ca_cert_for(args) -> x509.Certificate | None:
+    """The signer CA for -certs-order/-certs-chain: -cacert, else <certdir>/ca.pem."""
+    if args.certs_order is None and not args.certs_chain:
+        return None
+    path = args.cacert or (os.path.join(args.certdir, 'ca.pem') if args.certdir else None)
+    if path is None:
+        raise SystemExit("-certs-order/-certs-chain need -cacert or -certdir")
+    return _load_pem_cert(path)
+
+
+def _certs_order(args) -> str:
+    if args.certs_chain:
+        return 'chain'
+    return args.certs_order or 'signer'
+
+
+def _targets(args) -> list[str]:
+    return [host for host in (args.targets or '').split(',') if host]
+
+
+def _ac_options(args) -> AcOptions:
+    return AcOptions(
+        sig_alg=args.sig_alg, inner_alg_mismatch=args.inner_alg_mismatch,
+        no_certs=args.no_certs, certs_order=_certs_order(args), ca_cert=_ca_cert_for(args),
+        aki_mismatch=args.aki_mismatch, critical_exts=list(args.critical_ext),
+        noncritical_exts=list(args.noncritical_ext), no_policy_uri=args.no_policy_uri,
+        uri_noport=args.uri_noport, utf8_fqan=args.utf8_fqan, fqan_bad=args.fqan_bad,
+        targets=_targets(args), gen_attrs=[_parse_gen_attr(s) for s in args.gen_attr],
+        holder_utf8=args.holder_utf8, holder_entity_name=args.holder_entity_name,
+        not_before_offset=args.ac_not_before_offset,
+    )
+
+
+def main():
+    p = argparse.ArgumentParser(
+        description='Generate a VOMS proxy certificate (pure-Python replacement for voms-proxy-fake)',
+    )
+    _add_compat_flags(p)
+    _add_ac_flags(p)
+    _add_proxy_flags(p)
     args = p.parse_args()
 
     build_voms_proxy(
@@ -550,6 +447,11 @@ def main():
         uri=args.uri,
         out_path=args.out,
         hours=args.hours,
+        ac_hours=args.ac_hours,
+        holder_serial=args.holder_serial,
+        ac_opts=_ac_options(args),
+        proxy_opts=ProxyOptions(legacy_proxy=args.legacy_proxy, legacy_kind=args.legacy_kind, delegate=args.delegate,
+                                empty_acseq=args.empty_acseq, ac_count=args.ac_count),
     )
 
 

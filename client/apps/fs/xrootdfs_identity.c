@@ -27,6 +27,7 @@
  * (src/auth/sss/auth_request.c, sss_map_identity).  A mount therefore cannot
  * name its way into an identity the operator did not issue.
  */
+#include <unistd.h>   /* geteuid */
 #include "xrootdfs_internal.h"
 
 #include <pwd.h>

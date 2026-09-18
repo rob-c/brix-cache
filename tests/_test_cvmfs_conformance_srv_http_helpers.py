@@ -37,8 +37,8 @@ from settings import HOST
 EPOCH = "Thu, 01 Jan 1970 00:00:01 GMT"
 FUTURE = "Fri, 31 Dec 2100 23:59:59 GMT"
 
-pytestmark = pytest.mark.skipif(
-    not os.path.exists(NGINX_BIN), reason=f"nginx binary not found: {NGINX_BIN}")
+pytestmark = [pytest.mark.skipif(
+    not os.path.exists(NGINX_BIN), reason=f"nginx binary not found: {NGINX_BIN}")]
 
 
 # ---- module fixtures -------------------------------------------------------

@@ -178,8 +178,13 @@ static char *
 webdav_finalize_authz_rules(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    if (conf->common.vomsdir.len > 0) {
-        (void) brix_voms_init(cf->log);
+    if (conf->common.vomsdir.len > 0 && conf->common.voms_cert_dir.len > 0
+        && brix_voms_warm(cf->log, &conf->common.voms_cert_dir) != NGX_OK)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_voms_cert_dir \"%V\": cannot load the CA directory",
+            &conf->common.voms_cert_dir);
+        return NGX_CONF_ERROR;
     }
     if (conf->common.authdb_rules != NULL
         && brix_finalize_authdb_rules(cf->log, &conf->common.root,

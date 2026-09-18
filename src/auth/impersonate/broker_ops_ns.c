@@ -23,6 +23,7 @@
  */
 #include "broker_internal.h"
 #include "broker_ops_internal.h"
+#include "platform/platform_api.h"   /* brix_plat_unlinkat */
 
 
 /*
@@ -91,7 +92,7 @@ imp_op_mkdir(const imp_op_ctx_t *c)
 static int
 imp_step_unlink(int pfd, const char *base, const imp_op_ctx_t *c)
 {
-    return unlinkat(pfd, base,
+    return brix_plat_unlinkat(pfd, base,
                     c->req->op == IMP_OP_RMDIR ? AT_REMOVEDIR : 0) == 0
                ? 0 : -errno;
 }

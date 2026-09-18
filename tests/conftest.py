@@ -42,6 +42,10 @@ import time
 from pathlib import Path
 
 import pytest
+from lib_py import xattr_shim
+xattr_shim.install()          # os.getxattr & co. on macOS Python (no-op on Linux)
+from lib_py import host_env
+host_env.install()            # XRDNET_IDENTITY on macOS (no-op on Linux)
 import fleet_declares
 from server_launcher import LifecycleHarness, RegistryLauncher
 from server_registry import fleet_ready_for_test_root, manifest_owns_test_root

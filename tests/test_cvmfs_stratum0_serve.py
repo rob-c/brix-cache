@@ -51,6 +51,7 @@ from cmdscripts.cvmfs_repo_cli import _build_repotool
 from cmdscripts.live_common import (
     LiveRun, inject_nginx_load_modules, inject_nginx_runtime_paths,
 )
+from lib_py.fuse_host import FUSE_READY
 from settings import BIND_HOST, HOST
 
 FQRN = "s0.brix.io"
@@ -59,8 +60,11 @@ FILES = {
     "docs/guide.md": b"guide-v1 " * 2000 + b"\n",   # >4096-floor: chunks
 }
 
-pytestmark = pytest.mark.skipif(
-    not os.path.exists(NGINX_BIN), reason=f"nginx binary not found: {NGINX_BIN}")
+# The repotool publishes are quick alone (<10 s) but stall past the 30 s default
+# on a loaded host (8 xdist workers building tools): widen the per-test timeout.
+pytestmark = [pytest.mark.skipif(
+    not os.path.exists(NGINX_BIN), reason=f"nginx binary not found: {NGINX_BIN}"),
+    pytest.mark.timeout(300)]
 
 _BLOCK = PortBlock("srv_stratum0")
 
@@ -148,9 +152,9 @@ def test_stratum0_serve_success(stratum0):
     _check_test_stratum0_serve_success_5(status, got)
 
     # client leg: a real brixMount FUSE mount through this nginx
-    if not (os.path.exists("/dev/fuse") and os.path.exists(BRIXMOUNT)):
-        pytest.skip("HTTP surface verified; no /dev/fuse or brixMount "
-                    "for the mount leg")
+    if not (FUSE_READY and os.path.exists(BRIXMOUNT)):
+        pytest.skip("HTTP surface verified; no unprivileged FUSE or "
+                    "brixMount for the mount leg")
     pub = repo / "keys" / f"{FQRN}.pub"
     with fuse_mount(FQRN, f"http://{HOST}:{port}/cvmfs/{FQRN}", pub) as (mnt, _proc):
         def _assert_test_stratum0_serve_success_2():

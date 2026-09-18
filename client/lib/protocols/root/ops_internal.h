@@ -14,7 +14,7 @@
 #include "protocols/root/protocol/readv_seg.h"
 #include "protocols/root/protocol/codec/wire_codec.h"   /* shared per-opcode wire-body codec */
 #include <arpa/inet.h>
-#include <endian.h>
+#include "platform/platform.h"   /* PAL: htobe64/be64toh names on every host */
 #include <string.h>
 #include <stdlib.h>
 #include <stddef.h>

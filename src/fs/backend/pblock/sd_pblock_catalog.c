@@ -363,6 +363,30 @@ pblock_catalog_create_schema(pblock_catalog *cat)
     return 0;
 }
 
+/* cat_open_failed — report WHY a catalog open failed, then map it to EIO.
+ *
+ * Every SQLite failure in this file collapses into errno=EIO, so an operator
+ * reading "pblock backend init failed ... (5: Input/output error)" learns
+ * nothing about the cause — a locked file, a read-only directory and a corrupt
+ * page all look identical.  The driver is ngx-free, so it reports the way the
+ * privilege backstop above does: on stderr, which nginx has already redirected
+ * to the error log by the time any worker opens a catalog. */
+static pblock_catalog *
+cat_open_failed(pblock_catalog *cat, const char *db_path, const char *phase)
+{
+    int err = errno;
+
+    fprintf(stderr, "pblock: catalog \"%s\" %s failed: %s (sqlite %d/%d)\n",
+            db_path, phase,
+            cat->db != NULL ? sqlite3_errmsg(cat->db) : "cannot open",
+            cat->db != NULL ? sqlite3_errcode(cat->db) : -1,
+            cat->db != NULL ? sqlite3_extended_errcode(cat->db) : -1);
+    sqlite3_close(cat->db);   /* close is NULL/partial-open safe */
+    free(cat);
+    errno = (err != 0) ? err : EIO;
+    return NULL;
+}
+
 pblock_catalog *
 pblock_catalog_open(const char *db_path, int busy_timeout_ms)
 {
@@ -382,10 +406,8 @@ pblock_catalog_open(const char *db_path, int busy_timeout_ms)
     }
 
     if (sqlite3_open_v2(db_path, &cat->db, flags, NULL) != SQLITE_OK) {
-        sqlite3_close(cat->db);   /* close is NULL/partial-open safe */
-        free(cat);
         errno = EIO;
-        return NULL;
+        return cat_open_failed(cat, db_path, "open");
     }
 
     sqlite3_busy_timeout(cat->db, busy_timeout_ms > 0 ? busy_timeout_ms : 0);
@@ -394,14 +416,11 @@ pblock_catalog_open(const char *db_path, int busy_timeout_ms)
      * (default NORMAL) selects the WAL fsync discipline; PBLOCK_WAL_AUTOCKPT sets
      * the WAL auto-checkpoint threshold in pages (default SQLite's 1000; 0 disables
      * auto-checkpoint). Used to characterise the metadata-throughput trade-off. */
-    if (pblock_catalog_configure(cat) != 0
-        || pblock_catalog_create_schema(cat) != 0) {
-        int err = errno;
-
-        sqlite3_close(cat->db);
-        free(cat);
-        errno = err;
-        return NULL;
+    if (pblock_catalog_configure(cat) != 0) {
+        return cat_open_failed(cat, db_path, "configure (WAL/synchronous)");
+    }
+    if (pblock_catalog_create_schema(cat) != 0) {
+        return cat_open_failed(cat, db_path, "schema bootstrap");
     }
 
     /* Forward-compat: add columns to an `objects` table created before they

@@ -58,6 +58,7 @@ webdav_build_ca_store(ngx_log_t *log,
 
         pol.sp_mode    = (brix_sp_mode_t) conf->common.signing_policy_mode;
         pol.crl_mode   = (int) conf->common.crl_mode;
+        pol.legacy_proxy = (int) conf->common.legacy_proxy_mode;
         pol.crl_scope  = (int) conf->common.crl_scope;
         pol.verify_log = (int) conf->common.tls_verify_log;
 

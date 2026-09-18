@@ -3,8 +3,9 @@
  *
  * This header defines the complete PAL API. Source code should ONLY include
  * this header - NEVER platform-specific headers or preprocessor blocks.
- *
- * All platform detection and implementation logic lives in platform-specific subdirectories.
+ * It contains no host conditional: platform.h selected the host directory
+ * from -DBRIX_PLATFORM_HOST, and each API family pulls its host counterpart
+ * through one computed #include.
  *
  * Supported Platforms:
  *   - Linux (x86_64, arm64)
@@ -32,17 +33,6 @@
 #include <stddef.h>
 #include <inttypes.h>
 
-/* Platform-specific headers for byte-order operations */
-#if BRIX_PLATFORM_LINUX
-#include <endian.h>
-#elif BRIX_PLATFORM_DARWIN
-#include <libkern/OSByteOrder.h>
-#elif BRIX_PLATFORM_WINDOWS
-/* Windows byte order handled via intrinsics in inline functions below */
-#include <windows.h>
-#include <stdlib.h>
-#endif
-
 /* Keep the public include stable; each child owns one API family. */
 #include "platform_api_info.h"
 #include "platform_api_file.h"
@@ -50,9 +40,12 @@
 #include "platform_api_security.h"
 #include "platform_api_xattr.h"
 #include "platform_api_process.h"
+#include "platform_api_posix.h"
 #include "platform_api_endian.h"
 #include "platform_api_lifecycle.h"
-#include "platform_api_apple.h"
-#include "platform_api_windows.h"
+
+/* Host-only extensions: Apple Silicon (darwin/host_api.h), Win32
+ * (windows/host_api.h); Linux answers with an empty header. */
+#include BRIX_PLAT_HOST_HEADER(host_api.h)
 
 #endif /* BRIX_PLATFORM_API_H */

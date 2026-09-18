@@ -18,6 +18,7 @@
 #include "core/compat/log_diag.h"
 #include "tpc/common/credential.h"
 #include "core/compat/subprocess.h"   /* shared SIGCHLD-safe fork/exec capture */
+#include "platform/platform_api.h"
 
 #include <nginx.h>
 #include <ngx_core.h>
@@ -27,13 +28,6 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-
-/* macOS lacks secure_getenv - use getenv as fallback */
-#if defined(__APPLE__) && defined(__MACH__)
-#ifndef secure_getenv
-#define secure_getenv(name) getenv(name)
-#endif
-#endif
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
@@ -59,7 +53,7 @@ resolve_oidc_token_binary(void)
         "/usr/bin/oidc-token", "/usr/local/bin/oidc-token", NULL
     };
     const char *const *p;
-    const char *override = secure_getenv("BRIX_OIDC_TOKEN_BIN");
+    const char *override = brix_plat_secure_getenv("BRIX_OIDC_TOKEN_BIN");
 
     if (override != NULL && access(override, X_OK) == 0) {
         return override;

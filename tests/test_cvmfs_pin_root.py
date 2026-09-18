@@ -55,14 +55,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 
 from conformance_common import (BRIXMOUNT, PORT_BLOCKS, _unmount,
                                 _wait_mounted)  # noqa: E402
+from lib_py.fuse_host import FUSE_READY  # noqa: E402
 from repo_forge import Dir, File, RepoForge  # noqa: E402
 from test_cvmfs_conformance_fuse_refresh_failover import publish_revision  # noqa: E402
 from settings import BIND_HOST, HOST
 
 REPO = "test.cern.ch"
 
-_FUSE_READY = (os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
-               and os.path.exists(BRIXMOUNT))
+_FUSE_READY = FUSE_READY and os.path.exists(BRIXMOUNT)
 pytestmark = pytest.mark.skipif(not _FUSE_READY, reason="fuse mount prerequisites missing")
 
 # The pin suite owns the fuse_pin block in the relocatable CVMFS ladder.  Keep

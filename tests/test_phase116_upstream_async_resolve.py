@@ -21,8 +21,14 @@ from _phase116_helpers import (HAVE_NGINX, BIND_HOST, DnsLab, TcpSink, dns_targe
                                metric, metrics_text, open_ro, wait_for_state, wait_until)
 from dns_stub import TYPE_A
 from server_registry import NginxInstanceSpec
+from lib_py.util import loopback_alias_usable
 
-pytestmark = [pytest.mark.timeout(180),
+pytestmark = [
+    pytest.mark.skipif(
+        not loopback_alias_usable("127.0.0.2"),
+        reason="127.0.0.2 is not bindable on this host (the record's second address); "
+               "sudo ifconfig lo0 alias 127.0.0.2 up"),
+pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-p116-dns-upstream")]
 

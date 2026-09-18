@@ -80,13 +80,8 @@ dist/
 # EPEL (nginx-mod-stream, pcre2, openssl-libs)
 sudo dnf install -y epel-release
 
-# WLCG repository — provides voms-libs (required runtime dependency)
-# AlmaLinux 8:
-sudo dnf install -y https://linuxsoft.cern.ch/wlcg/el8/x86_64/wlcg-repo-1.0.0-1.el8.noarch.rpm
-# AlmaLinux 9:
-sudo dnf install -y https://linuxsoft.cern.ch/wlcg/el9/x86_64/wlcg-repo-1.0.0-1.el9.noarch.rpm
-# AlmaLinux 10+ — monitor https://linuxsoft.cern.ch/wlcg/ for availability.
-# Until the EL10 repo is published, use --nodeps and install voms-libs separately.
+# No WLCG repository is needed: VOMS attribute certificates are verified
+# natively by the module (no voms / voms-libs runtime dependency).
 ```
 
 ### 2.2 Install the RPM
@@ -95,7 +90,7 @@ sudo dnf install -y https://linuxsoft.cern.ch/wlcg/el9/x86_64/wlcg-repo-1.0.0-1.
 sudo dnf install -y dist/nginx-mod-xrootd-0.1.0-1.el9.x86_64.rpm
 ```
 
-This pulls in `nginx-mod-stream`, `openssl-libs`, `voms-libs`, and `curl`
+This pulls in `nginx-mod-stream`, `openssl-libs`, and `curl`
 as declared runtime dependencies, and drops a module loader snippet under
 `/etc/nginx/modules-enabled/` (or the equivalent `nginx_modconfdir` for your
 distribution).
@@ -174,18 +169,15 @@ sudo apt install -y libkrb5-dev libsqlite3-dev libseccomp-dev \
 | `librados-dev` `libradosstriper-dev` `libcephfs-dev` | Ceph / XrdCeph backends |
 | `liburing-dev` | io_uring backend — additionally needs `BRIX_ENABLE_IO_URING=1` at configure time |
 
-Runtime-only (no headers needed; loaded via `dlopen`):
+Runtime-only (no headers needed):
 
 ```bash
-sudo apt install -y libvomsapi1t64    # VO ACL enforcement
 sudo apt install -y xrootd-client     # xrdcp / xrdfs, for §8
 ```
 
-> **Ubuntu package-name trap:** the VOMS C library is `libvomsapi1t64` on Ubuntu
-> 24.04 (the `t64` time_t transition rename). `libvomsapi1` — the name the older
-> docs use — does not exist here and `apt install libvomsapi1` fails. Both ship
-> the same `libvomsapi.so.1` soname the module dlopens. Confirm with
-> `ldconfig -p | grep libvomsapi`.
+> VO ACL enforcement (`brix_require_vo`) needs no extra package: VOMS attribute
+> certificates are verified natively by the module. Older instructions that
+> installed `libvomsapi1` / `libvomsapi1t64` are obsolete.
 
 ### 1U.3 Fetch the matching nginx source
 
@@ -395,7 +387,6 @@ A successful load prints the module's own startup notices before the syntax-OK
 line:
 
 ```
-[notice] brix: libvomsapi.so.1 loaded — VOMS VO ACL enforcement available
 [notice] brix: using thread pool "brix_pool" for async file I/O
 [notice] brix: root:// endpoint ready — export "/srv/brix/data" (read-only), auth: none (anonymous)
 [notice] brix:   NOTE: no authentication required — this endpoint is OPEN to anonymous clients
@@ -577,10 +568,9 @@ uninterruptible read that `subprocess.run(timeout=…)` cannot recover from.
 
 | AlmaLinux step | Ubuntu equivalent |
 |---|---|
-| `dnf install epel-release` + WLCG repo | Not needed — everything is in `main`/`universe` |
+| `dnf install epel-release` | Not needed — everything is in `main`/`universe` |
 | `firewall-cmd` (§6) | `sudo ufw allow 1094/tcp` (see §6) |
 | SELinux labels / `nginx-mod-brix-cache-selinux` (§9) | Nothing to do by default: Ubuntu uses AppArmor, and the `nginx` package ships **no** AppArmor profile, so nginx runs unconfined. If you add your own profile, grant read on the export and the host key |
-| `voms-libs` | `libvomsapi1t64` |
 | user/group `nginx` | user/group `www-data` |
 | `/usr/lib64/nginx/modules` | `/usr/lib/nginx/modules` |
 | `dist/*.rpm` | No `.deb` yet — build from source per this section |
@@ -930,7 +920,6 @@ xrdfs root://localhost:1095 ls /
 | `unknown directive "brix_root"` | Loader snippet missing or misordered; it must sort **after** `50-mod-stream.conf` (§1U.6) |
 | `"server" directive is not allowed here` on a stream server | Stream block put in `conf.d/`, which Ubuntu includes from inside `http {}` — use the top-level `stream {}` from §1U.7 |
 | `undefined symbol:` on startup | A dev package was missing at configure time and the feature silently disabled, or the two `.so` files are from different builds — reinstall both (§1U.6) |
-| `libvomsapi.so.1 not found` notice | `sudo apt install libvomsapi1t64` (not `libvomsapi1` — see §1U.2) |
 | `thread pool "..." not found` notice | `thread_pool` must be in the **main** context of `nginx.conf`, not inside `stream {}` (§1U.7) |
 | `E: You must put some 'deb-src' URIs` from `apt-get source` | Source repos not enabled (§1U.3) |
 

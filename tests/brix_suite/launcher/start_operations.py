@@ -90,10 +90,11 @@ def _master_owns_prefix(launcher, endpoint):
     master = launcher._read_pid(endpoint.pidfile)
     if master is None:
         return False
+    from lib_py.util import process_cmdline  # noqa: PLC0415
+
     try:
         os.kill(master, 0)
-        with open(f"/proc/{master}/cmdline", "rb") as handle:
-            command = handle.read().replace(b"\0", b" ")
+        command = process_cmdline(master)
     except (OSError, ValueError):
         return False
     return endpoint.prefix.encode() in command

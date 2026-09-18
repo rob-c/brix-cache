@@ -19,7 +19,9 @@ from cmdscripts.cvmfs_ingest_dir import run_checks
 
 # Two standalone tool builds (~20 s) plus a 10k-file publish: the 30 s module
 # default cannot fit this lane even when every check passes.
-pytestmark = pytest.mark.timeout(300)
+# The standalone tool builds compile ~20 TUs each; under a loaded host (8 xdist
+# workers each building their own tools) 300 s was exceeded — widen.
+pytestmark = pytest.mark.timeout(900)
 
 
 @pytest.fixture(scope="module")
@@ -63,6 +65,15 @@ def test_every_refusal_leaves_the_old_revision_standing(checked):
     _group(checked, "i3:")
 
 
+@pytest.mark.serial
 def test_ten_thousand_files_publish_inside_the_budget(checked):
-    """I4 — the scale claim, measured rather than asserted in prose."""
+    """I4 — the scale claim, measured rather than asserted in prose.
+
+    SERIAL because the claim is a wall-clock budget: the publish itself still
+    runs in the parallel lane (the shared fixture drives every group, and the
+    row-count and correctness groups are asserted there), but eight workers
+    sharing one laptop's disk measure contention rather than the code — 716 s
+    against a 450 s budget on this host, 85 s when it is quiet.  The timing
+    verdict therefore belongs to the serial lane.
+    """
     _group(checked, "i4:")

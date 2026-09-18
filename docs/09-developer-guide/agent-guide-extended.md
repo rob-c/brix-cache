@@ -139,6 +139,69 @@ See [phase-116](../refactor/phase-116-runtime-dns-resolv-conf.md),
 
 ---
 
+## INVARIANT 14 — one PAL (phase 119, full text)
+
+**Only the platform abstraction layer knows which operating system it is on.**
+Production C/C++ under `src/`, `shared/` and `client/` may not test an
+OS-detection macro (`__APPLE__`, `__MACH__`, `__linux__`, `_WIN32`, `_WIN64`,
+`TARGET_OS_*`, `BRIX_PLATFORM_*`) or include an OS-private header
+(`<sys/xattr.h>`, `<sys/epoll.h>`, `<sys/event.h>`, `<sys/eventfd.h>`,
+`<sys/sysmacros.h>`, `<linux/*>`, `<mach/*>`, `<libkern/*>`, `<endian.h>`,
+`<windows.h>`, ...) outside the PAL host directories: `src/platform/<host>/`
+(module), `client/lib/platform/<host>/` (native client), `shared/cvmfs/platform/`
+(the cvmfs mmap/sync owner both link). The PAL interface itself
+(`src/platform/platform*.h`, `platform_runtime.c`, `client/lib/platform/platform.h`)
+is host-free and is scanned like any other file: the build passes
+`-DBRIX_PLATFORM_HOST=<linux|darwin|windows>` and `platform.h` selects
+`<host>/host.h` with one computed `#include` (`BRIX_PLAT_HOST_HEADER(name)`);
+each API family pulls its host counterpart the same way (`host_endian.h`,
+`host_posix.h`, `host_api.h`). Comments and string literals do not count;
+`*_unittest.c` files are outside the seam.
+
+- **The path.** Server code includes `platform/platform_api.h` (the umbrella —
+  never a `platform_api_*.h` child; `check_pal_seam.py` rejects that). Client
+  code includes `platform/platform.h` (`client/lib/platform/platform.h`, which
+  re-exports the module PAL and provides `epoll_*` on Darwin). `shared/` code
+  includes the module umbrella.
+- **What the PAL guarantees** (`src/platform/platform_api_posix.h`): the Linux
+  names the tree is written against on every host — `htobe64`/`be64toh`/`le*`,
+  Linux-shaped `getxattr`…`fremovexattr` (Darwin: `ENOATTR`→`ENODATA`, an
+  over-long name reads as absent), `O_PATH`, `AT_EMPTY_PATH`, `SOCK_CLOEXEC`,
+  `SOCK_NONBLOCK`, `MSG_NOSIGNAL`, `MSG_CMSG_CLOEXEC`, `ENOKEY`, `st_mtim`,
+  `RESOLVE_*` + `struct open_how`, `PR_*`, `CAP_*`, `major()/minor()` — and
+  `brix_plat_*` for anything whose semantics differ: `brix_plat_openat2`,
+  `brix_plat_stat_resolve`, `brix_plat_renameat2` (`BRIX_RENAME_NOREPLACE` /
+  `BRIX_RENAME_EXCHANGE`, `ENOTSUP` when unsupported), `brix_plat_fstatat_btime`,
+  `brix_plat_wakefd_open/signal/drain/close`, `brix_plat_accept4`,
+  `brix_plat_peer_cred`, `brix_plat_close_from`, `brix_plat_spawn_closefrom`,
+  `brix_plat_setresuid`…`getresgid`, `brix_plat_getgrouplist`, `brix_plat_prctl`
+  (Darwin no-op, documented), `brix_plat_capget/capset` (Darwin `ENOSYS`),
+  `brix_plat_secure_getenv`, `brix_plat_crypt`, `brix_plat_blockdev_size`,
+  `brix_plat_fd_seal`, `brix_plat_reserve`, `brix_plat_preadv2`,
+  `brix_plat_pwrite_at`; client-only (`client/lib/platform/platform.h`):
+  `brix_plat_umount`, `brix_plat_mounts_walk`; plus the
+  pre-existing `brix_plat_pipe2`, `brix_plat_execvpe`, `brix_plat_random`,
+  `brix_plat_copy_range`, `brix_plat_setfsuid/gid`, `brix_plat_htobe64`.
+- **Feature gates.** An optional feature is gated on a capability macro
+  `platform.h` defines (`BRIX_HAS_SPLICE`, `BRIX_HAS_TCP_INFO`,
+  `BRIX_HAS_IPV6_FLOWLABEL`, `BRIX_HAS_GSS_KRB5_IMPORT_CRED`, `BRIX_HAS_IO_URING`,
+  `BRIX_PLAT_SHM_DIR`), never on the OS. Add a gate there, not a branch here.
+- **Adding a host-specific operation.** Declare it once in
+  `platform_api_posix.h` (no `#if`), give every host a body under
+  `src/platform/<host>/` (Windows: `posix_stubs.c` with `ENOSYS`), register the
+  file in `./config`. A name or constant a host lacks goes in that host's
+  `host_posix.h`; a new capability gate is defined in every `<host>/host.h`. If
+  the client calls it, add the client body under `client/lib/platform/<host>/`
+  — or, when the body is pure libc, put it in `storage_wrapper.c` /
+  `process_wrapper.c`, which `client/Makefile` `PLATFORM_SRCS` links into the
+  client as well (one body per host; `posix_wrapper.c` and `priv_wrapper.c`
+  are module-only because of `shared/cvmfs/platform/platform.c` symbol
+  ownership and libcrypt).
+- **Guard.** `tools/ci/check_platform_leak.py` — zero tolerance, no waiver
+  marker, no backlog; `--list` prints every hit. Tests:
+  `tests/test_platform_leak_guard.py`. Ownership of `brix_plat_*` bodies and
+  umbrella-only includes: `tools/ci/check_pal_seam.py`.
+
 ## BUILD GOVERNANCE (full text)
 
 **The module build is governed by two things — and only two** (the client CLIs are

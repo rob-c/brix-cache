@@ -171,7 +171,7 @@ If authentication succeeds, the access log shows the client's subject DN:
 
 ### The authenticated identity
 
-After a successful GSI handshake, the module extracts the subject Distinguished Name from the proxy certificate chain and stores it in the session. It appears in the access log and is available for downstream logging. The module does not currently perform authorisation based on the DN itself. Path-level authorisation is handled by `brix_require_vo` rules when `libvomsapi.so.1` is available at runtime (see [building.md](../03-configuration/build-guide.md)).
+After a successful GSI handshake, the module extracts the subject Distinguished Name from the proxy certificate chain and stores it in the session. It appears in the access log and is available for downstream logging. The module does not currently perform authorisation based on the DN itself. Path-level authorisation is handled by `brix_require_vo` rules; the VOMS attribute certificates they rely on are verified natively by the module (see [certificates.md](certificates.md) §VOMS), so no VOMS library is needed on the host.
 
 ---
 

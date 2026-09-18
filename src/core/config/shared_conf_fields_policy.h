@@ -311,6 +311,8 @@
                                              * was brix_webdav_signing_policy. */
     ngx_uint_t        crl_mode;            /* [brix_crl_mode] BRIX_CRL_MODE_*;
                                              * was brix_webdav_crl_mode. */
+    ngx_uint_t        legacy_proxy_mode;   /* [brix_gsi_legacy_proxy off|on|full-only]
+                                             * BRIX_LEGACY_PROXY_*; default on. */
     ngx_uint_t        crl_scope;           /* [brix_crl_scope all|last] (2.0 F19)
                                              * BRIX_CRL_SCOPE_*; default ALL.
                                              * Narrows the CRL check to the

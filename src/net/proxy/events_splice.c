@@ -1,12 +1,13 @@
 #include "proxy_internal.h"
 #include "protocols/root/connection/handler.h"
 #include "protocols/root/connection/write_helpers.h"   /* brix_queue_response_base */
+#include "platform/platform_api.h"
 #include <sys/socket.h>
 #include <sys/ioctl.h>   /* FIONREAD — only splice a fully-buffered body */
 #include <unistd.h>      /* read() — drain pipe residual on a spurious drain EAGAIN */
 
 /* zero-copy splice fast-path */
-#ifdef __linux__
+#if BRIX_HAS_SPLICE
 
 /* Forward declaration — brix_proxy_splice_wev is defined after the pump. */
 static void brix_proxy_splice_wev(ngx_event_t *wev);
@@ -509,4 +510,4 @@ brix_proxy_splice_fallback_finish(brix_proxy_ctx_t *proxy)
  * brix_proxy_splice_pump (below); the pump + fallback machinery stay here.
  */
 
-#endif /* __linux__ */
+#endif /* BRIX_HAS_SPLICE */

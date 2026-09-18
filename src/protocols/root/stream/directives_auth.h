@@ -107,6 +107,17 @@
       offsetof(ngx_stream_brix_srv_conf_t, signing_policy_mode),
       brix_signing_policy_modes },
 
+    /* [brix_gsi_legacy_proxy off|on|full-only] — pre-RFC 3820 (GT2) proxies:
+     * subject = issuer + CN=proxy / limited proxy, no proxyCertInfo.  `on`
+     * (default) accepts both kinds, `full-only` refuses "limited proxy"
+     * credentials, `off` is RFC 3820 only. */
+    { ngx_string("brix_gsi_legacy_proxy"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, legacy_proxy_mode),
+      brix_legacy_proxy_modes },
+
     /* CRL strictness: try (default) | off | require.  "try" checks revocation
      * where a CRL exists but tolerates a CA that has none; "require" makes a
      * missing/expired CRL fatal. */

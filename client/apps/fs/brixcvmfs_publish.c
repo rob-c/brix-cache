@@ -22,6 +22,7 @@
 #endif
 #include "cvmfs/publish/publish.h"
 #include "brixcvmfs_ingest_internal.h"   /* exports the tx lock/rm primitives */
+#include "platform/platform.h"           /* PAL: brix_plat_boot_id (lock forensics) */
 
 #include <dirent.h>
 #include <errno.h>
@@ -42,12 +43,8 @@ static int tx_err(const char *what, const char *detail) {
 /* ---- lock ----------------------------------------------------------------- */
 
 static void tx_boot_id(char *out, size_t outlen) {
-    snprintf(out, outlen, "unknown");
-    FILE *f = fopen("/proc/sys/kernel/random/boot_id", "r");
-    if (f != NULL) {
-        if (fgets(out, (int) outlen, f) != NULL)
-            out[strcspn(out, "\n")] = '\0';
-        fclose(f);
+    if (brix_plat_boot_id(out, outlen) != 0) {
+        snprintf(out, outlen, "unknown");
     }
 }
 

@@ -102,7 +102,8 @@ At step kXGC_cert (server receives proxy):
   ┌─ Server verifies:
   │    • proxy cert chain: proxy → user_cert → CA (X509_verify_cert)
   │    •   with X509_V_FLAG_ALLOW_PROXY_CERTS set on both store and ctx
-  │    • [optional] VOMS AC: libvomsapi checks AC signature against vomsdir
+  │    • [optional] VOMS AC: shared/voms/ verifies the AC (holder, window,
+  │      signature, signer chain vs brix_voms_cert_dir, vomsdir LSC match)
   │    • [optional] CRL: each cert in chain checked against loaded CRL
   └─ If this fails: server returns kXR_NotAuthorized
 ```

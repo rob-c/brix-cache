@@ -38,8 +38,10 @@ from pathlib import Path
 import pytest
 
 from settings import BIND_HOST, NGINX_BIN
+from lib_py.util import budget_scale
 from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
-from brix_suite.fd_probe import write_fd_probe
+from brix_suite.fd_probe import (parse_identity, write_fd_probe,
+                                 write_identity_probe)
 from server_registry import NginxInstanceSpec
 from official_interop_lib import worker_reachable
 
@@ -312,13 +314,20 @@ def test_copy_timeout_kills_the_stage_programs_whole_process_group(
     pidfile = tmp_path / "grandchild.pid"
     cmd = _script(tmp_path, "hang-tree.sh",
                   f"  rcreate) sleep 30 & echo $! > {pidfile}; wait; exit 0 ;;\n")
+    # The deadline has to outlast the script's own start-up: the shell must
+    # reach the line that records its child before the kill arrives, or there
+    # is no pid to check. 1 s is enough on an idle host and not on a busy one
+    # (seen 2026-09-17 in a lane: no pidfile, while the file passed standalone),
+    # so scale it like every other wall-clock budget. Any value well under the
+    # script's 30 s sleep still proves the deadline fires.
+    seconds = max(1, int(round(budget_scale())))
     ep, _journal = _exec_lab(lifecycle, tmp_path, cmd,
-                             extra="brix_frm_copy_timeout 1s;")
+                             extra=f"brix_frm_copy_timeout {seconds}s;")
     status, _ = _rcreate(ep.port, "/archive/tree")
     assert status == H.kXR_error, f"a killed stagecmd must fail the mkdir: {status}"
     _wait_log(ep, "exceeded brix_frm_copy_timeout")
     grandchild = int(pidfile.read_text().split()[0])
-    deadline = time.time() + 5
+    deadline = time.time() + 5 * budget_scale()
     while _proc_alive(grandchild) and time.time() < deadline:
         time.sleep(0.1)
     assert not _proc_alive(grandchild), \
@@ -329,18 +338,16 @@ def test_the_stage_program_leads_its_own_session(lifecycle, tmp_path):
     """Success: the program leads its own session and process group and has
     no controlling terminal -- the property the deadline's group kill relies
     on, and what keeps its job control away from the worker's."""
-    statfile = tmp_path / "stat.txt"
+    out = tmp_path / "identity.txt"
+    probe = write_identity_probe(tmp_path / "identity.py")
     cmd = _script(tmp_path, "stat.sh",
-                  f"  rcreate) cat /proc/$$/stat > {statfile}; exit 0 ;;\n")
+                  f"  rcreate) echo $$ > {out}; {probe} >> {out}; exit 0 ;;\n")
     ep, _journal = _exec_lab(lifecycle, tmp_path, cmd)
     status, _ = _rcreate(ep.port, "/archive/session")
     assert status == H.kXR_ok, f"exec rcreate failed: {status}"
-    stat = statfile.read_text()
-    pid = int(stat.split(maxsplit=1)[0])
-    fields = stat.rsplit(")", 1)[1].split()   # state ppid pgrp session tty ...
-    pgrp, session, tty = int(fields[2]), int(fields[3]), int(fields[4])
-    assert (pgrp, session) == (pid, pid), stat
-    assert tty == 0, f"the stage program has a controlling terminal: {stat}"
+    pid, pgrp, session, tty = parse_identity(out.read_text())
+    assert (pgrp, session) == (pid, pid), (pid, pgrp, session)
+    assert tty == 0, "the stage program has a controlling terminal"
 
 
 def _inherited_fds(listing):

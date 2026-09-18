@@ -12,10 +12,6 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 
-#if defined(__linux__)
-#include <endian.h>
-#endif
-
 /* File: source_open.c — TPC remote source pull, Phase 1 (open → async resolve →
  * fhandle extraction), split from source.c in the phase-79 file-size burndown.
  * WHAT: tpc_open_source() builds a ClientOpenRequest for the remote origin

@@ -123,11 +123,8 @@ def _assert_brix_ping(port):
 
 def _count_established_to(port: int) -> int:
     """Count TCP connections with the given port as the remote end."""
-    result = subprocess.run(["ss", "-tn"], capture_output=True, text=True)
-    return sum(
-        1 for line in result.stdout.splitlines()
-        if f":{port}" in line and "ESTAB" in line
-    )
+    from lib_py.util import established_to_port  # ss(8), or lsof where absent
+    return established_to_port(port)
 
 
 # ---------------------------------------------------------------------------

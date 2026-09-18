@@ -121,11 +121,33 @@ long-lived user key.
 
 ---
 
+## Legacy (GT2) proxy certificates
+
+Before RFC 3820 a Globus proxy was recognised by shape alone: subject = the
+issuer's subject plus one CN (`CN=proxy`, `CN=limited proxy`, or a number) and
+no proxyCertInfo extension. OpenSSL only recognises RFC 3820 proxies, so the
+verifier marks GT2-shaped certificates for OpenSSL itself (`X509_set_proxy_flag`)
+before chain validation; the same proxy rules then apply to them (the issuer
+must be the end-entity certificate or another proxy, the subject must be the
+issuer plus one CN, path lengths are accounted). VOMS attribute certificates
+inside a GT2 proxy are read exactly as inside an RFC one.
+
+`brix_gsi_legacy_proxy off|on|full-only` (http and stream; default `on`)
+controls acceptance: `on` accepts full and limited GT2 proxies, `full-only`
+refuses a chain containing a `limited proxy` (a credential meant for data access
+by a job, not for a login that may re-delegate), `off` accepts RFC 3820 proxies
+only. The gsiftp control channel accepts GT2 proxies unconditionally, as
+GridFTP clients have always presented them. Every accepted legacy proxy logs one
+NOTICE line so the client's move to RFC 3820 can be planned; a full RFC proxy
+issued beneath a limited GT2 proxy is refused as before (delegation escalation).
+
 ## VOMS Attribute Certificates
 
 VOMS (Virtual Organization Membership Service) extends a GSI proxy with VO
 membership assertions.  This adds a **second**, independent trust chain
-alongside the X.509 certificate chain.
+alongside the X.509 certificate chain.  The module verifies it natively —
+`shared/voms/` is plain C over OpenSSL, shared with the client — so no VOMS
+library is installed, linked or loaded at runtime.
 
 ### Two Parallel Trust Chains
 
@@ -142,14 +164,55 @@ Proxy Cert                           Attribute Certificate (AC)
                                       as X.509 extension)
 
 Verified by:                         Verified by:
-  X509_verify_cert()                   libvomsapi: checks AC signature
-  against CA bundle                    against vomsdir LSC files
+  X509_verify_cert()                   shared/voms/ (brix_voms_retrieve):
+  against brix_trusted_ca              AC signature by the embedded VOMS
+                                       signing cert, that cert's chain
+                                       against brix_voms_cert_dir, and the
+                                       vomsdir LSC match
 ```
 
 The VOMS signing certificate is **not** the same as the CA.  It is a separate
 end-entity certificate signed by the CA, whose sole purpose is signing ACs.  It
 has no `BasicConstraints: CA:TRUE`.  Its identity is registered in the
 `vomsdir` on every server that wants to accept VOMS memberships from that VO.
+
+### What the verifier checks
+
+`brix_voms_retrieve()` runs only **after** the GSI proxy chain has verified
+(`src/auth/gsi/auth.c` for `root://`, `src/protocols/webdav/auth_cert.c` for
+`davs://`).  It locates the VOMS extension (OID `1.3.6.1.4.1.8005.100.100.5`)
+on the proxy leaf or any certificate of its chain, decodes the `AC_SEQ` with a
+strict DER template (RFC 5755), and then checks every attribute certificate in
+this order — each entry keeps its own verdict, and a proxy is accepted when at
+least one entry passes:
+
+1. **AC version** is 2.
+2. **Holder binding** — the AC's `baseCertificateID` names the end-entity
+   certificate (its subject or issuer DN plus its serial number); an AC lifted
+   from another user's proxy is rejected.
+3. **Validity window** — `notBefore ≤ now ≤ notAfter`, with the configured
+   clock-skew tolerance applied to `notBefore` only (an expired AC is never
+   tolerated).
+4. **Embedded VOMS server certificate** — the AC carries the signing
+   certificate (extension `…100.100.10`); without one there is nothing to
+   verify against.
+5. **Signature algorithm** — the inner and outer algorithm identifiers must
+   agree and MD5-class digests are refused.
+6. **Signature** — verified over the original TBS bytes with the embedded
+   certificate's public key.
+7. **Issuer** — the AC issuer name must equal the signing certificate's
+   subject.
+8. **Targets** — when the AC carries a targeting extension, this host must be
+   among the targets.
+9. **Server certificate chain** — the embedded VOMS signing certificate is
+   chained against `brix_voms_cert_dir`, the hashed CA directory, with the
+   same CRL and `signing_policy` handling as the GSI identity chain.
+10. **vomsdir match** — `brix_vomsdir/<vo>/` must name the signer (next
+    section).
+
+Only after all ten checks pass are the FQANs of that entry turned into the VO
+list used by `brix_require_vo` and the authdb.  A proxy with no VOMS extension
+at all is still a valid GSI credential: it simply carries no VO.
 
 ### The vomsdir and LSC Files
 
@@ -164,22 +227,25 @@ vomsdir/
 ```
 
 An LSC file contains exactly two lines — the VOMS signing cert's subject DN,
-then its issuer DN (the CA that signed the VOMS signing cert):
+then its issuer DN (the CA that signed the VOMS signing cert).  Blank lines
+and `#` comments are ignored:
 
 ```
 /DC=ch/DC=cern/OU=computers/CN=voms.cern.ch
 /DC=ch/DC=cern/CN=CERN Grid Certification Authority
 ```
 
-When the module calls `libvomsapi` to verify a VOMS proxy, the library:
+The verifier looks up `vomsdir/<vo>/` using the VO name from the AC (a VO
+name containing a path separator or `..` never matches), then reads every
+`*.lsc` file in it; the entry passes when some file's `(subject, issuer)` pair
+equals the embedded signing certificate's subject DN and issuer DN.  Legacy
+vomsdir layouts are also honoured: a PEM certificate placed in the VO
+directory (the pre-LSC convention) matches when it is byte-for-byte the
+embedded signing certificate.
 
-1. Locates the AC extension inside the proxy certificate
-2. Finds the matching LSC file using the VO name from the AC
-3. Verifies that the AC was signed by a VOMS signing cert whose
-   `(subject, issuer)` DN pair matches the LSC file
-
-This two-step lookup is why the LSC file must contain the DNs in exactly the
-format produced by `openssl x509 -noout -subject -nameopt compat`.
+The DNs are compared in the format produced by
+`openssl x509 -noout -subject -nameopt compat` (`/DC=…/CN=…`), so the LSC
+file must be written in exactly that form.
 
 ### VOMS Attribute Certificate Contents
 

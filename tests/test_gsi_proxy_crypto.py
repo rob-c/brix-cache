@@ -32,6 +32,9 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # The standalone unittest links all three or the link fails on those refs.
 SRC = [os.path.join(REPO, "src", "auth", "gsi", f)
        for f in ("proxy_req.c", "proxy_req_sign.c", "proxy_req_assemble.c")]
+# The signer's limited-proxy check classifies the signing cert through the
+# GT2/RFC proxy classifier, which lives with the store policy.
+SRC.append(os.path.join(REPO, "src", "auth", "crypto", "store_policy_conformance.c"))
 TEST = os.path.join(REPO, "src", "auth", "gsi", "proxy_req_unittest.c")
 
 

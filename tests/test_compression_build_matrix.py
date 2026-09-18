@@ -31,6 +31,7 @@ import os
 import subprocess
 
 import pytest
+from cmdscripts.compile_run import LZ4_LINK_FLAGS
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CDIR = os.path.join(REPO, "tests", "c")
@@ -95,7 +96,7 @@ _OPT_CODECS = [
     ("xz",     "BRIX_HAVE_LZMA",   ["-llzma"]),
     ("brotli", "BRIX_HAVE_BROTLI", ["-lbrotlienc", "-lbrotlidec"]),
     ("bzip2",  "BRIX_HAVE_BZIP2",  ["-lbz2"]),
-    ("lz4",    "BRIX_HAVE_LZ4",    ["-l:liblz4.so.1"]),
+    ("lz4",    "BRIX_HAVE_LZ4",    list(LZ4_LINK_FLAGS)),
 ]
 _CODEC_SRC = {
     "zstd": "codec_zstd.c", "xz": "codec_lzma.c", "brotli": "codec_brotli.c",

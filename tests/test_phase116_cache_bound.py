@@ -23,14 +23,28 @@ import pytest
 from _phase116_helpers import (HAVE_NGINX, BIND_HOST, DnsLab, kXR_error, kXR_ok, metric,
                                metrics_text, stat)
 from server_registry import NginxInstanceSpec
-
-pytestmark = [pytest.mark.timeout(180),
-              pytest.mark.uses_lifecycle_harness,
-              pytest.mark.xdist_group("lc-p116-dns-rev")]
+from lib_py.util import loopback_alias_usable
 
 GRANTED = "client.lab.test"
 # net-literal-allow: distinct loopback source addresses, one reverse-cache key each
 PEERS = [f"127.0.0.{i}" for i in range(2, 10)]
+
+# Every cell here connects FROM one of those addresses to give the reverse-DNS
+# cache a distinct key per peer. Linux answers for the whole 127/8 range out of
+# the box; macOS binds only 127.0.0.1, so the bind fails and the test reports a
+# refused connection that says nothing about the cache under test. Skip with the
+# command that fixes it rather than fail (the same guard test_negcache_backoff
+# and test_phase115_gridftp_spas already use).
+_UNBINDABLE = [peer for peer in PEERS if not loopback_alias_usable(peer)]
+
+pytestmark = [pytest.mark.timeout(180),
+              pytest.mark.skipif(
+                  bool(_UNBINDABLE),
+                  reason="loopback aliases not bindable on this host: "
+                         + " ".join(_UNBINDABLE)
+                         + "; sudo ifconfig lo0 alias <addr> up for each"),
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-p116-dns-rev")]
 
 
 def _start(lifecycle, tmp_path, lab, bound, reason):

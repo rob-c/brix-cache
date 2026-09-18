@@ -28,7 +28,6 @@ Run the official-XRootD comparison too (a local xrootd + XrdHttp on /data):
 import contextlib
 import hashlib
 import os
-import shutil
 import socket
 import subprocess
 from brix_suite.client_build import client_make
@@ -36,6 +35,7 @@ import time
 
 import pytest
 
+from lib_py import fuse_host
 from settings import DATA_ROOT, NGINX_ANON_PORT, NGINX_HTTP_WEBDAV_PORT, SERVER_HOST
 
 def _guard_mount_1(extra, argv):
@@ -55,7 +55,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XROOTDFS = os.path.join(CLIENT_DIR, "bin", "xrootdfs")
 
-_FUSE_OK = os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
+_FUSE_OK = fuse_host.FUSE_READY
 
 # A multi-MiB payload so reads span many ranged GETs / many pipelined root:// reads.
 _PAYLOAD = os.urandom(6 * 1024 * 1024 + 12345)
@@ -74,7 +74,7 @@ def _port_up(host, port):
 @pytest.fixture(scope="module")
 def built():
     if not _FUSE_OK:
-        pytest.skip("FUSE unavailable (/dev/fuse or fusermount3 missing)")
+        pytest.skip(fuse_host.SKIP_REASON)
     proc = client_make(CLIENT_DIR, "xrootdfs", capture_output=True, text=True, timeout=300)
     if proc.returncode != 0 or not os.path.exists(XROOTDFS):
         pytest.skip(f"xrootdfs build failed:\n{proc.stdout}\n{proc.stderr}")
@@ -116,7 +116,7 @@ def _mount(url, extra=None):
             pytest.skip(f"mount failed for {url}: {err.decode(errors='replace')}")
         yield mnt
     finally:
-        subprocess.run(["fusermount3", "-u", "-z", mnt], capture_output=True)
+        fuse_host.unmount(mnt, lazy=True)
         with contextlib.suppress(Exception):
             proc.wait(timeout=10)
         with contextlib.suppress(OSError):

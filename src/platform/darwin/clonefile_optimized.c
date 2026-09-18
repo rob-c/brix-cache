@@ -26,6 +26,8 @@
 #include <sys/syscall.h>
 #include <sys/clonefile.h>
 #include <sys/stat.h>
+#include <sys/param.h>   /* struct statfs (with <sys/mount.h>) */
+#include <sys/mount.h>
 #include <sys/socket.h>  /* sendfile on macOS */
 #include <fcntl.h>
 #include <unistd.h>
@@ -129,45 +131,11 @@ brix_plat_clonefile(const char *src_path, const char *dst_path, int flags)
 }
 
 /*
- * Copy File Range with clonefile Optimization
- * 
- * Implements brix_plat_copy_range() using clonefile for full-file copies,
- * sendfile for large ranges, and buffered copy for small ranges.
- * 
- * @param in_fd Input file descriptor
- * @param in_off Input offset (NULL for current position)
- * @param out_fd Output file descriptor
- * @param out_off Output offset (NULL for current position)
- * @param len Bytes to copy
- * @param flags Copy flags
- * @return Bytes copied, or -1 on error
+ * brix_plat_copy_range() for Darwin lives in posix_wrapper.c (ENOSYS stub:
+ * macOS has no copy_file_range(2); callers fall back to buffered copy).
+ * clonefile(2) needs paths, not descriptors, so it cannot back that API —
+ * use brix_plat_clonefile()/brix_plat_supports_clonefile() below instead.
  */
-ssize_t
-brix_plat_copy_range(int in_fd, off_t *in_off,
-                     int out_fd, off_t *out_off,
-                     size_t len, unsigned int flags)
-{
-    (void)in_fd;
-    (void)in_off;
-    (void)out_fd;
-    (void)out_off;
-    (void)len;
-    (void)flags;
-    
-    /*
-     * Note: clonefile requires paths, not file descriptors.
-     * For fd-based copy_range, use sendfile or buffered copy.
-     *
-     * DESIGN NOTE: fclonefileat() (fd-based cloning) available macOS 12+.
-     * Current scope: Path-based clonefile only (Phase 3).
-     *
-     * Future enhancement: Add fclonefileat() wrapper if fd-based cloning
-     * becomes critical for performance.
-     */
-    
-    errno = ENOSYS;
-    return -1;
-}
 
 /*
  * Check if filesystem supports clonefile

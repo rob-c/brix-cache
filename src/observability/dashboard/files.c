@@ -1,6 +1,5 @@
 /* dashboard file browsing: keep the complete implementation on non-Darwin hosts.
  * The Darwin fallback is selected only when compiling for macOS. */
-#if !defined(__APPLE__) || !defined(__MACH__)
 
 /*
  * dashboard/files.c — admin file browser + downloader for the monitoring UI.
@@ -28,6 +27,7 @@
 #include "fs/path/beneath.h"
 #include "core/http/http_file_response.h"
 #include "core/http/http_headers.h"   /* brix_http_source_offer (AGPL sec.13) */
+#include "platform/platform_api.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -137,32 +137,62 @@ dashboard_files_get_path(ngx_http_request_t *r, char *out, size_t outsz)
 }
 
 
-/* Build one entry object from a statx result.  Returns a json_t (caller owns) or
+/* The per-entry metadata the listing renders.  Filled by dashboard_entry_stat
+ * from statx(2) on Linux and fstatat(2) elsewhere, so the JSON schema is the
+ * same on every platform.  btime is 0 when the filesystem does not report a
+ * creation time (the client falls back to mtime). */
+typedef struct {
+    mode_t   mode;
+    off_t    size;
+    uid_t    uid;
+    time_t   mtime;
+    time_t   btime;
+} dashboard_entry_stat_t;
+
+/* Stat one directory entry without following symlinks (a symlink is listed
+ * as "other").  0 on success, -1 (errno set) when the entry vanished or is
+ * unreadable.  The PAL supplies the birth time (Linux statx, BSD
+ * st_birthtimespec) and reports 0 where the host has none. */
+static int
+dashboard_entry_stat(int dirfd, const char *name, dashboard_entry_stat_t *out)
+{
+    struct stat st;
+
+    if (brix_plat_fstatat_btime(dirfd, name, AT_SYMLINK_NOFOLLOW, &st,
+                                &out->btime) != 0)
+    {
+        return -1;
+    }
+    out->mode  = st.st_mode;
+    out->size  = st.st_size;
+    out->uid   = st.st_uid;
+    out->mtime = st.st_mtime;
+    return 0;
+}
+
+/* Build one entry object from a stat result.  Returns a json_t (caller owns) or
  * NULL on OOM. */
 static json_t *
-dashboard_files_entry(const char *name, const struct statx *stx)
+dashboard_files_entry(const char *name, const dashboard_entry_stat_t *st)
 {
     json_t *o = json_object();
     char    owner[64];
 
     if (o == NULL) { return NULL; }
-    dashboard_owner_name((uid_t) stx->stx_uid, owner, sizeof(owner));
+    dashboard_owner_name(st->uid, owner, sizeof(owner));
 
     json_object_set_new(o, "name", json_string(name));
     json_object_set_new(o, "type",
-        S_ISDIR(stx->stx_mode) ? json_string("dir")
-        : S_ISREG(stx->stx_mode) ? json_string("file")
+        S_ISDIR(st->mode) ? json_string("dir")
+        : S_ISREG(st->mode) ? json_string("file")
         : json_string("other"));
-    json_object_set_new(o, "size", json_integer((json_int_t) stx->stx_size));
+    json_object_set_new(o, "size", json_integer((json_int_t) st->size));
     json_object_set_new(o, "owner", json_string(owner));
-    json_object_set_new(o, "uid", json_integer((json_int_t) stx->stx_uid));
-    json_object_set_new(o, "mtime",
-        json_integer((json_int_t) stx->stx_mtime.tv_sec));
+    json_object_set_new(o, "uid", json_integer((json_int_t) st->uid));
+    json_object_set_new(o, "mtime", json_integer((json_int_t) st->mtime));
     /* Creation time (birth) when the filesystem supports it; 0 => client falls
      * back to mtime. */
-    json_object_set_new(o, "btime",
-        json_integer((json_int_t)
-            ((stx->stx_mask & STATX_BTIME) ? stx->stx_btime.tv_sec : 0)));
+    json_object_set_new(o, "btime", json_integer((json_int_t) st->btime));
     return o;
 }
 
@@ -252,8 +282,8 @@ dashboard_files_scan(DIR *dp, int dirfd, json_t *arr, int *truncated)
     ngx_uint_t     count = 0;
 
     while ((de = readdir(dp)) != NULL) {
-        struct statx stx;
-        json_t      *e;
+        dashboard_entry_stat_t  st;
+        json_t                 *e;
 
         if (de->d_name[0] == '.'
             && (de->d_name[1] == '\0'
@@ -265,13 +295,10 @@ dashboard_files_scan(DIR *dp, int dirfd, json_t *arr, int *truncated)
             *truncated = 1;
             break;
         }
-        if (statx(dirfd, de->d_name, AT_SYMLINK_NOFOLLOW,
-                  STATX_TYPE | STATX_SIZE | STATX_UID | STATX_MTIME
-                  | STATX_BTIME, &stx) != 0)
-        {
+        if (dashboard_entry_stat(dirfd, de->d_name, &st) != 0) {
             continue;   /* vanished mid-scan / unreadable — skip */
         }
-        e = dashboard_files_entry(de->d_name, &stx);
+        e = dashboard_files_entry(de->d_name, &st);
         if (e == NULL || json_array_append_new(arr, e) != 0) {
             continue;
         }
@@ -497,35 +524,3 @@ ngx_http_brix_dashboard_download_handler(ngx_http_request_t *r)
 
     return dashboard_download_body(r, fd, relpath, &sb);
 }
-
-#else /* macOS */
-
-/*
- * files.c — macOS stub for dashboard files/download handlers
- */
-
-#include "dashboard_http.h"
-#include "dashboard_json.h"
-#include <sys/stat.h>
-#include <dirent.h>
-#include <time.h>
-#include <unistd.h>
-#include <fcntl.h>
-
-/* GET /xrootd/api/v1/files?path=<rel> - stub implementation */
-ngx_int_t
-ngx_http_brix_dashboard_files_handler(ngx_http_request_t *r)
-{
-    /* Stub - returns 501 Not Implemented on macOS */
-    return NGX_HTTP_NOT_IMPLEMENTED;
-}
-
-/* GET /xrootd/api/v1/download?path=<rel> - stub implementation */
-ngx_int_t
-ngx_http_brix_dashboard_download_handler(ngx_http_request_t *r)
-{
-    (void)r;
-    return NGX_HTTP_NOT_IMPLEMENTED;
-}
-
-#endif /* macOS */

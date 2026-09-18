@@ -24,6 +24,7 @@
  *   and the GSI OID constants come from proxy_req_internal.h. */
 
 #include "core/types/tunables.h"
+#include "auth/crypto/store_policy.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -267,6 +268,15 @@ sgn_add_extensions(sgn_ctx *x)
 {
     int indepth, reqdepth, outdepth, haskeyusage;
 
+    /* RFC 3820 §3.8 / Globus: a limited proxy (RFC limited policy or a GT2
+     * "limited proxy") may not issue the full impersonation proxy minted
+     * here — the chain verifier would refuse the result anyway; fail early. */
+    if (brix_px_classify(x->signer) == BRIX_PX_LIMITED
+        || brix_gt2_proxy_kind(x->signer) == BRIX_PX_LIMITED)
+    {
+        return sgn_fail(x, "gsi sign: a limited proxy may not delegate a "
+                           "full proxy (RFC 3820 section 3.8)");
+    }
     if (sgn_copy_signer_exts(x->signer, x->proxy, &indepth, &haskeyusage) != 0) {
         return sgn_fail(x,
                         "gsi sign: bad signer extensions (SAN, or copy failed)");

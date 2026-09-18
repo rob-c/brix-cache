@@ -75,8 +75,7 @@ def test_missing_pubkey_distinct_message(matrix):
 # ---------------------------------------------------------------------------
 # real FUSE mount confirmation — the serve path, and the no-orphan guarantee.
 # ---------------------------------------------------------------------------
-_FUSE_READY = (os.path.exists("/dev/fuse")
-               and shutil.which("fusermount3") is not None)
+_FUSE_READY = FUSE_READY
 requires_fuse = pytest.mark.skipif(not _FUSE_READY, reason="fuse prerequisites missing")
 
 

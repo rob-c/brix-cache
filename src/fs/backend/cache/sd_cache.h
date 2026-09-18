@@ -126,6 +126,11 @@ void *brix_sd_cache_cstore(const brix_sd_instance_t *inst);
 void brix_sd_cache_set_cold(brix_sd_instance_t *inst,
     brix_sd_instance_t *cold);
 
+/* The attached cold store tier, or NULL. Borrowed — never freed by the caller
+ * except by the registry that owns it. */
+brix_sd_instance_t *brix_sd_cache_cold_instance(
+    const brix_sd_instance_t *inst);
+
 /* Demote the HOT cached object `key` into the cold store tier: copy its bytes
  * from the cache store into the cold store (staged write + commit). Called by
  * the eviction engine on space-pressure victims ONLY — never on write

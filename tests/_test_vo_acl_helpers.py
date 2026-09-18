@@ -35,6 +35,8 @@ The session fixture starts and stops its own nginx process on port 11103;
 it does not touch the main test nginx on ports 11094/11095.
 """
 
+import contextlib
+import fcntl
 import os
 import json
 import shutil
@@ -110,13 +112,34 @@ def _voms_dn(pem: str, field: str) -> str:
     return r.stdout.strip().split("=", 1)[1].strip()
 
 
+@contextlib.contextmanager
+def _pki_lock(path: str):
+    """Serialise PKI generation across xdist workers.
+
+    Every module that re-exports this helper's session fixture runs it on its
+    own worker; two workers generating the same key + cert at once leave one
+    reading a half-written key (``openssl req`` exit 1).  An flock on a
+    sibling lock file makes the create-if-absent idempotent under -n N.
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
 def _make_voms_signing_cert():
     """
     Create a VOMS signing key + cert signed by the test CA, with
     SubjectKeyIdentifier so that voms-proxy-fake can embed an AKI in the AC.
     """
-    os.makedirs(os.path.dirname(VOMS_CERT), exist_ok=True)
+    with _pki_lock(VOMS_CERT):
+        _make_voms_signing_cert_locked()
 
+
+def _make_voms_signing_cert_locked():
     if os.path.exists(VOMS_CERT) and os.path.exists(VOMS_KEY):
         return  # already exists
 
@@ -287,7 +310,7 @@ def vo_nginx():
                  "X509_CERT_DIR":   CA_DIR,
                  "X509_USER_PROXY": PROXY_CMS,
                  "XrdSecPROTOCOL":  "gsi"},
-            capture_output=True, timeout=5,
+            capture_output=True, timeout=20,
         )
         if r.returncode == 0:
             break

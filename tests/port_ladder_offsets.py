@@ -564,6 +564,12 @@ SETTINGS_OFFSET, SETTINGS_WIDTH = 0, 179
 # one front over it.  It cannot reuse the W5.2 plain origin: that one
 # advertises nothing, which proves the driver is quiet with nothing to see,
 # while this one proves the FEAT probe reads a whole TOKEN, 1096 -> 1098.
-LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 179, 1098
+# 2026-09-16: +8 for brix_gsi_legacy_proxy at value granularity
+# (test_gsi_legacy_proxy.py: lc-gsi-legacy-proxy carries `off`, ON_PORT,
+# FULL_PORT and DEF_PORT for the absent directive on the stream plane plus the
+# same four arms as davs:// listeners, HTTP_*_PORT, on one instance over ONE
+# trust anchor — the GT2 verdict is a per-listener login decision on both
+# planes and nothing else varies), 1098 -> 1106.
+LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 179, 1106
 
 _load_port_ladder_ext(globals(), __file__, "port_ladder_offsets_tail.py")

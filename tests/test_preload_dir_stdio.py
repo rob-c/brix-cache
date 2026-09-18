@@ -38,8 +38,10 @@ import pytest
 from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 from sanitizer_preload import sanitizer_runtimes
 
+from lib_py import preload_shim
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PRELOAD = os.path.join(REPO, "client", "libbrixposix_preload.so")
+PRELOAD = preload_shim.SHIM_PATH
 DIR_SRC = os.path.join(REPO, "client", "preload", "brixposix_dir.c")
 STDIO_SRC = os.path.join(REPO, "client", "preload", "brixposix_stdio.c")
 MAKEFILE = os.path.join(REPO, "client", "Makefile")
@@ -55,8 +57,7 @@ _ASAN_RT = sanitizer_runtimes(PRELOAD)
 
 def _env(extra=None):
     """Host environment plus the shim, its sanitizer runtimes and the prefix."""
-    env = dict(os.environ)
-    env["LD_PRELOAD"] = " ".join(x for x in (_ASAN_RT, PRELOAD) if x)
+    env = preload_shim.preload_env(None, _ASAN_RT)
     if _ASAN_RT:
         env.setdefault("ASAN_OPTIONS",
                        "detect_leaks=0:verify_asan_link_order=0")
@@ -351,24 +352,23 @@ class TestPreloadBuildWiring:
         """(success) the wrappers are interposable — a symbol that stayed
         internal would leave libc's own version in front of it, and the
         file would compile, link and do nothing."""
-        out = subprocess.run(["nm", "-D", "--defined-only", PRELOAD],
-                             capture_output=True, text=True).stdout
-        exported = {line.split()[-1] for line in out.splitlines()
-                    if " T " in line}
-        wanted = {"opendir", "readdir", "readdir64", "readdir_r", "closedir",
-                  "rewinddir", "telldir", "seekdir", "dirfd",
-                  "fopen", "fopen64", "freopen", "freopen64"}
+        exported = preload_shim.exported_symbols(PRELOAD)
+        wanted = {preload_shim.wrap_name(n) for n in (
+            "opendir", "readdir", "readdir_r", "closedir",
+            "rewinddir", "telldir", "seekdir", "dirfd", "fopen", "freopen")}
+        if not preload_shim.IS_DARWIN:   # the glibc-only LFS spellings
+            wanted |= {"readdir64", "fopen64", "freopen64"}
         assert wanted <= exported, sorted(wanted - exported)
 
     def test_the_internal_helpers_stay_internal(self):
         """(safety) the shim must interpose libc WITHOUT its own helpers
         interposing, or being interposed by, the host program's symbols."""
-        out = subprocess.run(["nm", "-D", "--defined-only", PRELOAD],
-                             capture_output=True, text=True).stdout
+        exported = preload_shim.exported_symbols(PRELOAD)
         leaked = [n for n in ("dir_of", "dir_fill", "dir_next", "dir_register",
                               "cookie_read", "cookie_seek", "mode_to_flags",
-                              "stream_over", "remote_fopen")
-                  if f" {n}\n" in out or out.endswith(f" {n}")]
+                              "brixposix_stream_open", "remote_fopen",
+                              "map_path", "ensure_conn", "slot_of")
+                  if n in exported]
         assert leaked == [], leaked
 
     def test_both_new_units_are_built_and_linked(self):

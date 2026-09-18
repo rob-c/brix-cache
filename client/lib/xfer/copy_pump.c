@@ -287,7 +287,7 @@ pump_sink_local_vfs(void *ctx, const uint8_t *buf, int64_t off, size_t n,
  *   2. Otherwise invoke o->progress with o->progress_arg and the two counters,
  *      widened to long long exactly as the original inline call sites did.
  */
-static void
+void
 pump_emit_progress(const brix_copy_opts *o, int64_t cur, int64_t total)
 {
     if (o != NULL && o->progress != NULL) {

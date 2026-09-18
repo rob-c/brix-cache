@@ -12,7 +12,7 @@
 #include "fs/path/path.h"
 #include "fs/vfs/vfs.h"
 
-#include <sys/xattr.h>
+#include "platform/platform_api.h"
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>

@@ -88,6 +88,8 @@ import time
 
 import pytest
 
+from lib_py.util import children_of
+
 from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN
 from test_min_sec_level import _send_initial
@@ -250,19 +252,7 @@ def _workers(endpoint):
         # lifecycle instance is settling.  The caller treats an empty set as
         # "not observable yet" and retries; it is not a worker death.
         return set()
-    found = set()
-    for entry in os.listdir("/proc"):
-        if not entry.isdigit():
-            continue
-        try:
-            with open(f"/proc/{entry}/stat") as handle:
-                stat = handle.read()
-        except OSError:
-            continue                      # exited between listdir and open
-        # comm can contain spaces and parens; the fields start after the last ')'
-        if int(stat[stat.rindex(")") + 2:].split()[1]) == master:
-            found.add(int(entry))
-    return found
+    return children_of(master)
 
 
 def _count_deaths(endpoint, port, attempts=ATTEMPTS):

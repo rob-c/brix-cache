@@ -27,7 +27,7 @@
 #include <string.h>
 #include <time.h>
 #include <sys/stat.h>      /* UTIME_OMIT / UTIME_NOW */
-#include <sys/xattr.h>     /* XATTR_CREATE / XATTR_REPLACE */
+#include "platform/platform_api.h"   /* XATTR_CREATE / XATTR_REPLACE */
 
 /* AWS caps total user metadata at 2 KiB; 32 attrs matches sd_s3_set_meta's hard
  * limit. Names/values are held bare (no "x-amz-meta-" prefix) — sd_s3_set_meta

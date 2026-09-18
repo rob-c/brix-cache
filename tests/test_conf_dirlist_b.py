@@ -50,7 +50,7 @@ def _check_test_wire_dstat_special_names_6(real, our_sz):
 
 _reexport(globals(), "_test_conf_dirlist_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_dirlist_b")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_dirlist_b")]
 
 def test_wire_dstat_mtime_field_present(srv):
     """The per-entry stat line is 'id size flags mtime' -> >=4 leading ints, on

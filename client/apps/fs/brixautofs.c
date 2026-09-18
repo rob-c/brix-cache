@@ -134,13 +134,13 @@ int brixautofs_find_pid_locked(brixautofs_table_t *t, pid_t pid) {
 #include <signal.h>
 #include <stdarg.h>
 #include <stdlib.h>
-#include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
 #include "brixautofs_ext_internal.h"
+#include "platform/platform.h"   /* PAL: umount, mount table, FUSE unmount tiers, self exe */
 
 
 autofs_state_t g_af;
@@ -154,21 +154,18 @@ void af_log(const char *fmt, ...) {
     va_end(ap);
 }
 
-/* 1 iff `path` is a mount point per /proc/self/mountinfo (field 5). FQRNs
- * never contain the \040-style escapes mountinfo uses, so plain compare. */
+/* brix_plat_mounts_walk callback: stop (1) at the entry mounted on `arg`. */
+static int af_mounted_cb(const char *mountpoint, const char *fstype,
+                         const char *source, void *arg) {
+    (void) fstype; (void) source;
+    return strcmp(mountpoint, (const char *) arg) == 0;
+}
+
+/* 1 iff `path` is a mount point in the host's mount table (the PAL walks
+ * /proc/self/mountinfo or getmntinfo). FQRNs never contain the \040-style
+ * escapes mountinfo uses, so a plain compare is exact. */
 int af_is_mounted(const char *path) {
-    FILE *f = fopen("/proc/self/mountinfo", "r");
-    if (f == NULL) return 0;
-    char line[1024];
-    int found = 0;
-    while (!found && fgets(line, sizeof(line), f) != NULL) {
-        /* fields: id parent maj:min root mountpoint … */
-        char *save = NULL, *tok = strtok_r(line, " ", &save);
-        for (int i = 0; tok != NULL && i < 4; i++) tok = strtok_r(NULL, " ", &save);
-        if (tok != NULL && strcmp(tok, path) == 0) found = 1;
-    }
-    fclose(f);
-    return found;
+    return brix_plat_mounts_walk(NULL, af_mounted_cb, (void *) path) == 1;
 }
 
 /* Where the child actually mounts: in the farm, NEVER under g_af.mnt (see the
@@ -191,28 +188,37 @@ int af_mkdir_p(const char *path) {
     return 0;
 }
 
-/* Unmount `path`: umount2 when root (MNT_DETACH on EBUSY), else fusermount3
- * (-u, then lazy -uz). Best-effort; returns 0 if the mount is gone. */
+/* Run one unprivileged unmount command (stdout/stderr silenced); the caller
+ * re-checks the mount table rather than trusting the exit status. */
+static void af_run_umount(char *const argv[]) {
+    pid_t pid = fork();
+    if (pid == 0) {
+        int devnull = open("/dev/null", O_RDWR);
+        if (devnull >= 0) { dup2(devnull, 1); dup2(devnull, 2); }
+        execvp(argv[0], argv);
+        _exit(127);
+    }
+    if (pid > 0) {
+        int st = 0;
+        waitpid(pid, &st, 0);
+    }
+}
+
+/* Unmount `path`: brix_plat_umount when root (lazy detach on EBUSY), else the
+ * host's unprivileged unmount tiers (fusermount3 -u, then lazy; umount on
+ * macOS), each tried plain then lazy. Best-effort; 0 iff the mount is gone. */
 int af_umount_path(const char *path) {
     if (geteuid() == 0) {
-        if (umount2(path, 0) == 0) return 0;
-        if (errno == EBUSY && umount2(path, MNT_DETACH) == 0) return 0;
+        if (brix_plat_umount(path, 0) == 0) return 0;
+        if (errno == EBUSY && brix_plat_umount(path, 1) == 0) return 0;
         if (!af_is_mounted(path)) return 0;
     }
-    const char *modes[] = { "-u", "-uz" };
-    for (int m = 0; m < 2; m++) {
-        pid_t pid = fork();
-        if (pid == 0) {
-            int devnull = open("/dev/null", O_RDWR);
-            if (devnull >= 0) { dup2(devnull, 1); dup2(devnull, 2); }
-            execlp("fusermount3", "fusermount3", modes[m], path, (char *) NULL);
-            _exit(127);
+    for (int lazy = 0; lazy < 2; lazy++) {
+        char *argv[BRIX_PLAT_UMOUNT_ARGV_MAX];
+        for (int tier = 0; brix_plat_fuse_umount_argv(path, lazy, tier, argv) > 0; tier++) {
+            af_run_umount(argv);
+            if (!af_is_mounted(path)) return 0;
         }
-        if (pid > 0) {
-            int st = 0;
-            waitpid(pid, &st, 0);
-        }
-        if (!af_is_mounted(path)) return 0;
     }
     return af_is_mounted(path) ? -1 : 0;
 }
@@ -239,10 +245,7 @@ static pid_t af_spawn_child(const char *fqrn) {
     af_child_path(fqrn, mntpath, sizeof(mntpath));
     af_child_opts(fqrn, opts, sizeof(opts));
 
-    ssize_t el = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
-    if (el > 0) {
-        exe[el] = '\0';
-    } else {
+    if (brix_plat_self_exe(exe, sizeof(exe)) != 0) {
         const char *env = getenv("BRIXMOUNT_BIN");
         if (env == NULL) { af_log("cannot resolve own binary path"); return -1; }
         snprintf(exe, sizeof(exe), "%s", env);

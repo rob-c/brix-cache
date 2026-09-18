@@ -20,7 +20,7 @@ src/platform/
 ├── platform.h                   # Core types and platform detection
 ├── platform_api.h               # Public API (what source code includes)
 ├── platform.c                   # Platform detection & initialization
-├── platform_endian_compat.h     # Byte-order compatibility (temporary)
+├── platform_api_posix.h         # POSIX surface guaranteed on every host (Linux names + brix_plat_* whose semantics differ)
 │
 ├── generic/                     # Platform-agnostic helpers
 │   ├── endian.c                 # Byte-order operations

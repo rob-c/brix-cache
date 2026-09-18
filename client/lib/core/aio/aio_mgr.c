@@ -35,7 +35,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <arpa/inet.h>
-#include <endian.h>
+#include "platform/platform.h"   /* PAL: htobe64/be64toh names on every host */
 
 /* mgr */
 struct brix_mgr {
@@ -349,7 +349,7 @@ brix_mgr_call(brix_mgr *m, const void *hdr24, const void *payload,
               uint8_t **body, uint32_t *blen, brix_status *st)
 {
     brix_aconn   *ac = brix_mgr_pick(m);
-    brix_aio_opts o  = { 0 /*adaptive*/, m->max_retries, retry_safe };
+    brix_aio_opts o  = { 0 /*adaptive*/, m->max_retries, retry_safe, NULL, 0 };
     return brix_aio_call_ex(ac, hdr24, payload, plen, &o, kxr, body, blen, st);
 }
 

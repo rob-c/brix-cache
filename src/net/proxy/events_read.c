@@ -1,5 +1,6 @@
 #include "proxy_internal.h"
 #include "protocols/root/connection/handler.h"
+#include "platform/platform_api.h"
 #include <sys/socket.h>
 
 /*
@@ -92,7 +93,7 @@ proxy_read_hdr_complete(brix_proxy_ctx_t *proxy, ngx_connection_t *uconn)
         return BRIX_PXR_PROCEED;
     }
 
-#ifdef __linux__
+#if BRIX_HAS_SPLICE
     /* Attempt zero-copy splice for plain-text read responses. */
     if (proxy->state == XRD_PX_FORWARDING) {
         ngx_int_t srt = brix_proxy_try_splice(proxy);
@@ -186,7 +187,7 @@ proxy_read_fill_body(brix_proxy_ctx_t *proxy, ngx_event_t *rev)
     size_t            need;
     ssize_t           n;
 
-#ifdef __linux__
+#if BRIX_HAS_SPLICE
     /* If splice is active, upstream readable means more data to pump. */
     if (proxy->splice_active) {
         brix_proxy_splice_pump(proxy);
@@ -361,13 +362,17 @@ proxy_read_dispatch(brix_proxy_ctx_t *proxy, ngx_event_t *rev)
     }
 
     if (proxy->state == XRD_PX_FORWARDING) {
+#if BRIX_HAS_SPLICE
         /* Under-draining-splice fallback: the body just accumulated is the
          * RAW remainder of a spliced read (header already sent) — relay it
-         * verbatim and finish, never through the header-building relay. */
+         * verbatim and finish, never through the header-building relay.
+         * splice(2) is Linux-only (events_splice.c is compiled out elsewhere),
+         * so splice_fallback can never be set on other platforms. */
         if (proxy->splice_fallback) {
             brix_proxy_splice_fallback_finish(proxy);
             return BRIX_PXR_DONE;
         }
+#endif
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
                       "xrootd proxy: relay_to_client status=%d dlen=%uz",
                       (int) proxy->resp_status,

@@ -27,10 +27,6 @@
 #include "stream_mirror_io.h"
 
 #include <sys/socket.h>
-/* macOS doesn't have endian.h - use libkern/OSByteOrder.h */
-#if defined(__APPLE__) && defined(__MACH__)
-#else
-#endif
 
 extern void brix_upstream_build_bootstrap(u_char *buf);
 

@@ -50,6 +50,8 @@ The implementation separates native resource lifetime from focused helpers:
 
 | Files | Responsibility |
 |---|---|
+| `host.h`, `host_endian.h`, `host_posix.h`, `host_api.h` | The Windows answer to the PAL interface: platform flags, Win32 header configuration, `_byteswap_*` natives, `ssize_t` / openat2 ABI, and the Win32 version / event / Winsock extensions. |
+| `host_info.c` | Stub-grade `brix_plat_name`, CPU and memory. |
 | `handle_abstraction.c`, `handle_registry.c`, `handle_internal.h` | Own the single descriptor registry and its storage allocation. |
 | `handle_path.c`, `path_internal.h` | Share the existing handle-to-path conversion between transfers and ADS operations. |
 | `copy_range.c`, `copy_fallback.c`, `copy_internal.h` | Separate native transfer methods from buffered and unsupported-operation fallbacks. |
@@ -57,6 +59,7 @@ The implementation separates native resource lifetime from focused helpers:
 | `fs_watcher.c`, `fs_watcher_poll.c`, `fs_watcher_internal.h` | Separate watch lifetime from completion polling and notification decoding. |
 | `process.c`, `process_args.c`, `process_internal.h` | Separate process launch from pure command-line serialization. |
 | `xattr.c`, `xattr_list.c`, `xattr_internal.h` | Separate ADS values and utilities from stream enumeration. |
+| `posix_stubs.c` | `ENOSYS` / `ENOTSUP` bodies for the platform_api_posix.h surface (openat2, renameat2, wake descriptors, credentials, ...) so the module links while each operation reports itself unavailable. |
 
 The argument serializer has native C coverage in
 [`test_platform_queue_args_native.py`](../../../tests/test_platform_queue_args_native.py).

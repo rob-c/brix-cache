@@ -143,6 +143,13 @@
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_common_conf_t, common.signing_policy_mode),
       &brix_http_signing_policy_modes },
+    /* [brix_gsi_legacy_proxy off|on|full-only] — pre-RFC 3820 proxies on the
+     * client-certificate (davs://) path; default on. */
+    { ngx_string("brix_gsi_legacy_proxy"),
+      BRIX_HTTP_ALL_CONF | NGX_CONF_TAKE1, ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.legacy_proxy_mode),
+      &brix_http_legacy_proxy_modes },
 
     /* VOMS AC trust dirs (phase-101 W4): were brix_webdav_vomsdir /
      * brix_webdav_voms_cert_dir; bare on the stream plane already. */

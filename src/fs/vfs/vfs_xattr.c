@@ -28,27 +28,8 @@
                                           * dispatch bypasses the decorator's
                                           * own cache invalidation */
 
-#include <sys/xattr.h>
-
-/* macOS xattr compatibility - different signatures than Linux */
-#if defined(__APPLE__) && defined(__MACH__)
-static ssize_t brix_fgetxattr_compat(int fd, const char *name, void *value, size_t size) {
-    return fgetxattr(fd, name, value, size, 0, 0);
-}
-static int brix_fsetxattr_compat(int fd, const char *name, const void *value, size_t size, int flags) {
-    return fsetxattr(fd, name, value, size, 0, flags);
-}
-static ssize_t brix_flistxattr_compat(int fd, char *list, size_t size) {
-    return flistxattr(fd, list, size, 0);
-}
-static int brix_fremovexattr_compat(int fd, const char *name) {
-    return fremovexattr(fd, name, 0);
-}
-#define fgetxattr(fd, name, value, size) brix_fgetxattr_compat(fd, name, value, size)
-#define fsetxattr(fd, name, value, size, flags) brix_fsetxattr_compat(fd, name, value, size, flags)
-#define flistxattr(fd, list, size) brix_flistxattr_compat(fd, list, size)
-#define fremovexattr(fd, name) brix_fremovexattr_compat(fd, name)
-#endif
+#include "platform/platform_api.h"   /* Linux-shaped xattr calls on every host */
+#include <errno.h>
 
 /* Shared observe tail for the value-returning ops (get/list): translate a
  * helper return (>=0 ok, -1 errno) into an OP_XATTR metric + access-log line and

@@ -1,19 +1,22 @@
 /*
  * brixposix_stdio.c — §7.8 stdio interposition for the POSIX preload shim.
  *
- * WHAT: fopen/fopen64/freopen over the shim's shadow descriptors, so a program
- *       that reaches for FILE* instead of a raw fd still sees the remote
- *       namespace.
+ * WHAT: fopen/freopen over the shim's shadow descriptors (the glibc fopen64 /
+ *       freopen64 spellings forward here from lib/platform/linux/preload_lfs.c),
+ *       so a program that reaches for FILE* instead of a raw fd still sees the
+ *       remote namespace.
  * WHY:  The fd family alone leaves out most of the software this shim exists
  *       for.  Analysis code, config readers and every script language's file
  *       object go through fopen; without it the shim covered `dd` and not
  *       `awk`.
- * HOW:  glibc's fopencookie: we hand back a REAL FILE* whose backing store is
- *       our shadow fd, and glibc keeps doing the buffering, fgets, fscanf,
- *       ungetc and feof.  So this TU interposes exactly the three entry points
- *       that CREATE a stream and touches nothing that reads one — no fake
- *       FILE*, no reimplemented buffering, and no risk of a stream we made
- *       being handed to a libc function we did not.
+ * HOW:  The host's cookie stdio (glibc fopencookie, BSD funopen; the body is
+ *       brixposix_stream_open in lib/platform/<host>/preload_stream.c): we
+ *       hand back a REAL FILE* whose backing store is our shadow fd, and libc
+ *       keeps doing the buffering, fgets, fscanf, ungetc and feof.  So this TU
+ *       interposes exactly the entry points that CREATE a stream and touches
+ *       nothing that reads one — no fake FILE*, no reimplemented buffering,
+ *       and no risk of a stream we made being handed to a libc function we
+ *       did not.
  *
  * The cookie's read/write/seek/close are the shim's OWN interposed
  * read/write/lseek/close, not the libc ones, which is what keeps this file
@@ -30,12 +33,10 @@
 #include <unistd.h>
 
 /*
- * The open/read/write/lseek/close called below are the ones libc's headers
- * declare, but NOT the ones libc defines: this .so is LD_PRELOADed, so it
- * precedes libc in the global symbol search and every one of those calls
- * lands on the shim's own wrapper in brixposix_preload.c.  That is
- * deliberate — it is what lets a FILE* opened here read remote bytes without
- * this file knowing anything about the wire.
+ * The open called below is spelt BRIXPOSIX_WRAP(open): the shim's own wrapper
+ * in brixposix_preload.c, whatever the host names it.  That is deliberate —
+ * it is what lets a FILE* opened here read remote bytes without this file
+ * knowing anything about the wire.
  */
 
 /*
@@ -71,59 +72,6 @@ mode_to_flags(const char *mode, int *out)
     return -1;   /* 'a', and anything else glibc might grow */
 }
 
-/* ---- cookie callbacks: thin adapters onto our own fd wrappers ---------- */
-
-static ssize_t
-cookie_read(void *cookie, char *buf, size_t size)
-{
-    return read((int) (intptr_t) cookie, buf, size);
-}
-
-static ssize_t
-cookie_write(void *cookie, const char *buf, size_t size)
-{
-    return write((int) (intptr_t) cookie, buf, size);
-}
-
-static int
-cookie_seek(void *cookie, off64_t *offset, int whence)
-{
-    off_t pos = lseek((int) (intptr_t) cookie, (off_t) *offset, whence);
-
-    if (pos < 0) {
-        return -1;
-    }
-    *offset = (off64_t) pos;
-    return 0;
-}
-
-static int
-cookie_close(void *cookie)
-{
-    return close((int) (intptr_t) cookie);
-}
-
-static const cookie_io_functions_t g_cookie_fns = {
-    .read = cookie_read, .write = cookie_write,
-    .seek = cookie_seek, .close = cookie_close,
-};
-
-/* Wrap an already-open shadow fd in a FILE*.  On failure the fd is closed
- * here: the caller only ever saw the FILE*, so nothing else can. */
-static FILE *
-stream_over(int fd, const char *mode)
-{
-    FILE *fp = fopencookie((void *) (intptr_t) fd, mode, g_cookie_fns);
-
-    if (fp == NULL) {
-        int saved = errno;
-        close(fd);
-        errno = saved;
-        return NULL;
-    }
-    return fp;
-}
-
 /* Open `path` remotely if it is ours; *handled stays 0 when it is not. */
 static FILE *
 remote_fopen(const char *path, const char *mode, int *handled)
@@ -140,15 +88,15 @@ remote_fopen(const char *path, const char *mode, int *handled)
         errno = ENOTSUP;
         return NULL;
     }
-    fd = open(path, flags, 0644);   /* our open(): maps the path again */
+    fd = BRIXPOSIX_WRAP(open)(path, flags, 0644);   /* our open(): maps the path again */
     if (fd < 0) {
         return NULL;
     }
-    return stream_over(fd, mode);
+    return brixposix_stream_open(fd, mode);
 }
 
 FILE *
-fopen(const char *path, const char *mode)
+BRIXPOSIX_WRAP(fopen)(const char *path, const char *mode)
 {
     int handled;
     FILE *fp;
@@ -161,7 +109,6 @@ fopen(const char *path, const char *mode)
     return real_fopen(path, mode);
 }
 
-FILE *fopen64(const char *path, const char *mode) __attribute__((alias("fopen")));
 
 /*
  * freopen's contract is "close `stream`, reopen it on `path`" — the CALLER
@@ -171,7 +118,7 @@ FILE *fopen64(const char *path, const char *mode) __attribute__((alias("fopen"))
  * relies on the identity (`freopen(p, "r", stdin)`) reading the old stream.
  */
 FILE *
-freopen(const char *path, const char *mode, FILE *stream)
+BRIXPOSIX_WRAP(freopen)(const char *path, const char *mode, FILE *stream)
 {
     char remote[XRDC_PATH_MAX];
 
@@ -182,6 +129,3 @@ freopen(const char *path, const char *mode, FILE *stream)
     }
     return real_freopen(path, mode, stream);
 }
-
-FILE *freopen64(const char *path, const char *mode, FILE *stream)
-    __attribute__((alias("freopen")));

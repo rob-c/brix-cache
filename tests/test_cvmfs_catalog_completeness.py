@@ -6,8 +6,13 @@ per-catalog schema/revision properties, subtree_* counter aggregation,
 security negatives.
 """
 
+import pytest
 from cmdscripts.cvmfs_catalog_completeness import run_checks
 
+
+# The repotool publishes are quick alone (<10 s) but stall past the 30 s default
+# on a loaded host (8 xdist workers building tools): widen the per-test timeout.
+pytestmark = pytest.mark.timeout(300)
 
 def test_cvmfs_catalog_completeness(tmp_path):
     results = run_checks(tmp_path)

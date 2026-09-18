@@ -7,6 +7,7 @@
  * (src/fs/vfs/vfs_io_core.c) so behaviour is byte-identical across both trees.
  */
 #include "core/types/tunables.h"
+#include "platform/platform_api.h"   /* brix_plat_fd_reopen_readonly */
 #include "vfs_core.h"
 
 #include <errno.h>
@@ -191,7 +192,6 @@ int
 xvfs_stage_fd(int src_fd, const char *stage_dir)
 {
     char            tmpl[PATH_MAX];
-    char            proc[64];
     char           *buf;
     brix_sd_obj_t s, d;
     int             dst_fd, rd_fd, e, n;
@@ -229,9 +229,10 @@ xvfs_stage_fd(int src_fd, const char *stage_dir)
     }
     free(buf);
 
-    /* Reopen the unlinked inode O_RDONLY at offset 0 (clean pread semantics). */
-    (void) snprintf(proc, sizeof(proc), "/proc/self/fd/%d", dst_fd);
-    rd_fd = open(proc, O_RDONLY | O_CLOEXEC);
+    /* Reopen the inode O_RDONLY at offset 0 (clean pread semantics); the PAL
+     * aliases the open file (/proc/self/fd on Linux, F_GETPATH or dup on
+     * Darwin). */
+    rd_fd = brix_plat_fd_reopen_readonly(dst_fd);
     e = errno;
     close(dst_fd);
     if (rd_fd < 0) {

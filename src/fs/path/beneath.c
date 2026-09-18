@@ -19,9 +19,10 @@
  *       An escape attempt surfaces to callers as EXDEV/ELOOP, which the error
  *       mapper turns into kXR_NotAuthorized / HTTP 403.
  *
- * HOW:  openat2(2) is a hard build requirement (the #error guards below fail the
- *       compile on kernels/headers < 5.6). do_openat2() masks O_CREAT mode bits
- *       to 07777 because openat2() — unlike open(2) — rejects S_IFMT type bits.
+ * HOW:  openat2(2) is reached through the PAL (brix_plat_openat2: the syscall
+ *       on Linux, a userspace walk with the same verdicts elsewhere), which
+ *       masks O_CREAT mode bits to 07777 because openat2() — unlike open(2) —
+ *       rejects S_IFMT type bits.
  *       The crucial subtlety: RESOLVE_BENEATH protects ONLY the openat2() call
  *       itself; the legacy *at() syscalls (mkdirat/unlinkat/renameat/linkat) do
  *       NOT honour it, so a symlink in an intermediate component could be
@@ -33,58 +34,12 @@
 #include "core/ngx_brix_module.h"
 #include "beneath.h"
 #include "auth/impersonate/impersonate.h"
+#include "platform/platform_api.h"   /* brix_plat_openat2/stat_resolve/renameat2, RESOLVE_*, O_PATH */
 
-#include <sys/syscall.h>
-/* macOS lacks linux/openat2.h - provide compatibility stubs */
-#if defined(__APPLE__) && defined(__MACH__)
-#ifndef RESOLVE_BENEATH
-#define RESOLVE_BENEATH 0x8
-#endif
-#ifndef RESOLVE_IN_ROOT
-#define RESOLVE_IN_ROOT 0x10
-#endif
-#ifndef RESOLVE_NO_XDEV
-#define RESOLVE_NO_XDEV 0x01
-#endif
-#ifndef RESOLVE_NO_MAGICLINKS
-#define RESOLVE_NO_MAGICLINKS 0x02
-#endif
-#ifndef RESOLVE_NO_SYMLINKS
-#define RESOLVE_NO_SYMLINKS 0x04
-#endif
-#ifndef RESOLVE_CACHED
-#define RESOLVE_CACHED 0x20
-#endif
-#ifndef SYS_openat2
-#define SYS_openat2 -1
-#endif
-#ifndef O_PATH
-#define O_PATH O_RDONLY
-#endif
-#ifndef SYS_renameat2
-#define SYS_renameat2 -1
-#endif
-/* openat2 compatibility - stub on macOS */
-struct open_how {
-    uint64_t flags;
-    uint64_t mode;
-    uint64_t resolve;
-};
-#else
-#include <linux/openat2.h>
-#endif
 #include <unistd.h>
 #include <errno.h>
 #include <limits.h>
 #include <string.h>
-
-#ifndef RENAME_NOREPLACE
-#define RENAME_NOREPLACE (1u << 0)   /* <linux/fs.h>; defined here to avoid the
-                                      * header's struct collisions */
-#endif
-#ifndef RENAME_EXCHANGE
-#define RENAME_EXCHANGE  (1u << 1)   /* same header, same collision dodge */
-#endif
 
 /*
  * IMPERSONATION SEAM (phase 40).
@@ -99,14 +54,6 @@ struct open_how {
  * principal is set, brix_imp_client_active() is false and the original local
  * openat2 path below runs exactly as before.
  */
-
-#ifndef RESOLVE_BENEATH
-#error "openat2(2) with RESOLVE_BENEATH required — kernel headers too old (need >= 5.6)"
-#endif
-
-#ifndef SYS_openat2
-#error "SYS_openat2 not defined — kernel headers too old (need >= 5.6)"
-#endif
 
 /*
  * Open an O_PATH directory fd on root_canon to anchor every beneath() call.
@@ -134,10 +81,8 @@ static int
 do_openat2_resolve(int rootfd, const char *rel, int flags, mode_t mode,
     uint64_t resolve)
 {
-    struct open_how how;
     /* empty rel means root dir itself; "." opens the rootfd directory */
     if (rel[0] == '\0') { rel = "."; }
-    ngx_memzero(&how, sizeof(how));
     /*
      * Force O_NONBLOCK on real (data-bearing) opens so the open(2) itself can
      * NEVER block the worker.  Opening a FIFO O_RDONLY (or a device with a
@@ -155,23 +100,11 @@ do_openat2_resolve(int rootfd, const char *rel, int flags, mode_t mode,
      * mutating ops) and never start file I/O, so they cannot block on a FIFO and
      * need no guard.
      */
-    how.flags   = (uint64_t)(flags | O_CLOEXEC
-                             | ((flags & O_PATH) ? 0 : O_NONBLOCK));
-    how.resolve = resolve;
-    /*
-     * openat2() is stricter than open()/openat(): it rejects (EINVAL) any
-     * how.mode bit outside 07777.  Callers legitimately pass a full struct
-     * stat st_mode (e.g. staged_file copying a source's permissions), which
-     * carries the S_IFMT type bits.  Mask to the permission bits, exactly as
-     * open(2) does by ignoring the type bits, so a struct-stat mode is accepted.
-     */
-    if (flags & O_CREAT) { how.mode = (uint64_t)(mode & 07777); }
-#if defined(__APPLE__) && defined(__MACH__)
-    /* macOS lacks openat2 - use openat with basic flags */
-    return (int)openat(rootfd, rel, (int)(how.flags | O_CLOEXEC), how.mode);
-#else
-    return (int)syscall(SYS_openat2, rootfd, rel, &how, sizeof(how));
-#endif
+    /* The PAL adds O_CLOEXEC and masks a struct-stat mode to 07777 (openat2
+     * rejects S_IFMT type bits with EINVAL, unlike open(2)). */
+    return brix_plat_openat2(rootfd, rel,
+                             flags | ((flags & O_PATH) ? 0 : O_NONBLOCK),
+                             mode, resolve);
 }
 
 /* The default confinement for open/mutate paths: RESOLVE_BENEATH (no symlinks,
@@ -195,8 +128,6 @@ brix_open_beneath(int rootfd, const char *reqpath, int flags, mode_t mode)
 int
 brix_stat_beneath(int rootfd, const char *reqpath, struct stat *st)
 {
-    int fd, rc;
-
     if (brix_imp_client_active()) {
         return brix_imp_stat(reqpath, st, 0 /* follow */);
     }
@@ -206,19 +137,13 @@ brix_stat_beneath(int rootfd, const char *reqpath, struct stat *st)
      * ".." relative to rootfd) and still CANNOT escape the root.  BENEATH rejected
      * every absolute/symlink target outright (EXDEV), diverging from stock, which
      * follows in-export links (test_conf_stattypes). */
-    fd = do_openat2_resolve(rootfd, brix_beneath_rel(reqpath), O_PATH, 0,
-                            RESOLVE_IN_ROOT | RESOLVE_NO_MAGICLINKS);
-    if (fd < 0) { return -1; }
-    rc = fstat(fd, st);
-    close(fd);
-    return rc;
+    return brix_plat_stat_resolve(rootfd, brix_beneath_rel(reqpath), 0,
+                                  RESOLVE_IN_ROOT | RESOLVE_NO_MAGICLINKS, st);
 }
 
 int
 brix_lstat_beneath(int rootfd, const char *reqpath, struct stat *st)
 {
-    int fd, rc;
-
     if (brix_imp_client_active()) {
         return brix_imp_stat(reqpath, st, 1 /* nofollow */);
     }
@@ -227,13 +152,8 @@ brix_lstat_beneath(int rootfd, const char *reqpath, struct stat *st)
      * the path while still permitting in-export symlinks in INTERMEDIATE
      * components; the trailing link is opened as itself via O_NOFOLLOW.  (BENEATH
      * rejected even a trailing symlink here with EXDEV, so lstat of a link failed.) */
-    fd = do_openat2_resolve(rootfd, brix_beneath_rel(reqpath),
-                            O_PATH | O_NOFOLLOW, 0,
-                            RESOLVE_IN_ROOT | RESOLVE_NO_MAGICLINKS);
-    if (fd < 0) { return -1; }
-    rc = fstat(fd, st);
-    close(fd);
-    return rc;
+    return brix_plat_stat_resolve(rootfd, brix_beneath_rel(reqpath), 1,
+                                  RESOLVE_IN_ROOT | RESOLVE_NO_MAGICLINKS, st);
 }
 
 DIR *
@@ -369,7 +289,7 @@ brix_unlink_beneath(int rootfd, const char *reqpath, int is_dir)
     if (base[0] == '\0') {
         beneath_close_parent(pfd, rootfd); errno = EINVAL; return -1;
     }
-    rc = unlinkat(pfd, base, is_dir ? AT_REMOVEDIR : 0);
+    rc = brix_plat_unlinkat(pfd, base, is_dir ? AT_REMOVEDIR : 0);
     beneath_close_parent(pfd, rootfd);
     return rc;
 }
@@ -405,9 +325,7 @@ brix_mkdir_beneath(int rootfd, const char *reqpath, mode_t mode)
  * (file-scope, not function-local, so the accessor can see it; monotonic and
  * process-wide, so it can only UNDER-claim atomicity — the safe direction). */
 static int noreplace_degraded;
-#if !(defined(__APPLE__) && defined(__MACH__))
 static int noreplace_warned;
-#endif
 
 /* 1 iff create-if-absent has ever fallen back to check-then-act here. */
 int
@@ -419,7 +337,7 @@ brix_renameat_noreplace_degraded(void)
 /*
  * renameat2(RENAME_NOREPLACE) on already-resolved parent fds + final
  * components.  On a kernel/filesystem without RENAME_NOREPLACE
- * (ENOSYS/EINVAL) it falls back to a plain renameat — logged once — so
+ * (ENOTSUP from the PAL) it falls back to a plain renameat — logged once — so
  * behaviour degrades to the legacy last-writer-wins rather than spuriously
  * failing (callers still ran their stat-based precondition, so this is no
  * worse than before W6b on such hosts).  Shared with the confined-parent
@@ -429,16 +347,9 @@ int
 brix_renameat_noreplace_fallback(ngx_log_t *log, int sfd, const char *sbase,
     int dfd, const char *dbase)
 {
-#if defined(__APPLE__) && defined(__MACH__)
-    /* Without an atomic implementation, preserve both names and fail closed. */
-    (void) log; (void) sfd; (void) sbase; (void) dfd; (void) dbase;
-    errno = ENOTSUP;
-    return -1;
-#else
-    int rc = (int) syscall(SYS_renameat2, sfd, sbase, dfd, dbase,
-                           (unsigned int) RENAME_NOREPLACE);
+    int rc = brix_plat_renameat2(sfd, sbase, dfd, dbase, BRIX_RENAME_NOREPLACE);
 
-    if (rc != 0 && (errno == ENOSYS || errno == EINVAL)) {
+    if (rc != 0 && errno == ENOTSUP) {
         noreplace_degraded = 1;
         if (!noreplace_warned) {
             noreplace_warned = 1;
@@ -450,7 +361,6 @@ brix_renameat_noreplace_fallback(ngx_log_t *log, int sfd, const char *sbase,
         rc = renameat(sfd, sbase, dfd, dbase);  /* NOLINT(readability-suspicious-call-argument) */
     }
     return rc;
-#endif
 }
 
 /* The two-path mutating ops share one confined body: impersonation dispatch,
@@ -513,23 +423,12 @@ beneath_two_path(beneath_two_path_op_t op, int rootfd, const char *src,
                                               dfd, dbase);
         break;
     case BENEATH_2P_EXCHANGE:
-        /* Atomic two-name swap; no glibc wrapper predates 2.28, so raw
-         * SYS_renameat2 like the NOREPLACE arm above. A kernel or filesystem
-         * without the flag answers ENOSYS/EINVAL — reported as ENOTSUP, and
-         * NEVER degraded to two renames: unlike NOREPLACE there is no
-         * pre-checked consolation whose only failure mode is under-claiming
-         * (sd.h exchange contract, phase-107 §3.5). */
-#if defined(__APPLE__) && defined(__MACH__)
-        /* An exchange must never degrade to moving one name over the other. */
-        errno = ENOTSUP;
-        rc = -1;
-#else
-        rc = (int) syscall(SYS_renameat2, sfd, sbase, dfd, dbase,
-                           (unsigned int) RENAME_EXCHANGE);
-#endif
-        if (rc != 0 && (errno == ENOSYS || errno == EINVAL)) {
-            errno = ENOTSUP;
-        }
+        /* Atomic two-name swap (PAL renameat2 / renameatx_np). A kernel or
+         * filesystem without the flag answers ENOTSUP, and is NEVER degraded
+         * to two renames: unlike NOREPLACE there is no pre-checked
+         * consolation whose only failure mode is under-claiming (sd.h
+         * exchange contract, phase-107 §3.5). */
+        rc = brix_plat_renameat2(sfd, sbase, dfd, dbase, BRIX_RENAME_EXCHANGE);
         break;
     default:
         rc = linkat(sfd, sbase, dfd, dbase, 0);

@@ -6,7 +6,7 @@
  * WHY:  Discovery and refresh logic was scattered across the per-protocol sec
  *       modules (sec_gsi.c / sec_token.c / …) and duplicated for the HTTP/S3
  *       transports. One store removes the drift and makes auto-refresh uniform.
- * HOW:  Per-kind handler accessors are declared __attribute__((weak)) here so
+ * HOW:  Per-kind handler accessors are declared BRIX_WEAK_REF here so
  *       the library and unit-test binaries compile before any handler (B3-B6)
  *       exists. brix_cred_store_new() calls each non-NULL weak accessor and
  *       stores the returned handler pointer in a fixed-size per-kind slot array.
@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "platform/platform_api.h"   /* BRIX_WEAK_REF */
 
 /* Forward declaration: cfg_copy_free is used inside the DUP_FIELD macro in
  * cfg_copy_alloc, which appears earlier in the file. */
@@ -45,11 +46,11 @@ static void cfg_copy_free(brix_cred_config *c);
  * Guarded checks against NULL before any call — a NULL weak symbol means the
  * compilation unit that would have provided it was not linked.
  */
-extern const brix_cred_handler *brix_cred_x509(void)   __attribute__((weak));
-extern const brix_cred_handler *brix_cred_bearer(void)  __attribute__((weak));
-extern const brix_cred_handler *brix_cred_krb5(void)    __attribute__((weak));
-extern const brix_cred_handler *brix_cred_sss(void)     __attribute__((weak));
-extern const brix_cred_handler *brix_cred_s3keys(void)  __attribute__((weak));
+extern const brix_cred_handler *brix_cred_x509(void)   BRIX_WEAK_REF;
+extern const brix_cred_handler *brix_cred_bearer(void)  BRIX_WEAK_REF;
+extern const brix_cred_handler *brix_cred_krb5(void)    BRIX_WEAK_REF;
+extern const brix_cred_handler *brix_cred_sss(void)     BRIX_WEAK_REF;
+extern const brix_cred_handler *brix_cred_s3keys(void)  BRIX_WEAK_REF;
 
 /* config deep-copy helpers */
 /*

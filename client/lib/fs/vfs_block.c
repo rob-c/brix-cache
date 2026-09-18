@@ -23,19 +23,15 @@
 #include "fs/core/vfs_core.h" /* shared `vfs` I/O verbs (single-sourced with the
                                * server data plane). block_fstat keeps its
                                * BLKGETSIZE64 device-size logic (block-specific). */
+#include "platform/platform.h" /* PAL: brix_plat_blockdev_size behind the driver */
 
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-#ifdef __linux__
-#include <linux/fs.h>   /* BLKGETSIZE64 */
-#endif
 
 /* Concrete per-handle struct */
 /*

@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_xrdcl_fs_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_xrdcl_fs")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_xrdcl_fs")]
 
 @pytest.mark.parametrize("path", DIRLIST_PATHS)
 def test_dirlist_nameset_plain(pair, path):

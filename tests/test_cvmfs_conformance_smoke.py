@@ -5,7 +5,6 @@
 # the extended mock serves a forged webroot with per-path fault targeting; and
 # srv_instance fetches a CAS object through nginx with a single origin fill.
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -21,6 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 
 from conformance_common import (BRIXMOUNT, NGINX_BIN, PortBlock, fuse_mount,
                                 request, srv_instance)
+from lib_py.fuse_host import FUSE_READY
 from repo_forge import Dir, File, RepoForge, Symlink
 from settings import HOST
 
@@ -30,8 +30,7 @@ _WEB_BLOCK = PortBlock("srv_smoke")
 
 REPO = "test.cern.ch"
 
-_FUSE_READY = (os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
-               and os.path.exists(BRIXMOUNT))
+_FUSE_READY = FUSE_READY and os.path.exists(BRIXMOUNT)
 requires_fuse = pytest.mark.skipif(not _FUSE_READY, reason="fuse mount prerequisites missing")
 requires_nginx = pytest.mark.skipif(not os.path.exists(NGINX_BIN),
                                      reason=f"nginx binary not found: {NGINX_BIN}")

@@ -461,7 +461,7 @@ Step 1 — Build VOMS Attribute Certificate (raw DER, manually encoded):
       sigAlg  SHA256WithRSA
       sig     vomskey signs TBSAttributeCertificate
   }
-  Wrapped as: SEQUENCE { SEQUENCE { ac } }  (libvomsapi expects this outer wrapper)
+  Wrapped as: SEQUENCE { SEQUENCE { ac } }  (the AC_SEQ wrapper libvoms writes and shared/voms/ decodes)
 
 Step 2 — Build RFC 3820 proxy cert with two extra extensions:
   Subject = user DN + CN=<random serial>

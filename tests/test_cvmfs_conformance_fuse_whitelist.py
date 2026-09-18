@@ -78,6 +78,7 @@ from cmdscripts.cvmfs_driver_units import (  # noqa: E402
     BRIXCVMFS_DRIVER_SRCS,
 )
 from conformance_common import BRIXMOUNT, PortBlock, fuse_mount  # noqa: E402
+from lib_py.fuse_host import FUSE_READY  # noqa: E402
 from repo_forge import File, RepoForge  # noqa: E402
 from settings import HOST
 
@@ -93,8 +94,7 @@ BASE_REPO = "base.cern.ch"
 _FUSE3 = shutil.which("pkg-config") and subprocess.run(
     ["pkg-config", "--exists", "fuse3"], stdout=subprocess.DEVNULL).returncode == 0
 requires_fuse = pytest.mark.skipif(
-    not (_FUSE3 and os.path.exists("/dev/fuse") and shutil.which("fusermount3")
-         and os.path.exists(BRIXMOUNT)),
+    not (_FUSE3 and FUSE_READY and os.path.exists(BRIXMOUNT)),
     reason="fuse mount prerequisites missing")
 
 

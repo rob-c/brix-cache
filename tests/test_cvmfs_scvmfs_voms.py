@@ -115,6 +115,21 @@ def _voms_proxy(d: Path, vo: str, voms_crt: Path, voms_key: Path):
     return out
 
 
+def _usable_pair(cfile: Path, kfile: Path) -> bool:
+    """Whether OpenSSL accepts this cert-chain/key pair.
+
+    The proxy is minted FROM the shared test PKI (USER_CERT/USER_KEY): a
+    sibling worker regenerating that PKI mid-mint yields a proxy whose blocks
+    do not parse, surfacing much later as ssl.SSLError "[SSL] PEM lib" when a
+    request loads the chain.  Checking here names the real cause instead.
+    """
+    try:
+        ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT).load_cert_chain(str(cfile), str(kfile))
+    except (ssl.SSLError, OSError):
+        return False
+    return True
+
+
 def _split(proxy: Path, d: Path, stem: str):
     """load_cert_chain wants a cert(-chain) file and a key file; a proxy PEM
     interleaves proxy-cert / key / EEC-cert.  Split into a certs-only file
@@ -154,6 +169,22 @@ def _plain_proxy(d: Path):
     return _split(user / "proxy_std.pem", d, "plain")
 
 
+def _minted_proxy(d: Path, vo: str, voms_crt: Path, voms_key: Path):
+    """A VOMS proxy for ``vo``, split and PROVEN loadable.
+
+    One retry: the mint reads the shared test PKI, which a sibling worker may
+    be regenerating, and that produces a proxy OpenSSL cannot parse.
+    """
+    for attempt in (1, 2):
+        pair = _split(_voms_proxy(d, vo, voms_crt, voms_key), d, vo)
+        if _usable_pair(*pair):
+            return pair
+        if attempt == 2:
+            pytest.fail(f"minted {vo} proxy is not loadable by OpenSSL "
+                        f"(shared PKI unstable?): {pair[0]}")
+    return None
+
+
 @pytest.fixture(scope="module")
 def voms(tmp_path_factory):
     d = tmp_path_factory.mktemp("scvmfs_voms")
@@ -164,11 +195,9 @@ def voms(tmp_path_factory):
          "-out", str(d / "server.crt"))
     voms_crt, voms_key = _voms_signing_cert(d)
     vd = _vomsdir(d, voms_crt)
-    proxies = {
-        "atlas": _split(_voms_proxy(d, "atlas", voms_crt, voms_key), d, "atlas"),
-        "cms": _split(_voms_proxy(d, "cms", voms_crt, voms_key), d, "cms"),
-        "plain": _plain_proxy(d),
-    }
+    proxies = {vo: _minted_proxy(d, vo, voms_crt, voms_key)
+               for vo in ("atlas", "cms")}
+    proxies["plain"] = _plain_proxy(d)
     return {"dir": d, "server": (d / "server.crt", d / "server.key"),
             "vomsdir": vd, "proxies": proxies}
 

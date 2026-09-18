@@ -2,13 +2,8 @@
 #define TOKEN_JSON_H
 #include <stddef.h>
 #include <stdint.h>
-
-#if defined(_WIN32) || defined(_WIN64)
-# include <BaseTsd.h>
-typedef SSIZE_T ssize_t;
-#else
-# include <sys/types.h>
-#endif
+#include <sys/types.h>
+#include "platform/platform_api.h"   /* ssize_t on Windows */
 
 ssize_t json_get_string(const char *json, size_t json_len, const char *key,
     char *out, size_t out_max);

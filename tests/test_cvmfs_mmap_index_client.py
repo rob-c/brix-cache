@@ -73,12 +73,12 @@ def _check_test_index_build_failure_leaves_transport_alive_4(body, name, mnt):
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402, F401
+from lib_py.fuse_host import FUSE_READY  # noqa: E402
 from repo_forge import Dir, File, RepoForge, Symlink  # noqa: E402
 from test_cvmfs_packed_client import (  # noqa: E402 — same origin/mount idiom
     REPO, TTL, _data_gets, _start_origin, _stop_origin, pk_mount)
 
-_FUSE_READY = (os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
-               and os.path.exists(BRIXMOUNT))
+_FUSE_READY = FUSE_READY and os.path.exists(BRIXMOUNT)
 pytestmark = pytest.mark.skipif(not _FUSE_READY, reason="fuse mount prerequisites missing")
 
 IDX_OPTS = ",index=mmap"

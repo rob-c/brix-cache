@@ -311,10 +311,10 @@ brix_ca_store_cache_key(char *buf, size_t buflen, const char *cadir,
     const char *cafile, const char *crl_path, unsigned long extra_flags,
     const brix_trust_policy_t *pol)
 {
-    ngx_snprintf((u_char *) buf, buflen, "%s|%s|%s|%ul|%d|%d|%d|%d%Z",
+    ngx_snprintf((u_char *) buf, buflen, "%s|%s|%s|%ul|%d|%d|%d|%d|%d%Z",
         cadir ? cadir : "", cafile ? cafile : "", crl_path ? crl_path : "",
         extra_flags, (int) pol->sp_mode, pol->crl_mode, pol->crl_scope,
-        pol->verify_log);
+        pol->verify_log, pol->legacy_proxy);
 }
 
 /*
@@ -390,6 +390,35 @@ brix_ca_store_cache_put(int slot, const char *key, X509_STORE *store,
  * NULL to force a fresh rebuild from the current CRLs on disk.  A config change
  * to the CA/CRL paths yields a different key (rebuilds); a reload that only
  * rotates CRL *content* under the same dir is refreshed by that timer. */
+/*
+ * WHAT: the cached store for these inputs, up_ref'd, or NULL — no build, no
+ *       log line.
+ * WHY:  a request-time caller (the VOMS verifier on every VOMS proxy) needs
+ *       the store the configuration already built without the per-hit WARN
+ *       that brix_build_ca_store_cached prints for configuration-time reuse.
+ * HOW:  the same key as the builder, a silent scan of the table.
+ */
+X509_STORE *
+brix_build_ca_store_peek(const char *cadir, const char *cafile,
+    const char *crl_path, unsigned long extra_flags,
+    const brix_trust_policy_t *pol)
+{
+    char key[768];
+    int  i;
+
+    brix_ca_store_cache_key(key, sizeof(key), cadir, cafile, crl_path,
+                            extra_flags, pol);
+    for (i = 0; i < BRIX_CA_STORE_CACHE_MAX; i++) {
+        brix_ca_store_cache_ent_t *e = &brix_ca_store_cache[i];
+
+        if (e->store != NULL && ngx_strcmp(e->key, key) == 0) {
+            X509_STORE_up_ref(e->store);
+            return e->store;
+        }
+    }
+    return NULL;
+}
+
 X509_STORE *
 brix_build_ca_store_cached(void *scope, ngx_log_t *log,
     const char *cadir, const char *cafile, const char *crl_path,

@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_openflags_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_openflags")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_openflags")]
 
 @pytest.mark.parametrize("path", READ_FILES)
 def test_read_open_returns_bare_4byte_handle(srv, path):

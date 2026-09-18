@@ -32,7 +32,7 @@ def _guard_test_open_posc_disconnect_removes_file_2(ok_f, sf, b_f):
 
 _reexport(globals(), "_test_conf_openflags_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_openflags_b")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_openflags_b")]
 
 @pytest.mark.parametrize("idx", range(3))
 def test_open_posc_disconnect_removes_file(srv, idx):

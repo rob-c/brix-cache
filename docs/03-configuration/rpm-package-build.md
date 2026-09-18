@@ -68,13 +68,8 @@ dist/
 # EPEL (nginx-mod-stream, pcre2, openssl-libs)
 sudo dnf install -y epel-release
 
-# WLCG repository — provides voms-libs (required runtime dependency)
-# AlmaLinux 8:
-sudo dnf install -y https://linuxsoft.cern.ch/wlcg/el8/x86_64/wlcg-repo-1.0.0-1.el8.noarch.rpm
-# AlmaLinux 9:
-sudo dnf install -y https://linuxsoft.cern.ch/wlcg/el9/x86_64/wlcg-repo-1.0.0-1.el9.noarch.rpm
-# AlmaLinux 10+ — monitor https://linuxsoft.cern.ch/wlcg/ for availability.
-# Until the EL10 repo is published, use --nodeps and install voms-libs separately.
+# No WLCG repository is needed: VOMS attribute certificates are verified
+# natively by the module (no voms / voms-libs runtime dependency).
 
 # brix-tools also needs the runtime Ceph libraries.  Enable your
 # site Ceph/RHCS/SIG repository before installing that optional package.
@@ -94,7 +89,7 @@ operator migrations:
 sudo dnf install -y dist/brix-tools-2.0.0-1.el9.x86_64.rpm
 ```
 
-This pulls in `nginx-mod-stream`, `openssl-libs`, `voms-libs`, and `curl`
+This pulls in `nginx-mod-stream`, `openssl-libs`, and `curl`
 as declared runtime dependencies, and drops a module loader snippet under
 `/etc/nginx/modules-enabled/` (or the equivalent `nginx_modconfdir` for your
 distribution).

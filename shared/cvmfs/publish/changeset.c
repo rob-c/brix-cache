@@ -2,6 +2,9 @@
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L         /* *at() + fdopendir under -std=c11 */
 #endif
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE 1              /* Darwin: O_NOFOLLOW etc. survive the POSIX level; inert elsewhere */
+#endif
 #include "cvmfs/publish/changeset.h"
 #include "cvmfs/catalog/catalog_write.h"
 
@@ -12,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/xattr.h>
+#include "platform/platform_api.h"   /* PAL: Linux-shaped xattr calls on every host */
 #include <time.h>
 #include <unistd.h>
 

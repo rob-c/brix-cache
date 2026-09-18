@@ -24,10 +24,6 @@
 #include <limits.h>
 #include <unistd.h>
 
-#if defined(__linux__) && defined(__NR_copy_file_range)
-#include <sys/syscall.h>
-#endif
-
 /* 256 KB fallback buffer — matches CLONE_COPY_BUF in read/clone.c. */
 #define BRIX_COPY_RANGE_BUFSZ  (256 * 1024)
 
@@ -90,8 +86,6 @@ brix_copy_range_fallback(ngx_log_t *log, int src_fd, off_t src_off,
 
     return NGX_OK;
 }
-
-#if defined(__linux__) && defined(__NR_copy_file_range)
 
 /* brix_cfr_errno_recoverable — is a copy_file_range errno finishable by fallback
  * WHAT: Returns 1 when `err` is one of the errnos that mean copy_file_range is
@@ -182,8 +176,6 @@ brix_copy_range_cfr(ngx_log_t *log, int src_fd, off_t *src_off,
     return NGX_OK;
 }
 
-#endif /* __linux__ && __NR_copy_file_range */
-
 ngx_int_t
 brix_copy_range(ngx_log_t *log,
                   int src_fd, off_t src_off,
@@ -191,20 +183,19 @@ brix_copy_range(ngx_log_t *log,
                   size_t len,
                   const char *src_path, const char *dst_path)
 {
-#if defined(__linux__) && defined(__NR_copy_file_range)
     /* Fast path first; NGX_AGAIN means copy_file_range gave out mid-copy and
      * src_off/dst_off/len now mark the remainder to finish via the portable
-     * path (falls through to the shared fallback return below). */
+     * path (falls through to the shared fallback return below).  A host
+     * without copy_file_range answers ENOSYS, which is recoverable. */
     ngx_int_t rc = brix_copy_range_cfr(log, src_fd, &src_off,
                                        dst_fd, &dst_off, &len,
                                        src_path, dst_path);
     if (rc != NGX_AGAIN) {
         return rc;
     }
-#endif
 
-    /* copy_file_range(2) unavailable at build time, or unsupported for this fd
-     * pair / range at run time — use the portable pread/pwrite path. */
+    /* copy_file_range(2) unsupported on this host, or for this fd pair /
+     * range at run time — use the portable pread/pwrite path. */
     return brix_copy_range_fallback(log, src_fd, src_off,
                                       dst_fd, dst_off, len,
                                       src_path, dst_path);

@@ -29,6 +29,7 @@
 #include "pblock_pack.h"
 #include "pblock_pack_internal.h"          /* pack_seg_path / pack_lock / … */
 #include "cvmfs/platform/platform.h"  /* brix_plat_anon_fd (cross-platform memfd/O_TMPFILE) */
+#include "platform/platform_api.h"        /* brix_plat_fd_seal */
 #include "sd_pblock_catalog_internal.h"   /* cat_exec / cat_prepare / cat_fail */
 #include "cache/cas_pack_format.h"        /* the shared "BXS1" record layout */
 
@@ -436,11 +437,9 @@ pblock_pack_open_memfd(const pblock_state_t *st, const pblock_meta *meta)
     }
     free(data);
     /* Best-effort seals: the handle is read-intent, so freezing the bytes is
-     * pure hardening — never a functional dependency.
-     * Note: F_ADD_SEALS is Linux-only; macOS lacks memfd sealing. */
-#if defined(__linux__)
-    (void) fcntl(fd, F_ADD_SEALS, F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_WRITE);
-#endif
+     * pure hardening — never a functional dependency (a no-op on a host
+     * without fd sealing). */
+    (void) brix_plat_fd_seal(fd);
     return fd;
 }
 

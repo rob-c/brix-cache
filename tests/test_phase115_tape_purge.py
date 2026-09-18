@@ -39,6 +39,7 @@ from settings import BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 
 import _test_session_bind_helpers as H
+from lib_py.util import budget_scale
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-p115-tape-purge")]
@@ -115,9 +116,12 @@ def _elog(endpoint):
 
 
 def _wait_log(elog, pattern, timeout=20.0):
-    """Block until ``pattern`` appears in the error log; the match or None."""
+    """Block until ``pattern`` appears in the error log; the match or None.
+
+    The bound scales with TEST_BUDGET_SCALE: it waits for a SERVER to reach a
+    state and write a line, which is exactly what a loaded host slows down."""
     rx = re.compile(pattern)
-    deadline = time.time() + timeout
+    deadline = time.time() + timeout * budget_scale()
     while time.time() < deadline:
         try:
             with open(elog) as fh:

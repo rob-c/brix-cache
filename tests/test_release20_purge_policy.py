@@ -33,10 +33,16 @@ import pytest
 
 from test_phase115_tape_purge import (FILE_BYTES, _elog, _launch, _nginx_t,
                                       _payload, _summary, _wait_log)
-from brix_suite.fd_probe import write_fd_probe
+from brix_suite.fd_probe import (parse_identity, write_fd_probe,
+                                 write_identity_probe)
 from test_release20_frm_knobs import _inherited_fds, _server_descriptors
+from lib_py.util import budget_scale
 
+# Each case boots an instance and waits for a purge pass to log its verdict;
+# the default 30 s is under this file's own longest internal wait, so a loaded
+# host times the TEST out before the wait it is measuring can finish.
 pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.timeout(300 * budget_scale()),
               pytest.mark.xdist_group("lc-r20-purge-policy")]
 
 _SERVER = "lc-r20-purge-policy"
@@ -198,7 +204,12 @@ def test_the_shared_runner_gives_the_program_its_own_session_and_deadline():
     assert "(void) setsid();" in run_c
     assert "(void) kill(-child, SIGKILL);" in run_c
     assert "errno = ETIMEDOUT;" in run_c
-    assert "__NR_pidfd_open" in run_c
+    # The deadline wait itself is per-host (Linux pidfd+poll, Darwin kqueue
+    # EVFILT_PROC), so the portable runner names the PAL primitive and each
+    # host body implements it.
+    assert "brix_plat_wait_pid_timeout(" in run_c
+    assert "__NR_pidfd_open" in _src("src/platform/linux/process_wrapper.c")
+    assert "EVFILT_PROC" in _src("src/platform/darwin/process_wrapper.c")
     api = _src("src/core/compat/subprocess.h")
     assert "unsigned      timeout_ms;" in api
     assert "brix_subprocess_run(" in api
@@ -322,10 +333,16 @@ def test_hung_polprog_is_killed_at_the_exec_deadline(lifecycle, tmp_path):
     """(error) the program runs under brix_frm_copy_timeout: a hung one is
     SIGKILLed, the pass completes fail-closed, and the child is gone."""
     pidfile = tmp_path / "polprog.pid"
-    prog = _polprog(tmp_path, f'echo $$ > {pidfile}\nexec sleep 30')
+    prog = _polprog(tmp_path, f'echo $$ > {pidfile}\nexec sleep 300')
+    # The deadline scales with the host: a fixed 2 s can expire before a
+    # loaded machine has even scheduled the program's first line, and then it
+    # is killed without recording the pid this test goes on to check.  It
+    # stays far below the program's own sleep, so the kill is still the
+    # deadline's doing and not the program finishing.
+    deadline_s = max(2, int(2 * budget_scale()))
     base, _victim, elog = _lab(lifecycle, tmp_path,
                                "brix_frm_purge_policy atlas 50% 0% polprog; "
-                               "brix_frm_copy_timeout 2s; "
+                               f"brix_frm_copy_timeout {deadline_s}s; "
                                f"brix_frm_purge_polprog {prog};")
     assert _wait_log(elog, FAILED_RX, 30).group(1) == "deadline exceeded, killed"
     assert _summary(elog)[0] == 0
@@ -369,11 +386,6 @@ def _run_polprog_once(lifecycle, tmp_path, prog):
 
 
 
-def _is_session_leader(stat):
-    """True when a `/proc/<pid>/stat` line shows pgrp == session == pid."""
-    pid = int(stat.split(maxsplit=1)[0])
-    fields = stat.rsplit(")", 1)[1].split()
-    return (int(fields[2]), int(fields[3])) == (pid, pid)
 
 
 def test_the_policy_program_inherits_no_server_descriptors(lifecycle, tmp_path):
@@ -392,12 +404,13 @@ def test_the_policy_program_leads_its_own_session(lifecycle, tmp_path):
     """(security-neg) the program is a session and process-group leader with
     no controlling terminal, so the deadline kill reaches everything it
     started and it shares no terminal with the server."""
-    stat_out = tmp_path / "stat.txt"
+    out = tmp_path / "identity.txt"
+    probe = write_identity_probe(tmp_path / "identity.py")
     _run_polprog_once(lifecycle, tmp_path, _polprog(
-        tmp_path, f'cat /proc/$$/stat > {stat_out}\n: > "$2"'))
-    stat = stat_out.read_text()
-    assert _is_session_leader(stat), stat
-    assert int(stat.rsplit(")", 1)[1].split()[4]) == 0, stat   # no tty
+        tmp_path, f'echo $$ > {out}\n{probe} >> {out}\n: > "$2"'))
+    pid, pgrp, sid, tty = parse_identity(out.read_text())
+    assert (pgrp, sid) == (pid, pid), (pid, pgrp, sid)
+    assert tty == 0, "the program kept a controlling terminal"
 
 
 # ----------------------------------------------------------------- grammar

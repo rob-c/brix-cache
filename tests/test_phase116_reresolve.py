@@ -26,6 +26,7 @@ from _phase116_helpers import (HAVE_NGINX, BIND_HOST, DnsLab, TcpSink, dns_targe
 from dns_stub import TYPE_A
 from ephemeral_port import free_port
 from server_registry import NginxInstanceSpec
+from lib_py.util import loopback_alias_usable
 
 pytestmark = [pytest.mark.timeout(240),
               pytest.mark.uses_lifecycle_harness,
@@ -33,6 +34,13 @@ pytestmark = [pytest.mark.timeout(240),
 
 MANAGER = "manager.lab.test"
 ALT_HOST = "127.0.0.2"   # net-literal-allow: second loopback address for the record swap
+
+# Linux routes all of 127.0.0.0/8 to lo; macOS assigns only 127.0.0.1, so the
+# record swap has nowhere to point until an alias exists.
+pytestmark.append(pytest.mark.skipif(
+    not loopback_alias_usable(ALT_HOST),
+    reason=f"{ALT_HOST} is not bindable on this host "
+           f"(sudo ifconfig lo0 alias {ALT_HOST} up)"))
 
 
 def _start(lifecycle, lab, port, reason, **values):

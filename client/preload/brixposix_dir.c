@@ -2,7 +2,8 @@
  * brixposix_dir.c — §7.8 readdir family for the POSIX preload shim.
  *
  * WHAT: opendir/readdir/closedir (+ rewinddir/telldir/seekdir/dirfd/
- *       readdir_r and the *64 spellings) for paths under the BRIX_VMP
+ *       readdir_r; the glibc *64 spellings forward here from
+ *       lib/platform/linux/preload_lfs.c) for paths under the BRIX_VMP
  *       prefix, so `ls`, `find` and anything else that walks a directory
  *       sees the remote namespace instead of ENOENT.
  * WHY:  The shim could open and read a remote FILE but could not LIST one,
@@ -36,7 +37,6 @@ typedef struct {
     size_t            count;
     size_t            pos;     /* 0 = ".", 1 = "..", 2+ = ents[pos - 2] */
     struct dirent     de;
-    struct dirent64   de64;
 } xfs_dir;
 
 static pthread_mutex_t g_dir_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -183,7 +183,6 @@ dir_next(xfs_dir *d, struct dirent *out)
     }
     memset(out, 0, sizeof(*out));
     out->d_ino = (ino_t) ino;
-    out->d_off = (off_t) (d->pos + 1);
     out->d_reclen = (unsigned short) sizeof(*out);
     out->d_type = type;
     len = strlen(name);
@@ -192,6 +191,8 @@ dir_next(xfs_dir *d, struct dirent *out)
         return dir_next(d, out);   /* unrepresentable name: skip, never crop */
     }
     memcpy(out->d_name, name, len + 1);
+    /* the host's own cursor / length fields (d_off; d_seekoff + d_namlen) */
+    BRIXPOSIX_DIRENT_FINISH(out, d->pos + 1, len);
     d->pos++;
     return 1;
 }
@@ -225,7 +226,7 @@ dir_fetch(const char *remote, xfs_dir *d)
 }
 
 DIR *
-opendir(const char *name)
+BRIXPOSIX_WRAP(opendir)(const char *name)
 {
     char remote[XRDC_PATH_MAX];
     xfs_dir *d;
@@ -253,7 +254,7 @@ opendir(const char *name)
 }
 
 struct dirent *
-readdir(DIR *dirp)
+BRIXPOSIX_WRAP(readdir)(DIR *dirp)
 {
     xfs_dir *d = dir_of(dirp);
 
@@ -267,35 +268,13 @@ readdir(DIR *dirp)
     return &d->de;
 }
 
-struct dirent64 *
-readdir64(DIR *dirp)
-{
-    xfs_dir *d = dir_of(dirp);
-    struct dirent tmp;
-
-    REAL(readdir64);
-    if (d == NULL) {
-        return real_readdir64(dirp);
-    }
-    if (!dir_next(d, &tmp)) {
-        return NULL;
-    }
-    memset(&d->de64, 0, sizeof(d->de64));
-    d->de64.d_ino = tmp.d_ino;
-    d->de64.d_off = tmp.d_off;
-    d->de64.d_reclen = (unsigned short) sizeof(d->de64);
-    d->de64.d_type = tmp.d_type;
-    memcpy(d->de64.d_name, tmp.d_name, sizeof(d->de64.d_name));
-    return &d->de64;
-}
-
 /* glibc deprecates readdir_r for its callers.  We are not a caller: we are
  * standing in for it, and a threaded program that still uses it must not
  * quietly get libc's local-filesystem answer for a remote path. */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 int
-readdir_r(DIR *dirp, struct dirent *entry, struct dirent **result)
+BRIXPOSIX_WRAP(readdir_r)(DIR *dirp, struct dirent *entry, struct dirent **result)
 {
     xfs_dir *d = dir_of(dirp);
 
@@ -309,7 +288,7 @@ readdir_r(DIR *dirp, struct dirent *entry, struct dirent **result)
 #pragma GCC diagnostic pop
 
 int
-closedir(DIR *dirp)
+BRIXPOSIX_WRAP(closedir)(DIR *dirp)
 {
     xfs_dir *d = dir_of(dirp);
 
@@ -324,7 +303,7 @@ closedir(DIR *dirp)
 }
 
 void
-rewinddir(DIR *dirp)
+BRIXPOSIX_WRAP(rewinddir)(DIR *dirp)
 {
     xfs_dir *d = dir_of(dirp);
 
@@ -337,7 +316,7 @@ rewinddir(DIR *dirp)
 }
 
 long
-telldir(DIR *dirp)
+BRIXPOSIX_WRAP(telldir)(DIR *dirp)
 {
     xfs_dir *d = dir_of(dirp);
 
@@ -349,7 +328,7 @@ telldir(DIR *dirp)
 }
 
 void
-seekdir(DIR *dirp, long loc)
+BRIXPOSIX_WRAP(seekdir)(DIR *dirp, long loc)
 {
     xfs_dir *d = dir_of(dirp);
 
@@ -367,7 +346,7 @@ seekdir(DIR *dirp, long loc)
  * would be worse than refusing: a caller that took it would openat() into
  * the wrong directory — or, with a shadow fd number, into nothing at all. */
 int
-dirfd(DIR *dirp)
+BRIXPOSIX_WRAP(dirfd)(DIR *dirp)
 {
     xfs_dir *d = dir_of(dirp);
 

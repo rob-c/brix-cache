@@ -11,8 +11,9 @@
  * HOW:  JWT: base64url-decode the payload segment and scalar-scan iss/sub/aud/
  *       scope/exp (NO signature verify, NO jansson — a diagnostic, not a gate);
  *       flag EXPIRED against the local clock. GSI: reuse the OpenSSL X509 parse
- *       (as proxy.c) for subject/issuer/notAfter, walk the VOMS AC extension
- *       (OID 1.3.6.1.4.1.8005.100.100.5) for FQANs, and report notBefore skew.
+ *       (as proxy.c) for subject/issuer/notAfter, report notBefore skew, and
+ *       hand the leaf + chain to credinfo_voms.c (the shared native VOMS AC
+ *       decoder/verifier, shared/voms/) for FQANs and a verdict.
  *
  * Every function is fail-soft: malformed input prints a one-line note and
  * returns; it must never crash `explain`. Clean-room: standard JWT/RFC + OpenSSL.
@@ -30,9 +31,9 @@
 #include <unistd.h>
 
 #include <openssl/bio.h>
+#include <openssl/err.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
-#include <openssl/x509v3.h>
 
 /* JWT (bearer token) claims                                           */
 
@@ -231,152 +232,93 @@ brix_token_meta_get(const char *jwt, brix_token_meta *m)
 
 /* GSI proxy certificate                                              */
 
-/* VOMS attribute-certificate extension OID. */
-#define VOMS_AC_OID "1.3.6.1.4.1.8005.100.100.5"
-
-/* DER value bytes of the VOMS FQAN attribute OID 1.3.6.1.4.1.8005.100.100.4.
- * The FQANs are the OCTET STRING `values` of the IetfAttrSyntax carried under
- * THIS attribute — as opposed to the AC's [0] policyAuthority server URI and the
- * embedded signer certificate's CRL/AIA/OCSP distribution-point URIs, all of
- * which a blind ASCII scan mislabels as FQANs (and over-reads into trailing
- * tag bytes). We instead walk the DER structurally and print exact lengths. */
-static const unsigned char VOMS_FQAN_OID[] = {
-    0x2b, 0x06, 0x01, 0x04, 0x01, 0xbe, 0x45, 0x64, 0x64, 0x04
-};
-
-/* Read one DER TLV header at der[*pos]: store the tag and content length and
- * advance *pos to the first content byte. Handles short- and long-form lengths.
- * Returns 0 on success, -1 on truncation / overrun. */
-static int
-der_tlv(const unsigned char *der, int len, int *pos, int *tag, int *vlen)
+/* ---- Read the rest of a proxy file's PEM certificate chain ----
+ *
+ * WHAT: collects every CERTIFICATE block still readable from `bio` (after the
+ *       caller took the leaf) into a new STACK_OF(X509), leaf-nearest first.
+ *       Returns NULL when the file carries no further certificate or on an
+ *       allocation failure; the caller treats NULL as "no chain".
+ * WHY:  a VOMS AC names the end-entity certificate as its holder, never the
+ *       proxy leaf, so the shared verifier needs the chain to bind it. The old
+ *       leaf-only parse could decode FQANs but never verify them.
+ * HOW:  1. push each PEM_read_bio_X509 result (PEM skips the PRIVATE KEY
+ *          block on its own); 2. on a push failure release everything and
+ *          stop; 3. ERR_clear_error — the terminating NULL leaves a benign
+ *          PEM EOF error; 4. an empty stack collapses to NULL.
+ */
+static STACK_OF(X509) *
+read_pem_chain(BIO *bio)
 {
-    int p = *pos, l;
+    STACK_OF(X509) *chain = sk_X509_new_null();
+    X509           *cert;
 
-    if (p < 0 || p + 2 > len) {
-        return -1;
-    }
-    *tag = der[p++];
-    l = der[p++];
-    if (l & 0x80) {
-        int nb = l & 0x7f;
-        if (nb < 1 || nb > 4 || p + nb > len) {
-            return -1;
-        }
-        for (l = 0; nb > 0; nb--) {
-            l = (l << 8) | der[p++];
+    while (chain != NULL
+           && (cert = PEM_read_bio_X509(bio, NULL, NULL, NULL)) != NULL) {
+        if (!sk_X509_push(chain, cert)) {
+            X509_free(cert);
+            sk_X509_pop_free(chain, X509_free);
+            chain = NULL;
         }
     }
-    if (l < 0 || p + l > len) {
-        return -1;
+    ERR_clear_error();
+    if (chain != NULL && sk_X509_num(chain) == 0) {
+        sk_X509_free(chain);
+        chain = NULL;
     }
-    *vlen = l;
-    *pos = p;
-    return 0;
+    return chain;
 }
 
-/* An FQAN is "/vo[/...][/Role=..][/Capability=..]": one leading '/', printable
- * ASCII, no scheme punctuation. Guards against a mis-structured AC handing us a
- * URI or binary in an OCTET STRING slot. */
-static int
-voms_is_fqan(const char *s, int n)
-{
-    int i;
-
-    if (n < 2 || s[0] != '/' || s[1] == '/') {
-        return 0;
-    }
-    for (i = 0; i < n; i++) {
-        unsigned char c = (unsigned char) s[i];
-        if (c < 0x20 || c >= 0x7f || c == ':' || c == '?' || c == '%') {
-            return 0;
-        }
-    }
-    return 1;
-}
-
-/* True when the (v,vlen) FQAN was already emitted this scan. */
-static int
-voms_dup(const char *seen[], int nseen, const char *v, int vlen)
-{
-    int k;
-
-    for (k = 0; k < nseen; k++) {
-        if ((int) strlen(seen[k]) == vlen && memcmp(seen[k], v, vlen) == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-/* Emit the OCTET STRING `values` (FQANs) inside der[pos, end). Skips the [0]
- * policyAuthority (any non-0x04 TLV) and descends a `values` SEQUENCE-OF
- * wrapper (0x30) if present. Returns the count printed. */
-static int
-voms_emit_values(const unsigned char *der, int pos, int end, FILE *out,
-                 const char *seen[], int *nseen, int maxseen)
-{
-    int printed = 0;
-
-    while (pos < end) {
-        int tag, vlen;
-        if (der_tlv(der, end, &pos, &tag, &vlen) != 0) {
-            break;
-        }
-        if (tag == 0x04) {                    /* OCTET STRING = one FQAN */
-            const char *v = (const char *) der + pos;
-            if (voms_is_fqan(v, vlen) && !voms_dup(seen, *nseen, v, vlen)) {
-                fprintf(out, "      VOMS:  %.*s\n", vlen, v);
-                if (*nseen < maxseen) {
-                    seen[(*nseen)++] = v;
-                }
-                printed++;
-            }
-        } else if (tag == 0x30) {             /* SEQUENCE OF values: descend */
-            printed += voms_emit_values(der, pos, pos + vlen, out,
-                                        seen, nseen, maxseen);
-        }
-        pos += vlen;                          /* skip [0] policyAuthority etc. */
-    }
-    return printed;
-}
-
-/* Decode the DER bytes of the VOMS extension: locate each VOMS FQAN attribute
- * (one per VO) and print its OCTET STRING values, exact-length and deduped. */
+/* ---- Print a certificate's remaining life and notBefore clock skew ----
+ *
+ * WHAT: writes "expiry: EXPIRED" or "expiry: <d>d <h>h left", plus a skew
+ *       warning when notBefore lies in the future. Silent when OpenSSL cannot
+ *       compute the difference.
+ * WHY:  an expired or not-yet-valid proxy is the most common "I am nobody"
+ *       cause; keeping it in one helper leaves the orchestrator flat.
+ * HOW:  1. ASN1_TIME_diff(now, notAfter) — negative means expired; 2. the
+ *       same against notBefore — positive means the local clock is behind.
+ */
 static void
-voms_scan(const unsigned char *der, int len, FILE *out)
+print_validity(const X509 *cert, FILE *out)
 {
-    const char *seen[16];
-    int         nseen = 0, printed = 0, i;
-    const int   oidlen = (int) sizeof(VOMS_FQAN_OID);
+    int              days_after = 0, secs_after = 0, days_before = 0, secs_before = 0;
+    const ASN1_TIME *not_after = X509_get0_notAfter(cert);
+    const ASN1_TIME *not_before = X509_get0_notBefore(cert);
 
-    if (der == NULL || len <= 0) {
-        fprintf(out, "      VOMS:  present (no FQAN decoded)\n");
-        return;
-    }
-    for (i = 0; i + 2 + oidlen <= len; i++) {
-        int pos, tag, vlen;
-        if (der[i] != 0x06 || der[i + 1] != oidlen
-            || memcmp(der + i + 2, VOMS_FQAN_OID, oidlen) != 0) {
-            continue;
+    if (ASN1_TIME_diff(&days_after, &secs_after, NULL, not_after)) {
+        if (days_after < 0 || (days_after == 0 && secs_after < 0)) {
+            fprintf(out, "      expiry:  EXPIRED\n");
+        } else {
+            fprintf(out, "      expiry:  %dd %dh left\n", days_after, secs_after / 3600);
         }
-        pos = i + 2 + oidlen;                 /* SET OF IetfAttrSyntax follows */
-        if (der_tlv(der, len, &pos, &tag, &vlen) != 0 || tag != 0x31) {
-            continue;
-        }
-        printed += voms_emit_values(der, pos, pos + vlen, out,
-                                    seen, &nseen, 16);
     }
-    if (printed == 0) {
-        fprintf(out, "      VOMS:  present (no FQAN decoded)\n");
+    if (ASN1_TIME_diff(&days_before, &secs_before, NULL, not_before)
+        && (days_before > 0 || secs_before > 0)) {
+        fprintf(out, "      skew:    notBefore is in the future "
+                     "(local clock behind / cert not yet valid)\n");
     }
 }
 
+/* ---- Narrate the GSI proxy at `proxy_path` ----
+ *
+ * WHAT: prints the proxy's subject, issuer, remaining life, clock skew and its
+ *       VOMS attribute certificates (decoded and, when trust material exists,
+ *       verified). Silent when no readable proxy is present; a one-line note
+ *       for an unparseable file.
+ * WHY:  "why am I nobody?" is almost always visible in the proxy itself; this
+ *       is the credential half of `xrddiag`'s explain output.
+ * HOW:  1. open through brix_credfile_bio (symlink/ownership/mode checks);
+ *       2. leaf, then the rest of the chain (read_pem_chain); 3. names;
+ *       4. print_validity; 5. brix_credinfo_voms_explain over leaf + chain;
+ *       6. release both.
+ */
 void
 brix_gsi_cert_explain(const char *proxy_path, FILE *out)
 {
-    BIO  *bio;
-    X509 *cert;
-    char  subj[512], issuer[512];
+    BIO            *bio;
+    X509           *cert;
+    STACK_OF(X509) *chain;
+    char            subj[512], issuer[512];
 
     if (proxy_path == NULL || proxy_path[0] == '\0') {
         return;
@@ -386,57 +328,22 @@ brix_gsi_cert_explain(const char *proxy_path, FILE *out)
         return;
     }
     cert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
-    BIO_free(bio);
     if (cert == NULL) {
+        BIO_free(bio);
         fprintf(out, "    proxy:    (present at %s, unparseable PEM)\n", proxy_path);
         return;
     }
+    chain = read_pem_chain(bio);
+    BIO_free(bio);
 
     X509_NAME_oneline(X509_get_subject_name(cert), subj, sizeof(subj));
     X509_NAME_oneline(X509_get_issuer_name(cert), issuer, sizeof(issuer));
     fprintf(out, "    proxy:\n");
     fprintf(out, "      subject: %s\n", subj);
     fprintf(out, "      issuer:  %s\n", issuer);
-
-    /* validity + clock skew */
-    {
-        int              dn = 0, ds = 0, bn = 0, bs = 0;
-        const ASN1_TIME *na = X509_get0_notAfter(cert);
-        const ASN1_TIME *nb = X509_get0_notBefore(cert);
-        if (ASN1_TIME_diff(&dn, &ds, NULL, na)) {
-            if (dn < 0 || (dn == 0 && ds < 0)) {
-                fprintf(out, "      expiry:  EXPIRED\n");
-            } else {
-                fprintf(out, "      expiry:  %dd %dh left\n", dn, ds / 3600);
-            }
-        }
-        if (ASN1_TIME_diff(&bn, &bs, NULL, nb) && (bn > 0 || bs > 0)) {
-            fprintf(out, "      skew:    notBefore is in the future "
-                         "(local clock behind / cert not yet valid)\n");
-        }
-    }
-
-    /* VOMS attribute certificate */
-    {
-        int loc = -1, n = X509_get_ext_count(cert), i;
-        for (i = 0; i < n; i++) {
-            X509_EXTENSION *ex = X509_get_ext(cert, i);
-            ASN1_OBJECT    *obj = X509_EXTENSION_get_object(ex);
-            char            oid[128];
-            OBJ_obj2txt(oid, sizeof(oid), obj, 1);
-            if (strcmp(oid, VOMS_AC_OID) == 0) {
-                loc = i;
-                break;
-            }
-        }
-        if (loc < 0) {
-            fprintf(out, "      VOMS:  none\n");
-        } else {
-            ASN1_OCTET_STRING *data =
-                X509_EXTENSION_get_data(X509_get_ext(cert, loc));
-            voms_scan(ASN1_STRING_get0_data(data), ASN1_STRING_length(data), out);
-        }
-    }
+    print_validity(cert, out);
+    brix_credinfo_voms_explain(cert, chain, out);
+    sk_X509_pop_free(chain, X509_free);
     X509_free(cert);
 }
 

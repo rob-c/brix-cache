@@ -55,6 +55,22 @@ def fail(msg: str) -> None:
     sys.exit(2)
 
 
+def _gnu_make() -> str:
+    """GNU make 4+ (``--eval``): ``gmake`` where the system make is the 3.81
+    that macOS ships, else ``make``."""
+    return shutil.which("gmake") or "make"
+
+
+def gcc_has_analyzer() -> bool:
+    """Whether ``gcc`` is GNU gcc with -fanalyzer (Apple's gcc is clang)."""
+    try:
+        out = subprocess.run(["gcc", "--version"], stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT, text=True).stdout
+    except OSError:
+        return False
+    return "clang" not in out.lower() and "gcc" in out.lower()
+
+
 def read_var(name: str) -> str:
     """Pull a fully-expanded make variable straight from the build's Makefile.
 
@@ -63,7 +79,7 @@ def read_var(name: str) -> str:
     own chatter off stdout so only the printf payload survives."""
     try:
         out = subprocess.run(
-            ["make", "-s", "--no-print-directory", "-C", NGX_BUILD, "-f", "objs/Makefile",
+            [_gnu_make(), "-s", "--no-print-directory", "-C", NGX_BUILD, "-f", "objs/Makefile",
              f"--eval=__pf: ; @printf '%s' \"$({name})\"", "__pf"],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
         )
@@ -171,6 +187,9 @@ def parse_args(argv: list[str]) -> str:
 def main(argv: list[str]) -> int:
     filt = parse_args(argv)
     _validate_environment()
+    if not gcc_has_analyzer():
+        print("run_fanalyzer: SKIP (gcc is not GNU gcc — no -fanalyzer on this host)")
+        return 0
     cflags, all_incs = _compiler_flags()
     todo = _selected_sources(filt)
     raw_path = os.environ.get("FANALYZER_RAW") or None

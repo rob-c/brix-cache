@@ -16,7 +16,7 @@
 #include "brix.h"
 
 #include <arpa/inet.h>
-#include <endian.h>
+#include "platform/platform.h"   /* PAL: htobe64/be64toh names on every host */
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -37,3 +37,36 @@ tests/.pytest_cache
 tests/.tmp
 k8s-tests/charts/**/charts
 k8s-tests/charts/**/Chart.lock
+
+# Host build output stays out. Every image here compiles from source (`COPY . .`
+# or `COPY client ...`, then make), and Docker preserves mtimes, so an artifact
+# carried in from the developer's machine can look up to date and be reused
+# instead of rebuilt. Two ways that bites, both reachable today because only the
+# RPM spec runs `make -C client clean` first -- deploy/docker and the k8s server
+# image do not:
+#   - a .d dependency file names the HOST's header paths (a macOS build writes
+#     /usr/local/Cellar/krb5/.../krb5.h), and the client Makefile's
+#     `-include $(DEPS)` then dies with "No rule to make target" on a path no
+#     container has;
+#   - a stale .o/.a is linked rather than recompiled: Mach-O inputs fail the
+#     link outright, and a Linux host's leftovers build silently wrong.
+# Excluding client/bin also keeps the spec's `test -x client/bin/<tool>`
+# assertion honest -- it must prove what the CONTAINER built, not what the
+# developer happened to have lying around.
+**/*.o
+**/*.a
+**/*.so
+**/*.so.*
+**/*.dylib
+**/*.dSYM
+client/bin
+# Dependency files, scoped to the three trees that compile: a bare `**/*.d`
+# would also match DIRECTORIES named *.d, and the fail2ban filter.d / jail.d
+# and CVMFS default.d, domain.d, config.d trees the RPM spec installs are
+# exactly that shape (the same trap .gitignore's `!*.d/` exists for).
+client/**/*.d
+shared/**/*.d
+src/**/*.d
+
+# AppleDouble sidecars a macOS host leaves beside files (see .gitignore).
+**/._*

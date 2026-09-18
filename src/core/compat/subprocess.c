@@ -15,24 +15,7 @@
 #include <errno.h>
 #include <unistd.h>  /* pipe() */
 
-/* macOS lacks pipe2() and SOCK_CLOEXEC - provide compatibility */
-#if defined(__APPLE__) && defined(__MACH__)
-#include <fcntl.h>
-
-static int brix_pipe2_compat(int pipefd[2], int flags) {
-    if (pipe(pipefd) != 0) {
-        return -1;
-    }
-    if (flags & O_CLOEXEC) {
-        fcntl(pipefd[0], F_SETFD, FD_CLOEXEC);
-        fcntl(pipefd[1], F_SETFD, FD_CLOEXEC);
-    }
-    return 0;
-}
-
-#define pipe2(pipefd, flags) brix_pipe2_compat(pipefd, flags)
-#define SOCK_CLOEXEC 0  /* Handled via fcntl() after socketpair() */
-#endif
+#include "platform/platform_api.h"   /* brix_plat_pipe2, SOCK_CLOEXEC */
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
@@ -53,12 +36,6 @@ static int brix_pipe2_compat(int pipefd[2], int flags) {
  * <sys/syscall.h>. Already on the seccomp allowlist (seccomp_core.c). */
 #ifndef __NR_close_range
 #define __NR_close_range            436
-#endif
-
-/* pidfd_open(2): Linux >= 5.3, same number on every architecture. Used only to
- * poll a deadline; a kernel without it waits unbounded, as before. */
-#ifndef __NR_pidfd_open
-#define __NR_pidfd_open             434
 #endif
 
 /* ---- Validate a run request ----
@@ -204,38 +181,6 @@ brix_subprocess_child(char *const argv[], const sigset_t *old)
     _exit(127);
 }
 
-/* ---- Has the deadline expired before the command finished? ----
- *
- * WHAT: Waits up to timeout_ms for pid to exit, without reaping it. Returns 1
- * when the deadline expired first, 0 when the command exited (or when the
- * kernel has no pidfd_open, which means "wait unbounded", the pre-deadline
- * behaviour).
- *
- * WHY: A deadline needs a wait that can time out, and waitpid cannot. A pidfd
- * gives one without SIGALRM and without a waitpid(WNOHANG) spin.
- *
- * HOW: pidfd_open (a failure means no deadline → 0), poll it for timeout_ms
- * (EINTR restarts the window — the agent installs no handlers), close, and
- * report whether poll timed out rather than the child exiting.
- */
-static int
-brix_subprocess_deadline_expired(pid_t pid, unsigned timeout_ms)
-{
-    struct pollfd pfd;
-    int           pidfd = (int) syscall(__NR_pidfd_open, pid, 0U);
-    int           r;
-
-    if (pidfd < 0) {
-        return 0;
-    }
-    pfd.fd = pidfd;
-    pfd.events = POLLIN;
-    while ((r = poll(&pfd, 1, (int) timeout_ms)) < 0 && errno == EINTR) {
-        /* retry */
-    }
-    (void) close(pidfd);
-    return r == 0;
-}
 
 /* ---- Reap the command, under the request's deadline ----
  *
@@ -257,7 +202,7 @@ brix_subprocess_reap(pid_t child, unsigned timeout_ms)
 {
     int status = BRIX_SUBPROCESS_NO_STATUS;
 
-    if (timeout_ms > 0 && brix_subprocess_deadline_expired(child, timeout_ms)) {
+    if (timeout_ms > 0 && brix_plat_wait_pid_timeout(child, timeout_ms)) {
         (void) kill(-child, SIGKILL);
         (void) kill(child, SIGKILL);
         while (waitpid(child, &status, 0) < 0 && errno == EINTR) {
@@ -505,7 +450,7 @@ brix_subprocess_run(const brix_subprocess_req_t *req, size_t *out_len,
         return -1;
     }
     capture[0] = capture[1] = -1;
-    if (req->out != NULL && pipe2(capture, O_CLOEXEC) != 0) {
+    if (req->out != NULL && brix_plat_pipe2(capture, BRIX_PIPE_CLOEXEC) != 0) {
         return -1;
     }
     if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, result) != 0) {
@@ -513,11 +458,9 @@ brix_subprocess_run(const brix_subprocess_req_t *req, size_t *out_len,
         close(capture[1]);
         return -1;
     }
-#if defined(__APPLE__) && defined(__MACH__)
-    /* macOS: set CLOEXEC after socketpair() */
+    /* hosts whose SOCK_CLOEXEC is 0 rely on this (harmless elsewhere) */
     fcntl(result[0], F_SETFD, FD_CLOEXEC);
     fcntl(result[1], F_SETFD, FD_CLOEXEC);
-#endif
     if (brix_subprocess_spawn(req, capture, result) != 0) {
         brix_subprocess_close_pairs(capture, result);
         return -1;

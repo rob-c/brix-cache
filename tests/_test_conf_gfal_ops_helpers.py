@@ -39,10 +39,10 @@ NATIVE_ADLER32 = os.path.join(REPO, "client", "bin", "xrdadler32")
 
 OUR_PORT = L.worker_port(14912)
 OFF_PORT = L.worker_port(14913)
-pytestmark = pytest.mark.skipif(
+pytestmark = [pytest.mark.skipif(
     shutil.which("gfal-stat") is None or not L.have_official(),
     reason="gfal2-util or stock xrootd tooling not installed",
-)
+)]
 
 
 # --------------------------------------------------------------------------- #

@@ -38,6 +38,7 @@
 #include "net/manager/registry.h"
 #include "net/manager/pending.h"
 #include "net/cms/cms_internal.h"
+#include "core/compat/host_identity.h"   /* brix_host_identity: the advertised node name */
 #include "locate_internal.h"           /* locate_ctx_t + locate_try_manager */
 
 #include <arpa/inet.h>
@@ -275,21 +276,14 @@ locate_format_local(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
 
     access_char = conf->common.allow_write ? 'w' : 'r';
 
-    /* §2.18 kXR_prefname: emit the server's DNS hostname instead of the IP.
-     * gethostname(2) is cached process-wide — it is the same node identity
-     * cms/send.c registers upward. The port still comes from the bound socket
-     * (falling back to the configured listen port when unknown). */
+    /* §2.18 kXR_prefname: emit the server's advertised name instead of the
+     * IP: brix_host_identity() (XRDNET_IDENTITY, else gethostname(2)), cached
+     * process-wide — the same node identity cms/send.c registers upward. The
+     * port still comes from the bound socket (falling back to the configured
+     * listen port when unknown). */
     if (prefname) {
-        static char        hostname[256];
-        static ngx_atomic_t resolved;   /* 0 → unset, 1 → hostname[] valid */
+        const char *hostname = brix_host_identity();
 
-        if (!resolved) {
-            if (gethostname(hostname, sizeof(hostname)) != 0) {
-                hostname[0] = '\0';
-            }
-            hostname[sizeof(hostname) - 1] = '\0';
-            resolved = 1;
-        }
         if (hostname[0] != '\0') {
             port = 0;
             if (c->local_sockaddr != NULL
@@ -307,7 +301,7 @@ locate_format_local(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
             return snprintf(loc_buf, loc_sz, "S%c%s:%d",
                             access_char, hostname, (int) port);
         }
-        /* gethostname failed — fall through to the IP-literal form. */
+        /* no identity at all — fall through to the IP-literal form. */
     }
 
     if (c->local_sockaddr != NULL

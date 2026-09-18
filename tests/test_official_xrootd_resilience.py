@@ -19,7 +19,8 @@ WHY:  Two guarantees at once:
 HOW:  client  ->  brix-fault-proxy  ->  official xrootd
       Faults are toggled over the proxy's control port mid-read.
 
-Skips cleanly when the official `xrootd`, /dev/fuse, or fusermount3 is absent.
+Skips cleanly when the official `xrootd` is absent or the host has no
+unprivileged FUSE (see lib_py/fuse_host.py).
 
 Run:
   PYTHONPATH=tests python3 -m pytest tests/test_official_xrootd_resilience.py -v
@@ -36,6 +37,7 @@ import threading
 import time
 
 import pytest
+from lib_py import fuse_host
 from settings import BIND_HOST, HOST
 
 def _phase_server_1(proc):
@@ -51,7 +53,7 @@ def _guard_server_1():
 
 def _guard_mount_2():
     if not _FUSE_OK:
-        pytest.skip("no /dev/fuse or fusermount3")
+        pytest.skip(fuse_host.SKIP_REASON)
 
 def _guard_mount_3():
     if not (os.path.exists(AIO) and os.path.exists(FAULT_PROXY)):
@@ -59,7 +61,7 @@ def _guard_mount_3():
 
 def _guard_mount_4(ready, proxy, mnt):
     if not ready:
-        subprocess.run(["fusermount3", "-u", "-z", str(mnt)], capture_output=True)
+        fuse_host.unmount(str(mnt), lazy=True)
         proxy.terminate()
         pytest.skip("mount did not come up")
 
@@ -70,7 +72,7 @@ AIO = os.path.join(CLIENT_DIR, "bin", "xrootdfs")
 FAULT_PROXY = os.path.join(CLIENT_DIR, "bin", "brix-fault-proxy")
 
 XROOTD = shutil.which("xrootd")
-_FUSE_OK = os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
+_FUSE_OK = fuse_host.FUSE_READY
 
 pytestmark = pytest.mark.timeout(420)
 
@@ -200,7 +202,7 @@ def mount(server, tmp_path_factory):
     try:
         yield mfile, ctl, server["ref"]
     finally:
-        subprocess.run(["fusermount3", "-u", "-z", str(mnt)], capture_output=True)
+        fuse_host.unmount(str(mnt), lazy=True)
         proxy.terminate()
 
 

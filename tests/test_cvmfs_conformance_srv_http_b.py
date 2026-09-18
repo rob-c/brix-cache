@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_srv_http_helpers")
 
-pytestmark = pytest.mark.xdist_group("test_cvmfs_conformance_srv_http")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("test_cvmfs_conformance_srv_http")]
 
 def test_manifest_unsatisfiable_416(srv, manifest):
     path, ref = manifest

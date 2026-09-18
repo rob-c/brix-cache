@@ -188,7 +188,7 @@ proxy_cms.pem or proxy_atlas.pem:
   (file mode 0400, written atomically via mkstemp + rename)
 ```
 
-The VOMS AC holder field uses the user cert's subject DN as `issuer` (VOMS convention — confusingly named). `libvomsapi`'s `VOMS_Retrieve()` function locates the AC by matching this field against the user's identity.
+The VOMS AC holder field uses the user cert's subject DN as `issuer` (VOMS convention — confusingly named). The native verifier (`shared/voms/`, `brix_voms_retrieve()`) binds the AC to the user's end-entity certificate by matching this field and the serial number against it; `utils/voms_proxy_fake.py -holder-serial` deliberately breaks that binding for the negative tests.
 
 **Generating VOMS infrastructure in tests:**
 

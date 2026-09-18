@@ -253,6 +253,8 @@ brix_shared_merge_authx(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev,
     ngx_conf_merge_uint_value(conf->signing_policy_mode, prev->signing_policy_mode,
                               BRIX_SP_MODE_ON);
     ngx_conf_merge_uint_value(conf->crl_mode, prev->crl_mode, BRIX_CRL_MODE_TRY);
+    ngx_conf_merge_uint_value(conf->legacy_proxy_mode, prev->legacy_proxy_mode,
+                              BRIX_LEGACY_PROXY_ON);
     /* 2.0 F19: default to the WIDEST revocation reach.  `last` is an opt-in
      * narrowing for a deployment whose upstream CAs publish no usable CRL for
      * their own issuers — never something an unconfigured server falls into. */

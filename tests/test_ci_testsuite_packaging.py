@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from lib_py.util import budget_scale
 
 _REPO = Path(__file__).resolve().parents[1]
 _SRC = _REPO / "brixtest" / "src"
@@ -75,7 +76,11 @@ def test_deps_guard_reads_pyproject_with_lane_precedence():
 # (measured: test_ci_guard_green[check_python_deps] failed with
 # "_deps_probe_tmp.py imports totally_undeclared_dist").  One group = one
 # worker = the two can never overlap.
-pytestmark = pytest.mark.xdist_group("ci-guards")
+# The guards this file drives scan the whole tree; that is seconds on the CI
+# host but minutes inside an 8-worker lane, so the budget scales with the host
+# exactly as the other ci-guards file does.
+pytestmark = [pytest.mark.xdist_group("ci-guards"),
+              pytest.mark.timeout(300 * budget_scale())]
 
 
 def test_deps_guard_catches_undeclared_import_in_package(tmp_path):

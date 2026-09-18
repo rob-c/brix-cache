@@ -35,6 +35,11 @@ int brix_split_relative_parent(const char *rel, char *parent, size_t parentsz,
  * owned parent fd (a dup for empty/"." parent), or -1 with errno set. */
 int brix_open_confined_parent_fallback(int rootfd, const char *parent);
 
+/* openat2-first confined open (RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS); an
+ * ENOSYS/EINVAL/EOPNOTSUPP answer tells the caller to take the segment-walk
+ * fallback. Shared by resolve_confined_helpers.c and resolve_confined_ops.c. */
+int brix_openat2_confined(int rootfd, const char *rel, int flags, mode_t mode);
+
 /* Open the confined parent of canonical resolved and write its leaf to base.
  * Returns an owned parent fd, or -1. Borrows both canonical path strings. */
 int brix_open_confined_parent_canon(ngx_log_t *log, const char *root_canon,

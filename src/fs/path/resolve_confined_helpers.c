@@ -21,7 +21,7 @@
  *       attacks ("/export" must never match "/exportdata"), because user-space
  *       string comparison is the only boundary before the syscall runs.
  *
- * HOW:  When the kernel supports openat2(2) (BRIX_HAVE_OPENAT2 compiled AND
+ * HOW:  When the host supports openat2(2) (brix_plat_openat2 via the PAL;
  *       the runtime probe passes) confinement is kernel-enforced via
  *       RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS. On older kernels
  *       (ENOSYS/EINVAL/EOPNOTSUPP) it degrades to walking the parent path one
@@ -38,46 +38,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/syscall.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
 #include "path_internal.h"
-
-#if defined(__has_include)
-#if __has_include(<linux/openat2.h>)
-/* macOS lacks openat2 - provide compatibility stubs */
-#if defined(__APPLE__) && defined(__MACH__)
-/* RESOLVE_* flags stubs for macOS */
-#ifndef RESOLVE_BENEATH
-#define RESOLVE_BENEATH 0x8
-#endif
-#ifndef RESOLVE_NO_MAGICLINKS
-#define RESOLVE_NO_MAGICLINKS 0x02
-#endif
-#ifndef SYS_openat2
-#define SYS_openat2 -1  /* Not available on macOS */
-#endif
-#else
-#include <linux/openat2.h>
-#endif
-#define BRIX_HAVE_LINUX_OPENAT2_H 1
-#endif
-#endif
-
-#if defined(__linux__) && defined(SYS_openat2) && defined(BRIX_HAVE_LINUX_OPENAT2_H)
-/* openat2 is Linux-only */
-#if defined(__linux__)
-#define BRIX_HAVE_OPENAT2 1
-#else
-#define BRIX_HAVE_OPENAT2 0
-#endif
-#endif
-
-#ifndef O_PATH
-#define O_PATH O_RDONLY
-#endif
+#include "platform/platform_api.h"   /* brix_plat_openat2, RESOLVE_*, O_PATH */
 
 /*
  * brix_log_path_warning — log a path-related warning with the path sanitized
@@ -180,7 +146,6 @@ brix_open_root_fd(ngx_log_t *log, const char *root_canon)
     return fd;
 }
 
-#if (BRIX_HAVE_OPENAT2)
 /*
  * brix_openat2_confined — openat2(2) with kernel-enforced confinement:
  * RESOLVE_BENEATH (refuse any escape of rootfd's tree, incl. out-pointing
@@ -189,47 +154,24 @@ brix_open_root_fd(ngx_log_t *log, const char *root_canon)
  * enforces containment; the segment-walk fallback runs only when this is
  * unsupported (ENOSYS/EINVAL/EOPNOTSUPP).
  */
-static int
+int
 brix_openat2_confined(int rootfd, const char *rel, int flags, mode_t mode)
 {
-    struct open_how how;
-
-    ngx_memzero(&how, sizeof(how));
-    how.flags = (uint64_t) (flags | O_CLOEXEC);
-    if (flags & O_CREAT) {
-        how.mode = (uint64_t) mode;
-    }
-    how.resolve = RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS;
-
-    return (int) syscall(SYS_openat2, rootfd, rel, &how, sizeof(how));
+    return brix_plat_openat2(rootfd, rel, flags, mode,
+                             RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS);
 }
-#endif
 
 /*
  * brix_openat2_runtime_available — probe whether the running kernel
  * supports openat2(2).  Returns 1 if available, 0 if not.
  *
- * Called once at worker init.  Even when compiled with BRIX_HAVE_OPENAT2,
- * the syscall may return ENOSYS on older kernels (e.g. RHEL8 / 4.18).
+ * Called once at worker init.  The PAL answers 0 where the syscall is
+ * ENOSYS (e.g. RHEL8 / 4.18) or the host emulation is unavailable.
  */
 int
 brix_openat2_runtime_available(void)
 {
-#if (BRIX_HAVE_OPENAT2)
-    struct open_how how;
-    int             fd;
-
-    ngx_memzero(&how, sizeof(how));
-    how.flags = O_PATH | O_CLOEXEC;
-    fd = (int) syscall(SYS_openat2, AT_FDCWD, ".", &how, sizeof(how));
-    if (fd >= 0) {
-        close(fd);
-        return 1;
-    }
-    return (errno != ENOSYS) ? 1 : 0;
-#else
-    return 0;
-#endif
+    return brix_plat_openat2_available();
 }
 
 /*
@@ -398,7 +340,6 @@ brix_open_confined_parent_canon(ngx_log_t *log, const char *root_canon,
         return -1;
     }
 
-#if (BRIX_HAVE_OPENAT2)
     parentfd = brix_openat2_confined(rootfd, parent,
                                        O_PATH | O_DIRECTORY, 0);
     if (parentfd < 0
@@ -410,9 +351,6 @@ brix_open_confined_parent_canon(ngx_log_t *log, const char *root_canon,
     if (parentfd < 0) {
         parentfd = brix_open_confined_parent_fallback(rootfd, parent);
     }
-#else
-    parentfd = brix_open_confined_parent_fallback(rootfd, parent);
-#endif
 
     close(rootfd);
     return parentfd;

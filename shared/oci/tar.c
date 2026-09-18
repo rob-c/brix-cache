@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/sysmacros.h>
+#include "platform/platform_api.h"   /* PAL: major()/minor()/makedev() on every host */
 
 #include "cvmfs/catalog/catalog_write.h"   /* cvmfs_xattr_pack */
 

@@ -320,15 +320,12 @@ cvmfs_merge_scvmfs_checks(ngx_conf_t *cf,
                 "<dir> and brix_scvmfs_voms_cert_dir <dir>");
             return NGX_CONF_ERROR;
         }
-        /* VOMS is dlopen'd at postconfiguration (after this merge), so init
-         * it here to fail loudly at config time if libvomsapi is absent —
-         * mirrors webdav's config_merge. Idempotent (returns early if
-         * already loaded). */
-        (void) brix_voms_init(cf->log);
-        if (!brix_voms_available()) {
+        /* Native verifier: load the VOMS trust store now so a bad CA
+         * directory fails at configuration time, not on the first proxy. */
+        if (brix_voms_warm(cf->log, &conf->scvmfs_voms_cert_dir) != NGX_OK) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix_scvmfs_authz voms requires libvomsapi.so.1 "
-                "(VOMS runtime not found)");
+                "brix_scvmfs_voms_cert_dir \"%V\": cannot load the CA directory",
+                &conf->scvmfs_voms_cert_dir);
             return NGX_CONF_ERROR;
         }
     }

@@ -82,7 +82,11 @@ class TestEnumerationIgnoresTheFlagOnEveryPlane:
         returned nothing."""
         names = _hrefs(_dav(vhost, "PROPFIND", "/",
                             headers={"Depth": "1"}).text)
-        assert {"keep.dat.CINFO", "keep.dat.cinfoX", "cinfo"} <= names, names
+        # keep.dat.CINFO is only a distinct entry on a case-sensitive filesystem.
+        expected = {n for n in ("keep.dat.CINFO", "keep.dat.cinfoX", "cinfo")
+                    if seeded_exactly(srv, n)}
+        assert {"keep.dat.cinfoX", "cinfo"} <= expected
+        assert expected <= names, names
 
     def test_the_armed_arm_lists_exactly_what_the_disarmed_one_lists(self, srv):
         armed = _hrefs(_dav(DAV_ON, "PROPFIND", "/", headers={"Depth": "1"}).text)
@@ -102,7 +106,9 @@ class TestEnumerationIgnoresTheFlagOnEveryPlane:
         names = _wire_plain_names(port, "/")
         assert KEEP in names
         assert not (set(RESERVED) & names), names
-        assert "keep.dat.CINFO" in names
+        # Only a distinct entry on a case-sensitive filesystem.
+        expected = "keep.dat.CINFO" if seeded_exactly(srv, "keep.dat.CINFO") else "keep.dat.cinfoX"
+        assert expected in names, names
 
     def test_the_three_root_arms_list_identically(self, srv):
         assert (_wire_plain_names(ROOT_ON, "/")
@@ -183,6 +189,8 @@ class TestTheGuardCannotBeTalkedPast:
         file is an ordinary object.  `keep.dat.CINFO` is in this list because
         reserved_names.h compares with memcmp — a case-insensitive predicate
         would be a different bug from an over-broad one."""
+        if not seeded_exactly(srv, name):
+            pytest.skip(f"{name} folds onto a reserved name on this filesystem")
         response = _dav(DAV_OFF, "GET", "/" + name)
         assert response.status_code == 200
         assert response.content == NEAR_BYTES

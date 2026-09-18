@@ -2,6 +2,7 @@
  * xrootdfs_meta.c - extracted concern
  * Phase-38 split of xrootdfs.c; behavior-identical.
  */
+#include <unistd.h>   /* W_OK */
 #include "xrootdfs_internal.h"
 
 

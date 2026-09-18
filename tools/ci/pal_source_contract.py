@@ -21,8 +21,9 @@ COMMON_API = (
 )
 INLINE_API = tuple('brix_plat_' + name for name in (
     'htobe64', 'be64toh', 'htobe32', 'be32toh', 'htobe16', 'be16toh'))
-PUBLIC_HEADERS = {'platform.h', 'platform_api.h', 'platform_compat.h'}
-OWNER_ROOTS = (Path('src/platform'), Path('shared/cvmfs/platform'))
+PUBLIC_HEADERS = {'platform.h', 'platform_api.h'}
+OWNER_ROOTS = (Path('src/platform'), Path('client/lib/platform'),
+               Path('shared/cvmfs/platform'))
 NONCODE = re.compile(r'''/\*.*?\*/|//[^\n]*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*' ''',
                      re.S | re.X)
 API_NAME = re.compile(r'\bbrix_(?:plat|platform)_[A-Za-z0-9_]+\s*\(')

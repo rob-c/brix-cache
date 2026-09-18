@@ -5,6 +5,8 @@
  * implementation. This stub allows compilation but reports AIO as unavailable.
  */
 
+#include <ngx_config.h>
+#include <ngx_core.h>
 #include "../platform.h"
 #include "../platform_api.h"
 

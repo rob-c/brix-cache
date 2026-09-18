@@ -188,6 +188,9 @@ def _process_title(pid):
         import server_launcher as launcher
 
         path_type = getattr(launcher, "Path", Path)
+        if not os.path.isdir("/proc"):
+            from lib_py.util import process_cmdline  # noqa: PLC0415
+            return process_cmdline(pid)
         return path_type(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ")
     except OSError:
         return b""

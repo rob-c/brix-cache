@@ -173,6 +173,10 @@ def _await_cms_link(mgr_port, ds_port):
     enough — re-emit until the link is proven), then remove it."""
     probe = "/.cns-link-probe"
     for _ in range(24):
+        # _write_file opens with kXR_new, so the sentinel from the previous
+        # round has to go first — without this the retry the loop exists for
+        # can never run: the second write answers "file already exists".
+        _ns_remove(ds_port, kXR_rm, probe)
         _write_file(ds_port, probe, b"probe")
         if _poll_manager(mgr_port, probe, want_ok=True, tries=8) == kXR_ok:
             _ns_remove(ds_port, kXR_rm, probe)

@@ -1,7 +1,7 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_openflags_helpers")
 
-pytestmark = pytest.mark.xdist_group("conf_openflags_c")
+pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_openflags_c")]
 
 @pytest.mark.parametrize("idx", range(3))
 def test_open_wrto_existing_bare_handle(srv, idx):

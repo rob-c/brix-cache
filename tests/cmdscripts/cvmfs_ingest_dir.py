@@ -20,6 +20,7 @@ via sqlite3, CAS byte round-trips):
 
 from __future__ import annotations
 
+import sys
 import os
 import subprocess
 import time
@@ -108,7 +109,10 @@ def _build_ingesttool(base: Path) -> tuple[Path | None, str]:
     binary = base / "ingesttool"
     built = compile_binary(
         binary,
-        ["-Wall", "-Wextra", "-Werror", "-I", "shared",
+        ["-Wall", "-Wextra", "-Werror", "-I", "shared", "-I", "src",
+         # bci_image_main is a weak reference the standalone tool links without;
+         # Mach-O's ld64 must be told that symbol may stay undefined.
+         *(["-Wl,-U,_bci_image_main"] if sys.platform == "darwin" else []),
          "-DBRIXCVMFS_INGEST_STANDALONE"]
         + INGEST_CLI_SOURCES + REPO_CLI_LIBS,
         cwd=REPO_ROOT,
@@ -289,7 +293,10 @@ def check_i4(ingest: Path, repotool: Path, base: Path, results: list) -> None:
     ck("publish-10k", pub.returncode == 0, pub.stderr)
     # Guards the per-object-durability pathology (one fsync per CAS put ran
     # 150 s here); the batched engine measured 39 s on a load-38 host.
-    ck("budget", took < 90.0, f"{took:.2f}s")
+    # TEST_BUDGET_SCALE stretches the wall-clock budgets on a slower host
+    # (a laptop whose fsync is a full disk flush) without hiding the pathology.
+    budget = 90.0 * float(os.environ.get("TEST_BUDGET_SCALE", "1"))
+    ck("budget", took < budget, f"{took:.2f}s (budget {budget:.0f}s)")
 
     cat = _root_catalog(repo, base)
     (n,) = cat.execute("SELECT count(*) FROM catalog").fetchone()

@@ -35,7 +35,8 @@ from cmdscripts.delegation_twostep import (
     mint_certs,
     sign_csr,
 )
-from settings import CA_CERT, HOST, NGINX_BIN, SERVER_CERT, SERVER_KEY
+from settings import (CA_CERT, CRED_STORE_BASE, CRED_STORE_PARENT, HOST,
+                      NGINX_BIN, SERVER_CERT, SERVER_KEY)
 from server_registry import NginxInstanceSpec
 
 def _guard_test_default_store_created_and_receives_delegation_1():
@@ -86,7 +87,7 @@ def _guard_test_default_store_created_and_receives_delegation_5(preexisting):
 # The compiled default is rewritten to its worker-uid-scoped form at merge
 # (shared_conf_creddir.h): two services on one host — the distro's www-data
 # nginx and this unprivileged test lane — must never fight over one 0700 dir.
-DEFAULT_STORE = f"/dev/shm/brix-creds.{os.geteuid()}"
+DEFAULT_STORE = f"{CRED_STORE_BASE}.{os.geteuid()}"
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cred-dir")]
@@ -194,7 +195,7 @@ def test_default_store_created_and_receives_delegation(lifecycle, pki):
 
 def test_uncreatable_dir_warns_but_is_not_fatal(lifecycle):
     """Error: mkdir cannot succeed (missing parent) -> [warn], nginx -t OK."""
-    bogus = f"/dev/shm/brix-missing-{os.getpid()}/creds"
+    bogus = f"{CRED_STORE_PARENT}/brix-missing-{os.getpid()}/creds"
     code, out = _nginx_t(lifecycle, "lc-cred-dir-uncreatable",
                          f"brix_storage_credential_dir {bogus};")
     assert code == 0, f"a broken credential dir must not kill startup:\n{out}"

@@ -161,14 +161,14 @@ def fuse_mount(fqrn, server_url, pubkey, *, cache=None, tmp=None, mount_type="cv
     finally:
         _teardown_mount(workdir, mnt, proc)
 from lib_py.util import wait_tcp
+from lib_py.fuse_host import FUSE_READY
 from repo_forge import Dir, File, RepoForge, Symlink
 from settings import BIND_HOST, HOST
 
 REPO = "test.cern.ch"
 MOCK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs", "mock_stratum1.py")
 
-_FUSE_READY = (os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
-               and os.path.exists(BRIXMOUNT))
+_FUSE_READY = FUSE_READY and os.path.exists(BRIXMOUNT)
 # Every test here does 1-3 real FUSE mounts; under concurrent fleet/FUSE load the
 # global 30s budget can lapse mid-mount, and the thread-method timeout then aborts
 # the SESSION mid-test, orphaning the test's mock origin — which squats its port

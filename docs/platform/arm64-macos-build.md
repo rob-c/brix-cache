@@ -60,13 +60,27 @@ eval "$(/opt/homebrew/bin/brew shellenv)"
 
 ### Install Dependencies
 
-```bash
-# Core dependencies
-brew install pcre2 openssl@3 zlib
+The dependency set is the same as for Intel Macs; see the
+[macOS Quickstart](../01-getting-started/macos-quickstart.md) for the full
+table of what comes from Homebrew, what the macOS SDK already provides, and
+which Linux-only libraries have no macOS equivalent.
 
-# Optional dependencies
-brew install libxml2 libxslt gd geoip
+```bash
+# Required (module + nginx core). zstd and brotli are mandatory codecs.
+brew install pkgconf openssl@3 pcre2 zstd brotli jansson krb5
+
+# Optional: lzma/lz4 codecs, FUSE 3 for the client mounts, reference xrootd client
+brew install xz lz4
+brew install --cask macfuse
+brew install xrootd
+
+# krb5 is keg-only: export this before ./configure and make -C client, or
+# config falls back to Apple's Heimdal krb5-config and the GSSAPI link fails.
+export PKG_CONFIG_PATH="$(brew --prefix krb5)/lib/pkgconfig"
 ```
+
+zlib, bzip2, libxml2, libcurl and sqlite3 resolve from the macOS SDK; the
+matching keg-only formulae are not needed.
 
 ### Verify Apple Silicon
 

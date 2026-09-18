@@ -36,7 +36,9 @@ import fcntl
 import os
 import re
 import shutil
+import signal
 import socket
+from lib_py.util import pids_on_port   # ss/fuser-free listener probe (macOS has neither)
 import subprocess
 from brix_suite.client_build import client_make
 import sys
@@ -74,8 +76,10 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
 NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
-STOCK_XRDFS = "/usr/bin/xrdfs"
-STOCK_XRDCP = "/usr/bin/xrdcp"
+# The distro path on the Linux CI host; Homebrew puts them under
+# /usr/local/bin (Intel) or /opt/homebrew/bin (Apple silicon).
+STOCK_XRDFS = shutil.which("xrdfs") or "/usr/bin/xrdfs"
+STOCK_XRDCP = shutil.which("xrdcp") or "/usr/bin/xrdcp"
 
 # All nginx GSI servers here are registry LifecycleHarness instances on
 # OS-assigned (free_port) ports with pid-suffixed names, so xdist workers and
@@ -101,8 +105,19 @@ def _have(*tools):
 
 
 def _run(cmd, timeout=120, **kw):
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
                           **kw)
+    if proc.returncode < 0 and sys.platform == "darwin":
+        # The stock XRootD client can die by signal AFTER its work is done:
+        # libcrypto's per-thread destructor (init_thread_remove_handlers ->
+        # OPENSSL_sk_num) faults while an XrdCl worker thread exits, seen as
+        # SIGSEGV in ~1 run in 10000 here with the transfer already complete.
+        # That is a teardown defect in the stock client's OpenSSL, not a
+        # verdict on the server, so give it one more go; a command that fails
+        # for a real reason fails again and is reported normally.
+        proc = subprocess.run(cmd, capture_output=True, text=True,
+                              timeout=timeout, **kw)
+    return proc
 
 
 def _rejected(http_code):
@@ -227,10 +242,13 @@ def _send_certreq(s, version):
 def _free_port(port):
     """Kill any stale listener on ``port`` and wait until it is free, so a leaked
     server from a prior run can't masquerade for the one we are about to start."""
-    subprocess.run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"],
-                   capture_output=True)
+    for pid in pids_on_port(port):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
     for _ in range(20):
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode != 0:
+        if not pids_on_port(port):
             return
         time.sleep(0.1)
 
@@ -240,7 +258,7 @@ def _wait_listen(proc, port, what):
     failure (these tests are required to pass, never skip)."""
     for _ in range(60):
         assert proc.poll() is None, f"{what} exited before binding {port}"
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode == 0:
+        if pids_on_port(port):
             return True
         time.sleep(0.1)
     proc.terminate()

@@ -28,11 +28,6 @@
 #include "stream_wmirror_internal.h"
 #include "mirror.h"
 
-/* macOS doesn't have endian.h - use libkern/OSByteOrder.h */
-#if defined(__APPLE__) && defined(__MACH__)
-#else
-#endif
-
 /* Caps: data-write mirroring is best-effort validation, not a data path. */
 #define BRIX_WMIRROR_FILE_CAP  (4u * 1024u * 1024u)   /* 4 MiB per file        */
 #define BRIX_WMIRROR_CONN_CAP  (16u * 1024u * 1024u)  /* 16 MiB per connection */

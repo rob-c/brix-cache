@@ -4,6 +4,7 @@
 
 #include "webdav.h"
 #include "auth/crypto/gsi_verify.h"
+#include "auth/crypto/store_policy.h"
 #include "core/ngx_brix_module.h"
 
 #include <ngx_http_ssl_module.h>
@@ -98,7 +99,6 @@ webdav_auth_init_ssl_indices(ngx_log_t *log)
  * WHAT: Compares two ngx_str_t structures for equality by first checking length, then byte-by-byte content. Handles the special case of empty strings (length 0) which are always considered equal regardless of data pointer values. This is safer than using memcmp directly because empty strings with different pointers could pass memcmp if both buffers happen to contain zero bytes.
  *
  * WHY: nginx uses ngx_str_t for string representation (not null-terminated C strings). Comparing these requires length-aware operations — strlen/strcpy would fail on non-null-terminated ngx_str_t structures per the FAQ rules in AGENTS.md. */
-#if !defined(__APPLE__) || !defined(__MACH__)
 static ngx_int_t
 webdav_str_equal(const ngx_str_t *a, const ngx_str_t *b)
 {
@@ -112,7 +112,6 @@ webdav_str_equal(const ngx_str_t *a, const ngx_str_t *b)
 
     return ngx_memcmp(a->data, b->data, a->len) == 0;
 }
-#endif
 
 /*
  *
@@ -410,17 +409,25 @@ webdav_try_cached_tls_auth(ngx_http_request_t *r, SSL *ssl,
     return NGX_DECLINED;
 }
 
-/* Stub for macOS - ngx_http_ssl_module not available */
-#if defined(__APPLE__) && defined(__MACH__)
-static ngx_int_t
-webdav_nginx_verify_compatible(ngx_http_request_t *r,
-                               ngx_http_brix_webdav_loc_conf_t *conf)
+/* 1 when `leaf` or any certificate of `chain` is a legacy (GT2) proxy: such a
+ * chain is verified by the module itself so brix_gsi_legacy_proxy full-only
+ * and the acceptance notice apply, even though the handshake admitted it. */
+static int
+webdav_chain_has_legacy_proxy(X509 *leaf, STACK_OF(X509) *chain)
 {
-    (void)r; (void)conf;
-    /* Stub - always return compatible on macOS */
-    return 1;
+    int i, n = chain ? sk_X509_num(chain) : 0;
+
+    if (brix_gt2_proxy_kind(leaf) != BRIX_PX_NONE) {
+        return 1;
+    }
+    for (i = 0; i < n; i++) {
+        if (brix_gt2_proxy_kind(sk_X509_value(chain, i)) != BRIX_PX_NONE) {
+            return 1;
+        }
+    }
+    return 0;
 }
-#else
+
 static ngx_int_t
 webdav_nginx_verify_compatible(ngx_http_request_t *r,
                                ngx_http_brix_webdav_loc_conf_t *conf)
@@ -448,7 +455,6 @@ webdav_nginx_verify_compatible(ngx_http_request_t *r,
 
     return 1;
 }
-#endif
 
 static ngx_int_t
 webdav_finish_verified_cert(ngx_http_request_t *r,
@@ -533,7 +539,8 @@ webdav_verify_proxy_cert(ngx_http_request_t *r,
 
     verify_result = SSL_get_verify_result(ssl);
     if (verify_result == X509_V_OK
-        && webdav_nginx_verify_compatible(r, conf))
+        && webdav_nginx_verify_compatible(r, conf)
+        && !webdav_chain_has_legacy_proxy(leaf, SSL_get_peer_cert_chain(ssl)))
     {
         ngx_int_t rc;
 

@@ -16,9 +16,6 @@
 #   - If nginx-mod-devel is not yet in EPEL 11, uncomment the nginx stable
 #     upstream repo block below.
 #   - The resulting RPM carries the .el11 dist tag.
-#   - voms-libs at runtime: the WLCG EL11 repository may not yet exist.
-#     Monitor https://linuxsoft.cern.ch/wlcg/ for availability, or backport
-#     the EL10 voms-libs package under compatibility testing.
 
 FROM almalinux:11 AS builder
 

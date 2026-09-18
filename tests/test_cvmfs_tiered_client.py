@@ -61,12 +61,12 @@ def _guard_test_tiered_cold_pack_serves_and_replays_1(origin_up, httpd):
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402, F401
+from lib_py.fuse_host import FUSE_READY  # noqa: E402
 from repo_forge import Dir, File, RepoForge  # noqa: E402
 from test_cvmfs_packed_client import (  # noqa: E402 — same origin/mount idiom
     REPO, TTL, _data_gets, _start_origin, _stop_origin, pk_mount)
 
-_FUSE_READY = (os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
-               and os.path.exists(BRIXMOUNT))
+_FUSE_READY = FUSE_READY and os.path.exists(BRIXMOUNT)
 pytestmark = pytest.mark.skipif(not _FUSE_READY, reason="fuse mount prerequisites missing")
 
 TIER_OPTS = ",cache_format=packed,cache_tiering"
@@ -162,6 +162,16 @@ def test_tiered_cold_pack_serves_and_replays(workdir):
 # cold neighbours stay compressed — and bytes stay identical throughout.
 # ============================================================================
 
+# macFUSE keeps a file's pages in the kernel across opens; Linux FUSE drops
+# them on every open, because the daemon leaves keep_cache clear. The promotion
+# counter this test drives lives in the cache STORE, so a read the kernel
+# serves from its own pages never counts: instrumenting the store showed six
+# reads producing ONE get, and the entry never went hot. nolocalcaches is
+# macFUSE's own knob for that, applied to THIS mount only — the product's
+# caching, which is correct and worth having, is untouched (2026-09-17).
+_READS_REACH_THE_STORE = ",nolocalcaches" if sys.platform == "darwin" else ""
+
+
 @pytest.mark.timeout(120)
 def test_tiered_hot_promotion_rewrites_raw(workdir):
     forge = _forge(workdir)
@@ -170,7 +180,8 @@ def test_tiered_hot_promotion_rewrites_raw(workdir):
     hot, cold = "t0.bin", "t1.bin"
     try:
         with pk_mount(workdir / "repo.pub", httpd.server_address[1], cache,
-                      opts_extra=TIER_OPTS) as (mnt, proc, log):
+                      opts_extra=TIER_OPTS + _READS_REACH_THE_STORE) as (
+                          mnt, proc, log):
             _read_all(mnt, log)
             for _ in range(6):
                 assert (mnt / "pkg" / hot).read_bytes() == BODIES[hot], \

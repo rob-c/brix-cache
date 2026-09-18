@@ -27,15 +27,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* macOS doesn't have endian.h - use libkern/OSByteOrder.h */
-#if defined(__APPLE__) && defined(__MACH__)
-#else
-#endif
 #include <poll.h>
 #include <time.h>
-
-#if defined(__linux__)
-#endif
 
 /* Read replies carry streamid[1] == 3 (source_stream.c's tag); slot in [0]. */
 #define TPC_STREAM_READ_TAG 3
