@@ -1,0 +1,13 @@
+<map id="ing_img_ctx_t" name="ing_img_ctx_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="287,93,400,119"/>
+<area shape="rect" id="Node000002" href="$structing__img__opts__t.html" title=" " alt="" coords="5,5,127,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="117,32,307,91,305,96,115,37"/>
+<area shape="rect" id="Node000003" href="$structbrix__oci__reg__t.html" title=" " alt="" coords="151,5,264,31"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="238,36,326,91,323,95,236,40"/>
+<area shape="rect" id="Node000004" href="$structbrix__oci__ref__t.html" title=" " alt="" coords="288,5,399,31"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="346,45,346,93,341,93,341,45"/>
+<area shape="rect" id="Node000005" href="$structbrix__oci__desc__t.html" title=" " alt="" coords="423,5,546,31"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="456,40,364,95,361,91,453,35"/>
+<area shape="rect" id="Node000006" href="$structing__layer__t.html" title=" " alt="" coords="571,5,665,31"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="571,38,463,72,383,96,382,91,461,67,569,33"/>
+</map>

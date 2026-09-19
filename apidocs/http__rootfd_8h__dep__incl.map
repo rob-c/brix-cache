@@ -1,0 +1,23 @@
+<map id="src/core/config/http_rootfd.h" name="src/core/config/http_rootfd.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="899,5,1045,45"/>
+<area shape="rect" id="Node000002" href="$http__rootfd_8c.html" title=" " alt="" coords="5,93,152,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="885,33,567,52,366,71,164,96,153,98,152,93,164,91,366,65,567,47,885,27"/>
+<area shape="rect" id="Node000003" href="$cvmfs__module__georank_8c.html" title=" " alt="" coords="177,93,370,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="885,38,657,61,382,96,371,98,370,92,381,91,657,56,885,32"/>
+<area shape="rect" id="Node000004" href="$cvmfs__module__merge_8c.html" title=" " alt="" coords="394,93,577,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="886,44,590,96,578,98,577,93,589,91,885,39"/>
+<area shape="rect" id="Node000005" href="$protocols_2cvmfs_2module_8c.html" title=" " alt="" coords="601,93,751,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="895,52,742,96,740,91,893,47"/>
+<area shape="rect" id="Node000006" href="$protocols_2s3_2module_8c.html" title=" " alt="" coords="775,101,963,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="940,56,885,102,882,98,937,52"/>
+<area shape="rect" id="Node000007" href="$module__merge_8c.html" title=" " alt="" coords="987,93,1165,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="1007,52,1055,91,1051,95,1004,56"/>
+<area shape="rect" id="Node000008" href="$merge__export_8c.html" title=" " alt="" coords="1189,93,1342,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1050,47,1202,91,1200,96,1049,52"/>
+<area shape="rect" id="Node000009" href="$protocols_2webdav_2config_8c.html" title=" " alt="" coords="1367,93,1527,133"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1059,38,1355,91,1367,93,1366,98,1354,96,1059,44"/>
+<area shape="rect" id="Node000010" href="$config__merge_8c.html" title=" " alt="" coords="1551,93,1711,133"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1059,32,1278,55,1539,91,1551,93,1550,98,1538,96,1277,61,1059,37"/>
+<area shape="rect" id="Node000011" href="$config__proxy_8c.html" title=" " alt="" coords="1735,93,1895,133"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1060,29,1354,50,1538,67,1723,91,1735,93,1734,98,1722,96,1538,73,1354,55,1059,34"/>
+</map>

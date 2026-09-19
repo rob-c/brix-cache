@@ -1,0 +1,11 @@
+<map id="src/fs/vfs/vfs_policy_domain.h" name="src/fs/vfs/vfs_policy_domain.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="293,5,444,45"/>
+<area shape="rect" id="Node000002" href="$cred__write_8c.html" title=" " alt="" coords="5,93,164,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="294,52,148,96,146,91,292,47"/>
+<area shape="rect" id="Node000003" href="$service__publish_8c.html" title=" " alt="" coords="188,93,365,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="340,57,299,95,295,91,337,53"/>
+<area shape="rect" id="Node000004" href="$gcas_8c.html" title=" " alt="" coords="390,101,534,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="401,53,451,98,447,102,398,57"/>
+<area shape="rect" id="Node000005" href="$vfs__policy__domain_8c.html" title=" " alt="" coords="559,93,709,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="441,47,577,91,575,96,439,52"/>
+</map>

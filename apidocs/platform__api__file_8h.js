@@ -1,0 +1,25 @@
+var platform__api__file_8h =
+[
+    [ "BRIX_COPY_F_MOVE", "platform__api__file_8h.html#ac1ea762544030b3b9be7378f93e46e73", null ],
+    [ "BRIX_COPY_F_REFLINK", "platform__api__file_8h.html#a3ea68b390ef08fee18766005f1a2e9e4", null ],
+    [ "BRIX_COPY_F_SAME_MOUNT", "platform__api__file_8h.html#a98d33cfb1e7bb9f5d8b1b9bdd0a24231", null ],
+    [ "BRIX_COPY_F_SPLICE", "platform__api__file_8h.html#a3f8d82ce14abcf5e36d1f799ed272bf4", null ],
+    [ "BRIX_FADV_DONTNEED", "platform__api__file_8h.html#a21926180e922c6260de7d35c7232805f", null ],
+    [ "BRIX_FADV_NOREUSE", "platform__api__file_8h.html#a83038c77c5c7952c3ad1dc9b9a9b3506", null ],
+    [ "BRIX_FADV_NORMAL", "platform__api__file_8h.html#aa504a0eddb4e9ddba894e6db0c193cd5", null ],
+    [ "BRIX_FADV_RANDOM", "platform__api__file_8h.html#a78ac931d4c89d680d977dfe2cf2dfd96", null ],
+    [ "BRIX_FADV_SEQUENTIAL", "platform__api__file_8h.html#a74ae04380c700118a2e32a5e0d4b28be", null ],
+    [ "BRIX_FADV_WILLNEED", "platform__api__file_8h.html#a2733e33e024011eb1b80711e8f020f07", null ],
+    [ "BRIX_SPLICE_F_GIFT", "platform__api__file_8h.html#a52393c9340ac9c89348712467a62a6f1", null ],
+    [ "BRIX_SPLICE_F_MORE", "platform__api__file_8h.html#a8c44fdc2a80c34540d9c07718a3cd536", null ],
+    [ "BRIX_SPLICE_F_MOVE", "platform__api__file_8h.html#a1ad9739c4774f90e6f471106f0d1dc99", null ],
+    [ "BRIX_SPLICE_F_NONBLOCK", "platform__api__file_8h.html#a34e5532124fd947f943e98f18b7645ad", null ],
+    [ "brix_plat_anon_fd", "platform__api__file_8h.html#adb7b864bd38950b8bd6281b6b1a9b918", null ],
+    [ "brix_plat_copy_range", "platform__api__file_8h.html#af0375067144db7ae9ce7a4e757db45c3", null ],
+    [ "brix_plat_fadvise", "platform__api__file_8h.html#a4bc7daa8dde45f483ee97b695839d927", null ],
+    [ "brix_plat_fsync_data", "platform__api__file_8h.html#af4b7e3c0432a965a648859aaa336293d", null ],
+    [ "brix_plat_sendfile", "platform__api__file_8h.html#a7e4b09b1db9d09f0b39390dc362ee57a", null ],
+    [ "brix_plat_splice", "platform__api__file_8h.html#a0e10cd46e716764296419d1a6618370e", null ],
+    [ "brix_plat_sync", "platform__api__file_8h.html#a3fda74c570fe611c46b0d227f890a1b4", null ],
+    [ "brix_plat_sync_tree", "platform__api__file_8h.html#aa4b3b2bf76c8a03298ede71e4730b88c", null ]
+];

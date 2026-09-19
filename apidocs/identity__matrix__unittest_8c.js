@@ -1,0 +1,27 @@
+var identity__matrix__unittest_8c =
+[
+    [ "CHECK", "identity__matrix__unittest_8c.html#aba1590ff86288c886c47dc8a27b30467", null ],
+    [ "main", "identity__matrix__unittest_8c.html#a840291bc02cba5474a4cb46a9b9566fe", null ],
+    [ "subject_alice", "identity__matrix__unittest_8c.html#aa67db8bb2a591069d9403698d3f6b01b", null ],
+    [ "test_absent_path_skips_path_stages", "identity__matrix__unittest_8c.html#a110db28aa200531c1354de5b53f23cb7", null ],
+    [ "test_allow_each_selector", "identity__matrix__unittest_8c.html#a18e49e3a58977f7523583abddee5f8fb", null ],
+    [ "test_allow_empty_rule_matches_nothing", "identity__matrix__unittest_8c.html#a642615c697847fc7e07c445738c42147", null ],
+    [ "test_allow_rule_is_an_and", "identity__matrix__unittest_8c.html#abb6600bd3ab77e19578d8073dd98a83c", null ],
+    [ "test_allow_stage_fails_closed", "identity__matrix__unittest_8c.html#add60eee86aa8eea8e6c22ed9dc2f851c", null ],
+    [ "test_auth_name_eq", "identity__matrix__unittest_8c.html#a7c5a88d5780fd1d1a6265c0ed80053b4", null ],
+    [ "test_auth_name_eq_negatives", "identity__matrix__unittest_8c.html#a782255bae01275bd732170e570dc4d1b", null ],
+    [ "test_csv_member", "identity__matrix__unittest_8c.html#a9bb19a62d11e70daed3524cc9d399a18", null ],
+    [ "test_csv_member_negatives", "identity__matrix__unittest_8c.html#a05ef6b2def670bac052a68aa8021fbef", null ],
+    [ "test_empty_subject_is_denied", "identity__matrix__unittest_8c.html#af0b1013021f346e782746597b997a436", null ],
+    [ "test_oids_default_deny", "identity__matrix__unittest_8c.html#a0c4c805db188d07f3a7eef45ef593ac3", null ],
+    [ "test_path_is_oid", "identity__matrix__unittest_8c.html#a1bed835dc80ef7253f3aa50030273cfe", null ],
+    [ "test_require_all_and_or_semantics", "identity__matrix__unittest_8c.html#acea8e36bbbad252342365794c4b62343", null ],
+    [ "test_require_is_party_scoped", "identity__matrix__unittest_8c.html#ac140298486b9cdaaf971e9a0d4b41769", null ],
+    [ "test_restrict_component_boundary", "identity__matrix__unittest_8c.html#a6ca2d24fc69a84345950ef58248aaa6f", null ],
+    [ "test_restrict_match", "identity__matrix__unittest_8c.html#ae41595f04dae423044a05e3c1fa263cb", null ],
+    [ "test_restrict_stage_fails_closed", "identity__matrix__unittest_8c.html#a70880e229a923ba3bc5b4c95a8ca7908", null ],
+    [ "test_stage_order", "identity__matrix__unittest_8c.html#aeb61f596abcd7dd209f56eb14cea67af", null ],
+    [ "test_unconfigured_is_a_noop", "identity__matrix__unittest_8c.html#a20f6b2d447907023a584356a99bcf909", null ],
+    [ "test_verdict_text_is_low_cardinality", "identity__matrix__unittest_8c.html#ab3f1e1e363c351ce1c4bb6f66b69d952", null ],
+    [ "g_fail", "identity__matrix__unittest_8c.html#a1901adb94fd0de553ba236fc3fe0c3d4", null ]
+];

@@ -1,0 +1,40 @@
+<map id="client/lib/fs/overlay.c" name="client/lib/fs/overlay.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="486,5,642,31"/>
+<area shape="rect" id="Node000002" href="$overlay_8h.html" title=" " alt="" coords="148,159,245,185"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="486,22,398,26,303,35,220,52,189,65,169,80,162,95,164,112,180,147,176,149,158,114,157,94,165,77,187,60,218,47,302,30,398,20,486,17"/>
+<area shape="rect" id="Node000009" href="$overlay__internal_8h.html" title=" " alt="" coords="180,79,320,104"/>
+<area shape="poly" id="edge10_Node000001_Node000009" title=" " alt="" coords="514,33,314,78,313,73,513,28"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="344,79,416,104"/>
+<area shape="poly" id="edge12_Node000001_Node000010" title=" " alt="" coords="536,33,424,76,422,71,534,28"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="441,79,509,104"/>
+<area shape="poly" id="edge13_Node000001_Node000011" title=" " alt="" coords="552,33,502,72,499,68,548,29"/>
+<area shape="rect" id="Node000012" title=" " alt="" coords="533,79,596,104"/>
+<area shape="poly" id="edge14_Node000001_Node000012" title=" " alt="" coords="567,31,567,65,562,65,562,31"/>
+<area shape="rect" id="Node000013" title=" " alt="" coords="620,79,690,104"/>
+<area shape="poly" id="edge15_Node000001_Node000013" title=" " alt="" coords="581,29,631,68,628,72,577,33"/>
+<area shape="rect" id="Node000014" title=" " alt="" coords="714,79,785,104"/>
+<area shape="poly" id="edge16_Node000001_Node000014" title=" " alt="" coords="595,28,708,71,706,76,593,33"/>
+<area shape="rect" id="Node000015" title=" " alt="" coords="810,79,884,104"/>
+<area shape="poly" id="edge17_Node000001_Node000015" title=" " alt="" coords="610,28,797,75,796,80,609,33"/>
+<area shape="rect" id="Node000016" href="$src_2platform_2platform_8h.html" title=" " alt="" coords="909,79,1060,104"/>
+<area shape="poly" id="edge18_Node000001_Node000016" title=" " alt="" coords="632,28,904,74,903,79,631,33"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="76,313,151,339"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="148,179,113,185,75,196,41,214,13,242,9,251,9,260,20,277,41,293,68,306,65,311,39,298,16,281,4,261,3,250,9,238,38,210,73,191,111,179,147,173"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="24,240,94,265"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="177,187,92,235,90,231,175,183"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="119,240,186,265"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="192,186,168,229,163,227,188,184"/>
+<area shape="rect" id="Node000006" href="$time_8h.html" title=" " alt="" coords="210,240,274,265"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="205,184,230,227,226,229,201,186"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="322,240,407,265"/>
+<area shape="poly" id="edge8_Node000002_Node000007" title=" " alt="" coords="222,182,329,232,327,237,220,187"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="431,240,527,265"/>
+<area shape="poly" id="edge9_Node000002_Node000008" title=" " alt="" coords="238,182,426,234,424,239,237,187"/>
+<area shape="poly" id="edge6_Node000006_Node000003" title=" " alt="" coords="222,268,148,309,145,304,220,263"/>
+<area shape="poly" id="edge7_Node000006_Node000006" title=" " alt="" coords="268,237,289,239,297,244,300,253,295,264,283,268,281,263,291,260,295,252,293,247,288,244,268,243"/>
+<area shape="poly" id="edge11_Node000009_Node000002" title=" " alt="" coords="244,106,214,149,210,146,240,103"/>
+<area shape="rect" id="Node000017" title=" " alt="" coords="809,152,984,192"/>
+<area shape="poly" id="edge19_Node000016_Node000017" title=" " alt="" coords="973,106,929,145,926,141,970,102"/>
+<area shape="rect" id="Node000018" href="$platform__arch_8h.html" title=" " alt="" coords="1008,159,1134,185"/>
+<area shape="poly" id="edge20_Node000016_Node000018" title=" " alt="" coords="999,102,1050,148,1046,152,995,106"/>
+</map>

@@ -1,0 +1,17 @@
+<map id="src/fs/vfs/vfs_policy.h" name="src/fs/vfs/vfs_policy.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="201,5,362,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,167,109,192"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="235,33,183,52,132,81,97,117,72,156,67,153,93,114,129,77,181,47,233,28"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="325,167,419,192"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="290,29,361,153,356,156,286,32"/>
+<area shape="rect" id="Node000004" href="$observability_2metrics_2unified_8h.html" title=" " alt="" coords="143,79,303,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="275,32,247,69,243,66,271,29"/>
+<area shape="rect" id="Node000006" href="$site__n2n_8h.html" title=" " alt="" coords="405,86,544,111"/>
+<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="310,28,435,78,433,83,308,33"/>
+<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="184,121,95,163,93,158,182,116"/>
+<area shape="poly" id="edge5_Node000004_Node000003" title=" " alt="" coords="260,116,339,158,336,162,257,121"/>
+<area shape="rect" id="Node000005" href="$proto__list_8h.html" title=" " alt="" coords="134,167,301,192"/>
+<area shape="poly" id="edge6_Node000004_Node000005" title=" " alt="" coords="224,119,222,153,216,153,219,119"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="443,167,517,192"/>
+<area shape="poly" id="edge8_Node000006_Node000007" title=" " alt="" coords="478,111,481,153,476,153,473,112"/>
+</map>

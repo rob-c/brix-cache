@@ -1,0 +1,27 @@
+var tunables__oci_8h =
+[
+    [ "BRIX_OCI_DELEG_CHAL_BUF", "tunables__oci_8h.html#a7618146b81e0808105eb1bc4dee8c0d3", null ],
+    [ "BRIX_OCI_DELEG_CHAL_TTL_MS", "tunables__oci_8h.html#a5fcd0e0a27d5d6f9ab90e791beaac881", null ],
+    [ "BRIX_OCI_DELEG_SCOPE_BUF", "tunables__oci_8h.html#a53c0db47b9ecf1c68da89d18cbe2073f", null ],
+    [ "BRIX_OCI_ERROR_BUF", "tunables__oci_8h.html#a84bfb6b2a6ac676ba2c0451b8bd16c7b", null ],
+    [ "BRIX_OCI_GC_ERROR_BUF", "tunables__oci_8h.html#a62c47793d30c7ade3bfec255523f6c03", null ],
+    [ "BRIX_OCI_IO_CHUNK_SIZE", "tunables__oci_8h.html#a432b687662c96f36ced431d8e9acfa99", null ],
+    [ "BRIX_OCI_MANIFEST_MAX", "tunables__oci_8h.html#abae1085eadd080bcab775c7c628f771b", null ],
+    [ "BRIX_OCI_MIRROR_KV_VAL_SIZE", "tunables__oci_8h.html#afc643d43dda7fb95181787a26f3c2a41", null ],
+    [ "BRIX_OCI_MIRROR_PWFILE_MODE_MASK", "tunables__oci_8h.html#a6cd71ff0f5445e4ce1bc1406d62a242f", null ],
+    [ "BRIX_OCI_PROOF_TTL_MULT", "tunables__oci_8h.html#a3639573243ce416eb22bfa100166d8f8", null ],
+    [ "BRIX_OCI_PWFILE_MODE_MASK", "tunables__oci_8h.html#ac20160e04fc7d804e73acba28280ec2b", null ],
+    [ "BRIX_OCI_REFERRERS_BODY_MAX", "tunables__oci_8h.html#a04585c333e4d681aec0ebbc4f1ab6f40", null ],
+    [ "BRIX_OCI_REGISTRY_PRINCIPAL_BUF", "tunables__oci_8h.html#a058b3eebb477cd51cacfda76205cb85e", null ],
+    [ "BRIX_OCI_STORE_DIR_MODE", "tunables__oci_8h.html#a92c1b448c8b6970c558799cfcffe11cf", null ],
+    [ "BRIX_OCI_STORE_IO_CHUNK", "tunables__oci_8h.html#ad5786021a77d951a9ec086219be23959", null ],
+    [ "BRIX_OCI_STORE_IO_CHUNK", "tunables__oci_8h.html#ad5786021a77d951a9ec086219be23959", null ],
+    [ "BRIX_OCI_TAGS_CHAL_BUF", "tunables__oci_8h.html#a491b63b8876e6cdd82b6434edd1cd1ed", null ],
+    [ "BRIX_OCI_TAGS_MAX", "tunables__oci_8h.html#a0823468e7027821aa66228db5e02bc9a", null ],
+    [ "BRIX_OCI_TAGS_RESP_MAX", "tunables__oci_8h.html#adb75602eca66f43e70197b3dcedc7475", null ],
+    [ "BRIX_OCI_TOKEN_CACHE_KEY_BUF", "tunables__oci_8h.html#aab8fa22c6f62b12c286854671eef5b50", null ],
+    [ "BRIX_OCI_TOKEN_CACHE_SCOPE_BUF", "tunables__oci_8h.html#a22d2a549a8b87d2cc966311ffe396a69", null ],
+    [ "BRIX_OCI_UPLOAD_SESSION_MODE", "tunables__oci_8h.html#ac3390e8d8f7b4bb82f82e3603a28f860", null ],
+    [ "BRIX_OCI_UPSTREAM_ERROR_BUF", "tunables__oci_8h.html#a4e85a5dbc021b342e31374c7b7c137a0", null ],
+    [ "BRIX_OCI_UPSTREAM_HOST_BUF", "tunables__oci_8h.html#a86e616638f9db4ac3b5bde470c82e305", null ]
+];

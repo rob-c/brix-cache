@@ -1,0 +1,9 @@
+<map id="brix_readv_req_t" name="brix_readv_req_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="182,108,313,133"/>
+<area shape="rect" id="Node000002" href="$structngx__stream__brix__srv__conf__t.html" title=" " alt="" coords="5,5,164,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="131,50,229,106,226,110,128,54"/>
+<area shape="rect" id="Node000003" href="$structreadahead__list.html" title=" " alt="" coords="188,13,307,38"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="250,52,250,108,245,108,245,52"/>
+<area shape="rect" id="Node000004" href="$structbrix__vfs__readv__seg__t.html" title=" " alt="" coords="330,13,490,38"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="396,51,379,70,358,86,330,100,302,110,300,105,328,95,355,82,375,66,392,48"/>
+</map>

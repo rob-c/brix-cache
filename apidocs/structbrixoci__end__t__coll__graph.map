@@ -1,0 +1,9 @@
+<map id="brixoci_end_t" name="brixoci_end_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="143,93,251,119"/>
+<area shape="rect" id="Node000002" href="$structbrix__oci__ref__t.html" title=" " alt="" coords="5,5,116,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="92,36,180,91,177,95,89,40"/>
+<area shape="rect" id="Node000003" href="$structbrix__oci__reg__t.html" title=" " alt="" coords="140,5,253,31"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="199,45,199,93,194,93,194,45"/>
+<area shape="rect" id="Node000004" href="$structbrix__oci__layout__t.html" title=" " alt="" coords="278,5,411,31"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="314,40,218,95,215,91,312,35"/>
+</map>

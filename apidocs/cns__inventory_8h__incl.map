@@ -1,0 +1,7 @@
+<map id="src/net/cms/cns_inventory.h" name="src/net/cms/cns_inventory.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,208,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="21,79,96,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="101,33,76,69,72,66,97,30"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="121,79,191,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="117,29,142,66,138,69,113,33"/>
+</map>

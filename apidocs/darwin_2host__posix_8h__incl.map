@@ -1,0 +1,24 @@
+<map id="src/platform/darwin/host_posix.h" name="src/platform/darwin/host_posix.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="395,5,545,45"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,93,73,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="396,41,256,64,87,96,86,90,255,58,395,35"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="97,93,160,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="396,46,174,97,173,92,394,41"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="576,167,647,192"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="395,33,323,41,257,57,233,68,218,82,215,97,225,117,248,133,282,146,325,157,374,164,475,173,562,175,562,181,475,178,373,169,324,162,280,152,245,138,221,120,209,98,213,79,230,64,255,52,322,36,395,28"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="236,93,339,119"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="427,48,328,90,326,85,425,43"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="363,93,459,119"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="458,47,431,84,426,80,454,44"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="483,93,574,119"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="486,44,514,80,509,84,482,47"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="599,93,709,119"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="515,43,616,85,613,90,513,48"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="733,93,839,119"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="546,43,727,87,726,93,544,48"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="863,93,939,119"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="545,36,850,90,849,96,544,41"/>
+<area shape="rect" id="Node000011" href="$openat2__abi_8h.html" title=" " alt="" coords="963,93,1089,119"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="545,34,949,90,948,96,545,39"/>
+<area shape="poly" id="edge11_Node000011_Node000004" title=" " alt="" coords="963,121,661,172,660,167,962,116"/>
+</map>

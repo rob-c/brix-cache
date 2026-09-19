@@ -1,0 +1,7 @@
+<map id="brix_frm_purge_timer_t" name="brix_frm_purge_timer_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="96,108,271,133"/>
+<area shape="rect" id="Node000002" href="$structngx__stream__brix__srv__conf__t.html" title=" " alt="" coords="5,5,164,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="116,53,173,106,169,110,113,57"/>
+<area shape="rect" id="Node000003" href="$structbrix__sd__frm__purge__rule__t.html" title=" " alt="" coords="189,13,375,38"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="262,49,197,110,194,106,258,46"/>
+</map>

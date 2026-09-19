@@ -1,0 +1,23 @@
+<map id="src/protocols/oci/oci_registry.h" name="src/protocols/oci/oci_registry.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="355,5,505,45"/>
+<area shape="rect" id="Node000002" href="$oci__authz_8c.html" title=" " alt="" coords="5,93,156,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="342,51,157,96,156,91,341,46"/>
+<area shape="rect" id="Node000003" href="$oci__mirror_8c.html" title=" " alt="" coords="180,93,331,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="381,54,295,96,292,91,378,49"/>
+<area shape="rect" id="Node000004" href="$oci__referrers_8h.html" title=" " alt="" coords="355,93,505,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="433,59,433,93,427,93,427,59"/>
+<area shape="rect" id="Node000008" href="$oci__store_8c.html" title=" " alt="" coords="529,93,680,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="482,49,568,91,565,96,479,54"/>
+<area shape="rect" id="Node000009" href="$oci__upload__internal_8h.html" title=" " alt="" coords="704,93,855,133"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="519,46,704,91,703,96,518,51"/>
+<area shape="rect" id="Node000005" href="$oci__manifest__put_8c.html" title=" " alt="" coords="180,181,331,221"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="381,142,295,184,292,179,378,137"/>
+<area shape="rect" id="Node000006" href="$oci__referrers_8c.html" title=" " alt="" coords="355,181,505,221"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="433,147,433,181,427,181,427,147"/>
+<area shape="rect" id="Node000007" href="$oci__registry_8c.html" title=" " alt="" coords="529,181,680,221"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="482,137,568,179,565,184,479,142"/>
+<area shape="rect" id="Node000010" href="$oci__upload_8c.html" title=" " alt="" coords="704,181,855,221"/>
+<area shape="poly" id="edge9_Node000009_Node000010" title=" " alt="" coords="782,147,782,181,777,181,777,147"/>
+<area shape="rect" id="Node000011" href="$oci__upload__seal_8c.html" title=" " alt="" coords="879,181,1029,221"/>
+<area shape="poly" id="edge10_Node000009_Node000011" title=" " alt="" coords="831,137,917,179,915,184,829,142"/>
+</map>

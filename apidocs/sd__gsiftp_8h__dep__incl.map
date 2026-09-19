@@ -1,0 +1,19 @@
+<map id="src/fs/backend/gsiftp/sd_gsiftp.h" name="src/fs/backend/gsiftp/sd_gsiftp.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="539,5,693,45"/>
+<area shape="rect" id="Node000002" href="$sd__gsiftp__internal_8h.html" title=" " alt="" coords="363,93,517,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="566,54,480,96,477,91,564,49"/>
+<area shape="rect" id="Node000008" href="$tier__build__gsiftp_8c.html" title=" " alt="" coords="542,93,690,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="619,59,619,93,613,93,613,59"/>
+<area shape="rect" id="Node000009" href="$vfs__backend__registry__gsiftp_8c.html" title=" " alt="" coords="714,93,881,133"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="669,49,759,91,756,96,667,54"/>
+<area shape="rect" id="Node000003" href="$sd__gsiftp_8c.html" title=" " alt="" coords="5,181,160,221"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="350,139,161,184,159,179,349,134"/>
+<area shape="rect" id="Node000004" href="$sd__gsiftp__copy_8c.html" title=" " alt="" coords="184,181,339,221"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="390,142,302,184,299,179,387,137"/>
+<area shape="rect" id="Node000005" href="$sd__gsiftp__io_8c.html" title=" " alt="" coords="363,181,517,221"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="443,147,443,181,437,181,437,147"/>
+<area shape="rect" id="Node000006" href="$sd__gsiftp__ns_8c.html" title=" " alt="" coords="541,181,696,221"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="493,137,581,179,578,184,490,142"/>
+<area shape="rect" id="Node000007" href="$sd__gsiftp__staged_8c.html" title=" " alt="" coords="720,181,875,221"/>
+<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="531,134,721,179,719,184,530,139"/>
+</map>

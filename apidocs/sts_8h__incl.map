@@ -1,0 +1,17 @@
+<map id="src/auth/s3/sts.h" name="src/auth/s3/sts.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="141,5,269,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,152,109,177"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="185,33,152,53,118,81,92,111,72,142,68,139,88,108,114,77,149,49,182,28"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="301,152,395,177"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="229,28,263,49,297,77,321,108,339,138,334,141,316,111,293,81,260,53,226,33"/>
+<area shape="rect" id="Node000004" href="$identity_8h.html" title=" " alt="" coords="128,79,283,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="208,31,208,65,203,65,203,31"/>
+<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="183,106,95,148,93,144,180,102"/>
+<area shape="poly" id="edge5_Node000004_Node000003" title=" " alt="" coords="229,102,314,143,311,148,227,106"/>
+<area shape="rect" id="Node000005" href="$token_8h.html" title=" " alt="" coords="134,152,277,177"/>
+<area shape="poly" id="edge6_Node000004_Node000005" title=" " alt="" coords="208,104,208,138,203,138,203,104"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="92,225,204,251"/>
+<area shape="poly" id="edge7_Node000005_Node000006" title=" " alt="" coords="198,179,168,216,164,213,194,176"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="227,225,298,251"/>
+<area shape="poly" id="edge8_Node000005_Node000007" title=" " alt="" coords="217,176,247,213,243,216,213,179"/>
+</map>

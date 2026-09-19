@@ -1,0 +1,21 @@
+<map id="client/lib/fs/overlay.h" name="client/lib/fs/overlay.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="381,5,539,31"/>
+<area shape="rect" id="Node000002" href="$brixcvmfs__rw_8c.html" title=" " alt="" coords="5,174,216,199"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="368,24,322,30,274,41,226,57,183,81,159,102,140,128,117,175,112,173,136,126,155,99,180,76,224,52,273,36,321,25,367,19"/>
+<area shape="rect" id="Node000003" href="$brixcvmfs__rw__ext_8c.html" title=" " alt="" coords="240,167,419,207"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="445,44,386,120,347,168,343,165,382,117,441,41"/>
+<area shape="rect" id="Node000004" href="$brixcvmfs__rw__internal_8h.html" title=" " alt="" coords="193,79,372,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="423,39,326,81,324,76,421,34"/>
+<area shape="rect" id="Node000005" href="$overlay_8c.html" title=" " alt="" coords="443,174,599,199"/>
+<area shape="poly" id="edge6_Node000001_Node000005" title=" " alt="" coords="467,44,488,118,516,173,512,175,483,120,462,46"/>
+<area shape="rect" id="Node000006" href="$overlay__copyup_8c.html" title=" " alt="" coords="624,167,771,207"/>
+<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="553,27,608,45,634,59,658,77,674,97,686,121,698,166,692,167,681,123,670,100,654,81,631,63,606,50,551,32"/>
+<area shape="rect" id="Node000007" href="$overlay__internal_8h.html" title=" " alt="" coords="497,79,644,119"/>
+<area shape="poly" id="edge8_Node000001_Node000007" title=" " alt="" coords="489,36,546,76,542,81,486,41"/>
+<area shape="rect" id="Node000008" href="$overlay__unittest_8c.html" title=" " alt="" coords="719,79,865,119"/>
+<area shape="poly" id="edge11_Node000001_Node000008" title=" " alt="" coords="522,31,719,77,718,83,521,36"/>
+<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="234,127,135,176,132,172,232,122"/>
+<area shape="poly" id="edge5_Node000004_Node000003" title=" " alt="" coords="302,129,321,165,317,168,297,132"/>
+<area shape="poly" id="edge9_Node000007_Node000005" title=" " alt="" coords="555,132,530,175,526,172,551,129"/>
+<area shape="poly" id="edge10_Node000007_Node000006" title=" " alt="" coords="612,124,671,164,668,169,609,129"/>
+</map>

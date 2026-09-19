@@ -1,0 +1,17 @@
+<map id="doctor_ep" name="doctor_ep">
+<area shape="rect" id="Node000001" title=" " alt="" coords="373,93,459,119"/>
+<area shape="rect" id="Node000002" href="$structbrix__netfacts.html" title=" " alt="" coords="5,5,112,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="117,31,259,67,373,93,372,98,258,72,115,37"/>
+<area shape="rect" id="Node000003" href="$structdoctor__cfg.html" title=" " alt="" coords="136,5,227,31"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="227,33,320,67,385,91,384,96,318,72,225,38"/>
+<area shape="rect" id="Node000004" href="$structdoctor__lat.html" title=" " alt="" coords="251,5,338,31"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="324,37,401,91,398,95,321,41"/>
+<area shape="rect" id="Node000005" href="$structdoctor__recon.html" title=" " alt="" coords="363,5,469,31"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="419,45,419,93,413,93,413,45"/>
+<area shape="rect" id="Node000006" href="$structdoctor__cmsloc.html" title=" " alt="" coords="494,5,610,31"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="524,40,436,95,433,91,521,36"/>
+<area shape="rect" id="Node000007" href="$structdoctor__eos.html" title=" " alt="" coords="635,5,728,31"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="635,38,530,72,454,96,453,91,529,67,633,33"/>
+<area shape="rect" id="Node000008" href="$structdx__finding.html" title=" " alt="" coords="753,5,842,31"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="744,37,605,72,460,100,459,95,603,67,743,32"/>
+</map>

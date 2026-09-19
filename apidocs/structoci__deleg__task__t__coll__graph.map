@@ -1,0 +1,13 @@
+<map id="oci_deleg_task_t" name="oci_deleg_task_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="20,357,151,383"/>
+<area shape="rect" id="Node000002" href="$structbrix__oci__upstream__t.html" title=" " alt="" coords="8,269,163,295"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="88,309,88,357,83,357,83,309"/>
+<area shape="rect" id="Node000003" href="$structbrix__kv__t.html" title=" " alt="" coords="5,181,88,207"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="60,218,82,268,78,270,55,220"/>
+<area shape="rect" id="Node000004" href="$structbrix__s3__tctx__t.html" title=" " alt="" coords="113,181,226,207"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="150,219,99,271,95,267,146,215"/>
+<area shape="rect" id="Node000005" href="$structbrix__dns__policy__s.html" title=" " alt="" coords="102,93,237,119"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="172,133,172,181,167,181,167,133"/>
+<area shape="rect" id="Node000006" href="$structbrix__resolv__conf__t.html" title=" " alt="" coords="99,5,240,31"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="172,45,172,93,167,93,167,45"/>
+</map>

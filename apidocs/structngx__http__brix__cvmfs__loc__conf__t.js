@@ -1,0 +1,17 @@
+var structngx__http__brix__cvmfs__loc__conf__t =
+[
+    [ "attest_pkey", "structngx__http__brix__cvmfs__loc__conf__t.html#a94da2119f0b6c3acb26de239b354cb8b", null ],
+    [ "common", "structngx__http__brix__cvmfs__loc__conf__t.html#afae9d9d9c62228eaac3da4baef18e3ac", null ],
+    [ "cvmfs", "structngx__http__brix__cvmfs__loc__conf__t.html#af42d06d0b83a61a37e51659a2d060713", null ],
+    [ "qos", "structngx__http__brix__cvmfs__loc__conf__t.html#a96ad70bdc71745cf9da0b539b42640e1", null ],
+    [ "repo_authz", "structngx__http__brix__cvmfs__loc__conf__t.html#a90e9e49526ce08ae67387b51e365593f", null ],
+    [ "scvmfs", "structngx__http__brix__cvmfs__loc__conf__t.html#ae432c851e215aa31b78f7a1b04aedf94", null ],
+    [ "scvmfs_authz", "structngx__http__brix__cvmfs__loc__conf__t.html#a41f7cbd68f49fcf63e27e6badc5cab95", null ],
+    [ "scvmfs_registry", "structngx__http__brix__cvmfs__loc__conf__t.html#a2c5afccbadbf89db94cd6ec9bffd416d", null ],
+    [ "scvmfs_token_issuers", "structngx__http__brix__cvmfs__loc__conf__t.html#a892a7c7d0316fad6f6ecccf504c2970e", null ],
+    [ "scvmfs_voms", "structngx__http__brix__cvmfs__loc__conf__t.html#a507efbf072882f9511d26a565ff4258b", null ],
+    [ "scvmfs_voms_cert_dir", "structngx__http__brix__cvmfs__loc__conf__t.html#ab44f642f2015148d948fe5a43c563110", null ],
+    [ "scvmfs_vomsdir", "structngx__http__brix__cvmfs__loc__conf__t.html#a5eb7eedd79bda54c6d95bee8eda92ed0", null ],
+    [ "scvmfs_x509_dn", "structngx__http__brix__cvmfs__loc__conf__t.html#a9cfa82a9e2aa64b4b9596d04272cd7a5", null ],
+    [ "virtual_repos", "structngx__http__brix__cvmfs__loc__conf__t.html#a115b27f222315bd42fe44c4779e50a2a", null ]
+];

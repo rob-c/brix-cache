@@ -1,0 +1,9 @@
+<map id="src/protocols/dig/dig.h" name="src/protocols/dig/dig.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="97,5,263,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,79,109,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="162,33,90,74,88,69,159,28"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="133,79,227,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="183,31,183,65,177,65,177,31"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="251,79,341,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="200,28,267,69,264,74,197,33"/>
+</map>

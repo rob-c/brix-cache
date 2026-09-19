@@ -1,0 +1,49 @@
+<map id="client/lib/cli/jsonout.h" name="client/lib/cli/jsonout.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="926,5,1087,31"/>
+<area shape="rect" id="Node000002" href="$diag__authsuite_8c.html" title=" " alt="" coords="187,79,344,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="912,27,661,46,508,62,356,81,345,83,344,78,356,76,508,56,660,41,912,22"/>
+<area shape="rect" id="Node000003" href="$diag__check_8c.html" title=" " alt="" coords="368,79,525,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="913,32,738,52,538,81,526,83,525,78,537,76,737,47,912,26"/>
+<area shape="rect" id="Node000004" href="$diag__check__probe_8c.html" title=" " alt="" coords="549,79,707,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="939,36,707,84,706,78,938,31"/>
+<area shape="rect" id="Node000005" href="$diag__topology_8c.html" title=" " alt="" coords="731,79,888,119"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="966,38,858,81,856,76,964,33"/>
+<area shape="rect" id="Node000006" href="$xrddiag_8c.html" title=" " alt="" coords="912,86,1101,111"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="1009,44,1009,86,1004,86,1004,44"/>
+<area shape="rect" id="Node000007" href="$xrdfs__internal_8h.html" title=" " alt="" coords="1125,79,1272,119"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="1048,33,1154,76,1152,81,1046,38"/>
+<area shape="rect" id="Node000022" href="$brixoci__gc_8c.html" title=" " alt="" coords="1297,86,1493,111"/>
+<area shape="poly" id="edge21_Node000001_Node000022" title=" " alt="" coords="1077,31,1339,83,1338,89,1076,36"/>
+<area shape="rect" id="Node000023" href="$brixrpm_8c.html" title=" " alt="" coords="1517,86,1707,111"/>
+<area shape="poly" id="edge22_Node000001_Node000023" title=" " alt="" coords="1102,26,1289,47,1506,76,1551,83,1550,89,1505,81,1288,53,1101,32"/>
+<area shape="rect" id="Node000024" href="$jsonout_8c.html" title=" " alt="" coords="1731,86,1891,111"/>
+<area shape="poly" id="edge23_Node000001_Node000024" title=" " alt="" coords="1101,21,1379,39,1549,55,1719,76,1761,83,1760,89,1718,81,1548,60,1379,45,1101,26"/>
+<area shape="rect" id="Node000008" href="$xrdfs_8c.html" title=" " alt="" coords="5,174,163,199"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="1112,121,969,137,848,144,641,146,436,147,316,154,175,169,133,177,132,171,174,164,315,149,436,142,641,141,848,139,969,131,1111,116"/>
+<area shape="rect" id="Node000009" href="$xrdfs__attr_8c.html" title=" " alt="" coords="187,167,333,207"/>
+<area shape="poly" id="edge8_Node000007_Node000009" title=" " alt="" coords="1112,121,995,135,896,142,727,145,559,149,461,156,346,169,334,171,333,166,345,164,460,150,558,143,727,140,896,136,995,129,1112,116"/>
+<area shape="rect" id="Node000010" href="$xrdfs__data_8c.html" title=" " alt="" coords="357,167,504,207"/>
+<area shape="poly" id="edge9_Node000007_Node000010" title=" " alt="" coords="1112,121,944,140,812,145,681,151,516,169,505,171,504,166,516,164,681,146,812,140,943,134,1111,116"/>
+<area shape="rect" id="Node000011" href="$xrdfs__data__content_8c.html" title=" " alt="" coords="528,167,675,207"/>
+<area shape="poly" id="edge10_Node000007_Node000011" title=" " alt="" coords="1112,121,992,137,898,145,804,153,687,169,675,171,674,166,686,164,804,148,897,140,991,132,1112,116"/>
+<area shape="rect" id="Node000012" href="$xrdfs__data__wc_8c.html" title=" " alt="" coords="699,167,845,207"/>
+<area shape="poly" id="edge11_Node000007_Node000012" title=" " alt="" coords="1112,122,858,169,846,172,845,166,857,164,1111,116"/>
+<area shape="rect" id="Node000013" href="$xrdfs__data__xfer_8c.html" title=" " alt="" coords="869,167,1016,207"/>
+<area shape="poly" id="edge12_Node000007_Node000013" title=" " alt="" coords="1130,126,1000,169,998,164,1129,121"/>
+<area shape="rect" id="Node000014" href="$xrdfs__data__xfer__vec_8c.html" title=" " alt="" coords="1040,167,1187,207"/>
+<area shape="poly" id="edge13_Node000007_Node000014" title=" " alt="" coords="1172,130,1134,168,1130,165,1168,127"/>
+<area shape="rect" id="Node000015" href="$xrdfs__fmt_8c.html" title=" " alt="" coords="1211,167,1357,207"/>
+<area shape="poly" id="edge14_Node000007_Node000015" title=" " alt="" coords="1229,127,1267,165,1263,168,1225,130"/>
+<area shape="rect" id="Node000016" href="$xrdfs__meta_8c.html" title=" " alt="" coords="1381,167,1528,207"/>
+<area shape="poly" id="edge15_Node000007_Node000016" title=" " alt="" coords="1269,121,1399,164,1398,169,1267,126"/>
+<area shape="rect" id="Node000017" href="$xrdfs__meta__ls_8c.html" title=" " alt="" coords="1552,167,1699,207"/>
+<area shape="poly" id="edge16_Node000007_Node000017" title=" " alt="" coords="1286,116,1541,164,1552,166,1551,172,1539,169,1285,121"/>
+<area shape="rect" id="Node000018" href="$xrdfs__meta__ns_8c.html" title=" " alt="" coords="1723,167,1869,207"/>
+<area shape="poly" id="edge17_Node000007_Node000018" title=" " alt="" coords="1286,116,1407,132,1501,140,1594,148,1711,164,1723,166,1722,171,1710,169,1593,153,1500,145,1406,137,1285,121"/>
+<area shape="rect" id="Node000019" href="$xrdfs__walk_8c.html" title=" " alt="" coords="1893,167,2040,207"/>
+<area shape="poly" id="edge18_Node000007_Node000019" title=" " alt="" coords="1286,116,1454,134,1586,140,1717,146,1882,164,1894,166,1893,171,1881,169,1716,151,1586,145,1454,139,1286,121"/>
+<area shape="rect" id="Node000020" href="$xrdfs__web_8c.html" title=" " alt="" coords="2064,167,2211,207"/>
+<area shape="poly" id="edge19_Node000007_Node000020" title=" " alt="" coords="1286,116,1403,129,1502,136,1671,140,1839,143,1937,150,2052,164,2064,166,2064,171,2052,169,1937,156,1839,149,1671,145,1502,141,1402,134,1285,121"/>
+<area shape="rect" id="Node000021" href="$xrdfs__xattr_8c.html" title=" " alt="" coords="2235,167,2381,207"/>
+<area shape="poly" id="edge20_Node000007_Node000021" title=" " alt="" coords="1286,116,1429,131,1550,138,1757,139,1962,141,2082,148,2223,164,2235,166,2234,171,2222,169,2082,154,1962,146,1757,145,1550,144,1428,136,1286,121"/>
+</map>

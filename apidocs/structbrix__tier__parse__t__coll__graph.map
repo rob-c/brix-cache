@@ -1,0 +1,11 @@
+<map id="brix_tier_parse_t" name="brix_tier_parse_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="55,269,185,295"/>
+<area shape="rect" id="Node000002" href="$structbrix__tier__cfg__t.html" title=" " alt="" coords="63,181,177,207"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="123,221,123,269,117,269,117,221"/>
+<area shape="rect" id="Node000003" href="$structbrix__credential__t.html" title=" " alt="" coords="5,93,136,119"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="86,129,115,179,111,182,82,132"/>
+<area shape="rect" id="Node000004" href="$structbrix__dns__policy__s.html" title=" " alt="" coords="161,93,295,119"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="207,130,171,159,138,183,135,179,168,155,203,126"/>
+<area shape="rect" id="Node000005" href="$structbrix__resolv__conf__t.html" title=" " alt="" coords="157,5,299,31"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="231,45,231,93,225,93,225,45"/>
+</map>

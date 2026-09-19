@@ -1,0 +1,13 @@
+<map id="src/protocols/root/read/open_resolved_file_internal.h" name="src/protocols/root/read/open_resolved_file_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="363,5,517,60"/>
+<area shape="rect" id="Node000002" href="$open__resolved__file_8c.html" title=" " alt="" coords="5,108,160,163"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="350,61,173,111,161,114,159,109,171,105,349,56"/>
+<area shape="rect" id="Node000003" href="$open__resolved__file__dispatch_8c.html" title=" " alt="" coords="184,108,339,163"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="383,69,309,110,307,105,380,64"/>
+<area shape="rect" id="Node000004" href="$open__resolved__file__finalize_8c.html" title=" " alt="" coords="363,108,517,163"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="443,74,443,108,437,108,437,74"/>
+<area shape="rect" id="Node000005" href="$open__resolved__file__open_8c.html" title=" " alt="" coords="541,108,696,163"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="500,64,573,105,571,110,497,69"/>
+<area shape="rect" id="Node000006" href="$open__resolved__file__staging_8c.html" title=" " alt="" coords="720,108,875,163"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="531,56,709,105,721,109,719,114,707,111,530,61"/>
+</map>

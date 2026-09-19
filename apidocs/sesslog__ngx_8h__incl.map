@@ -1,0 +1,13 @@
+<map id="src/observability/sesslog/sesslog_ngx.h" name="src/observability/sesslog/sesslog_ngx.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="89,5,271,45"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,101,109,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="154,48,86,95,83,91,151,43"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="133,101,227,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="183,46,183,87,177,87,177,46"/>
+<area shape="rect" id="Node000004" href="$sesslog_8h.html" title=" " alt="" coords="251,93,411,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="214,43,287,84,285,89,212,48"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="244,181,319,207"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="321,135,298,171,294,168,316,132"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="343,181,414,207"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="345,132,367,168,362,171,340,135"/>
+</map>

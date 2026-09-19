@@ -1,0 +1,14 @@
+<map id="src/observability/metrics/metrics_unified_layout.h" name="src/observability/metrics/metrics_unified_layout.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="8,5,195,45"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,167,99,192"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="66,48,39,68,18,94,15,109,18,125,34,154,29,157,13,127,10,109,14,92,35,64,62,43"/>
+<area shape="rect" id="Node000003" href="$fs__list_8h.html" title=" " alt="" coords="29,93,174,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="104,46,104,79,99,79,99,46"/>
+<area shape="rect" id="Node000004" href="$observability_2metrics_2unified_8h.html" title=" " alt="" coords="198,93,277,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="135,43,207,84,204,89,133,48"/>
+<area shape="poly" id="edge5_Node000004_Node000002" title=" " alt="" coords="209,121,96,164,94,159,207,116"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="153,167,257,192"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="234,120,218,155,214,153,230,118"/>
+<area shape="rect" id="Node000006" href="$proto__list_8h.html" title=" " alt="" coords="282,167,449,192"/>
+<area shape="poly" id="edge6_Node000004_Node000006" title=" " alt="" coords="259,116,333,157,331,162,257,121"/>
+</map>

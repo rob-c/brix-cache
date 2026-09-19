@@ -1,0 +1,9 @@
+<map id="brix_macaroon_parse_state_t" name="brix_macaroon_parse_state_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="88,181,251,221"/>
+<area shape="rect" id="Node000002" href="$structbrix__token__claims__t.html" title=" " alt="" coords="5,93,157,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="103,127,153,179,149,183,100,130"/>
+<area shape="rect" id="Node000003" href="$structbrix__token__scope__t.html" title=" " alt="" coords="8,5,155,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="84,45,84,93,79,93,79,45"/>
+<area shape="rect" id="Node000004" href="$structbrix__macaroon__tp__t.html" title=" " alt="" coords="182,93,333,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="239,130,189,183,185,179,235,127"/>
+</map>

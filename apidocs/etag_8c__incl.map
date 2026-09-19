@@ -1,0 +1,15 @@
+<map id="src/core/http/etag.c" name="src/core/http/etag.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="40,5,186,31"/>
+<area shape="rect" id="Node000002" href="$etag_8h.html" title=" " alt="" coords="38,79,100,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="108,32,86,68,81,66,104,30"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="125,79,192,104"/>
+<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="123,30,146,66,141,69,118,32"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="41,225,116,251"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="53,106,35,120,19,137,10,156,12,176,27,198,47,216,44,220,23,202,7,178,4,156,15,134,31,116,49,102"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="21,152,117,177"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="72,104,72,138,66,138,66,104"/>
+<area shape="rect" id="Node000005" href="$time_8h.html" title=" " alt="" coords="141,152,205,177"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="87,102,146,142,143,146,84,106"/>
+<area shape="poly" id="edge5_Node000005_Node000003" title=" " alt="" coords="159,179,106,219,103,215,156,175"/>
+<area shape="poly" id="edge6_Node000005_Node000005" title=" " alt="" coords="200,149,221,151,229,156,232,165,226,176,214,180,212,175,223,172,226,164,224,159,219,156,199,155"/>
+</map>

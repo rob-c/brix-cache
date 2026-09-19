@@ -1,0 +1,16 @@
+<map id="src/core/compat/vendor_ext.c" name="src/core/compat/vendor_ext.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="53,5,227,45"/>
+<area shape="rect" id="Node000002" href="$vendor__ext_8h.html" title=" " alt="" coords="5,101,112,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="124,47,81,92,77,89,120,44"/>
+<area shape="rect" id="Node000004" href="$wire__codec_8h.html" title=" " alt="" coords="137,93,306,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="160,44,196,81,192,85,156,47"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="23,181,94,207"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="61,126,61,167,56,167,56,126"/>
+<area shape="poly" id="edge4_Node000004_Node000003" title=" " alt="" coords="184,136,96,178,94,173,181,131"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="119,181,193,207"/>
+<area shape="poly" id="edge5_Node000004_Node000005" title=" " alt="" coords="208,135,176,172,172,169,203,132"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="218,181,289,207"/>
+<area shape="poly" id="edge6_Node000004_Node000006" title=" " alt="" coords="232,133,246,168,241,170,227,135"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="313,181,409,207"/>
+<area shape="poly" id="edge7_Node000004_Node000007" title=" " alt="" coords="256,131,330,172,327,177,254,136"/>
+</map>

@@ -1,0 +1,11 @@
+<map id="cvmfs_scrub_ctx_t" name="cvmfs_scrub_ctx_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="155,181,298,207"/>
+<area shape="rect" id="Node000002" href="$structcvmfs__scrub__reg__t.html" title=" " alt="" coords="5,93,149,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="110,123,208,179,205,183,108,128"/>
+<area shape="rect" id="Node000003" href="$structbrix__cstore__t.html" title=" " alt="" coords="173,93,280,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="229,133,229,181,224,181,224,133"/>
+<area shape="rect" id="Node000004" href="$structbrix__cinfo__l1__t.html" title=" " alt="" coords="168,5,285,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="229,45,229,93,224,93,224,45"/>
+<area shape="rect" id="Node000005" href="$structcvmfs__scrub__item__t.html" title=" " alt="" coords="305,93,458,119"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="350,128,249,183,246,179,347,123"/>
+</map>

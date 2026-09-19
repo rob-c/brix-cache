@@ -1,0 +1,9 @@
+<map id="src/platform/openat2_abi.h" name="src/platform/openat2_abi.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="169,5,327,45"/>
+<area shape="rect" id="Node000002" href="$darwin_2host__posix_8h.html" title=" " alt="" coords="5,93,155,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="200,54,118,96,116,91,198,49"/>
+<area shape="rect" id="Node000003" href="$linux_2host__posix_8h.html" title=" " alt="" coords="179,93,317,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="251,59,251,93,245,93,245,59"/>
+<area shape="rect" id="Node000004" href="$windows_2host__posix_8h.html" title=" " alt="" coords="341,93,504,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="300,49,386,91,383,96,297,54"/>
+</map>

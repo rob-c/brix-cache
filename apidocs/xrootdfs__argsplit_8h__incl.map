@@ -1,0 +1,13 @@
+<map id="client/apps/fs/xrootdfs_argsplit.h" name="client/apps/fs/xrootdfs_argsplit.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="52,5,219,45"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,93,76,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="114,48,67,86,64,82,111,43"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="100,93,171,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="138,46,138,79,133,79,133,46"/>
+<area shape="rect" id="Node000004" href="$src_2platform_2platform_8h.html" title=" " alt="" coords="195,93,345,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="169,43,240,84,237,89,166,48"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="95,167,269,207"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="259,121,215,160,211,156,255,117"/>
+<area shape="rect" id="Node000006" href="$platform__arch_8h.html" title=" " alt="" coords="294,174,419,199"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="285,117,335,163,332,166,281,121"/>
+</map>

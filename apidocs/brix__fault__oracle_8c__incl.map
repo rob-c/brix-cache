@@ -1,0 +1,24 @@
+<map id="client/apps/diag/brix_fault_oracle.c" name="client/apps/diag/brix_fault_oracle.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="393,5,547,45"/>
+<area shape="rect" id="Node000002" href="$brix__fault__oracle_8h.html" title=" " alt="" coords="5,93,148,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="393,45,148,93,147,88,392,39"/>
+<area shape="rect" id="Node000003" href="$src_2platform_2platform_8h.html" title=" " alt="" coords="172,93,323,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="418,48,294,91,292,86,416,43"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="347,93,409,119"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="449,48,404,86,400,82,446,44"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="433,93,507,119"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="473,46,473,79,467,79,467,46"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="531,93,619,119"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="497,43,550,83,547,87,494,48"/>
+<area shape="rect" id="Node000009" href="$time_8h.html" title=" " alt="" coords="643,93,707,119"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="520,43,633,86,631,91,518,48"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="755,93,830,119"/>
+<area shape="poly" id="edge11_Node000001_Node000011" title=" " alt="" coords="548,43,742,90,741,95,547,48"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="73,167,248,207"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="236,121,194,159,190,155,233,117"/>
+<area shape="rect" id="Node000005" href="$platform__arch_8h.html" title=" " alt="" coords="273,174,398,199"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="262,117,314,163,311,167,259,121"/>
+<area shape="poly" id="edge10_Node000009_Node000009" title=" " alt="" coords="696,91,721,90,730,96,734,106,726,120,710,124,709,118,723,115,729,106,726,99,719,95,696,96"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="638,174,713,199"/>
+<area shape="poly" id="edge9_Node000009_Node000010" title=" " alt="" coords="678,119,678,160,673,160,673,119"/>
+</map>

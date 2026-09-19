@@ -1,0 +1,21 @@
+<map id="ngx_http_brix_oci_loc_conf_t" name="ngx_http_brix_oci_loc_conf_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="191,372,353,412"/>
+<area shape="rect" id="Node000002" href="$structngx__http__brix__shared__conf__t.html" title=" " alt="" coords="5,269,168,309"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="135,314,239,370,236,374,132,318"/>
+<area shape="rect" id="Node000003" href="$structbrix__token__registry__t.html" title=" " alt="" coords="193,277,351,302"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="275,316,275,372,269,372,269,316"/>
+<area shape="rect" id="Node000004" href="$structbrix__token__issuer__t.html" title=" " alt="" coords="198,181,346,207"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="275,220,275,277,269,277,269,220"/>
+<area shape="rect" id="Node000005" href="$structbrix__jwks__key__t.html" title=" " alt="" coords="209,93,335,119"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="275,133,275,181,269,181,269,133"/>
+<area shape="rect" id="Node000006" href="$structbrix__oci__upstream__t.html" title=" " alt="" coords="376,277,531,302"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="422,311,307,374,305,370,419,306"/>
+<area shape="rect" id="Node000007" href="$structbrix__kv__t.html" title=" " alt="" coords="391,181,473,207"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="440,219,453,276,448,277,435,220"/>
+<area shape="rect" id="Node000008" href="$structbrix__s3__tctx__t.html" title=" " alt="" coords="498,181,611,207"/>
+<area shape="poly" id="edge7_Node000006_Node000008" title=" " alt="" coords="534,218,468,279,464,275,530,214"/>
+<area shape="rect" id="Node000009" href="$structbrix__dns__policy__s.html" title=" " alt="" coords="487,93,622,119"/>
+<area shape="poly" id="edge8_Node000008_Node000009" title=" " alt="" coords="557,133,557,181,552,181,552,133"/>
+<area shape="rect" id="Node000010" href="$structbrix__resolv__conf__t.html" title=" " alt="" coords="484,5,625,31"/>
+<area shape="poly" id="edge9_Node000009_Node000010" title=" " alt="" coords="557,45,557,93,552,93,552,45"/>
+</map>

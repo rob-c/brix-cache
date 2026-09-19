@@ -1,0 +1,12 @@
+<map id="brix_http_cache_fill_ctx_t" name="brix_http_cache_fill_ctx_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="255,181,403,221"/>
+<area shape="rect" id="Node000002" href="$structbrix__http__fill__waiter__t.html" title=" " alt="" coords="5,93,168,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="130,121,281,179,279,184,128,126"/>
+<area shape="rect" id="Node000003" href="$structbrix__http__fill__cred__t.html" title=" " alt="" coords="193,93,343,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="285,129,319,180,315,183,281,131"/>
+<area shape="rect" id="Node000004" href="$structbrix__sess__t.html" title=" " alt="" coords="483,93,578,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="495,127,371,184,369,179,492,122"/>
+<area shape="rect" id="Node000005" href="$structbrix__sess__xfer__t.html" title=" " alt="" coords="349,5,477,31"/>
+<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="405,45,341,182,336,180,400,42"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="442,37,516,91,513,95,439,41"/>
+</map>

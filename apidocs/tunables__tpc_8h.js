@@ -1,0 +1,28 @@
+var tunables__tpc_8h =
+[
+    [ "BRIX_TAPE_STAGE_LINE_BUF", "tunables__tpc_8h.html#a9a83b50782f0fc944e350da8ecd7becc", null ],
+    [ "BRIX_TAPE_STAGE_PATH_BUF", "tunables__tpc_8h.html#a1392104ea56140d89ab11acbf4aa409b", null ],
+    [ "BRIX_TAPE_STAGE_REAP_INTERVAL_MS", "tunables__tpc_8h.html#afaaad69682f1148d115a46cd4aca3b1b", null ],
+    [ "BRIX_TAPE_STAGE_TTL_DEFAULT_MS", "tunables__tpc_8h.html#af9ac4a5bc8eee9ca2c3a80626bb2e978", null ],
+    [ "BRIX_TPC_AUTHORITY_BUF_SIZE", "tunables__tpc_8h.html#aca27c0f0fc94c7e35b08fb5efddc958f", null ],
+    [ "BRIX_TPC_BEARER_MAX", "tunables__tpc_8h.html#ac91ef9974af767d8bb6800b602c82056", null ],
+    [ "BRIX_TPC_CONNECT_TIMEOUT_SEC", "tunables__tpc_8h.html#a4772ff594bdab45b2ba3b49a23575c7a", null ],
+    [ "BRIX_TPC_GSI_MAX_BODY", "tunables__tpc_8h.html#acef89b63ac96da6a786df3687e84d8dc", null ],
+    [ "BRIX_TPC_HOPS_MAX", "tunables__tpc_8h.html#a6d063ac62ccbb22405723d3b5e89aa84", null ],
+    [ "BRIX_TPC_IO_TIMEOUT_SEC", "tunables__tpc_8h.html#afafbf866b974abd4831ee00ac3c3737b", null ],
+    [ "BRIX_TPC_KEY_LEN_MIN", "tunables__tpc_8h.html#ae7d93f6b0a5091713764635842d0d2d6", null ],
+    [ "BRIX_TPC_KEY_LEN_SHORT", "tunables__tpc_8h.html#a1837ab667295f74e66326e4b5a384927", null ],
+    [ "BRIX_TPC_KEY_LEN_STAGE", "tunables__tpc_8h.html#a45b12fec9c5f4a9e320535986ac6d26a", null ],
+    [ "BRIX_TPC_KEY_LEN_TOKEN_MODE", "tunables__tpc_8h.html#a9c1f75a86d8b0b9e9c2cb3bb94586891", null ],
+    [ "BRIX_TPC_MARKER_URL_MAX", "tunables__tpc_8h.html#a9cc06f5c66eb5a6f5f40cec5d3ea585f", null ],
+    [ "BRIX_TPC_PREFIX_LEN", "tunables__tpc_8h.html#a2c362da10159ec75b48b4343f9bdaf02", null ],
+    [ "BRIX_TPC_PREFIX_LEN", "tunables__tpc_8h.html#a2c362da10159ec75b48b4343f9bdaf02", null ],
+    [ "BRIX_TPC_TOKEN_BODY_BUF_SIZE", "tunables__tpc_8h.html#a8dd9b126263e3750bbc8db114e957705", null ],
+    [ "BRIX_TPC_TOKEN_CURL_ARGV_MAX", "tunables__tpc_8h.html#a0dbf11448effd17fff39cd04e6480c7d", null ],
+    [ "BRIX_TPC_TOKEN_ENV_BUF_SIZE", "tunables__tpc_8h.html#aa952c6b45232563bd4c02e615753aad8", null ],
+    [ "BRIX_TPC_TOKEN_ERR_MAX", "tunables__tpc_8h.html#a5a683586cf7b5ed144485d02bfea3ef6", null ],
+    [ "BRIX_TPC_TOKEN_ERR_MAX", "tunables__tpc_8h.html#a5a683586cf7b5ed144485d02bfea3ef6", null ],
+    [ "BRIX_TPC_TOKEN_MAX", "tunables__tpc_8h.html#a13f86706d8ffa25df6b6253869404ae5", null ],
+    [ "BRIX_TPC_TOKEN_MAX", "tunables__tpc_8h.html#a13f86706d8ffa25df6b6253869404ae5", null ],
+    [ "BRIX_TPC_TOKEN_OIDC_SOCK_BUF_SIZE", "tunables__tpc_8h.html#a3a69358cab6ea80bad9bded89182bb83", null ]
+];

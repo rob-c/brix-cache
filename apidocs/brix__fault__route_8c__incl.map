@@ -1,0 +1,24 @@
+<map id="client/apps/diag/brix_fault_route.c" name="client/apps/diag/brix_fault_route.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="199,5,354,45"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,93,89,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="223,48,95,91,93,86,221,43"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="94,167,161,192"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="251,48,195,95,167,127,145,157,140,154,163,123,191,91,248,44"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="524,93,595,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="345,43,511,89,510,94,344,48"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="185,167,256,192"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="248,47,224,68,206,94,202,109,202,124,211,153,206,155,197,125,197,108,201,92,220,65,244,43"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="619,93,694,119"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="355,39,606,90,605,96,354,44"/>
+<area shape="rect" id="Node000007" href="$brix__fault__route_8h.html" title=" " alt="" coords="363,93,500,119"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="315,43,398,85,395,89,313,48"/>
+<area shape="rect" id="Node000009" href="$brix__fault__buf_8h.html" title=" " alt="" coords="215,93,338,119"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="279,46,279,79,274,79,274,46"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="386,167,461,192"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="433,119,429,153,423,153,427,119"/>
+<area shape="poly" id="edge11_Node000009_Node000003" title=" " alt="" coords="254,121,165,163,163,158,252,116"/>
+<area shape="poly" id="edge12_Node000009_Node000005" title=" " alt="" coords="270,121,240,157,236,154,265,117"/>
+<area shape="poly" id="edge10_Node000009_Node000008" title=" " alt="" coords="301,116,388,158,386,163,299,121"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="281,167,355,192"/>
+<area shape="poly" id="edge9_Node000009_Node000010" title=" " alt="" coords="286,118,307,153,302,156,281,120"/>
+</map>

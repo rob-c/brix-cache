@@ -1,0 +1,37 @@
+<map id="src/observability/dashboard/dashboard_json.h" name="src/observability/dashboard/dashboard_json.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1932,5,2135,45"/>
+<area shape="rect" id="Node000002" href="$dashboard__api__admin__internal_8h.html" title=" " alt="" coords="554,93,793,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1918,37,793,107,793,102,1918,31"/>
+<area shape="rect" id="Node000008" href="$dashboard__api__internal_8h.html" title=" " alt="" coords="1705,93,1908,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1972,53,1857,96,1855,91,1970,48"/>
+<area shape="rect" id="Node000016" href="$dashboard__json_8c.html" title=" " alt="" coords="1932,93,2135,133"/>
+<area shape="poly" id="edge15_Node000001_Node000016" title=" " alt="" coords="2036,59,2036,93,2031,93,2031,59"/>
+<area shape="rect" id="Node000017" href="$files_8c.html" title=" " alt="" coords="2159,93,2361,133"/>
+<area shape="poly" id="edge16_Node000001_Node000017" title=" " alt="" coords="2097,48,2211,91,2209,96,2095,53"/>
+<area shape="rect" id="Node000018" href="$vfs__browse_8c.html" title=" " alt="" coords="2385,93,2588,133"/>
+<area shape="poly" id="edge17_Node000001_Node000018" title=" " alt="" coords="2147,45,2388,91,2387,96,2146,51"/>
+<area shape="rect" id="Node000003" href="$api__admin_8c.html" title=" " alt="" coords="5,181,208,221"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="541,136,220,184,209,186,208,180,220,179,540,131"/>
+<area shape="rect" id="Node000004" href="$api__admin__cluster_8c.html" title=" " alt="" coords="232,181,435,221"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="586,139,408,184,407,179,585,134"/>
+<area shape="rect" id="Node000005" href="$api__admin__config_8c.html" title=" " alt="" coords="459,181,661,221"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="639,144,587,183,583,179,636,140"/>
+<area shape="rect" id="Node000006" href="$api__admin__proxy_8c.html" title=" " alt="" coords="685,181,888,221"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="711,140,763,179,760,183,708,144"/>
+<area shape="rect" id="Node000007" href="$api__admin__routing_8c.html" title=" " alt="" coords="912,181,1115,221"/>
+<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="762,134,940,179,938,184,760,139"/>
+<area shape="rect" id="Node000009" href="$api_8c.html" title=" " alt="" coords="1139,181,1341,221"/>
+<area shape="poly" id="edge8_Node000008_Node000009" title=" " alt="" coords="1692,134,1354,184,1342,186,1342,180,1353,179,1692,128"/>
+<area shape="rect" id="Node000010" href="$api__cvmfs_8c.html" title=" " alt="" coords="1365,181,1568,221"/>
+<area shape="poly" id="edge9_Node000008_Node000010" title=" " alt="" coords="1720,139,1542,184,1540,179,1718,134"/>
+<area shape="rect" id="Node000011" href="$api__ratelimit_8c.html" title=" " alt="" coords="1592,181,1795,221"/>
+<area shape="poly" id="edge10_Node000008_Node000011" title=" " alt="" coords="1772,144,1720,183,1717,179,1769,140"/>
+<area shape="rect" id="Node000012" href="$api__snapshot_8c.html" title=" " alt="" coords="1819,181,2021,221"/>
+<area shape="poly" id="edge11_Node000008_Node000012" title=" " alt="" coords="1844,140,1897,179,1893,183,1841,144"/>
+<area shape="rect" id="Node000013" href="$api__snapshot__dns_8c.html" title=" " alt="" coords="2045,181,2248,221"/>
+<area shape="poly" id="edge12_Node000008_Node000013" title=" " alt="" coords="1895,134,2073,179,2072,184,1894,139"/>
+<area shape="rect" id="Node000014" href="$api__snapshot__panels_8c.html" title=" " alt="" coords="2272,181,2475,221"/>
+<area shape="poly" id="edge13_Node000008_Node000014" title=" " alt="" coords="1922,131,2260,179,2272,180,2271,186,2260,184,1922,136"/>
+<area shape="rect" id="Node000015" href="$api__transfers_8c.html" title=" " alt="" coords="2499,181,2701,221"/>
+<area shape="poly" id="edge14_Node000008_Node000015" title=" " alt="" coords="1922,131,2082,147,2206,155,2330,163,2487,179,2498,180,2498,185,2486,184,2330,168,2206,160,2081,152,1922,136"/>
+</map>
