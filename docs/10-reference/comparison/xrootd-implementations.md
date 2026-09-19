@@ -25,7 +25,7 @@
 > `tests/test_gfal_interop.py`.
 >
 > All five trees were read locally. File:line citations refer to the upstream
-> source at the revision checked out during analysis (XRootD `/tmp/brix-src`,
+> implementation at the revision current during analysis (XRootD C++,
 > others cloned shallow from GitHub master); treat them as navigational anchors,
 > not eternal coordinates.
 >
@@ -83,7 +83,7 @@ semantics."
 
 ## 1. Architecture and concurrency model
 
-### XRootD C++ (`/tmp/brix-src`)
+### XRootD C++ (upstream)
 * **Server (`XrdXrootd/`)**: non-blocking, with a **continuation pattern** rather
   than blocking reads. Each connection is a pooled `XrdProtocol` implementing
   Match/Process/Recycle (`XrdXrootdProtocol.hh:187-195`); a partial socket read

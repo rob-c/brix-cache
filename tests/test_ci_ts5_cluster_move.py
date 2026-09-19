@@ -112,8 +112,29 @@ POST_MOVE = {
         # changing brix_node and its enclosing class hash. gen_cert propagates
         # signing errors and tightens cert/key modes under permissive umask
         # (test_mesh_certificate_permissions).
+        # Stock xrootd/cmsd refuse to run as superuser, so a root lane brought
+        # the mesh up with no reference daemons at all; brix_node now passes
+        # `-R <user>` and the three helpers below prepare the tree for the
+        # account it becomes (open the throwaway tree, re-tighten the keytab and
+        # key the daemons themselves refuse when they are loose, a+rx the
+        # ancestors down to TEST_ROOT).
         "changed": {"_ensure_sssadmin", "Mesh", "Mesh.brix_node", "gen_cert"},
-        "added": {"_reference_ip_args"},
+        "added": {"_reference_ip_args", "_open_ancestors",
+                  "_retighten_credentials", "runas_args"},
+    },
+    "cms_mesh_lib_part3": {
+        # The macOS port replaced a bare `ss -tlnp` with the portable listener
+        # seam (lib_py.util.listener_table_lines: ss(8) on Linux, lsof-derived
+        # on Darwin).  Same table, one host-specific command fewer.
+        "changed": {"_list_listeners"},
+        "added": frozenset(),
+    },
+    "hybrid_mesh_lib": {
+        # `_socket_table`: the same listener-seam move as cms_mesh_lib_part3.
+        # `launch_xrootd`: the same `-R <user>` transition as Mesh.brix_node —
+        # this orchestrator launches the stock daemons too.
+        "changed": {"_socket_table", "launch_xrootd"},
+        "added": frozenset(),
     },
     "wlcg_fleet": {
         # a stale registration under the same fleet name is released before

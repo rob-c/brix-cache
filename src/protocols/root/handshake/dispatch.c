@@ -191,7 +191,7 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
                    "brix: unsupported request %d",
                    (int) ctx->recv.cur_reqid);
     /* An unrecognized opcode is kXR_InvalidRequest ("Invalid request code"),
-     * matching the reference (XrdXrootdProtocol.cc:608); kXR_Unsupported is
+     * matching the stock server; kXR_Unsupported is
      * reserved for a recognized op the backend cannot perform (ENOTSUP). */
     return brix_send_error(ctx, c, kXR_InvalidRequest,
                              "Invalid request code");

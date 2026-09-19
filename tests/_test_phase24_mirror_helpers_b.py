@@ -52,7 +52,7 @@ pytestmark = [
 ROOT = Path(__file__).resolve().parents[1]
 
 # Wire constants lost in the same helper split as _kXR_open (see the note in
-# _test_phase24_mirror_helpers.py); values per XProtocol.hh / sibling helpers.
+# _test_phase24_mirror_helpers.py); values per the wire spec / sibling helpers.
 _kXR_write = 3019
 _kXR_close = 3003
 

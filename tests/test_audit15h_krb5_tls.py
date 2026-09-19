@@ -109,7 +109,7 @@ READ_BODY = b"krb5 over tls\n"
 KXR_OK = 0
 kXR_NotAuthorized = 3010
 
-# kXR_protocol reply flags (XProtocol.hh) — the wire-visible statement of what
+# kXR_protocol reply flags (the wire spec) — the wire-visible statement of what
 # this listener demands.  `brix_tls_require login` sets kXR_tlsLogin, which is
 # what makes a stock client upgrade before it will send its credential.
 kXR_haveTLS = 0x80000000

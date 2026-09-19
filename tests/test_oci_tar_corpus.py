@@ -17,6 +17,9 @@ import zlib
 
 import pytest
 
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
+
+
 def _check_tar_ut_1(comp):
     assert comp.returncode == 0, \
         "tar unit driver failed to COMPILE:\n%s" % comp.stderr
@@ -24,6 +27,10 @@ def _check_tar_ut_1(comp):
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHARED = os.path.join(REPO, "shared")
+#: The tar reader reaches the PAL for major()/minor()/makedev(), and the PAL
+#: interface header lives under src/ — both the module (./config) and the
+#: client (client/Makefile) put -I$(SRC) on the line for exactly this reason.
+SRC_DIR = os.path.join(REPO, "src")
 SRC = [os.path.join(SHARED, "oci", f)
        for f in ("tar_unittest.c", "tar.c", "tar_pax.c", "tar_digest.c", "digest.c")] + \
       [os.path.join(SHARED, "cvmfs", "catalog", "catalog_write.c"),
@@ -47,7 +54,8 @@ def tar_ut(tmp_path_factory):
         pytest.skip("tar reader sources missing")
     out = str(tmp_path_factory.mktemp("bin") / "tar_ut")
     comp = subprocess.run(
-        [cc, "-Wall", "-Wextra", "-Werror", "-I", SHARED, "-o", out,
+        [cc, "-Wall", "-Wextra", "-Werror", "-I", SHARED, "-I", SRC_DIR,
+         *PLATFORM_HOST_FLAGS, "-o", out,
          *SRC, "-lsqlite3", "-lcrypto", "-lz", *_zstd_flags()],
         capture_output=True, text=True)
     _check_tar_ut_1(comp)

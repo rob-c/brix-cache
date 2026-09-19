@@ -30,6 +30,24 @@
 int brix_host_is_ipv6_literal(const char *host);
 
 /*
+ * Fold an IPv4-mapped IPv6 literal ("::ffff:10.0.0.1") down to the IPv4 address
+ * it names ("10.0.0.1"), into out[sz] (NUL-terminated).  Every other host — a
+ * hostname, a dotted quad, a genuine IPv6 literal — is copied through byte for
+ * byte, so a caller may run it over any host unconditionally.  Expects the bare
+ * form the module stores (ngx_parse_url and tpc parse.c both strip the brackets
+ * off "[::1]"); a still-bracketed string is not an address to inet_pton and so
+ * passes through.  Returns 1 when out holds a host, 0 on NULL/overflow (out is
+ * left a valid empty string when sz > 0).
+ *
+ * The two spellings name the same machine but are NOT the same bytes to anything
+ * that compares addresses rather than resolving them — an X.509 iPAddress SAN
+ * for an IPv4 host is the 4-byte form, and OpenSSL's IP match is a memcmp of
+ * equal lengths.  A peer named by the mapped form therefore matches no IPv4 SAN
+ * that exists.  Folding first is what lets such a name be checked at all.
+ */
+int brix_host_unmap_v4(const char *host, char *out, size_t sz);
+
+/*
  * Write "[host]" for an IPv6 literal, else "host", into out[sz] (NUL-terminated).
  * For the kXR_redirect body, where the port is carried in a separate field.
  * Returns bytes written (excluding the NUL), or 0 on NULL/overflow (out is left

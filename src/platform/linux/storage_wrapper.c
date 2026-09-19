@@ -10,6 +10,18 @@
  * HOW:  Thin wrappers; raw byte syscalls carry the VFS seam owner marker.
  */
 
+/* The glibc feature-test macro these bodies need (pipe2, fallocate, preadv2, copy_file_range, F_ADD_SEALS).  Guarded, not
+ * bare, because both real builds already pass -D_GNU_SOURCE on the command
+ * line (./config for the module, client/Makefile's HARDEN for the client) and
+ * an unguarded redefinition is an error under -Werror.  Declared HERE rather
+ * than left to the caller so a standalone harness that links one PAL body --
+ * every tests/cmdscripts compile line that reaches brix_plat_* -- gets the
+ * prototypes too, instead of an implicit declaration and a silent link
+ * failure.  It must precede every include, hence its place above them. */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "../platform.h"
 #include "../platform_api.h"
 

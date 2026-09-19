@@ -30,12 +30,12 @@ match exactly.
 Contract citations
 ------------------
 * DirListFlags / MkDirFlags / Access::Mode:
-  ``/tmp/brix-src/src/XrdCl/XrdClFileSystem.hh:127-174``.
-* DirectoryList / StatInfo wire parse: ``XrdClXRootDResponses.cc``.
+  the stock client's ``OpenFlags`` set.
+* DirectoryList / StatInfo wire parse: ``the stock client``.
 * kXR error numbers (3005 FSError, 3011 NotFound, 3018 ItExists) and the
   errno->kXR mapping (ENOTEMPTY/EEXIST -> kXR_ItExists,
-  ``XProtocol.hh:1407-1474``).
-* Stock server handlers: ``/tmp/brix-src/src/XrdXrootd/``.
+  ``the wire spec``).
+* Stock server behaviour: observed by running the stock binary.
 """
 
 import os
@@ -48,7 +48,7 @@ pytestmark = pytest.mark.skipif(
     not L.have_official(), reason="stock xrootd tools not available"
 )
 
-# kXR error numbers (XProtocol.hh:1032+)
+# kXR error numbers (the wire spec)
 kXR_FSError = 3005
 kXR_NotFound = 3011
 kXR_ItExists = 3018
@@ -216,7 +216,7 @@ def test_dirlist_stat_sizes(pair, path):
 def test_dirlist_stat_flags(pair, path):
     """With DirListFlags.Stat, per-entry flag bytes (keyed by name) must match.
 
-    StatInfo flags enum: XrdClXRootDResponses.hh:420 (IsDir/IsReadable/...).
+    StatInfo flags enum: the stock client (IsDir/IsReadable/...).
     """
     flags = {}
     for tag, url, _ in _both(pair):
@@ -336,8 +336,8 @@ def test_mkdir_existing_ok_status_parity(pair, name):
 
     DIVERGENCE: stock returns ok=True (idempotent — ENOTEMPTY/EEXIST treated as
     success by XrdXrootd's mkdir handler), but OURS returns kXR_ItExists(3018).
-    Contract: XProtocol.hh:1425-1427 maps EEXIST->kXR_ItExists, but stock's
-    mkdir handler in /tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc swallows the
+    Contract: the wire spec maps EEXIST->kXR_ItExists, but stock's
+    stock server's mkdir swallows the
     existing-dir case and replies OK. Suspected src: src/protocols/root/write/mkdir.c.
     """
     sub = _mk_scratch(
@@ -523,7 +523,7 @@ def test_rm_directory_errno_parity(pair, trial):
     """rm of a non-empty dir returns an error on both.
 
     DIVERGENCE: errno differs. Stock maps ENOTEMPTY->kXR_ItExists(3018)
-    (XProtocol.hh:1425-1427), ours returns kXR_FSError(3005). The data-loss
+    (the wire spec), ours returns kXR_FSError(3005). The data-loss
     guard holds on both (child survives), only the error code diverges.
     Suspected src: src/protocols/root/write/rm.c error mapping.
     """
@@ -591,7 +591,7 @@ def test_rmdir_nonempty_errno_parity(pair, trial):
     """rmdir on non-empty dir error code.
 
     DIVERGENCE: stock maps ENOTEMPTY->kXR_ItExists(3018), ours returns
-    kXR_FSError(3005). Citation: XProtocol.hh:1425-1427. Suspected src:
+    kXR_FSError(3005). Citation: the wire spec. Suspected src:
     src/protocols/root/write/rm.c (rmdir error mapping).
     """
     sub = _mk_scratch(pair, f"rmdir_ne_err_{trial}", _dir_with_child)
@@ -714,7 +714,7 @@ def test_truncate_missing_errno_parity(pair):
     """truncate of a missing file — error code parity.
 
     DIVERGENCE: stock returns kXR_NotFound(3011) (ENOENT), ours returns
-    kXR_IOError(3007). Citation: XProtocol.hh:1407 (ENOENT->kXR_NotFound).
+    kXR_IOError(3007). Citation: the wire spec (ENOENT->kXR_NotFound).
     Both fail (no file created), only the error code diverges.
     Suspected src: src/protocols/root/write/* truncate handler error mapping.
     """

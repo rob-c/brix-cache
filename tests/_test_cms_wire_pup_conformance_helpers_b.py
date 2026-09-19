@@ -49,7 +49,7 @@ NODE_DATA_PORT = 41094
 
 
 # ---------------------------------------------------------------------------
-# CMS wire constants — mirror src/net/cms/cms_internal.h + XProtocol/YProtocol.hh
+# CMS wire constants — mirror src/net/cms/cms_internal.h + the cmsd wire spec
 # ---------------------------------------------------------------------------
 
 CMS_RR_LOGIN  = 0
@@ -80,11 +80,11 @@ CMS_PT_INT    = 0xa0   # tagged 4-byte scalar
 CMS_MOD_RAW     = 0x20  # kYR_raw — payload is unmarshalled
 CMS_HAVE_ONLINE = 0x01  # kYR_have modifier: file is resident/online
 
-# CmsLoginData Mode role bits (YProtocol.hh) — Phase-61 W7 explicit roles.
+# CmsLoginData Mode role bits (the cmsd wire spec) — Phase-61 W7 explicit roles.
 CMS_MODE_MANAGER = 0x02   # kYR_manager
 CMS_MODE_SERVER  = 0x08   # kYR_server
 # CmsStateRequest modifier: kYR_metaman — only a PURE meta-manager (no local
-# export) may stamp it on a fanned-out kYR_state (XrdCmsNode.cc do_State).
+# export) may stamp it on a fanned-out kYR_state (the stock cmsd do_State).
 CMS_STATE_METAMAN = 0x08
 
 CMS_STATS_SIZE  = 0x01  # CmsStatsRequest::kYR_size — size form only

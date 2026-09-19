@@ -23,20 +23,20 @@ our-bug that cannot be fixed from the test is recorded with an imperative
 pytest.xfail carrying the exact OURS-vs-STOCK detail (never a bare skip that
 hides a real diff).
 
-Reference facts pinned (XProtocol.hh / XrdXrootdXeq.cc / XrdXrootdXeqFAttr.cc):
+Reference facts pinned (the wire spec / the stock server):
 
   * ClientPrepareRequest: streamid[2] requestid[2] options[1] prty[1] port[2]
     optionX[2] reserved[10] dlen[4], then a newline-separated path list
-    (XProtocol.hh:633). Option bits: kXR_cancel 1, kXR_notify 2, kXR_noerrs 4,
+    (the wire spec). Option bits: kXR_cancel 1, kXR_notify 2, kXR_noerrs 4,
     kXR_stage 8, kXR_wmode 16, kXR_coloc 32, kXR_fresh 64, kXR_usetcp 128;
-    optionX kXR_evict 0x0001 (XProtocol.hh:620).
+    optionX kXR_evict 0x0001 (the wire spec).
   * do_Prepare: a NON-stage prepare returns an EMPTY ok body (Response.Send(),
     Xeq:2028); a kXR_stage prepare returns the request-id text
     (Response.Send(reqid, strlen(reqid)), Xeq:2029). The reqid is host-qualified,
     e.g. "<hexhost>:<id>:<seq>" (Xeq:1912).
   * ClientFattrRequest: streamid[2] requestid[2] fhandle[4] subcode[1]
-    numattr[1] options[1] reserved[9] dlen[4] (XProtocol.hh:315). Subcodes:
-    Del 0, Get 1, List 2, Set 3 (XProtocol.hh:299). Limits: faMaxVars 16,
+    numattr[1] options[1] reserved[9] dlen[4] (the wire spec). Subcodes:
+    Del 0, Get 1, List 2, Set 3 (the wire spec). Limits: faMaxVars 16,
     faMaxNlen 248, faMaxVlen 65536. Options: isNew 0x01, aData 0x10.
   * fattr payload (path-targeted): path + NUL, then for Get/Del/Set an nvec of
     name records — each "rc[2]=0 || name || NUL" (NVecInsert, XProtocol.cc:176)
@@ -93,7 +93,7 @@ kXR_fattr = 3020
 kXR_ok, kXR_oksofar, kXR_error = 0, 4000, 4003
 DROPPED = -1   # sentinel: server dropped the link instead of replying
 
-# kXR_prepare option byte (XProtocol.hh:620)
+# kXR_prepare option byte (the wire spec)
 kXR_cancel = 1
 kXR_notify = 2
 kXR_noerrs = 4
@@ -105,7 +105,7 @@ kXR_usetcp = 128
 # kXR_prepare optionX (uint16)
 kXR_evict = 0x0001
 
-# kXR_fattr subcodes (XProtocol.hh:299)
+# kXR_fattr subcodes (the wire spec)
 kXR_fattrDel = 0
 kXR_fattrGet = 1
 kXR_fattrList = 2
@@ -114,7 +114,7 @@ kXR_fattrSet = 3
 FA_isNew = 0x01
 FA_aData = 0x10
 
-# error codes (XErrorCode, XProtocol.hh:1032+)
+# error codes (XErrorCode, the wire spec)
 kXR_ArgInvalid = 3000
 kXR_NotFound = 3011
 
@@ -176,7 +176,7 @@ def _both():
 def _prepare(s, paths, options=0, prty=0, optionX=0, sid=b"\x00\x05"):
     """Raw kXR_prepare. `paths` is a list -> newline-separated payload.
     streamid[2] reqid[2] options[1] prty[1] port[2] optionX[2] reserved[10]
-    dlen[4] (XProtocol.hh:633). Returns (status, body)."""
+    dlen[4] (the wire spec). Returns (status, body)."""
     payload = "\n".join(paths).encode()
     req = struct.pack("!2sHBBHH10sI", sid, kXR_prepare, options, prty,
                       0, optionX, b"\x00" * 10, len(payload)) + payload

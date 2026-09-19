@@ -36,7 +36,7 @@ import socket
 import struct
 import time
 
-from cmdscripts import run
+from cmdscripts import hand_file_to_worker, run
 from cmdscripts.command_results import print_results
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
@@ -359,6 +359,13 @@ def _check_truncate(origin_root: Path, port: int,
     the origin in one round-trip. Verify both shrink and grow land on the origin."""
     tf = origin_root / "reg_trunc.bin"
     tf.write_bytes(deterministic_bytes(64, 41))
+    # The origin's worker is `nobody` and this file is written by root AFTER the
+    # servers started, so the tree-opening the launcher did at start never saw
+    # it: the origin refuses the resize on the kernel's behalf ("TRUNCATE ... ERR
+    # Permission denied") and the gateway faithfully relays a failure that has
+    # nothing to do with the forwarding under test.  reg_small/reg_big predate
+    # the start and are 0666 for exactly this reason.
+    hand_file_to_worker(tf)
 
     # shrink 64 -> 4
     s = _session(port)
@@ -399,6 +406,12 @@ def _check_chmod(origin_root: Path, port: int,
     tf = origin_root / "reg_chmod.bin"
     tf.write_bytes(deterministic_bytes(64, 61))
     os.chmod(tf, 0o644)
+    # chmod(2) is the one op no mode bit can buy: the kernel wants the CALLER to
+    # own the file (or hold CAP_FOWNER, which the worker sheds on purpose), so a
+    # root-written probe makes the `nobody` worker answer "permission denied" to
+    # a request the gateway forwarded correctly.  Ownership is the fix; the 0644
+    # above is still the starting mode the 0600 assertion needs.
+    hand_file_to_worker(tf)
 
     s = _session(port)
     try:

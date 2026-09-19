@@ -27,10 +27,17 @@
 #include "s3.h"
 #include "auth/authz/acc/acc.h"
 
-/* Defined in handler.c. Maps an S3 request method to the XrdAcc operation it
- * requires. Shared by the XrdAcc gate (handler.c) and the WLCG token-scope gate
- * (handler_dispatch.c). Pure mapping, no side effects. */
+/* Defined in auth_acc.c. Maps an S3 request method to the XrdAcc operation it
+ * requires. Shared by the XrdAcc gate (auth_acc.c) and the WLCG token-scope
+ * gate (handler_dispatch.c). Pure mapping, no side effects. */
 brix_acc_op_t s3_method_aop(ngx_http_request_t *r);
+
+/* Defined in auth_acc.c. The XrdAcc authorization tier, run by the entry
+ * handler (handler.c) after authentication. Returns NGX_OK to proceed; a DENY
+ * has already sent its own XML AccessDenied, so the caller must re-check
+ * r->header_sent before dispatching (see auth_acc.c and the call site). */
+ngx_int_t s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    brix_identity_t *id);
 
 /* Defined in handler_dispatch.c. Post-auth S3 op dispatch (parse URI -> route by
  * method); runs inside the caller's impersonation bracket. Called by the entry

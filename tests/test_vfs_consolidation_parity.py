@@ -168,7 +168,14 @@ def _check_cred_call_sites(capture: str, delegation: str,
 
 def _check_cred_directory(stage: str, stage_dir: str, dir_check: str,
                           persistent: str) -> None:
-    assert '#define BRIX_CRED_STAGE_BASE "/dev/shm/brix-creds"' in stage
+    # The staging root is composed, not spelled: the macOS port pushed the
+    # host half behind the PAL (invariant 14) because Darwin has no /dev/shm.
+    # Pinned in both halves so neither can drift alone — the base is still
+    # "<the host's sticky scratch root>/brix-creds", and on THIS host that
+    # root is still /dev/shm.  A single literal assertion would have had to be
+    # deleted to port the tree, taking the contract with it.
+    assert '#define BRIX_CRED_STAGE_BASE BRIX_PLAT_SHM_DIR "/brix-creds"' in stage
+    assert '#define BRIX_PLAT_SHM_DIR "/dev/shm"' in _src("src/platform/linux/host.h")
     assert "BRIX_CRED_STAGE_BASE, (unsigned) geteuid()" in stage_dir
     assert "lstat(" in dir_check
     assert "S_ISDIR" in dir_check

@@ -24,10 +24,15 @@ import zlib
 
 import pytest
 
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
 from cmdscripts.container_runtime import container_runtime
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHARED = os.path.join(REPO, "shared")
+#: The tar reader reaches the PAL for major()/minor()/makedev(), and the PAL
+#: interface header lives under src/ — both the module (./config) and the
+#: client (client/Makefile) put -I$(SRC) on the line for exactly this reason.
+SRC_DIR = os.path.join(REPO, "src")
 SRC = [os.path.join(SHARED, "oci", f)
        for f in ("flatten_unittest.c", "flatten.c", "tar.c", "tar_pax.c",
                  "tar_digest.c", "digest.c", "stargz.c", "stargz_toc.c")] + \
@@ -51,7 +56,8 @@ def flatten_ut(tmp_path_factory):
     cc = _compiler()
     out = str(tmp_path_factory.mktemp("bin") / "flatten_ut")
     comp = subprocess.run(
-        [cc, "-Wall", "-Wextra", "-Werror", "-I", SHARED, "-o", out,
+        [cc, "-Wall", "-Wextra", "-Werror", "-I", SHARED, "-I", SRC_DIR,
+         *PLATFORM_HOST_FLAGS, "-o", out,
          *SRC, "-lsqlite3", "-lcrypto", "-lz"],
         capture_output=True, text=True)
     assert comp.returncode == 0, \

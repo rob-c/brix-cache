@@ -201,9 +201,20 @@ arc_scan_push(arc_scan_t *s, const char *rel)
     if (copy == NULL) {
         return -1;
     }
+    /* Ownership transfers INTO the name vector; arc_scan_free releases every
+     * entry.
+     *
+     * gcc 11's -fanalyzer cannot see a symbolic-index store through a
+     * parameter as an escape, so it reports `copy` leaking at the return
+     * below. Suppress exactly that diagnostic, at exactly its emission point. */
+#pragma GCC diagnostic push
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wanalyzer-malloc-leak"
+#endif
     s->names[index] = copy;
     s->n = index + 1;
     return 0;
+#pragma GCC diagnostic pop
 }
 
 static int arc_scan_dir(arc_scan_t *s, unsigned depth);

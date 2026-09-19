@@ -181,7 +181,8 @@ brix_acc_http_authorize(ngx_pool_t *pool, ngx_log_t *log,
 
     if (name == NULL) { name = ""; }
     if (host == NULL || *host == '\0') { host = "?"; }
-    if (path == NULL) { path = "/"; }
+    path = brix_acc_canon_path(pool, path);
+    if (path == NULL) { return NGX_ERROR; }   /* unspellable path -> deny */
 
     ent = brix_acc_entity_build(pool, name, host, (name[0] != '\0'),
                                   vorg ? vorg : "", role ? role : "",

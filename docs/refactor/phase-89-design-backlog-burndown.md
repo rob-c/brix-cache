@@ -560,7 +560,7 @@ re-checks what remains), `brix_srv_aggregate_space` (:203 — W1),
 - **PR-7 (W5):** multi-source list from `brix_srv_locate_all`; affinity =
   `hash32(path) % eligible` stick behind `brix_cms_affinity`;
   `kYR_try*` sub-reason constants per `YProtocol.hh`
-  (`/tmp/brix-src/src/XProtocol/`); precedence LOCKED as: blacklist/freshness
+  (`XProtocol/`); precedence LOCKED as: blacklist/freshness
   filter → affinity (only among eligible) → score (space/util ± load). A
   drained host is never sticky.
 - **PR-8 (W8):** phase-61 App C.2 design of record (SHM agg table keyed by

@@ -4,7 +4,7 @@
  * WHAT: The out-of-band SciTags mechanism: for each marked flow emit a
  *   RFC5424-syslog-wrapped JSON "firefly" document (start / ongoing / end) to the
  *   configured collector(s) and, optionally, to the client origin.  Byte-for-byte
- *   compatible with XRootD's XrdNetPMarkFF (template at XrdNetPMarkFF.cc:60-99).
+ *   compatible with XRootD's XrdNetPMarkFF firefly template.
  *   This file owns the per-flow lifecycle entry points (flow_begin / flow_end /
  *   flow_echo) and the per-worker UDP sender.
  *

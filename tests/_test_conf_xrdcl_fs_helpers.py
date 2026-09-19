@@ -30,12 +30,12 @@ match exactly.
 Contract citations
 ------------------
 * DirListFlags / MkDirFlags / Access::Mode:
-  ``/tmp/brix-src/src/XrdCl/XrdClFileSystem.hh:127-174``.
-* DirectoryList / StatInfo wire parse: ``XrdClXRootDResponses.cc``.
+  the stock client's ``OpenFlags`` set.
+* DirectoryList / StatInfo wire parse: ``the stock client``.
 * kXR error numbers (3005 FSError, 3011 NotFound, 3018 ItExists) and the
   errno->kXR mapping (ENOTEMPTY/EEXIST -> kXR_ItExists,
-  ``XProtocol.hh:1407-1474``).
-* Stock server handlers: ``/tmp/brix-src/src/XrdXrootd/``.
+  ``the wire spec``).
+* Stock server behaviour: observed by running the stock binary.
 """
 
 import os
@@ -50,7 +50,7 @@ pytestmark = [
     pytest.mark.xdist_group("interop-central"),
 ]
 
-# kXR error numbers (XProtocol.hh:1032+)
+# kXR error numbers (the wire spec)
 kXR_FSError = 3005
 kXR_NotFound = 3011
 kXR_ItExists = 3018

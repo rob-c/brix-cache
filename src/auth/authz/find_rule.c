@@ -1,5 +1,7 @@
 #include "core/ngx_brix_module.h"
 
+#include "fs/path/path_internal.h"   /* brix_path_prefix_match */
+
 #include <stddef.h>
 #include <string.h>
 
@@ -9,42 +11,11 @@
  *      The longest prefix match ensures the most specific rule wins when multiple prefixes cover the same path.
  *      This is critical for VO membership checks where broader groups inherit from narrower ones. INVARIANT:
  *      all paths passed here must be canonical (normalized via normalize.c) before matching.
- * HOW: Static helper brix_path_prefix_match validates prefix containment (must match up to prefix_len AND either end-of-string or next slash).
+ * HOW: The shared brix_path_prefix_match (fs/path/helpers.c) validates prefix containment on a component boundary.
  *      brix_find_longest_rule holds the shared longest-prefix scan (parameterized by element size + offset of the resolved-prefix field),
  *      with brix_find_vo_rule / brix_find_group_rule as thin per-type wrappers; brix_find_manager_map runs the same scan inline because
  *      its prefix is an ngx_str_t (length known, no strlen). Returns NULL if no match found or input is invalid.
  */
-
-/* brix_path_prefix_match — boundary-aware prefix test: path starts with prefix
- * (prefix_len bytes) AND the next byte is '\0' or '/', so `/data` matches
- * `/data/atlas` but not `/data-atlas`. The caller passes prefix_len (it knows the
- * rule length), avoiding a redundant strlen per request in the match loop. */
-
-static ngx_flag_t
-brix_path_prefix_match(const char *prefix, size_t prefix_len, const char *path)
-{
-    if (prefix == NULL || path == NULL) {
-        return 0;
-    }
-
-    if (strncmp(prefix, path, prefix_len) != 0) {
-        return 0;
-    }
-
-    /*
-     * The match must land on a path-component boundary so "/foo" does not match
-     * "/foobar". A prefix that itself ends in '/' is already at a separator — the
-     * root prefix "/" (which cannot be stripped) and any explicit "/dir/" prefix
-     * therefore match everything beneath them. Without this, a manager_map / VO /
-     * authdb rule on "/" matched only the literal "/" and not "/file" (e.g. a
-     * static-map redirector failed to redirect a stat of "/blob.bin").
-     */
-    if (prefix_len > 0 && prefix[prefix_len - 1] == '/') {
-        return 1;
-    }
-
-    return path[prefix_len] == '\0' || path[prefix_len] == '/';
-}
 
 /* ---- brix_find_longest_rule — generic longest-prefix rule scan ----
  *

@@ -39,6 +39,7 @@ from urllib.parse import quote
 
 import pytest
 
+from cmdscripts import open_tree_for_worker
 from metrics_helpers import scalar, value
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
@@ -478,6 +479,11 @@ def start_stack(harness: LifecycleHarness, workdir: Path) -> MatrixStack:
     planes = {**STREAM_PLANES, **HTTP_PLANES, **S3_PLANES}
     for meta in planes.values():
         (cache_root / meta["cache"]).mkdir(parents=True, exist_ok=True)
+    # The cache stores live in a 0700 pytest tmp dir but the cache is written by
+    # the de-escalated worker (`nobody`), which cannot even reach them: every
+    # plane then fails its fill with NotAuthorized rather than the metric
+    # mismatch these cases are about.  The keytab beside them keeps its 0600.
+    open_tree_for_worker(workdir)
 
     origin_ep = harness.start(NginxInstanceSpec(
         name="lc-cachemx-origin",

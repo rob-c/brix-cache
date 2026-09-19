@@ -152,16 +152,16 @@ def both(ctx):
 
 # --------------------------------------------------------------------------- #
 # RAW-WIRE client (login / open / write / pgwrite / read / readv / fstat /
-# sync / truncate / close). Framing per XProtocol.hh, copied from the sibling
+# sync / truncate / close). Framing per the wire spec, copied from the sibling
 # conformance files so the wire path is identical.
 # --------------------------------------------------------------------------- #
 kXR_close, kXR_open, kXR_read, kXR_readv = 3003, 3010, 3013, 3025
 kXR_sync, kXR_write, kXR_stat, kXR_truncate = 3016, 3019, 3017, 3028
-kXR_pgwrite = 3026               # XProtocol.hh:139 (NOT 3031 = kXR_writev)
+kXR_pgwrite = 3026               # the wire spec (NOT 3031 = kXR_writev)
 kXR_ok, kXR_oksofar, kXR_error = 0, 4000, 4003
 kXR_status = 4007                # pgwrite/pgread reply carries a kXR_status frame
 
-# open option bits (XProtocol.hh XOpenRequestOption)
+# open option bits (the wire spec XOpenRequestOption)
 kXR_delete = 0x0002
 kXR_new = 0x0008
 kXR_open_read = 0x0010
@@ -238,7 +238,7 @@ def _write(s, fhandle, offset, data, sid=b"\x00\x07"):
 
 def _pgwrite(s, fhandle, offset, data, sid=b"\x00\x08"):
     """kXR_pgwrite: the request carries a leading per-page CRC32c for the data.
-    Wire (XProtocol.hh ClientPgWriteRequest): streamid[2] reqid[2] fhandle[4]
+    Wire (the wire spec ClientPgWriteRequest): streamid[2] reqid[2] fhandle[4]
     offset[8] pathid[1] reserved[3] dlen[4]; the payload is
     crc32c(page0)[4] + page0bytes ... per 4096-byte page (CRC precedes each
     page's bytes). For a single sub-page write the payload is crc[4]+bytes."""
@@ -255,7 +255,7 @@ def _pgwrite(s, fhandle, offset, data, sid=b"\x00\x08"):
         pos += len(chunk)
         pg_off += len(chunk)
     # ClientPgWriteRequest: streamid[2] reqid[2] fhandle[4] offset[8] pathid[1]
-    # reqflags[1] reserved[2] dlen[4] (XProtocol.hh:562).
+    # reqflags[1] reserved[2] dlen[4] (the wire spec).
     hdr = struct.pack("!2sH4sqBB2sI", sid, kXR_pgwrite, fhandle, offset,
                       0, 0, b"\x00\x00", len(payload))
     s.sendall(hdr + payload)
@@ -280,7 +280,7 @@ def _read(s, fhandle, offset, rlen, sid=b"\x00\x06"):
 
 def _readv(s, segments, sid=b"\x00\x09"):
     """kXR_readv over a list of (fhandle, offset, length). The request body is a
-    sequence of read_list entries: fhandle[4] rlen[4] offset[8] (XProtocol.hh
+    sequence of read_list entries: fhandle[4] rlen[4] offset[8] (the wire spec
     readahead_list). Returns (status, list-of-segment-bytes)."""
     body = b""
     for fh, off, ln in segments:
@@ -312,7 +312,7 @@ def _fstat(s, fhandle, sid=b"\x00\x0c"):
     a stat line for the OPEN handle. Wire: streamid[2] reqid[2] opts[1]
     reserved[11] fhandle[4] dlen[4]. The XRootD stat-by-handle uses the
     fhandle field; we send dlen=0 and the fhandle in the reserved/fhandle slot
-    per ClientStatRequest (XProtocol.hh:619: opts[1] reserved[11] fhandle[4])."""
+    per ClientStatRequest (the wire spec: opts[1] reserved[11] fhandle[4])."""
     s.sendall(struct.pack("!2sHB11s4sI", sid, kXR_stat, 0, b"\x00" * 11,
                           fhandle, 0))
     _, st, body = _resp(s)

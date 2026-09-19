@@ -26,7 +26,7 @@ Last verified: 2026-06-14
 
 This document lists features that remain absent or narrower in BriX-Cache after
 checking the current module source and the official XRootD source tree under
-`/tmp/brix-src`. It deliberately does **not** treat the UDP/XrdMon monitoring
+the upstream XRootD project. It deliberately does **not** treat the UDP/XrdMon monitoring
 stack as a target: this project has rejected that subsystem and uses
 Prometheus/SRR/dashboard/access-log reporting instead.
 

@@ -47,7 +47,7 @@ contradict them. Source-of-truth references:
 - [`conformance-findings.md`](../conformance-findings.md)
 - [`gohep-interop-findings.md`](../gohep-interop-findings.md)
 
-Official source is the checkout at `/tmp/brix-src/src` (protocol version
+The official side is the upstream XRootD project (protocol version
 `5.2.0`, advertised in `XProtocol/XProtocol.hh`). This module's source is
 `src/` in this repository.
 
@@ -461,7 +461,7 @@ it is a site-specific conformance matrix with three tests per critical feature
 
 ## Source references
 
-Official XRootD (`/tmp/brix-src/src`):
+Official XRootD (upstream):
 
 - Protocol: `XProtocol/XProtocol.hh` (v5.2.0), `XrdXrootd/XrdXrootdProtocol.cc`,
   `XrdXrootd/XrdXrootdXeq.cc`

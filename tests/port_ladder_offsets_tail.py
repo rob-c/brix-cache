@@ -151,7 +151,19 @@
 # 2026-09-10: +1 for the F20 lab's own /metrics face (its INVARIANT-8 arm
 # scrapes the label set the role-bearing identity produces); the running sum
 # re-applied to every lane below (220 -> 221).
-LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1277, 221
+# 2026-09-18: 1277 -> 1287, the running sum, for the shared lane's 1098 -> 1108.
+# Eight of those ten were the 2026-09-16 gsi-legacy-proxy slots, which landed
+# width-only: the shared lane had overlapped this one by 8 ever since, and
+# test_fleet_ports.py's band check was failing on it.  The remaining two are the
+# impgm WebDAV arms.  Same lesson as the 2026-08-16/2026-08-17/2026-09-07 notes
+# above — the rule is a running sum of the widths above, never a hand-carried
+# delta on one constant.
+# 2026-09-19: 1294 -> 1295, the running sum, for the shared lane's 1115 -> 1116
+# (lc-policy-rule-scope).  Every offset below moves with it, for the same reason
+# the notes above give: the sum of the widths ABOVE a lane is its offset, and a
+# width bumped without re-applying that sum leaves this lane overlapping the one
+# it follows until test_fleet_ports.py's band check notices.
+LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1295, 221
 
 
 # 2026-08-19: 205 -> 211 for the six-port root_readonly_gateway block (origin +
@@ -192,7 +204,7 @@ LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1277, 221
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1498, 216
+CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1516, 216
 # 2026-09-07: 1657 -> 1658, the running sum, for the F6 posix-origin slot in
 # the exclusive lane above (167 -> 168).
 # 2026-09-07: +2, the running sum, for the F8 plugin lab in the exclusive lane
@@ -219,7 +231,7 @@ CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1498, 216
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1714, 83
+CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1732, 83
 # 2026-09-07: 1740 -> 1741, the running sum, for the F6 posix-origin slot in
 # the exclusive lane above (167 -> 168).
 # 2026-09-07: +2, the running sum, for the F8 plugin lab in the exclusive lane
@@ -246,7 +258,7 @@ CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1714, 83
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1797, 23
+HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1815, 23
 # 2026-09-07: 1763 -> 1764, the running sum, for the F6 posix-origin slot in
 # the exclusive lane above (167 -> 168).
 # 2026-09-07: +2, the running sum, for the F8 plugin lab in the exclusive lane
@@ -273,7 +285,7 @@ HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1797, 23
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1820, 2
+PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1838, 2
 
 # CVMFS conformance mock-Stratum-1 + nginx port blocks (cvmfs/conformance_common.py
 # PORT_BLOCKS): 26 files x a 20-port block. Anchored into the ladder so every
@@ -307,7 +319,7 @@ PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1820, 2
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1822, 588
+CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1840, 588
 
 # Differential-interop per-file fixed ports (official_interop_lib.worker_port):
 # one slot per distinct conformance base (65 today), anchored here so they stay
@@ -343,7 +355,7 @@ CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1822, 588
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2410, 65
+INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2428, 65
 
 # 2026-08-31 (phase-106): shared lane +5 for the five nginx-integration nodes;
 # every lane below shifts by 5. Packed ladder — an intentional compatibility
@@ -434,4 +446,10 @@ INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2410, 65
 # (lc-r20-authdb-f20, one root:// listener) in the exclusive lane
 # (219 -> 220); the running sum re-applied to every lane below it.
 # 2026-09-10: +1 for the F20 lab's /metrics face, PORT_COUNT 2474 -> 2475.
-PORT_COUNT = 2475
+# 2026-09-19: +4 for the MU fleet's missing cache/direct halves (see the
+# matching note on LIFECYCLE_SHARED_WIDTH); the running sum is re-applied to
+# every lane in this file, PORT_COUNT 2485 -> 2489; +1 more for mu-root_write,
+# 2489 -> 2490; +2 for the impgm broker-hold arms, 2490 -> 2492.
+# 2026-09-19: +1 for lc-policy-rule-scope, the remote-backed webdav export that
+# pins a policy rule's path scope when root_canon is "/", 2492 -> 2493.
+PORT_COUNT = 2493

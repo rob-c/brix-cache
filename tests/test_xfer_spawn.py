@@ -14,6 +14,8 @@ import subprocess
 
 import pytest
 
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS, pal_host_sources
+
 def _guard_spawn_bin_1(cc):
     if cc is None:
         pytest.skip("no C compiler")
@@ -40,8 +42,16 @@ def spawn_bin(tmp_path_factory):
     _guard_spawn_bin_2()
     out = str(tmp_path_factory.mktemp("xferspawn") / "ut")
     r = subprocess.run(
-        [cc, "-Wall", "-Wextra", "-Werror", "-I", os.path.join(REPO, "src"),
-         SRC, TEST, "-o", out],
+        [cc, "-Wall", "-Wextra", "-Werror",
+         # INVARIANT 14: the TU reaches platform/platform.h, which selects its
+         # <host>/host.h from this token alone and #errors without it.
+         *PLATFORM_HOST_FLAGS,
+         "-I", os.path.join(REPO, "src"),
+         SRC, TEST,
+         # The runner execs through the PAL (brix_plat_execvpe), whose host
+         # body lives in src/platform/<host>/posix_wrapper.c.
+         *[os.path.join(REPO, rel) for rel in pal_host_sources("posix_wrapper")],
+         "-o", out],
         capture_output=True, text=True)
     _guard_spawn_bin_3(r)
     return out

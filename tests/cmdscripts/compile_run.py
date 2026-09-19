@@ -76,9 +76,19 @@ def sanitizer_link_flags(args: list[str]) -> list[str]:
 
 #: The PAL host selector every tree source needs (src/platform/platform.h
 #: refuses to compile without it); mirrors ./config and client/Makefile.
+#:
+#: The host feature level rides along for the same reason on both platforms:
+#: ``src/platform/<host>/host_endian.h`` names htobe64/be32toh, which glibc
+#: gates on ``__USE_MISC`` and Darwin on ``_DARWIN_C_SOURCE``.  A source that
+#: picks a strict level of its own withdraws that default — ``brixcvmfs_
+#: publish.c`` sets ``_POSIX_C_SOURCE`` for kill/lstat — and the PAL then fails
+#: with "implicit declaration of function 'htobe64'" in a header the source
+#: never named.  ./config gets it from nginx's own ``-D_GNU_SOURCE``; a line
+#: assembled here has to say it.
 PLATFORM_HOST_FLAGS = (
     ["-DBRIX_PLATFORM_HOST=darwin", "-D_DARWIN_C_SOURCE"]
-    if sys.platform == "darwin" else ["-DBRIX_PLATFORM_HOST=linux"])
+    if sys.platform == "darwin"
+    else ["-DBRIX_PLATFORM_HOST=linux", "-D_DEFAULT_SOURCE"])
 
 
 #: The PAL host bodies a standalone build must link when it calls ``brix_plat_*``
@@ -101,6 +111,25 @@ def client_pal_host_sources(*names: str) -> list[str]:
 def pal_host_sources(*names: str) -> list[str]:
     """``src/platform/<host>/<name>.c`` for each wrapper the build calls into."""
     return [f"{PAL_HOST_DIR}/{name}.c" for name in names]
+
+
+def pal_host_addon(name: str) -> str:
+    """``<host>/<name>.o`` — where the nginx build puts one compiled PAL host
+    wrapper under ``objs/addon/``, relative to that directory.
+
+    nginx names an addon object after its source directory's LAST component, so
+    ``src/platform/linux/path_wrapper.c`` and its darwin twin land at different
+    paths for the same wrapper.  Derived from ``PAL_HOST_DIR`` rather than a
+    second ``sys.platform`` test, so an object-link line and a standalone
+    compile line can never disagree about which host they are building for.
+
+    A unit needs this whenever an object it links calls ``brix_plat_*``: the PAL
+    seam (invariant 14) moved the openat2/renameat2/statx bodies out of
+    ``src/fs/path/beneath.c`` and behind the wrapper, so ``beneath.o`` stopped
+    being self-contained and every unit linking it failed at LINK time on a
+    symbol that says nothing about the unit's own subject.
+    """
+    return f"{os.path.basename(PAL_HOST_DIR)}/{name}.o"
 
 
 #: How to name liblz4 on the link line.  ``-l:<soname>`` is GNU-ld syntax that

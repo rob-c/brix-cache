@@ -59,7 +59,7 @@ def test_dirlist_stat_sizes(pair, path):
 def test_dirlist_stat_flags(pair, path):
     """With DirListFlags.Stat, per-entry flag bytes (keyed by name) must match.
 
-    StatInfo flags enum: XrdClXRootDResponses.hh:420 (IsDir/IsReadable/...).
+    StatInfo flags enum: the stock client (IsDir/IsReadable/...).
     """
     flags = {}
     for tag, url, _ in _both(pair):
@@ -179,8 +179,8 @@ def test_mkdir_existing_ok_status_parity(pair, name):
 
     DIVERGENCE: stock returns ok=True (idempotent — ENOTEMPTY/EEXIST treated as
     success by XrdXrootd's mkdir handler), but OURS returns kXR_ItExists(3018).
-    Contract: XProtocol.hh:1425-1427 maps EEXIST->kXR_ItExists, but stock's
-    mkdir handler in /tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc swallows the
+    Contract: the wire spec maps EEXIST->kXR_ItExists, but stock's
+    stock server's mkdir swallows the
     existing-dir case and replies OK. Suspected src: src/protocols/root/write/mkdir.c.
     """
     sub = _mk_scratch(

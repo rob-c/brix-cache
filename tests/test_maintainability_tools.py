@@ -361,8 +361,18 @@ def test_make_token_every_kind(tmp_path):
 # --------------------------------------------------------------------------- #
 
 #: Runs in a CHILD interpreter -- see the test's docstring for why.
+#:
+#: It also LEAVES that interpreter the way the worker does.  Importing the
+#: bindings arms a teardown this pyxrootd build does not survive: libXrdCl's
+#: process-global C++ state is destroyed after the module that owns its poller
+#: threads is already gone, and the child dies of SIGSEGV having written a
+#: complete and correct answer first (returncode -11, empty stderr, the full
+#: JSON on stdout).  `brix_suite.clients.xrdcl.worker` says so at its import
+#: ("Some pyxrootd builds crash while their process-global C++ state is torn
+#: down at interpreter shutdown") and takes the same exit for its capability
+#: probe.  Flush first: os._exit skips the buffers as well as the destructors.
 _ENCODE_PROBE = """
-import json, sys
+import json, os, sys
 import _xrdcl_worker as w
 
 
@@ -393,6 +403,8 @@ json.dump({
     "vfs_type": w._encode_response(StatInfoVFS())["__type__"],
     "scraped": w._encode_response(Weird()),
 }, sys.stdout)
+sys.stdout.flush()
+os._exit(0)
 """
 
 

@@ -8,8 +8,8 @@ fail-closed authentication, input/framing robustness, credential handling
 (OCSP/CRL, token expiry/issuer pinning), impersonation, DoS protection / rate
 limiting, build hardening, and the overall attack surface.
 
-Every claim below is grounded in source. The official side cites
-`/tmp/brix-src/src` — principally `XrdXrootd/XrdXrootdXeq.cc` and
+The official side of each claim names the upstream component it concerns —
+principally `XrdXrootd/XrdXrootdXeq.cc` and
 `XrdXrootdProtocol.cc` (request validation, `rpCheck`/`Squash` path checks),
 `XrdSecgsi/XrdSecProtocolgsi.cc` (GSI + CRL), `XrdTls/XrdTlsContext.cc` (TLS CRL
 refresh), and `XrdCrypto/` (X.509/CRL primitives). The BriX-Cache side cites
@@ -32,7 +32,7 @@ credential, escalating privilege, or starving other clients. The functional
 correctness of each protocol is covered by the other comparison documents and is
 referenced here only where it bears on security.
 
-"Official XRootD" means the reference C++ implementation in `/tmp/brix-src`.
+"Official XRootD" means the reference C++ implementation of the XRootD project.
 "BriX-Cache" / "this module" means the server in `src/`. Two architectural
 facts frame everything below:
 
@@ -71,10 +71,10 @@ reference this module is measured against:
   layer can run as that user, and `sudo`/N2N plugins extend the mapping.
 - **Authorization plugin** (`XrdAcc`) with a path/operation grammar.
 
-Notably, official XRootD has **no OCSP** anywhere in the tree (`grep -rln OCSP
-/tmp/brix-src/src` returns nothing) — revocation is CRL-only. Its DoS posture
-relies on its own connection/threading limits and any external firewall; it is
-not fronted by a general-purpose hardened HTTP/stream server.
+Notably, official XRootD has **no OCSP** anywhere in its tree — revocation is
+CRL-only. Its DoS posture relies on its own connection/threading limits and any
+external firewall; it is not fronted by a general-purpose hardened HTTP/stream
+server.
 
 ---
 
@@ -522,7 +522,7 @@ inherent `CAP_SETUID` exposure of *any* impersonation broker if it is exploited.
 
 ## Source references
 
-**Official XRootD (`/tmp/brix-src/src`):**
+**Official XRootD (upstream):**
 
 - `XrdXrootd/XrdXrootdXeq.cc:4374` (`rpCheck`), `:4435` (`Squash`); call sites at
   `:1600` (open), `:2450`/`:2521` (stat), `:1313` (rename), `:2919` (rm), and others.
@@ -531,7 +531,7 @@ inherent `CAP_SETUID` exposure of *any* impersonation broker if it is exploited.
 - `XrdSecgsi/XrdSecProtocolgsi.cc:142,154,501-543` (`CRLdir`, `CRLCheck`,
   `CRLDownload`, `CRLRefresh`).
 - `XrdTls/XrdTlsContext.cc:85-111` (background CRL refresh thread).
-- `grep -rln OCSP /tmp/brix-src/src` → empty (no OCSP).
+- No OCSP anywhere in the upstream tree.
 
 **BriX-Cache (this repository, `src/`):**
 

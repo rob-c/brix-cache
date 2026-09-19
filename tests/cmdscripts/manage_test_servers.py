@@ -66,6 +66,16 @@ def _sanitize_env() -> None:
             f"suppressions={supp}:report_objects=0:{os.environ.get('LSAN_OPTIONS', '')}"
         )
         print(f"SANITIZE=1: leak/UBSan logs -> {log_dir}/asan.<pid>", file=sys.stderr)
+    elif "ASAN_OPTIONS" not in os.environ:
+        # SANITIZE is how this suite ASKS for leak reporting.  Without it the
+        # fleet still has to survive an ASan-instrumented binary, and ASan turns
+        # LeakSanitizer on by ITSELF: every `nginx -t` then exits non-zero on the
+        # config-time allocations the module deliberately keeps (the superseded
+        # backend stack in brix_vfs_backend_entry_build documents its own leak),
+        # so start-all aborts on a config that is perfectly valid.  Leak
+        # detection stays available — SANITIZE=1 above, or an explicit
+        # ASAN_OPTIONS, both win over this default.
+        os.environ["ASAN_OPTIONS"] = "detect_leaks=0"
     if os.environ.get("VALGRIND") == "1":
         log_dir = Path(os.environ.get("VALGRIND_LOG_DIR", str(TEST_ROOT / "valgrind")))
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -87,12 +97,46 @@ def _launcher():
     return RegistryLauncher()
 
 
+def _fleet_master_alive() -> bool:
+    """True when the fleet's `main` nginx master is still running.
+
+    Read from its pidfile rather than a port probe: the question is whether a
+    server PROCESS is holding session artifacts it loaded at startup, and a
+    foreign listener on the same port is not that.
+    """
+    from lib_py.util import process_cmdline  # noqa: PLC0415
+    from settings import REGISTRY_ROOT  # noqa: PLC0415
+
+    prefix = Path(REGISTRY_ROOT) / "main"
+    try:
+        pid = int((prefix / "logs" / "nginx.pid").read_text(encoding="utf-8").strip())
+        os.kill(pid, 0)
+        return str(prefix).encode() in process_cmdline(pid)
+    except (OSError, ValueError):
+        return False
+
+
 def start_all() -> int:
     import fleet_prep  # noqa: PLC0415 — session artifact generator
     from settings import FLEET_READY, TEST_ROOT as NORMALIZED_TEST_ROOT
 
-    Path(FLEET_READY).unlink(missing_ok=True)
-    fleet_prep.prepare()
+    # Provision session artifacts ONLY when no fleet is already holding them.
+    # `_launch_nginx` treats "a master already owns this prefix" as success, so
+    # a second start-all against a live fleet adds the missing instances and
+    # leaves the running ones untouched — still serving the certs and JWKS they
+    # loaded at startup.  Re-running prep underneath that mints a NEW CA and
+    # hostcert, and every later TLS/GSI client then reads the new CA off disk,
+    # is handed the old leaf, and fails "unable to get local issuer
+    # certificate".  Nothing fails at prep time, which is what made this so
+    # hard to see: on 2026-09-19 a fleet launched 08:46:34 was silently
+    # invalidated by a 08:51:28 re-prep and took 11 native-client and
+    # credential-bridge tests down with it.  Use `restart` to rebuild both.
+    if _fleet_master_alive():
+        print("start-all: fleet already up; keeping its session artifacts "
+              "(use `restart` to regenerate the PKI)", file=sys.stderr)
+    else:
+        Path(FLEET_READY).unlink(missing_ok=True)
+        fleet_prep.prepare()
     from brix_suite import host_caps  # noqa: PLC0415
 
     specs, dropped = host_caps.filter_available(_register())

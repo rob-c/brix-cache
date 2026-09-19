@@ -12,8 +12,10 @@
  * Build integration: Add -framework Accelerate to linker flags on macOS
  */
 
-#include <ngx_config.h>
-#include <ngx_core.h>
+/* No nginx headers: this kernel is pure arithmetic over a caller's buffer and
+ * names no ngx_* symbol, so it stays compilable on its own. That is what lets
+ * tests/test_platform_darwin_helpers.py build it against substitute sysctl and
+ * Accelerate headers on a Linux CI host, where <ngx_config.h> is absent. */
 #include "../platform.h"
 
 #if BRIX_PLATFORM_DARWIN

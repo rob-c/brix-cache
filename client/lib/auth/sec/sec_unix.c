@@ -7,7 +7,7 @@
  * HOW:  Single round. Payload = "unix\0" + username (the server validates the
  *       5-byte tag, then parses the space/NUL-delimited name).
  *
- * wire: XProtocol.hh kXR_auth — credtype "unix", payload "unix\0" + user.
+ * wire: kXR_auth — credtype "unix", payload "unix\0" + user.
  */
 #include "sec.h"
 

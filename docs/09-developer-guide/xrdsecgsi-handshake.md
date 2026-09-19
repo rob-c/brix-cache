@@ -5,7 +5,7 @@
 > /eos/lhcb` lists the directory, identical to `/usr/bin/xrdfs`. This documents
 > the protocol, every wire-format detail, and **every gotcha that cost an
 > iteration**, so the remaining work (the v≥10400 signed-DH path and the
-> *server* side) is mechanical. Reference source: `/tmp/brix-src/src`
+> *server* side) is mechanical. Reference: the published XrdSecgsi handshake, as observed on the wire
 > (`XrdSecgsi/`, `XrdCrypto/`, `XrdSut/`).
 
 This is the single most intricate wire protocol in the XRootD stack. Read it

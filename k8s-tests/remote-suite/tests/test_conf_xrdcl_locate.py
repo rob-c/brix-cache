@@ -11,20 +11,20 @@ stock data server simply lacks a checksum/prepare plugin, in which case we pin
 OUR value against an INDEPENDENT reference rather than against the stock error).
 
 Contract citations (consulted, never modified):
-  * LocationInfo wire parse — XrdClXRootDResponses.cc:26 (ProcessLocation):
+  * LocationInfo wire parse — the stock client (ProcessLocation):
     space-split; token[0] = type char M/m/S/s (ManagerOnline/ManagerPending/
     ServerOnline/ServerPending), token[1] = access char r (Read) / w (ReadWrite),
     rest = host:port; a bad type/access char makes XrdCl reject the WHOLE
     response; a token shorter than its 2-char prefix + host is rejected.
-    LocationType enum — XrdClXRootDResponses.hh:49  (0=ManagerOnline,
+    LocationType enum — the stock client  (0=ManagerOnline,
     1=ManagerPending, 2=ServerOnline, 3=ServerPending).
-    AccessType enum   — XrdClXRootDResponses.hh:60  (0=Read, 1=ReadWrite).
-  * QueryCode enum — XrdClFileSystem.hh:48 (Config/ChecksumCancel/Checksum/
+    AccessType enum   — the stock client  (0=Read, 1=ReadWrite).
+  * QueryCode enum — the stock client (Config/ChecksumCancel/Checksum/
     Opaque/OpaqueFile/Prepare/Space/Stats/Visa/XAttr/...).
   * do_Qconf bare-value format / unknown-key echo / role / sitename cases —
-    XrdXrootd/XrdXrootdXeq.cc:2168-2268.
+    the stock server.
   * do_Query reqcode dispatch (Qvisa has NO case -> rejected; Qprep ->
-    do_Prepare(true) -> unknown reqid rejected) — XrdXrootdXeq.cc::do_Query.
+    do_Prepare(true) -> unknown reqid rejected) — the stock server's do_Query.
 
 Because the binding REJECTS the entire locate response on a single malformed
 token, ``status.ok`` on a locate is itself a strong structural assertion: it
@@ -142,7 +142,7 @@ def fs_off(srv):
 
 
 # --------------------------------------------------------------------------- #
-# LocationInfo enum constants (XrdClXRootDResponses.hh).                       #
+# LocationInfo enum constants (the stock client).                       #
 # --------------------------------------------------------------------------- #
 LT_MGR_ONLINE, LT_MGR_PENDING, LT_SRV_ONLINE, LT_SRV_PENDING = 0, 1, 2, 3
 ACC_READ, ACC_READWRITE = 0, 1
@@ -230,7 +230,7 @@ def ref_crc32c(data):
 def test_locate_file_ok_both(srv, fs_our, fs_off, path, flagname, flag):
     """locate(<file>) must PARSE WITHOUT ERROR on BOTH servers for every flag —
     a single bad type/access char or short token would make XrdCl reject the
-    whole response and set status.ok=False (XrdClXRootDResponses.cc:26)."""
+    whole response and set status.ok=False (the stock client)."""
     st_o, loc_o = fs_our.locate(path, flag)
     st_f, loc_f = fs_off.locate(path, flag)
     assert st_o.ok, (f"OUR locate {path!r} ({flagname}) not ok "
@@ -516,7 +516,7 @@ def test_qconfig_multikey_one_line_per_key(srv, fs_our):
 
 
 # --- do_Qconf coverage (FIXED: role/fattr cases added to src/protocols/root/query/config.c) - #
-# query config `role` — stock recognises `role` (do_Qconf, XrdXrootdXeq.cc:2216
+# query config `role` — stock recognises `role` (do_Qconf, the stock server
 # -> "%s\n" of XRDROLE, e.g. "server"/"none").  src/protocols/root/query/config.c now emits
 # "server" (or "manager" in manager mode) instead of echoing the key.
 def test_qconfig_role_recognised_like_stock(srv, fs_our, fs_off):
@@ -533,7 +533,7 @@ def test_qconfig_role_recognised_like_stock(srv, fs_our, fs_off):
         f"(our={line_o!r} stock={line_f!r})")
 
 
-# DIVERGENCE: query config `sitename` — do_Qconf (XrdXrootdXeq.cc:2221) returns
+# DIVERGENCE: query config `sitename` — do_Qconf (the stock server) returns
 # the configured site name or the literal "sitename" when XRDSITE is unset; OUR
 # server has no `sitename` case and echoes the key. Here both happen to yield
 # "sitename" (neither has XRDSITE set), so this case is a shape probe only and
@@ -546,7 +546,7 @@ def test_qconfig_sitename_shape(srv, fs_our, fs_off):
     assert not text_o.strip().startswith("sitename=")
 
 
-# query config `fattr` — do_Qconf (XrdXrootdXeq.cc:2265) returns the
+# query config `fattr` — do_Qconf (the stock server) returns the
 # extended-attribute parameters (usxParms, two integers e.g. "248 65536").
 # FIXED: src/protocols/root/query/config.c now emits "248 65536" (the Linux user.* xattr
 # name/value limits) instead of echoing the key.
@@ -740,7 +740,7 @@ def test_space_keys_parity(srv, fs_our, fs_off):
 
 
 # DIVERGENCE: query space "" (empty path) — stock validates the path and REJECTS
-# an empty/relative path (XrdXrootdXeq.cc:4405 "Stating relative path '' is
+# an empty/relative path (the stock server "Stating relative path '' is
 # disallowed.", XErrorCode 3010 kXR_FSError), but OUR server accepts it (ok=True).
 # Our: ok=True ; Stock: ok=False errno=3010. Suspected fix: apply the same
 # relative/empty path rejection in OUR Qspace handler (src/protocols/root/query/*).

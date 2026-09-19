@@ -9,8 +9,8 @@
  *       counter so future parallel/pipelined requests can be matched by it. All
  *       multi-byte header fields are big-endian.
  *
- * wire: XProtocol.hh ClientRequestHdr — streamid[2] reqid[2] body[16] dlen[4];
- * wire: XProtocol.hh ServerResponseHdr — streamid[2] status[2] dlen[4].
+ * wire: ClientRequestHdr — streamid[2] reqid[2] body[16] dlen[4];
+ * wire: ServerResponseHdr — streamid[2] status[2] dlen[4].
  */
 #include "brix.h"
 

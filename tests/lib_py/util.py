@@ -164,9 +164,31 @@ def process_cmdline(pid: int) -> bytes:
     return out.strip()
 
 
+def _ss_row_peer_port(line: str) -> str | None:
+    """The PEER port of one ``ss -tn`` row (``State Recv-Q Send-Q local peer``).
+
+    None when the row has no peer column, which is what the header line and any
+    short/oddly-formatted row look like.
+    """
+    fields = line.split()
+    if len(fields) < 5:
+        return None
+    return fields[4].rsplit(":", 1)[-1]
+
+
 def _ss_established_to_port(port: int | str) -> int:
+    """Rows whose PEER port is ``port`` — the column, not a substring search.
+
+    A LOOPBACK connection appears in ``ss -tn`` TWICE, once from each end, and
+    both rows carry the port: matching ``f":{port}" in line`` therefore returned
+    2 for a single connection, and every count in this suite is of a connection
+    to 127.0.0.1.  That is what failed `test_manager_mode`'s per-worker CMS
+    assertion — the node's ONE gated upstream link read as the two-worker
+    self-collision the gate exists to prevent.  The netstat and lsof arms below
+    always compared the peer end; this one now does too.
+    """
     return sum(1 for line in run(["ss", "-tn"]).stdout.splitlines()
-               if f":{port}" in line and "ESTAB" in line)
+               if "ESTAB" in line and _ss_row_peer_port(line) == str(port))
 
 
 def _lsof_established_to_port(port: int | str) -> int:
@@ -244,7 +266,7 @@ def _darwin_addr_port(addr: str) -> str:
 
 
 def _netstat_listener_lines() -> list[str]:
-    return [f'LISTEN 0 128 {local.rsplit(".", 1)[0]}:{_darwin_addr_port(local)} 0.0.0.0:* '
+    return [f'LISTEN 0 128 {local.rsplit(".", 1)[0]}:{_darwin_addr_port(local)} 0.0.0.0:* '  # net-literal-allow: the peer column of an `ss -tlnp` line — the OUTPUT SHAPE synthesized here, not a target
             f'users:(("?",pid={pid},fd=0))'
             for local, _foreign, pid in _darwin_netstat_rows("LISTEN")]
 
@@ -259,7 +281,7 @@ def _lsof_listener_lines() -> list[str]:
         elif tag == "c":
             comm = value
         elif tag == "n" and pid is not None:
-            lines.append(f'LISTEN 0 128 {value} 0.0.0.0:* users:(("{comm}",pid={pid},fd=0))')
+            lines.append(f'LISTEN 0 128 {value} 0.0.0.0:* users:(("{comm}",pid={pid},fd=0))')  # net-literal-allow: the `ss -tlnp` peer column again
     return lines
 
 
@@ -298,10 +320,19 @@ def loopback_alias_usable(addr: str) -> bool:
     binding 127.0.0.2 fails with EADDRNOTAVAIL until an alias is added
     (``sudo ifconfig lo0 alias 127.0.0.2 up``, which does not survive a
     reboot).  Cached: the answer cannot change inside one test session without
-    an administrator's intervention."""
+    an administrator's intervention.
+
+    The port comes from the session's mock lease rather than the kernel: a
+    ``bind((addr, 0))`` here is indistinguishable to
+    ``test_fleet_port_uniqueness`` from a test opening an unledgered listener,
+    and the lane's TEST_PORT_START range can overlap the host's ephemeral one.
+    A leased port cannot be in use by anything else in the lane, so it cannot
+    turn a usable alias into a false negative."""
+    from ephemeral_port import free_port  # noqa: PLC0415 — tests-root helper
+
     probe = socket.socket()
     try:
-        probe.bind((addr, 0))
+        probe.bind((addr, free_port()))
         return True
     except OSError:
         return False

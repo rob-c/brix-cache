@@ -351,7 +351,7 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 		return rc;   /* rejected: fd torn down / reply already sent */
 	}
 
-	/* Build the open response body.  The reference (XrdXrootdXeq.cc:1501)
+	/* Build the open response body.  The stock server
 	 * returns ONLY the 4-byte file handle by default; the cpsize/cptype tail
 	 * (→ the full 12-byte ServerOpenBody) is appended ONLY when the client
 	 * requested it via kXR_retstat (want_stat) or kXR_compress — here also when

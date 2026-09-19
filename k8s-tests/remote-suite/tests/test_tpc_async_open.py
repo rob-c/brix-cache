@@ -48,7 +48,7 @@ NGINX = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 DST = 21231
 
-# root:// wire opcodes (XProtocol.hh)
+# root:// wire opcodes (the wire spec)
 kXR_close, kXR_protocol, kXR_login, kXR_open, kXR_read = 3003, 3006, 3007, 3010, 3013
 # response status codes
 kXR_ok, kXR_attn, kXR_wait, kXR_waitresp, kXR_asynresp = 0, 4001, 4005, 4006, 5008

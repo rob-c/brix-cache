@@ -278,7 +278,8 @@ cvmfs_merge_resilience(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
 /* scvmfs (T22, EXPERIMENTAL) is a LAYER on cvmfs — structural checks run at
  * config time so a misconfiguration fails the reload loudly instead of 401ing
  * every request. Bearer mode needs the issuer registry to exist; VOMS mode
- * needs both trust directories and a present libvomsapi. The EMERG lines are
+ * needs both trust directories — the AC verifier itself is built in
+ * (shared/voms/), so there is no library to be absent. The EMERG lines are
  * byte-frozen. NGX_CONF_OK / NGX_CONF_ERROR. */
 static char *
 cvmfs_merge_scvmfs_checks(ngx_conf_t *cf,

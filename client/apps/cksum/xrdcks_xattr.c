@@ -9,7 +9,7 @@
  * WHY:  Files carrying `user.XrdCks.*` checksum xattrs (written by a stock
  *       XRootD server or the stock tool) are common in mixed deployments;
  *       BriX had no tool to read/write/verify them. The on-disk record layout
- *       is a stable, documented format (XrdCksData.hh) — matched byte-exactly
+ *       is a stable, documented format (the XrdCks cksdata record) — matched byte-exactly
  *       here. NB: the STOCK `xrdcks` CLI on some builds is buggy (segfaults on
  *       get, drops the leading value byte on set); this is a correct
  *       implementation of the FORMAT, deliberately not bug-compatible.

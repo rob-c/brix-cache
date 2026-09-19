@@ -11,7 +11,7 @@ behavior and treat any mismatch as a candidate bug.
 
 DIFFERENTIAL ERROR CONFORMANCE is the priority: every failing op is run
 against BOTH servers and the coarse error category (L.err_code) is compared.
-The errno -> kXR mapping is mapError() in XProtocol.hh; e.g. ENOENT->NotFound,
+The errno -> kXR mapping is mapError() in the wire spec; e.g. ENOENT->NotFound,
 EISDIR->isDirectory, ENOTEMPTY/EEXIST->ItExists.
 
 Test isolation: the server pair is a module-scoped fixture sharing a single

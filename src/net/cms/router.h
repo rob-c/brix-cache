@@ -2,7 +2,7 @@
 #define BRIX_CMS_ROUTER_H
 
 /*
- * router.h — table-driven CMS opcode routing, mirroring XrdCmsRouting.cc.
+ * router.h — table-driven CMS opcode routing, mirroring the stock cmsd.
  *
  * WHAT: per-role descriptor tables mapping a kYR_* opcode to its name and wire
  *       routing flags. Both CMS halves dispatch through brix_cms_route_lookup:

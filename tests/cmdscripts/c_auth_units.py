@@ -7,7 +7,7 @@ import os
 import shutil
 import tempfile
 
-from cmdscripts.compile_run import REPO_ROOT, result, run
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS, REPO_ROOT, result, run
 
 # These four are the parent's share of the helpers the complexity burndown
 # hoisted out of the runners below.  They carry real names because every shard
@@ -150,7 +150,11 @@ def compile_and_run(binary: Path, args: list[str], env: dict[str, str] | None = 
     # a contaminated tree must not fail on LeakSanitizer's exit report (the driver
     # is not written to free); real heap errors still abort.
     child_env = {**HERMETIC_ENV, "ASAN_OPTIONS": "detect_leaks=0", **(env or {})}
-    args = [*_coverage_link_flags(args), *_sanitizer_link_flags(args), *args]
+    # PLATFORM_HOST_FLAGS: any tree header reaching platform/platform.h refuses
+    # to compile without the host token (INVARIANT 14). ./config passes it for
+    # the module build; a harness line assembled here has to pass it as well.
+    args = [*PLATFORM_HOST_FLAGS, *_coverage_link_flags(args),
+            *_sanitizer_link_flags(args), *args]
     built = run(["gcc", *args, "-o", str(binary)], cwd=REPO_ROOT, env=child_env)
     if built.returncode != 0:
         return False, f"compile failed: {(built.stderr or built.stdout)[-3000:]}"
@@ -179,6 +183,7 @@ def x509_gcc_args(harness_tu: str, sources: list[str] | None = None) -> list[str
         "-Wall",
         "-Wextra",
         "-Werror",
+        *PLATFORM_HOST_FLAGS,
         "-I",
         "src",
         *pkg_config(["--cflags", "openssl"]),

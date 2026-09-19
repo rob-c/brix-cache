@@ -13,7 +13,7 @@ the three layers below the wire protocol:
    and purge.
 
 Every claim below is grounded in source. Official paths are under
-`/tmp/brix-src/src/`; this module's paths are under `src/`. Where a feature is
+the upstream project's subsystems; this module's paths are under `src/`. Where a feature is
 present but narrower, or absent, that is stated plainly. Maturity claims for the
 tape/FRM layer in particular are flagged as **not full parity** because they are
 genuinely partial.
@@ -50,27 +50,27 @@ XRootD separates storage into two stacked, **plugin-based** C++ layers, plus a
 separate cache plugin family and a separate tape/FRM daemon family:
 
 - **`XrdOss` — the Open Storage System.** An *abstract base class*
-  (`/tmp/brix-src/src/XrdOss/XrdOss.hh`, with pure-virtual `Create`, `Mkdir`,
+  (`XrdOss/XrdOss.hh`, with pure-virtual `Create`, `Mkdir`,
   `Remdir`, `Rename`, `Stat`, `Truncate`, `Unlink`, and `XrdOssDF`-returning
   `newFile`/`newDir`). It is a true **plugin ABI**: alternate backends are loaded
-  via `ofs.osslib <path>` (`/tmp/brix-src/src/XrdOfs/XrdOfsConfigPI.cc`, which
+  via `ofs.osslib <path>` (`XrdOfs/XrdOfsConfigPI.cc`, which
   calls the `XrdOssGetStorageSystem2` entry point declared in `XrdOss.hh`). The
   default backend is local POSIX (`XrdOssSys` in
-  `/tmp/brix-src/src/XrdOss/XrdOssApi.hh`, default obtained via
+  `XrdOss/XrdOssApi.hh`, default obtained via
   `XrdOssDefaultSS()`). This is the seam that lets sites run **Ceph
   (`XrdCeph`)**, **proxy storage (`XrdPss`)**, checksum-tagstore
   (`XrdOssCsi`), and others under the *same* server.
 - **`XrdOfs` — the Open File System frontend.** Implements the `XrdSfsInterface`
-  (`/tmp/brix-src/src/XrdOfs/XrdOfs.hh`) on top of whatever OSS is loaded: open
+  (`XrdOfs/XrdOfs.hh`) on top of whatever OSS is loaded: open
   handle table (`XrdOfsHandle.cc`, a hash table of open handles with locking),
   POSC, TPC, checkpointing, event notification (`XrdOfsEvs.cc`), and the `ofs.*`
   directives (`XrdOfsConfig.cc`).
 - **`XrdPfc` — the Proxy File Cache (XCache).** A `XrdOucCache` plugin
-  (`/tmp/brix-src/src/XrdPfc/XrdPfc.hh`, entry point `XrdOucGetCache()`) that
+  (`XrdPfc/XrdPfc.hh`, entry point `XrdOucGetCache()`) that
   caches blocks of a remote file on local disk, with prefetch, watermark purge,
   per-file `cinfo` sidecars, and pluggable admit/deny decisions.
 - **`XrdPss` — the Proxy Storage Service.** An OSS-API plugin
-  (`/tmp/brix-src/src/XrdPss/XrdPss.cc`, `XrdPssConfig.cc`) that proxies storage
+  (`XrdPss/XrdPss.cc`, `XrdPssConfig.cc`) that proxies storage
   ops to a *remote* XRootD origin (`pss.origin`). XCache layers on top of PSS:
   PSS does the remote fetch, PFC caches it locally.
 - **`XrdFrm`/`XrdFrc` — the File Residency Manager.** A **multi-daemon** tape
@@ -138,7 +138,7 @@ XRootD's logical-to-physical mapping is a **string transform**, then a plugin
 call:
 
 - **`oss.localroot <path>`** prefixes the logical filename with a base path
-  (`/tmp/brix-src/src/XrdOss/XrdOssConfig.cc`, stored as `LocalRoot` in
+  (`XrdOss/XrdOssConfig.cc`, stored as `LocalRoot` in
   `XrdOssApi.hh`; applied via `GenLocalPath()` / the N2N plugin in
   `XrdOssApi.cc`). It is **not** a chroot or a kernel confinement: it is a path
   prefix concatenated at the application layer. A symlink inside the tree that
@@ -200,7 +200,7 @@ must not leave a usable partial file.
 ### Official: a persistence queue with a hold/recovery window
 
 XRootD POSC is configured by **`ofs.persist`**
-(`/tmp/brix-src/src/XrdOfs/XrdOfsConfig.cc`, `xpers()`):
+(`XrdOfs/XrdOfsConfig.cc`, `xpers()`):
 
 ```
 ofs.persist [auto | manual | off] [hold <sec>] [logdir <dirp>] [sync <snum>]
@@ -382,7 +382,7 @@ gateway, but not full FRM parity.**
 
 ### Official: a multi-daemon residency ecosystem
 
-The official FRM (`/tmp/brix-src/src/XrdFrm/`, `/tmp/brix-src/src/XrdFrc/`)
+The official FRM (`XrdFrm/`, `XrdFrc/`)
 is **several separate executables**:
 
 - **`frm_xfrd`** (`XrdFrmXfrMain.cc`) — the transfer daemon: processes stage
@@ -646,7 +646,7 @@ in-process purge GC landed 2026-09-05 with a narrower grammar than
 
 ## Source references
 
-**Official XRootD (`/tmp/brix-src/src/`):**
+**Official XRootD (upstream):**
 
 - Storage abstraction: `XrdOss/XrdOss.hh` (abstract base + plugin entry typedefs),
   `XrdOss/XrdOssApi.cc/.hh` (default POSIX `XrdOssSys`),

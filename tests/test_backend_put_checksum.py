@@ -224,9 +224,22 @@ class _BodyCorruptProxy:
             upstream.close()
 
     def _serve(self):
+        """Accept loop that can actually be stopped.
+
+        `stop()` closes the listener, but closing a socket does NOT wake a thread
+        already blocked in accept(2) on it — the kernel has no obligation to, and
+        Linux does not.  The thread then sits on a descriptor NUMBER that has been
+        freed and may be handed to the next socket the process opens, and it shows
+        up in every later pytest-timeout thread dump as this module's accept(),
+        long after the module finished — which is how a leak here becomes noise in
+        some other test's diagnosis.  A poll timeout is what makes `_stop`
+        authoritative: the loop re-checks it a couple of times a second and leaves
+        on its own."""
         while not self._stop.is_set():
             try:
                 client, _ = self._srv.accept()
+            except TimeoutError:
+                continue
             except OSError:
                 break
             threading.Thread(target=self._handle, args=(client,),
@@ -237,6 +250,12 @@ class _BodyCorruptProxy:
         self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._srv.bind((BIND_HOST, self.listen))
         self._srv.listen(16)
+        # See _serve: this is the stop signal, not a latency budget.  It does not
+        # reach the proxied connections — socket.accept() forces the accepted
+        # socket back to blocking precisely because a listener timeout would
+        # otherwise leak into it (CPython issue 7995) — so the pumps are
+        # unaffected.
+        self._srv.settimeout(0.5)
         threading.Thread(target=self._serve, daemon=True).start()
 
     def stop(self):

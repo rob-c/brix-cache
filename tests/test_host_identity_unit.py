@@ -61,7 +61,7 @@ def test_a_valid_identity_is_advertised(probe):
     """success: the override is what the node publishes, verbatim."""
     assert probe(identity="ds1.example.org") == "ds1.example.org"
     assert probe("valid", "ds1.example.org") == "1"
-    assert probe("valid", "[::1]"[1:-1]) == "1"      # v6 literal digits and ':'
+    assert probe("valid", "[::1]"[1:-1]) == "1"  # net-literal-allow: the v6 literal IS the input under test — digits and ':', never dialled
 
 
 def test_no_override_means_gethostname(probe):

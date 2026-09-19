@@ -49,3 +49,28 @@ def test_prepare_existing_restricted_is_denied(mu_fleet, cast, subject, path, no
 def test_prepare_authorized_is_allowed(mu_fleet, cast, subject, path, noerrs):
     denied = prepare_as(cast[subject], path, noerrs=noerrs)
     assert not denied, f"prepare of {path} by authorized {subject} must be allowed"
+
+
+@pytest.mark.privileged
+@pytest.mark.parametrize("subject,path,noerrs", _CONTROL,
+                         ids=[f"{s}-stage" for s, _, _ in _CONTROL])
+def test_stage_needs_more_than_read_even_for_the_owner(mu_fleet, cast, subject, path, noerrs):
+    """(security negative) A read grant does not confer a RECALL.
+
+    Alice is the one principal the corpus authorizes on this object, and the cell
+    above proves she may browse it.  kXR_stage is a different request: it asks the
+    operator's storage to move bytes — a tape mount, a nearline recall — and 2.0
+    F20 put that behind its own privilege precisely so a population of readers
+    cannot schedule that work.  `rl` is read and lookup, so the same principal, on
+    the same path, one flag later, must be refused.
+
+    This is also the cell that pins the two authdb engines together.  The gate
+    routes to whichever `brix_authdb_engine` names, and the engines express the
+    stage privilege differently — the native grammar spells it `x`
+    (authdb_grammar.c), while under `xrdacc` it lives in the composite that only
+    `a` confers.  What must NOT differ is the answer: a bare prepare allowed and a
+    recall refused, off one and the same `u <dn> <path> rl` record.
+    """
+    assert prepare_as(cast[subject], path, noerrs=noerrs, stage=True), (
+        f"kXR_stage of {path} by {subject} must be denied: the corpus grants "
+        f"`rl` (read+lookup), which is not the stage privilege")

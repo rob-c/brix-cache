@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import tempfile
 
-from cmdscripts.compile_run import REPO_ROOT, result, run
+from cmdscripts.compile_run import REPO_ROOT, pal_host_sources, result, run
 from cmdscripts.compile_run import LZ4_LINK_FLAGS
 
 
@@ -102,6 +102,11 @@ def service_publish(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, 
             *_nginx_includes(ngx_src),
             str(TEST_C / "test_service_publish.c"),
             *[str(o) for o in objs],
+            # INVARIANT 14: beneath.o's confined open/rename/unlink and
+            # staged_file.o's resolve all reach the PAL, so the host path
+            # wrappers behind brix_plat_openat2 / renameat2 / unlinkat /
+            # stat_resolve link alongside the objects that call them.
+            *pal_host_sources("path_wrapper"),
             "-ldl",  # dlsym(RTLD_NEXT) for the fsync-ordering interposer
         ],
     )
@@ -152,6 +157,10 @@ def mu_unit(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
             str(REPO_ROOT / "src/auth/impersonate/idmap.c"),
             str(REPO_ROOT / "src/auth/impersonate/idmap_denylist.c"),
             str(REPO_ROOT / "src/auth/impersonate/idmap_gridmap.c"),
+            # INVARIANT 14: the mapper enumerates a user's groups through the
+            # PAL (brix_plat_getgrouplist), whose host body is in
+            # src/platform/<host>/process_wrapper.c.
+            *pal_host_sources("process_wrapper"),
         ],
     )
 
@@ -192,6 +201,13 @@ def compression(base: Path) -> tuple[bool, str]:
         return result(True, f"SKIP: {proto} not found; build client/shared lib first")
     lz4_cflags = run(["pkg-config", "--cflags", "liblz4"], cwd=REPO_ROOT).stdout.split()
     codec_libs = ["-lz", "-lzstd", "-llzma", "-lbrotlienc", "-lbrotlidec", "-lbz2", *LZ4_LINK_FLAGS, "-lcrypto"]
+    # libxrdproto.a deliberately ships no PAL (client/Makefile says so where it
+    # builds the archive): its storage members — sd_posix_io.o here — call
+    # brix_plat_* and every CONSUMER supplies the bodies for its own host.  The
+    # module gets them from ./config, the client from PLATFORM_SRCS; a harness
+    # that links the archive directly is a third consumer and must say so, or
+    # the link dies the moment ld pulls a member that reaches the PAL.
+    proto_link = [str(proto), *pal_host_sources("storage_wrapper")]
     cm = REPO_ROOT / "src/core/compat"
     zip_write_current = base / "zip_write_test.current.c"
     zip_write_src = (TEST_C / "zip_write_test.c").read_text()
@@ -204,8 +220,8 @@ def compression(base: Path) -> tuple[bool, str]:
     )
     zip_write_current.write_text(zip_write_src)
     jobs = [
-        ("codec_test", ["-I", str(cm), str(TEST_C / "codec_test.c"), str(proto), *codec_libs]),
-        ("codec_edge_test", ["-I", str(cm), str(TEST_C / "codec_edge_test.c"), str(proto), *codec_libs]),
+        ("codec_test", ["-I", str(cm), str(TEST_C / "codec_test.c"), *proto_link, *codec_libs]),
+        ("codec_edge_test", ["-I", str(cm), str(TEST_C / "codec_edge_test.c"), *proto_link, *codec_libs]),
         (
             "zcrc32_test",
             [
@@ -214,7 +230,7 @@ def compression(base: Path) -> tuple[bool, str]:
                 str(cm),
                 *_nginx_includes(DEFAULT_NGX_SRC),
                 str(TEST_C / "zcrc32_test.c"),
-                str(proto),
+                *proto_link,
                 *codec_libs,
             ],
         ),

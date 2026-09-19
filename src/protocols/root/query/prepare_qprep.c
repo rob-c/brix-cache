@@ -44,13 +44,18 @@ qprep_status_letter(brix_stage_req_status_t s)
  * Authorize the path through the same three tiers prepare uses (authdb VO/ACL,
  * VO identity ACL, token scope).  Boolean: a denial is silent (the caller maps
  * it to 'M'), so this never sends a wire response.
+ *
+ * READ, on both engines.  A status poll reports residency for a path; it starts
+ * no recall and drops no online copy, so it is the bare-prepare tier (2.0 F20)
+ * and not the kXR_stage one — asking XrdAcc for AOP_STAGE here would have made
+ * the poll require the `x` privilege that the native level beside it does not.
  */
 static ngx_flag_t
 qprep_path_authorized(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const char *pathbuf, const char *full_path)
 {
     return brix_authz_check(ctx, c, conf, pathbuf, full_path, "PREPARE",
-                              BRIX_AUTH_READ, BRIX_AOP_STAGE) == NGX_OK
+                              BRIX_AUTH_READ, BRIX_AOP_READ) == NGX_OK
         && brix_check_vo_acl_identity(c->log, full_path, conf->common.vo_rules,
                                         ctx->identity) == NGX_OK
         && brix_check_token_scope(ctx, pathbuf, 0) == NGX_OK;

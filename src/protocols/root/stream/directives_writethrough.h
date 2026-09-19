@@ -16,8 +16,8 @@
       0,
       NULL },
 
-    /* write-through mode directives (mirrors XrdPfc configuration from
-     * /tmp/xrootd-src/src/XrdPfc/README) ---- */
+    /* write-through mode directives (mirrors the XrdPfc configuration
+     * surface documented for the stock cache) ---- */
 
     /* phase-105 W8 flag-setter audit: was the hand-rolled
      * brix_conf_set_wt_enable (a pure on/off parse + a NOTICE log) — the

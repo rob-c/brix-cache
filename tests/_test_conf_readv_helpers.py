@@ -22,9 +22,9 @@ covers the hostile/bounds-checking angle):
   * empty-file reads, interleaved read/readv on one handle
   * full-file readv reassembly byte-identical to an xrdcp download
 
-Wire framing references (consulted, not modified):
-  /tmp/brix-src/src/XProtocol/XProtocol.hh        read_list / readahead_list
-  /tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc      do_ReadV  (EOF -> error)
+Wire framing references (in-repo spec is authoritative):
+  src/protocols/root/protocol/readv_seg.h            read_list / readahead_list
+  stock server  kXR_readv past EOF -> error (observed, not read)
 
 Self-provisioning on high ports; skips entirely without the stock toolchain.
 """
@@ -44,7 +44,7 @@ pytestmark = [pytest.mark.timeout(180),
 
 
 # --------------------------------------------------------------------------- #
-# Opcodes / status / error codes (src/protocols/root/protocol/opcodes.h, XProtocol.hh).      #
+# Opcodes / status / error codes (src/protocols/root/protocol/opcodes.h, the wire spec).      #
 # --------------------------------------------------------------------------- #
 kXR_login = 3007
 kXR_open = 3010
@@ -60,7 +60,7 @@ kXR_open_read = 0x0010
 
 # One readahead_list / read_list element on the wire is 16 bytes.
 READV_SEGSIZE = 16
-# maxRvecsz = maxRvecln(16384) / rlItemLen(16) = 1024 (XProtocol.hh).
+# maxRvecsz = maxRvecln(16384) / rlItemLen(16) = 1024 (the wire spec).
 READV_MAXSEGS = 1024
 
 # Deterministic file sizes materialised by official_interop_lib.make_rich_tree.

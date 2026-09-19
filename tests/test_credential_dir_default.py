@@ -35,8 +35,9 @@ from cmdscripts.delegation_twostep import (
     mint_certs,
     sign_csr,
 )
-from settings import (CA_CERT, CRED_STORE_BASE, CRED_STORE_PARENT, HOST,
-                      NGINX_BIN, SERVER_CERT, SERVER_KEY)
+from settings import (CA_CERT, CRED_STORE_DEFAULT, CRED_STORE_PARENT,
+                      HOST, NGINX_BIN, SERVER_CERT, SERVER_KEY,
+                      worker_runtime_uid)
 from server_registry import NginxInstanceSpec
 
 def _guard_test_default_store_created_and_receives_delegation_1():
@@ -49,8 +50,7 @@ def _guard_test_default_store_created_and_receives_delegation_2():
 
 def _guard_test_default_store_created_and_receives_delegation_3():
     if os.geteuid() == 0 and os.path.isdir(DEFAULT_STORE):
-        import pwd
-        if os.stat(DEFAULT_STORE).st_uid != pwd.getpwnam("nobody").pw_uid:
+        if os.stat(DEFAULT_STORE).st_uid != worker_runtime_uid():
             shutil.rmtree(DEFAULT_STORE, ignore_errors=True)
 
 def _check_test_default_store_created_and_receives_delegation_1():
@@ -87,7 +87,9 @@ def _guard_test_default_store_created_and_receives_delegation_5(preexisting):
 # The compiled default is rewritten to its worker-uid-scoped form at merge
 # (shared_conf_creddir.h): two services on one host — the distro's www-data
 # nginx and this unprivileged test lane — must never fight over one 0700 dir.
-DEFAULT_STORE = f"{CRED_STORE_BASE}.{os.geteuid()}"
+# That uid is the WORKER's, which under a root master is `nobody` and not
+# os.geteuid(); settings.CRED_STORE_DEFAULT is the single place that knows.
+DEFAULT_STORE = CRED_STORE_DEFAULT
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cred-dir")]
@@ -156,13 +158,11 @@ def test_default_store_created_and_receives_delegation(lifecycle, pki):
         # The store is handed to the RUNTIME worker identity: under a root
         # harness the always-on de-escalation drops workers to `nobody`
         # (brix_worker_user default), so the chown must target that account —
-        # a root-owned 0700 store would EACCES every delegation PUT.
-        if os.geteuid() == 0:
-            import pwd
-            expect_uid = pwd.getpwnam("nobody").pw_uid
-        else:
-            expect_uid = os.geteuid()
-        _check_test_default_store_created_and_receives_delegation_3(expect_uid)
+        # a root-owned 0700 store would EACCES every delegation PUT.  Same
+        # answer that scopes DEFAULT_STORE's name, from the same helper: a
+        # local `pwd.getpwnam("nobody")` also ignored BRIX_WORKER_USER, so a
+        # lane that set it asserted against an account it does not use.
+        _check_test_default_store_created_and_receives_delegation_3(worker_runtime_uid())
 
         # full two-step delegation with NO configured dir: the credential
         # must land in the default store — the "deployed for free" contract.

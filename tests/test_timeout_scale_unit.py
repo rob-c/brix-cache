@@ -8,13 +8,14 @@ lengthens when the operator asks, it never shortens, and a host that declares
 nothing keeps the reference value byte-for-byte.
 """
 
-import socket
 import time
 
 import pytest
 
 import conftest_part3 as cp3
+from ephemeral_port import free_port
 from lib_py.util import wait_tcp
+from settings import HOST
 
 
 class _Opt:
@@ -90,10 +91,14 @@ def test_worker_process_scales_without_announcing(monkeypatch, capsys):
 
 
 def _closed_port():
-    """A port nothing is listening on: bind one, read it back, release it."""
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        return probe.getsockname()[1]
+    """A port nothing is listening on.
+
+    A mock-range lease, not a kernel-assigned one: the range is owned by this
+    session, so nothing in the lane can be listening on it — which is the
+    property these cases need — and it stays visible to the test-port ledger
+    (``test_fleet_port_uniqueness``).
+    """
+    return free_port()
 
 
 def test_listener_wait_spends_the_scaled_budget(monkeypatch):
@@ -101,7 +106,7 @@ def test_listener_wait_spends_the_scaled_budget(monkeypatch):
     must keep trying for about 0.6 s, not give up at 0.15 s."""
     monkeypatch.setenv("TEST_BUDGET_SCALE", "4")
     started = time.monotonic()
-    assert wait_tcp("127.0.0.1", _closed_port(), 0.15) is False
+    assert wait_tcp(HOST, _closed_port(), 0.15) is False
     assert time.monotonic() - started >= 0.45
 
 
@@ -109,7 +114,7 @@ def test_listener_wait_keeps_the_reference_budget(monkeypatch):
     """With nothing declared it must not linger: a 0.15 s wait stays short."""
     monkeypatch.delenv("TEST_BUDGET_SCALE", raising=False)
     started = time.monotonic()
-    assert wait_tcp("127.0.0.1", _closed_port(), 0.15) is False
+    assert wait_tcp(HOST, _closed_port(), 0.15) is False
     assert time.monotonic() - started < 0.45
 
 

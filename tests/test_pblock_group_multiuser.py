@@ -41,17 +41,20 @@ differentiator — and the catalog still stamps each object's true owner.
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import socket
 import sqlite3
 import stat
 import subprocess
+import sys
 import time
 from types import SimpleNamespace
 
 import pytest
 
+import impersonation_gridmap_helpers as H
 import settings
 import x509forge
 from server_launcher import LifecycleHarness, launch_fleet_nginx
@@ -264,6 +267,15 @@ def server(_accounts):
     proxies_dir = os.path.join(root, "proxies")
     for d in (data, auth, proxies_dir):
         os.makedirs(d, exist_ok=True)
+    # The POSIX layer must admit every authenticated user so the g-rule gate is
+    # the sole differentiator (see the module docstring and
+    # _seed_world_writable_dirs) — and the worker that has to create the block
+    # files, the catalog and the checkpoint lock under here is neither root nor
+    # the mapped account that owns this tree. A 0755 export made pblock init
+    # itself fail with EACCES, so the catalog never existed and every case here
+    # read back "no such table: ids".
+    os.chmod(data, 0o777)
+    H.make_world_traversable(data)
 
     ca = _load_ca()
     proxies = _expression_1(ca, proxies_dir)
@@ -279,13 +291,22 @@ def server(_accounts):
     # authdb: the whole per-group policy in three g-rules.
     authdb = os.path.join(auth, "authdb")
     with open(authdb, "w", encoding="utf-8") as f:
-        f.write("g brixpg_phys /phys a\n"   # phys: full access on /phys
-                "g brixpg_eng  /phys rl\n"  # eng: read + lookup only on /phys
-                "g brixpg_eng  /eng  a\n")  # eng: full access on /eng
+        # The template selects `brix_authdb_engine xrdacc`, whose authfile takes
+        # ONE record per id carrying every <path> <privs> pair for it — a repeated
+        # id is a duplicate and fails config, exactly as stock XrdAcc does. Two
+        # `g brixpg_eng` lines (the native engine's one-rule-per-line idiom) killed
+        # the worker at startup with "duplicate rule for id", and every test here
+        # then hung on a server that was never up.
+        f.write("g brixpg_phys /phys a\n"        # phys: full access on /phys
+                "g brixpg_eng  /phys rl /eng a\n")  # eng: read+lookup on /phys, all on /eng
     os.chmod(authdb, 0o644)
 
     # Seed governed prefixes world-writable *before* the server opens the catalog.
-    _seed_world_writable_dirs(os.path.join(data, "catalog.db"), ["/phys", "/eng"])
+    catalog = os.path.join(data, "catalog.db")
+    _seed_world_writable_dirs(catalog, ["/phys", "/eng"])
+    # Seeded as root; the worker that opens it is not root, and SQLite needs
+    # write on the file itself (its -wal/-shm siblings the worker creates itself).
+    os.chmod(catalog, 0o666)
 
     harness = LifecycleHarness()
     spec = NginxInstanceSpec(
@@ -322,53 +343,86 @@ def server(_accounts):
 # --------------------------------------------------------------------------- #
 # GSI root:// client helpers (pyxrootd)                                        #
 # --------------------------------------------------------------------------- #
-def _with_proxy(proxy: str):
-    """Context-free env swap: point the pyxrootd GSI client at `proxy` + the
-    shared trusted-CA dir, returning a restore callback."""
-    prev = {k: os.environ.get(k) for k in ("X509_USER_PROXY", "X509_CERT_DIR")}
-    os.environ["X509_USER_PROXY"] = proxy
-    os.environ["X509_CERT_DIR"] = settings.CA_DIR
+# Each op runs in its OWN interpreter, one identity per process.  XrdCl pools a
+# physical connection per (user, host, port) and authenticates it ONCE, so an
+# in-process X509_USER_PROXY swap changes nothing: the second identity is handed
+# the first identity's authenticated session.  That is not a hypothetical — it
+# made pb's write land under pa's DN, let an unmapped DN through on pa's session
+# and denied eng its own space on a phys session, i.e. every identity assertion
+# in this module silently tested pa four times.  A process per op is how the rest
+# of the suite keeps GSI identities apart (see the xrdfs/xrdcp subprocess idiom
+# in test_release20_tlsca_residuals.py); this one keeps pyxrootd so the kXR
+# errno (3010) stays readable, and reports the status as JSON.
+_CLIENT_OP = r'''
+import json, sys
+from XRootD import client
+from XRootD.client.flags import OpenFlags
 
-    def restore():
-        for k, v in prev.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
-    return restore
+url, mode, payload = sys.argv[1], sys.argv[2], sys.argv[3]
+f = client.File()
+st, _ = f.open(url, OpenFlags.READ if mode == "read"
+                    else OpenFlags.NEW | OpenFlags.WRITE)
+out = {"ok": bool(st.ok), "errno": int(st.errno), "message": st.message or "",
+       "data": None}
+if st.ok:
+    if mode == "read":
+        rst, buf = f.read()
+        out.update(ok=bool(rst.ok), errno=int(rst.errno),
+                   message=rst.message or "",
+                   data=bytes(buf).hex() if rst.ok else None)
+    else:
+        wst, _ = f.write(bytes.fromhex(payload))
+        out.update(ok=bool(wst.ok), errno=int(wst.errno),
+                   message=wst.message or "")
+    f.close()
+sys.stdout.write(json.dumps(out))
+'''
 
 
-def _write(server, proxy: str, path: str, data: bytes = b"payload"):
-    from XRootD import client
-    from XRootD.client.flags import OpenFlags
-    restore = _with_proxy(proxy)
-    try:
-        f = client.File()
-        st, _ = f.open(server.url + "/" + path.lstrip("/"),
-                       OpenFlags.NEW | OpenFlags.WRITE)
-        if not st.ok:
-            return st
-        wst, _ = f.write(data)
-        f.close()
-        return wst
-    finally:
-        restore()
+def _url(server, path: str, lead: int = 1) -> str:
+    """The object `path` spelled with `lead` slashes after the authority.
+
+    The count is the client's choice and it changes what arrives on the wire:
+    one slash sends the export-relative "phys/x", two send the absolute
+    "/phys/x", three send "//phys/x".  All three name the same object — the I/O
+    layer's brix_beneath_rel() strips every leading slash — so all three must get
+    the same authorization verdict.  Default 1 (the relative spelling) because
+    that is the one the authfile's absolute rules used to miss entirely."""
+    return server.url + "/" * lead + path.lstrip("/")
 
 
-def _read(server, proxy: str, path: str):
-    from XRootD import client
-    from XRootD.client.flags import OpenFlags
-    restore = _with_proxy(proxy)
-    try:
-        f = client.File()
-        st, _ = f.open(server.url + "/" + path.lstrip("/"), OpenFlags.READ)
-        if not st.ok:
-            return st, None
-        rst, data = f.read()
-        f.close()
-        return rst, data
-    finally:
-        restore()
+def _client_op(server, proxy: str, path: str, mode: str, data: bytes = b"",
+               lead: int = 1):
+    """Run one open(+read/write) as `proxy` in a fresh interpreter; return a
+    status object shaped like pyxrootd's (.ok/.errno/.message) plus .data."""
+    env = dict(os.environ,
+               X509_USER_PROXY=proxy,
+               X509_CERT_DIR=settings.CA_DIR,
+               XrdSecPROTOCOL="gsi")
+    env.pop("BEARER_TOKEN", None)
+    r = subprocess.run(
+        [sys.executable, "-c", _CLIENT_OP,
+         _url(server, path, lead), mode, data.hex()],
+        capture_output=True, text=True, timeout=60, env=env)
+    if r.returncode != 0 or not r.stdout:
+        return SimpleNamespace(ok=False, errno=-1, data=None,
+                               message=f"client op failed rc={r.returncode}: "
+                                       f"{(r.stderr or '')[-400:]}")
+    out = json.loads(r.stdout)
+    return SimpleNamespace(ok=out["ok"], errno=out["errno"],
+                           message=out["message"],
+                           data=(bytes.fromhex(out["data"])
+                                 if out["data"] is not None else None))
+
+
+def _write(server, proxy: str, path: str, data: bytes = b"payload",
+           lead: int = 1):
+    return _client_op(server, proxy, path, "write", data, lead)
+
+
+def _read(server, proxy: str, path: str, lead: int = 1):
+    st = _client_op(server, proxy, path, "read", lead=lead)
+    return st, st.data
 
 
 def _denied(st) -> bool:
@@ -447,3 +501,62 @@ def test_unmapped_dn_denied_everywhere(server):
         st = _write(server, server.proxies["unmapped"], space)
         assert _denied(st), f"unmapped DN must be denied on {space}: {st.message}"
         assert _catalog_owner_dn(server.catalog, space) is None
+
+
+# --------------------------------------------------------------------------- #
+# One object, one verdict: the spelling the client picks for the path must not  #
+# change the decision.  An authfile writes its rules absolute ("/phys"), but    #
+# the client chooses how many slashes follow the authority, and the I/O layer   #
+# treats every spelling as the same object (brix_beneath_rel strips them all).  #
+# The gate used to match the raw string, so "phys/x" hit no rule at all — which #
+# loses grants and, far worse, loses DENIES.  brix_acc_canon_path() gives the   #
+# engine one spelling to match; these three pin the contract in both directions.#
+# --------------------------------------------------------------------------- #
+_SPELLINGS = [(1, "relative 'phys/x'"), (2, "absolute '/phys/x'"),
+              (3, "doubled '//phys/x'")]
+
+
+def test_grant_holds_in_every_path_spelling(server):
+    """SUCCESS: a member's own-space grant applies however the path is spelled —
+    each spelling writes a distinct object and each is attributed to that member."""
+    pytest.importorskip("XRootD", reason="pyxrootd client not installed")
+    for lead, label in _SPELLINGS:
+        obj = f"/phys/spell{lead}.dat"
+        st = _write(server, server.proxies["pa"], obj, b"spelled", lead=lead)
+        assert st.ok, f"phys member write must succeed with a {label} path: {st.message}"
+        assert _catalog_owner_dn(server.catalog, obj) == _eec_dn(CN["pa"]), \
+            f"a {label} path must attribute to the same DN as any other spelling"
+        rst, data = _read(server, server.proxies["pa"], obj, lead=lead)
+        assert rst.ok and data == b"spelled", f"read back must work for a {label} path"
+
+
+def test_unmapped_dn_denied_in_every_path_spelling(server):
+    """ERROR: the fail-closed verdict for a principal matching no rule is reached
+    in every spelling — canonicalization must not turn "no rule" into a match."""
+    pytest.importorskip("XRootD", reason="pyxrootd client not installed")
+    for lead, label in _SPELLINGS:
+        obj = f"/phys/unmapped{lead}.dat"
+        st = _write(server, server.proxies["unmapped"], obj, lead=lead)
+        assert _denied(st), \
+            f"unmapped DN must be denied with a {label} path: {st.message}"
+        assert _catalog_owner_dn(server.catalog, obj) is None
+
+
+def test_deny_cannot_be_dodged_by_respelling_the_path(server):
+    """SECURITY-NEG: the attack the raw-string match allowed — an eng member has
+    r+l but no write on /phys, and simply dropping the leading slash used to miss
+    the "/phys" rule, so the write was evaluated against no rule under the governed
+    prefix.  Every spelling must land on the same deny, and leave no catalog row
+    and no object behind."""
+    pytest.importorskip("XRootD", reason="pyxrootd client not installed")
+    for lead, label in _SPELLINGS:
+        obj = f"/phys/dodge{lead}.dat"
+        st = _write(server, server.proxies["ea"], obj, b"should-not-land", lead=lead)
+        assert _denied(st), \
+            f"eng write on /phys must stay denied with a {label} path: {st.message}"
+        assert _catalog_owner_dn(server.catalog, obj) is None, \
+            f"a {label} path must not create a catalog row for a denied write"
+        # The deny is the whole point: the object must not be readable either,
+        # by anyone, in any spelling.
+        rst, _ = _read(server, server.proxies["pa"], obj, lead=2)
+        assert not rst.ok, f"a denied {label} write must leave no readable object"

@@ -182,6 +182,28 @@ class TestXrdAccStatx:
                                ["/sub/test.txt", "/other.txt"])
         assert status != 0, "batch with a denied path must abort"
 
+    def test_statx_batch_of_granted_paths_reuses_the_entity_safely(
+            self, acc_server):
+        """Two granted paths in ONE request: the second authorization runs
+        against an entity the first one built and MEMOISED.
+
+        brix_authz_acc_entity caches the built brix_acc_entity_t on the
+        identity, which lives on the connection — but `host` reached
+        brix_acc_entity_build as ctx->authz.peer, a char array inside a
+        brix_vfs_ctx_t that is a stack local of the caller.  Borrowing it left
+        the cached entity pointing into a frame that had already returned, so
+        this second path read its peer host out of reused stack (ASan:
+        stack-use-after-scope in brix_acc_domain_find) and the worker aborted
+        mid-batch — which the client could only report as a timeout, with the
+        engine nowhere in the message.  Two granted paths and two flag bytes is
+        the smallest request that crosses that boundary."""
+        host, port = self._hostport(acc_server)
+        status, body = _statx_raw(host, port,
+                                  ["/sub/test.txt", "/sub/test.txt"])
+        assert status == 0, f"granted two-path statx failed: status {status}"
+        assert len(body) == 2, (
+            f"expected one flag byte per granted path, got {len(body)}")
+
 
 # ---------------------------------------------------------------------------
 # Cross-protocol: the same engine over WebDAV (davs://) and S3
@@ -192,14 +214,19 @@ import urllib.error    # noqa: E402
 
 
 def _http_code(url, method="GET"):
+    return _http_code_body(url, method)[0]
+
+
+def _http_code_body(url, method="GET"):
+    """(status, body) — the body matters for S3, whose errors ARE the XML."""
     req = urllib.request.Request(url, method=method)
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
-            return r.status
+            return r.status, r.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
-        return e.code
+        return e.code, e.read().decode("utf-8", "replace")
     except Exception:
-        return 0
+        return 0, ""
 
 
 def _start_http(lifecycle, tmp_path, make_location):
@@ -259,10 +286,45 @@ class TestXrdAccWebDAV:
 
 
 class TestXrdAccS3:
-    """The XrdAcc engine over S3 (S3 op -> AOP)."""
+    """The XrdAcc engine over S3 (S3 op -> AOP).
+
+    S3 states an error in the BODY: a client reads <Error><Code>, not the prose
+    and not the status alone.  The xrdacc tier used to deny by returning
+    NGX_HTTP_FORBIDDEN, which let nginx render its own 403 page, so this one
+    gate's verdict arrived with no code at all — indistinguishable from a proxy's
+    403, and from an authentication failure.  The cells below therefore pin the
+    body, not just the number.
+    """
 
     def test_get_granted(self, s3_server):
-        assert _http_code(f"{s3_server}/grant/ok.txt") == 200
+        status, body = _http_code_body(f"{s3_server}/grant/ok.txt")
+        assert status == 200
+        # A granted GET is the object, never an error document.
+        assert "<Error>" not in body
 
     def test_get_no_rule_denied(self, s3_server):
-        assert _http_code(f"{s3_server}/deny.txt") == 403
+        status, body = _http_code_body(f"{s3_server}/deny.txt")
+        assert status == 403
+        assert "<Code>AccessDenied</Code>" in body, (
+            f"a denied S3 GET must name its code; body={body!r}")
+        # ...and name the TIER that decided: the later write-disabled gate answers
+        # with the same code, so without this the cell would pass on a denial the
+        # engine never made.
+        assert "xrdacc" in body, f"denial did not come from the acc tier: {body!r}"
+
+    def test_put_denied_without_create_priv_names_the_code(self, s3_server):
+        # `u * /grant rl` grants no create, so PUT is refused INSIDE the granted
+        # subtree — the privilege letter decides, not the path prefix.
+        status, body = _http_code_body(f"{s3_server}/grant/new.txt", method="PUT")
+        assert status == 403
+        assert "<Code>AccessDenied</Code>" in body, (
+            f"a denied S3 PUT must name its code; body={body!r}")
+        assert "xrdacc" in body, f"denial did not come from the acc tier: {body!r}"
+
+    def test_denied_body_does_not_leak_the_rule(self, s3_server):
+        # Security-negative: the refusal must not hand an unauthenticated caller
+        # the authdb's contents — no rule text, no authdb path, no filesystem
+        # path — only that it was denied.
+        _, body = _http_code_body(f"{s3_server}/deny.txt")
+        for leak in ("authdb", "/grant", "u *", "tmp"):
+            assert leak not in body, f"S3 denial leaked {leak!r}: body={body!r}"

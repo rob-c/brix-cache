@@ -63,6 +63,21 @@ def _listening(port: int, host: str = BIND_HOST) -> bool:
         return False
 
 
+def gateway_up() -> bool:
+    """Is OUR gateway up — both halves of it, not just a port?
+
+    ROOT_PORT is 11094, the well-known xrootd port, so on any host that also
+    runs a stock xrootd the root:// probe alone answers "yes" about a process
+    that is not ours.  _ensure_gateway then skips the start it was called to
+    do, and the demo fails on the dashboard listener nobody ever brought up —
+    "ok root:// (:11094) listening / FAIL dashboard (:8443) listening", which
+    reads like a dashboard bug and is not one.  The demo needs both listeners
+    OF ONE PROCESS, so asking about both is the closest a port probe gets to
+    asking about the process.
+    """
+    return _listening(ROOT_PORT) and _listening(DASH_GATE_PORT)
+
+
 # --------------------------------------------------------------------------- #
 # Pipe-throttled xrdcp transfers (replaces the shell's thr_put / thr_get).
 # Backpressure on the pipe paces the wire to a smooth rate.
@@ -155,8 +170,8 @@ def _drain_download(source, sink, rate_bps, started):
 # Gateway + dashboard plumbing
 # --------------------------------------------------------------------------- #
 def _ensure_gateway(run: LiveRun) -> None:
-    """Start the prepared test gateway when :ROOT_PORT is not listening yet."""
-    if _listening(ROOT_PORT):
+    """Start the prepared test gateway unless it is already up (both halves)."""
+    if gateway_up():
         return
     if run.nginx.exists() and os.access(run.nginx, os.X_OK) and TEST_CONF.is_file() and TEST_PKI_CERT.is_file():
         _say(f"Starting nginx-xrootd (root:// + dashboard) from {TEST_CONF} ...")

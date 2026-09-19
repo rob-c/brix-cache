@@ -205,6 +205,35 @@ HOST_ALIASES = ("brix", "server", "origin", "manager", "ds1", "ds2", "gateway",
                 "backend", "proxy", "cache", "redirector", "dataserver", "arc-ce",
                 "parent", "localhost")
 
+#: Directives whose host argument nginx resolves while PARSING the config.
+#: A compose service name in one of these cannot be looked up outside the
+#: compose network on ANY host: HOSTALIASES is a gethostbyname-era mechanism
+#: and nginx resolves an upstream with getaddrinfo, which never consults it
+#: (`getent ahosts backend` fails with the alias file set, on glibc as much as
+#: on Darwin).  Rendering therefore points these at loopback, so what nginx -t
+#: judges is the example's syntax rather than the checker's DNS.
+#: Deliberately scoped to a directive list rather than applied to the whole
+#: text: an example's own `<word>:<number>` spellings — keys_zone=brix:100m,
+#: levels=1:2 — are not hostnames and must survive untouched.
+CONFIG_TIME_HOST_DIRECTIVES = frozenset({
+    "proxy_pass", "grpc_pass", "uwsgi_pass", "fastcgi_pass", "scgi_pass",
+    "memcached_pass", "server",
+})
+
+_SERVICE_HOST_RE = re.compile(
+    r"(?<![\w.-])(?:%s)(?=:\d)"
+    % "|".join(re.escape(h) for h in HOST_ALIASES if h != "localhost"))
+
+
+def localise_service_hosts(text: str) -> str:
+    """Point every `<compose-service>:<port>` in `text` at the loopback address.
+
+    Only `host:port` positions change; a service name used as an identity
+    (server_name, proxy_ssl_name, a path component) keeps it, because that is
+    what the example is demonstrating.
+    """
+    return _SERVICE_HOST_RE.sub("127.0.0.1", text)  # net-literal-allow: the loopback target is this helper's whole purpose
+
 
 @dataclass
 class Rendered:
@@ -323,13 +352,29 @@ def _materialise(directive: str, target: Path, pki, created: list):
 _ABS_RE = re.compile(r"(?<![\w$:/])(?:(posix|pblock|tape|cache|stage):)?(/(?!/)[^\s;\"']*)")
 
 
-def _rewrite_line(line: str, prefix: Path, pki, created: list) -> str:
-    stripped = line.strip()
+def _verbatim_form(line: str, stripped: str, directive: str) -> str | None:
+    """What `line` renders to when nothing on it is rewritten, else None.
+
+    Three shapes never reach the path substituter: blank and comment lines
+    (no directive to classify), `load_module` (the checker supplies its own
+    module list, so the example's copy would load the module twice), and every
+    LOGICAL_PATH_DIRECTIVE, whose `/…` argument is a namespace path rather than
+    a file the renderer should materialise under the prefix.
+    """
     if not stripped or stripped.startswith("#"):
         return line
-    directive = stripped.split()[0]
-    if directive in LOGICAL_PATH_DIRECTIVES or directive == "load_module":
-        return "" if directive == "load_module" else line
+    if directive == "load_module":
+        return ""
+    return line if directive in LOGICAL_PATH_DIRECTIVES else None
+
+
+def _rewrite_paths(line: str, directive: str, prefix: Path, pki,
+                   created: list) -> str:
+    """`line` with every absolute path repointed under `prefix` and created.
+
+    A trailing ` #comment` is split off first, so a path named in prose stays
+    as the example wrote it; only the directive's own head is substituted.
+    """
     def sub(m):
         scheme, path = m.group(1), m.group(2)
         if path in ("/", "/dev/stderr", "/dev/stdout", "/dev/null"):
@@ -340,6 +385,24 @@ def _rewrite_line(line: str, prefix: Path, pki, created: list) -> str:
 
     head, _, comment = line.partition(" #")
     return _ABS_RE.sub(sub, head) + (" #" + comment if comment else "")
+
+
+def _rewrite_line(line: str, prefix: Path, pki, created: list) -> str:
+    """One config line as the checker will hand it to `nginx -t`.
+
+    Split three ways rather than written straight through: the line first has
+    to be CLASSIFIED (is it rewritten at all), then possibly host-localised,
+    then path-substituted, and carrying all three in one body put the function
+    over the npath limit the moment the host-localisation step was added.
+    """
+    stripped = line.strip()
+    directive = stripped.split()[0] if stripped else ""
+    verbatim = _verbatim_form(line, stripped, directive)
+    if verbatim is not None:
+        return verbatim
+    if directive in CONFIG_TIME_HOST_DIRECTIVES:
+        line = localise_service_hosts(line)
+    return _rewrite_paths(line, directive, prefix, pki, created)
 
 
 def _scaffold(prefix: Path) -> Path:

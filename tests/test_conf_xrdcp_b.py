@@ -14,7 +14,7 @@ def test_download_to_stdout_binary_exact(srv):
 
 # =========================================================================== #
 # OPTION: upload from stdin ("-" source). xrdcp DISALLOWS stdin as a source    #
-# (XrdCpConfig.cc: "Using stdin as a source is disallowed."). Pin that our     #
+# (stock xrdcp: "Using stdin as a source is disallowed."). Pin that our     #
 # server's behaviour matches the stock server's for this input.               #
 # =========================================================================== #
 def test_upload_from_stdin_parity(srv):

@@ -246,7 +246,7 @@ _KXR_QOPAQUF  = 32            # kXR_Qopaquf
 
 
 def _kxr_query_bytes(infotype, args, streamid=b"\x00\x60"):
-    """ClientQueryRequest (24-byte header) + arg body, matching XProtocol.hh:
+    """ClientQueryRequest (24-byte header) + arg body, matching the wire spec:
     streamid[2] requestid[2](=kXR_query 3001) infotype[2] reserved1[2] fhandle[4]
     reserved2[8] dlen[4], then `args` as the dlen body.  The native client
     (client/lib/ops_fs.c brix_query) frames it identically: Qcksum args are the

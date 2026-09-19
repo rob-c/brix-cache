@@ -156,9 +156,12 @@ def _build_mkrepo(run: LiveRun) -> Path:
 # includes cli/cli_hint.h -> brix.h, which pulls in the whole client wire stack
 # (protocols/root/... under -I src) and references symbols that live in these
 # static libraries. Rather than re-list that ever-growing transitive source set,
-# link the same archives the production build links — mirroring the
-# $(BINDIR)/brixMount recipe in client/Makefile (CLIENT_LIB + PROTO_LIB).
-_UMBRELLA_ARCHIVES = ["client/libbrix.a", "shared/xrdproto/libxrdproto.a"]
+# link the same archives the production build links — mirroring client/Makefile's
+# $(BRIX_LIBS), repeat included: libxrdproto calls back into the PAL that libbrix
+# defines (sd_posix_io.o -> brix_plat_pwrite_at et al) and ld resolves each
+# archive once, in order, so libbrix has to appear on both sides of it.
+_UMBRELLA_ARCHIVES = ["client/libbrix.a", "shared/xrdproto/libxrdproto.a",
+                      "client/libbrix.a"]
 
 
 def _client_link_libs() -> list[str]:
@@ -206,7 +209,7 @@ def _umbrella_link_deps() -> tuple[list[str], list[str], list[str], list[str]]:
     """(includes, defines, sources, archives) needed to link the brixMount
     umbrella. Skips cleanly if the prebuilt client archives are absent (e.g. a
     checkout where the client hasn't been built yet)."""
-    for lib in _UMBRELLA_ARCHIVES:
+    for lib in dict.fromkeys(_UMBRELLA_ARCHIVES):   # the list repeats libbrix
         if not os.path.isfile(os.path.join(REPO_ROOT, lib)):
             raise LiveSkip(f"prebuilt {lib} not present (build the client first)")
     return (

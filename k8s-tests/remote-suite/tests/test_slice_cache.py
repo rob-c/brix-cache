@@ -170,7 +170,7 @@ class TestSliceCacheIntegration:
 #   * every slice stored on disk is byte-identical to the matching origin range.
 # ===========================================================================
 
-# --- XRootD wire constants (XProtocol.hh) ----------------------------------
+# --- XRootD wire constants (the wire spec) ----------------------------------
 _kXR_login, _kXR_open, _kXR_read, _kXR_close = 3007, 3010, 3013, 3003
 _kXR_ok, _kXR_oksofar, _kXR_error, _kXR_wait = 0, 4000, 4003, 4005
 _kXR_open_read = 0x0010

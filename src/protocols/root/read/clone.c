@@ -39,7 +39,7 @@
 #include <unistd.h>
 
 #define CLONE_ITEM_LEN   32u      /* sizeof(clone_item) */
-#define CLONE_MAX_ITEMS  1024u    /* maxClonesz from XProtocol.hh */
+#define CLONE_MAX_ITEMS  1024u    /* maxClonesz from the wire spec */
 
 typedef struct {
     int       src_idx;

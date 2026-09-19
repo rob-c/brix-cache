@@ -3,6 +3,8 @@
 #include "core/compat/hex.h"
 #include "path_internal.h"
 
+#include <string.h>
+
 // Check if a path component name is forbidden by filesystem security rules.
 // Returns true for "." and ".." components that enable directory traversal attacks.
 /* Return 1 if a path component is "." or ".." (forbidden in a resolved path). */
@@ -11,6 +13,25 @@ brix_path_component_forbidden(const char *comp, size_t comp_len)
 {
     return (comp_len == 1 && comp[0] == '.')
         || (comp_len == 2 && comp[0] == '.' && comp[1] == '.');
+}
+/* Boundary-aware prefix test — see path_internal.h for the contract and for
+ * why there is exactly one of these. */
+int
+brix_path_prefix_match(const char *prefix, size_t prefix_len, const char *path)
+{
+    if (prefix == NULL || path == NULL) {
+        return 0;
+    }
+
+    if (strncmp(prefix, path, prefix_len) != 0) {
+        return 0;
+    }
+
+    if (prefix_len > 0 && prefix[prefix_len - 1] == '/') {
+        return 1;
+    }
+
+    return path[prefix_len] == '\0' || path[prefix_len] == '/';
 }
 /* Return 1 if `path` contains a ".." component (traversal attempt). */
 int

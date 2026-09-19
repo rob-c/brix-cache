@@ -22,7 +22,7 @@
  *       are 0) then writes only the fields it owns. Callers that manage their own
  *       streamid (the client's xrdc_send stamps it post-pack) pass {0,0}.
  *
- * Clean-room: layouts from src/protocol/wire_core_requests.h (vs XProtocol.hh).
+ * Clean-room: layouts from src/protocol/wire_core_requests.h, the in-repo spec.
  */
 #ifndef BRIX_PROTOCOL_BOOTSTRAP_PACK_H
 #define BRIX_PROTOCOL_BOOTSTRAP_PACK_H

@@ -32,17 +32,24 @@ brix_path_lfn_to_pfn(const brix_vfs_ctx_t *ctx, const char *lfn,
 }
 
 ngx_int_t
+brix_path_cfg_pfn_to_lfn(const brix_n2n_cfg_t *cfg, const char *pfn,
+    char *lfn, size_t cap)
+{
+    if (cfg == NULL) {
+        cfg = &brix_n2n_identity_cfg;
+    }
+    return (brix_n2n_pfn2lfn(cfg, pfn, lfn, cap) == 0) ? NGX_OK : NGX_ERROR;
+}
+
+ngx_int_t
 brix_path_pfn_to_lfn(const brix_vfs_ctx_t *ctx, const char *pfn,
     char *lfn, size_t cap)
 {
-    const brix_n2n_cfg_t *cfg;
-
     if (ctx == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
-    cfg = (ctx->n2n != NULL) ? ctx->n2n : &brix_n2n_identity_cfg;
-    return (brix_n2n_pfn2lfn(cfg, pfn, lfn, cap) == 0) ? NGX_OK : NGX_ERROR;
+    return brix_path_cfg_pfn_to_lfn(ctx->n2n, pfn, lfn, cap);
 }
 
 /* brix_path_resolved_to_pfn -- translate one confined VFS path for a driver.

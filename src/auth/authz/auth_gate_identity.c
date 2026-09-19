@@ -113,6 +113,7 @@ authz_identity_primary(const brix_authz_identity_query_t *q)
 {
     if (q->acc_format == BRIX_AUTHDB_FORMAT_XRDACC) {
         brix_acc_entity_t *ent = q->acc_entity;
+        const char        *path;
 
         if (ent == NULL) {
             ent = brix_authz_acc_entity(q->pool, q->identity, q->peer_ip);
@@ -121,8 +122,13 @@ authz_identity_primary(const brix_authz_identity_query_t *q)
         if (q->acc_tables == NULL || ent == NULL) {
             return NGX_ERROR;
         }
+
+        path = brix_acc_canon_path(q->pool, q->logical_path);
+        if (path == NULL) {
+            return NGX_ERROR;   /* unspellable path -> deny */
+        }
         return brix_acc_access((brix_acc_tables_t *) q->acc_tables, ent,
-            q->logical_path, q->acc_op) != BRIX_ACC_PRIV_NONE
+            path, q->acc_op) != BRIX_ACC_PRIV_NONE
             ? NGX_OK : NGX_ERROR;
     }
 

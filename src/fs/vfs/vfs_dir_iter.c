@@ -196,7 +196,7 @@ vfs_sd_stat_child(brix_vfs_dir_t *dh, const char *name, brix_sd_stat_t *sd_st)
 
 /* vfs_sd_render_entry -- turn one raw driver child into its visible LFN name.
  *
- * WHAT: Reconstructs the entry's full PFN, reverses the ctx-bound N2N mapping,
+ * WHAT: Reconstructs the entry's full PFN, reverses the handle's N2N mapping,
  *       validates that the result is an immediate child of the opened logical
  *       directory, and overwrites `entry->name` with that basename.
  * WHY:  Protocols must never expose configured pools/prefixes, and a malformed
@@ -215,8 +215,8 @@ vfs_sd_render_entry(brix_vfs_dir_t *dh, brix_sd_dirent_t *entry)
 
     if (vfs_sd_join_child(dh->sd_physical, entry->name, physical,
                           sizeof(physical)) != NGX_OK
-        || brix_path_pfn_to_lfn(dh->ctx, physical, logical,
-                                sizeof(logical)) != NGX_OK)
+        || brix_path_cfg_pfn_to_lfn(dh->n2n, physical, logical,
+                                    sizeof(logical)) != NGX_OK)
     {
         return NGX_ERROR;
     }

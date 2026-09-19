@@ -5,6 +5,18 @@
  * Source code calls brix_plat_*() from platform_api.h - never these directly.
  */
 
+/* The glibc feature-test macro these bodies need (execvpe, splice).  Guarded, not
+ * bare, because both real builds already pass -D_GNU_SOURCE on the command
+ * line (./config for the module, client/Makefile's HARDEN for the client) and
+ * an unguarded redefinition is an error under -Werror.  Declared HERE rather
+ * than left to the caller so a standalone harness that links one PAL body --
+ * every tests/cmdscripts compile line that reaches brix_plat_* -- gets the
+ * prototypes too, instead of an implicit declaration and a silent link
+ * failure.  It must precede every include, hence its place above them. */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "../platform.h"
 #include "../platform_api.h"
 
@@ -16,6 +28,7 @@
 #include <stdio.h>
 #if BRIX_PLATFORM_LINUX
 #include <sys/random.h>
+#include <sys/sendfile.h>   /* sendfile(2); Darwin declares its own in <sys/socket.h> */
 #include <sys/syscall.h>
 #include <sys/fsuid.h>
 #include <sys/xattr.h>

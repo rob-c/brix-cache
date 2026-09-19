@@ -31,7 +31,7 @@ Any wrong success/failure, wrong on-disk effect, content/mode not preserved,
 framing-handling difference, or confinement bypass is flagged as a BUG. We pin
 the stock server's behavior — no xfail/skip is used to hide a real divergence.
 
-kXR_mv wire contract (XProtocol.hh ClientMvRequest + XrdXrootdXeq.cc do_Mv):
+kXR_mv wire contract (the wire spec ClientMvRequest + the stock server do_Mv):
   struct: streamid[2] requestid(u16) reserved[14] arg1len(int16) dlen(int32)
   data buffer: "<oldpath> <newpath>" (single space separator).
   do_Mv: if arg1len != 0, byte at offset arg1len MUST be ' ' (else kXR_ArgInvalid

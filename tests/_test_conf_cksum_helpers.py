@@ -18,9 +18,9 @@ software CRC-64/XZ and /NVME, and hashlib md5/sha1/sha256, all cross-checked
 against XRootD's own client-side calculators and the published CRC catalogue
 check vectors).
 
-Wire format consulted (not modified):
-  /tmp/brix-src/src/XrdCl/XrdClFS.cc      DoQuery / BuildPath (xrdfs arg path)
-  /tmp/brix-src/src/XrdCl/XrdClUtils.cc   appends "?cks.type=<algo>" CGI
+Wire format (in-repo spec is authoritative):
+  stock xrdfs    query path construction (the arg path it sends)
+  stock xrdfs    appends "?cks.type=<algo>" CGI
   src/protocols/root/query/checksum_qcksum.c               our kXR_Qcksum handler
 
 Philosophy (per the maintainer): a divergence — wrong hex, wrong reply shape,

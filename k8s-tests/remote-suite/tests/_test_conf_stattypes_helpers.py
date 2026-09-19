@@ -12,7 +12,7 @@ at several modes, named pipes, symlinks, 0-byte and setuid/setgid files)
 IDENTICALLY on both data roots, then diffs OUR-vs-STOCK on the headline of a
 stat reply: the StatGen FLAGS INTEGER.
 
-StatGen flag derivation (XrdXrootdProtocol.cc:747 StatGen):
+StatGen flag derivation (the stock server StatGen):
   readable  if (mode & any-r) AND (owner-r && euid==uid) | (grp-r && egid==gid)
                                   | other-r          -> kXR_readable (16)
   writable  same rule for write bits                  -> kXR_writable (32)
@@ -20,7 +20,7 @@ StatGen flag derivation (XrdXrootdProtocol.cc:747 StatGen):
   isDir     S_ISDIR(mode)                             -> kXR_isDir    (2)
   other     !S_ISDIR && !S_ISREG (fifo/sock/dev/...)  -> kXR_other    (4)
   offline   only if devid (st_ino|st_dev) is zero     -> kXR_offline  (8)
-Flag bits: XProtocol.hh:1261
+Flag bits: the wire spec
   kXR_file=0 kXR_xset=1 kXR_isDir=2 kXR_other=4 kXR_offline=8
   kXR_readable=16 kXR_writable=32 kXR_poscpend=64 kXR_bkpexist=128
 
@@ -55,19 +55,19 @@ pytestmark = [pytest.mark.timeout(300),
 OUR_PORT = L.worker_port(14052)
 OFF_PORT = L.worker_port(14053)
 # --------------------------------------------------------------------------- #
-# wire constants (XProtocol.hh)
+# wire constants (the wire spec)
 # --------------------------------------------------------------------------- #
 kXR_login, kXR_open, kXR_stat, kXR_statx, kXR_close = 3007, 3010, 3017, 3022, 3003
 kXR_ok, kXR_oksofar, kXR_error = 0, 4000, 4003
 
-# stat flag bits (XProtocol.hh:1261-1269)
+# stat flag bits (the wire spec)
 kXR_file, kXR_xset, kXR_isDir, kXR_other = 0, 1, 2, 4
 kXR_offline, kXR_readable, kXR_writable = 8, 16, 32
 
-# stat options (XProtocol.hh)
+# stat options (the wire spec)
 kXR_vfs = 1
 
-# open options (XProtocol.hh)
+# open options (the wire spec)
 kXR_open_read = 0x0010
 
 
@@ -293,7 +293,7 @@ def _session(port):
 
 
 def _stat_path(s, path, options=0, sid=b"\x00\x02"):
-    """kXR_stat by PATH (ClientStatRequest, XProtocol.hh:806)."""
+    """kXR_stat by PATH (ClientStatRequest, the wire spec)."""
     p = path.encode()
     hdr = struct.pack("!2sHB7sI4sI", sid, kXR_stat, options, b"\x00" * 7,
                       0, b"\x00" * 4, len(p))
@@ -396,6 +396,6 @@ def _present(srv, rel):
 # behavior to it (status + type classification + flags integer agree).
 # Reference: stock has no lstat path; both should resolve to the target.
 # =========================================================================== #
-kXR_statNoFollow = 2  # XProtocol.hh stat option bit (best-effort; stock ignores)
+kXR_statNoFollow = 2  # the wire spec stat option bit (best-effort; stock ignores)
 
 __all__ = [n for n in dir() if not n.startswith('__')]

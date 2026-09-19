@@ -42,6 +42,7 @@ import pytest
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
+from cmdscripts import open_tree_for_worker
 from conformance_common import NGINX_BIN, PortBlock, srv_instance
 from settings import CA_DIR, HOST, USER_CERT, USER_KEY
 
@@ -198,6 +199,14 @@ def voms(tmp_path_factory):
     proxies = {vo: _minted_proxy(d, vo, voms_crt, voms_key)
                for vo in ("atlas", "cms")}
     proxies["plain"] = _plain_proxy(d)
+    # The vomsdir and signer live HERE, in a 0700 pytest tmp tree, but the
+    # nginx that reads them runs a de-escalated worker (`nobody`, always-on
+    # brix_imp_worker_deescalate).  srv_instance opens its own LiveRun root for
+    # that worker and nothing else, so without this the worker cannot traverse
+    # down to vomsdir/<vo>/*.lsc: opendir() fails, brix_voms_lsc_match() finds
+    # nothing and every proxy is refused "lsc" — which quietly turned the three
+    # negative cases below into vacuous passes.
+    open_tree_for_worker(d)
     return {"dir": d, "server": (d / "server.crt", d / "server.key"),
             "vomsdir": vd, "proxies": proxies}
 

@@ -122,12 +122,16 @@ LAUNCH_BACKLOG = frozenset({
     # binary or xrdcp is absent.  It is a migration target, not a permanent
     # exception — recorded here so the guard sees it, which it did not before.
     "test_data_substreams_gateway.py",
-    # `test_phase115_example_configs.py` boots the SHIPPED compose stacks
-    # (deploy/compose/*/nginx*.conf) exactly as an operator would, which is the
-    # whole assertion: the deliverable under test is the committed config, not a
-    # tests/configs template the registry could render.  Ports are leased and
-    # remapped per run and every master is reaped by the stack's own `stop()`.
-    "test_phase115_example_configs.py",
+    # Same entry as ever, renamed — the second relocation of this kind: the
+    # file-size split moved the boot out of `test_phase115_example_configs.py`
+    # into its continuation shard, so the parent no longer launches anything
+    # and the shard is not a new offender.  What it does is unchanged: boot the
+    # SHIPPED compose stacks (deploy/compose/*/nginx*.conf) exactly as an
+    # operator would, which is the whole assertion — the deliverable under test
+    # is the committed config, not a tests/configs template the registry could
+    # render.  Ports are leased and remapped per run and every master is reaped
+    # by the stack's own `stop()`.
+    "_test_phase115_example_configs_live.py",
 })
 
 
@@ -138,6 +142,20 @@ LAUNCH_BACKLOG = frozenset({
 # shrinking, like LAUNCH_BACKLOG.
 _INLINE_EVENTS = re.compile(r"events\s*\{")
 _INLINE_HTTP_STREAM = re.compile(r"(?:^|\W)(?:http|stream)\s*\{")
+# The shared parse-only drivers (``config_parse``): they render into a throwaway
+# prefix, exec ``nginx -t``, and START NOTHING.  A module that calls them has the
+# same standing as one spelling the ``-t`` argv itself — more, since going
+# through the helper IS the migrated idiom — but the argv scan below reads one
+# file at a time and cannot see a ``-t`` that lives in another.  Without this,
+# doing the right thing (`test_gsi_legacy_proxy_config.py`, whose http half
+# builds a body ``nginx_t_text`` validates) was flagged as a new inline config
+# while the module it copied its shape from, which runs its own subprocess, was
+# exempt.  Server-starting launches are still disqualifying — `_server_launches`
+# is checked first — so this widens the exemption to the helper, not past it.
+_PARSE_HELPER = re.compile(
+    r"^\s*from\s+config_parse\s+import\b|\bconfig_parse\.nginx_t\w*\s*\(",
+    re.M,
+)
 INLINE_CONFIG_BACKLOG = frozenset()
 # Fully burned down: every test module that embedded an nginx config heredoc has
 # been migrated to a committed tests/configs/*.conf template driven through the
@@ -186,11 +204,16 @@ def _server_launches(text):
 
 def _validation_only(text):
     """True when the module drives nginx solely for `nginx -t` config validation:
-    at least one `nginx -t` call and no server-starting nginx launch.  Such a
+    no server-starting nginx launch, and at least one parse-only driver — the
+    shared `config_parse` helpers or an inline `nginx -t` argv.  Such a
     config-syntax/negative test embeds a minimal snippet on purpose and has no
     runnable-template equivalent, so it is exempt from the inline-config ban."""
+    if _server_launches(text):
+        return False
+    if _PARSE_HELPER.search(text):
+        return True
     calls = list(_LAUNCH.finditer(text))
-    return bool(calls) and not _server_launches(text) and any(
+    return bool(calls) and any(
         '"-t"' in m.group(1) or "'-t'" in m.group(1) for m in calls
     )
 

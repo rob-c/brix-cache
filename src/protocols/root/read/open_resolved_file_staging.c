@@ -281,7 +281,7 @@ brix_open_resume_inplace_decide(brix_open_args_t *a)
 		 *   - final does not exist              -> fail kXR_NotFound, exactly as
 		 *     O_RDWR-without-O_CREAT would.  Staging would otherwise CREATE the
 		 *     missing file and return kXR_ok, diverging from stock which derives
-		 *     no O_CREAT for kXR_open_updt alone (XrdXrootdXeq.cc:1524). */
+		 *     no O_CREAT for kXR_open_updt alone, as the stock server does. */
 		/* The partial lives under the upload stage dir when one is configured
 		 * (a separate, svc-owned storage domain), else next to the final under
 		 * the export root. Probe the export-root partial through the VFS; the

@@ -68,21 +68,7 @@ brix_plat_fuse_host_opts(void)
 }
 
 
-int
-brix_plat_tcp_rtt(int fd, uint32_t *rtt_us, uint32_t *rttvar_us,
-    uint32_t *retrans)
-{
-    struct tcp_info ti;
-    socklen_t       len = sizeof(ti);
-
-    memset(&ti, 0, sizeof(ti));
-    if (getsockopt(fd, IPPROTO_TCP, TCP_INFO, &ti, &len) != 0) {
-        return -1;
-    }
-    *rtt_us    = (uint32_t) ti.tcpi_rtt;        /* already microseconds */
-    *rttvar_us = (uint32_t) ti.tcpi_rttvar;
-    *retrans   = (uint32_t) ti.tcpi_total_retrans;
-    return 0;
-}
+/* brix_plat_tcp_rtt lives in ../tcp_rtt.c: one body for every host, over the
+ * struct/option/unit facts this host names in host_net.h. */
 
 #endif /* BRIX_PLATFORM_LINUX */

@@ -100,6 +100,16 @@ frm_purge_push(frm_purge_scan_t *s, const char *rel, const struct stat *sb)
         s->v   = nv;
         s->cap = ncap;
     }
+    /* Ownership transfers INTO the candidate vector; frm_purge_scan_free
+     * releases every entry's rel.
+     *
+     * gcc 11's -fanalyzer cannot see a symbolic-index store through a
+     * parameter as an escape, so it reports the strdup leaking at the return
+     * below. Suppress exactly that diagnostic, at exactly its emission point. */
+#pragma GCC diagnostic push
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wanalyzer-malloc-leak"
+#endif
     c = &s->v[s->n];
     c->rel = strdup(rel);
     if (c->rel == NULL) {
@@ -112,6 +122,7 @@ frm_purge_push(frm_purge_scan_t *s, const char *rel, const struct stat *sb)
     c->approved = 0;
     s->n++;
     return 0;
+#pragma GCC diagnostic pop
 }
 
 static int

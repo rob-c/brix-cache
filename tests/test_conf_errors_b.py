@@ -76,7 +76,7 @@ def test_stat_empty_string_path_parity(srv):
 
 def test_wire_unknown_opcode_invalidrequest(srv):
     """Unknown opcode -> kXR_error on both. OUR server returns kXR_InvalidRequest
-    (3006), matching the C++ reference (XrdXrootdProtocol.cc:608); the stock
+    (3006), matching the (the stock server); the stock
     build here returns kXR_ArgMissing (3001). Both are request-reject codes."""
     def send(s):
         s.sendall(struct.pack("!2sH16sI", b"\x00\x21", 9999, b"\x00" * 16, 0))

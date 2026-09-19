@@ -3,8 +3,7 @@
 
 /*
  * GSI (x509) authentication wire constants.
- * Source: xrootd/xrootd src/XrdSecgsi/XrdSecProtocolgsi.hh
- *         and src/XrdSut/XrdSutBuffer.hh
+ * Wire contract: the XrdSecgsi handshake and its XrdSut bucket buffer.
  */
 
 /* ------------------------------------------------------------------ */

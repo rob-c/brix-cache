@@ -3,7 +3,7 @@
 > Part of the [XRootD vs BriX-Cache comparison set](./README.md).
 
 This document compares how **official XRootD** (the upstream C++ server, source
-under `/tmp/brix-src/src`) and the **BriX-Cache module** (this repository,
+in the upstream `XrdSec*` subsystems) and the **BriX-Cache module** (this repository,
 source under `src/`) authenticate clients and authorize requests. Every claim is
 grounded in source with file paths and, where load-bearing, symbol/line
 references. Where a fact could not be confirmed from source it is explicitly
@@ -53,7 +53,7 @@ library. HTTP/WebDAV is served by **XrdHttp**, which has its *own* TLS-cert and
 token plumbing distinct from XrdSec and bridges the resulting identity into the
 xrootd core.
 
-- **Framework:** `/tmp/brix-src/src/XrdSec/` — `XrdSecPManager`
+- **Framework:** `XrdSec/` — `XrdSecPManager`
   (`XrdSecPManager.cc`) loads `libXrdSec<pid>.so` per protocol id and resolves
   `XrdSecProtocol<pid>Object`/`...Init`. The server advertises available
   protocols in the `kXR_login` reply as a `&P=<pid>[,<args>]` token
@@ -72,12 +72,12 @@ xrootd core.
   **XrdSciTokens** (`XrdSciTokens/`, links `scitokens-cpp`) and/or
   **XrdMacaroons** (`XrdMacaroons/`, links `libmacaroons`). These plugins also
   serve the HTTP token surface.
-- **Authorization:** `/tmp/brix-src/src/XrdAcc/` — an authdb file (default
+- **Authorization:** `XrdAcc/` — an authdb file (default
   `/etc/brix/authdb`) parsed by `XrdAccAuthFile.cc`, evaluated by
   `XrdAccAccess::Access()` (`XrdAccAccess.cc:105`), enabled with
   `ofs.authorize` + `acc.authdb`. SciTokens/Macaroons chain *in front of*
   XrdAcc by implementing the same `XrdAccAuthorize` interface.
-- **VOMS:** `/tmp/brix-src/src/XrdVoms/` — one shared object exposed under two
+- **VOMS:** `XrdVoms/` — one shared object exposed under two
   names (`libXrdSecgsiVOMS` for GSI, `libXrdHttpVOMS` for HTTP), wrapping
   `libvomsapi` to fill `Entity.vorg/grps/role`.
 
@@ -724,7 +724,7 @@ are repeated above.
 
 ## Source references
 
-**Official XRootD** (`/tmp/brix-src/src/`):
+**Official XRootD** (upstream):
 
 - Framework: `XrdSec/XrdSecPManager.cc`, `XrdSecServer.cc`,
   `XrdSecInterface.hh`, `XrdSecEntity.hh`, `XrdSec/XrdSecProtocolhost.cc`

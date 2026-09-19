@@ -17,6 +17,14 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
             "-Werror",
             "-I",
             "client/lib",
+            # The PAL interface header is host-free and shared, so it lives on
+            # the module side: `client/lib/platform/platform.h` is a two-line
+            # shim over `src/platform/platform_api.h`.  overlay.c reaches it
+            # through the shim, so a client-only include path stops the build
+            # at "fatal error: platform/platform_api.h: No such file or
+            # directory" in a header overlay.c never named.
+            "-I",
+            "src",
             "client/lib/fs/overlay_unittest.c",
             "client/lib/fs/overlay.c",
             # copy-up / nameset helpers split out of overlay.c into a sibling TU.

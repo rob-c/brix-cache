@@ -9,7 +9,7 @@
  *   the source as the USER. This is the exact request a stock XrdSecgsi client
  *   knows how to sign; getting it byte-faithful is what lets a real delegating
  *   client (XrdSecGSIDELEGPROXY) interoperate. Ported from stock XrdSecgsi
- *   XrdCrypto/XrdCryptosslgsiAux.cc::XrdCryptosslX509CreateProxyReq.
+ *   stock XrdSecgsi's X509CreateProxyReq.
  *
  * HOW: PEM→X509 parent → RSA keygen(bits>=parent,>=BRIX_GSI_PROXY_KEY_BITS,e=BRIX_RSA_PUBLIC_EXPONENT) → subject =
  *   dup(parent) + /CN=<rand serial> → proxyCertInfo (impersonation policy, pathlen

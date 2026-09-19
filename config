@@ -630,6 +630,13 @@ fi
 
 ngx_addon_name=ngx_stream_brix_module
 
+# This list is make's ONLY view of the addon's headers — nginx generates no
+# per-object header dependencies, so a header that is not named here can be
+# edited and `make` will relink the previous objects without a word.  An omission
+# is therefore not a slow rebuild, it is a WRONG binary: beneath.h was missing
+# while src/core/ngx_brix_module.h includes it, so a fix to the confined-path
+# join rebuilt nothing at all and the change appeared to have no effect.  Name a
+# header here when you add one that is included beyond its own directory.
 ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/core/ident.h \
                         $ngx_addon_dir/src/auth/authz/acc/privs.h \
@@ -696,6 +703,7 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/tpc/common/transfer.h \
                         $ngx_addon_dir/src/fs/path/path_internal.h \
                         $ngx_addon_dir/src/fs/path/unified.h \
+                        $ngx_addon_dir/src/fs/path/beneath.h \
                         $ngx_addon_dir/src/core/types/identity.h \
                         $ngx_addon_dir/src/fs/vfs/vfs.h \
 $ngx_addon_dir/src/fs/vfs/vfs_deleg.h \
@@ -1298,6 +1306,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/ram/sd_ram.c \
     $ngx_addon_dir/src/fs/backend/ram/sd_ram_table.c \
     $ngx_addon_dir/src/fs/backend/ram/sd_ram_staged.c \
+    $ngx_addon_dir/src/fs/backend/ram/sd_ram_xattr.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_io.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_object.c \
@@ -2320,6 +2329,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/s3/module.c \
                  $ngx_addon_dir/src/protocols/s3/auth_sigv4_verify_time.c \
                  $ngx_addon_dir/src/protocols/s3/auth_sigv4_verify_crypto.c \
                  $ngx_addon_dir/src/protocols/s3/auth_bearer.c \
+                 $ngx_addon_dir/src/protocols/s3/auth_acc.c \
                  $ngx_addon_dir/src/protocols/s3/multipart_helpers.c \
                  $ngx_addon_dir/src/protocols/s3/multipart_initiate.c \
                  $ngx_addon_dir/src/protocols/s3/multipart_abort.c \

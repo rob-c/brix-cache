@@ -48,7 +48,7 @@ BRIX_PORT = int(os.environ.get("TEST_DROPIN_BRIX_PORT") or _BRIX_FREE)
 
 
 # ---------------------------------------------------------------------------
-# Opcodes / status / error codes (XProtocol.hh + src/protocols/root/protocol/opcodes.h)
+# Opcodes / status / error codes (the wire spec + src/protocols/root/protocol/opcodes.h)
 # ---------------------------------------------------------------------------
 
 kXR_query    = 3001
@@ -73,7 +73,7 @@ kXR_Qcksum   = 3
 kXR_Qspace   = 5
 kXR_Qconfig  = 7
 
-# Server error codes (XProtocol.hh XErrorCode)
+# Server error codes (the wire spec XErrorCode)
 kXR_NotAuthorized = 3010
 kXR_NotFound      = 3011
 kXR_isDirectory   = 3016
@@ -230,7 +230,7 @@ def _read(sock, fhandle, offset, rlen, streamid=b"\x00\x06"):
 
 def _stat(sock, path, streamid=b"\x00\x10"):
     """ClientStatRequest: options[1] reserved[7] wants[u32] fhandle[4] dlen.
-    Path-based stat (fhandle = 0) — see XProtocol.hh ClientStatRequest."""
+    Path-based stat (fhandle = 0) — see the wire spec ClientStatRequest."""
     p = path.encode() + b"\x00" if isinstance(path, str) else path
     req = struct.pack("!2sHB7sI4sI",
                       streamid, kXR_stat,

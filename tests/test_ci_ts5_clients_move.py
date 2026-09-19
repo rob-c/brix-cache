@@ -48,10 +48,24 @@ import sys
 import pytest
 
 def _check_test_every_definition_moved_verbatim_1(label, new, old):
-    assert sorted(set(new) - set(old)) == [], f"{label}: unexplained additions"
+    extra = sorted(set(new) - set(old) - _ADDED_SINCE_MOVE.get(label, set()))
+    assert extra == [], f"{label}: unexplained additions: {extra}"
 
 def _check_test_every_definition_moved_verbatim_2(differing, label):
     assert differing == [], f"{label}: bodies changed during the move: {differing}"
+
+def _undeclared_drift(label, old, new):
+    """Archived names whose body changed and that no ledger line explains."""
+    declared = _CHANGED_SINCE_MOVE.get(label, set())
+    return sorted(k for k in old if old[k] != new[k] and k not in declared)
+
+def _check_test_every_definition_moved_verbatim_3(label, old, new):
+    """A ledger line that no longer describes anything is a lie by omission:
+    it exempts a name the archive still matches, so a LATER edit to that name
+    would land silently under an explanation written for a different change."""
+    stale = sorted(k for k in _CHANGED_SINCE_MOVE.get(label, set())
+                   if old.get(k) == new.get(k))
+    assert stale == [], f"{label}: declared changed but still verbatim: {stale}"
 
 
 TESTS = pathlib.Path(__file__).resolve().parent
@@ -62,6 +76,36 @@ LEGACY = TESTS / "brix_suite" / "_legacy"
 CORE_PTY = REPO / "brixtest" / "src" / "brixtest" / "clients" / "pty.py"
 
 pytestmark = pytest.mark.timeout(180)
+
+#: Grown since the move, by group and with the reason.  The archive pins what
+#: the MOVE did — nothing lost, nothing quietly rewritten on the way across —
+#: not the module's future; an undeclared addition still fails.
+_ADDED_SINCE_MOVE = {
+    # `_worker_python` used to inline its import probe, including a bare
+    # `dict(os.environ)`.  The XRootD/GSI C bindings call putenv() from
+    # several threads and can leave a malformed NAME in os.environ for an
+    # instant; subprocess then rejects the WHOLE environment with ValueError,
+    # the inlined `except` swallowed it as "this interpreter has no
+    # bindings", and one unlucky moment disqualified every candidate for the
+    # rest of the session — reported as "no Python interpreter with real
+    # XRootD bindings found", which names the opposite of the cause.  The
+    # probe became its own function so it can sanitize the env the way the
+    # fleet launcher does and record WHY each candidate was rejected.
+    "xrdcl": {"_probe_bindings"},
+}
+
+#: Archived definitions since EDITED, with what changed.  Stricter than an
+#: addition: an edit is where a move can be undone quietly.
+_CHANGED_SINCE_MOVE = {
+    "xrdcl": {
+        # Both ends of the same repair as `_probe_bindings` above:
+        # `_worker_python` calls the extracted probe instead of inlining it,
+        # and `_Worker.__init__` builds the worker's env through
+        # `sanitized_env()` and puts the collected probe failures into the
+        # error it raises, so the message names the interpreters it tried.
+        "_Worker", "_worker_python",
+    },
+}
 
 #: (flat spelling, canonical dotted name) — the worker is deliberately absent:
 #: importing it pulls the real pyxrootd bindings into whichever interpreter
@@ -250,8 +294,8 @@ def test_every_definition_moved_verbatim(label, archives, live, count):
 
     _assert_test_every_definition_moved_verbatim_1()
     _check_test_every_definition_moved_verbatim_1(label, new, old)
-    differing = sorted(k for k in old if old[k] != new[k])
-    _check_test_every_definition_moved_verbatim_2(differing, label)
+    _check_test_every_definition_moved_verbatim_2(_undeclared_drift(label, old, new), label)
+    _check_test_every_definition_moved_verbatim_3(label, old, new)
 
 
 def test_the_package_carries_the_worker_script_it_starts():

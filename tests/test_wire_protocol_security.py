@@ -240,7 +240,7 @@ class TestInvalidRequestID:
     """Unknown opcodes must be rejected (not crash).
 
     Stock xrootd replies kXR_InvalidRequest ("Invalid request code",
-    XrdXrootdProtocol.cc:608) for an unrecognised request code; kXR_Unsupported
+    the stock server) for an unrecognised request code; kXR_Unsupported
     is reserved for a *recognised* op the backend cannot perform.  We match that.
     """
 

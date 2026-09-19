@@ -75,9 +75,9 @@ The relevant subpackages (ignore the `-debuginfo`/`-debugsource`/`.src.rpm`):
 
 ```bash
 sudo dnf install -y \
-  /tmp/brix-rpms/nginx-mod-brix-cache-2.0.0-1.el9.x86_64.rpm \
-  /tmp/brix-rpms/brix-cache-client-2.0.0-1.el9.x86_64.rpm \
-  /tmp/brix-rpms/brix-tools-2.0.0-1.el9.x86_64.rpm
+  /tmp/brix-rpms/nginx-mod-brix-cache-2.0.0-2.el9.x86_64.rpm \
+  /tmp/brix-rpms/brix-cache-client-2.0.0-2.el9.x86_64.rpm \
+  /tmp/brix-rpms/brix-tools-2.0.0-2.el9.x86_64.rpm
 ```
 
 `dnf` resolves the runtime deps (`nginx`, `openssl`, `libcurl`, `krb5-libs`, …)
@@ -255,7 +255,7 @@ fleet's top-level configs.
 **1. Install the tests package** (Part 1.2 first, then):
 
 ```bash
-sudo dnf install -y /tmp/brix-rpms/brix-cache-tests-2.0.0-1.el9.noarch.rpm
+sudo dnf install -y /tmp/brix-rpms/brix-cache-tests-2.0.0-2.el9.noarch.rpm
 ```
 
 It installs to `/usr/share/brix/` (`conftest.py`, `pytest.ini`,

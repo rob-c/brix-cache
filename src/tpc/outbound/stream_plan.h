@@ -16,7 +16,7 @@
  *       belong under a deterministic test, not behind a rendezvous.
  * HOW:  header-only prototypes; the implementation (stream_plan.c) uses only the
  *       C library. Wire facts: XRootD read_args = { pathid[1], reserved[7] }
- *       (XProtocol.hh), pathid 0 = the requesting (primary) stream.
+ *       (per the wire spec), pathid 0 = the requesting (primary) stream.
  */
 #ifndef BRIX_TPC_OUTBOUND_STREAM_PLAN_H
 #define BRIX_TPC_OUTBOUND_STREAM_PLAN_H

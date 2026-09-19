@@ -42,6 +42,8 @@ import subprocess
 
 import pytest
 
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX_SRC = os.environ.get("TEST_NGINX_SRC", "/tmp/nginx-1.28.3")
 CC = os.environ.get("CC", "cc")
@@ -191,7 +193,11 @@ def _inc_flags():
 
 def _build(driver_c, policy_c, out_bin):
     """Compile one driver against one policy kernel.  None on a build failure."""
-    cmd = [CC, "-O2", "-D_GNU_SOURCE", "-w", *_inc_flags(),
+    # The kernel reaches platform/platform.h, which selects its <host>/host.h
+    # from -DBRIX_PLATFORM_HOST alone and #errors without it (INVARIANT 14).
+    # ./config passes it for the module build; a line assembled here has to
+    # say it too, or every mutant "fails to build" for the same wrong reason.
+    cmd = [CC, "-O2", "-D_GNU_SOURCE", "-w", *PLATFORM_HOST_FLAGS, *_inc_flags(),
            "-o", str(out_bin), str(driver_c), str(policy_c)]
     build = subprocess.run(cmd, capture_output=True, text=True, timeout=180,
                            cwd=REPO)

@@ -9,27 +9,6 @@
 
 #include "fs/path/path_internal.h"
 
-/* Return 1 if `path` is at or beneath `prefix` (component-aligned prefix match). */
-static ngx_flag_t
-brix_path_prefix_match(const char *prefix, const char *path)
-{
-    size_t prefix_len;
-
-    if (prefix == NULL || path == NULL) {
-        return 0;
-    }
-
-    prefix_len = strlen(prefix);
-    if (strncmp(prefix, path, prefix_len) != 0) {
-        return 0;
-    }
-
-    /* Require the match to fall on a path-component boundary so that prefix
-     * "/foo" matches "/foo" (exact) and "/foo/bar" (child) but NOT "/foobar".
-     * The char immediately after the prefix in path must therefore be either
-     * end-of-string or a '/' separator. */
-    return path[prefix_len] == '\0' || path[prefix_len] == '/';
-}
 /* Compare the first `bits` of two packed addresses — the CIDR prefix-match core. */
 static ngx_flag_t
 brix_authdb_addr_prefix_match(const u_char *a, const u_char *b,
@@ -352,7 +331,9 @@ brix_find_authdb_rule_identity(const char *resolved_path, ngx_array_t *rules,
     for (i = 0; i < rules->nelts; i++) {
         size_t rule_len = strlen(rule[i].resolved);
 
-        if (!brix_path_prefix_match(rule[i].resolved, resolved_path)) {
+        if (!brix_path_prefix_match(rule[i].resolved, rule_len,
+                                      resolved_path))
+        {
             continue;
         }
 

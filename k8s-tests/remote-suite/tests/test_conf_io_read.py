@@ -14,9 +14,9 @@ read/pgread framing boundaries:
   /data.bin (4096)  /big1m.bin (1048576)  /cksum.bin (10000)
   /hello.txt (12)   /empty.txt (0)
 
-References for read framing (consulted, not modified):
-  /tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc      do_ReadAll / do_ReadV
-  /tmp/brix-src/src/XrdXrootd/XrdXrootdXeqPgrw.cc  do_PgRead
+References for read framing (in-repo spec is authoritative):
+  stock server  kXR_read / kXR_readv replies (observed, not read)
+  stock server  kXR_pgread replies (observed, not read)
 
 Self-provisioning on high ports; skips entirely without the stock toolchain.
 """

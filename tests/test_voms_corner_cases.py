@@ -25,11 +25,13 @@ server would refuse for trust reasons only.
 import base64
 import os
 import socket
+import subprocess
 from dataclasses import dataclass
 
 import pytest
 from cryptography import x509
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from split_continuation import reexport as _reexport
 
 # make_pki, make_vomsdir, build_harness, run_check, mint, HARNESS_SRC, Pki, ...
@@ -145,8 +147,48 @@ def _checked(harness, pki, proxy: str, case: Case):
                      vomsdir=pki.vomsdir if case.vomsdir else None, skew=case.skew)
 
 
-def _assert_ac(ac: dict, case: Case) -> None:
-    expected = case.status if case.verdict == "same" else case.verdict
+@pytest.fixture(scope="module")
+def sha1_verifiable(tmp_path_factory):
+    """Does the SYSTEM OpenSSL — the one voms_ac_check is linked against —
+    verify a SHA-1 signature at all?
+
+    Red Hat's DEFAULT crypto policy sets ``rh-allow-sha1-signatures = no``, so
+    EL9 libcrypto refuses one outright and the native verifier answers
+    ``signature``. Minting is unaffected: python-cryptography ships its own
+    unpatched OpenSSL, so a SHA-1 AC is still produced on such a host — it
+    simply cannot verify there. macOS and policy-relaxed hosts verify it fine,
+    which is why `sig_sha1` must ask rather than assume.
+
+    Probed the same way the harness would: sign with the bundled OpenSSL, then
+    hand the signature to the system `openssl` CLI, which shares libcrypto and
+    the policy with the compiled harness.
+    """
+    directory = tmp_path_factory.mktemp("sha1-policy-probe")
+    data, signature = directory / "probe.bin", directory / "probe.sig"
+    public = directory / "probe.pub"
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    data.write_bytes(b"voms sha1 policy probe")
+    signature.write_bytes(
+        key.sign(data.read_bytes(), padding.PKCS1v15(), hashes.SHA1()))
+    public.write_bytes(key.public_key().public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo))
+    probe = subprocess.run(
+        ["openssl", "dgst", "-sha1", "-verify", str(public),
+         "-signature", str(signature), str(data)],
+        capture_output=True, text=True, timeout=60)
+    return probe.returncode == 0
+
+
+def _expected_status(case: Case, sha1_verifiable: bool) -> str:
+    """The case's status, adjusted for what this host's libcrypto permits."""
+    if case.digest == "sha1" and not sha1_verifiable:
+        return "signature"
+    return case.status
+
+
+def _assert_ac(ac: dict, case: Case, status: str) -> None:
+    expected = status if case.verdict == "same" else case.verdict
     assert ac["verdict"] == expected, ac
     assert ac["carrier"] == case.carrier, ac
     assert ac["vo"] == case.vo, ac
@@ -162,16 +204,17 @@ def _assert_ac_pins(ac: dict, case: Case) -> None:
 
 
 @pytest.mark.parametrize("case", CASES, ids=[c.name for c in CASES])
-def test_corner_case(pki, harness, out, case):
+def test_corner_case(pki, harness, out, case, sha1_verifiable):
     """status: and the AC's verdict/carrier/vo (+digest/fqans when pinned)."""
+    status = _expected_status(case, sha1_verifiable)
     verdict = _checked(harness, pki, _minted(pki, out, case), case)
-    assert verdict.status == case.status, verdict.stdout
-    assert (verdict.returncode == 0) == (case.status == "ok"), verdict.stdout
+    assert verdict.status == status, verdict.stdout
+    assert (verdict.returncode == 0) == (status == "ok"), verdict.stdout
     if case.verdict is None:
         assert verdict.acs == [], verdict.stdout
         return
     assert len(verdict.acs) == 1, verdict.stdout
-    _assert_ac(verdict.acs[0], case)
+    _assert_ac(verdict.acs[0], case, status)
 
 
 # ---------------------------------------------------------------------------

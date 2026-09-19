@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.join(HERE, "rpm"))
 
 import make_fixtures                                            # noqa: E402
 
+from cmdscripts import open_tree_for_worker                     # noqa: E402
 from settings import HOST                                       # noqa: E402
 
 BRIXRPM = os.path.join(REPO_ROOT, "client", "bin", "brixrpm")
@@ -132,6 +133,15 @@ def _start_nginx(conf, cachedir, port):
     # docs/05-operations/rpm-mirror.md §2.
     for sub in ("store", "tmp"):
         os.makedirs(os.path.join(cachedir, sub), exist_ok=True)
+    # ...and under a root harness the worker still cannot REACH them. pytest
+    # builds tmp_path 0700 root-owned, the system nginx forks its workers as
+    # `nginx`, so every cache open dies EACCES on the traverse and the mirror
+    # answers 500 to a request it proxied perfectly well. (The operator is not
+    # exposed to this: /var/cache is traversable. The pytest prefix is the
+    # whole difference.) The blanket open lands on the per-mirror cachedir
+    # only, so the sibling gnupg homedir keeps the tight mode gpg demands and
+    # only the shared ancestors gain a+rx.
+    open_tree_for_worker(cachedir)
     check = subprocess.run(_nginx_argv(conf, cachedir, "-t"),
                            capture_output=True, text=True)
     assert check.returncode == 0, check.stderr

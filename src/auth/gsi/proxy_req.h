@@ -6,7 +6,7 @@
  * RFC-3820 proxy-certificate request/sign/assemble primitives, ngx-free
  * (OpenSSL only) so they can be unit-tested standalone and shared by the inbound
  * capture (src/gsi/auth.c) and the outbound use (src/tpc). Ported faithfully from
- * stock XrdSecgsi (XrdCrypto/XrdCryptosslgsiAux.cc: X509CreateProxyReq /
+ * stock XrdSecgsi (its proxy-request helpers: X509CreateProxyReq /
  * X509SignProxyReq), validated against a stock -dlgpxy:request source — see
  * tests/test_tpc_delegation.py. */
 

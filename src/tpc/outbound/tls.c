@@ -16,12 +16,14 @@
  * HOW: SSL_CTX_new(TLS_client_method) → min TLS 1.2 → if brix_trusted_ca is set,
  *   load it as a CA directory and SSL_VERIFY_PEER (chain verification; on load
  *   failure fall back to no verification so an encrypted-but-unverified transport
- *   still works) → SSL_new + SSL_set_fd(fd) + SNI(src_host) → SSL_connect. On any
+ *   still works) → SSL_new + SSL_set_fd(fd) + SNI/peer-name pin on src_host,
+ *   folded out of its IPv4-mapped spelling first (see the pin below) → SSL_connect. On any
  *   failure t->err_msg / t->xrd_error are set and all OpenSSL objects freed.
  *   Gated by the caller on conf->tpc_outbound_tls (bootstrap.c). (phase-57 §F5) */
 
 #include "tpc/engine/tpc_internal.h"
 #include "core/compat/cstr.h"
+#include "core/compat/host_format.h"
 
 #include <string.h>
 #include <limits.h>
@@ -95,11 +97,38 @@ tpc_start_tls(brix_tpc_pull_t *t, int fd)
     }
     SSL_set_fd(ssl, fd);
     if (t->src_host[0] != '\0') {
-        (void) SSL_set_tlsext_host_name(ssl, t->src_host);
+        char vhost[sizeof(t->src_host)];
+
+        /* The name we pin is the source as the REQUESTER spelled it, and a stock
+         * XrdCl spells an IPv4 source the way XrdNetAddr formats it: the
+         * IPv4-MAPPED literal, "tpc.src=[::ffff:10.0.0.1]:1094". OpenSSL routes
+         * any IP-shaped name to X509_VERIFY_PARAM_set1_ip_asc(), whose match is
+         * a memcmp against the certificate's iPAddress SANs — and the SAN for an
+         * IPv4 host is the 4-byte form, so the 16-byte mapped address matches
+         * nothing that can be issued. Every TLS pull a stock client starts from
+         * an IPv4 source would fail X509_V_ERR_IP_ADDRESS_MISMATCH against a
+         * chain that verified perfectly, and the host certificate would look
+         * like the thing at fault. Folding the mapped literal back to the
+         * address it names is not a relaxation: ::ffff:a.b.c.d IS a.b.c.d (the
+         * SSRF gate one layer up already treats it so, so the two checks now
+         * agree on what the host is), and a name the certificate genuinely does
+         * not carry still fails. brix_host_unmap_v4 leaves anything else — a
+         * hostname, a dotted quad, a real IPv6 literal — exactly as it was.
+         *
+         * Failure to fold means the name did not fit the buffer it came out of,
+         * which cannot happen for src_host[]-sized input; pin the original
+         * rather than skip the pin.
+         */
+        if (!brix_host_unmap_v4(t->src_host, vhost, sizeof(vhost))) {
+            ngx_cpystrn((u_char *) vhost, (u_char *) t->src_host,
+                        sizeof(vhost));
+        }
+
+        (void) SSL_set_tlsext_host_name(ssl, vhost);
         /* Only meaningful when the chain is actually being verified. */
         if (verify_host) {
             SSL_set_hostflags(ssl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
-            if (SSL_set1_host(ssl, t->src_host) != 1) {
+            if (SSL_set1_host(ssl, vhost) != 1) {
                 snprintf(t->err_msg, sizeof(t->err_msg),
                          "TPC TLS: host-verify setup failed");
                 t->xrd_error = kXR_ServerError;

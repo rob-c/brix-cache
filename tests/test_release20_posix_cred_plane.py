@@ -61,6 +61,12 @@ SD_POSIX = REPO / "src/fs/backend/posix/sd_posix.c"
 SD_POSIX_NS = REPO / "src/fs/backend/posix/sd_posix_ns.c"
 SD_POSIX_DEDUP = REPO / "src/fs/backend/posix/sd_posix_dedup.c"
 CRED_FORWARD = REPO / "src/fs/backend/sd_cred_forward.h"
+#: The PAL host body the broker's exchange primitive now calls.  Invariant 14
+#: forbids `<sys/syscall.h>` and SYS_* outside `src/platform/<host>/`, so the
+#: renameat2 syscall moved here when the tree gained its macOS host — the
+#: contract below did not move with it, and the three cases that watch it were
+#: reading a broker body whose syscall had left the file.
+PAL_PATH_LINUX = REPO / "src/platform/linux/path_wrapper.c"
 MATRIX = REPO / "docs/09-developer-guide/storage-driver-slot-matrix.md"
 IMP_DOC = REPO / "docs/06-authentication/impersonation.md"
 
@@ -100,9 +106,17 @@ def test_broker_declares_the_exchange_opcode():
 
 
 def test_broker_exchange_uses_renameat2_with_the_exchange_flag():
+    """Asserted in two halves because the syscall lives one seam lower now: the
+    broker asks for the EXCHANGE flag, and the Linux PAL body it reaches issues
+    renameat2 for it.  Checking only the broker would accept a PAL that quietly
+    answered with a plain rename; checking only the PAL would accept a broker
+    that stopped asking."""
     body = _body(BROKER_OPS, "imp_do_exchange(int sfd")
-    assert "SYS_renameat2" in body
-    assert "RENAME_EXCHANGE" in body
+    assert "brix_plat_renameat2" in body
+    assert "BRIX_RENAME_EXCHANGE" in body
+    pal = _body(PAL_PATH_LINUX, "brix_plat_renameat2(int sfd")
+    assert "SYS_renameat2" in pal
+    assert "BRIX_RENAME_EXCHANGE" in pal
 
 
 def test_broker_exchange_defines_the_flag_when_libc_does_not():
@@ -115,8 +129,11 @@ def test_broker_exchange_defines_the_flag_when_libc_does_not():
 
 
 def test_broker_exchange_reports_a_missing_flag_as_enotsup():
-    body = _body(BROKER_OPS, "imp_do_exchange(int sfd")
-    assert "ENOSYS" in body and "EINVAL" in body and "ENOTSUP" in body
+    """A kernel or filesystem without RENAME_EXCHANGE must say so, not look like
+    a permission or argument error: the mapping is ENOSYS/EINVAL -> ENOTSUP, and
+    it belongs to the body that owns the syscall's errno."""
+    pal = _body(PAL_PATH_LINUX, "brix_plat_renameat2(int sfd")
+    assert "ENOSYS" in pal and "EINVAL" in pal and "ENOTSUP" in pal
 
 
 def test_broker_exchange_is_never_emulated_with_two_renames():
@@ -127,8 +144,13 @@ def test_broker_exchange_is_never_emulated_with_two_renames():
     "compatibility" fallback would look like correctness and would be a silent
     loss of the contract, so the body must contain ONE syscall and no rename."""
     body = _body(BROKER_OPS, "imp_do_exchange(int sfd")
-    assert body.count("syscall(") == 1
-    assert "renameat(" not in body
+    assert body.count("brix_plat_renameat2(") == 1
+    assert "renameat(" not in body.replace("brix_plat_renameat2(", "")
+    # And the same at the seam below, where the emulation would actually be
+    # written: ONE syscall, and no rename to pair it with.
+    pal = _body(PAL_PATH_LINUX, "brix_plat_renameat2(int sfd")
+    assert pal.count("syscall(") == 1
+    assert "renameat(" not in pal.replace("brix_plat_renameat2(", "")
 
 
 def test_noreplace_still_degrades_while_exchange_does_not():

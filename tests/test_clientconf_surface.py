@@ -3,10 +3,10 @@ Client-conformance: CLI-surface coverage.
 
 Proves the project tools' flag/command surface is reconciled with stock:
 
-  * every stock xrdcp flag (live parse of XrdCpConfig.cc) is classified in
+  * every stock xrdcp flag (live parse of stock xrdcp) is classified in
     surface_map.yaml — a new upstream flag with no entry FAILS as "unmapped";
   * the map does not classify flags stock no longer has;
-  * every stock xrdfs command (live parse of XrdClFS.cc) is classified;
+  * every stock xrdfs command (live parse of the stock client) is classified;
   * every project-only extra is genuinely advertised by our client's --help,
     so the divergence documentation cannot drift from the binary.
 
@@ -14,7 +14,6 @@ These tests need only our binaries + the stock source tree; they do not touch a
 server, so they run even when every endpoint is down.
 """
 
-import shutil
 import subprocess
 
 import pytest
@@ -101,11 +100,3 @@ def test_xrdfs_extra_is_advertised(cmd):
     help_text = _our_help("xrdfs")
     assert cmd in help_text, \
         "project-only xrdfs sub-command %s not advertised in --help" % cmd
-
-
-def test_source_tree_present_for_live_parse():
-    # Not a hard requirement (fallbacks exist), but record when we are running
-    # against the pinned fallback rather than the live upstream surface.
-    if not fi.source_available():
-        pytest.skip("xrootd source tree absent — using pinned fallback surface")
-    assert shutil.which  # trivial truthy; the skip above carries the signal

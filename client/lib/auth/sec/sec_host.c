@@ -10,7 +10,7 @@
  * HOW:  Single round.  Payload = "host\0" + local FQDN (informational only; the
  *       server ignores the asserted name and uses the socket's reverse-DNS).
  *
- * wire: XProtocol.hh kXR_auth — credtype "host", payload "host\0" + hostname.
+ * wire: kXR_auth — credtype "host", payload "host\0" + hostname.
  */
 #include "sec.h"
 

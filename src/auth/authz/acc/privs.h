@@ -1,17 +1,17 @@
 /*
  * privs.h — XrdAcc privilege + operation model (pure leaf, no nginx deps).
  *
- * WHAT: the faithful re-implementation of XRootD's XrdAccPrivs.hh privilege
+ * WHAT: the faithful re-implementation of XRootD's XrdAcc privilege
  *   bitmask, the Access_Operation enum (AOP_*), the operation->privilege
  *   requirement table, the single-letter privilege parser, and the grant test.
  *
  * WHY: this is the heart of the `xrdacc` authorization engine — keeping the
- *   numeric privilege values byte-identical to XrdAccPrivs.hh means a stock
+ *   numeric privilege values byte-identical to stock XrdAcc means a stock
  *   XRootD `authdb` file yields exactly the same access decisions here.  This
  *   header deliberately depends only on <stdint.h>/<stddef.h> (no nginx types)
  *   so the privilege algebra can be unit-tested as a standalone leaf.
  *
- * HOW: bits mirror XrdAccPrivs.hh exactly; brix_acc_parse_privs() ports
+ * HOW: bits mirror stock XrdAcc exactly; brix_acc_parse_privs() ports
  *   XrdAccConfig::PrivsConvert() (positive privileges, then optional '-' then
  *   negatives); brix_acc_op_needs() + brix_acc_test() port
  *   XrdAccAccess::Test() (grant iff every required bit is present).
@@ -34,7 +34,7 @@
 #define BRIX_AUTHDB_AUDIT_ALL    3
 
 /*
- * Privilege bits — numerically identical to enum XrdAccPrivs (XrdAccPrivs.hh).
+ * Privilege bits — numerically identical to stock XrdAcc's privilege enum.
  * Single primitives plus the composite operations XRootD pre-computes.
  */
 #define BRIX_ACC_PRIV_NONE    0x000u
@@ -48,7 +48,7 @@
 #define BRIX_ACC_PRIV_POLL    0x100u  /* stage polling */
 #define BRIX_ACC_PRIV_ALL     0x1ffu  /* 'a' */
 
-/* Composite operations (XrdAccPrivs.hh): */
+/* Composite operations (stock XrdAcc): */
 #define BRIX_ACC_PRIV_UPDATE  (BRIX_ACC_PRIV_READ | BRIX_ACC_PRIV_WRITE)   /* 0x060 */
 #define BRIX_ACC_PRIV_CREATE  (BRIX_ACC_PRIV_INSERT | BRIX_ACC_PRIV_UPDATE) /* 0x062 */
 #define BRIX_ACC_PRIV_CHMOD   (BRIX_ACC_PRIV_INSERT | BRIX_ACC_PRIV_UPDATE \
@@ -68,7 +68,7 @@ typedef struct {
 
 /*
  * Operations — numerically identical to enum Access_Operation
- * (XrdAccAuthorize.hh).  AOP_ANY (0) is the "return privileges, no test" form.
+ * (stock XrdAcc).  AOP_ANY (0) is the "return privileges, no test" form.
  */
 typedef enum {
     BRIX_AOP_ANY         = 0,

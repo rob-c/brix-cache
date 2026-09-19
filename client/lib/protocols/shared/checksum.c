@@ -13,7 +13,7 @@
  *       enum, hex-encodes, and drives the Qcksum wire query (payload "<algo>
  *       <path>" → reply "<algo> <hexdigest>").
  *
- * wire: XProtocol.hh kXR_query infotype kXR_Qcksum — body "<algo> <path>" → "<algo> <hex>".
+ * wire: kXR_query infotype kXR_Qcksum — body "<algo> <path>" → "<algo> <hex>".
  */
 #include "brix.h"
 #include "core/compat/checksum_core.h"   /* shared fd→checksum kernels (libxrdproto) */

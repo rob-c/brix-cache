@@ -42,6 +42,17 @@ ngx_int_t brix_path_lfn_to_pfn(const brix_vfs_ctx_t *ctx, const char *lfn,
 ngx_int_t brix_path_pfn_to_lfn(const brix_vfs_ctx_t *ctx, const char *pfn,
     char *lfn, size_t cap);
 
+/* Same reverse translation, addressed by the N2N configuration itself rather
+ * than by a ctx (NULL cfg ⇒ IDENTITY, exactly as a NULL ctx->n2n).
+ *
+ * For holders that OUTLIVE the request context that opened them. An N2N cfg is
+ * a borrow of the backend registry entry (brix_vfs_backend_n2n), so it is
+ * worker-lifetime; a brix_vfs_ctx_t is routinely a caller's STACK object. A
+ * long-lived handle that kept the ctx to reach ctx->n2n therefore read a dead
+ * frame as soon as its opener returned — keep the cfg instead. */
+ngx_int_t brix_path_cfg_pfn_to_lfn(const brix_n2n_cfg_t *cfg, const char *pfn,
+    char *lfn, size_t cap);
+
 /* Convert an already-confined absolute/export-relative VFS path into the
  * physical key passed to a non-POSIX storage driver. The export-root strip is
  * deliberately inside this helper so callers cannot translate the host path

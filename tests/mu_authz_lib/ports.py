@@ -17,9 +17,12 @@ class MU:
     HOST = os.environ.get("TEST_MU_HOST", HOST)
 
     # Paired direct (cache-off, oracle) + cache (cache-on) servers per protocol.
-    ROOT_DIRECT   = _p("TEST_MU_ROOT_DIRECT",   12100)
-    ROOT_CACHE    = _p("TEST_MU_ROOT_CACHE",    12101)
-    WEBDAV_DIRECT = _p("TEST_MU_WEBDAV_DIRECT", 12102)
+    # These are INSTANCE names, one per template in mu_authz_lib.fleet._SERVERS,
+    # and the values here are only the historical defaults: fleet.start() writes
+    # the lifecycle ledger's assignment back onto each attribute.  The oracle's
+    # (protocol, variant) vocabulary maps onto these through fleet._ENDPOINT, so
+    # an attribute no template starts is dead weight that reads like a live
+    # endpoint — which is how the root:// pair once pointed at unbound ports.
     WEBDAV_CACHE  = _p("TEST_MU_WEBDAV_CACHE",  12103)
     S3_DIRECT     = _p("TEST_MU_S3_DIRECT",     12104)
     S3_CACHE      = _p("TEST_MU_S3_CACHE",      12105)
@@ -35,6 +38,8 @@ class MU:
     WEBDAV_STAGE  = _p("TEST_MU_WEBDAV_STAGE",  12140)
     # root:// anon node — verifies internal metadata sidecars are never listed/served.
     SIDECAR_ROOT  = _p("TEST_MU_SIDECAR_ROOT",  12150)
+    # root:// write node with real impersonation — the byte-attribution subject.
+    ROOT_WRITE    = _p("TEST_MU_ROOT_WRITE",    12160)
 
     # Directory layout (kept out of the shared fleet data/registry roots but
     # under the same TEST_ROOT, so postures with different roots — e.g. the
@@ -55,10 +60,12 @@ class MU:
 
     @classmethod
     def all_ports(cls) -> "list[int]":
-        return [cls.ROOT_DIRECT, cls.ROOT_CACHE, cls.WEBDAV_DIRECT, cls.WEBDAV_CACHE,
+        """Every fleet instance's port, in _SERVERS order."""
+        return [cls.ORIGIN_NOIMP, cls.CACHE_NOIMP, cls.DIRECT_AUTHZ, cls.SIDECAR_ROOT,
+                cls.WEBDAV_AUTHZ, cls.WEBDAV_CACHE, cls.WEBDAV_STAGE, cls.ROOT_WRITE,
                 cls.S3_DIRECT, cls.S3_CACHE, cls.CVMFS_CACHE]
 
     @classmethod
     def enforcing_ports(cls) -> "list[int]":
         """The cache servers that MUST enforce per-user authz (excludes cvmfs)."""
-        return [cls.ROOT_CACHE, cls.WEBDAV_CACHE, cls.S3_CACHE]
+        return [cls.CACHE_NOIMP, cls.WEBDAV_CACHE, cls.S3_CACHE]

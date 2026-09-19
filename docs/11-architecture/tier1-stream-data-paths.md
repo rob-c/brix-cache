@@ -1,6 +1,6 @@
 # Tier 1 XRootD Wire Protocol Operations — BriX-Cache Module
 
-Comprehensive documentation of all Tier 1 XRootD wire protocol operations through the BriX-Cache module. This covers the stream-layer operations that handle the XRootD binary wire protocol, as defined in `/tmp/brix-src/src/XProtocol/XProtocol.hh` and implemented via `src/protocols/root/protocol/wire_core_requests.h`.
+Comprehensive documentation of all Tier 1 XRootD wire protocol operations through the BriX-Cache module. This covers the stream-layer operations that handle the XRootD binary wire protocol, as defined in `XProtocol/XProtocol.hh` and implemented via `src/protocols/root/protocol/wire_core_requests.h`.
 
 ## Operations Covered (8 total)
 
@@ -626,7 +626,7 @@ typedef struct {
 
 ## Reference Files
 
-- `/tmp/brix-src/src/XProtocol/XProtocol.hh` — wire protocol definitions (source of truth for wire details)
+- `XProtocol/XProtocol.hh` — wire protocol definitions (source of truth for wire details)
 - `src/protocols/root/protocol/wire_core_requests.h` — Client*Request struct definitions used by BriX-Cache
 - `.sisyphus/plans/tier1-kxr-read.md`, `.sisyphus/plans/tier1-kxr-stat.md` — format reference for section structure
 - `src/protocols/root/handshake/dispatch_read.c` — opcode dispatch switch cases for Tier 1 operations (brix_dispatch_read_opcode, brix_dispatch_write_opcode)
@@ -654,4 +654,4 @@ This documentation covers all 8 Tier 1 XRootD wire protocol operations through t
 - Invariants applied to Tier 1 ops (#2 TLS buffer, #3 allow_write gate, #4 resolve_path before open, #7 stat uses handle metadata)
 - errno → kXR → HTTP mapping reference table included at end of file
 
-All operations follow the wire protocol format defined in `/tmp/brix-src/src/XProtocol/XProtocol.hh` and use the Client*Request struct definitions from `src/protocols/root/protocol/wire_core_requests.h`.
+All operations follow the wire protocol format defined in `XProtocol/XProtocol.hh` and use the Client*Request struct definitions from `src/protocols/root/protocol/wire_core_requests.h`.

@@ -29,8 +29,8 @@ Self-provisioning on dedicated high ports; skips entirely without the stock
 toolchain (xrootd/xrdfs/xrdcp on PATH).
 
 xrdcp option reference consulted (not modified):
-  /tmp/brix-src/src/XrdApps/XrdCpConfig.cc   opLetters / opVec / defCks
-  /tmp/brix-src/src/XrdClient .../XrdClClassicCopyJob.cc
+  stock xrdcp   option letters / default checksum (from its --help)
+  stock xrdcp   classic copy job (observed, not read)
 """
 
 import hashlib

@@ -20,7 +20,7 @@ Coverage (kXR_dirlist plain / kXR_dstat with-stat / kXR_dcksm with-checksum):
     truncation), special names (spaces / dots / case), nested, trailing slash,
     no internal-artifact leak.
 
-Response framing follows XrdXrootdXeq.cc do_Dirlist / do_DirStat:
+Response framing follows the stock server do_Dirlist / do_DirStat:
   plain  : "<name>\n<name>\n...<name>"  (final entry NUL-terminated, OKSOFAR
            chunking on overflow; empty dir -> empty kXR_ok body).
   dstat  : ".\n0 0 0 0\n" lead-in sentinel, then per entry
@@ -47,7 +47,7 @@ pytestmark = [pytest.mark.timeout(240),
 # fleet pair (worker_port() shifts into an unbound per-worker band → refused).
 OUR_PORT = L.worker_port(14060)   # per-worker band (was shared L.FLEET_OUR_PORT → 20003 collisions)
 OFF_PORT = L.worker_port(14061)
-# wire constants (XProtocol.hh)
+# wire constants (the wire spec)
 kXR_login, kXR_dirlist, kXR_locate = 3007, 3004, 3027
 kXR_ok, kXR_oksofar, kXR_error = 0, 4000, 4003
 kXR_dstat, kXR_dcksm = 2, 4          # XDirlistRequestOption

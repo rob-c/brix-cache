@@ -244,7 +244,7 @@ def _kxr_read_response(sock):
     kXR_status (4007, used by pgread/pgwrite) is a TWO-STAGE frame: the outer
     hdr.dlen (==24) covers only ServerResponseBody_Status+pgr, and for pgread an
     ADDITIONAL bdy.dlen bytes of page data (CRC32c+content) follow that the outer
-    dlen does NOT count (XProtocol.hh: 'kXR_char data[dlen]' after the status
+    dlen does NOT count (the wire spec: 'kXR_char data[dlen]' after the status
     body; matches XrdXrootdResponse srsComplete).  We MUST drain those trailing
     bytes here or the socket desyncs and every subsequent response is misread —
     e.g. an authed pgread of one's own file leaves ~38 undrained bytes, shifting
@@ -448,5 +448,5 @@ _KXR_OPEN_UPDT = 0x0020      # kXR_open_updt (read/write)
 _KXR_NEW       = 0x0008      # kXR_new
 _KXR_MKPATH    = 0x0100      # kXR_mkpath
 
-# kXR_pgPageSZ from XProtocol.hh: page size used to interleave per-page CRC32c.
+# kXR_pgPageSZ from the wire spec: page size used to interleave per-page CRC32c.
 _KXR_PG_PAGESZ = 4096

@@ -311,10 +311,22 @@ def test_advisory_contract_is_pinned():
         REPO, "src/fs/backend/cache/sd_cache_forward.c").read_text()
     assert "sd_cache_reserve" in cache and "EOPNOTSUPP" in cache, (
         "the cache parity slot no longer answers EOPNOTSUPP")
+    # The primitive and its release moved behind the PAL with the macOS port:
+    # fallocate(FALLOC_FL_KEEP_SIZE) is Linux-only, so `sd_posix_reserve` is
+    # now one call to `brix_plat_reserve` and the release lives in the host
+    # body.  Pinned where it runs — checking the driver for an ftruncate it no
+    # longer spells would have been satisfied by a PAL that dropped it.
     posix_io = pathlib.Path(
         REPO, "src/fs/backend/posix/sd_posix_io.c").read_text()
-    assert "ftruncate(obj->fd, st.st_size)" in posix_io, (
-        "sd_posix_reserve lost the partial-allocation release — a refused "
+    assert "brix_plat_reserve(obj->fd, size)" in posix_io, (
+        "sd_posix_reserve stopped dispatching to the PAL reserve primitive")
+    pal = pathlib.Path(
+        REPO, "src/platform/linux/storage_wrapper.c").read_text()
+    assert "FALLOC_FL_KEEP_SIZE" in pal, (
+        "brix_plat_reserve stopped preallocating without moving st_size — a "
+        "concurrent stat can now see bytes that were only promised")
+    assert "ftruncate(fd, st.st_size)" in pal, (
+        "brix_plat_reserve lost the partial-allocation release — a refused "
         "oversized declaration parks the filesystem's free space again")
 
 

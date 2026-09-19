@@ -6,7 +6,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from cmdscripts.compile_run import REPO_ROOT, compile_binary, result, run
+from cmdscripts.compile_run import (REPO_ROOT, compile_binary, pal_host_addon,
+                                    result, run)
 from cmdscripts.command_results import print_results
 
 # Honour NGX_SRC (mirroring c_regression_units.py) so the unit runners link
@@ -279,6 +280,8 @@ SPECS: dict[str, ObjectUnitSpec] = {
             addon("vfs/vfs_open_handle.o"),
             addon("vfs/vfs_sync.o"),
             addon("vfs/vfs_policy.o"),
+            # brix_plat_anon_fd: host-free, so the dispatcher object.
+            addon("platform/platform.o"),
         ),
         ("-O", "-Wall",
          *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC,
@@ -287,7 +290,8 @@ SPECS: dict[str, ObjectUnitSpec] = {
          "tests/c/ngx_link_stubs.c",
          str(addon("vfs/vfs_open_handle.o")),
          str(addon("vfs/vfs_sync.o")),
-         str(addon("vfs/vfs_policy.o"))),
+         str(addon("vfs/vfs_policy.o")),
+         str(addon("platform/platform.o"))),
     ),
     # Phase-107 W1 (C8/C9): the typed storage-domain assert. The real
     # vfs_policy_domain.o over the real kernel; the denial metric AND
@@ -404,14 +408,16 @@ SPECS: dict[str, ObjectUnitSpec] = {
     "publish_dirsync": ObjectUnitSpec(
         "publish_dirsync",
         "test_publish_dirsync",
-        (addon("compat/staged_file.o"), addon("path/beneath.o")),
+        (addon("compat/staged_file.o"), addon("path/beneath.o"),
+         addon(pal_host_addon("path_wrapper"))),
         ("-O", "-Wall",
          *_inc("src", OBJS, *_NGX_CORE_INC),
          "-Wl,--wrap=fsync",
          "tests/c/test_publish_dirsync.c",
          "tests/c/ngx_link_stubs.c",
          str(addon("compat/staged_file.o")),
-         str(addon("path/beneath.o"))),
+         str(addon("path/beneath.o")),
+         str(addon(pal_host_addon("path_wrapper")))),
     ),
     # Phase-107 C6 atomic two-name exchange: the REAL namespace_ops.o +
     # beneath.o (renameat2(RENAME_EXCHANGE) through the confined rootfd).
@@ -422,13 +428,15 @@ SPECS: dict[str, ObjectUnitSpec] = {
     "vfs_exchange": ObjectUnitSpec(
         "vfs_exchange",
         "test_vfs_exchange",
-        (addon("compat/namespace_ops.o"), addon("path/beneath.o")),
+        (addon("compat/namespace_ops.o"), addon("path/beneath.o"),
+         addon(pal_host_addon("path_wrapper"))),
         ("-O", "-Wall",
          *_inc("src", OBJS, *_NGX_CORE_INC),
          "tests/c/test_vfs_exchange.c",
          "tests/c/ngx_link_stubs.c",
          str(addon("compat/namespace_ops.o")),
-         str(addon("path/beneath.o"))),
+         str(addon("path/beneath.o")),
+         str(addon(pal_host_addon("path_wrapper")))),
     ),
     # The metadata-hot-path syscall reductions: ns_delete_fast (probe-free
     # non-recursive delete classified from the unlinkat errno), the borrowed
@@ -446,6 +454,7 @@ SPECS: dict[str, ObjectUnitSpec] = {
             addon("compat/namespace_ops.o"),
             addon("path/beneath.o"),
             addon("path/canonical.o"),
+            addon(pal_host_addon("path_wrapper")),
         ),
         ("-O", "-Wall",
          *_inc("src", OBJS, *_NGX_CORE_INC),
@@ -453,7 +462,8 @@ SPECS: dict[str, ObjectUnitSpec] = {
          "tests/c/ngx_link_stubs.c",
          str(addon("compat/namespace_ops.o")),
          str(addon("path/beneath.o")),
-         str(addon("path/canonical.o"))),
+         str(addon("path/canonical.o")),
+         str(addon(pal_host_addon("path_wrapper")))),
     ),
     # The shared handle table's high-water mark: every scan (publish/lookup/
     # unpublish/unpublish_all) is bounded by the peak LIVE population instead

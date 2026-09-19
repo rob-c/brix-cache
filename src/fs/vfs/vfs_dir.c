@@ -132,7 +132,7 @@ vfs_dir_open_driver(brix_vfs_ctx_t *ctx, brix_vfs_dir_t *dh,
 
     dh->sd  = ctx->sd;
     dh->drv = drv;
-    dh->ctx = ctx;
+    dh->n2n = ctx->n2n;   /* cfg, not ctx: the handle outlives the caller's ctx */
     dh->sd_logical = brix_vfs_copy_path(ctx->pool, canonical);
     dh->sd_physical = brix_vfs_copy_path(ctx->pool, physical);
     if (dh->sd_logical == NULL || dh->sd_physical == NULL) {

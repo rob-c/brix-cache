@@ -75,13 +75,19 @@ tpc_push_fill_round(brix_tpc_pull_t *t, tpc_push_round_t *r)
 {
     int slot;
 
+    /* One statement for "this round starts empty", rather than a store per
+     * slot inside the loop: writing a single field through `r` there was
+     * enough to lose gcc 11's -fanalyzer model of r->buf, which it then
+     * reported as leaking inside this function — a buffer this function never
+     * owns and tpc_push_stream frees on every path. */
+    ngx_memzero(r->got, sizeof(r->got));
+
     for (slot = 0; slot < r->nslots; slot++) {
         brix_vfs_job_t job;
         uint64_t       at   = r->offset + (uint64_t) slot * TPC_CHUNK_SIZE;
         uint64_t       left;
         size_t         want;
 
-        r->got[slot] = 0;
         if (at >= t->push_size) {
             continue;                       /* past EOF: this slot idles */
         }

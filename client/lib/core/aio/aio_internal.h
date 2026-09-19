@@ -252,10 +252,18 @@ void reqmap_del(reqmap *m, uint16_t sid);
 void aconn_do_write(brix_aconn *ac);
 void aconn_note_rtt(brix_aconn *ac, const brix_areq *r);
 uint64_t aconn_rto_ns(const brix_aconn *ac);
-void aconn_dispatch_frame(brix_aconn *ac, uint16_t sid, uint16_t stat, const uint8_t *body, uint32_t dlen);
 void aconn_parse(brix_aconn *ac);
 void aconn_do_read(brix_aconn *ac);
 void aconn_handle_io(brix_aconn *ac, uint32_t events);
+
+/* aio_io_dispatch.c — the frame half of the same connection. aio_io.c moves
+ * bytes and reaches a request only through these four; a direct receive is
+ * armed by the parser (target/begin) and finished by the read step or by begin
+ * itself, whichever consumed the last body byte. */
+void aconn_dispatch_frame(brix_aconn *ac, uint16_t sid, uint16_t stat, const uint8_t *body, uint32_t dlen);
+brix_areq * aconn_direct_target(brix_aconn *ac, uint16_t sid, uint16_t stat, uint32_t dlen);
+int aconn_direct_begin(brix_aconn *ac, brix_areq *r, uint16_t sid, uint16_t stat, uint32_t dlen);
+void aconn_direct_frame_done(brix_aconn *ac);
 
 /* aio_engine.c */
 #if (BRIX_HAVE_LIBURING)

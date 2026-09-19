@@ -40,7 +40,7 @@ from test_phase25_ratelimit import (
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-bwm")]
 
-# kXR wire constants (XProtocol.hh).
+# kXR wire constants (the wire spec).
 KXR_OK = 0
 KXR_ERROR = 4003
 KXR_CLOSE = 3003

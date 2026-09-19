@@ -123,28 +123,67 @@ acc_pick(ngx_array_t *a, ngx_uint_t i)
     return (i < a->nelts) ? e[i] : NULL;
 }
 
+/* ---- Pool-copy one scalar, or hand back its wildcard sentinel ----
+ *
+ * The sentinels are string literals, so they need no copy and are returned as
+ * they are; anything else is duplicated into `pool`.  Returns NULL only on an
+ * allocation failure, which the caller must treat as "no entity".
+ */
+static const char *
+acc_entity_own_scalar(ngx_pool_t *pool, const char *s, const char *sentinel)
+{
+    size_t  len;
+    char   *copy;
+
+    if (s == NULL || *s == '\0') {
+        return sentinel;
+    }
+    len  = ngx_strlen(s);
+    copy = ngx_pnalloc(pool, len + 1);
+    if (copy == NULL) {
+        return NULL;
+    }
+    ngx_memcpy(copy, s, len + 1);
+    return copy;
+}
+
 /* ---- Populate an entity's scalar identity fields ----
  *
  * WHAT: sets ent->pool/name/host/isuser from the raw name/host/isuser inputs,
  *   substituting the wildcard sentinels the access engine expects when a scalar
- *   is absent: name -> "*", host -> "?".
+ *   is absent: name -> "*", host -> "?".  Returns NGX_ERROR on OOM.
  *
  * WHY: the access rules match "*"/"?" as any-name/any-host; an empty or NULL
  *   scalar MUST become that sentinel, and isuser is only honoured when a real
  *   name is present so an anonymous identity never claims user-tier access.
  *   Preserving these mappings verbatim keeps the grant/deny decision unchanged.
  *
+ *   The scalars are COPIED, not borrowed.  The built entity is memoised on the
+ *   identity (brix_authz_acc_entity, auth/authz/auth_gate_identity.c) and the
+ *   identity lives on the connection, but `host` reaches this function as
+ *   ctx->authz.peer — a char array inside the CALLER's brix_vfs_ctx_t, which is
+ *   a stack local.  Borrowing it left the memoised entity pointing into a dead
+ *   frame the moment that call returned: the next authorization on the same
+ *   connection read the peer host out of whatever had since been pushed there
+ *   (ASan: stack-use-after-scope in brix_acc_domain_find, reached from a second
+ *   statx path in one batch).  A host rule (`h <name>` / `h .domain`) was
+ *   therefore matched against garbage, and every other tuple field here is
+ *   already a pool copy — these two were the exception, not the rule.
+ *
  * HOW: (1) record the pool; (2) name/host each fall back to their sentinel when
- *   NULL or empty; (3) isuser is true only if requested AND name is non-empty.
+ *   NULL or empty and are otherwise duplicated into it; (3) isuser is true only
+ *   if requested AND name is non-empty.
  */
-static void
+static ngx_int_t
 acc_entity_init_scalars(brix_acc_entity_t *ent, ngx_pool_t *pool,
                         const char *name, const char *host, int isuser)
 {
     ent->pool   = pool;
-    ent->name   = (name != NULL && *name != '\0') ? name : "*";
-    ent->host   = (host != NULL && *host != '\0') ? host : "?";
+    ent->name   = acc_entity_own_scalar(pool, name, "*");
+    ent->host   = acc_entity_own_scalar(pool, host, "?");
     ent->isuser = isuser && name != NULL && *name != '\0';
+
+    return (ent->name != NULL && ent->host != NULL) ? NGX_OK : NGX_ERROR;
 }
 
 /* ---- Number of positional tuples the attribute lists require ----
@@ -218,7 +257,9 @@ brix_acc_entity_build(ngx_pool_t *pool, const char *name, const char *host,
     ngx_uint_t           n;
 
     BRIX_PCALLOC_OR_RETURN(ent, pool, sizeof(*ent), NULL);
-    acc_entity_init_scalars(ent, pool, name, host, isuser);
+    if (acc_entity_init_scalars(ent, pool, name, host, isuser) != NGX_OK) {
+        return NULL;
+    }
 
     vorgs = acc_split_csv(pool, vorg_csv);
     roles = acc_split_csv(pool, role_csv);

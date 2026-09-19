@@ -50,7 +50,7 @@ from settings import (
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
-# XRootD protocol constants (from XProtocol.hh)
+# XRootD protocol constants (from the wire spec)
 # ──────────────────────────────────────────────────────────────────────────────
 
 kXR_auth      = 3000
@@ -85,7 +85,7 @@ kXR_new        = 0x0008
 kXR_delete     = 0x0002
 kXR_mkpath     = 0x0100
 
-# kXR_stat flags (XProtocol.hh StatFlags enum)
+# kXR_stat flags (the wire spec StatFlags enum)
 kXR_isDir   = 2
 kXR_other   = 4
 kXR_readable = 16

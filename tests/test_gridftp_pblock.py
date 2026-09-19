@@ -212,3 +212,96 @@ def test_traversal_confined_on_pblock(gateway):
             ftp.sendcmd("MDTM ../../../../etc/passwd")
     finally:
         ftp.quit()
+
+
+# --------------------------------------------------------------------------- #
+# Listing through the driver — the gateway arm that had no coverage anywhere.  #
+# Every driver-backed gridftp module tests STOR/RETR/CKSM only, and none of     #
+# those touch readdir, so LIST/NLST/MLSD over a storage driver was never        #
+# exercised at any level.  That matters because this arm opens its VFS          #
+# directory handle in brix_ftp_ev_data_ready() and then RETURNS: the handle is  #
+# drained by later event-loop callbacks (ev_list_write -> ev_list_fill), so it  #
+# outlives the ctx that opened it, which is that function's STACK object.  The  #
+# handle is self-contained by contract (brix_vfs_dir_s captures the N2N cfg     #
+# rather than borrowing the ctx) — a contract the root:// dirlist tests in      #
+# test_ns_mutation_gateways.py are what actually pin, since a listing that fits #
+# one 64KB fill drains before the opening frame dies.  These three cover the    #
+# behaviour of this arm; that module covers the lifetime.                       #
+# --------------------------------------------------------------------------- #
+def _store_each(ftp, src, names):
+    """STOR the same payload under every name in `names`."""
+    for name in names:
+        with open(src, "rb") as fh:
+            ftp.storbinary(f"STOR {name}", fh)
+
+
+def _mlsd_names(ftp) -> set:
+    """Bare entry names from an MLSD listing ("fact=value;...; <name>")."""
+    lines = []
+    ftp.retrlines("MLSD", lines.append)
+    return set(line.split("; ")[-1].strip() for line in lines)
+
+
+def _assert_absent_from_posix(export, names):
+    """The discriminator the round-trip test uses: these names are LOGICAL, so a
+    posix fallback rather than the driver would have left real files here."""
+    for name in names:
+        assert not os.path.exists(os.path.join(export, name)), \
+            f"{name} present as a plain posix file — pblock backend did not engage"
+
+
+def test_listing_enumerates_objects_through_pblock(gateway, tmp_path):
+    """SUCCESS: objects stored through the driver come back from NLST and MLSD,
+    under their LOGICAL names — the listing is reversed out of the backend's
+    physical keys, not read off the posix export (which holds no such files)."""
+    names = {f"ls{i}.bin" for i in range(6)}
+    src = tmp_path / "ls.bin"
+    src.write_bytes(os.urandom(2048))
+    ftp = _connect(gateway)
+    try:
+        _store_each(ftp, src, sorted(names))
+        listed = set(os.path.basename(n) for n in ftp.nlst())
+        facts = _mlsd_names(ftp)
+    finally:
+        ftp.quit()
+
+    assert names <= listed, \
+        f"NLST must enumerate every stored object through pblock: {sorted(listed)}"
+    assert names <= facts, \
+        f"MLSD must enumerate every stored object through pblock: {sorted(facts)}"
+    _assert_absent_from_posix(gateway.export, sorted(names))
+
+
+def test_listing_a_stored_object_is_not_a_directory(gateway, tmp_path):
+    """ERROR: MLSD of a path that is an OBJECT is refused, not answered with a
+    silent empty listing — a listing that cannot be produced must say so."""
+    src = tmp_path / "leaf.bin"
+    src.write_bytes(b"leaf")
+    ftp = _connect(gateway)
+    try:
+        with open(src, "rb") as fh:
+            ftp.storbinary("STOR leaf.bin", fh)
+        with pytest.raises(ftplib.error_perm) as e:
+            ftp.retrlines("MLSD leaf.bin", lambda _l: None)
+        assert e.value.args[0].startswith(("450", "550")), e.value.args[0]
+    finally:
+        ftp.quit()
+
+
+def test_listing_traversal_cannot_enumerate_above_the_export(gateway):
+    """SECURITY-NEGATIVE: a traversal-shaped listing argument is refused, and if
+    any arm were to answer it, it must never enumerate a directory above the
+    export — the listing path is confined exactly as MDTM and CKSM are."""
+    ftp = _connect(gateway)
+    try:
+        for arg in ("../../../../etc", "/etc", "../"):
+            entries = []
+            try:
+                ftp.retrlines(f"NLST {arg}", entries.append)
+            except ftplib.error_perm:
+                continue          # refused outright — the expected answer
+            names = set(os.path.basename(e.strip()) for e in entries)
+            assert not (names & {"passwd", "shadow", "hosts"}), \
+                f"NLST {arg} enumerated outside the export: {sorted(names)}"
+    finally:
+        ftp.quit()

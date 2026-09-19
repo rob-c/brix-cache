@@ -7,7 +7,7 @@ of config keys + error semantics) and test_conf_cksum.py (which drills the Qcksu
 hex value space). Here we sweep:
 
   * EVERY do_Qconf key (one case each) — reference format derived line-by-line
-    from XrdXrootd/XrdXrootdXeq.cc::do_Qconf(): each known key returns a *bare
+    from the stock server's do_Qconf(): each known key returns a *bare
     value* terminated by '\\n' (NEVER "<key>=..."); unknown keys are ECHOED back
     verbatim + '\\n'; numeric keys yield an integer line; multiple keys in one
     request yield one line per key in request order.
@@ -19,9 +19,9 @@ streamid(2)+kXR_query(2)+infotype(2)+reserved(14)+dlen(4)+arg); xrdfs cannot
 select an arbitrary infotype, so raw wire is the only way to pin Qckscan,
 Qvisa, Qopaque, an unknown reqcode and an empty payload exactly.
 
-Reference truth (consulted, not modified):
-  /tmp/brix-src/src/XProtocol/XProtocol.hh        XQueryType reqcode bits
-  /tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc      do_Query / do_Qconf / do_Q*
+Reference truth (in-repo spec is authoritative):
+  src/protocols/root/protocol/opcodes.h              kXR_Q* query reqcode bits
+  stock server  kXR_query / kXR_Qconf replies (observed, not read)
 
 Philosophy (per the maintainer): a divergence — "<key>=" instead of a bare
 value, a wrong/missing key value, wrong multi-key ordering, mishandled unknown
@@ -107,14 +107,14 @@ pytestmark = [pytest.mark.timeout(240),
 
 
 # --------------------------------------------------------------------------- #
-# Wire constants (XProtocol.hh).                                              #
+# Wire constants (the wire spec).                                              #
 # --------------------------------------------------------------------------- #
 kXR_login, kXR_query = 3007, 3001
 
-# response status (XProtocol.hh)
+# response status (the wire spec)
 kXR_ok, kXR_error = 0, 4003
 
-# XQueryType infotype reqcodes (XProtocol.hh:649-661)
+# XQueryType infotype reqcodes (the wire spec)
 kXR_QStats = 1
 kXR_QPrep = 2
 kXR_Qcksum = 3
@@ -196,7 +196,7 @@ def _resp(s):
 def _connect(url):
     host, port = _hostport(url)
     s = socket.create_connection((host, port), timeout=15)
-    # initial handshake (XrdXrootdProtocol.cc) -> server replies protover+type
+    # initial handshake (the stock server) -> server replies protover+type
     s.sendall(struct.pack("!IIIII", 0, 0, 0, 4, 2012))
     _, st, _ = _resp(s)
     assert st == kXR_ok, "raw handshake reply not kXR_ok"
@@ -222,7 +222,7 @@ def _session(url):
 def raw_query(url, infotype, arg=b"", sid=b"\x00\x07"):
     """Send one kXR_query with an EXACT infotype and return (status, body).
 
-    ClientQueryRequest (XProtocol.hh): kXR_char streamid[2]; kXR_unt16 requestid;
+    ClientQueryRequest (the wire spec): kXR_char streamid[2]; kXR_unt16 requestid;
     kXR_unt16 infotype; kXR_char reserved[14]; kXR_int32 dlen; (data follows)."""
     if isinstance(arg, str):
         arg = arg.encode()
@@ -250,7 +250,7 @@ def raw_qconfig(url, key):
 #    Reference (do_Qconf): a BARE value line (+'\n'), never "<key>=...".      #
 #    Where the stock server answers, the case is differential on shape.       #
 # =========================================================================== #
-# Full do_Qconf key set (XrdXrootdXeq.cc:2168-2268). proxy/tls_port/window are
+# Full do_Qconf key set (the stock server). proxy/tls_port/window are
 # guarded server-side (only emitted when configured); we still require OUR
 # server to answer them with a bare value or the echoed key, never "key=".
 QCONFIG_KEYS = [

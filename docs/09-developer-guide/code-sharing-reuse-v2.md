@@ -536,7 +536,7 @@ PYTHONPATH=tests pytest tests/ -k "metrics" -v
 PYTHONPATH=tests pytest tests/test_conformance.py -k "pgread or pgwrite" -v
 ```
 
-**Risk (HIGH):** `ServerResponseHdr` and kXR_status framing are defined in the XRootD wire spec header (`/tmp/brix-src/src/XProtocol/XProtocol.hh`). Any change to the kXR_status frame assembly must be verified against the spec — this bridge function is on the critical correctness path. If ambiguity in the spec arises, leave the pgwrite/pgread path untouched and only implement `brix_wire_to_http_chain` for the metrics/dashboard direction.
+**Risk (HIGH):** `ServerResponseHdr` and kXR_status framing are defined in the XRootD wire spec header (`XProtocol/XProtocol.hh`). Any change to the kXR_status frame assembly must be verified against the spec — this bridge function is on the critical correctness path. If ambiguity in the spec arises, leave the pgwrite/pgread path untouched and only implement `brix_wire_to_http_chain` for the metrics/dashboard direction.
 
 ---
 

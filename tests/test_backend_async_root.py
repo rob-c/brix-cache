@@ -42,7 +42,7 @@ def _check_test_size_trigger_releases_batch_1(srv):
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-backend-async")]
 
-# Wire constants (XProtocol.hh).
+# Wire constants (the wire spec).
 kXR_mv = 3009
 kXR_rm = 3014
 kXR_rmdir = 3015

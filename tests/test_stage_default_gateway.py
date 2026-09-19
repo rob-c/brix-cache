@@ -32,7 +32,7 @@ import textwrap
 
 import pytest
 
-from settings import BIND_HOST, HOST, NGINX_BIN
+from settings import BIND_HOST, HOST, NGINX_BIN, worker_runtime_uid
 from server_launcher import RegistryCommandFailure
 from server_registry import NginxInstanceSpec
 
@@ -53,11 +53,10 @@ def _san(url):
     return f"{sanitised}.{_worker_uid()}"
 
 
-def _worker_uid():
-    if os.geteuid() != 0:
-        return os.geteuid()
-    import pwd
-    return pwd.getpwnam(os.environ.get("BRIX_WORKER_USER", "nobody")).pw_uid
+#: The same runtime-worker uid `brix_tier_default_stage_dir` suffixes with;
+#: it was computed here and twice more, each copy free to drift (one of them
+#: ignored BRIX_WORKER_USER outright).  settings owns the answer now.
+_worker_uid = worker_runtime_uid
 
 
 def _spec(name, backend, stage_directives="", allow_write="on"):

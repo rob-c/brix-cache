@@ -10,7 +10,7 @@ source it is marked "not verified" rather than guessed.
 
 Source roots:
 
-- Official XRootD: `/tmp/brix-src/src` (directories `Xrd/`, `XrdXrootd/`,
+- Official XRootD: the upstream project (subsystems `Xrd/`, `XrdXrootd/`,
   `XrdOuc/`, `XrdSys/`, `XrdSfs/`, `XrdOss/`, `XrdCms/`, `XrdFrm/`).
 - This module: `/home/rcurrie/HEP-x/nginx-xrootd/src` (plus the top-level
   `config` build script).
@@ -540,7 +540,7 @@ and *what the author must never do*.
 
 ## Source references
 
-### Official XRootD (`/tmp/brix-src/src`)
+### Official XRootD (upstream)
 
 | Concern | Files / symbols |
 |---|---|

@@ -121,6 +121,14 @@ SRC_ADDR = HOST
 # carry is what isolates hostname binding from chain verification.
 OTHER_LOOPBACK = "127.0.0.2"                             # net-literal-allow: same host, an address the cert does not carry
 
+# The same two addresses as a stock XrdCl actually writes them into tpc.src:
+# XrdNetAddr's canonical spelling of an IPv4 peer is the IPv4-MAPPED literal,
+# bracketed because the authority form demands it.  These are the bytes on the
+# wire for every TLS pull a stock client starts, so they are what the pin has to
+# cope with — and what it must NOT be loosened by.
+MAPPED_SRC = f"[::ffff:{SRC_ADDR}]"
+MAPPED_OTHER = f"[::ffff:{OTHER_LOOPBACK}]"
+
 # The two distinct reasons a pull socket can refuse the source, as tls.c now
 # reports them.  Asserting on the reason is what keeps the anchor negative and
 # the hostname negative from passing for each other's cause.
@@ -400,6 +408,46 @@ def test_the_other_loopback_address_is_otherwise_reachable(tpcgsi):
         (f"{OTHER_LOOPBACK} is unreachable, so the hostname pin above proves "
          "nothing", status, body)
     assert _landed(dstdata, "/hostname-on-gsi.bin")
+
+
+def test_the_ipv4_mapped_spelling_of_the_source_still_pulls(tpcgsi):
+    """The pin has to accept the source under the name a stock client gives it.
+
+    XrdCl writes `tpc.src=[::ffff:127.0.0.1]:PORT` for an IPv4 source — that is
+    XrdNetAddr's canonical form, not an exotic input — and OpenSSL matches an
+    IP-shaped name byte-for-byte against the certificate's iPAddress SANs.  A
+    16-byte mapped address matches no 4-byte IPv4 SAN, so without the fold in
+    tls.c this pull fails X509_V_ERR_IP_ADDRESS_MISMATCH against a chain that
+    verified perfectly, and the host certificate looks like the thing at fault.
+    The test above pins the same source by its unmapped spelling; this one says
+    the two spellings name one machine."""
+    endpoints, dstdata = tpcgsi
+    status, body = _pull(endpoints, "good", "/mapped-on-tls.bin",
+                         src_host=MAPPED_SRC)
+    assert status == KXR_OK, \
+        ("the source's own address in its IPv4-mapped spelling was refused",
+         status, body)
+    assert _landed(dstdata, "/mapped-on-tls.bin")
+
+
+def test_the_ipv4_mapped_spelling_of_another_address_is_still_refused(tpcgsi):
+    """SECURITY-NEG: folding the mapped literal must not switch the pin off.
+
+    ::ffff:127.0.0.2 IS 127.0.0.2, so it must be refused exactly as the unmapped
+    spelling is — same refusal, same reason, chain intact.  A fold that silently
+    became "an IP-shaped name cannot be checked, so skip it" would leave the
+    positive above green while accepting any CA-valid certificate for any host,
+    which is the whole gap SSL_set1_host was added to close."""
+    endpoints, dstdata = tpcgsi
+    status, body = _pull(endpoints, "good", "/mapped-other-on-tls.bin",
+                         src_host=MAPPED_OTHER)
+    assert status == KXR_ERROR, \
+        ("the mapped spelling of an address the certificate does not carry was "
+         "accepted", status, body)
+    assert TLS_REFUSED.encode() in body and BAD_ANCHOR.encode() not in body, \
+        ("this should be a name mismatch against a chain that verified; the "
+         "reported reason says otherwise", body)
+    assert _uncommitted(dstdata, "/mapped-other-on-tls.bin")
 
 
 def test_an_untrusted_source_chain_is_refused_at_the_gsi_layer(tpcgsi):

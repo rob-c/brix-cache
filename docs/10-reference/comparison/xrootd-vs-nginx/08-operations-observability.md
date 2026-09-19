@@ -545,7 +545,7 @@ BriX-Cache shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 
 ## Source references
 
-### Official XRootD (`/tmp/brix-src`)
+### Official XRootD (upstream)
 
 | Area | Files |
 |---|---|

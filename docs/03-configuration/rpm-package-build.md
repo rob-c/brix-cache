@@ -51,11 +51,11 @@ own RPMs so sites can install only what they need.
 
 ```
 dist/
-  nginx-mod-brix-cache-2.0.0-1.el9.x86_64.rpm
-  brix-cache-client-2.0.0-1.el9.x86_64.rpm
-  brix-cache-tests-2.0.0-1.el9.noarch.rpm
-  brix-tools-2.0.0-1.el9.x86_64.rpm
-  nginx-mod-brix-cache-2.0.0-1.el9.src.rpm
+  nginx-mod-brix-cache-2.0.0-2.el9.x86_64.rpm
+  brix-cache-client-2.0.0-2.el9.x86_64.rpm
+  brix-cache-tests-2.0.0-2.el9.noarch.rpm
+  brix-tools-2.0.0-2.el9.x86_64.rpm
+  nginx-mod-brix-cache-2.0.0-2.el9.src.rpm
 ```
 
 ---
@@ -78,15 +78,15 @@ sudo dnf install -y epel-release
 ### 2.2 Install the RPM
 
 ```bash
-sudo dnf install -y dist/nginx-mod-brix-cache-2.0.0-1.el9.x86_64.rpm \
-    dist/brix-cache-client-2.0.0-1.el9.x86_64.rpm
+sudo dnf install -y dist/nginx-mod-brix-cache-2.0.0-2.el9.x86_64.rpm \
+    dist/brix-cache-client-2.0.0-2.el9.x86_64.rpm
 ```
 
 Install the compiled XrdCeph/CephFS migration tools on hosts that will run
 operator migrations:
 
 ```bash
-sudo dnf install -y dist/brix-tools-2.0.0-1.el9.x86_64.rpm
+sudo dnf install -y dist/brix-tools-2.0.0-2.el9.x86_64.rpm
 ```
 
 This pulls in `nginx-mod-stream`, `openssl-libs`, and `curl`

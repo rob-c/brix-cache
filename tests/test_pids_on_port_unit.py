@@ -7,44 +7,62 @@ exactly what Darwin's netstat reports (one owner per socket), which is why the
 lookup uses lsof there.
 """
 import json
-import socket
+import os
+import signal
 import subprocess
 import sys
 
 import pytest
 
+from ephemeral_port import free_port
 from lib_py.util import pids_on_port
+from settings import HOST
 
 #: A stand-in for a pre-forking server: bind a listener, fork, and report both
 #: pids.  Run as a SUBPROCESS — forking inside pytest inherits its capture and
 #: plugin state, which deadlocks.
+#:
+#: Host and port are formatted in by the parent rather than asked of the kernel:
+#: this listener lives for the whole case, and an unledgered ephemeral one can
+#: land on a managed fleet port (``test_fleet_port_uniqueness``).
 _SERVER = """
 import json, os, socket, sys, time
 srv = socket.socket()
 srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-srv.bind(("127.0.0.1", 0))
+srv.bind(({host!r}, {port}))
 srv.listen(4)
 port = srv.getsockname()[1]
 child = os.fork()
 if child == 0:
     time.sleep(120)
     os._exit(0)
-print(json.dumps({"port": port, "parent": os.getpid(), "child": child}), flush=True)
+print(json.dumps({{"port": port, "parent": os.getpid(), "child": child}}), flush=True)
 time.sleep(120)
 """
 
 
 @pytest.fixture
 def shared_listener():
-    proc = subprocess.Popen([sys.executable, "-c", _SERVER],
-                            stdout=subprocess.PIPE, text=True)
+    source = _SERVER.format(host=HOST, port=free_port())
+    # Own session, and tear down the whole GROUP: the helper's whole point is a
+    # forked child holding the same listening socket, and proc.kill() reaps only
+    # the parent — the child keeps the port bound for its full sleep.  Invisible
+    # while the port was kernel-assigned (each run drew a fresh one); with a
+    # stable per-call-site lease the orphan collides with the next case, which
+    # then fails as EADDRINUSE in the helper rather than as anything real.
+    proc = subprocess.Popen([sys.executable, "-c", source],
+                            stdout=subprocess.PIPE, text=True,
+                            start_new_session=True)
     try:
         line = proc.stdout.readline()
         assert line, "listener helper produced no handshake"
         info = json.loads(line)
         yield info["port"], info["parent"], info["child"]
     finally:
-        proc.kill()
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            proc.kill()
         proc.wait()
 
 
@@ -59,11 +77,10 @@ def test_every_holder_is_reported(shared_listener):
 def test_a_free_port_reports_nobody():
     """error path: a port nothing listens on yields an empty list, so a caller
     reaping it kills nothing."""
-    probe = socket.socket()
-    probe.bind(("127.0.0.1", 0))   # net-literal-allow: the loopback probe is the subject
-    free = probe.getsockname()[1]
-    probe.close()
-    assert pids_on_port(free) == []
+    # A mock-range lease: owned by this session, so nothing in the lane holds
+    # it — which is exactly the precondition the case needs — and unlike a
+    # kernel-assigned port it stays visible to the test-port ledger.
+    assert pids_on_port(free_port()) == []
 
 
 def test_the_parent_is_never_omitted(shared_listener):

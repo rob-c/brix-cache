@@ -9,7 +9,7 @@ framing, and the per-opcode coverage and framing-parity of every `kXR_*` request
 code.
 
 Every claim below is grounded in source. The official side cites
-`/tmp/brix-src/src/XProtocol/XProtocol.hh` (the opcode and struct definitions)
+`XProtocol/XProtocol.hh` (the opcode and struct definitions)
 and `XrdXrootd/XrdXrootdProtocol.cc` / `XrdXrootdXeq.cc` (the `do_*` handlers).
 The BriX-Cache side cites this repository's `src/` tree. Where a behaviour was
 already verified by the conformance / interop suites, this doc **reuses** the
@@ -29,7 +29,7 @@ request-opcode surface. The crypto internals of GSI/token/SSS handshakes, the
 HTTP/WebDAV/S3 planes, and CMS clustering are covered by their own comparison
 documents and are referenced here only where they affect wire behaviour.
 
-"Official XRootD" means the reference C++ implementation in `/tmp/brix-src`
+"Official XRootD" means the reference C++ implementation of the XRootD project
 (protocol string `5.2.0`, `kXR_PROTOCOLVERSION 0x00000520`,
 `XProtocol.hh:70-76`). "BriX-Cache" / "this module" means the server in
 `src/` (the native client in `client/` is mentioned only where the two ends must
@@ -441,7 +441,7 @@ explicitly opt-in vendor superset and one dead-opcode gap.
 
 ## Source references
 
-**Official XRootD** (`/tmp/brix-src/src/`):
+**Official XRootD** (upstream):
 
 - `XProtocol/XProtocol.hh` — opcode enum `XRequestTypes:111-147`; request structs
   `:157-925`; handshake structs `:84-98`; protocol flags/TLS bits `:589-614,

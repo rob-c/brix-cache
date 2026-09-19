@@ -632,8 +632,8 @@ stream {
         brix_thread_pool default;
     }
 }
-&#32;
-# /etc/grid-security/grid-mapfile
+</code></pre>
+<pre><code class="language-text"># /etc/grid-security/grid-mapfile
 &#32;
 "/DC=org/DC=example/CN=Alice Example" alice
 "/DC=org/DC=example/CN=Bob Example" bob
@@ -948,15 +948,18 @@ http {
 &#32;
             # WebDAV authorization still matches the authenticated DN.
             # The grid-mapfile above controls the local user for I/O.
-            brix_authdb_engine xrdacc;
-            brix_authdb /etc/brix/webdav-authdb;
+            # On the HTTP planes the XrdAcc engine is reachable only through
+            # the brix_acc_* names: the bare brix_authdb means the native
+            # u/g/p engine here, and brix_authdb_engine is a stream spelling.
+            brix_acc_format xrdacc;
+            brix_acc_authdb /etc/brix/webdav-authdb;
             brix_acc_refresh 60;
             brix_acc_audit deny;
         }
     }
 }
-&#32;
-# /etc/grid-security/grid-mapfile
+</code></pre>
+<pre><code class="language-text"># /etc/grid-security/grid-mapfile
 &#32;
 "/DC=org/DC=example/CN=Alice Example" alice
 "/DC=org/DC=example/CN=Bob Example" bob

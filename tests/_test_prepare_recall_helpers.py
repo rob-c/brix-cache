@@ -21,7 +21,7 @@ from settings import NGINX_BIN, HOST
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
 
-# --- wire constants (XProtocol.hh) ---
+# --- wire constants (the wire spec) ---
 kXR_login    = 3007
 kXR_query    = 3001
 kXR_prepare  = 3021

@@ -12,6 +12,8 @@ import sys
 
 import pytest
 
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
+
 REPO = Path(__file__).resolve().parents[1]
 
 
@@ -50,6 +52,9 @@ def completion_binary(tmp_path_factory):
     result = subprocess.run(
         [compiler, "-O2", "-D_GNU_SOURCE", "-Wall", "-Wextra", "-Werror",
          "-Wno-unused-parameter", "-ffunction-sections", "-fdata-sections",
+         # INVARIANT 14: these TUs reach platform/platform.h, which selects its
+         # <host>/host.h from this token alone and #errors without it.
+         *PLATFORM_HOST_FLAGS,
          *_nginx_include_flags(), *_completion_sources(), linker_gc, "-o", str(output)],
         capture_output=True, text=True, timeout=60,
     )

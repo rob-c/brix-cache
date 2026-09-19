@@ -28,7 +28,7 @@ implies auth_done):
   * kXR_ping is allowed pre-login      -> ok; an unknown / legacy opcode is not
                                           -> kXR_Unsupported
 
-Verified against /tmp/brix-src/src/XProtocol/XProtocol.hh:
+Verified against src/protocols/root/protocol/opcodes.h:
   ClientSetRequest     = streamid[2] requestid[2] reserved[15] modifier[1] dlen[4]
   ClientEndsessRequest = streamid[2] requestid[2] sessid[16]            dlen[4]
   ClientBindRequest    = streamid[2] requestid[2] sessid[16]            dlen[4]
@@ -54,8 +54,8 @@ from settings import (
 # ---------------------------------------------------------------------------
 # Opcodes / status / error codes
 #   request opcodes : src/protocols/root/protocol/opcodes.h
-#                     /tmp/brix-src/src/XProtocol/XProtocol.hh (XRequestTypes)
-#   error codes     : /tmp/brix-src/src/XProtocol/XProtocol.hh (XErrorCode)
+#                     src/protocols/root/protocol/opcodes.h (kXR_* request codes)
+#   error codes     : src/protocols/root/protocol/opcodes.h (kXR_* error codes)
 # ---------------------------------------------------------------------------
 
 kXR_auth     = 3000
@@ -78,12 +78,12 @@ kXR_endsess  = 3023
 kXR_bind     = 3024
 kXR_truncate = 3028
 
-# ServerResponseHeader.status values (XProtocol.hh XResponseType).
+# ServerResponseHeader.status values (the wire spec XResponseType).
 kXR_ok       = 0
 kXR_error    = 4003
 kXR_status   = 4007
 
-# XErrorCode values (XProtocol.hh).  errnum is the first int32 of an error body.
+# XErrorCode values (the wire spec).  errnum is the first int32 of an error body.
 kXR_ArgInvalid     = 3000
 kXR_InvalidRequest = 3006
 kXR_NotAuthorized  = 3010
@@ -94,7 +94,7 @@ kXR_Unsupported    = 3013
 kXR_set_appid = ord("A")   # advisory application id (e.g. "cms.space ...")
 kXR_set_clttl = ord("T")   # client session TTL hint
 
-# XOpenRequestMode (XProtocol.hh)
+# XOpenRequestMode (the wire spec)
 kXR_open_read = 0x0010
 kXR_open_updt = 0x0020
 

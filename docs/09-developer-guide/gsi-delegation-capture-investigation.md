@@ -146,7 +146,7 @@ These took several iterations to get right; document them so the next person doe
 
 ---
 
-## 4. The protocol mechanism (authoritative, from `/tmp/brix-src`)
+## 4. The protocol mechanism (authoritative, as observed on the wire)
 
 The stock client source `XrdSecgsi/XrdSecProtocolgsi.cc` shows the client's delegation
 decision in `ClientDoPxyReq` (≈ line 3435):

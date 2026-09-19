@@ -24,7 +24,18 @@ import pytest
 from cmdscripts.root_readonly_gateway import run_checks
 from settings import NGINX_BIN
 
-pytestmark = pytest.mark.xdist_group("cmd-root_readonly_gateway")
+# The module-scoped fixture below runs the WHOLE battery — six nginx instances
+# started, ~400 probes, an nginx -s reload and the documented configs parsed —
+# inside the setup of whichever test pytest happens to schedule first, so the
+# battery is charged against ONE per-test budget.  It takes ~32 s on an idle
+# host, which pytest.ini's 30 s default cannot cover, and the SIGALRM lands
+# wherever the sweep had got to: the traceback names a socket recv in a
+# different probe family each run, reading exactly like a server hang and never
+# like a timeout.  Sized for the loaded case (xdist, the origin sharing the host
+# with the other workers' servers), in the same band as the suite's other
+# whole-rig modules.
+pytestmark = [pytest.mark.timeout(300),
+              pytest.mark.xdist_group("cmd-root_readonly_gateway")]
 
 
 @pytest.fixture(scope="module")

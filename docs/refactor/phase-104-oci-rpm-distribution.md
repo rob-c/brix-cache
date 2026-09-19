@@ -3172,11 +3172,11 @@ oci:mylayout` is the conformance oracle (F, live-lab leg).
   <url>https://example.org</url>
   <time file="1755432000" build="1755431000"/>
   <size package="123456" installed="345678" archive="345900"/>
-  <location href="Packages/brix-demo-1.4.0-1.el9.x86_64.rpm"/>
+  <location href="Packages/brix-demo-1.4.0-2.el9.x86_64.rpm"/>
   <format>
     <rpm:license>MIT</rpm:license><rpm:vendor/>
     <rpm:group>Unspecified</rpm:group><rpm:buildhost>ci</rpm:buildhost>
-    <rpm:sourcerpm>brix-demo-1.4.0-1.el9.src.rpm</rpm:sourcerpm>
+    <rpm:sourcerpm>brix-demo-1.4.0-2.el9.src.rpm</rpm:sourcerpm>
     <rpm:header-range start="4504" end="8280"/>
     <rpm:provides>
       <rpm:entry name="brix-demo" flags="EQ" epoch="0" ver="1.4.0" rel="1.el9"/>

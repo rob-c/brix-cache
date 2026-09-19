@@ -176,7 +176,7 @@ sudo apt-get install -y \
   globus-gass-copy-progs nordugrid-arc-client \
   rpm dnf createrepo-c nginx-core brotli lz4 unzip nghttp2-server \
   clang valgrind strace iproute2 nftables fail2ban squid varnish \
-  libxrootd-dev libxrootd-client-dev libxrootd-server-dev libxrootd-private-dev \
+  libxrootd-dev libxrootd-client-dev libxrootd-server-dev \
   python3-rados python3-cephfs golang-go \
   podman podman-docker uidmap slirp4netns fuse-overlayfs
 .venv/bin/python -m pip install -r requirements-optional.txt
@@ -186,8 +186,9 @@ sudo apt-get install -y \
 `globus-gass-copy-progs` supplies `globus-url-copy`; `rpm` supplies `rpmbuild`;
 `nghttp2-server` supplies `nghttpd`. `nginx-core` supplies the independent stock
 nginx used by the RPM proxy recipe tests; it does not replace the separately
-built module binary selected by `NGINX_BIN`. `libxrootd-private-dev` supplies
-the `libXrdSsiLib.so` linker name missing from the public development packages.
+built module binary selected by `NGINX_BIN`. `libxrootd-private-dev` is no
+longer required: the SSI interop test that linked `libXrdSsiLib.so` has been
+removed (see below).
 Codec **development libraries do not install
 the corresponding CLI decoders**. The optional Python requirements include
 `xattr`, `crc32c`, the S3/STS clients, and the codec/TLS extensions. Keep these in
@@ -218,13 +219,15 @@ Additional reference tools installed outside apt:
   downloaded Go 1.26.8 for this build; the distro Go 1.22 bootstrap
   alone is too old for this module. See the
   [reference client documentation](https://pkg.go.dev/go-hep.org/x/hep/xrootd/cmd/xrd-ls).
-- **XRootD v5.6.9 sources**, matching Ubuntu's reference libraries, downloaded
-  from the [upstream tag](https://github.com/xrootd/xrootd/releases/tag/v5.6.9).
-  `/tmp/brix-src` points to the extracted tree under
-  `/var/tmp/brix-skip-tools.Oz3EdP/xrootd-5.6.9`. The SSI interop compiler and
-  client-surface inventory require this source tree as well as development
-  libraries. Recreate the `/tmp/brix-src` link if VM temporary-file cleanup
-  removes it.
+- **XRootD sources are no longer used by anything in this repository.** The two
+  consumers that needed an XRootD source checkout have been removed: the SSI
+  interop test compiled a C++ client against `XrdSsi/*.hh` and `-lXrdSsiLib
+  -lXrdCl -lXrdUtils`, and `tests/clientconf/flag_inventory.py` parsed
+  `XrdApps/XrdCpConfig.cc` / `XrdCl/XrdClFS.cc` to derive the stock client
+  surface. The surface is now a pinned in-repo table and the SSI engine is
+  covered by the raw-wire conformance tests in `tests/test_ssi_wire.py`. Do not
+  reintroduce a dependency on the XRootD source tree — this is a clean-room
+  implementation. `BRIX_SRC` / `BRIX_SRC_DIR` are no longer read.
 
 The stock CVMFS client is not in Ubuntu's default package repositories. For
 the independent-client benchmark tests, install CERN's repository release
@@ -835,7 +838,7 @@ The consolidated Alma9 package list is in [§10](#10-alma9-full-testsuite-depend
 
 ```bash
 sudo dnf install -y python3.12-devel xrootd-devel xrootd-client-devel \
-  xrootd-server-devel xrootd-private-devel lz4
+  xrootd-server-devel lz4
 python3.12 -m venv build/alma9-full-venv
 build/alma9-full-venv/bin/python -m pip install \
   -r requirements.txt -r requirements-optional.txt
@@ -848,16 +851,18 @@ their declared bounds. The reference XRootD server and Kerberos server/client
 packages must also be installed as described in §1. Native clients and the
 `aio-smoke` and `ssi-client-smoke` helpers were built through
 `brix_suite.client_build.client_make`, which holds the shared build lock.
-The matching XRootD 5.9.7 reference sources were unpacked at `/tmp/brix-src` for
-the client option inventory and SSI header consumers.
+(Historical: that run also unpacked XRootD 5.9.7 reference sources at
+an XRootD source checkout for the client option inventory and SSI header consumers. Both
+consumers have since been removed — see §1e — and no XRootD source tree is
+needed.)
 
 Module-only nginx builds omit core objects used by standalone C tests. For
 this isolated CMake build, `nginx-src/objs` points to `../modules`; the generated
 Makefile was used to compile `ngx_string.o`, `ngx_palloc.o`, `ngx_shmtx.o`, and
 `ngx_alloc.o` without editing nginx sources or generated Makefiles. Set
 `NGX_SRC` and `TEST_NGINX_SRC` to the configured `nginx-src` directory, and
-`TEST_NGINX_OBJS` to its `objs` path when running those tests. Set `BRIX_SRC`
-and `BRIX_SRC_DIR` to the reference XRootD source directory.
+`TEST_NGINX_OBJS` to its `objs` path when running those tests. `BRIX_SRC` /
+`BRIX_SRC_DIR` are obsolete and no longer read by any test.
 
 Full-suite preparation exposed two dynamic-module coverage gaps and a fleet
 startup failure. Kerberos probing now checks the selected BriX modules as well
@@ -1063,7 +1068,7 @@ sudo dnf install -y \
   nginx nginx-mod-devel nginx-mod-stream \
   python3.12 python3.12-pip python3.12-devel \
   xrootd-client xrootd-server xrootd-devel xrootd-client-devel \
-  xrootd-server-devel xrootd-private-devel xrootd-scitokens xrootd-voms \
+  xrootd-server-devel xrootd-scitokens xrootd-voms \
   krb5-server krb5-workstation haproxy bubblewrap \
   gfal2-util-scripts gfal2-plugin-file gfal2-plugin-xrootd \
   gfal2-plugin-http gfal2-plugin-gridftp globus-gass-copy-progs dpkg \
@@ -1079,7 +1084,7 @@ export PATH="$PWD/build/alma9-full-venv/bin:$PATH"
 
 | Package or group | Test capability supplied |
 |---|---|
-| `python3.12-devel`, `xrootd-devel`, `xrootd-client-devel`, `xrootd-server-devel`, `xrootd-private-devel` | Build the Python XRootD bindings and compile native/SSI regression helpers against matching headers. XRootD server libraries are pulled in by the server packages. |
+| `python3.12-devel`, `xrootd-devel`, `xrootd-client-devel`, `xrootd-server-devel` | Build the Python XRootD bindings (`python3-xrootd`, used only to drive the reference server as an external oracle). `xrootd-private-devel` is no longer needed: nothing in the repo compiles or links against XRootD headers or libraries. |
 | `xrootd-server`, `krb5-server`, `krb5-workstation`, `haproxy` | Owned reference-server, Kerberos, forwarding, and HA fixtures. |
 | `xrootd-scitokens` | SciTokens verification in the stock XRootD token origin; pulls in `scitokens-cpp`. The EL9 package name has no `-plugins` suffix. |
 | `xrootd-voms` | `libXrdHttpVOMS-5.so`, used by the stock HTTPS forwarding origin. Its absence caused both HTTPS-backend forwarding cells to fail. The EL9 name is `xrootd-voms`. |

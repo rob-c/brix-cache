@@ -11,6 +11,18 @@
  *       their existing fallbacks.
  */
 
+/* The glibc feature-test macro these bodies need (openat2, renameat2, statx, RENAME_NOREPLACE).  Guarded, not
+ * bare, because both real builds already pass -D_GNU_SOURCE on the command
+ * line (./config for the module, client/Makefile's HARDEN for the client) and
+ * an unguarded redefinition is an error under -Werror.  Declared HERE rather
+ * than left to the caller so a standalone harness that links one PAL body --
+ * every tests/cmdscripts compile line that reaches brix_plat_* -- gets the
+ * prototypes too, instead of an implicit declaration and a silent link
+ * failure.  It must precede every include, hence its place above them. */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "../platform.h"
 #include "../platform_api.h"
 

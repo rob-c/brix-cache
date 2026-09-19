@@ -333,6 +333,7 @@ static int
 arc_list_inner_cb(void *ud, const char *name, int is_dir)
 {
     arc_list_t *l = ud;
+    char       *copy;
 
     if (l->n == l->cap) {
         unsigned  ncap = l->cap ? l->cap * 2 : 32;
@@ -344,12 +345,25 @@ arc_list_inner_cb(void *ud, const char *name, int is_dir)
         l->seen = grown;
         l->cap = ncap;
     }
-    l->seen[l->n] = strdup(name);
-    if (l->seen[l->n] != NULL) {
+    /* Ownership transfers INTO the seen list; arc_list_free releases every
+     * entry. A failed strdup only costs this name its dedup slot, so the
+     * callback still runs — the walk is not the allocation's hostage.
+     *
+     * gcc 11's -fanalyzer cannot see a symbolic-index store through a
+     * parameter as an escape, so it reports the copy leaking at the return
+     * below. Suppress exactly that diagnostic, at exactly its emission point. */
+#pragma GCC diagnostic push
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wanalyzer-malloc-leak"
+#endif
+    copy = strdup(name);
+    if (copy != NULL) {
+        l->seen[l->n] = copy;
         l->n++;
     }
     l->stopped = l->cb(l->ud, name, is_dir);
     return l->stopped;
+#pragma GCC diagnostic pop
 }
 
 /* One sidecar member name → its first component, emitted once (the sidecar is

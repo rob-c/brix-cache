@@ -360,20 +360,20 @@ All criteria met:
 
 ```bash
 # Linux x86_64
-./configure --add-module=/tmp/brix-src && make
+./configure --add-module=$REPO && make
 
 # Linux ARM64 (cross-compile)
-./configure --add-module=/tmp/brix-src \
+./configure --add-module=$REPO \
   --with-cc=aarch64-linux-gnu-gcc && make
 
 # macOS x86_64
-./configure --add-module=/tmp/brix-src && make
+./configure --add-module=$REPO && make
 
 # macOS ARM64
-./configure --add-module=/tmp/brix-src && make
+./configure --add-module=$REPO && make
 
 # Windows (MinGW)
-./configure --add-module=/tmp/brix-src \
+./configure --add-module=$REPO \
   --with-cc=x86_64-w64-mingw32-gcc && make
 ```
 
@@ -1566,7 +1566,7 @@ BRIX_OPTIMIZE=windows  # -O2 -march=x86-64
 # test_all_platforms.sh
 
 echo "Testing Linux x86_64 build..."
-make clean && ./configure --add-module=/tmp/brix-src && make
+make clean && ./configure --add-module=$REPO && make
 if [ $? -eq 0 ]; then
     echo "✅ Linux x86_64 build SUCCESS"
 else
@@ -1575,7 +1575,7 @@ else
 fi
 
 echo "Testing macOS build..."
-make clean && ./configure --add-module=/tmp/brix-src && make
+make clean && ./configure --add-module=$REPO && make
 if [ $? -eq 0 ]; then
     echo "✅ macOS build SUCCESS"
 else

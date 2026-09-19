@@ -10,8 +10,8 @@
  *       chunks until the final kXR_ok; with dstat the body begins with the
  *       ".\n0 0 0 0\n" lead-in followed by name/stat line pairs.
  *
- * wire: XProtocol.hh kXR_stat response — ASCII "<id> <size> <flags> <mtime>".
- * wire: XProtocol.hh kXR_dirlist dstat — ".\n0 0 0 0" prefix, then name\nstat\n pairs.
+ * wire: kXR_stat response — ASCII "<id> <size> <flags> <mtime>".
+ * wire: kXR_dirlist dstat — ".\n0 0 0 0" prefix, then name\nstat\n pairs.
  */
 #include "brix.h"
 #include "protocols/root/protocol/stat_line.h"    /* shared stat-line grammar (decode side) */

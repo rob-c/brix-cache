@@ -28,17 +28,17 @@ _xrdcl_worker._call_method).  Through the proxy a per-attr XRootDStatus arrives
 as a plain dict {ok, code, errno, ...}; through a direct import it is a Status
 object — the helpers here accept either shape.
 
-Wire/contract facts pinned (XProtocol.hh / XrdXrootd fattr path):
+Wire/contract facts pinned (the wire spec / XrdXrootd fattr path):
 
-  * kXR_fattr == 3020 (XProtocol.hh:133).  Subcodes (XProtocol.hh:299):
-    Del 0, Get 1, List 2, Set 3.  Limits (XProtocol.hh:309): faMaxVars 16,
+  * kXR_fattr == 3020 (the wire spec).  Subcodes (the wire spec):
+    Del 0, Get 1, List 2, Set 3.  Limits (the wire spec): faMaxVars 16,
     faMaxNlen 248, faMaxVlen 65536.  Options: isNew 0x01, aData 0x10.
   * Get of a MISSING attr is NOT a request-level error: the request returns
     kXR_ok and the absence is reported as a non-zero per-attr status whose errno
-    is kXR_AttrNotFound (3027 -> ENOATTR; XProtocol.hh:1059, toErrno:1483).
+    is kXR_AttrNotFound (3027 -> ENOATTR; the wire spec, toErrno).
   * The server stores client attrs under an internal FATTR_NAMESPACE ("user")
     prefix; the reference STRIPS that prefix in the List response (XeqFALsd).
-  * kXR_query infotype kXR_Qxattr (4; XProtocol.hh:652) returns an oss.* /
+  * kXR_query infotype kXR_Qxattr (4; the wire spec) returns an oss.* /
     ofs.* metadata blob for the path.
 
   ** KNOWN DIVERGENCE (pinned xfail): our List/oss layer leaks the internal
@@ -65,7 +65,7 @@ pytestmark = [pytest.mark.timeout(420),
 
 OUR_PORT = L.worker_port(14924)
 OFF_PORT = L.worker_port(14925)
-# kXR error codes referenced (XProtocol.hh:1031+)
+# kXR error codes referenced (the wire spec)
 kXR_AttrNotFound = 3027
 
 

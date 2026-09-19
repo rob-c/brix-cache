@@ -21,6 +21,56 @@
 
 #include "acc.h"
 
+#include "core/compat/alloc_guard.h"   /* BRIX_PNALLOC_OR_RETURN */
+
+/*
+ * WHAT: brix_acc_canon_path — the one spelling of a logical path the engine
+ *   matches rules against: exactly one leading '/'.
+ * WHY: an authfile writes its rules absolute (`g eng /phys rl`), but the client
+ *   chooses the spelling on the wire, and the I/O layer treats every spelling as
+ *   the same object — brix_beneath_rel() strips ALL leading slashes, so "phys/x",
+ *   "/phys/x" and "//phys/x" open one file.  The engine, matching the raw string,
+ *   did not: a rule on "/phys" missed "phys/x" entirely.  That loses grants, and
+ *   worse, it loses DENIES — a deny on "/secret" was dodged by asking for
+ *   "secret/f".  Canonicalizing here makes the object the request names and the
+ *   object the rules describe the same object again.
+ * HOW: an already-absolute path is returned as-is (the hot path allocates
+ *   nothing); a leading run of '/' is collapsed by advancing to its last byte;
+ *   only the relative spelling needs a buffer, for the '/' it is missing.  NULL
+ *   means "cannot canonicalize" (no pool, or the pool is out of memory) and the
+ *   caller MUST deny — a path the engine cannot spell canonically is a path it
+ *   cannot decide.  ".." never reaches here: the EXTRACT ops reject it at the
+ *   edge (brix_reject_dotdot_path), which is where traversal belongs.
+ */
+const char *
+brix_acc_canon_path(ngx_pool_t *pool, const char *path)
+{
+    size_t   len;
+    u_char  *out;
+
+    if (path == NULL || path[0] == '\0') {
+        return "/";
+    }
+
+    if (path[0] == '/') {
+        while (path[1] == '/') {
+            path++;
+        }
+        return path;
+    }
+
+    if (pool == NULL) {
+        return NULL;
+    }
+
+    len = ngx_strlen(path);
+    BRIX_PNALLOC_OR_RETURN(out, pool, len + 2, NULL);
+    out[0] = '/';
+    ngx_memcpy(out + 1, path, len + 1);   /* includes the NUL */
+
+    return (const char *) out;
+}
+
 /* OS/NIS group hooks — installed by groups.c (M4); NULL = OS layer absent. */
 static brix_acc_unixgrp_fn  acc_unixgrp_resolver = NULL;
 static brix_acc_netgrp_fn   acc_netgrp_member    = NULL;

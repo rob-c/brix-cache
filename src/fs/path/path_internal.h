@@ -7,6 +7,24 @@
  * "..", else 0. Borrows comp (need not be NUL-terminated); O(1), no alloc. */
 int brix_path_component_forbidden(const char *comp, size_t comp_len);
 
+/* Boundary-aware path prefix test: 1 iff `path` is AT or BENEATH the first
+ * `prefix_len` bytes of `prefix` — the match must land on a component boundary,
+ * so "/foo" covers "/foo" and "/foo/bar" but not "/foobar".  A prefix that
+ * itself ends in '/' is already at a separator and therefore covers everything
+ * below it; the root prefix "/" is the case that matters, because it cannot be
+ * stripped to a non-separator form.  Borrows both strings; NULL → 0.
+ *
+ * ONE implementation on purpose.  There were two — one here in find_rule.c's
+ * shape (with the carve-out) and a private copy in auth/authz/authdb.c (without
+ * it) — and the divergence was invisible for as long as the request path
+ * happened to arrive with a doubled slash, whose second '/' satisfied the
+ * boundary test by accident.  The moment the join was fixed to emit a single
+ * slash, an authdb rule on "/" (the natural grant for a remote-backed export,
+ * whose root_canon IS "/") matched the literal "/" and nothing beneath it:
+ * every authorized principal was refused. */
+int brix_path_prefix_match(const char *prefix, size_t prefix_len,
+    const char *path);
+
 /* Traversal guard for extract-based ops: returns 1 iff some '/'-delimited
  * component of the NUL-terminated path is exactly ".." (a lone "." is not a
  * match). Borrows path (may be NULL → 0). See brix_reject_dotdot_path. */

@@ -9,7 +9,7 @@ Servers under test:
   cache server       — CACHE_ONLY_PORT  (11200)  brix_cache_export configured
   proxy server       — PROXY_NGINX_PORT (11193)  brix_proxy on
 
-Flag bit layout (XProtocol.hh, ServerProtocolBody.flags uint32 big-endian):
+Flag bit layout (the wire spec, ServerProtocolBody.flags uint32 big-endian):
   kXR_isServer   0x00000001
   kXR_isManager  0x00000002
   kXR_attrCache  0x00000080  — server is a read-through cache node

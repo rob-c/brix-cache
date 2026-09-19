@@ -66,7 +66,7 @@ def test_adler32_empty_is_canonical(srv):
 
 # =========================================================================== #
 # 3. EXPLICIT-ALGORITHM SELECTION via the standard `?cks.type=<algo>` CGI.     #
-#    XrdCl/EOS append exactly this CGI (XrdClUtils.cc). For every advertised   #
+#    XrdCl/EOS append exactly this CGI (the stock client). For every advertised   #
 #    algorithm the returned hex must equal the independent reference over the  #
 #    same bytes. A wrong hex, wrong width, or an error here is a server bug.   #
 #    (9 algos x 3 files = 27 cases)                                            #

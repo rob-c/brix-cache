@@ -25,10 +25,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from cmdscripts import run
+from cmdscripts.compile_run import PAL_HOST_DIR, PLATFORM_HOST_FLAGS
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC = REPO_ROOT / "src"
 UNIT = REPO_ROOT / "tests" / "unit"
+
+#: ``src/platform/<host>`` as the extras table below spells paths — relative to
+#: SRC.  Derived rather than written out so this file names no host (INVARIANT
+#: 14); compile_run owns the one place the host is chosen.
+PAL_HOST = str(Path(PAL_HOST_DIR).relative_to("src"))
 
 # name -> (test TU, extra .c files it links, the line a passing run prints).
 # The extra sources are the ngx-free compat kernels the driver reaches for; the
@@ -51,7 +57,9 @@ UNITS: dict[str, tuple[str, tuple[str, ...], str]] = {
     ),
     "block": (
         "test_sd_block_zerocopy.c",
-        (),
+        # The driver asks the PAL for a block device's size, so this unity unit
+        # carries the host body behind brix_plat_blockdev_size (INVARIANT 14).
+        (f"{PAL_HOST}/storage_wrapper.c",),
         "sd_block zero-copy/advise suite: all checks passed",
     ),
 }
@@ -69,6 +77,9 @@ def run_one(base: Path, name: str) -> list[tuple[bool, str]]:
         # the -I-resolved include chain of the separately compiled sources is
         # read before the test's own first line.
         "-DXRDPROTO_NO_NGX=1",
+        # The compat kernels these drivers link reach platform/platform.h, which
+        # refuses to compile without the host token (INVARIANT 14).
+        *PLATFORM_HOST_FLAGS,
         "-I", str(SRC),
         "-I", str(SRC / "fs" / "backend"),
         str(UNIT / tu),

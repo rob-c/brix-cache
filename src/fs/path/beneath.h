@@ -126,6 +126,18 @@ brix_beneath_strip_root(const char *root_canon, const char *abspath)
 {
     size_t rlen = strlen(root_canon);
 
+    /* Root "/" is the whole namespace — a remote-backed export takes it by
+     * default — and it is the one root that already ENDS in the separator, so
+     * the boundary byte the general case looks for is the leading '/' of
+     * abspath itself rather than a byte after the prefix.  Same carve-out
+     * brix_path_within_root() and brix_resolved_relative_to_root()
+     * (fs/path/resolve_confined_helpers.c) make; without it this helper called
+     * every absolute path an escape the moment brix_beneath_full_path() stopped
+     * emitting the doubled slash it used to lean on. */
+    if (rlen == 1 && root_canon[0] == '/') {
+        return (abspath[0] == '/') ? abspath : (const char *) 0;
+    }
+
     if (strncmp(abspath, root_canon, rlen) != 0) {
         return (const char *) 0;
     }
@@ -137,7 +149,21 @@ brix_beneath_strip_root(const char *root_canon, const char *abspath)
 
 /* Build the full filesystem path for auth_gate: root_canon + "/" + reqpath_rel.
  * Replaces realpath()-derived 'resolved' for ACL prefix matching.
- * Returns number of bytes written (excluding NUL); buf is valid when < (int)bufsz. */
+ * Returns number of bytes written (excluding NUL); buf is valid when < (int)bufsz.
+ *
+ * Root "/" already ends in the separator, so it contributes none of its own:
+ * joining it the general way produced "//alpha/object.dat", and THAT is the
+ * string every ACL prefix match on such an export was handed.  A remote-backed
+ * export defaults to this root (see brix_storage_backend_is_remote,
+ * core/config/runtime_server_backend.c), and its policy rules are canonicalised
+ * by a different producer — brix_finalize_path_rules() via realpath(3) — which
+ * emits the single-slash "/alpha".  The two never compared equal, so on a cache
+ * node every brix_require_vo / brix_authdb / group rule silently matched
+ * NOTHING: the admin's path-scoped policy was configured, logged as live, and
+ * unreachable.  Emitting the same single-slash form both producers agree on is
+ * what makes the rule apply.  (brix_beneath_strip_root above carries the
+ * matching carve-out, so the root-relative tail handed to openat2 is unchanged.)
+ */
 static inline int
 brix_beneath_full_path(const char *root_canon, const char *reqpath,
                           char *buf, size_t bufsz)
@@ -145,7 +171,9 @@ brix_beneath_full_path(const char *root_canon, const char *reqpath,
     const char *rel  = brix_beneath_rel(reqpath);
     size_t      rlen = strlen(root_canon);
     size_t      plen = (rel[0] != '\0') ? strlen(rel) : 0;
-    size_t      need = rlen + (plen ? 1 + plen : 0);
+    int         bare = (rlen == 1 && root_canon[0] == '/');
+    size_t      sep  = (plen && !bare) ? 1 : 0;
+    size_t      need = rlen + (plen ? sep + plen : 0);
 
     if (need + 1 > bufsz) {
         if (bufsz > 0) buf[0] = '\0';
@@ -154,8 +182,10 @@ brix_beneath_full_path(const char *root_canon, const char *reqpath,
 
     memcpy(buf, root_canon, rlen);
     if (plen) {
-        buf[rlen] = '/';
-        memcpy(buf + rlen + 1, rel, plen + 1);
+        if (sep) {
+            buf[rlen] = '/';
+        }
+        memcpy(buf + rlen + sep, rel, plen + 1);
     } else {
         buf[rlen] = '\0';
     }

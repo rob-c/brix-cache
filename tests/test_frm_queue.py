@@ -38,7 +38,7 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
 PORT = int(os.environ.get("TEST_FRM_QUEUE_PORT")
            or lifecycle_ports_for("lc-frm-queue")[0])
 
-# --- wire constants (XProtocol.hh) ---
+# --- wire constants (the wire spec) ---
 kXR_login    = 3007
 kXR_query    = 3001
 kXR_prepare  = 3021

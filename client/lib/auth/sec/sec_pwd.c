@@ -29,7 +29,7 @@
 #include <openssl/evp.h>
 #include <openssl/crypto.h>
 
-/* XrdSecpwd step codes + version (XrdSecProtocolpwd.hh). */
+/* XrdSecpwd step codes + version (stock wire values). */
 #define kXPC_normal   1000
 #define kXPC_creds    1003
 #define PWD_VERSION  10100

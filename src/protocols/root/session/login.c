@@ -74,7 +74,7 @@ brix_login_precheck_and_parse(brix_ctx_t *ctx, ngx_connection_t *c,
 
     /* The reference do_Login rejects a SECOND kXR_login on an already-logged-in
      * connection ("if (Status) return Response.Send(kXR_InvalidRequest,
-     * \"duplicate login; already logged in\")", XrdXrootdXeq.cc:1095).  Match the
+     * \"duplicate login; already logged in\")", as the stock server does).  Match the
      * reference code and message verbatim.  (Note: installed stock v5.9.5 happens
      * to surface kXR_ArgMissing here, but the current reference source — and the
      * correct semantics for a malformed-in-context request — is kXR_InvalidRequest;

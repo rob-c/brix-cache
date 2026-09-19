@@ -60,6 +60,23 @@ SRC = ROOT / "brixtest" / "src"
 ARCHIVE = TESTS / "brix_suite" / "_legacy" / "pki_helpers_flat.py"
 MOVED = TESTS / "brix_suite" / "security" / "pki.py"
 
+#: Grown after the move, by name and with the reason.  The archive pins what
+#: the MOVE did — nothing dropped, nothing quietly rewritten on the way across
+#: — not the module's future.  An undeclared addition still fails here, and a
+#: dropped or edited archived definition always does.
+_ADDED_SINCE_MOVE = {
+    # The idempotent entry point, added when the GSI/VOMS suites started
+    # running against a STANDING fleet.  `blitz_test_pki()` replaces the CA
+    # in place; every fleet member loaded the old one at start, so calling it
+    # mid-session made each later client-cert handshake fail verification —
+    # surfacing as 400s and "VO nginx server not ready" skips, never as a PKI
+    # error.  `ensure_test_pki()` regenerates only an INCOMPLETE tree,
+    # `test_pki_complete()` decides that, and `_pki_material()` is the one
+    # list of what "complete" means (certificates AND keys), read at call
+    # time so a test may repoint the module's paths first.
+    "_pki_material", "ensure_test_pki", "test_pki_complete",
+}
+
 
 def _probe(code: str, env: dict | None = None) -> str:
     """Run a snippet the way the six string call sites do: a bare subprocess."""
@@ -97,7 +114,9 @@ def test_every_definition_moved_verbatim():
     """
     old, new = _definition_bodies(ARCHIVE), _definition_bodies(MOVED)
     assert old, "archive parsed to nothing — wrong path?"
-    assert set(old) == set(new), f"missing={set(old)-set(new)} extra={set(new)-set(old)}"
+    assert set(old) - set(new) == set(), f"dropped in the move: {set(old)-set(new)}"
+    undeclared = set(new) - set(old) - _ADDED_SINCE_MOVE
+    assert undeclared == set(), f"undeclared additions: {undeclared}"
     differing = [n for n in old if old[n] != new[n]]
     assert differing == [], f"bodies changed in the move: {differing}"
     assert len(old) == 7

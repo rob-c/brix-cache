@@ -62,6 +62,27 @@ def _nginx_t(tmp_path, ciphers_line):
         capture_output=True, text=True, timeout=30)
 
 
+def _out(r, tmp_path):
+    """Everything the config test said, wherever nginx chose to say it.
+
+    A config-time NGX_LOG_NOTICE goes to `cf->log`, which is still the log
+    ngx_log_init() opened — the COMPILED-IN default, `<prefix>/logs/error.log`,
+    because `error_log` only takes effect after the whole config is parsed.
+    That file used not to exist, so nginx fell back to stderr and the notice
+    landed in the captured output; `inject_nginx_runtime_paths` now creates the
+    prefix's logs/ directory, so the open succeeds and the notice goes to the
+    file instead.  Both are read here, which also puts teeth back into the two
+    cases that assert a notice is ABSENT — against stderr alone they could not
+    have failed.
+    """
+    text = r.stdout + r.stderr
+    for name in ("logs/error.log", "err.log"):
+        path = tmp_path / name
+        if path.exists():
+            text += path.read_text(encoding="utf-8", errors="replace")
+    return text
+
+
 def _requirements():
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
@@ -75,7 +96,7 @@ def test_valid_cipher_list_is_pinned(tmp_path):
     r = _nginx_t(tmp_path,
                  'brix_tls_ciphers "ECDHE-RSA-AES256-GCM-SHA384:'
                  'ECDHE-ECDSA-AES256-GCM-SHA384";')
-    out = r.stdout + r.stderr
+    out = _out(r, tmp_path)
     assert r.returncode == 0, f"valid cipher list rejected:\n{out}"
     assert "test is successful" in out, out
     assert "TLS cipher list pinned" in out, \
@@ -87,7 +108,7 @@ def test_unmatched_cipher_list_is_a_config_error(tmp_path):
     is applied to the SSL_CTX (an ignored list could never reject)."""
     _requirements()
     r = _nginx_t(tmp_path, 'brix_tls_ciphers "NOTAREALCIPHERSUITE";')
-    out = r.stdout + r.stderr
+    out = _out(r, tmp_path)
     assert r.returncode != 0, "an unmatched cipher list was accepted"
     assert "brix_tls_ciphers" in out and "matched no ciphers" in out, \
         f"expected the brix_tls_ciphers diagnostic, got:\n{out}"
@@ -98,7 +119,7 @@ def test_default_leaves_openssl_ciphers(tmp_path):
     cipher list — byte-identical to a server without the knob."""
     _requirements()
     r = _nginx_t(tmp_path, "")
-    out = r.stdout + r.stderr
+    out = _out(r, tmp_path)
     assert r.returncode == 0, f"tls config without the knob failed:\n{out}"
     assert "TLS cipher list pinned" not in out, \
         "the cipher list was pinned even though no directive was set"
@@ -117,7 +138,7 @@ def test_valid_ciphersuites_are_pinned(tmp_path):
     r = _nginx_t(tmp_path,
                  'brix_tls_ciphersuites "TLS_AES_256_GCM_SHA384:'
                  'TLS_AES_128_GCM_SHA256";')
-    out = r.stdout + r.stderr
+    out = _out(r, tmp_path)
     assert r.returncode == 0, f"valid ciphersuites rejected:\n{out}"
     assert "test is successful" in out, out
     assert "TLSv1.3 cipher suites pinned" in out, \
@@ -129,7 +150,7 @@ def test_unmatched_ciphersuites_is_a_config_error(tmp_path):
     proving the list is applied via SSL_CTX_set_ciphersuites."""
     _requirements()
     r = _nginx_t(tmp_path, 'brix_tls_ciphersuites "TLS_NOT_A_REAL_SUITE";')
-    out = r.stdout + r.stderr
+    out = _out(r, tmp_path)
     assert r.returncode != 0, "an unmatched ciphersuites list was accepted"
     assert "brix_tls_ciphersuites" in out and "matched no TLSv1.3 suites" in out, \
         f"expected the brix_tls_ciphersuites diagnostic, got:\n{out}"
@@ -140,7 +161,7 @@ def test_default_leaves_openssl_ciphersuites(tmp_path):
     TLSv1.3 suites — byte-identical to a server without the knob."""
     _requirements()
     r = _nginx_t(tmp_path, "")
-    out = r.stdout + r.stderr
+    out = _out(r, tmp_path)
     assert r.returncode == 0, f"tls config without the knob failed:\n{out}"
     assert "TLSv1.3 cipher suites pinned" not in out, \
         "the TLSv1.3 suites were pinned even though no directive was set"

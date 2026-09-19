@@ -20,6 +20,14 @@ from .verdict import Verdict
 # root:// (XRootD client, per-call subprocess for credential isolation)       #
 # --------------------------------------------------------------------------- #
 
+# NOTE the lstrip: a root:// URL spells its path with EXACTLY two slashes after
+# the authority, and every caller here passes an already-rooted "/cms/x".  Gluing
+# "//" onto that made "root://h:p///cms/x", whose logical path is "//cms/x" — a
+# different string from "/cms/x" to everything that prefix-matches rather than
+# resolves.  The bytes still arrived (the backing path resolves the same), but no
+# `u <id> /cms rl` grant and no `brix_require_vo /cms cms` rule applied, so every
+# principal was refused by default-deny and the whole differential oracle agreed
+# DENY==DENY for a reason that had nothing to do with authorization.
 _ROOT_PROBE = r'''
 import json, sys
 from XRootD import client
@@ -29,7 +37,7 @@ if op == "stat":
     st, _ = client.FileSystem(url).stat(path)
 else:
     f = client.File()
-    st, _ = f.open(url + "//" + path, OpenFlags.READ)
+    st, _ = f.open(url + "//" + path.lstrip("/"), OpenFlags.READ)
     if st.ok:
         if op == "read":
             st, _ = f.read(0, 4096)
@@ -38,8 +46,28 @@ print(json.dumps({"ok": bool(st.ok), "errno": int(st.errno), "message": st.messa
 '''
 
 
+# XrdCl's defaults make an unreachable endpoint indistinguishable from a slow one:
+# ConnectionWindow is 120 s and ConnectionRetry 5, so a connect to a port with
+# nothing on it is RETRIED rather than reported, and the probe blocks far past any
+# per-test budget.  Every MU measurement then dies as the enclosing pytest-timeout
+# — a stack in selectors.poll() that names the harness, not the endpoint — and the
+# real fault (a server that did not start, a port the fleet never assigned) is
+# invisible.  Bounding the window below the probe's own subprocess timeout, which
+# is in turn below the test timeout, makes the innermost layer the one that
+# reports: a dead endpoint comes back as a DENY whose reason is the connect error.
+# Same knobs, same reason, as test_official_vs_brix_cache_faults.py's fault lane.
+_XRD_BUDGET = {
+    "XRD_CONNECTIONWINDOW": "5",
+    "XRD_CONNECTIONRETRY":  "1",
+    "XRD_REQUESTTIMEOUT":   "15",
+    "XRD_STREAMTIMEOUT":    "15",
+    "XRD_TIMEOUTRESOLUTION": "1",
+}
+
+
 def _root_env(principal) -> dict:
     env = os.environ.copy()
+    env.update(_XRD_BUDGET)
     env["X509_CERT_DIR"] = ports.MU.CA_DIR
     # Clear any inherited credential so an unauthenticated measurement is truly anonymous.
     for k in ("X509_USER_PROXY", "BEARER_TOKEN", "BEARER_TOKEN_FILE", "XrdSecPROTOCOL"):
@@ -65,8 +93,18 @@ def _root_env(principal) -> dict:
 
 
 def measure_root(url: str, path: str, op: str, *, principal=None) -> Verdict:
-    r = subprocess.run([sys.executable, "-c", _ROOT_PROBE, url, path, op],
-                       env=_root_env(principal), capture_output=True, text=True, timeout=30)
+    try:
+        r = subprocess.run([sys.executable, "-c", _ROOT_PROBE, url, path, op],
+                           env=_root_env(principal), capture_output=True, text=True,
+                           timeout=20)
+    except subprocess.TimeoutExpired:
+        # Deliberately a Verdict, not a raise: the oracle compares verdicts, and a
+        # measurement that never finished is a DENY that names itself.  Raising here
+        # would surface as a test ERROR with the harness in the traceback and the
+        # endpoint nowhere in it.  20 s sits under the 30 s pytest budget and over
+        # the XRD window above, so this only fires when the SERVER wedged, not when
+        # the connect failed.
+        return Verdict.deny(f"probe-timeout: {url} {op} {path}")
     for line in r.stdout.splitlines():
         try:
             d = json.loads(line)
@@ -128,8 +166,26 @@ def measure_s3(url: str, path: str, op: str, *, principal=None) -> Verdict:
 
 
 def _s3_headers(signer, method, path, principal, host):
+    """Authenticate one S3 request AS `principal` — bearer first, SigV4 second.
+
+    The order is the whole measurement.  `brix_s3` carries a SINGLE
+    access-key/secret pair (src/protocols/s3/module.c), so a per-principal SigV4
+    identity is not expressible: signing with each principal's own key made
+    everyone but the service account fail at the SIGNATURE, which is an
+    authentication verdict where root:// reaches an authorization one, and the
+    parity cells recorded a tier mismatch that no configuration could close.
+
+    `brix_s3_token on` is how this plane does express per-principal identity: the
+    verified token's `sub` lands in the same identity field the authdb is keyed
+    on (brix_identity_set_token_claims), so S3 answers root://'s question off
+    root://'s record.  SigV4 stays as the fallback for a principal holding only
+    an S3 key — the service account, and the signature-negative cells."""
     if principal is None:
         return {}
+    token = getattr(principal, "token", "")
+    if token:
+        with open(token) as fh:
+            return {"Authorization": "Bearer " + fh.read().strip()}
     if not getattr(principal, "s3_key", ""):
         return {}
     return signer(method, path, principal.s3_key, principal.s3_secret, host=host)

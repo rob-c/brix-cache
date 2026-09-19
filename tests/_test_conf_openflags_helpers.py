@@ -15,14 +15,14 @@ Philosophy (per the maintainer): a divergence — wrong dlen/framing, wrong
 success/failure, wrong on-disk effect, mode mismatch, POSC semantics differ —
 is a BUG IN OUR SERVER. We pin the stock server's behavior.
 
-Reference facts pinned (XProtocol.hh / XrdXrootdXeq.cc do_Open):
+Reference facts pinned (the wire spec / the stock server do_Open):
   * ClientOpenRequest: streamid[2] requestid[2] mode[2] options[2] optiont[2]
-    reserved[6] fhtemplt[4] dlen[4] then path (XProtocol.hh:509).
+    reserved[6] fhtemplt[4] dlen[4] then path (the wire spec).
   * option bits: kXR_open_read 0x10, kXR_delete 0x02, kXR_new 0x08,
     kXR_open_updt 0x20, kXR_mkpath 0x100, kXR_open_apnd 0x200,
-    kXR_retstat 0x400, kXR_posc 0x1000, kXR_open_wrto 0x8000 (XProtocol.hh:482).
+    kXR_retstat 0x400, kXR_posc 0x1000, kXR_open_wrto 0x8000 (the wire spec).
   * ServerResponseBody_Open: fhandle[4] (+cpsize/cptype only if compress/retstat)
-    then stat text if retstat (XProtocol.hh:1090, Xeq:1742-1757).
+    then stat text if retstat (the wire spec).
   * do_Open: kXR_new -> O_CREAT (fail if exists unless force); kXR_delete ->
     O_TRUNC; mode = mapMode(mode) | S_IRUSR | S_IWUSR (Xeq:1521-1565).
   * mapError: ENOENT->NotFound, EISDIR->isDirectory, EEXIST->ItExists.
@@ -60,7 +60,7 @@ kXR_write, kXR_read = 3012, 3013
 kXR_ok, kXR_error = 0, 4003
 DROPPED = -1   # sentinel: server dropped the link instead of replying (a valid rejection)
 
-# kXR_open option bits (XProtocol.hh:482-499)
+# kXR_open option bits (the wire spec)
 kXR_compress = 0x0001
 kXR_delete = 0x0002
 kXR_force = 0x0004
@@ -73,7 +73,7 @@ kXR_retstat = 0x0400
 kXR_posc = 0x1000
 kXR_open_wrto = 0x8000
 
-# error codes (XErrorCode, XProtocol.hh:1032+)
+# error codes (XErrorCode, the wire spec)
 kXR_NotFound = 3011
 kXR_isDirectory = 3016
 kXR_ItExists = 3018

@@ -21,7 +21,7 @@
  *       With none of them the wire is byte-identical to the historical v1
  *       single-round NAME-only credential.
  *
- * wire: XProtocol.hh kXR_auth credtype "sss"; blob per src/auth/sss/sss_internal.h.
+ * wire: kXR_auth credtype "sss"; blob per src/auth/sss/sss_internal.h.
  */
 #include "sec.h"
 #include "auth/cred/cred.h"

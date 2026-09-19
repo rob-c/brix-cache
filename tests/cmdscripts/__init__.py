@@ -113,7 +113,11 @@ def _credential_snapshot(tree):
     snapshot = {}
     for walk_root, _dirs, files in os.walk(tree):
         for name in files:
-            if not name.endswith((".pem", ".key", ".p12")):
+            # .keytab too: sss_keytab_mode_ok() rejects any group/other bit, so
+            # a shared secret that the blanket a+rwX widened would be refused at
+            # config load ("SSS keytab has unsafe permissions") — and nginx reads
+            # it in the root master, so it never needed opening in the first place.
+            if not name.endswith((".pem", ".key", ".p12", ".keytab")):
                 continue
             path = os.path.join(walk_root, name)
             try:
@@ -201,6 +205,56 @@ def handoff_credential_store(store, worker=None) -> None:
     if worker:
         subprocess.run(["chown", "-R", worker, store], check=False)
     os.chmod(store, 0o700)
+
+
+def hand_file_to_worker(path, worker=None) -> None:
+    """Give one FILE to the nginx worker by ownership alone, mode untouched.
+
+    For a file the worker opens for WRITING that a root test process created
+    first — a lock the case wants held against the engine, a spool the server
+    is meant to own.  Chowning is the whole treatment: mode 0600 is already
+    right once the owner is right, and a widened mode is a different file to
+    every reader that checks (see `hand_credential_file_to_worker`).
+
+    ONE OWNER, so only for a file the worker alone touches.  A credential a
+    root-run test CLIENT also reads must not come here: ``brix_open_credfile()``
+    refuses anything not owned by the effective uid, with no root exemption, so
+    handing the shared bearer tree over trades the server's ``EACCES`` for
+    "refusing untrusted credential" on every client — which surfaces two steps
+    later as "no usable auth protocol for server list", because the module is
+    skipped rather than failed.  A file with two readers needs a mode both
+    accept, not an owner (``brix_suite.prep_steps._harden_bearer_tokens``).
+
+    No-op unless running as root; a chown that fails leaves the file exactly
+    as it was.
+    """
+    import shutil as _shutil  # noqa: PLC0415
+
+    if os.geteuid() != 0:
+        return
+    worker = worker if worker is not None else _worker_user()
+    if worker is None or not os.path.isfile(str(path)):
+        return
+    try:
+        _shutil.chown(str(path), worker)
+    except OSError:
+        pass
+
+
+def hand_credential_file_to_worker(path, worker=None) -> None:
+    """Give one private credential FILE to the nginx worker, mode untouched.
+
+    The path-taking public form of the file handoff, for launchers that render
+    their own config rather than going through ``open_tree_for_worker`` — the
+    registry launcher's ``_hand_worker_credentials_over`` is the caller.
+
+    Owner only: these files are read BY the worker (an outbound bearer at
+    transfer time, an upstream proxy at login time) and every reader checks the
+    mode — ``brix_open_credfile()`` refuses a bearer a group or other could
+    write, the GSI loaders refuse a lax key — so widening trades one refusal
+    for another.
+    """
+    hand_file_to_worker(path, worker)
 
 
 def _worker_credential_path(path, tree, twin_dir, worker):
@@ -320,6 +374,35 @@ def _handoff_host_key(server_dir, worker):
         pass
 
 
+def handoff_proxy_file(proxy, worker=None) -> None:
+    """Give ONE proxy file to the nginx worker: owner + 0600.
+
+    What ``brix_credential { x509_proxy ...; }`` names is opened by the WORKER
+    at upstream-login time, not by the root master at config time; minted
+    root-owned it is unreadable exactly then and the outbound GSI hop answers
+    502 with no mention of a credential.
+
+    Deliberately per-file rather than a sweep of the shared PKI user directory:
+    ownership is exclusive here, not merely a mode.  ``brix_open_credfile(path,
+    secret=1)`` requires the proxy be owned by the euid that opens it, so a
+    proxy handed to the worker stops working for the root-run native clients
+    that present it (``gsi: cannot load proxy credential``, then a fallback to
+    the next offered protocol).  Hand over the proxies a test mints for the
+    worker; leave the shared ``proxy_std.pem`` alone.  0600 is also what
+    ``prep_steps._harden_proxy_file`` settles on, and it re-chmods but never
+    chowns, so this handoff survives it.  No-op unless running as root.
+    """
+    import shutil as _shutil  # noqa: PLC0415
+    worker = worker or _worker_user()
+    if worker is None or not os.path.isfile(str(proxy)):
+        return
+    try:
+        _shutil.chown(str(proxy), worker)
+        os.chmod(str(proxy), 0o600)
+    except OSError:
+        pass
+
+
 def _open_shared_user_proxy_for_worker() -> None:
     """Hand the shared TEST_ROOT proxy/user key to the runtime worker identity.
 
@@ -375,4 +458,5 @@ def main(entry: Callable[[list[str]], int | None] | None = None, argv: Sequence[
     return 0 if result is None else int(result)
 
 
-__all__ = ["main", "open_tree_for_worker", "run"]
+__all__ = ["hand_credential_file_to_worker", "hand_file_to_worker",
+           "handoff_credential_store", "main", "open_tree_for_worker", "run"]

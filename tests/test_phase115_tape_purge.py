@@ -33,6 +33,7 @@ import time
 
 import pytest
 
+from cmdscripts import hand_file_to_worker
 from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
 from settings import BIND_HOST, NGINX_BIN
@@ -236,6 +237,14 @@ def test_held_purge_lock_defers_the_pass_until_released(lifecycle, tmp_path):
     _plant(base)
     lock = base / ".online" / ".brix-purge.lock"
     fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o600)
+    # The holder this case is imitating is another WORKER, so the lock has to
+    # look like one the worker made: pytest runs as root, the de-escalated
+    # worker is `nobody`, and a root-owned 0600 lock answers its O_RDWR with
+    # EACCES — "tape purge cannot open lock ... (13: Permission denied)" once a
+    # second forever, which is not "someone holds it" and never will be. The
+    # flock stays ours regardless: it lives on this fd, not on the inode's
+    # ownership.
+    hand_file_to_worker(lock)
     fcntl.flock(fd, fcntl.LOCK_EX)
     try:
         ep = _launch(lifecycle, tmp_path, "lc-p115-purge-lock", f"tape://{base}",

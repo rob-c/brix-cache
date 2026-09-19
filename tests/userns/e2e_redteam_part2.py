@@ -337,5 +337,5 @@ _KXR_OPEN_UPDT = 0x0020      # kXR_open_updt (read/write)
 _KXR_NEW       = 0x0008      # kXR_new
 _KXR_MKPATH    = 0x0100      # kXR_mkpath
 
-# kXR_pgPageSZ from XProtocol.hh: page size used to interleave per-page CRC32c.
+# kXR_pgPageSZ from the wire spec: page size used to interleave per-page CRC32c.
 _KXR_PG_PAGESZ = 4096

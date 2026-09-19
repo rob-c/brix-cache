@@ -21,10 +21,9 @@
 /*
  * Write-through decision interface for nginx-xrootd cache.
  *
- * Mirrors the XrdPfcDecision pattern from the official XRootD PFC module:
- *   src/XrdPfc/XrdPfcDecision.hh — base class with Decide() virtual method
- *   src/XrdPfc/XrdPfcAllowDecision.cc  — always-cache decision (default)
- *   src/XrdPfc/XrdPfcBlacklistDecision.cc — blacklist-based decision
+ * Mirrors the XrdPfcDecision pattern from the official XRootD PFC module: a
+ * Decision base class exposing a Decide() virtual method, an always-cache
+ * decision (the default) and a blacklist-based decision.
  */
 
 /* Decision outcomes (mirrors XrdPfcDecision::Decide return) */

@@ -244,10 +244,10 @@ def test_stat_on_open_size_flags_parity(srv):
 
 # DIVERGENCE: StatInfo.id (chunks[0] of the stat wire response). Stock encodes a
 # composite (dev<<...|ino) per XrdXrootdProtocol::StatGen
-# (/tmp/brix-src/src/XrdXrootd/XrdXrootdXeq.cc); ours emits the bare inode.
-# XrdCl exposes StatInfo.id (XrdClXRootDResponses.cc:140) though gfal ignores it.
+# (observed on the wire from the stock server); ours emits the bare inode.
+# XrdCl exposes StatInfo.id (the stock client) though gfal ignores it.
 @pytest.mark.xfail(reason="DIVERGENCE: StatInfo.id is bare inode vs stock "
-                          "composite dev/ino (XrdXrootdXeq.cc StatGen); "
+                          "composite dev/ino (the stock server StatGen); "
                           "gfal ignores id, alignment is cosmetic",
                    strict=False)
 def test_stat_on_open_id_parity(srv):

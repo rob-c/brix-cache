@@ -9,7 +9,8 @@ import shutil
 import subprocess
 import tempfile
 
-from cmdscripts.compile_run import REPO_ROOT, result, run
+from cmdscripts.compile_run import (PLATFORM_HOST_FLAGS, REPO_ROOT,
+                                    pal_host_sources, result, run)
 
 
 def _expression_1():
@@ -129,7 +130,14 @@ def _sanitizer_flags(objects: Iterable[Path]) -> list[str]:
 
 
 def _cc(argv: list[str]) -> subprocess.CompletedProcess:
-    return run([os.environ.get("CC", "cc"), *argv], cwd=REPO_ROOT)
+    # PLATFORM_HOST_FLAGS first, before anything a unit passes: any tree header
+    # that reaches platform/platform.h stops the build dead without the host
+    # token (INVARIANT 14 — the PAL interface headers are host-free and select
+    # <host>/host.h from -DBRIX_PLATFORM_HOST alone).  ./config and
+    # client/Makefile pass it for the real builds; a hand-rolled harness line
+    # has to say it too.
+    return run([os.environ.get("CC", "cc"), *PLATFORM_HOST_FLAGS, *argv],
+               cwd=REPO_ROOT)
 
 
 def _compile_and_run(binary: Path, argv: list[str]) -> tuple[bool, str]:
@@ -381,6 +389,12 @@ def pblock(base: Path) -> tuple[bool, str]:
             str(backend / "pblock/sd_pblock_catalog_objects.c"),
             str(backend / "pblock/sd_pblock_catalog_ns.c"),
             str(backend / "pblock/sd_pblock_catalog_nsidx.c"),
+            # INVARIANT 14: pblock_pack.c seals its memfd and pblock_store.c
+            # draws a blob id through the PAL, so the host bodies behind
+            # brix_plat_fd_seal / brix_plat_random come along.  The module build
+            # compiles the whole src/platform/<host>/ directory; a hand-rolled
+            # link line names the two wrappers it actually reaches.
+            *pal_host_sources("storage_wrapper", "posix_wrapper"),
             *libs,
             "-lpthread",
             "-lz",

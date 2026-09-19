@@ -235,14 +235,26 @@ LIFECYCLE_SHARED_PORTS_PHASE5: dict[str, dict] = {
     # L.worker_port(base), so start_pair binds those directly — a distinct fixed
     # port band per xdist worker — and never reached the removed free_port
     # fallback once wired through.  See official_interop_lib.start_pair.)
-    # mu_authz_lib/fleet.py (group mu-fleet) — the six multiuser-authz servers,
-    # all live simultaneously; ports back-fill ports.MU.<ATTR> from the ledger.
+    # mu_authz_lib/fleet.py (group mu-fleet) — the multiuser-authz servers, all
+    # live simultaneously; ports back-fill ports.MU.<ATTR> from the ledger.
+    # The last four complete the PAIRING the differential oracle is built on:
+    # every enforcing protocol needs a cache-OFF node (ground truth) and a
+    # cache-ON twin, and mu_authz_lib.fleet._ENDPOINT maps the oracle's
+    # (protocol, variant) onto these names.  They were absent once, and the
+    # symptom was not a missing server — it was every measurement hanging on a
+    # port nothing listened on.
     "mu-origin_noimp": {"port": 30369},
     "mu-cache_noimp": {"port": 30370},
     "mu-direct_authz": {"port": 30371},
     "mu-sidecar_root": {"port": 30372},
     "mu-webdav_authz": {"port": 30373},
     "mu-webdav_stage": {"port": 30374},
+    "mu-webdav_cache": {"port": 31340},
+    "mu-s3_direct": {"port": 31341},
+    "mu-s3_cache": {"port": 31342},
+    "mu-cvmfs_cache": {"port": 31343},
+    # The one node that really impersonates: F6/F9's byte-attribution subject.
+    "mu-root_write": {"port": 31344},
     # wlcg_conformance_fleet.py (group lc-wlcgconf) — one https instance per
     # x509forge signing-policy/CRL group; up to all seven live at once.
     "lc-wlcgconf-sp_on_crl_off": {"port": 30375},

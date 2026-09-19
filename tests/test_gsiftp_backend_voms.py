@@ -5,11 +5,13 @@ from __future__ import annotations
 import http.client
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
 import pytest
 
+from cmdscripts import handoff_proxy_file, open_tree_for_worker
 from pki_helpers import ensure_test_pki
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
@@ -97,6 +99,12 @@ def _prepare_credentials() -> tuple[Path, Path]:
     cms = Path(PKI_DIR) / "user" / "proxy_vo_cms.pem"
     _make_proxy("atlas", atlas, cert, key)
     _make_proxy("cms", cms, cert, key)
+    # These two are named by brix_credential { x509_proxy ...; } and opened by
+    # the de-escalated worker at upstream-login time, so they belong to it —
+    # unlike the shared proxy_std.pem below, which the root-run native clients
+    # of every other test present and must therefore keep owning.
+    handoff_proxy_file(atlas)
+    handoff_proxy_file(cms)
     return atlas, cms
 
 
@@ -110,6 +118,20 @@ class _VomsLab:
         exports = [tmp / name for name in ("atlas", "plain", "cms")]
         for export in exports:
             export.mkdir()
+        # The origin export and the three caching exports live HERE, in a 0700
+        # pytest tmp tree, but nginx runs a de-escalated worker (`nobody`,
+        # always-on brix_imp_worker_deescalate) that cannot traverse it.  Every
+        # fetch then dies "materialise failed ... (13: Permission denied)" and
+        # answers 502 — which is not the 200/404 any of these cases is about.
+        open_tree_for_worker(tmp)
+        # The plain arm presents the fleet's standard proxy, and the worker is
+        # what opens it — but brix_open_credfile(secret=1) insists a proxy be
+        # owned by the euid opening it, so handing over the shared file would
+        # break the root-run native clients of every other test.  Give this arm
+        # its own copy instead and hand that to the worker.
+        plain = tmp / "proxy_plain.pem"
+        shutil.copyfile(PROXY_STD, plain)
+        handoff_proxy_file(plain)
         harness = LifecycleHarness()
         endpoint = harness.start(NginxInstanceSpec(
             name="lc-gsiftp-voms-backend",
@@ -124,7 +146,7 @@ class _VomsLab:
                 "PLAIN_EXPORT": str(exports[1]),
                 "CMS_EXPORT": str(exports[2]),
                 "ATLAS_PROXY": str(atlas),
-                "PLAIN_PROXY": PROXY_STD,
+                "PLAIN_PROXY": str(plain),
                 "CMS_PROXY": str(cms),
                 "CA_DIR": CA_DIR,
                 "VOMSDIR": VOMSDIR,

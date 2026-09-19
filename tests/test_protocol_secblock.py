@@ -31,7 +31,7 @@ import pytest
 
 from settings import NGINX_ANON_PORT, SERVER_HOST
 
-# ClientProtocolRequest.flags bits (XProtocol.hh RequestFlags)
+# ClientProtocolRequest.flags bits (the wire spec RequestFlags)
 _kXR_secreqs = 0x01
 _kXR_ableTLS = 0x02
 

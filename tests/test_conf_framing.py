@@ -25,7 +25,7 @@ def test_opcode_empty_body_robust(srv, op):
     if st_o == HANG:
         # A one-sided hang is normally the bug — EXCEPT for kXR_sigver, which by
         # design produces NO response on a (provisionally) valid signature and
-        # waits for the next request to which it applies (XrdXrootdProtocol.cc:
+        # waits for the next request to which it applies (the stock server:
         # 650-651; pinned exactly in test_brix_conformance test 7). Our server
         # correctly suppresses the reply and awaits the signed request, so a
         # "no reply" here is conformant, not a wedge — the link is still live.
@@ -354,7 +354,7 @@ def test_zero_length_path_op_rejected(srv, name, op, fmt):
             s.sendall(struct.pack("!2sHHH12sI", b"\x00\x5e", kXR_open, 0,
                                   kXR_open_read, b"\x00" * 12, 0))
         elif op == kXR_mkdir:
-            # mkdir header (XProtocol.hh ClientMkdirRequest): options[1] +
+            # mkdir header (the wire spec ClientMkdirRequest): options[1] +
             # reserved[13] + mode[2] + dlen[4].
             s.sendall(struct.pack("!2sHB13sHI", b"\x00\x5f", kXR_mkdir, 0,
                                   b"\x00" * 13, 0, 0))

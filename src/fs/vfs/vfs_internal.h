@@ -182,7 +182,15 @@ struct brix_vfs_dir_s {
     brix_sd_dir_t          *sd_dir;
     brix_sd_instance_t     *sd;
     const brix_sd_driver_t *drv;
-    brix_vfs_ctx_t           *ctx;          /* N2N reverse on driver entries */
+    /* The N2N configuration for reversing driver entries into LFNs — captured
+     * at opendir, NOT the ctx it came from. Same rule the file/staged/writer
+     * handles already follow: a handle can outlive the ctx that opened it, and
+     * that ctx is routinely a caller's STACK object (a dirlist handle handed
+     * back to a streaming stage, a GridFTP handle driven from later event-loop
+     * callbacks). Borrowing the ctx to reach ctx->n2n read a dead frame on both
+     * of those paths. A cfg is a backend-registry borrow — worker-lifetime — so
+     * holding it is safe. NULL means IDENTITY, exactly as a NULL ctx->n2n. */
+    const brix_n2n_cfg_t     *n2n;          /* N2N reverse on driver entries */
     const char               *sd_logical;   /* export-relative directory LFN */
     const char               *sd_physical;  /* translated directory PFN */
     brix_sd_dirent_t de_scratch; /* handle-owned borrow-API readdir scratch */

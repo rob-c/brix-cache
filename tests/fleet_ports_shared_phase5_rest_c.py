@@ -271,3 +271,36 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
                                       "HTTP_FULL_PORT": 31330,
                                       "HTTP_DEF_PORT": 31331}},
 })
+
+# The two WebDAV arms of test_impersonation_gridmap_root.py (group impgm).  The
+# three root:// arms of that module — impgm-single, impgm-s3, impgm-root-gsi —
+# were ledgered with the rest of the root-only families; these two were not, and
+# a root run died on `lifecycle spec 'impgm-wd-squash' has no fixed port` before
+# either fixture could start.  They are separate instances rather than one: the
+# whole observable is a grid-mapfile verdict, and `squash` (an unmapped
+# principal lands on brixgm_squash) and `deny` (no brix_idmap_default_user, so
+# the same principal fails closed) are two values of ONE server-level directive,
+# which a single nginx cannot hold at once.
+LIFECYCLE_SHARED_PORTS_PHASE5.update({
+    "impgm-wd-squash": {"port": 31332},
+    "impgm-wd-deny": {"port": 31333},
+})
+
+# Two more impgm arms, for what the privileged broker still HOLDS after the
+# double-fork rather than for what it maps.  They are separate instances because
+# each is measured in a state the other cannot be in: impgm-sealed must stay up
+# while its descriptor table is read, and impgm-rebind is stopped mid-test so the
+# port it was bound to can be claimed by something else.
+LIFECYCLE_SHARED_PORTS_PHASE5.update({
+    "impgm-sealed": {"port": 31345},
+    "impgm-rebind": {"port": 31346},
+})
+
+# One instance for test_policy_rule_scope.py: a webdav export with a REMOTE
+# backend, which is what makes its root_canon "/" and sends every policy rule
+# through the resolver branch that used to drop the rule's path.  It is its own
+# server because no other lifecycle instance is both remote-backed and carrying
+# brix_require_vo — the combination IS the condition under test.
+LIFECYCLE_SHARED_PORTS_PHASE5.update({
+    "lc-policy-rule-scope": {"port": 31347},
+})

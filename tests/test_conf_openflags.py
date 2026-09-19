@@ -6,7 +6,7 @@ pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_openflags")]
 @pytest.mark.parametrize("path", READ_FILES)
 def test_read_open_returns_bare_4byte_handle(srv, path):
     """open(read) of an existing file -> kXR_ok, body is exactly the 4-byte
-    fhandle (dlen==4, NO stat) on BOTH servers (XProtocol.hh:1090)."""
+    fhandle (dlen==4, NO stat) on BOTH servers (the wire spec)."""
     st_o, b_o, st_f, b_f, raw = assert_same_category(srv, path, kXR_open_read)
     assert st_o == kXR_ok, f"open(read) of existing {path} failed:{raw}"
     assert len(b_o) == 4, f"OUR open(read) {path} body is {len(b_o)} bytes, want 4:{raw}"
@@ -136,7 +136,7 @@ def test_open_new_on_existing_fails_parity(srv, idx):
             pytest.xfail(
                 f"OUR-SERVER BUG: open(new)-on-existing errno {eo} != stock {ef} "
                 f"(stock=kXR_ItExists 3018, ours=kXR_FileLocked 3003 — EEXIST "
-                f"should map to kXR_ItExists per mapError, XProtocol.hh:1425):{raw}")
+                f"should map to kXR_ItExists per mapError, the wire spec):{raw}")
         assert eo == ef
     finally:
         so.close()

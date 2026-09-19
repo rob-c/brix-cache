@@ -1,6 +1,19 @@
 /*
  * src/core/compat/host_identity.c — see host_identity.h.
  */
+
+/* gethostname(3) is a POSIX-2001 name, so <unistd.h> hides it under a strict
+ * -std=c11: glibc withdraws _DEFAULT_SOURCE, and Darwin gates it on
+ * __STRICT_ANSI__.  Declared HERE rather than left to the caller because the
+ * module build passes -D_GNU_SOURCE and a harness that compiles this one file
+ * on its own does not — tests/test_host_identity_unit.py does exactly that and
+ * died on an implicit declaration.  Guarded so a caller that already chose a
+ * level keeps it, and placed above every include because that is the only
+ * point at which it still has any effect. */
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "host_identity.h"
 
 #include <stdlib.h>

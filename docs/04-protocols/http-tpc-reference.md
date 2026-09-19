@@ -70,9 +70,9 @@ Two transports carry this in BriX-Cache:
 
 - official xrootd (reference): key code is in the `XrdHttpTpc` plugin
   (example files under a reference tree used for earlier comparisons):
-  - `/tmp/brix-src/src/XrdHttpTpc/` (e.g. `XrdHttpTpcTPC.cc`,
+  - `XrdHttpTpc/` (e.g. `XrdHttpTpcTPC.cc`,
     `XrdHttpTpcUtils.cc`, `XrdHttpTpcMultistream.cc`) and monitoring in
-    `/tmp/brix-src/src/XrdXrootd/XrdXrootdTpcMon.cc`.
+    `XrdXrootd/XrdXrootdTpcMon.cc`.
 
 Note: reference xrootd files above are external to this workspace; the
 module source links above point into this repository.

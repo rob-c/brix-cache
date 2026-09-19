@@ -5,10 +5,10 @@
  * protocol/protocol.h — XRootD root:// wire-format constants and structs.
  *
  * Sources:
- *   xrootd/xrootd  src/XProtocol/XProtocol.hh  (canonical C++ header)
+ *   XRootD Protocol Specification v5.2.0        (the published wire spec)
  *   dcache/xrootd4j                              (Java reference impl)
  *   go-hep/hep     xrdproto/                    (Go reference impl)
- *   XRootD Protocol Specification v5.2.0
+ *   a stock server's framing, observed on the wire
  *
  * Sub-headers (include individually when only part of the protocol is needed):
  *   types.h    — kXR_char / kXR_int32 / kXR_unt64 primitive aliases

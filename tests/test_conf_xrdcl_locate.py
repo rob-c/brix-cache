@@ -44,7 +44,7 @@ pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_xrdcl_locate")]
 def test_locate_file_ok_both(srv, fs_our, fs_off, path, flagname, flag):
     """locate(<file>) must PARSE WITHOUT ERROR on BOTH servers for every flag —
     a single bad type/access char or short token would make XrdCl reject the
-    whole response and set status.ok=False (XrdClXRootDResponses.cc:26)."""
+    whole response and set status.ok=False (the stock client)."""
     st_o, loc_o = fs_our.locate(path, flag)
     st_f, loc_f = fs_off.locate(path, flag)
     assert st_o.ok, (f"OUR locate {path!r} ({flagname}) not ok "
@@ -328,7 +328,7 @@ def test_qconfig_multikey_one_line_per_key(srv, fs_our):
 
 
 # --- do_Qconf coverage (FIXED: role/fattr cases added to src/protocols/root/query/config.c) - #
-# query config `role` — stock recognises `role` (do_Qconf, XrdXrootdXeq.cc:2216
+# query config `role` — stock recognises `role` (do_Qconf, the stock server
 # -> "%s\n" of XRDROLE, e.g. "server"/"none").  src/protocols/root/query/config.c now emits
 # "server" (or "manager" in manager mode) instead of echoing the key.
 def test_qconfig_role_recognised_like_stock(srv, fs_our, fs_off):
@@ -345,7 +345,7 @@ def test_qconfig_role_recognised_like_stock(srv, fs_our, fs_off):
         f"(our={line_o!r} stock={line_f!r})")
 
 
-# DIVERGENCE: query config `sitename` — do_Qconf (XrdXrootdXeq.cc:2221) returns
+# DIVERGENCE: query config `sitename` — do_Qconf (the stock server) returns
 # the configured site name or the literal "sitename" when XRDSITE is unset; OUR
 # server has no `sitename` case and echoes the key. Here both happen to yield
 # "sitename" (neither has XRDSITE set), so this case is a shape probe only and
@@ -358,7 +358,7 @@ def test_qconfig_sitename_shape(srv, fs_our, fs_off):
     assert not text_o.strip().startswith("sitename=")
 
 
-# query config `fattr` — do_Qconf (XrdXrootdXeq.cc:2265) returns the
+# query config `fattr` — do_Qconf (the stock server) returns the
 # extended-attribute parameters (usxParms, two integers e.g. "248 65536").
 # FIXED: src/protocols/root/query/config.c now emits "248 65536" (the Linux user.* xattr
 # name/value limits) instead of echoing the key.

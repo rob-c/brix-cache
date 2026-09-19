@@ -35,12 +35,12 @@ result of writes):
   * two open-write handles to different files in ONE session -> both correct
 
 The framing is copied from test_conf_truncate_sync.py / test_conf_openflags.py
-and pinned against /tmp/brix-src/src/XProtocol/XProtocol.hh:
+and pinned against src/protocols/root/protocol/wire_core_requests.h:
   ClientWriteRequest = streamid[2] requestid[2] fhandle[4] offset[8]
-    pathid[1] reserved[3] dlen[4] then `dlen` data bytes  (XProtocol.hh:845),
-  do_Write in XrdXrootd/XrdXrootdXeq.cc.
+    pathid[1] reserved[3] dlen[4] then `dlen` data bytes  (the wire spec),
+  do_Write in the stock server.
 kXR_write == 3019, kXR_read == 3013, kXR_sync == 3016, kXR_truncate == 3028,
-kXR_open == 3010, kXR_close == 3003 (XProtocol.hh:116-141).
+kXR_open == 3010, kXR_close == 3003 (the wire spec).
 
 Every mutation uses a UNIQUE wire path so the module-scoped shared tree never
 lets one test pollute another. Multi-MB transfers get generous timeouts.
@@ -141,14 +141,14 @@ def both(ctx):
 
 # --------------------------------------------------------------------------- #
 # RAW-WIRE client (login / open / write / read / sync / truncate / close)
-# Framing copied from test_conf_truncate_sync.py + XProtocol.hh.
+# Framing copied from test_conf_truncate_sync.py + the wire spec.
 # --------------------------------------------------------------------------- #
 kXR_close, kXR_open, kXR_read = 3003, 3010, 3013
 kXR_sync, kXR_write, kXR_truncate = 3016, 3019, 3028
 kXR_login = 3007
 kXR_ok, kXR_oksofar, kXR_error = 0, 4000, 4003
 
-# open options (XProtocol.hh XOpenRequestOption)
+# open options (the wire spec XOpenRequestOption)
 kXR_delete = 0x0002
 kXR_force = 0x0004
 kXR_new = 0x0008

@@ -28,7 +28,7 @@ implemented) and the **end-user / administrator view** (config, commands,
 observable behaviour, parity).
 
 Every claim in this set is tied to source on **both** sides:
-- Official: `/tmp/brix-src/src` (the `Xrd*` subsystems).
+- Official: the upstream XRootD project (the `Xrd*` subsystems).
 - This module: `src/` (and `client/`, `shared/xrdproto`).
 
 > **Working assumption** (inherited from the conformance effort): where behaviour

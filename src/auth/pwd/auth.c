@@ -39,7 +39,7 @@
 /*
  * pwd_status_word — marshal a pwdStatus_t {ctype,action,options} into the 4-byte
  * big-endian word stock XrdSecpwd puts in kXRS_status (it htonl's the whole struct
- * image; XrdSecProtocolpwd.cc:1127-1130).  ctype/action are bytes 0/1, options is
+ * image, per stock XrdSecpwd).  ctype/action are bytes 0/1, options is
  * the low 2 bytes, then the 4-byte host image is htonl'd.
  */
 static uint32_t

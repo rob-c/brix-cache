@@ -4,9 +4,9 @@
  * auth hand-off). Split from conn.c (600-line ratchet); the connection
  * lifecycle (connect / TLS decision / bind / reconnect / close) stays there.
  *
- * wire: XProtocol.hh ClientInitHandShake — {0,0,0,htonl(4),htonl(2012=ROOTD_PQ)}.
- * wire: XProtocol.hh ServerProtocolBody — pval[4] flags[4]; flags carry server caps.
- * wire: XProtocol.hh ServerLoginBody — sessid[16] [+ "&P=..." security list].
+ * wire: ClientInitHandShake — {0,0,0,htonl(4),htonl(2012=ROOTD_PQ)}.
+ * wire: ServerProtocolBody — pval[4] flags[4]; flags carry server caps.
+ * wire: ServerLoginBody — sessid[16] [+ "&P=..." security list].
  */
 #include "brix.h"
 #include "conn_internal.h"

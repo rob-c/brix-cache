@@ -196,7 +196,7 @@ brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c)
     /* The negotiated session cipher (above).  This is the SIGNED-DH path, which
      * a peer only enters when its version >= XrdSecgsiVersDHsigned (10400) — and
      * that is exactly the condition under which stock XrdSecgsi sets useIV=true
-     * (XrdSecProtocolgsi.cc: `useIV = (RemVers >= XrdSecgsiVersDHsigned)`).  So
+     * (stock XrdSecgsi keys the IV on the peer's version).  So
      * the encrypted main always carries a leading IV of the cipher's own length
      * (sessionKey->MaxIVLength()); we strip it unconditionally here.  The IV is
      * NOT signalled by a name suffix — the cipher name on the wire is bare, and

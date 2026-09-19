@@ -97,6 +97,34 @@ TMP_DIR = os.path.join(TEST_ROOT, "tmp")
 # falls back to the sticky /tmp there.  Tests derive the per-uid store from it.
 CRED_STORE_BASE = "/dev/shm/brix-creds" if os.path.isdir("/dev/shm") else "/tmp/brix-creds"
 CRED_STORE_PARENT = os.path.dirname(CRED_STORE_BASE)
+
+
+def worker_runtime_uid():
+    """The uid an nginx WORKER actually runs as — which is not always ours.
+
+    `src/auth/impersonate/lifecycle_worker.c` force-drops a root-capable worker
+    to `brix_worker_user` (default `nobody`), unconditionally and even under an
+    explicit `user root;`.  Every per-identity path the module derives at
+    runtime is suffixed with THIS uid, not the master's: the default credential
+    store (`brix_shared_credential_dir_default_scope`) and the default write
+    staging leaf (`brix_tier_default_stage_dir`).  A test that reaches for
+    `os.geteuid()` under a root lane therefore watches
+    `/dev/shm/brix-creds.0` while the server stages into
+    `/dev/shm/brix-creds.65534` and reads every capture as a missing one.
+    Unprivileged lanes de-escalate nothing, so there the worker is us.
+    """
+    if os.geteuid() != 0:
+        return os.geteuid()
+    import pwd  # noqa: PLC0415 — POSIX-only, and only the root lane needs it
+    try:
+        return pwd.getpwnam(os.environ.get("BRIX_WORKER_USER", "nobody")).pw_uid
+    except KeyError:
+        return os.geteuid()
+
+
+#: The per-uid default credential store itself, for the tests that watch it.
+#: One truth: it moves with BRIX_WORKER_USER the way the server's own does.
+CRED_STORE_DEFAULT = f"{CRED_STORE_BASE}.{worker_runtime_uid()}"
 ARTIFACTS_DIR = os.path.join(TEST_ROOT, "artifacts")
 # Scratch working directory the whole test session chdir()s into, so any
 # cwd-relative artifact a spawned process makes (e.g. an xrootd `-n` instance

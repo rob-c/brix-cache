@@ -131,7 +131,7 @@ json_statinfo(const char *path, const brix_statinfo *si)
 
 
 /* parse_chmod_mode — accept the stock xrdfs 9-char symbolic form ("rwxr-xr-x",
- * XrdClFS.cc ConvertMode) AND an octal absolute mode ("755") as a local
+ * stock xrdfs's mode conversion) AND an octal absolute mode ("755") as a local
  * extension. Returns the permission bits, or -1 on a malformed mode. The stock
  * client takes ONLY the symbolic 9-char form, so users/tools that pass it (and
  * our own conformance suite) must get the right bits — previously strtol(…,8)

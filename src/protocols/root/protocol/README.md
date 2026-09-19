@@ -7,11 +7,11 @@ protocol** (`root://` / `roots://`). It is a **header-only library**: every file
 is pure `#define` constants and `#pragma pack(1)` `typedef struct` declarations —
 **no `.c` code, no functions, no allocation, no runtime state**. It is an
 **independent reimplementation** of the XRootD wire protocol, written from the
-published **XRootD Protocol Specification v5.2.0** and cross-checked against the
-upstream `xrootd/xrootd src/XProtocol/XProtocol.hh` header and the
-`dcache/xrootd4j` (Java) and `go-hep/hep` (Go) reference implementations, so that
-the rest of the module frames and parses the wire **byte-for-byte identically**
-to a real XRootD server.
+published **XRootD Protocol Specification v5.2.0**, cross-checked against the
+`dcache/xrootd4j` (Java) and `go-hep/hep` (Go) reference implementations and
+against a stock server's framing observed on the wire, so that the rest of the
+module frames and parses the wire **byte-for-byte identically** to a real
+XRootD server.  No XRootD source tree is read.
 
 ### Provenance & licensing
 
@@ -52,7 +52,7 @@ structs.
 | File | Responsibility |
 |------|----------------|
 | `protocol.h` | Umbrella header — what consumers `#include`. Pulls in the five sub-headers below in dependency order (`types` → `opcodes` → `flags` → `wire` → `gsi`). |
-| `types.h` | Primitive aliases matching `XProtocol.hh`: `kXR_char`=u8, `kXR_unt16`/`unt32`/`unt64`, `kXR_int16`/`int32`/`int64`. Used by every struct so they read like the published spec. Depends only on `<stdint.h>`. |
+| `types.h` | Primitive aliases matching the spec's type names: `kXR_char`=u8, `kXR_unt16`/`unt32`/`unt64`, `kXR_int16`/`int32`/`int64`. Used by every struct so they read like the published spec. Depends only on `<stdint.h>`. |
 | `opcodes.h` | The numeric vocabulary: request IDs (`kXR_auth` 3000 … `kXR_clone` 3032), response status codes (`kXR_ok`/`kXR_oksofar`/`kXR_error`/`kXR_redirect`/`kXR_wait`/`kXR_status` 4007 …), `kXR_attn` action codes (`kXR_asyncms`/`kXR_asynresp`), XRootD error codes (`kXR_NotFound` … `kXR_TooManyErrs`, distinct from POSIX errno), `kXR_query` infotypes (`kXR_Qcksum`/`kXR_Qspace`/`kXR_Qconfig` …), `kXR_fattr` subcodes (`kXR_fattrGet`/`Set`/`Del`/`List`), version/port constants, server-type codes, and fixed wire sizes. |
 | `flags.h` | Every option/capability bitmask: open flags (`kXR_open_read`/`kXR_new`/`kXR_delete`/`kXR_retstat`/`kXR_posc` …), ASCII-stat flag bits (`kXR_isDir`/`kXR_readable`/`kXR_writable` + local extensions `kXR_statAttrCache`/`kXR_cachersp`), protocol request/response capability bits (`kXR_ableTLS`/`kXR_wantTLS` ↔ `kXR_haveTLS`/`kXR_gotoTLS`/`kXR_isServer`/`kXR_isManager`/`kXR_attrProxy`/`kXR_attrCache` …), login capver bits, per-op options (dirlist `kXR_dstat`/`kXR_dcksm`, stat `kXR_vfs`, prepare/mkdir/sigver/set/chkpoint/fattr), and readv/writev/pgread/pgwrite sizing (`BRIX_*_MAXSEGS`=1024, `kXR_pgPageSZ`=4096, `kXR_pgUnitSZ`=4100). |
 | `wire.h` | Public framing header — a thin aggregator that `#include`s the two struct fragments below. **Include this, not the fragments directly.** |
@@ -251,6 +251,5 @@ list), because this subsystem ships **no `.c` files**.
   paths that emit `kXR_redirect` and advertise role bits from `flags.h`.
 - `src/core/compat/error_mapping.h` — errno → `kXR_*` mapping for response bodies;
   `../compat/` — CRC32c for the `kXR_status` integrity framing.
-- Upstream sources: `xrootd/xrootd src/XProtocol/XProtocol.hh`,
-  `src/XrdSecgsi/XrdSecProtocolgsi.hh`, `src/XrdSut/XrdSutBuffer.hh`;
-  `dcache/xrootd4j`; `go-hep/hep xrdproto/`; XRootD Protocol Spec v5.2.0.
+- External references: XRootD Protocol Spec v5.2.0; the XrdSecgsi handshake
+  and its XrdSut bucket buffer; `dcache/xrootd4j`; `go-hep/hep xrdproto/`.

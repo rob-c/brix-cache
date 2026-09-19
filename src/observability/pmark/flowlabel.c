@@ -5,7 +5,7 @@
  *   socket's egress packets, so routers/NRENs can classify the traffic without
  *   seeing the out-of-band firefly.  This is the path XRootD declared but never
  *   implemented (its marking site is an empty `// { TODO??? }` at
- *   XrdNetPMarkCfg.cc:240-248); we provide the real Linux kernel calls.
+ *   XRootD's packet-marking config); we provide the real Linux kernel calls.
  *
  * WHY: The flow label is the per-packet technique; firefly is per-flow reporting.
  *   The phase-34 design requires BOTH.  Marking is fail-open: IPv4, IPv4-mapped,

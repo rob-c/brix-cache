@@ -4,7 +4,7 @@
 
 This document maps every XRootD wire protocol operation to its implementation in the BriX-Cache module, showing how the native `stream` module translates binary opcodes into file operations.
 
-**Reference:** `/tmp/brix-src/src/XProtocol/XProtocol.hh` — full wire spec  
+**Reference:** `XProtocol/XProtocol.hh` — full wire spec  
 **Entry point:** `src/protocols/root/connection/handler.c` → `src/protocols/root/handshake/dispatch.c` → opcode handlers in `src/protocols/root/read/`, `src/protocols/root/write/`, etc.
 
 ---
@@ -749,7 +749,7 @@ BRIX_OP_ERR(ctx, BRIX_OP_SYNC)    // Increment error counter for sync
 
 ## References
 
-- **Wire spec:** `/tmp/brix-src/src/XProtocol/XProtocol.hh`
+- **Wire spec:** `XProtocol/XProtocol.hh`
 - **Client request structs:** `src/XProtocol/wire_core_requests.h`
 - **Helper functions:** HELPERS section in AGENTS.md
 - **Tests:** `tests/test_X.py`, cross-backend conformance suite

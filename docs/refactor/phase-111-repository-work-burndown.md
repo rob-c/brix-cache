@@ -422,6 +422,7 @@ Support `.json`/`.tsv`/scripts are covered in §8.
   `phase-116-runtime-dns-resolv-conf.md`;
   `phase-117-erasure-coding-design-spike.md`;
   `phase-118-security-assessment-toolkit.md`;
+  `phase-119-macos-feature-parity-v2.1.md`;
   `testsuite-surface-inventory.md` (generated).
 
 ## 8. Non-Markdown support artifacts

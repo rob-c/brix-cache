@@ -16,8 +16,8 @@ SAME op against OUR and the STOCK server and require:
     differences — "no such file" vs "not found" — do not false-positive), and
   * where the reference is exact (raw wire), the same numeric kXR_* code.
 
-The canonical errno -> kXR mapping is mapError() in
-/tmp/brix-src/src/XProtocol/XProtocol.hh:
+The canonical errno -> kXR mapping is brix_kxr_from_errno() in
+src/core/compat/error_mapping.c:
     ENOENT   -> kXR_NotFound      (3011)
     EINVAL   -> kXR_ArgInvalid    (3000)
     EPERM/EACCES -> kXR_NotAuthorized (3010)
@@ -26,7 +26,7 @@ The canonical errno -> kXR mapping is mapError() in
     EBADRQC  -> kXR_InvalidRequest (3006)
     EBADF    -> kXR_FileNotOpen   (3004)
 and unknown-opcode / bad-framing rejections are kXR_InvalidRequest /
-kXR_ArgInvalid at the protocol layer (XrdXrootdProtocol.cc).
+kXR_ArgInvalid at the protocol layer (the stock server).
 
 Confinement: a path-traversal op must be DENIED on OUR server (rc != 0) and the
 host file must NOT leak (no "root:" bytes). For traversal we only require

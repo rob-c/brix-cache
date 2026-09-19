@@ -148,7 +148,7 @@ brix_build_pgread_status_sid(const u_char sid[2], int64_t file_offset,
      *
      * Client reads: first (8 + hdr.dlen = 32) bytes as the status header, then
      * reads bdy.dlen more bytes for the actual page data.  This matches the
-     * XRootD server srsComplete() implementation in XrdXrootdResponse.cc.
+     * XRootD server's kXR_status completion framing.
      *
      * CRC covers bdy.streamID through pgr.offset (20 bytes) — no data extension.
      * Client validates: Calc32C(msg+12, hdr.dlen-4) = Calc32C(bdy.streamID, 20).

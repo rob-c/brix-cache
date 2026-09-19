@@ -190,7 +190,7 @@ gidretran), `resolve.c` (reverse-DNS for `h` rules), `config.c` (build + hot
 reload for stream and HTTP), `audit.c`. The operation precision (create vs
 update, stage), the bypass-site routing (TPC dest-open, prepare) and the
 operation/host-keyed result cache live in `src/auth/authz/auth_gate.c`. Ported from
-`/tmp/brix-src/src/XrdAcc/` with numeric privilege values kept identical so a
+`XrdAcc/` with numeric privilege values kept identical so a
 stock authdb decides the same. Tests: `tests/test_acc.py` (engine + protocols),
 `tests/test_acc_residual.py` (create/update, stage, host-resolve, HTTP reload,
 encoding, result-cache).

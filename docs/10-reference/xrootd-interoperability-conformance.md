@@ -15,7 +15,7 @@ as the reference implementation and wire authority.
 
 | Metric | Value |
 |---|---|
-| Reference | The XRootD C++ project — wire authority `src/XProtocol/XProtocol.hh` (vendored at `/tmp/brix-src`) |
+| Reference | The XRootD C++ project — wire authority `src/XProtocol/XProtocol.hh` |
 | Protocol version advertised | **v5.2.0** (`kXR_PROTOCOLVERSION = 0x00000520`) |
 | Request opcodes implemented | The full standard `kXR_*` set (session, read, write, query) + 4 vendor extensions |
 | Wire framing | Byte-exact with stock, including the hard cases (pgread/pgwrite CRC32c, writev, chkpoint `ckpXeq`) |
@@ -49,7 +49,7 @@ server, byte-for-byte, is the proof of server conformance.
 
 - **The XRootD project** (the Scalla/XRootD C++ implementation) is the reference
   implementation and the wire authority. The canonical protocol header
-  `src/XProtocol/XProtocol.hh` (vendored at `/tmp/brix-src`) is the source of
+  `src/XProtocol/XProtocol.hh` is the source of
   every `kXR_*` opcode, status, flag, and wire-structure constant; the module's
   `src/protocols/root/protocol/{opcodes.h,wire.h,flags.h}` mirror it directly.
 - **Protocol version** advertised is **5.2.0** (`0x00000520`) — the module

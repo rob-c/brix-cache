@@ -48,7 +48,7 @@ CMS_SRV_PORT     = int(os.environ.get("TEST_CWP_CMS_SRV_PORT")   or free_port())
 
 
 # ---------------------------------------------------------------------------
-# CMS wire constants — mirror src/net/cms/cms_internal.h + XProtocol/YProtocol.hh
+# CMS wire constants — mirror src/net/cms/cms_internal.h + the cmsd wire spec
 # ---------------------------------------------------------------------------
 
 CMS_RR_LOGIN  = 0

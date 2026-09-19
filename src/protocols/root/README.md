@@ -26,7 +26,7 @@ dispatch boundary.
 | [stream/](stream/) | nginx stream-module descriptor + config lifecycle | `module.c` |
 | [handshake/](handshake/) | opcode routers (read/write/session/signing), client hello, policy, sigver | `dispatch.c` |
 | [session/](session/) | login, protocol negotiation, bind, ping/endsess, SHM session registry | dispatched |
-| [protocol/](protocol/) | header-only wire-format constants, opcodes, codecs (mirror of XProtocol.hh) | — |
+| [protocol/](protocol/) | header-only wire-format constants, opcodes, codecs (mirror of the published wire spec) | — |
 | [read/](read/) | kXR_open/read/readv/pgread/stat/locate/close/clone + prefetch | `read/open_request.c` |
 | [write/](write/) | kXR_write/pgwrite/writev/sync/truncate, namespace ops (mkdir/rm/mv/chmod), chkpoint | dispatched |
 | [query/](query/) | kXR_query + kXR_prepare (staging) | dispatched |
@@ -74,4 +74,4 @@ connection to [relay/](relay/).
 - [../../fs/README.md](../../fs/README.md) — the VFS storage seam
 - [../../tpc/](../../tpc/) — third-party-copy engine reached from `read/open_request.c`
 - [../../auth/](../../auth/) — identity + the authorization gate
-- Wire spec: `XProtocol.hh` (see the CLAUDE.md header for its location)
+- Wire spec: [`protocol/`](protocol/) — in-repo and authoritative (see the CLAUDE.md header)

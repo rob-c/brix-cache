@@ -22,6 +22,7 @@ and exits 0; this test then skips (never fails) so it is CI-safe everywhere.
 import os
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -79,12 +80,21 @@ SRCS = [
 ]
 
 
+#: INVARIANT 14: the impersonation sources reach platform/platform.h, which
+#: selects its <host>/host.h from this token alone and #errors without it.
+#: Spelled out rather than imported from cmdscripts.compile_run because this
+#: directory is a standalone pytest root with no tests/ on its import path.
+HOST_FLAG = f"-DBRIX_PLATFORM_HOST={'darwin' if sys.platform == 'darwin' else 'linux'}"
+
+
 def _inc_flags():
     subs = [
         "src/core", "src/event", "src/event/modules", "src/os/unix",
         "objs", "src/stream",
     ]
-    return [f"-I{os.path.join(NGINX_SRC, s)}" for s in subs] + [f"-I{IMP}", f"-I{os.path.join(REPO, 'src')}"]
+    return ([HOST_FLAG]
+            + [f"-I{os.path.join(NGINX_SRC, s)}" for s in subs]
+            + [f"-I{IMP}", f"-I{os.path.join(REPO, 'src')}"])
 
 
 def _userns_supported():

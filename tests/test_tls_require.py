@@ -60,7 +60,7 @@ from utils.make_token import TokenIssuer  # noqa: E402
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-tlsreq")]
 
-# kXR_protocol flags-word bits (XProtocol.hh).
+# kXR_protocol flags-word bits (the wire spec).
 kXR_haveTLS  = 0x80000000
 kXR_gotoTLS  = 0x40000000
 kXR_tlsData  = 0x01000000

@@ -67,8 +67,10 @@ evidence sources were:
   `XrdSutBuffer` (bucket types, encrypted/plaintext, step names).
 * **A working reference** — the *same* stock client delegating to a *stock* `xrootd` source,
   captured the same way, to diff against.
-* **The authoritative stock source** at `/tmp/brix-src/src/XrdSecgsi/XrdSecProtocolgsi.cc`
-  and `/tmp/brix-src/src/XrdCrypto/XrdCryptosslX509Req.cc` — read, not guessed.
+* **The stock client itself as the oracle** — the handshake it actually performs,
+  captured and decoded bucket by bucket, rather than a guess about what it wants.
+  (No XRootD source tree was consulted: this is a clean-room implementation and
+  the wire spec it is built to lives in `src/protocols/root/protocol/`.)
 * **Small standalone C probes** compiled against the system OpenSSL to confirm exact error
   codes, and **Python bucket parsers** to decode the decrypted GSI buffers byte-by-byte.
 

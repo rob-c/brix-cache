@@ -203,6 +203,71 @@ brix_init_module_will_fork(ngx_cycle_t *cycle)
     return (ccf != NULL && ccf->master && ngx_process != NGX_PROCESS_WORKER);
 }
 
+
+/* ---- brix_hand_cycle_paths_to_worker ----
+ *
+ * WHAT: Re-own nginx's OWN spool directories — every ngx_path_t the config
+ *       registered: client_body_temp_path, proxy/fastcgi/uwsgi/scgi temp,
+ *       proxy_cache_path — to the identity the workers actually serve as.
+ * WHY : ngx_init_cycle creates each of them 0700 and chowns to `ccf->user`,
+ *       i.e. whatever the `user` directive says; brix's always-on
+ *       de-escalation then forces a root-capable worker down to
+ *       brix_worker_user (default "nobody") no matter WHAT `user` says. With
+ *       `user root` the two disagree and every nginx-owned spool is
+ *       root:0700 to a worker running as nobody — so the first request body
+ *       bigger than client_body_buffer_size cannot spill and the client gets
+ *       a 500 instead of the answer, with the EACCES only in the error log.
+ *       Same provisioning contract as the pblock store, credential store and
+ *       stage spool (brix_imp_worker_runtime_ids); this is nginx's own share
+ *       of it, which nothing was covering.
+ * HOW : Master, pre-fork, euid 0 — init_module is the last hook before the
+ *       fork and runs AFTER ngx_create_paths, so the directories exist and we
+ *       are still privileged enough to give them away. Resolve the post-drop
+ *       ids exactly as the worker will and chown; the 0700 nginx already set
+ *       is then correct FOR THE WORKER. Best-effort: a path nginx never
+ *       created (ENOENT) is made by the worker as itself, and a chown we
+ *       cannot do is a warning naming the directory, not a refusal to start.
+ */
+static void
+brix_hand_cycle_paths_to_worker(ngx_cycle_t *cycle)
+{
+    ngx_core_conf_t  *ccf;
+    ngx_path_t      **path;
+    uid_t             uid;
+    gid_t             gid;
+    ngx_uint_t        i;
+
+    if (geteuid() != 0) {
+        return;
+    }
+    ccf = (ngx_core_conf_t *) ngx_get_conf(cycle->conf_ctx, ngx_core_module);
+    if (ccf == NULL) {
+        return;
+    }
+    if (brix_imp_worker_runtime_ids(ccf->user, ccf->group, &uid, &gid)
+        != NGX_OK)
+    {
+        ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+            "brix: cannot resolve the worker identity to own the nginx "
+            "temporary paths — a de-escalated worker may not be able to "
+            "spill request bodies or cache entries");
+        return;
+    }
+
+    path = cycle->paths.elts;
+    for (i = 0; i < cycle->paths.nelts; i++) {
+        if (chown((const char *) path[i]->name.data, uid, gid) != 0
+            && ngx_errno != NGX_ENOENT)
+        {
+            ngx_log_error(NGX_LOG_WARN, cycle->log, ngx_errno,
+                "brix: chown(\"%V\", %d) to the worker identity failed — a "
+                "de-escalated worker may not be able to write it",
+                &path[i]->name, (int) uid);
+        }
+    }
+}
+
+
 ngx_int_t
 brix_stream_init_module(ngx_cycle_t *cycle)
 {
@@ -220,6 +285,10 @@ brix_stream_init_module(ngx_cycle_t *cycle)
      * locks belong to the parent, and the worker's own open fails. Workers
      * rebuild their own stacks on first resolve. */
     if (brix_init_module_will_fork(cycle)) {
+        /* Only a FORKED worker de-escalates (single-process doubles as the
+         * master and stays put), so only then do nginx's spools need to
+         * change hands. Same predicate, same pre-fork instant. */
+        brix_hand_cycle_paths_to_worker(cycle);
         brix_vfs_backend_release_prefork();
     }
     return NGX_OK;

@@ -89,6 +89,7 @@ import subprocess
 
 import pytest
 
+from cmdscripts import open_tree_for_worker
 from server_registry import NginxInstanceSpec
 from settings import HOST, NGINX_BIN
 from test_token_macaroon import make_macaroon
@@ -237,6 +238,12 @@ def pki(tmp_path_factory):
         "the renewal has the same leaf DN as the original proxy, so 'a renewed "
         "proxy is a different string' is not true in this environment")
 
+    # The CA hash dir, the vomsdir and the host key are read by the WORKER
+    # (`nobody`, always-on brix_imp_worker_deescalate), not by the root master.
+    # `base` is a 0700 pytest tmp tree, so chmod 0755 on `certs` alone is not
+    # enough — the worker cannot traverse down to it, the VOMS signer looks
+    # unrooted and every AC is refused "chain is not trusted".
+    open_tree_for_worker(base)
     return {"ca": ca_pem, "certs": certs, "vomsdir": vomsdir,
             "cert": host_cert, "key": host_key, "base": base,
             "eec_dn": eec_dn, "leaf_dn": leaf_dn,
@@ -280,6 +287,10 @@ def macvoms(lifecycle, tmp_path, pki):
 
     tmp = tmp_path / "ngxtmp"
     tmp.mkdir()
+    # Same reason as the pki fixture: the export root, the authdb and nginx's
+    # scratch dir all sit under this 0700 tmp_path, and the de-escalated worker
+    # has to open them ("unable to open export root for confined syscall").
+    open_tree_for_worker(tmp_path)
 
     return lifecycle.start(NginxInstanceSpec(
         name=NAME,

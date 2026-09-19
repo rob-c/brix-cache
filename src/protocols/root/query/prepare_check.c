@@ -91,11 +91,11 @@ brix_prepare_check_fail(brix_ctx_t *ctx, ngx_connection_t *c,
  * WHAT: run the three prepare authorization tiers (authdb VO/ACL, VO
  *       identity ACL, token scope) on one resolved path.
  *
- * WHY: the existing-file and noerrs-absent branches of check_path must apply
- *      the SAME gate on the SAME paths (verdict parity between "exists" and
- *      "absent") — factoring it here removes the duplication AND guarantees
- *      the two branches can never drift apart. Authorization is a property of
- *      the identity + logical path, not of on-disk existence.
+ * WHY: every prepare outcome — present, absent-with-noerrs, absent-without —
+ *      must be reached through the SAME gate on the SAME path, because
+ *      authorization is a property of the identity + logical path and not of
+ *      on-disk existence. Its single call site sits ahead of the stat in
+ *      check_path for that reason; see the SECURITY note there.
  *
  * HOW: each tier that denies sends its specific error via check_fail and its
  *      rc (NGX_DONE/error) is returned; NGX_OK only when all three pass.
@@ -105,19 +105,30 @@ prepare_path_authz(brix_ctx_t *ctx, ngx_connection_t *c,
     const prepare_scan_t *sc, const char *pathbuf, const char *full_path)
 {
     ngx_stream_brix_srv_conf_t *conf = sc->conf;
+    ngx_flag_t                  recalls = (sc->do_stage || sc->do_evict);
     uint32_t                    level = BRIX_AUTH_READ;
+    brix_acc_op_t               aop = BRIX_AOP_READ;
 
     /* 2.0 F20: a bare kXR_prepare only browses the namespace, so READ is the
      * whole requirement.  The kXR_stage / kXR_evict arms actually drive a tape
      * or nearline recall (or drop an online copy) on the operator's storage, so
      * they additionally demand the `x` privilege — the native authdb's new
-     * BRIX_AUTH_STAGE bit.  Both bits are required together, never either-or. */
-    if (sc->do_stage || sc->do_evict) {
+     * BRIX_AUTH_STAGE bit.  Both bits are required together, never either-or.
+     *
+     * The XrdAcc op has to move with the level, not independently of it: the
+     * two engines answer the SAME question and brix_authz_check picks between
+     * them purely on `brix_authdb_engine`.  Pinning the op at AOP_STAGE while
+     * the native level said READ made a bare prepare demand `x` under xrdacc
+     * and `r` under the native parser, so one authdb granting `rl` admitted the
+     * browse and its faithful translation denied it — F20's rule implemented on
+     * one engine only. */
+    if (recalls) {
         level |= BRIX_AUTH_STAGE;
+        aop = BRIX_AOP_STAGE;
     }
 
     if (brix_authz_check(ctx, c, conf, pathbuf, full_path, "PREPARE",
-                           level, BRIX_AOP_STAGE) != NGX_OK) {
+                           level, aop) != NGX_OK) {
         return brix_prepare_check_fail(ctx, c, full_path, kXR_NotAuthorized,
                                          "not authorized");
     }
@@ -193,6 +204,33 @@ brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
                              full_path, sizeof(full_path));
 
     /*
+     * SECURITY: authorize BEFORE the existence probe, never after.
+     *
+     * Authorization is a property of the IDENTITY + LOGICAL PATH, not of
+     * on-disk existence — so the answer for a principal who may not read this
+     * namespace path is kXR_NotAuthorized whether or not the object is there.
+     * Checking existence first leaks the namespace: the caller distinguishes
+     * "absent" (kXR_NotFound) from "present but forbidden" (kXR_NotAuthorized)
+     * purely from the error code, which is a directory-enumeration oracle over
+     * paths they hold no privilege on — the same oracle open_request.c closed on
+     * the read-open path. It also matters operationally: a prepare/stage drives
+     * a tape or nearline recall on the operator's storage, and an unauthorized
+     * principal must not be able to schedule that work, nor to have the recalled
+     * bytes land in a shared cache they can later be served from.
+     *
+     * The noerrs branch already ran the three tiers for exactly this reason; the
+     * plain branch reached kXR_NotFound with no tier run at all, so the two
+     * branches disagreed about what a prepare reveals. One call here, before the
+     * stat, is what makes them agree by construction.
+     */
+    {
+        ngx_int_t arc = prepare_path_authz(ctx, c, sc, pathbuf, full_path);
+        if (arc != NGX_OK) {
+            return arc;
+        }
+    }
+
+    /*
      * CONTRACT: the same "file is absent" condition (ENOENT/ENOTDIR from the
      * confined stat) has two outcomes selected by the kXR_noerrs flag:
      *   - noerrs set  → not an error. The path is counted in sc->missing and the
@@ -204,24 +242,6 @@ brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
     if (brix_stat_beneath(conf->rootfd, pathbuf, &st) != 0) {
         if ((errno == ENOENT || errno == ENOTDIR) && noerrs) {
             sc->missing++;
-            /*
-             * SECURITY: authorization is a property of the IDENTITY + LOGICAL
-             * PATH, not of on-disk existence. A prepare/stage of a not-yet-
-             * materialised object (tape nearline recall, not-yet-cached) must
-             * still prove the caller may READ/STAGE this namespace path —
-             * otherwise an unauthorized principal drives recalls or enumerates
-             * the namespace via prepare, and later serves the recalled bytes
-             * from the shared cache. Run the SAME three tiers, on the SAME
-             * paths, as the existing-file branch below (verdict parity between
-             * "exists" and "absent"); only then supply the staging path.
-             */
-            {
-                ngx_int_t arc = prepare_path_authz(ctx, c, sc, pathbuf,
-                                                     full_path);
-                if (arc != NGX_OK) {
-                    return arc;
-                }
-            }
             /* For staging: supply absolute path even if file doesn't exist yet
              * (tape nearline / not-yet-created). */
             if (out_resolved != NULL) {
@@ -231,13 +251,6 @@ brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
             return NGX_OK;
         }
         return prepare_stat_error(ctx, c, pathbuf, full_path);
-    }
-
-    {
-        ngx_int_t arc = prepare_path_authz(ctx, c, sc, pathbuf, full_path);
-        if (arc != NGX_OK) {
-            return arc;
-        }
     }
 
     /* Copy the absolute export path for the staging command; only authorized

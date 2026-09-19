@@ -85,7 +85,19 @@ DECLARED_ADDITIONS = {
     "_cachemx": {"Snap.cache_delta", "Snap.cache_delta_or_absent"},
 }
 DECLARED_CHANGES = {
-    "_cachemx": {"Snap"},
+    "_cachemx": {
+        "Snap",
+        # /metrics read timeout 10s -> 30s.  A scrape that times out fails the
+        # case it is measuring with a URLError, not a counter mismatch, and on
+        # this host the matrix instance has eight planes' stores to walk.
+        "mfetch",
+        # One added call: `open_tree_for_worker(workdir)` before the instances
+        # boot.  The stack's cache stores live in a 0700 pytest tmp dir while
+        # the workers are force-dropped to `nobody`, so every plane failed its
+        # fill with NotAuthorized — a permission error reported as the metric
+        # deltas these cases assert.  The keytab beside them keeps its 0600.
+        "start_stack",
+    },
     # The helper acquired urlcgi so cache test nodes can exercise the public
     # brix_cache_urlcgi directive without hand-writing a second configuration.
     "_cache_partial_helpers": {"make_cache_node"},

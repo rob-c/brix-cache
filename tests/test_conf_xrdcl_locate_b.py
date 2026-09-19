@@ -146,7 +146,7 @@ def test_space_keys_parity(srv, fs_our, fs_off):
 
 
 # DIVERGENCE: query space "" (empty path) — stock validates the path and REJECTS
-# an empty/relative path (XrdXrootdXeq.cc:4405 "Stating relative path '' is
+# an empty/relative path (the stock server "Stating relative path '' is
 # disallowed.", XErrorCode 3010 kXR_FSError), but OUR server accepts it (ok=True).
 # Our: ok=True ; Stock: ok=False errno=3010. Suspected fix: apply the same
 # relative/empty path rejection in OUR Qspace handler (src/protocols/root/query/*).

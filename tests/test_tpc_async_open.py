@@ -52,7 +52,7 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 
-# root:// wire opcodes (XProtocol.hh)
+# root:// wire opcodes (the wire spec)
 kXR_close, kXR_protocol, kXR_login, kXR_open, kXR_read = 3003, 3006, 3007, 3010, 3013
 # response status codes
 kXR_ok, kXR_attn, kXR_wait, kXR_waitresp, kXR_asynresp = 0, 4001, 4005, 4006, 5008

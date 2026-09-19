@@ -44,4 +44,4 @@ def install() -> None:
         # bindings import, every fleet member boot.  XRDNET_IDENTITY is
         # XRootD's own short-circuit; the fleet binds 127.0.0.1, so
         # "localhost" is also the name its cmsd members should advertise.
-        os.environ.setdefault("XRDNET_IDENTITY", "localhost")
+        os.environ.setdefault("XRDNET_IDENTITY", "localhost")  # net-literal-allow: the name this process ADVERTISES for itself, never dialled

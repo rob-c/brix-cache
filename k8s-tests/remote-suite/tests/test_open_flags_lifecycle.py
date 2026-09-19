@@ -51,7 +51,7 @@ from settings import (
 
 
 # ---------------------------------------------------------------------------
-# Opcodes / status / error codes (XProtocol.hh)
+# Opcodes / status / error codes (the wire spec)
 # ---------------------------------------------------------------------------
 
 def _check_test_posc_abort_leaves_no_final_file_3(final):
@@ -81,7 +81,7 @@ kXR_close = 3003
 kXR_ok    = 0
 kXR_error = 4003
 
-# XErrorCode (XProtocol.hh)
+# XErrorCode (the wire spec)
 kXR_ArgInvalid    = 3000
 kXR_FileLocked    = 3003
 kXR_FileNotOpen   = 3004
@@ -100,7 +100,7 @@ kXR_ItExists      = 3018
 # conformance check rather than pinning an implementation detail.
 _EEXIST_CODES = (kXR_ItExists, kXR_FileLocked)
 
-# XOpenRequestOption (XProtocol.hh)
+# XOpenRequestOption (the wire spec)
 kXR_delete    = 0x0002
 kXR_new       = 0x0008
 kXR_open_read = 0x0010

@@ -8,7 +8,7 @@ def test_rm_directory_errno_parity(pair, trial):
     """rm of a non-empty dir returns an error on both.
 
     DIVERGENCE: errno differs. Stock maps ENOTEMPTY->kXR_ItExists(3018)
-    (XProtocol.hh:1425-1427), ours returns kXR_FSError(3005). The data-loss
+    (the wire spec), ours returns kXR_FSError(3005). The data-loss
     guard holds on both (child survives), only the error code diverges.
     Suspected src: src/protocols/root/write/rm.c error mapping.
     """
@@ -76,7 +76,7 @@ def test_rmdir_nonempty_errno_parity(pair, trial):
     """rmdir on non-empty dir error code.
 
     DIVERGENCE: stock maps ENOTEMPTY->kXR_ItExists(3018), ours returns
-    kXR_FSError(3005). Citation: XProtocol.hh:1425-1427. Suspected src:
+    kXR_FSError(3005). Citation: the wire spec. Suspected src:
     src/protocols/root/write/rm.c (rmdir error mapping).
     """
     sub = _mk_scratch(pair, f"rmdir_ne_err_{trial}", _dir_with_child)
@@ -199,7 +199,7 @@ def test_truncate_missing_errno_parity(pair):
     """truncate of a missing file — error code parity.
 
     DIVERGENCE: stock returns kXR_NotFound(3011) (ENOENT), ours returns
-    kXR_IOError(3007). Citation: XProtocol.hh:1407 (ENOENT->kXR_NotFound).
+    kXR_IOError(3007). Citation: the wire spec (ENOENT->kXR_NotFound).
     Both fail (no file created), only the error code diverges.
     Suspected src: src/protocols/root/write/* truncate handler error mapping.
     """

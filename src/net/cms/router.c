@@ -1,7 +1,7 @@
 /*
  * router.c — table-driven CMS opcode routing. See router.h.
  *
- * The tables mirror XrdCmsRouting.cc: the manager table merges the redirector
+ * The tables mirror the stock cmsd routing table: the manager table merges the redirector
  * routing (client-facing forwardable ops, initRDRrouting) with the server group
  * (node->manager status frames, initRouter); the node table is the set of ops a
  * data server executes when forwarded down from its manager (leaf — no FORWARD
@@ -14,7 +14,7 @@
 #include "router.h"
 #include <stddef.h>
 
-/* kYR_* opcodes (wire constants from XProtocol/YProtocol.hh). */
+/* kYR_* opcodes (cmsd wire constants). */
 #define K_LOGIN    0
 #define K_CHMOD    1
 #define K_LOCATE   2

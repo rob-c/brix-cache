@@ -424,7 +424,7 @@ def _xrd_resp(s):
 # Wire constants for the raw create-write open below. These were lost in a
 # helper split (the reexport chain never carried them — pre-existing NameError
 # at HEAD, surfaced by the phase-105 W3 run); values match the sibling raw
-# helpers (_test_chkpoint_stock_framing_helpers et al.) / XProtocol.hh.
+# helpers (_test_chkpoint_stock_framing_helpers et al.) / the wire spec.
 _kXR_open = 3010
 # open for create+truncate+write:  kXR_new | kXR_delete | kXR_open_updt
 _OPEN_CREATE_WR = 0x0008 | 0x0002 | 0x0020

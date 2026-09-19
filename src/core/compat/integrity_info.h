@@ -140,7 +140,7 @@ void brix_integrity_invalidate_path(ngx_log_t *log, const char *root_canon,
     const char *path);
 
 /*
- * brix_cksdata_encode / brix_cksdata_decode — official XrdCks/XrdCksData binary
+ * brix_cksdata_encode / brix_cksdata_decode — official XrdCks cksdata binary
  * codec (§8.1 interop), host byte order (ADR-4). encode writes
  * sizeof(struct xrd_cks_data) bytes (88 on x86-64) from in->alg_name/in->hex +
  * fmtime, returning the record size (0 on bad hex). decode parses a record,

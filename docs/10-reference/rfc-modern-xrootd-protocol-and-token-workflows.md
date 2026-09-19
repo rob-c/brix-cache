@@ -4,7 +4,7 @@
 |---|---|
 | **Status** | Informational / Working Draft (for review by WLCG, the XRootD collaboration, and HEP data-federation operators) |
 | **Defines** | The XRootD binary wire protocol as spoken by current (v5-era) clients and servers, byte-level, with the design choices behind it |
-| **Reference tree** | Official XRootD source pinned at `/tmp/brix-src/src` (release-series 6.x; its `XProtocol/XProtocol.hh` defines `kXR_PROTOCOLVERSION 0x00000511`, version string `"5.1.0"`) |
+| **Reference** | The XRootD project, release-series 6.x — protocol version `0x00000511`, version string `"5.1.0"` |
 | **Subject implementation** | The nginx stream+http module in this repository (`src/`, `client/`) — "the module" — which advertises protocol `0x00000520` (5.2.0, a superset adding `kXR_clone`) |
 | **Date** | 2026-08-03 |
 | **Audience** | Protocol implementers, spec editors, site security officers, and federation architects |
@@ -545,7 +545,7 @@ Twelve enforced invariants, each the compressed resolution of an ambiguity above
 
 ## 14. References
 
-**Normative-by-practice:** `/tmp/brix-src/src/XProtocol/XProtocol.hh` (protocol definition + reimplementation license; `mapError`/`toErrno`); `XrdXrootd/XrdXrootdXeq.cc`, `XrdXrootdResponse.cc`, `XrdXrootdProtocol.cc` (semantic oracle); `XrdSec*`, `XrdHttp/`, `XrdHttpTpc/`, `XrdCks/` (auth, HTTP, TPC, checksum conventions).
+**Normative-by-practice:** `XProtocol/XProtocol.hh` (protocol definition + reimplementation license; `mapError`/`toErrno`); `XrdXrootd/XrdXrootdXeq.cc`, `XrdXrootdResponse.cc`, `XrdXrootdProtocol.cc` (semantic oracle); `XrdSec*`, `XrdHttp/`, `XrdHttpTpc/`, `XrdCks/` (auth, HTTP, TPC, checksum conventions).
 
 **The module:** protocol core `src/protocols/root/protocol/opcodes.h` and siblings, `connection/`, `handshake/`, `session/`, `read/`, `write/`, `response/`; auth `src/auth/`; HTTP `src/protocols/{webdav,s3,shared}/`; TPC `src/tpc/`; VFS `src/fs/`; error mapping `src/core/compat/`.
 

@@ -155,7 +155,7 @@ brix_gsi_dh_derive(EVP_PKEY *mine, EVP_PKEY *peer, size_t *slen)
 /*                                                                       */
 /* (EOS) and our server talks to stock clients.  Both ends use one FIXED */
 
-/* The fixed DH parameters, verbatim from XrdCryptosslCipher.cc. */
+/* The fixed DH parameters stock XrdSecgsi negotiates with. */
 
 /* Load the fixed DH params as an EVP_PKEY (params only). */
 EVP_PKEY *

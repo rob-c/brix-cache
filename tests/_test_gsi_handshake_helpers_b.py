@@ -98,7 +98,7 @@ def _pki_hostname():
     try:
         socket.getaddrinfo(fqdn, None)
     except socket.gaierror:
-        return "localhost"
+        return "localhost"  # net-literal-allow: fallback SUBJECT of a self-minted host cert, chosen because the resolver refused the real name
     return fqdn
 
 
@@ -194,7 +194,7 @@ def pki(tmp_path_factory):
         f.write("hello-gsi-handshake\n")
 
     # The pytest fleet runs with umask 000, so os.makedirs(certs) above created
-    # the CA dir world-WRITABLE (0777). XrdCl's TLS client init (XrdClTls.cc
+    # the CA dir world-WRITABLE (0777). XrdCl's TLS client init (the stock client
     # InitTLS -> XrdOucUtils::ValPath, mask 0755) REFUSES a CA directory with
     # group/other-write bits ("has excessive access rights") and throws
     # "Failed to initialize TLS", so EVERY roots:// (GSI+TLS-upgrade) test that

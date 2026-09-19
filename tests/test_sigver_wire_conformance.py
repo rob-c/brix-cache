@@ -43,7 +43,7 @@ except Exception:  # pragma: no cover - optional GSI assets
 
 
 # ---------------------------------------------------------------------------
-# Opcodes / status / error codes (from src/protocols/root/protocol/opcodes.h, XProtocol.hh)
+# Opcodes / status / error codes (from src/protocols/root/protocol/opcodes.h, the wire spec)
 # ---------------------------------------------------------------------------
 
 kXR_login   = 3007
@@ -58,7 +58,7 @@ kXR_ok      = 0
 kXR_error   = 4003
 kXR_status  = 4007
 
-# XErrorCode (XProtocol.hh:1032+)
+# XErrorCode (the wire spec)
 kXR_ArgInvalid     = 3000
 kXR_ArgMissing     = 3001
 kXR_ArgTooLong     = 3002
@@ -159,7 +159,7 @@ def _ping(sock, streamid=b"\x00\x0f"):
 
 def _stat(sock, path, streamid=b"\x00\x10"):
     p = path.encode() + b"\x00" if isinstance(path, str) else path
-    # ClientStatRequest (XProtocol.hh:806): streamid[2] reqid(u16) options(u8)
+    # ClientStatRequest (the wire spec): streamid[2] reqid(u16) options(u8)
     # reserved[7] wants(u32 BE) fhandle[4] dlen(i32 BE).
     req = struct.pack("!2sHB7sI4sI", streamid, kXR_stat,
                       0,                 # options
@@ -178,7 +178,7 @@ def _error_code(body):
 def _sigver(sock, expectrid, seqno, hmac=None, *,
             flags=0, crypto=kXR_SHA256, version=0,
             streamid=b"\x00\x03", raw_dlen=None):
-    """Frame a ClientSigverRequest exactly per XProtocol.hh:782.
+    """Frame a ClientSigverRequest exactly per the wire spec.
 
     Layout (24-byte header + body):
       streamid[2] requestid(u16) expectrid(u16) version(u8) flags(u8)

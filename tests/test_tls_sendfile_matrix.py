@@ -45,6 +45,7 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+from cmdscripts import open_tree_for_worker
 from server_launcher import LifecycleHarness, NginxInstanceSpec
 from settings import BIND_HOST, HOST
 
@@ -87,6 +88,13 @@ BIG = _body(BIG_LEN, "big")
 def planes(tmp_path_factory):
     """Four WebDAV planes over two backends and two transports, pre-seeded."""
     pb_root = tmp_path_factory.mktemp("tls-sendfile-pb")
+    # pytest hands out every temp directory 0700, and under a root harness the
+    # worker drops to `nobody`: the pblock store would be root-owned and every
+    # seeding PUT would come back 403 while the posix control (the registry's
+    # own data root, opened by the launcher) succeeded.  The launcher cannot
+    # widen this one for us — it cannot tell pytest's 0700 from a deliberate
+    # one — so the export says for itself that it is an export.
+    open_tree_for_worker(pb_root)
     harness = LifecycleHarness()
     try:
         ep = harness.start(NginxInstanceSpec(

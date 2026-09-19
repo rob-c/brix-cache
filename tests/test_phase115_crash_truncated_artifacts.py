@@ -216,14 +216,25 @@ def test_an_unreadable_pem_is_not_usable(tmp_path):
     A key the session cannot read is a key the session cannot sign with.  The
     predicate must answer False rather than raise, or one EACCES aborts prep
     before the pipeline reaches the step that would have fixed it.
+
+    Unreadable is spelled as a symlink loop, not as mode 0o000, because the
+    suite's own lanes run as root: root bypasses DAC, so the chmod arm read
+    the key back fine and the case failed claiming the predicate had stopped
+    failing closed.  ELOOP is refused for every uid, and lands in the same
+    `except OSError` arm the mode case was written for.
     """
     victim = tmp_path / "signing_key.pem"
-    victim.write_bytes(GOOD_PEM)
-    os.chmod(victim, 0o000)
-    try:
-        assert not _is_loadable_pem(victim)
-    finally:
-        os.chmod(victim, 0o600)
+    victim.symlink_to(tmp_path / "loop.pem")
+    (tmp_path / "loop.pem").symlink_to(victim)
+    assert not _is_loadable_pem(victim)
+    if os.geteuid() != 0:
+        readable = tmp_path / "mode_key.pem"
+        readable.write_bytes(GOOD_PEM)
+        os.chmod(readable, 0o000)
+        try:
+            assert not _is_loadable_pem(readable)
+        finally:
+            os.chmod(readable, 0o600)
 
 
 def test_a_non_pem_artifact_is_judged_on_length_alone(tmp_path):

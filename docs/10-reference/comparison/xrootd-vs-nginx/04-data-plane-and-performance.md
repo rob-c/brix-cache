@@ -485,7 +485,7 @@ CRC paths never compress.
 
 ## Source references
 
-**Official XRootD** (`/tmp/brix-src/src/`):
+**Official XRootD** (upstream):
 
 - `XrdXrootd/XrdXrootdXeq.cc` — `do_Read:2543`, `do_ReadV:2746`, `do_Sync:3210`,
   `do_Write:3310`, `do_CKsum:436/513`; sendfile gate `:2588`; `SendFile:3832`.

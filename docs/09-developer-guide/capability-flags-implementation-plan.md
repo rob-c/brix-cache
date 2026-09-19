@@ -10,7 +10,7 @@ matrix.
 
 **Scope**: Original plan for `ServerProtocolBody.flags` capability bits that were
 not yet advertised when this document was written  
-**Wire spec**: `/tmp/brix-src/src/XProtocol/XProtocol.hh` lines 1198–1217  
+**Wire spec**: `XProtocol/XProtocol.hh` lines 1198–1217  
 **Primary files**: `src/protocols/root/protocol/flags.h`, `src/protocols/root/session/protocol.c`
 
 ---

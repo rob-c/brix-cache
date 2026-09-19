@@ -115,7 +115,24 @@ pki_load_crls_from_dirent(X509_STORE *store, const char *dir_path,
         return 0;
     }
 
-    if (stat(fpath, &st) != 0 || !S_ISREG(st.st_mode)) {
+    /* A failed stat splits the same two ways the fopen below does, and for the
+     * same reason: ENOENT is genuinely absent -- the entry was unlinked between
+     * readdir and here, and a feed that lost a file it no longer lists is not
+     * broken -- while ELOOP/EACCES/EIO is PRESENT AND UNREADABLE and owes the
+     * caller a -1.  Collapsing both to 0 reopened the F22 fail-open one layer
+     * above the one it closed: the entry never reached pki_load_crls_from_file,
+     * so `brix_crl_mode try` saw an empty directory, logged "no CRLs loaded"
+     * as a warning and started with revocation disarmed. */
+    if (stat(fpath, &st) != 0) {
+        if (ngx_errno == NGX_ENOENT) {
+            return 0;
+        }
+        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+                      "brix_pki: cannot open CRL file \"%s\"", fpath);
+        return -1;
+    }
+
+    if (!S_ISREG(st.st_mode)) {
         return 0;
     }
 

@@ -28,6 +28,18 @@
 #error "BRIX_PLATFORM_HOST is not defined: build with -DBRIX_PLATFORM_HOST=linux|darwin|windows (see ./config and client/Makefile)"
 #endif
 
+/* GCC and Clang predefine the bare token `linux` as 1 in GNU mode (the default
+ * when no -std= is given). BRIX_PLATFORM_HOST expands before it is stringified
+ * below, so on such a build "linux/host.h" became "1/host.h" and the computed
+ * include failed. Retire every spelling a toolchain might predefine, so the
+ * host name always reaches BRIX_PLAT_STR_ as a plain identifier. The client and
+ * xrdproto Makefiles pass -std=c11, which hides these; the nginx module build
+ * takes its flags from ./configure and does not. `#undef` of an undefined macro
+ * is a no-op, so this is silent on hosts that predefine none of them. */
+#undef linux
+#undef darwin
+#undef windows
+
 #define BRIX_PLAT_STR_(x) #x
 #define BRIX_PLAT_STR(x) BRIX_PLAT_STR_(x)
 /* "<host>/name" for a computed #include; quoted, so it resolves next to the

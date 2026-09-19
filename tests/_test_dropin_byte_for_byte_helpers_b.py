@@ -85,7 +85,7 @@ REF_XROOTD_PORT = int(os.environ.get("TEST_DROPIN_XROOTD_PORT")
 
 
 # ---------------------------------------------------------------------------
-# Opcodes / status / error codes (XProtocol.hh + src/protocols/root/protocol/opcodes.h)
+# Opcodes / status / error codes (the wire spec + src/protocols/root/protocol/opcodes.h)
 # ---------------------------------------------------------------------------
 
 kXR_query    = 3001
@@ -110,7 +110,7 @@ kXR_Qcksum   = 3
 kXR_Qspace   = 5
 kXR_Qconfig  = 7
 
-# Server error codes (XProtocol.hh XErrorCode)
+# Server error codes (the wire spec XErrorCode)
 kXR_NotAuthorized = 3010
 kXR_NotFound      = 3011
 kXR_isDirectory   = 3016

@@ -5,7 +5,7 @@
  *       src/ssi/ssi_rrinfo_unittest.c src/ssi/ssi_rrinfo.c && /tmp/ssi_rrinfo_ut
  *
  * The expected bytes are GOLDEN values generated from the real XrdSsi classes
- * (XrdSsi/XrdSsiRRInfo.hh) — see the inline hex. Exit 0 = all checks pass.
+ * (the XrdSsi RRInfo word) — see the inline hex. Exit 0 = all checks pass.
  */
 
 #include "ssi_rrinfo.h"

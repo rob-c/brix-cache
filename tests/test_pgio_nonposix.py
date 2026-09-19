@@ -54,7 +54,8 @@ from _test_conf_pgio_helpers import (
     pgread_bytes,
     pgwrite,
 )
-from cmdscripts.pblock_live import pblock_lab_start, pblock_worker_readable
+from cmdscripts.pblock_live import (pblock_lab_start, pblock_worker_own,
+                                    pblock_worker_readable)
 from _xrdcl_proxy import real_bindings_available
 from server_launcher import LifecycleHarness, NginxInstanceSpec
 from settings import BIND_HOST, HOST
@@ -173,7 +174,17 @@ def block_srv(tmp_path_factory):
     _need_nginx()
     devimg = tmp_path_factory.mktemp("pgio-block") / "dev.img"
     devimg.write_bytes(DEV_DATA)
-    pblock_worker_readable(devimg)   # no-op unprivileged; root harness runs as nobody
+    # Both grants, and both for the same reason: the root harness force-drops
+    # the worker to `nobody` while pytest writes this image as root.  Readable
+    # alone (0644 + a traversable parent) is what every pgread/readv case here
+    # needs, and it is all the fixture used to ask for -- so
+    # `sd_block_open`'s O_RDWR for a pgwrite came back EACCES from the kernel,
+    # the endpoint answered "permission denied", and the extent-confinement
+    # case died on the OPEN it was only meant to pass through.  Handing the
+    # image to the worker's own account is the write half; unprivileged, where
+    # the worker IS the test user, both calls are no-ops.
+    pblock_worker_readable(devimg)
+    pblock_worker_own(devimg)
     harness = LifecycleHarness()
     try:
         ep = harness.start(NginxInstanceSpec(

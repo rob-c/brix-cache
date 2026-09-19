@@ -22,23 +22,23 @@ endsess reply differs, streamid mismatch, lost concurrency, bind behavior
 differs, framing-robustness differs — is a BUG IN OUR SERVER. We pin the stock
 server's behavior. No xfail/skip is used to hide a real diff.
 
-Reference facts pinned (XProtocol.hh / XrdXrootdXeq.cc):
+Reference facts pinned (the wire spec / the stock server):
   * handshake init = IIIII {0,0,0,4,2012}; reply body = protover(0x520) +
-    server type kXR_DataServer(1) (XrdXrootdProtocol.cc:297-330).
+    server type kXR_DataServer(1) (the stock server).
   * ClientLoginRequest: streamid[2] requestid[2] pid[4] username[8] ability2
-    ability capver reserved2 dlen[4] (XProtocol.hh:422).
-  * ServerResponseBody_Login: sessid[16] + sec[] (XProtocol.hh:1081) — anon
+    ability capver reserved2 dlen[4] (the wire spec).
+  * ServerResponseBody_Login: sessid[16] + sec[] (the wire spec) — anon
     login carries a 16-byte sessid.
   * kXR_protocol reply: pval[4] + flags[4] with kXR_isServer(0x1) set
-    (XProtocol.hh:1233, Xeq do_Protocol:2050).
+    (the wire spec, Xeq do_Protocol:2050).
   * kXR_ping -> empty kXR_ok (Xeq do_Ping:1815).
   * kXR_endsess: a sessid that does not refer to this server (Pid != myPID) is
     IGNORED -> empty kXR_ok; it is session-scoped, NOT a connection kill
     (Xeq do_Endsess:925, Response.Send()).
   * ClientBindRequest: streamid[2] requestid[2] sessid[16] dlen[4]
-    (XProtocol.hh:180); a bogus/zero sessid -> kXR_NotFound / kXR_ArgInvalid
+    (the wire spec); a bogus/zero sessid -> kXR_NotFound / kXR_ArgInvalid
     (do_Bind:274), reply body = substreamid[1] on success.
-  * streamid is echoed verbatim, never byte-swapped (XrdXrootdResponse.cc).
+  * streamid is echoed verbatim, never byte-swapped (the stock server).
 
 Self-provisioning on high ports; skips entirely without the stock toolchain.
 

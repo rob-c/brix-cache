@@ -20,6 +20,8 @@ import subprocess
 
 import pytest
 
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS, pal_host_sources
+
 
 def _guard_capture_bin_1(cc):
     if cc is None:
@@ -50,7 +52,17 @@ def capture_bin(tmp_path_factory):
     out = str(tmp_path_factory.mktemp("subprocess") / "ut")
     r = subprocess.run(
         [cc, "-Wall", "-Wextra", "-Werror", "-pthread",
-         "-I", os.path.join(REPO, "src"), SRC, TEST, "-o", out],
+         # INVARIANT 14: the TU reaches platform/platform.h, which selects its
+         # <host>/host.h from this token alone and #errors without it.
+         *PLATFORM_HOST_FLAGS,
+         "-I", os.path.join(REPO, "src"), SRC, TEST,
+         # The capture kernel opens its pipe and reaps with a deadline through
+         # the PAL (brix_plat_pipe2 / brix_plat_wait_pid_timeout); the module
+         # build compiles the whole host directory, this line names the two
+         # bodies it reaches.
+         *[os.path.join(REPO, rel)
+           for rel in pal_host_sources("storage_wrapper", "process_wrapper")],
+         "-o", out],
         capture_output=True, text=True)
     _guard_capture_bin_3(r)
     return out

@@ -43,7 +43,7 @@
 
 /* mirrors of the canonical on-disk layouts (must stay byte-compatible) -- */
 
-/* src/core/compat/integrity_info.c struct xrd_cks_data (stock XrdCks/XrdCksData.hh). */
+/* src/core/compat/integrity_info.c struct xrd_cks_data (the stock XrdCks record). */
 struct ckv_cksdata {
     char      Name[16];
     long long fmTime;

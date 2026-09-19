@@ -268,9 +268,9 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_gridftp_pasv_port_range` | stream | `<value> <value>` | `src/protocols/gridftp/ftp_module.c` |
 | `brix_gridftp_require_allo_size` | stream | `on|off` | `src/protocols/gridftp/ftp_module.c` |
 | `brix_gsi_ciphers` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
-| `brix_gsi_legacy_proxy` | http, stream | `off|on|full-only` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
 | `brix_gsi_keypool_seed` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
 | `brix_gsi_keypool_size` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
+| `brix_gsi_legacy_proxy` | http, stream | `<value>` | `src/core/config/http_directives_auth.h`<br>`src/protocols/root/stream/directives_auth.h` |
 | `brix_gsi_max_inflight_handshakes` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
 | `brix_gsi_signed_dh` | stream | `<value>` | `src/protocols/root/stream/directives_auth.h` |
 | `brix_guard` | http | `on|off` | `src/net/httpguard/module.c` |

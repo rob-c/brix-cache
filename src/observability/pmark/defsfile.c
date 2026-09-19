@@ -4,7 +4,7 @@
  * WHAT: Parse the scitags "defsfile" — the JSON registry that maps experiment
  *   and activity NAMES to their numeric ids — into an in-memory table the
  *   mapping layer (mapping.c) resolves config rules against.  Mirrors XRootD's
- *   XrdNetPMarkCfg LoadJson (XrdNetPMarkCfg.cc:891-966).
+ *   XRootD's packet-marking config loader.
  *
  * WHY: SciTags config is written in terms of names (experiment "atlas",
  *   activity "write"), but the wire/firefly carries numeric ids; the registry is

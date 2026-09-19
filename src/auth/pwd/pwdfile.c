@@ -6,7 +6,7 @@
  * WHY:  The credential check must be done WITHOUT ever storing a cleartext
  *       password: brix_pwd_file holds only "user:salthex:hashhex" where
  *       hash = PBKDF2-HMAC-SHA1(password, salt, 10000, 24B) — byte-identical to the
- *       KDF stock XrdSecpwd uses (XrdCryptosslAux.cc DoubleHash/KDFun).  An operator
+ *       KDF stock XrdSecpwd uses (its double-hash KDF).  An operator
  *       generates entries with the same KDF (see docs/refactor/phase-52-pwd-wire-spec.md).
  * HOW:  A small line parser (no allocation; fixed buffers) finds the user, hex-
  *       decodes salt+hash, then PKCS5_PBKDF2_HMAC_SHA1 + a constant-time compare.

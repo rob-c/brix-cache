@@ -1,38 +1,32 @@
 """
-flag_inventory — the authoritative stock client surface, parsed from source.
+flag_inventory — the stock client surface this project measures coverage against.
 
 WHAT
-    Extracts the set of stock ``xrdcp`` options and ``xrdfs`` sub-commands
-    directly from the upstream sources under ``/tmp/brix-src`` so coverage is
-    measured against the REAL stock surface, not a hand-kept guess.
+    The set of stock ``xrdcp`` options and ``xrdfs`` sub-commands the project's
+    own tools are expected to cover, as a pinned table maintained here.
 
 WHY
     Two guarantees fall out of this:
       1. every stock flag/command must be exercised by at least one case
-         (a rebased upstream that adds a flag is reported as untested), and
+         (a flag added to the table is reported as untested until covered), and
       2. every project-only flag must be registered as a divergence
          (so an added knob cannot silently bypass review).
 
+    This table used to be parsed live out of a checkout of the upstream XRootD
+    sources.  That reliance on the XRootD project's source tree has been removed: the
+    suite must build and run from this repository alone, and a clean-room
+    client must not have its test surface derived by reading upstream code.
+    The surface below is the observable command-line contract — the flag names
+    a user types — which is what conformance is measured against.
+
 HOW
-    ``stock_xrdcp_options()`` parses the ``{OPT_TYPE "name", takes_arg, ...}``
-    table in ``XrdApps/XrdCpConfig.cc``.  ``stock_xrdfs_commands()`` parses the
-    ``executor->AddCommand("name", ...)`` registrations in
-    ``XrdCl/XrdClFS.cc``.  Both degrade to a pinned fallback list (with a clear
-    marker) when the source tree is absent, so the suite still runs on a host
-    without ``/tmp/brix-src``.
+    ``stock_xrdcp_options()`` and ``stock_xrdfs_commands()`` return copies of
+    the tables so callers cannot mutate the shared inventory. Extending the
+    surface is a deliberate edit here, reviewed like any other change.
 """
 
-import os
-import re
-
-BRIX_SRC = os.environ.get("BRIX_SRC_DIR", "/tmp/brix-src")
-_CPCONFIG = os.path.join(BRIX_SRC, "src", "XrdApps", "XrdCpConfig.cc")
-_FS = os.path.join(BRIX_SRC, "src", "XrdCl", "XrdClFS.cc")
-
-# Pinned fallbacks (kept in sync with the sources above) for hosts without the
-# upstream checkout.  ``source_available()`` lets a test note when it is using
-# the fallback rather than the live parse.
-_FALLBACK_XRDCP = {
+# Stock xrdcp long-option name -> takes an argument (1) or is a switch (0).
+_STOCK_XRDCP = {
     "cksum": 1, "coerce": 0, "continue": 0, "debug": 1, "dynamic-src": 0,
     "force": 0, "help": 0, "infiles": 1, "license": 0, "nopbar": 0,
     "notlsok": 0, "parallel": 1, "path": 0, "posc": 0, "proxy": 1,
@@ -42,54 +36,20 @@ _FALLBACK_XRDCP = {
     "xrate": 1, "xrate-threshold": 1, "zip": 1, "zip-append": 0,
     "zip-mtln-cksum": 0,
 }
-_FALLBACK_XRDFS = [
+
+# Stock xrdfs sub-commands, including the shell-only ones filtered out below.
+_STOCK_XRDFS = [
     "cache", "cd", "chmod", "ls", "help", "stat", "statvfs", "locate", "mv",
     "mkdir", "rm", "rmdir", "query", "truncate", "prepare", "cat", "tail",
     "spaceinfo", "xattr",
 ]
 
 
-def source_available():
-    """True when the upstream source tree is present for live parsing."""
-    return os.path.exists(_CPCONFIG) and os.path.exists(_FS)
-
-
 def stock_xrdcp_options():
-    """Map of stock xrdcp long-option name -> takes-argument (1/0).
-
-    Parses lines of the form ``{OPT_TYPE "name", 1, 0, XrdCpConfig::OpXxx},``.
-    """
-    if not os.path.exists(_CPCONFIG):
-        return dict(_FALLBACK_XRDCP)
-    rx = re.compile(r'\{\s*OPT_TYPE\s+"([a-zA-Z][a-zA-Z0-9-]*)"\s*,\s*(\d)')
-    out = {}
-    with open(_CPCONFIG, "r", errors="replace") as fh:
-        for line in fh:
-            m = rx.search(line)
-            if m:
-                out[m.group(1)] = int(m.group(2))
-    return out or dict(_FALLBACK_XRDCP)
+    """Map of stock xrdcp long-option name -> takes-argument (1/0)."""
+    return dict(_STOCK_XRDCP)
 
 
 def stock_xrdfs_commands():
     """List of stock xrdfs sub-command names (excluding shell-only cd/help)."""
-    cmds = _read_xrdfs_commands()
-    return [command for command in cmds if command not in ("cd", "help")]
-
-
-def _read_xrdfs_commands():
-    if not os.path.exists(_FS):
-        return list(_FALLBACK_XRDFS)
-    parsed = _parse_xrdfs_commands()
-    return parsed or list(_FALLBACK_XRDFS)
-
-
-def _parse_xrdfs_commands():
-    pattern = re.compile(r'AddCommand\(\s*"([a-zA-Z][a-zA-Z0-9-]*)"')
-    commands = []
-    with open(_FS, "r", errors="replace") as source:
-        for line in source:
-            match = pattern.search(line)
-            if match:
-                commands.append(match.group(1))
-    return commands
+    return [command for command in _STOCK_XRDFS if command not in ("cd", "help")]

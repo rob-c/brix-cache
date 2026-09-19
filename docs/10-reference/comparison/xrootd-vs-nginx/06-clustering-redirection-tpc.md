@@ -15,7 +15,7 @@ five subsystems that turn a single data server into a federated storage service:
    BriX-Cache extension with no official equivalent).
 
 Every claim below is grounded in source. Official paths are under
-`/tmp/brix-src/src/`; module paths are repo-relative under `src/`. Where wire
+the upstream subsystems; module paths are repo-relative under `src/`. Where wire
 interoperability has not been validated end-to-end against a running daemon, the
 text says so explicitly ("not verified").
 
@@ -32,7 +32,7 @@ covered.
 
 Out of scope here (covered in sibling comparison pages): the HTTP/WebDAV
 **HTTP-TPC** `COPY` transport (`src/protocols/webdav/tpc*.c` vs
-`/tmp/brix-src/src/XrdHttpTpc/`); the data-plane I/O opcodes; auth plugins; and
+`XrdHttpTpc/`); the data-plane I/O opcodes; auth plugins; and
 UDP monitoring (an explicit module non-goal). Erasure-coded redirects
 (`kXR_ecRedir`) are defined but never set on the module side and require an EC
 backend, so they are not analysed.
@@ -746,7 +746,7 @@ server {
 
 ## Source references
 
-Official XRootD (`/tmp/brix-src/src/`):
+Official XRootD (upstream):
 
 - CMS roles/config: `XrdCms/XrdCmsRole.hh`, `XrdCms/XrdCmsConfig.cc` (`xrole`),
   `XrdCms/XrdCmsConfig.hh` (`ManList`/`NanList`/`SanList`).

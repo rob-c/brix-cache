@@ -184,30 +184,108 @@ def _is_sink(node) -> bool:
         and node.func.attr in SINKS and bool(node.args)
 
 
-def _sunk(fn):
-    """Spec constructions fn hands to X.start()/X.register(), outside any
-    `pytest.raises` block."""
+def _sunk_arg(mod: Module, node, spec_sinks: dict):
+    """The spec `node` hands to the harness, or None.
+
+    Either `X.start(spec)` / `X.register(spec)` directly, or a bare-name call to
+    a SPEC SINK — a module-level function that takes a whole spec and hands it
+    on.  The second form is not a niceness: `_start_webdav()` in
+    `test_impersonation_gridmap_root.py` builds its spec and passes it to a
+    local `_render_and_launch(harness, spec)`, so nothing in the name-wrapper
+    model above ever saw the construction, and two unledgered names reached the
+    fleet with the guard reporting OK.
+    """
+    if _is_sink(node):
+        return node.args[0]
+    if not isinstance(node, ast.Call):
+        return None
+    slot = spec_sinks.get(_target(mod, node))
+    return _arg_at(node, slot) if slot else None
+
+
+def _sunk(fn, mod: Module, spec_sinks: dict):
+    """Spec constructions fn hands to the harness, outside any `pytest.raises`
+    block — directly or through a spec sink."""
     bound, negated = _bound_specs(fn), _under_raises(fn)
     for node in _own(fn):
-        if not _is_sink(node) or id(node) in negated:
+        if id(node) in negated:
             continue
-        arg = node.args[0]
+        arg = _sunk_arg(mod, node, spec_sinks)
         if _is_spec(arg):
             yield arg
         elif isinstance(arg, ast.Name) and arg.id in bound:
             yield bound[arg.id]
 
 
+# --- spec sinks: functions that take a whole spec and hand it to the harness --
+
+
+def _spec_slot(fn):
+    """The slot of fn's own parameter that fn hands straight to a sink."""
+    for node in _own(fn):
+        if _is_sink(node):
+            slot = _slot(fn, node.args[0])
+            if slot:
+                return slot
+    return None
+
+
+def _forwarded_spec_slot(mod: Module, fn, spec_sinks: dict):
+    """The slot of fn's own parameter that fn hands to a spec sink's slot."""
+    for call in _own(fn):
+        if not isinstance(call, ast.Call):
+            continue
+        slot = spec_sinks.get(_target(mod, call))
+        inner = _slot(fn, _arg_at(call, slot)) if slot else None
+        if inner:
+            return inner
+    return None
+
+
+def _promote_spec_sinks(mods: list, spec_sinks: dict) -> bool:
+    """A function that forwards its own parameter into a spec sink's slot is a
+    spec sink too.  Returns whether the set grew."""
+    grew = False
+    for mod in mods:
+        for fn in mod.funcs.values():
+            if (mod.path, fn.name) in spec_sinks:
+                continue
+            slot = _forwarded_spec_slot(mod, fn, spec_sinks)
+            if slot:
+                spec_sinks[(mod.path, fn.name)] = slot
+                grew = True
+    return grew
+
+
+def _spec_sink_pass(mods: list) -> dict:
+    """{(module path, funcname): slot} for every spec-forwarding function.
+
+    Seeded from the ones that call a sink on their own parameter, then closed
+    the same way the name-wrapper set is: one hop is as arbitrary a limit here
+    as it was there.  Only module-level defs qualify, so the harness's own
+    ``register``/``start`` methods are never mistaken for one.
+    """
+    sinks = {}
+    for mod in mods:
+        for fn in mod.funcs.values():
+            slot = _spec_slot(fn)
+            if slot:
+                sinks[(mod.path, fn.name)] = slot
+    while _promote_spec_sinks(mods, sinks):
+        pass
+    return sinks
+
+
 # ---------------------------------------------------------------------------
 # the tree: direct starts, wrappers, and calls through wrappers
 
 
-def _direct(mod: Module) -> tuple:
+def _direct(mod: Module, spec_sinks: dict) -> tuple:
     """(judged (lineno, name, via), wrappers {funcname: slot}) from the specs
     the module's own functions start."""
     judged, wrappers = [], {}
     for fn in (n for n in ast.walk(mod.tree) if isinstance(n, _FUNCS)):
-        for spec in _sunk(fn):
+        for spec in _sunk(fn, mod, spec_sinks):
             expr = _name_expr(spec)
             lit = _literal(expr, mod.consts)
             if lit is not None:
@@ -282,11 +360,11 @@ def _located(mod: Module, hits: list) -> list:
     return [(mod.path, ln, name, via) for ln, name, via in hits]
 
 
-def _direct_pass(mods: list) -> tuple:
+def _direct_pass(mods: list, spec_sinks: dict) -> tuple:
     """(judged, wrappers) from every module's own starts."""
     judged, wrappers = [], {}
     for mod in mods:
-        direct, own = _direct(mod)
+        direct, own = _direct(mod, spec_sinks)
         judged += _located(mod, direct)
         wrappers.update({(mod.path, f): slot for f, slot in own.items()})
     return judged, wrappers
@@ -305,7 +383,7 @@ def _wrapper_pass(mods: list, wrappers: dict) -> list:
 def _audit(root: Path) -> tuple:
     """(every judged (path, lineno, name, via), wrappers)."""
     mods = [Module.load(p, root) for p in sorted(root.rglob("*.py"))]
-    judged, wrappers = _direct_pass(mods)
+    judged, wrappers = _direct_pass(mods, _spec_sink_pass(mods))
     judged += _wrapper_pass(mods, wrappers)
     return judged, wrappers
 

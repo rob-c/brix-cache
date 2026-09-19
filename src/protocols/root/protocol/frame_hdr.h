@@ -15,7 +15,7 @@
  *       no allocation, no OpenSSL. The memcpy+ntoh accessors are the exact idiom
  *       the safe server sites (compat/vendor_ext.c) already use.
  *
- * Clean-room: layouts from src/protocol (cross-checked vs XProtocol.hh).
+ * Clean-room: layouts from src/protocol, the in-repo spec.
  */
 #ifndef BRIX_PROTOCOL_FRAME_HDR_H
 #define BRIX_PROTOCOL_FRAME_HDR_H

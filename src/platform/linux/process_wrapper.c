@@ -11,6 +11,18 @@
  * HOW:  Thin wrappers over glibc and raw syscalls; nothing here is policy.
  */
 
+/* The glibc feature-test macro these bodies need (accept4, getgrouplist, pidfd).  Guarded, not
+ * bare, because both real builds already pass -D_GNU_SOURCE on the command
+ * line (./config for the module, client/Makefile's HARDEN for the client) and
+ * an unguarded redefinition is an error under -Werror.  Declared HERE rather
+ * than left to the caller so a standalone harness that links one PAL body --
+ * every tests/cmdscripts compile line that reaches brix_plat_* -- gets the
+ * prototypes too, instead of an implicit declaration and a silent link
+ * failure.  It must precede every include, hence its place above them. */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "../platform.h"
 #include "../platform_api.h"
 #include <poll.h>
@@ -189,28 +201,42 @@ brix_plat_self_exe(char *buf, size_t cap)
 int
 brix_plat_boot_id(char *buf, size_t cap)
 {
-    int     fd = open("/proc/sys/kernel/random/boot_id", O_RDONLY | O_CLOEXEC); /* vfs-seam-allow: SEAM_CORRECT - PAL body reading procfs, not storage */
+    char    line[64];   /* a 36-char UUID and its newline, with room to spare */
+    int     fd;
     ssize_t n;
+    size_t  len;
 
-    if (fd < 0) {
-        return -1;
-    }
     if (cap == 0) {
-        close(fd);
         errno = ENAMETOOLONG;
         return -1;
     }
-    n = read(fd, buf, cap - 1); /* vfs-seam-allow: SEAM_CORRECT - PAL body reading procfs, not storage */
+    fd = open("/proc/sys/kernel/random/boot_id", O_RDONLY | O_CLOEXEC); /* vfs-seam-allow: SEAM_CORRECT - PAL body reading procfs, not storage */
+    if (fd < 0) {
+        return -1;
+    }
+    /* Read the id whole, into a local, and only then check that it fits.
+     * Reading cap-1 bytes straight into `buf` handed the caller a PREFIX of
+     * the boot id and called it success; two boots sharing that prefix then
+     * compare equal, so brixcvmfs would read a stale transaction lock as live.
+     * brix_plat_self_exe above already refuses a truncated answer and Darwin's
+     * sysctl form fails ENOMEM on a short buffer — this is the same rule. */
+    n = read(fd, line, sizeof(line) - 1); /* vfs-seam-allow: SEAM_CORRECT - PAL body reading procfs, not storage */
     close(fd);
     if (n < 0) {
         return -1;
     }
-    buf[n] = '\0';
-    buf[strcspn(buf, "\n")] = '\0';
-    if (buf[0] == '\0') {
+    line[n] = '\0';
+    line[strcspn(line, "\n")] = '\0';
+    len = strlen(line);
+    if (len == 0) {
         errno = ENODATA;
         return -1;
     }
+    if (len >= cap) {
+        errno = ENAMETOOLONG;   /* truncated: a partial boot id is no boot id */
+        return -1;
+    }
+    memcpy(buf, line, len + 1);
     return 0;
 }
 

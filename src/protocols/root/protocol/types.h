@@ -2,7 +2,7 @@
 #define BRIX_PROTOCOL_TYPES_H
 
 /*
- * Primitive type aliases matching XProtocol.hh.
+ * Primitive type aliases matching the wire spec's type names.
  * Request and response structs in wire.h use these names so they stay
  * visually close to the published XRootD protocol specification.
  */

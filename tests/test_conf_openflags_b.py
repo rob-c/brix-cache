@@ -105,7 +105,7 @@ def test_open_append_parity(srv, idx):
 # J. MODE BITS on create -> on-disk mode parity (mapMode | S_IRUSR|S_IWUSR)
 # =========================================================================== #
 # request mode bits are XrdXrootd Map_Mode: ur=0x100,uw=0x80,ux=0x40,
-# gr=0x20,gw=0x10,gx=0x08,or=0x04,ox=0x01 (XProtocol.hh). do_Open always ORs
+# gr=0x20,gw=0x10,gx=0x08,or=0x04,ox=0x01 (the wire spec). do_Open always ORs
 # S_IRUSR|S_IWUSR, so the effective floor is 0600.
 M_UR, M_UW, M_UX = 0x100, 0x080, 0x040
 M_GR, M_GW, M_GX = 0x020, 0x010, 0x008
@@ -215,7 +215,7 @@ def test_open_opaque_cgi_ignored(srv, suffix):
 #     logs, or forwards it. OURS intentionally diverges from stock here (stock
 #     accepts the raw bytes), so these assert OURS-only rejection, NOT parity.
 # =========================================================================== #
-kXR_ArgInvalid = 3000   # XProtocol.hh — "an argument has an illegal value"
+kXR_ArgInvalid = 3000   # the wire spec — "an argument has an illegal value"
 
 
 
@@ -270,10 +270,10 @@ def test_open_opaque_injection_byte_no_opaque_clean(srv):
 # L2. OPAQUE SEPARATOR CONFORMANCE — '&' is the SOLE separator; ';' is value byte
 # ---------------------------------------------------------------------------
 # XRootD tokenises the opaque/CGI on '&' ONLY, in BOTH directions:
-#   * server: XrdOuc/XrdOucEnv.cc — XrdOucEnv::Env scans for '&' (and '=') and
+#   * server: XrdOuc/stock XRootD — XrdOucEnv::Env scans for '&' (and '=') and
 #     nothing else; a ';' inside the string is an ordinary value byte, so
 #     "k=v;other=z" is the SINGLE pair k = "v;other=z".
-#   * client: XrdCl/XrdClURL.cc URL::SetParams() — Utils::splitString(..., "&").
+#   * client: the stock client URL::SetParams() — Utils::splitString(..., "&").
 # So ';' is NEVER a delimiter on the wire — it is ordinary value content, and a
 # conforming server MUST accept it. brix therefore permits ';' in the opaque gate
 # (parity: rejecting it would break a legitimate "k=v;other=z" that stock accepts)
@@ -299,8 +299,8 @@ def test_open_opaque_injection_byte_no_opaque_clean(srv):
 ])
 def test_open_opaque_semicolon_is_value_content_not_a_separator(srv, opaque, where):
     """conformance (differential vs stock): a ';' anywhere in the opaque is
-    ORDINARY VALUE CONTENT — XRootD splits only on '&' (XrdOucEnv.cc /
-    XrdClURL.cc), so "k=v;other=z" is one pair and a conforming server accepts it.
+    ORDINARY VALUE CONTENT — XRootD splits only on '&' (stock XRootD /
+    the stock client), so "k=v;other=z" is one pair and a conforming server accepts it.
     brix must match stock BYTE-FOR-BYTE here (accept + open), never reject. Guards
     against re-removing ';' from BRIX_OPAQUE_ALLOWED (a wire-parity regression)."""
     st_o, b_o, st_f, b_f, raw = assert_same_category(srv, "/data.bin?" + opaque, kXR_open_read)

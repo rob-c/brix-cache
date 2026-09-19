@@ -28,7 +28,7 @@ from settings import NGINX_BIN, free_port, HOST, BIND_HOST
 
 PORT = int(os.environ.get("TEST_FRM_QUEUE_PORT") or free_port())
 
-# --- wire constants (XProtocol.hh) ---
+# --- wire constants (the wire spec) ---
 kXR_login    = 3007
 kXR_query    = 3001
 kXR_prepare  = 3021

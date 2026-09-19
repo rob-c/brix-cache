@@ -152,6 +152,11 @@ typedef struct {
 
 int download_stream_body(const download_body_ctx *j, pump_sink_fn sink, void *sinkctx, brix_status *st);
 
+/* copy_local_fast.c — the pipelined half download_stream_body prefers when the
+ * transfer is a plain sized read (no pgrw, no compress, no rate cap). */
+int download_fast_eligible(const download_body_ctx *j);
+int download_stream_fast(const download_body_ctx *j, pump_sink_fn sink, void *sinkctx, brix_status *st);
+
 /* copy.c */
 int resilient_setup(brix_conn *c, const brix_url *su, const brix_opts *co, brix_statinfo *si, int max_stall_ms, brix_status *st);
 

@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import tempfile
 
-from cmdscripts.compile_run import REPO_ROOT, result, run
+from cmdscripts.compile_run import REPO_ROOT, pal_host_sources, result, run
 from cmdscripts.command_results import print_results
 
 
@@ -359,6 +359,9 @@ def sd_block_space(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, s
     return _compile_and_run(
         base / "test_sd_block_space",
         ["-O", "-Wall", str(TEST_C / "test_sd_block_space.c"), *objs,
+         # INVARIANT 14: sd_block.o asks the PAL for a block device's size
+         # (brix_plat_blockdev_size); its host body comes with it.
+         *pal_host_sources("storage_wrapper"),
          *_nginx_includes(ngx_src)],
     )
 

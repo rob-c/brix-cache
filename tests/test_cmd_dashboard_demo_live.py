@@ -34,7 +34,11 @@ def test_dashboard_demo_scenarios_are_importable():
 def test_dashboard_demo_live_flow():
     _guard_test_dashboard_demo_live_flow_1()
     _guard_test_dashboard_demo_live_flow_2()
-    gateway_up = dashboard_demo_live._listening(dashboard_demo_live.ROOT_PORT)
+    # Both listeners, not just root://: a stock xrootd on the host answers on
+    # :11094 and would make this read "a gateway is already up" about a process
+    # that cannot serve the dashboard — so the skip below never fires and the
+    # demo fails on a port it was never going to get. See `gateway_up`.
+    gateway_up = dashboard_demo_live.gateway_up()
     startable = (
         dashboard_demo_live.NGINX_BIN.exists()
         and dashboard_demo_live.TEST_CONF.is_file()

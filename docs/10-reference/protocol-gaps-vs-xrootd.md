@@ -23,7 +23,7 @@
 > leaves nothing open: axis (e) is closed in full at F1–F22. A row below that names a closed item is stale by construction; this file is
 > kept as a historical snapshot and is no longer maintained row by row.
 
-> **Scope**: Comparison of BriX-Cache (`src/`) against reference xrootd server (`/tmp/brix-src/src/`, v5.2.0 protocol surface). Covers all protocol opcodes, security plugins, server modules, capability flags, and optional features.
+> **Scope**: Comparison of BriX-Cache (`src/`) against the reference xrootd server (v5.2.0 protocol surface). Covers all protocol opcodes, security plugins, server modules, capability flags, and optional features.
 >
 > **Legend**: ✅ implemented · ⚠️ partial · ❌ not implemented · N/A not applicable · 📋 out of scope
 

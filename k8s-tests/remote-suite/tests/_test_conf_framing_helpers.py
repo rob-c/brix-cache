@@ -30,7 +30,7 @@ require BOTH to reject and bucket the code rather than demand an exact match.
 For positional/existence ops (open-of-dir, stat-missing, close-of-stale-handle)
 the reference IS exact and we pin the numeric code.
 
-Wire reference: /tmp/brix-src/src/XProtocol/XProtocol.hh
+Wire reference: src/protocols/root/protocol/opcodes.h + wire_core_requests.h
   ClientRequestHdr = streamid[2] requestid[2] <12 body bytes> dlen[4 BE].
   XRequestTypes 3000..3032 (kXR_REQFENCE=3033); error codes 3000..3035.
 
@@ -79,7 +79,7 @@ def srv(tmp_path_factory):
 
 
 # =========================================================================== #
-# opcodes / status / error codes (XProtocol.hh).
+# opcodes / status / error codes (the wire spec).
 # =========================================================================== #
 kXR_auth, kXR_query, kXR_chmod, kXR_close, kXR_dirlist = 3000, 3001, 3002, 3003, 3004
 kXR_gpfile, kXR_protocol, kXR_login, kXR_mkdir, kXR_mv = 3005, 3006, 3007, 3008, 3009

@@ -55,8 +55,20 @@ def nginx_t_text(text, root):
     # build tree's objs/nginx is relinked by any concurrent `make`, and an exec
     # inside that window fails with EACCES (seen as a -x halt on a pure parse
     # test while a sibling session rebuilt).
+    #
+    # `-e stderr` is what makes the returned CompletedProcess the whole answer.
+    # A config-parse diagnostic goes to `cf->log`, which is the INIT-cycle log —
+    # the config's own `error_log` has not taken effect yet — and with no `-e`
+    # nginx points that at the compiled-in default, `<prefix>/logs/error.log`.
+    # nginx duplicates to stderr only at WARN and above, so an `[emerg]` reject
+    # still reached the caller and every NOTICE a directive announces itself
+    # with silently did not: the kTLS and OCSP-stapling suites asserted on
+    # notices that were being written, correctly, to a file nobody read.  The
+    # registry launcher has always passed its own `-e`; this is the parse lane
+    # catching up.
     return subprocess.run(
-        [_nginx_bin(), "-t", "-p", str(root), "-c", "conf/nginx.conf"],
+        [_nginx_bin(), "-t", "-p", str(root), "-c", "conf/nginx.conf",
+         "-e", "stderr"],
         capture_output=True,
         text=True,
         timeout=30,

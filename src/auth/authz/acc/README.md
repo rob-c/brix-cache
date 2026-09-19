@@ -28,24 +28,26 @@ XRootD `authdb` semantics bit-for-bit.
 
 | File | XrdAcc analogue | Role |
 |---|---|---|
-| `privs.h` / `privs.c` | `XrdAccPrivs.hh`, `Test()`, `PrivsConvert()` | pure privilege algebra (no nginx deps; unit-testable) |
+| `privs.h` / `privs.c` | XrdAcc privilege algebra (`Test`, `PrivsConvert`) | pure privilege algebra (no nginx deps; unit-testable) |
 | `acc.h` | — | nginx-facing umbrella header |
-| `authfile.c` (+ `authfile_record.c`, `authfile_tokenize.c`, `authfile_internal.h`) | `XrdAccAuthFile.cc` | authdb grammar parser (tokenizer + record assembly split out) |
-| `tables.c` | `XrdAccAccess.hh` | identity hash tables + rule lists |
-| `capability.c` | `XrdAccCapability.cc` | path prefix + `@=` template matching |
-| `entity.c` | `XrdAccEntity.cc` | identity → attribute tuples |
+| `authfile.c` (+ `authfile_record.c`, `authfile_tokenize.c`, `authfile_internal.h`) | XrdAcc authfile | authdb grammar parser (tokenizer + record assembly split out) |
+| `tables.c` | XrdAcc access tables | identity hash tables + rule lists |
+| `capability.c` | XrdAcc capabilities | path prefix + `@=` template matching |
+| `entity.c` | XrdAcc entity | identity → attribute tuples |
 | `access.c` | `XrdAccAccess::Access()` | the decision engine |
-| `groups.c` | `XrdAccGroups.cc` | Unix/NIS group resolution + cache + gidretran |
-| `audit.c` | `XrdAccAudit.cc` | grant/deny audit logging |
+| `groups.c` | XrdAcc groups | Unix/NIS group resolution + cache + gidretran |
+| `audit.c` | XrdAcc audit | grant/deny audit logging |
 | `resolve.c` | `XrdAccAccess::Resolve` | never-blocking probe of the phase-116 reverse cache for the peer's FQDN (`h <host>`/`.domain` rules); the lookup itself runs off the loop at accept (stream) / PREACCESS (HTTP), and a still-pending answer counts `brix_acc_dns_pending_fallback_total` |
-| `config.c` | `XrdAccConfig.cc` | directives + per-worker build (stream + HTTP hot-reload) |
-| `privs.c` / `privs.h` | `XrdAccPrivs.hh` | `brix_acc_op_t` enum, per-op required-privilege bits (`brix_acc_op_needs`/`brix_acc_test`), op names |
+| `config.c` | XrdAcc config | directives + per-worker build (stream + HTTP hot-reload) |
+| `privs.c` / `privs.h` | XrdAcc privileges | `brix_acc_op_t` enum, per-op required-privilege bits (`brix_acc_op_needs`/`brix_acc_test`), op names |
 
 ## Reference
 
-Ported from `/tmp/xrootd-src/src/XrdAcc/`. Numeric privilege values and the
-operation→privilege table are kept identical to `XrdAccPrivs.hh` /
-`XrdAccAuthorize.hh` so a stock XRootD `authdb` file yields identical decisions.
+An independent re-implementation of the XrdAcc engine, as stated above and in the
+repo-root [`THIRD-PARTY-NOTICES`](../../../../THIRD-PARTY-NOTICES).
+Numeric privilege values and the
+operation→privilege table are kept identical to stock XrdAcc so a stock
+XRootD `authdb` file yields identical decisions.
 
 > **Letter note:** in `native`, `a` = append-privilege; in `xrdacc`, `a` = *all*
 > privileges (the engines use separate, non-shared parsers — no ambiguity).

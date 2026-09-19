@@ -85,7 +85,19 @@ def is_owner(path):
 
 
 def private_pal_header(path, target):
-    """Resolve quoted relative and repository include-root PAL paths."""
+    """Resolve quoted relative and repository include-root PAL paths.
+
+    A client source resolves `platform/...` against `client/lib` FIRST, exactly
+    as client/Makefile orders its include flags (``-Ilib -I$(SRC)``): the client
+    PAL owns headers whose relative names repeat under `src/platform`, and only
+    the module's are policed here.  Without that precedence the shim's
+    "platform/preload.h" — client/lib/platform/preload.h, which exists — reads
+    as the private src/platform header of the same relative name.
+    """
+    if path.is_relative_to(Path('client')):
+        client = Path(os.path.normpath(Path('client/lib') / target))
+        if client.is_relative_to(Path('client/lib/platform')):
+            return False
     candidates = (path.parent / target, Path('src') / target, Path(target))
     for candidate in candidates:
         normalized = Path(os.path.normpath(candidate))

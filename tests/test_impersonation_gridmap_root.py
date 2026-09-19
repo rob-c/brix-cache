@@ -15,8 +15,10 @@ What is genuinely new here (vs. the existing coverage):
     grid-mapfile.
   * ``tests/c/idmap_test.c`` resolves a grid-mapfile DN to a uid but never writes
     a file.
-  * the multi-user conformance fleet (``mu_authz_lib/``) runs
-    ``brix_idmap off``.
+  * the multi-user conformance fleet (``mu_authz_lib/``) runs ``brix_idmap off``
+    on every node it authorizes through, and carries exactly one map-mode node
+    (``multiuser/root_write_imp.conf``) whose only job is to give F6 a write it
+    can attribute — it has no authdb and proves nothing about mapping itself.
 
 This module launches the real nginx binary as host root, through the registry
 ``LifecycleHarness``, maps an incoming **WLCG token** (WebDAV) and an incoming
@@ -120,13 +122,17 @@ def _render_and_launch(harness, spec) -> object:
     """Render + validate through the registry harness, then launch via the
     detached fleet seam.
 
-    We deliberately avoid ``harness.start()`` here: its launch pipes the child's
-    stdout/stderr and waits for EOF, but ``brix_idmap map`` double-forks a
-    long-lived privileged broker during ``init_module`` (before nginx daemonizes),
-    so the broker inherits and holds that pipe open forever.  ``launch_fleet_nginx``
-    is the registry's own fire-and-forget seam (``start_new_session``, inherited
-    fds) used for exactly this class of long-lived daemon; the instance is still
-    registered, so ``harness.close()`` reaps it by pidfile on teardown.
+    ``launch_fleet_nginx`` is the registry's own fire-and-forget seam
+    (``start_new_session``, inherited fds) for this class of long-lived daemon;
+    the instance is still registered, so ``harness.close()`` reaps it by pidfile
+    on teardown.
+
+    It used to be the only seam that worked: ``harness.start()`` pipes the
+    child's stdout/stderr and waits for EOF, and ``brix_idmap map`` double-forks
+    its privileged broker during ``init_module`` — before nginx daemonizes — so
+    the broker inherited those pipe write ends and never gave EOF up.  The broker
+    now seals its inherited descriptors and either seam works;
+    ``sealed_broker`` below deliberately uses the piped one to keep that true.
     """
     unique = harness.register(spec)
     ep = endpoint_for(unique)
@@ -294,7 +300,11 @@ def root_gsi(harness):
         if not os.path.exists(f):
             pytest.skip(f"GSI PKI not provisioned ({f} missing)")
     export, run_dir, auth_dir = H.prepare_export(BASE, "impgm-root-gsi")
-    dn = H.proxy_leaf_dn(proxy)
+    # The EEC DN, not the proxy leaf: brix maps on the stable end-entity subject
+    # so a re-delegation (new serial, new leaf DN) does not silently unmap the
+    # user.  Keying this fixture on the leaf made the broker log "no UNIX mapping
+    # for principal" and the write come back kXR_NotAuthorized.
+    dn = H.proxy_eec_dn(proxy)
     gridmap = os.path.join(auth_dir, "gridmap")
     H.write_gridmap(gridmap, [(dn, H.acct("alice"))])
     ep = _render_and_launch(harness, NginxInstanceSpec(
@@ -363,16 +373,24 @@ def test_distinct_tokens_map_to_distinct_accounts(webdav_squash):
 
 
 def test_kernel_dac_enforced_between_mapped_accounts(webdav_squash):
-    """Real per-identity kernel DAC: alice creates a private (0600) object; alice
-    can read it back but bob — a different mapped account — is denied at open time
-    by the kernel, even though the worker uid could read it.  This is the property
-    that is meaningless without a real setfsuid broker holding no CAP_DAC_OVERRIDE."""
+    """Real per-identity kernel DAC: alice owns a private (0600) object; alice can
+    read it back but bob — a different mapped account — is denied at open time by
+    the kernel, even though the worker uid could read it.  This is the property
+    that is meaningless without a real setfsuid broker holding no CAP_DAC_OVERRIDE.
+
+    The private mode is applied here, not expected from the PUT: a WebDAV upload
+    creates at NGX_FILE_DEFAULT_ACCESS (0644) like every other nginx-written
+    file, and the subject of this test is the kernel's per-uid check, not the
+    create mode.  Asserting 0600 straight out of the PUT made it fail on a
+    premise the product never promised."""
     ta = webdav_squash.ti.generate(sub=P_ALICE, scope=H.RW_SCOPE)
     tb = webdav_squash.ti.generate(sub=P_BOB, scope=H.RW_SCOPE)
     assert _put(webdav_squash.url, "/dac_secret.dat", ta, b"sekret").status_code \
         in (200, 201, 204)
     st = H.stat_export(webdav_squash.export, "dac_secret.dat")
     _assert_owned_by(st, "alice")
+    os.chmod(os.path.join(webdav_squash.export, "dac_secret.dat"), 0o600)
+    st = H.stat_export(webdav_squash.export, "dac_secret.dat")
     assert not (st.st_mode & (stat.S_IRGRP | stat.S_IROTH)), \
         "object must be owner-private for the DAC test to be meaningful"
 
@@ -454,3 +472,204 @@ def test_x509_dn_gridmap_write_owned_by_mapped_account(root_gsi):
 
     s = H.stat_export(root_gsi.export, "x509_alice.dat")
     _assert_owned_by(s, "alice")
+
+
+# --------------------------------------------------------------------------- #
+# What the broker may still be holding after the fork                         #
+# --------------------------------------------------------------------------- #
+# The broker is forked out of init_module, which nginx runs INSIDE
+# ngx_init_cycle() — after the listening sockets are bound and before
+# ngx_daemon() — and the double-fork then reparents it to init.  So it starts
+# life holding a copy of every descriptor the master had at that instant and,
+# unlike a worker, it outlives the nginx generation that made it.  Left alone it
+# kept the bound TCP listener (the next start of that server died with
+# EADDRINUSE against a process absent from nginx's pid file), the open log files
+# (pinning deleted inodes), and the supervising launcher's stdout/stderr pipes
+# (withholding EOF from a parent that reads them to completion — which is why
+# _render_and_launch above uses the detached seam instead of harness.start()).
+# These three pin the sealing: the port comes back, the piped seam returns, and
+# a root daemon holds nothing it was not handed.
+
+
+def _broker_pid(sock: str) -> int:
+    from pathlib import Path
+    for _ in range(50):
+        try:
+            return int(Path(sock + ".pid").read_text().strip())
+        except (FileNotFoundError, ValueError, OSError):
+            time.sleep(0.1)
+    raise AssertionError(f"broker never recorded a pid at {sock}.pid")
+
+
+def _fd_targets(pid: int) -> "dict[int, str]":
+    """The broker's descriptor table as {fd: target}, read from /proc."""
+    base = f"/proc/{pid}/fd"
+    if not os.path.isdir(base):
+        pytest.skip("descriptor introspection needs /proc (Linux)")
+    out = {}
+    for name in os.listdir(base):
+        try:
+            out[int(name)] = os.readlink(os.path.join(base, name))
+        except OSError:
+            continue      # raced the broker closing it; not our concern
+    return out
+
+
+def _tcp_socket_inodes() -> "set[str]":
+    """Every TCP/TCP6 socket inode on the host, from /proc/net."""
+    out = set()
+    for name in ("/proc/net/tcp", "/proc/net/tcp6"):
+        try:
+            lines = open(name).read().splitlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            fields = line.split()
+            if len(fields) > 9:
+                out.add(fields[9])
+    return out
+
+
+def _assert_stdio_is_null(targets: "dict[int, str]") -> None:
+    bad = {fd: targets.get(fd) for fd in (0, 1, 2)
+           if targets.get(fd) != "/dev/null"}
+    assert not bad, f"broker stdio is {bad}, not /dev/null — it still holds the "\
+                    "supervisor's stdin/stdout/stderr"
+
+
+def _assert_no_network_socket(targets: "dict[int, str]") -> None:
+    """AF_UNIX sockets are legitimate — the broker's own listener plus whatever
+    worker connections are live.  A NETWORK socket is not: the broker never
+    speaks TCP, so one here is an inherited nginx listener, which is exactly what
+    kept the port bound past nginx's own lifetime."""
+    inodes = {t[len("socket:["):-1] for t in targets.values()
+              if t.startswith("socket:[")}
+    held = inodes & _tcp_socket_inodes()
+    assert not held, f"broker holds inherited TCP socket(s) {sorted(held)}: {targets}"
+
+
+def _is_export_object(target: str, root: str) -> bool:
+    """True iff a /proc fd target names a regular FILE inside the export root.
+    Non-path targets ("/dev/null", "socket:[…]") never resolve under it."""
+    real = os.path.realpath(target.removesuffix(" (deleted)"))
+    under = real.startswith(root + os.sep)
+    return under and os.path.isfile(real)
+
+
+def _assert_no_export_object(targets: "dict[int, str]", export: str) -> None:
+    """The O_PATH confinement root is the export DIRECTORY itself and is the
+    broker's reason for existing; an inherited handle on a FILE under it is a
+    path around the very confinement it enforces, usable without ever presenting
+    an identity."""
+    root = os.path.realpath(export)
+    held = [t for t in targets.values() if _is_export_object(t, root)]
+    assert not held, f"broker holds inherited handle(s) on export object(s) {held}"
+
+
+@pytest.fixture(scope="module")
+def sealed_broker(harness):
+    """A map-mode instance started through the PIPED launcher seam.
+
+    Deliberately ``harness.start()`` and not ``_render_and_launch``: the piped
+    seam is the one the broker used to wedge, so a fixture that avoided it could
+    not observe the sealing at all."""
+    export, run_dir, auth_dir = H.prepare_export(BASE, "impgm-sealed")
+    gridmap = os.path.join(auth_dir, "gridmap")
+    H.write_gridmap(gridmap, [(P_ALICE, H.acct("alice"))])
+    ti = H.token_authority(auth_dir)
+    sock = os.path.join(run_dir, "impersonate.sock")
+    spec = NginxInstanceSpec(
+        name="impgm-sealed",
+        template="nginx_impersonate_gridmap_webdav.conf",
+        protocol="http",
+        data_root=export,
+        readiness="tcp",
+        template_values={
+            "EXPORT": export, "SOCK": sock, "GRIDMAP": gridmap,
+            "JWKS": ti.jwks_path, "ISSUER": H.ISSUER, "AUDIENCE": H.AUDIENCE,
+            "DEFAULT_USER_LINE": "",
+        },
+    )
+    started = time.monotonic()
+    ep = harness.start(spec)
+    elapsed = time.monotonic() - started
+    _BROKER_SOCKS.append(sock)
+    return SimpleNamespace(ep=ep, sock=sock, export=export,
+                           start_seconds=elapsed)
+
+
+def test_piped_launch_of_a_map_mode_node_is_not_withheld_by_the_broker(sealed_broker):
+    """``harness.start()`` reads the child's stdout/stderr to EOF.  nginx
+    daemonizes and exits immediately, so EOF is due at once — unless the broker
+    is still holding the write ends, in which case the read blocks for the whole
+    launcher timeout and a node that is already serving looks like a slow start.
+    Ten seconds is far above a real start here (sub-second) and far below the
+    ~23 s the held pipe cost."""
+    assert sealed_broker.start_seconds < 10.0, (
+        f"piped start of a map-mode node took {sealed_broker.start_seconds:.1f}s; "
+        "the broker is holding the launcher's pipe write ends open")
+
+
+def test_broker_holds_nothing_it_was_not_handed(sealed_broker):
+    """Security: this daemon runs as root for the life of the node, so its
+    descriptor table is an authority list.  It may hold its own 0600 AF_UNIX
+    listener, the O_PATH export root it confines every impersonated open to, and
+    its log — nothing else.  In particular an inherited WRITE handle on an export
+    object would be a path around the confinement the broker exists to enforce,
+    reachable without ever presenting an identity."""
+    targets = _fd_targets(_broker_pid(sealed_broker.sock))
+    _assert_stdio_is_null(targets)
+    _assert_no_network_socket(targets)
+    _assert_no_export_object(targets, sealed_broker.export)
+
+
+def test_listener_is_released_when_the_master_stops(harness):
+    """The port must come back when nginx does, not when the broker does.
+
+    Stopping the master is `nginx -s quit`, which reaps the master and its
+    workers and leaves the init-reparented broker running by design.  If that
+    broker still holds the inherited listener the socket stays bound to a
+    process nginx does not know about, and the next start of the same server
+    fails with EADDRINUSE — attributed to whatever is starting, never to the
+    daemon actually holding the port.
+
+    This owns its instance rather than sharing ``sealed_broker``: it stops the
+    server it measures, and a shared one would make the other two tests depend
+    on running first."""
+    export, run_dir, auth_dir = H.prepare_export(BASE, "impgm-rebind")
+    gridmap = os.path.join(auth_dir, "gridmap")
+    H.write_gridmap(gridmap, [(P_ALICE, H.acct("alice"))])
+    ti = H.token_authority(auth_dir)
+    sock = os.path.join(run_dir, "impersonate.sock")
+    ep = _render_and_launch(harness, NginxInstanceSpec(
+        name="impgm-rebind",
+        template="nginx_impersonate_gridmap_webdav.conf",
+        protocol="http",
+        data_root=export,
+        readiness="tcp",
+        template_values={
+            "EXPORT": export, "SOCK": sock, "GRIDMAP": gridmap,
+            "JWKS": ti.jwks_path, "ISSUER": H.ISSUER, "AUDIENCE": H.AUDIENCE,
+            "DEFAULT_USER_LINE": "",
+        },
+    ))
+    pid = _broker_pid(sock)
+
+    harness.stop("impgm-rebind")
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        pytest.fail(f"broker {pid} died with the master — this test can only "
+                    "prove the release if the broker is still running")
+
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.bind((BIND, ep.port))
+        probe.listen(1)
+    except OSError as exc:
+        raise AssertionError(
+            f"{BIND}:{ep.port} still bound after nginx stopped (broker pid "
+            f"{pid} holds the inherited listener): {exc}") from None
+    finally:
+        probe.close()

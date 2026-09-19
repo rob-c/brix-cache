@@ -70,6 +70,31 @@ FLAT = TESTS / "kdc_helpers.py"
 ARCHIVE = TESTS / "brix_suite" / "_legacy" / "kdc_helpers_flat.py"
 MOVED = TESTS / "brix_suite" / "security" / "kdc.py"
 
+#: Grown after the move, by name and with the reason.  The archive pins what
+#: the MOVE did — that nothing was dropped or quietly rewritten on the way
+#: across — not the module's future; a frozen module is a module nobody may
+#: fix.  Naming each one keeps growth something somebody wrote down: an
+#: undeclared addition still fails, and a dropped archived name always does.
+_ADDED_SINCE_MOVE = {
+    # The macOS port.  On Darwin the PATH hit for kinit/klist is Apple's
+    # Heimdal build, which does not speak to the MIT realm this module
+    # creates — its `klist` has no `-f` and prints no "Flags:" line, so a
+    # delegation assertion fails on the CLIENT while the KDC is fine.
+    # `_tool_in_search_dirs` scans the MIT keg first there; `krb5_tool` is the
+    # public form the client-side tests call so they cannot re-derive a
+    # different answer.  Linux keeps PATH-first order.
+    "_tool_in_search_dirs", "krb5_tool",
+}
+
+#: Archived definitions since EDITED, with what changed.  Held to a stricter
+#: standard than an addition — an edit is where a move can be undone quietly.
+_CHANGED_SINCE_MOVE = {
+    # Same macOS port: `_find_tool` now picks the search order per host
+    # (MIT keg first on Darwin, PATH first elsewhere) instead of calling
+    # shutil.which() alone.  Its Linux answer is unchanged.
+    "_find_tool",
+}
+
 
 def _probe(code: str, env: dict | None = None):
     e = dict(os.environ, PYTHONPATH=str(TESTS))
@@ -112,9 +137,32 @@ def test_every_definition_moved_verbatim():
 
     old, new = bodies(ARCHIVE), bodies(MOVED)
     assert old, "archive parsed to nothing — wrong path?"
-    assert set(old) == set(new), f"missing={set(old)-set(new)} extra={set(new)-set(old)}"
-    assert [n for n in old if old[n] != new[n]] == []
+    assert set(old) - set(new) == set(), f"dropped in the move: {set(old)-set(new)}"
+    assert set(new) - set(old) - _ADDED_SINCE_MOVE == set(), (
+        f"undeclared additions: {set(new) - set(old) - _ADDED_SINCE_MOVE}")
+    _assert_ledger_describes_every_edit(old, new)
     assert len(old) == 17
+
+
+def _undeclared_drift(old, new):
+    """Archived bodies that changed with no `_CHANGED_SINCE_MOVE` line."""
+    return [n for n in old if old[n] != new[n] and n not in _CHANGED_SINCE_MOVE]
+
+
+def _stale_ledger_lines(old, new):
+    """Lines that outlived the drift they were written for.  A stale entry
+    exempts a name the archive still matches, so a LATER edit to it would land
+    silently under an explanation about something else."""
+    return [n for n in _CHANGED_SINCE_MOVE if old.get(n) == new.get(n)]
+
+
+def _assert_ledger_describes_every_edit(old, new):
+    """Both directions of `_CHANGED_SINCE_MOVE`."""
+    assert _undeclared_drift(old, new) == [], (
+        f"bodies changed in the move: {_undeclared_drift(old, new)}")
+    assert _stale_ledger_lines(old, new) == [], (
+        f"listed as changed but still matches the archive: "
+        f"{_stale_ledger_lines(old, new)}")
 
 
 def test_the_settings_values_did_not_fork():

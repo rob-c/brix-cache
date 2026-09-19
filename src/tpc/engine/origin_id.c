@@ -17,13 +17,23 @@
  * loop could not wait for.
  *
  * HOW: Every XRootD server is IPv6 dual-stack and sees an IPv4 client as the
- * IPv4-MAPPED address ::ffff:a.b.c.d, reverse-resolves that, and falls back to
+ * IPv4-MAPPED address ::ffff:a.b.c.d, reverse-resolves THAT, and falls back to
  * its bracketed literal ("[::ffff:127.0.0.1]" for a non-DNS loopback client).
- * The numeric fallback therefore maps IPv4 into that form and prints it with
- * inet_ntop (byte-identical to XrdNetAddr), while the PTR lookup keys on the
- * peer address as-is: glibc asks the same in-addr.arpa question for the mapped
- * form, and the plain key shares the cache entry with the host-rule and
- * authorization lookups.
+ * So both halves of this file key on the mapped form (tpc_origin_lookup_key):
+ * the numeric fallback prints it with inet_ntop, and the PTR lookup asks about
+ * it.  The two spellings are NOT interchangeable, which is the whole reason
+ * this file exists — measured on one ordinary host:
+ *
+ *     getnameinfo(NI_NAMEREQD)   127.0.0.1         -> "localhost"
+ *                                ::ffff:127.0.0.1  -> EAI_NONAME
+ *                                129.215.213.101   -> "ce4.gridpp.ecdf.ed.ac.uk"
+ *                                ::ffff:129.215…   -> "xrd1.edi.scotgrid.ac.uk"
+ *
+ * and a stock source, asked for the same two peers, wrote exactly the mapped
+ * column into its grant.  Asking the plain question therefore yields a name
+ * that is perfectly valid, never equal, and impossible to spot in a log: the
+ * source pairs tpc.org with a raw strcmp, so the grant is simply never
+ * redeemed and the pull-open hangs on kXR_waitresp until the TTL expires.
  * */
 
 #include "tpc_internal.h"
@@ -65,30 +75,57 @@ tpc_origin_format(const char *user, uint32_t pid, const char *host,
 }
 
 
+/* The address XrdNetAddr holds for this peer, and therefore the one both the
+ * PTR question and the numeric literal must be asked about: an IPv4 peer in
+ * IPv4-MAPPED form, anything else verbatim.  NGX_DECLINED when there is no
+ * peer to key on. */
+static ngx_int_t
+tpc_origin_lookup_key(const struct sockaddr *sa, socklen_t len,
+    struct sockaddr_storage *out, socklen_t *out_len)
+{
+    struct sockaddr_in6  *v6;
+
+    if (sa == NULL) {
+        return NGX_DECLINED;
+    }
+    if (sa->sa_family != AF_INET) {
+        if (len == 0 || (size_t) len > sizeof(*out)) {
+            return NGX_DECLINED;
+        }
+        ngx_memcpy(out, sa, len);
+        *out_len = len;
+        return NGX_OK;
+    }
+
+    v6 = (struct sockaddr_in6 *) out;
+    ngx_memzero(v6, sizeof(*v6));
+    v6->sin6_family = AF_INET6;
+    v6->sin6_addr.s6_addr[10] = 0xff;
+    v6->sin6_addr.s6_addr[11] = 0xff;
+    ngx_memcpy(&v6->sin6_addr.s6_addr[12],
+               &((const struct sockaddr_in *) sa)->sin_addr, 4);
+    *out_len = (socklen_t) sizeof(*v6);
+    return NGX_OK;
+}
+
+
 /* The host XrdNetAddr::Name prints for a peer without a PTR: the bracketed
  * literal of the IPv6 (or IPv4-mapped) address, else the accept-time address
  * text, else "unknown". */
 static void
-tpc_origin_numeric_host(const struct sockaddr *sa, const ngx_str_t *addr_text,
-    char *host, size_t sz)
+tpc_origin_numeric_host(const struct sockaddr *sa, socklen_t len,
+    const ngx_str_t *addr_text, char *host, size_t sz)
 {
-    struct sockaddr_in6  v6;
-    char                 numeric[INET6_ADDRSTRLEN];
+    struct sockaddr_storage  key;
+    socklen_t                key_len = 0;
+    char                     numeric[INET6_ADDRSTRLEN];
 
     host[0] = '\0';
 
-    if (sa != NULL && sa->sa_family == AF_INET) {
-        const struct sockaddr_in  *s4 = (const struct sockaddr_in *) sa;
-
-        ngx_memzero(&v6, sizeof(v6));
-        v6.sin6_family = AF_INET6;
-        v6.sin6_addr.s6_addr[10] = 0xff;
-        v6.sin6_addr.s6_addr[11] = 0xff;
-        ngx_memcpy(&v6.sin6_addr.s6_addr[12], &s4->sin_addr, 4);
-        sa = (const struct sockaddr *) &v6;
-    }
-    if (sa != NULL && sa->sa_family == AF_INET6) {
-        const struct sockaddr_in6  *s6 = (const struct sockaddr_in6 *) sa;
+    if (tpc_origin_lookup_key(sa, len, &key, &key_len) == NGX_OK
+        && key.ss_family == AF_INET6)
+    {
+        const struct sockaddr_in6  *s6 = (const struct sockaddr_in6 *) &key;
 
         if (inet_ntop(AF_INET6, &s6->sin6_addr, numeric, sizeof(numeric))
             != NULL)
@@ -110,24 +147,29 @@ unsigned
 brix_tpc_origin_build(brix_ctx_t *ctx, ngx_connection_t *c,
     const brix_dns_policy_t *policy, char *dst, size_t dst_size)
 {
-    char       host[BRIX_DNS_REVERSE_NAME_LEN];
-    char       user[sizeof(ctx->login.user)];
-    uint32_t   pid;
-    ngx_int_t  rc = NGX_DECLINED;
-    unsigned   pending = 0;
+    struct sockaddr_storage  key;
+    socklen_t                key_len = 0;
+    char                     host[BRIX_DNS_REVERSE_NAME_LEN];
+    char                     user[sizeof(ctx->login.user)];
+    uint32_t                 pid;
+    ngx_int_t                rc = NGX_DECLINED;
+    unsigned                 pending = 0;
 
     tpc_origin_identity(ctx, user, sizeof(user), &pid);
 
-    if (c->sockaddr != NULL) {
-        rc = brix_dns_reverse_cached(c->sockaddr, c->socklen, host,
-                                     sizeof(host));
+    if (tpc_origin_lookup_key(c->sockaddr, c->socklen, &key, &key_len)
+        == NGX_OK)
+    {
+        rc = brix_dns_reverse_cached((const struct sockaddr *) &key, key_len,
+                                     host, sizeof(host));
         if (rc == NGX_AGAIN) {
-            brix_dns_reverse_prefetch(policy, c->sockaddr, c->socklen);
+            brix_dns_reverse_prefetch(policy, (const struct sockaddr *) &key,
+                                      key_len);
             pending = 1;
         }
     }
     if (rc != NGX_OK) {
-        tpc_origin_numeric_host(c->sockaddr, &c->addr_text, host,
+        tpc_origin_numeric_host(c->sockaddr, c->socklen, &c->addr_text, host,
                                 sizeof(host));
     }
     tpc_origin_format(user, pid, host, dst, dst_size);
@@ -151,7 +193,9 @@ brix_tpc_origin_snapshot_peer(brix_tpc_pull_t *t, const brix_ctx_t *ctx,
 void
 brix_tpc_origin_thread_fill(brix_tpc_pull_t *t)
 {
-    char  name[BRIX_DNS_REVERSE_NAME_LEN];
+    struct sockaddr_storage  key;
+    socklen_t                key_len = 0;
+    char                     name[BRIX_DNS_REVERSE_NAME_LEN];
 
     if (!t->tpc_org_unresolved) {
         return;
@@ -160,9 +204,14 @@ brix_tpc_origin_thread_fill(brix_tpc_pull_t *t)
     if (t->peer_len == 0) {
         return;
     }
+    if (tpc_origin_lookup_key((const struct sockaddr *) &t->peer_ss,
+                              t->peer_len, &key, &key_len) != NGX_OK)
+    {
+        return;                 /* keep the numeric literal the loop built */
+    }
     if (brix_dns_reverse_sync(t->conf->common.dns.policy,
-                              (const struct sockaddr *) &t->peer_ss,
-                              t->peer_len, name, sizeof(name)) != NGX_OK)
+                              (const struct sockaddr *) &key, key_len,
+                              name, sizeof(name)) != NGX_OK)
     {
         return;                 /* keep the numeric literal the loop built */
     }

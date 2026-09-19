@@ -26,7 +26,7 @@
  * Compile-gated on BRIX_HAVE_KRB5 (pkg-config krb5). When absent the accessor
  * returns NULL so the auth driver simply skips krb5 and the build still succeeds.
  *
- * wire: XProtocol.hh kXR_auth credtype "krb5"; payload "krb5\0" + AP-REQ
+ * wire: kXR_auth credtype "krb5"; payload "krb5\0" + AP-REQ
  *       (src/auth/krb5/auth.c brix_handle_krb5_auth).
  */
 #include "sec.h"

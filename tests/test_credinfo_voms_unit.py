@@ -26,6 +26,7 @@ import re
 import shutil
 import subprocess
 
+from brix_suite.client_build import client_make
 from cmdscripts.c_regression_units import _gcov_flags
 import pytest
 from cmdscripts.compile_run import LZ4_LINK_FLAGS
@@ -83,9 +84,13 @@ def _client_make_flags():
     credinfo.c with exactly the macros libbrix.a was built with (krb5/liburing/
     codec gates, the PAL's BRIX_PLATFORM_HOST) and links exactly its libraries.
     `make -pn` dumps the evaluated database; the xrdproto sub-make prints its
-    own ALL_CFLAGS too, so the client's is the one carrying `-Ilib`."""
-    r = subprocess.run(["make", "-s", "-pn", "-f", "Makefile"], cwd=CLIENT,
-                       capture_output=True, text=True)
+    own ALL_CFLAGS too, so the client's is the one carrying `-Ilib`.
+
+    Through client_make, not a bare subprocess: `-pn` still EXECUTES the
+    `$(MAKE) -C ../shared/xrdproto` recipe line (that is how the sub-make's
+    database reaches this output), so this shares the client tree lock with
+    every other builder — the door test_client_make_serialized.py guards."""
+    r = client_make(CLIENT, "-s", "-pn", capture_output=True, text=True)
     cflags = [m.split() for m in re.findall(r"^ALL_CFLAGS :?= (.*)$", r.stdout, re.M)
               if "-Ilib" in m.split()]
     ldlibs = re.findall(r"^LDLIBS :?= (.*)$", r.stdout, re.M)

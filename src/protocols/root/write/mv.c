@@ -57,12 +57,12 @@ mv_fail(brix_ctx_t *ctx, ngx_connection_t *c, const char *path,
  *
  * WHAT: Validates the wire payload, splits it at the space separator and
  *       extracts source + destination into mv->src_buf / mv->dst_buf.
- * WHY:  The mv wire format (from XrdClFileSystem.cc) is:
+ * WHY:  The mv wire format is:
  *         arg1len = source.length()       (NOT including any terminator)
  *         dlen    = src.length() + dst.length() + 1
  *         payload = src[arg1len] + ' ' + dst[...]
  *       The separator between source and destination is a single space
- *       (0x20).  arg1len == 0: the reference do_Mv (XrdXrootdXeq.cc) splits
+ *       (0x20).  arg1len == 0: the stock server's kXR_mv splits
  *       the buffer on the FIRST space itself ("old new") rather than
  *       rejecting, so a well-formed space-separated buffer with arg1len=0
  *       is autosplit the same way.

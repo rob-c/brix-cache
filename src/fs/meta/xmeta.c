@@ -20,7 +20,7 @@
 #include <time.h>
 
 /* The stock PODs are emitted verbatim; pin their layout at compile time so a
- * drift from XrdPfcInfo.hh (x86-64 native layout) cannot ship silently. */
+ * drift from the XrdPfc cinfo layout (x86-64 native) cannot ship silently. */
 typedef char xmeta_store_size_check[
     sizeof(brix_xmeta_stock_store_t) == 48 ? 1 : -1];
 typedef char xmeta_astat_size_check[

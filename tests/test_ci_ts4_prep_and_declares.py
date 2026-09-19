@@ -120,6 +120,16 @@ _ADDED_SINCE_MOVE = {
         # Preserve interpreter argument boundaries: a test path in --ignore
         # is data, not the Python daemon entrypoint (Alma9 operator repair).
         "_process_argv", "_python_script",
+        # The macOS port: every archived answer was read straight out of
+        # /proc, which Darwin does not have.  `_ps_table` (+ `_ps_snapshot` /
+        # `_ps_parse` / `_ps_split_command`) rebuilds pid -> (ppid, comm,
+        # argv, environ) from one cached `ps -axE`, `_all_pids` picks procfs
+        # or that table, and `_listener_pids_lsof` stands in for
+        # /proc/net/tcp.  Linux still takes the procfs path — the fallback is
+        # reached only where `_HAVE_PROCFS` is false — so this adds a second
+        # host, it does not change this one's answers.
+        "_all_pids", "_listener_pids_lsof",
+        "_ps_parse", "_ps_snapshot", "_ps_split_command", "_ps_table",
     },
 }
 
@@ -138,6 +148,13 @@ _CHANGED_SINCE_MOVE = {
         # Reuse boundary-preserving argv and classify only actual test-script
         # entrypoints; never treat an operator's option value as a helper.
         "_cmdline", "_helper_matches",
+        # The macOS port.  Each of these read one /proc/<pid>/ file — stat,
+        # environ, comm — and Darwin has no procfs, so each grew a leading
+        # `if not _HAVE_PROCFS:` that answers from the cached `ps` table
+        # instead.  `_candidate_pids` picks its pid list the same way.  The
+        # procfs body underneath is byte-for-byte the archived one, so Linux
+        # still takes exactly the path the move pinned.
+        "_candidate_pids", "_environ", "_ppid", "_process_name",
     },
 }
 

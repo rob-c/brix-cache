@@ -159,17 +159,68 @@ def token_authority(auth_dir: str) -> TokenIssuer:
 # --------------------------------------------------------------------------- #
 # X.509 proxy DN (the impersonation principal for GSI)                         #
 # --------------------------------------------------------------------------- #
-def proxy_leaf_dn(proxy_pem: str) -> str:
-    """Return the OpenSSL oneline slash-form subject of a proxy's LEAF cert — the
-    exact string brix uses as the grid-mapfile principal for a GSI session
-    (`X509_NAME_oneline` of chain[0], including the trailing proxy /CN=... RDNs).
-    `openssl x509` reads the first cert in the file, which is the proxy leaf."""
+def _subject_oneline(pem_text: str) -> str:
+    """OpenSSL oneline slash-form subject of the first cert in `pem_text`."""
     out = subprocess.run(
-        ["openssl", "x509", "-in", proxy_pem, "-noout", "-subject",
-         "-nameopt", "compat"],
-        check=True, capture_output=True, text=True).stdout.strip()
-    # e.g. "subject=/DC=test/.../CN=12345/CN=12346"
+        ["openssl", "x509", "-noout", "-subject", "-nameopt", "compat"],
+        input=pem_text, check=True, capture_output=True, text=True).stdout.strip()
     return out.split("=", 1)[1] if out.startswith("subject=") else out
+
+
+def _split_pem_certs(proxy_pem: str) -> "list[str]":
+    """The PEM blocks of `proxy_pem`, leaf first, keys and other blocks dropped."""
+    certs, cur = [], None
+    for line in Path(proxy_pem).read_text().splitlines(keepends=True):
+        if line.startswith("-----BEGIN CERTIFICATE"):
+            cur = [line]
+        elif cur is not None:
+            cur.append(line)
+            if line.startswith("-----END CERTIFICATE"):
+                certs.append("".join(cur))
+                cur = None
+    return certs
+
+
+def _is_rfc3820_proxy(pem_text: str) -> bool:
+    """True iff the cert carries the RFC 3820 proxyCertInfo extension."""
+    text = subprocess.run(
+        ["openssl", "x509", "-noout", "-text"],
+        input=pem_text, check=True, capture_output=True, text=True).stdout
+    return "Proxy Certificate Information" in text
+
+
+def proxy_leaf_dn(proxy_pem: str) -> str:
+    """Slash-form subject of the proxy's LEAF cert, trailing /CN=<serial> and all.
+
+    This is a per-SESSION string — a fresh delegation mints a new serial — so it
+    is the identity a grid-mapfile must NOT be keyed on.  Kept for the tests that
+    assert exactly that (see test_audit15h_authdb_delegation.py)."""
+    return _subject_oneline(_split_pem_certs(proxy_pem)[0])
+
+
+def proxy_eec_dn(proxy_pem: str) -> str:
+    """Slash-form subject of the chain's End-Entity Cert — the grid-mapfile key.
+
+    brix keys both authorization and impersonation on the EEC DN, not the leaf:
+    the leaf's trailing proxy RDNs carry a serial that changes on every
+    delegation, so a grid-mapfile line naming the leaf would map a user for
+    exactly one session and then silently stop (`no UNIX mapping for principal
+    ... -> deny`).  ``brix_gsi_extract_eec_dn`` finds it by walking the verified
+    chain leaf-upwards to the first certificate WITHOUT the RFC 3820
+    proxyCertInfo extension; this walks the same order over the PEM file so the
+    fixture and the server agree by construction rather than by a literal a
+    change in the test PKI could invalidate.
+
+    Note the test PKI's own EEC subject ends in ``/CN=12345`` — that RDN is part
+    of the user certificate, not a proxy layer, which is precisely why the shape
+    has to be read from the extension instead of guessed from the name."""
+    certs = _split_pem_certs(proxy_pem)
+    for pem in certs:
+        if not _is_rfc3820_proxy(pem):
+            return _subject_oneline(pem)
+    # Every cert in the file is a proxy: the EEC was not bundled, so the highest
+    # proxy's ISSUER is the EEC.  Report the least-derived subject we can see.
+    return _subject_oneline(certs[-1])
 
 
 # --------------------------------------------------------------------------- #

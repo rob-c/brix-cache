@@ -8,7 +8,7 @@
  *       offset field, and build the 16-byte XrdSsiRRInfoAttn prefix that heads a
  *       kXR_attn response/alert push.
  * WHY:  byte-exact interop with a real libXrdSsi client. The layouts are fixed by
- *       XrdSsi/XrdSsiRRInfo.hh; this codec is validated against golden values
+ *       the XrdSsi RRInfo word; this codec is validated against golden values
  *       generated from that very class (see ssi_rrinfo_unittest.c).
  * HOW:  pure C (no nginx headers) so it is unit-testable standalone. The RRInfo
  *       offset, serialized big-endian as the kXR offset, lays out as

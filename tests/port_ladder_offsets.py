@@ -570,6 +570,29 @@ SETTINGS_OFFSET, SETTINGS_WIDTH = 0, 179
 # same four arms as davs:// listeners, HTTP_*_PORT, on one instance over ONE
 # trust anchor — the GT2 verdict is a per-listener login decision on both
 # planes and nothing else varies), 1098 -> 1106.
-LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 179, 1106
+# 2026-09-18: +2 for the two WebDAV arms of test_impersonation_gridmap_root.py
+# (impgm-wd-squash and impgm-wd-deny: one value of brix_idmap_default_user each,
+# which one server cannot hold at both), 1106 -> 1108.  The running sum is
+# re-applied to every lane below in port_ladder_offsets_tail.py — and the +8
+# above it landed width-only, so the shared lane had been overlapping the
+# exclusive one by 8 since then; test_fleet_ports.py's band check had been
+# failing on exactly that, which is the failure mode the 2026-08-16 and
+# 2026-09-07 notes in the tail describe.  Both deltas are carried below.
+# 2026-09-19: +4 for the MU fleet's missing halves (mu-webdav_cache,
+# mu-s3_direct, mu-s3_cache, mu-cvmfs_cache).  The differential oracle in
+# mu_authz_lib/ is built on PAIRS — a cache-OFF node is ground truth and its
+# cache-ON twin must match it — but only the root:// pair was ever started, so
+# every WebDAV/S3/cvmfs measurement addressed an unbound port and hung out its
+# whole XrdCl connection window, 1108 -> 1112.  The running sum is re-applied to
+# every lane below in port_ladder_offsets_tail.py.
+# 2026-09-19: +1 more for mu-root_write, the fleet's only impersonating node —
+# a write has to be performed by a broker that setfsuid()s to the mapped
+# account, which no read-plane node in the fleet does, 1112 -> 1113.
+# 2026-09-19: +2 for impgm-sealed / impgm-rebind, the two arms that measure what
+# that broker still holds after its double-fork (the inherited listener kept the
+# port bound past nginx's own life), 1113 -> 1115.
+# 2026-09-19: +1 for lc-policy-rule-scope, the remote-backed export that pins a
+# policy rule's path scope when root_canon is "/", 1115 -> 1116.
+LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 179, 1116
 
 _load_port_ladder_ext(globals(), __file__, "port_ladder_offsets_tail.py")

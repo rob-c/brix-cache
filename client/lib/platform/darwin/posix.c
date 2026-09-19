@@ -77,23 +77,7 @@ brix_plat_fuse_host_opts(void)
 }
 
 
-/* Darwin has no TCP_INFO; TCP_CONNECTION_INFO carries the same facts, with
- * the smoothed RTT and its variation in MILLISECONDS. */
-int
-brix_plat_tcp_rtt(int fd, uint32_t *rtt_us, uint32_t *rttvar_us,
-    uint32_t *retrans)
-{
-    struct tcp_connection_info ti;
-    socklen_t                  len = sizeof(ti);
-
-    memset(&ti, 0, sizeof(ti));
-    if (getsockopt(fd, IPPROTO_TCP, TCP_CONNECTION_INFO, &ti, &len) != 0) {
-        return -1;
-    }
-    *rtt_us    = (uint32_t) ti.tcpi_srtt * 1000u;
-    *rttvar_us = (uint32_t) ti.tcpi_rttvar * 1000u;
-    *retrans   = (uint32_t) ti.tcpi_txretransmitpackets;
-    return 0;
-}
+/* brix_plat_tcp_rtt lives in ../tcp_rtt.c: one body for every host, over the
+ * struct/option/unit facts this host names in host_net.h. */
 
 #endif /* BRIX_PLATFORM_DARWIN */

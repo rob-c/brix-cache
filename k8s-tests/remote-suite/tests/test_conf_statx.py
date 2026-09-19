@@ -4,17 +4,18 @@ and stat metadata-field precision — pinned to the STOCK XRootD reference.
 Where the stock xrdfs client exposes the op (stat-by-path, statvfs) we diff
 OUR-vs-STOCK through `xrdfs`. The ops xrdfs cannot reach cleanly (kXR_statx
 multi-path flag bytes, stat-by-fhandle, raw kXR_vfs) are driven over RAW WIRE
-against BOTH servers, with the SEMANTICS taken from the C++ reference
-(/tmp/brix-src/src):
+against BOTH servers, with the SEMANTICS taken from this repository's own
+wire spec (src/protocols/root/protocol/) — authoritative here, no XRootD
+source tree is read — and pinned empirically against the stock server:
 
-  XProtocol.hh:1261  kXR_file=0  kXR_xset=1  kXR_isDir=2  kXR_other=4
+  stat_flags.h       kXR_file=0  kXR_xset=1  kXR_isDir=2  kXR_other=4
                      kXR_offline=8  kXR_readable=16  kXR_writable=32
-  XrdXrootdXeq.cc do_Statx  — one flag byte per NEWLINE-separated request path;
+  kXR_statx          — one flag byte per NEWLINE-separated request path;
                      on the FIRST path that fails stat() the whole reply is a
                      single kXR_error (early return), NOT a per-path flag.
-  XrdXrootdXeq.cc do_Stat   — when !dlen the request refers to an OPEN FILE
+  kXR_stat           — when !dlen the request refers to an OPEN FILE
                      HANDLE (fstat), else it stats the path; kXR_vfs (options
-                     bit, XProtocol.hh:799) yields the statfs body, not a stat
+                     bit, the wire spec) yields the statfs body, not a stat
                      line.
 
 Philosophy (per the maintainer): any divergence — wrong number of statx flag
@@ -40,28 +41,28 @@ pytestmark = [pytest.mark.timeout(240),
 OUR_PORT = L.worker_port(14030)
 OFF_PORT = L.worker_port(14031)
 # --------------------------------------------------------------------------- #
-# wire constants (XProtocol.hh)
+# wire constants (the wire spec)
 # --------------------------------------------------------------------------- #
 kXR_login, kXR_open, kXR_read = 3007, 3010, 3013
 kXR_stat, kXR_set, kXR_write = 3017, 3018, 3019
 kXR_statx, kXR_close = 3022, 3003
 kXR_ok, kXR_oksofar, kXR_error = 0, 4000, 4003
 
-# stat flag bits (XProtocol.hh:1261-1268)
+# stat flag bits (the wire spec)
 kXR_file, kXR_xset, kXR_isDir, kXR_other = 0, 1, 2, 4
 kXR_offline, kXR_readable, kXR_writable = 8, 16, 32
 
-# stat options (XProtocol.hh:799)
+# stat options (the wire spec)
 kXR_vfs = 1
 
-# open options (XProtocol.hh:483-505)
+# open options (the wire spec)
 kXR_open_read = 0x0010
 kXR_open_updt = 0x0020
 kXR_new = 0x0008
 kXR_delete = 0x0002
 kXR_mkpath = 0x0100
 
-# error codes (XProtocol.hh:1030+)
+# error codes (the wire spec)
 kXR_FileNotOpen, kXR_NotFound = 3004, 3011
 
 
@@ -132,7 +133,7 @@ def _session(port):
 
 
 def _statx(s, paths, sid=b"\x00\x12"):
-    """kXR_statx: NEWLINE-joined request paths (XProtocol.hh / do_Statx)."""
+    """kXR_statx: NEWLINE-joined request paths (the wire spec / do_Statx)."""
     p = "\n".join(paths).encode()
     s.sendall(struct.pack("!2sH16sI", sid, kXR_statx, b"\x00" * 16, len(p)) + p)
     return _resp(s)
@@ -142,7 +143,7 @@ def _stat_path(s, path, options=0, sid=b"\x00\x02"):
     """kXR_stat by PATH (dlen>0).
 
     ClientStatRequest: streamid[2] reqid[2] options[1] reserved[7] wants[4]
-                       fhandle[4] dlen[4]  (XProtocol.hh:806)
+                       fhandle[4] dlen[4]  (the wire spec)
     """
     p = path.encode()
     hdr = struct.pack("!2sHB7sI4sI", sid, kXR_stat, options, b"\x00" * 7,
@@ -164,7 +165,7 @@ def _stat_handle(s, fhandle, options=0, sid=b"\x00\x03"):
 
 def _open(s, path, options=kXR_open_read, mode=0o644, sid=b"\x00\x04"):
     """kXR_open: ClientOpenRequest streamid[2] reqid[2] mode[2] options[2]
-       optiont[2] reserved[6] fhtemplt[4] dlen[4] (XProtocol.hh)."""
+       optiont[2] reserved[6] fhtemplt[4] dlen[4] (the wire spec)."""
     p = path.encode()
     hdr = struct.pack("!2sHHHH6s4sI", sid, kXR_open, mode, options, 0,
                       b"\x00" * 6, b"\x00" * 4, len(p))
@@ -174,7 +175,7 @@ def _open(s, path, options=kXR_open_read, mode=0o644, sid=b"\x00\x04"):
 
 def _write(s, fhandle, offset, data, sid=b"\x00\x05"):
     """kXR_write: streamid[2] reqid[2] fhandle[4] offset[8] pathid[1]
-       reserved[3] dlen[4] (XProtocol.hh ClientWriteRequest)."""
+       reserved[3] dlen[4] (the wire spec ClientWriteRequest)."""
     hdr = struct.pack("!2sH4sqB3sI", sid, kXR_write, fhandle, offset, 0,
                       b"\x00" * 3, len(data))
     s.sendall(hdr + data)

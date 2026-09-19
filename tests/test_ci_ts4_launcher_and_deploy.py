@@ -46,8 +46,9 @@ def _check_test_every_moved_body_is_byte_identical_2(missing, module):
     assert missing == [], "%s lost %s" % (module, missing)
 
 def _check_test_every_moved_body_is_byte_identical_3(changed, module):
-    assert changed <= _DEVIATIONS, (
-        "%s: unannounced rewrite of %s" % (module, sorted(changed - _DEVIATIONS)))
+    allowed = _DEVIATIONS | _MODULE_DEVIATIONS.get(module, frozenset())
+    assert changed <= allowed, (
+        "%s: unannounced rewrite of %s" % (module, sorted(changed - allowed)))
 
 
 TESTS = pathlib.Path(__file__).resolve().parent
@@ -80,6 +81,24 @@ _MOVES = {
 #: both were rewritten for the same reason: a default derived from
 #: ``__file__`` or from a name defined in a sibling shard.
 _DEVIATIONS = {"__init__"}
+
+#: Deviations one module is allowed beyond that, with the reason.  This
+#: comparison is byte-for-byte SOURCE, not an AST hash, so a body can read as
+#: rewritten while computing exactly what it always did — which is what a
+#: local-import move looks like.  Kept per-module so an exemption earned by
+#: `internals.py` cannot quietly cover the same method name elsewhere.
+_MODULE_DEVIATIONS = {
+    "internals.py": {
+        # The flat shard is exec'd into a namespace it does not own, so it
+        # reaches `process_cmdline` / `_process_exited_without_procfs` through
+        # a function-local import; the package module has both at module
+        # scope.  Same call, one line earlier.  `_process_exited` also carries
+        # the macOS-port comment in prose rather than around an import — the
+        # ps(1) fallback it guards is identical (and is why stop-all used to
+        # leave the reference xrootd daemons running on Darwin).
+        "_kill_pidfile", "_process_exited",
+    },
+}
 
 
 def _defs(path: pathlib.Path) -> dict:

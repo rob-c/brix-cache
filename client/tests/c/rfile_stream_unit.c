@@ -70,6 +70,32 @@ brix_rfile_close(brix_rfile *rf, brix_status *st)
     return 0;
 }
 
+/* The pipelined reader always declines here, so every case below exercises the
+ * serial pump over the whole range — the path this unit is about. brix_ops.h
+ * defines BRIX_RFILE_FAST_OFF as "not attempted at all: nothing delivered, *st
+ * clear", which is exactly the accelerator's own kill-switch verdict, so the
+ * substitution stays inside its documented contract.
+ *
+ * It also keeps the unit linkable. The real body lives in rfile_fast.c, which
+ * pulls the whole async engine (aio.o -> conn.o -> ops_meta.o -> ...) into the
+ * link; the archive members that arrive with it re-define the doubles above and
+ * the test cannot link at all. Standing in for the accelerator cuts the closure
+ * back to rfile_stream.o plus status.o. */
+int
+brix_rfile_stream_fast(brix_rfile *rf, int64_t offset, int64_t limit,
+                       brix_rfile_sink_fn sink, void *arg, int64_t *moved,
+                       brix_status *st)
+{
+    (void) rf;
+    (void) offset;
+    (void) limit;
+    (void) sink;
+    (void) arg;
+    (void) st;
+    *moved = 0;
+    return BRIX_RFILE_FAST_OFF;
+}
+
 typedef struct {
     uint8_t data[64];
     size_t  used;

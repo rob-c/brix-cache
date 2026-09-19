@@ -46,6 +46,7 @@ from brix_suite.mesh.cms_mesh_lib import (
     have_binaries,
     port_open,
     read_text,
+    runas_args,
     wait_port,
 )
 from brix_suite.settings import BIND_HOST
@@ -197,9 +198,10 @@ def launch_xrootd(m, label, cfg_text):
     cfg = m.write(f"{label}.cfg", cfg_text)
     clog = os.path.join(m.root, "logs", f"{label}-cmsd.log")
     xlog = os.path.join(m.root, "logs", f"{label}-xrootd.log")
-    subprocess.run([CMSD_BIN, "-c", cfg, "-n", label, "-l", clog, "-b"],
+    runas = runas_args(m.root)
+    subprocess.run([CMSD_BIN, *runas, "-c", cfg, "-n", label, "-l", clog, "-b"],
                    check=False, start_new_session=True, cwd=m.root)
-    subprocess.run([BRIX_BIN, "-c", cfg, "-n", label, "-l", xlog, "-b"],
+    subprocess.run([BRIX_BIN, *runas, "-c", cfg, "-n", label, "-l", xlog, "-b"],
                    check=False, start_new_session=True, cwd=m.root)
 
 

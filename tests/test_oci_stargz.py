@@ -26,8 +26,14 @@ import zlib
 
 import pytest
 
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHARED = os.path.join(REPO, "shared")
+#: The tar reader and the eStargz TOC reach the PAL for major()/minor()/
+#: makedev(), and the PAL interface header lives under src/ — both the module
+#: (./config) and the client (client/Makefile) put -I$(SRC) on the line.
+SRC_DIR = os.path.join(REPO, "src")
 
 _OCI = ("tar.c", "tar_pax.c", "tar_digest.c", "digest.c",
         "stargz.c", "stargz_toc.c")
@@ -48,7 +54,8 @@ STARGZ_META = ("stargz.index.json", ".prefetch.landmark",
 
 def _build(cc, src, out):
     comp = subprocess.run(
-        [cc, "-Wall", "-Wextra", "-Werror", "-I", SHARED, "-o", out,
+        [cc, "-Wall", "-Wextra", "-Werror", "-I", SHARED, "-I", SRC_DIR,
+         *PLATFORM_HOST_FLAGS, "-o", out,
          *src, "-lsqlite3", "-lcrypto", "-lz"],
         capture_output=True, text=True)
     assert comp.returncode == 0, \

@@ -283,10 +283,28 @@ brix_resolve_missing_parents(const brix_resolve_ctx_t *ctx,
     ancestor_len = strlen(ancestor);
     suffix = candidate + ancestor_len;
     if (ancestor_len == 1 && ancestor[0] == '/') {
+        /*
+         * The walk reached the filesystem root, so the whole request is the
+         * missing suffix.  Select the FORMAT AND ITS ARGUMENTS together: "/%s"
+         * takes one argument, and pairing it with (ancestor_canon, suffix) —
+         * which the ternary-inside-snprintf form did — formatted the ancestor
+         * and silently discarded the suffix, so every path under a "/" export
+         * root resolved to the literal "//".
+         *
+         * Nothing reported that as an error: "//" is a valid absolute path, so
+         * the callers simply believed it.  brix_finalize_path_rules() then wrote
+         * it into every VO / group / authdb rule's `resolved` prefix, and "//"
+         * ends in '/', which brix_path_prefix_match() treats as "matches
+         * everything beneath" — so on such an export `brix_require_vo
+         * /restricted cms` silently became "require cms on the entire
+         * namespace", two rules with different paths became indistinguishable,
+         * and the last one declared won every request.
+         */
         suffix = candidate + 1;
-        n = snprintf(rebuilt, sizeof(rebuilt),
-                     (strcmp(ancestor_canon, "/") == 0) ? "/%s" : "%s/%s",
-                     ancestor_canon, suffix);
+        n = (strcmp(ancestor_canon, "/") == 0)
+            ? snprintf(rebuilt, sizeof(rebuilt), "/%s", suffix)
+            : snprintf(rebuilt, sizeof(rebuilt), "%s/%s", ancestor_canon,
+                       suffix);
     } else {
         n = snprintf(rebuilt, sizeof(rebuilt), "%s%s", ancestor_canon, suffix);
     }

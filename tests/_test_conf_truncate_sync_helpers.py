@@ -120,13 +120,13 @@ def diff_fail(ctx, do):
 
 # --------------------------------------------------------------------------- #
 # RAW-WIRE client (login / open / write / read / sync / truncate / close)
-# Framing copied from test_brix_conformance.py + XProtocol.hh.
+# Framing copied from test_brix_conformance.py + the wire spec.
 # --------------------------------------------------------------------------- #
 kXR_close, kXR_open, kXR_read = 3003, 3010, 3013
 kXR_sync, kXR_write, kXR_truncate = 3016, 3019, 3028
 kXR_ok, kXR_oksofar, kXR_error = 0, 4000, 4003
 
-# open options (XProtocol.hh XOpenRequestOption)
+# open options (the wire spec XOpenRequestOption)
 kXR_delete = 0x0002
 kXR_new = 0x0008
 kXR_open_read = 0x0010

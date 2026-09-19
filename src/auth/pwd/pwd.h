@@ -11,8 +11,8 @@
  *       round 2 decrypts the client credential and verifies it via the helpers
  *       declared here against the configured brix_pwd_file.
  *
- * Wire reference: docs/refactor/phase-52-pwd-wire-spec.md and the source at
- * /tmp/xrootd-src/src/XrdSecpwd/XrdSecProtocolpwd.{cc,hh}.
+ * Wire reference: docs/refactor/phase-52-pwd-wire-spec.md, which pins the
+ * XrdSecpwd handshake this implementation interoperates with.
  */
 #ifndef BRIX_PWD_H
 #define BRIX_PWD_H
@@ -21,23 +21,23 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* ---- XrdSecpwd step codes (XrdSecProtocolpwd.hh:125-147) ---- */
+/* ---- XrdSecpwd step codes (stock wire values) ---- */
 #define kXPC_normal      1000   /* client: standard credential packet      */
 #define kXPC_creds       1003   /* client: (additional) credentials packet */
 #define kXPS_credsreq    2001   /* server: please send credentials         */
 #define kXPS_none           0   /* server: done                            */
 
-/* XrdSecpwdVERSION (XrdSecProtocolpwd.hh:56). */
+/* XrdSecpwdVERSION (stock wire value). */
 #define BRIX_PWD_VERSION  10100
 
-/* pwdStatus_t ctype (XrdSecProtocolpwd.hh:100-112) — only the normal flow. */
+/* pwdStatus_t ctype (stock wire values) — only the normal flow. */
 #define kpCT_normal         0
 
-/* pwdStatus_t options bit (XrdSecProtocolpwd.cc:148) — client has a tty/autolog;
+/* pwdStatus_t options bit (stock wire value) — client has a tty/autolog;
  * mandatory or a stock server aborts a multi-round continuation. */
 #define kOptsClntTty   0x0080
 
-/* KDF parameters — must match stock XrdSecpwd (XrdCryptosslAux.cc:78-110). */
+/* KDF parameters — must match stock XrdSecpwd. */
 #define BRIX_PWD_KDF_ITERS   10000
 #define BRIX_PWD_HASH_LEN       24
 #define BRIX_PWD_MAX_SALT       64

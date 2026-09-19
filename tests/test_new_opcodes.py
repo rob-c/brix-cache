@@ -405,7 +405,7 @@ class TestStatx:
         return status, body
 
     # kXR_statx returns ONE flag byte per path (NOT a stat line) — exactly like
-    # the reference do_Statx (XrdXrootdXeq.cc): *respinfo = kXR_isDir / kXR_file /
+    # the reference do_Statx (the stock server): *respinfo = kXR_isDir / kXR_file /
     # kXR_offline.  A path whose stat fails terminates the batch with an error
     # response (no per-path sentinel).  Flag bits: kXR_file=0, kXR_isDir=2,
     # kXR_other=4, kXR_offline=8.

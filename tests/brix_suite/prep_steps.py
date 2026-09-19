@@ -145,7 +145,16 @@ def _warn(msg: str) -> None:
 
 
 def regenerate_pki(pki_dir: str, env: dict) -> None:
-    """Blitz-regenerate the test PKI + user proxies (bash ``regenerate_pki``)."""
+    """Provision the test PKI + user proxies (bash ``regenerate_pki``).
+
+    Blitzes ONLY an incomplete tree (``ensure_test_pki``, the guard
+    ``refresh_shared_pki`` already uses); a complete one is reused and just gets
+    a fresh proxy.  Minting a new CA under a running fleet does not fail here —
+    it fails much later, as every TLS/GSI client in the session, because the
+    servers still present the leaf they loaded at startup.  A session that wants
+    fresh material wipes the tree first, which regenerates it here as before.
+    See ``test_fleet_prep_live_guard.py``.
+    """
     root = Path(pki_dir)
     for sub in ("ca", "server", "user", "voms", "vomsdir"):
         (root / sub).mkdir(parents=True, exist_ok=True)
@@ -168,7 +177,7 @@ def regenerate_pki(pki_dir: str, env: dict) -> None:
         importlib.reload(pki_helpers)
         _guard_regenerate_pki_3(root, pki_helpers)
         try:
-            pki_helpers.blitz_test_pki()
+            pki_helpers.ensure_test_pki()
         except Exception as exc:  # bash: "WARNING: PKI regeneration failed, continuing"
             _warn(f"PKI regeneration failed, continuing: {exc}")
     finally:
@@ -308,18 +317,45 @@ def _harden_proxy_file(proxy: Path) -> None:
 
 
 def _harden_bearer_tokens(tokens_dir: Path) -> None:
-    """Make generated JWT files acceptable to the native token client.
+    """Make generated JWT files readable by BOTH accounts that present them.
 
-    ``brix_open_credfile()`` refuses a bearer file writable by group or other
-    users.  JWTs are not private keys, so retain their existing read bits while
-    removing only those unsafe write permissions.
+    The shared token tree has two readers that cannot be reconciled by giving it
+    away, and the fleet launcher deliberately will not touch it (`_config_paths`
+    skips session artifacts — re-opening the PKI on every start is what broke
+    every roots:// handshake), so this is the only place the modes are set.
+
+    The nginx WORKER reads a ``brix_token_file`` / outbound-bearer token with a
+    plain ``fopen`` (src/auth/token/file.c), as ``nobody``: the always-on
+    de-escalation drops it there whatever ``user`` says, while prep runs as root.
+    ``make_token.py gen`` writes 0600, so the one account that has to read it is
+    locked out — the bridge answers "[3010] authentication required" while the
+    error log says, correctly, `proxy login-sec ztn cannot open token file ...
+    (13: Permission denied)`.
+
+    The CLIENT reads the SAME file through ``brix_open_credfile()``
+    (client/lib/fs/path.c), which refuses any credential not owned by the
+    effective uid — a confused-deputy guard with no root exemption — and, for a
+    non-secret, refuses group/other WRITE but not group/other read.  The test
+    clients run as root.
+
+    So ownership is exactly the wrong lever: chowning the token to ``nobody``
+    trades the server's EACCES for `not owned by uid 0 (refusing untrusted
+    credential)` on every client token plane, which surfaces two steps away as
+    "no usable auth protocol for server list" — the module is skipped, not
+    failed.  Mode is the lever that satisfies both: add the read bits the worker
+    needs, strip the group/other write bits the client refuses, leave the file
+    root-owned.  A JWT is a bearer secret, not a private key, and this tree is a
+    lab PKI — world-readable is what a shared test token is.
     """
     try:
         tokens = tuple(tokens_dir.glob("*.jwt"))
     except OSError:
         return
     for token in tokens:
-        _remove_untrusted_write_bits(token)
+        try:
+            os.chmod(token, (stat.S_IMODE(token.stat().st_mode) | 0o044) & ~0o022)
+        except OSError:
+            continue
 
 
 def _harden_xrootd_credentials(pki_dir: Path) -> None:

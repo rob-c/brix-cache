@@ -182,7 +182,7 @@
 /*
  * XRootD async action code: attention frame (server push).
  * Used for kXR_attn frames carrying async notifications.
- * See XProtocol.hh for async frame format specification.
+ * See the protocol spec for the async frame format.
  */
 #define BRIX_ROOT_ATTN_FRAME                 4001
 

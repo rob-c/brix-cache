@@ -72,6 +72,10 @@ DEVIATIONS = {
     # Alma9 dynamic nginx keeps libkrb5 in the selected BriX module, so the
     # capability gate checks configured modules as well as the frozen binary.
     "_nginx_has_krb5",
+    # macOS port: the STAGE_CMD default was the literal "/bin/true", which is
+    # a Linux path.  `true_command()` resolves the host's own no-op binary, so
+    # a Darwin lane's frm stage scripts run instead of failing to exec.
+    "session_template_values",
 }
 
 

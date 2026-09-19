@@ -162,8 +162,12 @@ def test_rm_symlink_removes_link_not_target(rw):
 
 def test_chmod_octal_and_recursive(rw):
     d = rw["data"] / "tree"
-    d.mkdir()
-    (d / "a.txt").write_text("a")
+    # Built THROUGH the server rather than beside it: chmod(2) is owner-gated,
+    # and under a root harness the worker runs as `nobody`, so a tree this
+    # process seeded directly would be root-owned and every chmod would come
+    # back NotAuthorized for a reason that has nothing to do with `chmod -R`.
+    assert _run("mkdir", _url(rw, "/tree")).returncode == 0
+    assert _run("touch", _url(rw, "/tree/a.txt")).returncode == 0
     p = _run("chmod", "-R", _url(rw, "/tree"), "700")
     assert p.returncode == 0, p.stderr
     assert (d / "a.txt").stat().st_mode & 0o777 == 0o700

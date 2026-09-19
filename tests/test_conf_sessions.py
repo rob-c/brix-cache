@@ -65,7 +65,7 @@ def test_handshake_dataserver_type_parity(srv):
     must report kXR_DataServer(1) and a kXR-family protover (0x5xx). The protover
     minor differs by build (stock-installed 0x511 vs ours 0x520) — that is a
     version artifact, not a protocol divergence — so we pin the SERVER-TYPE and
-    the major-family, and surface the exact pair (XrdXrootdProtocol.cc:297-330)."""
+    the major-family, and surface the exact pair (the stock server)."""
     seen = {}
     for port, who in ((OUR_PORT, "OUR"), (OFF_PORT, "STOCK")):
         s = _connect(port)
@@ -138,7 +138,7 @@ def test_anon_login_ok_and_sessid_shape_parity(srv):
     is ServerResponseBody_Login = sessid[16] + sec[]; the stock-installed server
     returns an EMPTY body for a no-security anon login (no sessid), while ours
     returns a 16-byte sessid. We pin: both succeed, and any sessid present is
-    exactly 16 bytes (XProtocol.hh:1081)."""
+    exactly 16 bytes (the wire spec)."""
     for port, who in ((OUR_PORT, "OUR"), (OFF_PORT, "STOCK")):
         s = _connect(port)
         try:
@@ -274,7 +274,7 @@ def test_d4_sessid_unpredictable_csprng(srv):
 ])
 def test_request_before_login_rejected_parity(srv, op, mk):
     """A data op BEFORE login -> rejected on both servers (error or link drop);
-    neither serves the request (XrdXrootdProtocol.cc auth gate)."""
+    neither serves the request (the stock server auth gate)."""
     res = {}
     for port, who in ((OUR_PORT, "OUR"), (OFF_PORT, "STOCK")):
         s = _connect(port)
@@ -300,7 +300,7 @@ def test_request_before_login_rejected_parity(srv, op, mk):
 # =========================================================================== #
 def test_protocol_flags_isserver_parity(srv):
     """kXR_protocol reply: pval + flags with kXR_isServer set, parity on both
-    (XProtocol.hh:1233, do_Protocol:2050)."""
+    (the wire spec, do_Protocol:2050)."""
     flagset = {}
     for port, who in ((OUR_PORT, "OUR"), (OFF_PORT, "STOCK")):
         s = _connect(port)

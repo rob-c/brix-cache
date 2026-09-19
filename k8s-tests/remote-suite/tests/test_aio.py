@@ -280,7 +280,7 @@ class TestAioPgRead:
         """pgread via raw socket must return kXR_status with interleaved CRC32c.
 
         Wire format per page: [CRC32c(4)][data(page_size)] — digest before data,
-        matching AsyncPageReader::InitIOV() in XrdClAsyncPageReader.hh.
+        matching AsyncPageReader::InitIOV() in the stock client.
 
         The Python XRootD client does not expose kXR_pgread, so we use a raw
         socket.  The server sends kXR_status (4007) with the response body:

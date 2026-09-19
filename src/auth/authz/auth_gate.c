@@ -161,8 +161,9 @@ brix_acc_gate_engine(const auth_gate_ctx_t *g, const char *path)
     if (conf->common.acc.tables == NULL) {
         return NGX_ERROR;   /* xrdacc selected but authdb failed to load */
     }
+    path = brix_acc_canon_path(c->pool, path);
     if (path == NULL) {
-        path = "/";
+        return NGX_ERROR;   /* unspellable path -> deny */
     }
 
     /* Use the caller's explicit operation when given (e.g. create vs update,

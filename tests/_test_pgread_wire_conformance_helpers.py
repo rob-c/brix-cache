@@ -4,7 +4,7 @@ conformance.
 
 This suite verifies that the paged-read opcode emitted by the nginx-xrootd
 stream module is byte- and frame-faithful to the XRootD wire spec
-(/tmp/brix-src/src/XProtocol/XProtocol.hh).  Every request is built by hand
+(src/protocols/root/protocol/wire_core_requests.h).  Every request is built by hand
 over a raw TCP socket — the high-level XRootD python client sanitises
 offsets/lengths and re-frames the chunked response before it is observable, so
 only raw framing can prove the on-the-wire contract.  We assert: the success
@@ -20,7 +20,7 @@ the session survived.  Runs against the shared anon stream fleet
 (root://localhost:11094); skips cleanly if it is unreachable or if the server's
 data root is not locally writable.
 
-Wire structs verified against XProtocol.hh:
+Wire structs verified against the wire spec:
   * ClientPgReadRequest  (line 540): streamid[2] requestid(u16) fhandle[4]
                                      offset(i64) rlen(i32) dlen(i32)
   * ClientReadRequest    (line 678): same layout as pgread
@@ -49,7 +49,7 @@ from settings import (
 
 
 # ---------------------------------------------------------------------------
-# Opcodes / status / error codes (src/protocols/root/protocol/opcodes.h, XProtocol.hh)
+# Opcodes / status / error codes (src/protocols/root/protocol/opcodes.h, the wire spec)
 # ---------------------------------------------------------------------------
 
 def _expression_1(first, abs_off):

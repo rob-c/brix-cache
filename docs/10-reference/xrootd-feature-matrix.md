@@ -25,7 +25,7 @@ Last verified: 2026-06-14
 > kept as a historical snapshot and is no longer maintained row by row.
 
 This is the current high-level matrix for BriX-Cache versus the official
-XRootD source tree under `/tmp/brix-src`. It intentionally excludes the
+XRootD project. It intentionally excludes the
 official UDP stream monitoring stack: this project has rejected that subsystem
 and uses Prometheus/SRR/dashboard/access-log reporting instead.
 

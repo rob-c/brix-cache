@@ -457,4 +457,4 @@ def _should_skip_local_lifecycle(config) -> bool:
 
 from split_continuation import load as _load_continuations
 _load_continuations(globals(), __file__, "conftest_part2.py", "conftest_part3.py",
-                    "conftest_part5.py")
+                    "conftest_declares.py", "conftest_part5.py")

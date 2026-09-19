@@ -146,11 +146,13 @@ LDLIBS := -lssl -lcrypto -lz $(KRB5_LIBS) $(CODEC_LIBS) $(URING_LIBS)
 # copies); posix_wrapper.c is not (it owns symbols shared/cvmfs/platform
 # provides) and priv_wrapper.c is not (crypt/libcrypt, module-only).
 ifeq ($(shell uname -s),Darwin)
-PLATFORM_SRCS := lib/platform/darwin/posix.c lib/platform/darwin/mounts.c lib/platform/darwin/epoll.c \
+PLATFORM_SRCS := lib/platform/tcp_rtt.c \
+                 lib/platform/darwin/posix.c lib/platform/darwin/mounts.c lib/platform/darwin/epoll.c \
                  ../src/platform/darwin/storage_wrapper.c ../src/platform/darwin/process_wrapper.c
 PRELOAD_HOST_SRCS := lib/platform/darwin/preload_stream.c lib/platform/darwin/preload_interpose.c
 else
-PLATFORM_SRCS := lib/platform/linux/posix.c lib/platform/linux/mounts.c \
+PLATFORM_SRCS := lib/platform/tcp_rtt.c \
+                 lib/platform/linux/posix.c lib/platform/linux/mounts.c \
                  ../src/platform/linux/storage_wrapper.c ../src/platform/linux/process_wrapper.c
 PRELOAD_HOST_SRCS := lib/platform/linux/preload_stream.c lib/platform/linux/preload_lfs.c
 endif
@@ -158,7 +160,7 @@ endif
 # phase-69: client/lib reorganized into src-style concept buckets. Paths below are
 # the single source of truth for the build; every .c must be listed (no wildcards).
 LIB_SRCS   := $(PLATFORM_SRCS) \
-  lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_engine_cqe.c lib/core/aio/aio_io.c lib/core/aio/aio_mfile.c lib/core/aio/aio_mgr.c lib/core/aio/aio_timeouts.c lib/core/aio/uring.c lib/core/aio/uring_stub.c \
+  lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_engine_cqe.c lib/core/aio/aio_io.c lib/core/aio/aio_io_dispatch.c lib/core/aio/aio_mfile.c lib/core/aio/aio_mgr.c lib/core/aio/aio_timeouts.c lib/core/aio/uring.c lib/core/aio/uring_stub.c \
   lib/core/config/xrdrc.c lib/core/config/envalias.c \
   lib/core/types/status.c lib/core/types/units.c \
   lib/net/conn.c lib/net/conn_bootstrap.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/forksafe.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/tls_io.c lib/net/tls_certinfo.c lib/net/url.c lib/net/redir_registry.c lib/net/resolve.c \
@@ -170,7 +172,7 @@ LIB_SRCS   := $(PLATFORM_SRCS) \
   lib/auth/sec/sec_gsi.c lib/auth/sec/sec_host.c lib/auth/sec/sec_krb5.c lib/auth/sec/sec_pwd.c lib/auth/sec/sec_sss.c lib/auth/sec/sec_token.c lib/auth/sec/sec_unix.c \
   lib/auth/gsi/proxy.c \
   lib/auth/sss/sss_keytab.c lib/auth/sss/sss_id.c \
-  lib/fs/dirfanout.c lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/overlay_copyup.c lib/fs/path.c lib/fs/rfile_fast.c lib/fs/rfile_stream.c lib/fs/rmtree.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c lib/fs/walk.c \
+  lib/fs/dirfanout.c lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/overlay_copyup.c lib/fs/path.c lib/fs/rfile_fast.c lib/fs/rfile_fast_ring.c lib/fs/rfile_stream.c lib/fs/rmtree.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c lib/fs/walk.c \
   lib/fs/backend/s3/vfs_s3.c lib/fs/backend/s3/vfs_s3_http.c lib/fs/backend/s3/vfs_s3_io.c lib/fs/backend/s3/vfs_s3_transport.c \
   lib/protocols/root/frame.c lib/protocols/root/frame_roundtrip.c lib/protocols/root/ops_ext.c lib/protocols/root/ops_file.c lib/protocols/root/ops_file_pg.c lib/protocols/root/ops_file_rw.c lib/protocols/root/ops_fs.c lib/protocols/root/ops_meta.c \
   lib/protocols/http/http.c lib/protocols/http/http_download.c lib/protocols/http/http_req.c lib/protocols/http/http_upload.c lib/protocols/http/web_ka.c lib/protocols/http/webfile.c lib/protocols/http/webfile_io.c lib/protocols/http/weblist.c \
@@ -186,7 +188,7 @@ LIB_SRCS   := $(PLATFORM_SRCS) \
   ../shared/oci/gc.c ../shared/oci/gc_mark.c ../shared/oci/gc_sweep.c \
   ../shared/rpm/rpmhdr.c ../shared/rpm/repomd_write.c \
   lib/protocols/shared/checksum.c lib/protocols/shared/cks_verify.c lib/protocols/shared/cksum_manifest.c lib/protocols/shared/zip.c lib/protocols/shared/zip_write.c \
-  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_continue.c lib/xfer/copy_gsiftp.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_l2l.c lib/xfer/copy_local.c lib/xfer/copy_local_parallel.c lib/xfer/copy_metalink.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_web_recursive.c lib/xfer/copy_web_recursive_upload.c lib/xfer/copy_web_relay.c lib/xfer/copy_xattr.c lib/xfer/copy_xcp.c lib/xfer/copy_xcp_sources.c lib/xfer/copy_zip.c lib/xfer/metalink.c lib/xfer/metalink_lex.c \
+  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_continue.c lib/xfer/copy_gsiftp.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_l2l.c lib/xfer/copy_local.c lib/xfer/copy_local_fast.c lib/xfer/copy_local_parallel.c lib/xfer/copy_metalink.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_web_recursive.c lib/xfer/copy_web_recursive_upload.c lib/xfer/copy_web_relay.c lib/xfer/copy_xattr.c lib/xfer/copy_xcp.c lib/xfer/copy_xcp_sources.c lib/xfer/copy_zip.c lib/xfer/metalink.c lib/xfer/metalink_lex.c \
   lib/posix/fuse_ops.c lib/posix/posix_map.c \
   lib/cli/cli_cksum.c lib/cli/cli_conn.c lib/cli/cli_cred.c lib/cli/cli_hint.c lib/cli/cli_opts.c lib/cli/jsonout.c lib/cli/suggest.c lib/cli/xferjournal.c \
   lib/observability/capture.c lib/observability/trace.c \
@@ -421,6 +423,20 @@ $(PROTO_LIB): FORCE
 
 FORCE:
 
+# The two archives are mutually dependent, so every executable offers libbrix.a
+# on BOTH sides of libxrdproto.a. $(PROTO_DIR) deliberately ships no PAL: its
+# storage backends (sd_posix_io.o, sd_block.o, vfs_core.o) call brix_plat_*
+# entry points whose bodies each consumer supplies for its own host — the nginx
+# module compiles src/platform/<host>/ through ./config, the client through
+# PLATFORM_SRCS into $(CLIENT_LIB). A single-pass linker (GNU ld) pulls members
+# out of an archive only for the undefined symbols it holds when it reaches
+# that archive, so a lone leading $(CLIENT_LIB) is already behind it when
+# libxrdproto.a introduces brix_plat_pwrite_at and friends, and they stay
+# undefined. Repeating the archive is the portable cure: ld64 rescans archives
+# and simply finds nothing new on the second pass, whereas --start-group /
+# --end-group is GNU-only and Mach-O linking would reject it.
+BRIX_LIBS := $(CLIENT_LIB) $(PROTO_LIB) $(CLIENT_LIB)
+
 $(BINDIR):
 	@mkdir -p $(BINDIR)
 
@@ -486,7 +502,7 @@ endif
 # (e.g. xrdstorascan's -lm) fold in without a bespoke rule per binary.
 .SECONDEXPANSION:
 $(BIN_EXES): $(BINDIR)/%: $$($$*_OBJS) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $($*_OBJS) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $($*_LDLIBS) -o $@
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $($*_OBJS) $(BRIX_LIBS) $(LDLIBS) $($*_LDLIBS) -o $@
 	@echo " + built $@ (no libXrdCl/libXrdSec*)"
 
 # §14.4 unified xrootdfs (FUSE) — ONE binary linking the front-end
@@ -513,7 +529,7 @@ XROOTDFS_BIN_SPLIT := apps/fs/xrootdfs_usage.o apps/fs/xrootdfs_legacy_ext.o
 $(XROOTDFS_BIN_SPLIT): apps/fs/%.o: apps/fs/%.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -c $< -o $@
 $(BINDIR)/xrootdfs: apps/fs/xrootdfs_main.o apps/fs/xrootdfs.o apps/fs/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(XROOTDFS_BIN_SPLIT) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/fs/xrootdfs_main.o apps/fs/xrootdfs.o apps/fs/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(XROOTDFS_BIN_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -o $@
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/fs/xrootdfs_main.o apps/fs/xrootdfs.o apps/fs/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(XROOTDFS_BIN_SPLIT) $(BRIX_LIBS) $(LDLIBS) $(FUSE3_LIBS) -o $@
 	@echo " + built $@ (libfuse3; unified async+legacy; no libXrdCl/libXrdSec*)"
 
 # §14.5 brixMount (FUSE) — the umbrella front-end `brixMount <type> <endpoint>
@@ -610,7 +626,7 @@ BRIXMOUNT_OBJS := apps/fs/brixmount.o apps/fs/brixcvmfs.o apps/fs/brixcvmfs_rw.o
                   apps/fs/xrootdfs_usage.o $(BRIXOCI_OBJS) $(BRIXRPM_OBJS) \
                   $(BRIXINGEST_OBJS)
 $(BINDIR)/brixMount: $(BRIXMOUNT_OBJS) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(BRIXMOUNT_OBJS) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -lcurl -lsqlite3 -lcrypto -lz -o $@
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(BRIXMOUNT_OBJS) $(BRIX_LIBS) $(LDLIBS) $(FUSE3_LIBS) -lcurl -lsqlite3 -lcrypto -lz -o $@
 	@echo " + built $@ (CVMFS-brix + XRootDFS-brix; libfuse3/libcurl/libsqlite3)"
 
 # --- Ceph operator tools (apps/ceph/) -------------------------------------
@@ -732,19 +748,19 @@ sd-s3-meta-smoke: ../tests/c/sd_s3_meta_smoke.c $(CLIENT_LIB) | $(BINDIR)
 # Run against a live root:// server: ./aio_smoke root://host:port /scratch.bin
 .PHONY: aio-smoke aio-resil
 aio-smoke: ../tests/c/aio_smoke.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_smoke.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_smoke
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_smoke.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/aio_smoke
 	@echo " + built $(BINDIR)/aio_smoke (no libXrdCl/libXrdSec*)"
 
 # M2 resilience test — bounces the server mid-stream (set XRD_BOUNCE_CMD).
 aio-resil: ../tests/c/aio_resil.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_resil.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_resil
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_resil.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/aio_resil
 	@echo " + built $(BINDIR)/aio_resil (no libXrdCl/libXrdSec*)"
 
 # Deferred-reply (kXR_waitresp → kXR_attn/asynresp) driver for the mock-server
 # pytest (tests/test_aio_waitresp.py).
 .PHONY: aio-waitresp
 aio-waitresp: ../tests/c/aio_waitresp.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_waitresp.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_waitresp
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_waitresp.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/aio_waitresp
 	@echo " + built $(BINDIR)/aio_waitresp (no libXrdCl/libXrdSec*)"
 
 # Native SSI request/response driver (tests/c/ssi_client_smoke.c) for the
@@ -752,13 +768,13 @@ aio-waitresp: ../tests/c/aio_waitresp.c $(CLIENT_LIB) | $(BINDIR)
 # plane with NO libXrdSsi anywhere in the link — the whole point of the client.
 .PHONY: ssi-client-smoke
 ssi-client-smoke: ../tests/c/ssi_client_smoke.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/ssi_client_smoke.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/ssi_client_smoke
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/ssi_client_smoke.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/ssi_client_smoke
 	@echo " + built $(BINDIR)/ssi_client_smoke (no libXrdCl/libXrdSsi/libXrdSec*)"
 
 # M3 file-handle resumption test — read/write survive a mid-transfer bounce.
 .PHONY: aio-mfile brix-fault-proxy
 aio-mfile: ../tests/c/aio_mfile.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_mfile.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_mfile
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_mfile.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/aio_mfile
 	@echo " + built $(BINDIR)/aio_mfile (no libXrdCl/libXrdSec*)"
 
 # brix-fault-proxy — root-free TCP fault-injection proxy ("toxiproxy-lite") for
@@ -799,7 +815,7 @@ $(BINDIR)/brix-fault-proxy: $(FAULT_PROXY_SRCS) $(FAULT_PROXY_HDRS) lib/core/ver
 # Run: ./bin/netfb_test state ; LD_PRELOAD=./bin/gai_shim.so ./bin/netfb_test connect
 .PHONY: netfb gai-shim
 netfb: ../tests/c/netfb_test.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/netfb_test.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/netfb_test
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/netfb_test.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/netfb_test
 	@echo " + built $(BINDIR)/netfb_test"
 
 gai-shim: ../tests/c/gai_shim.c | $(BINDIR)
@@ -814,16 +830,16 @@ gai-shim: ../tests/c/gai_shim.c | $(BINDIR)
 # implementation. The archive member is therefore never extracted (nothing is
 # left undefined for it to satisfy), which is why the plain link works.
 dirfanout: ../tests/c/dirfanout_test.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/dirfanout_test.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/dirfanout_test
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/dirfanout_test.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/dirfanout_test
 	@echo " + built $(BINDIR)/dirfanout_test"
 
 .PHONY: forksafe
 forksafe: ../tests/c/forksafe_test.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/forksafe_test.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/forksafe_test
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/forksafe_test.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/forksafe_test
 	@echo " + built $(BINDIR)/forksafe_test"
 
 nettmo: ../tests/c/nettmo_test.c $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/nettmo_test.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/nettmo_test
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/nettmo_test.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/nettmo_test
 	@echo " + built $(BINDIR)/nettmo_test"
 
 # §14.4 the POSIX preload shim — fold the PIC client + protocol kernels into
@@ -847,6 +863,12 @@ $(LIBBRIX_SO): $(PIC_OBJS) $(PROTO_LIB)
 	ln -sf $(LIBBRIX_SONAME) $(LIBBRIX_SO)
 	@echo " + built $(LIBBRIX_REAL) (no libXrdCl/libXrdSec*)"
 
+# Libs.private is what `pkg-config --static` appends, and it is $(BRIX_LIBS)
+# in -l form: libxrdproto ships no PAL, so a consumer that links libbrix.a
+# once and libxrdproto.a after it fails on brix_plat_blockdev_size /
+# brix_plat_fd_reopen_readonly — symbols whose bodies are in the archive the
+# linker has already walked past. The shared form needs none of this: the .so
+# folds the whole protocol archive in (see $(LIBBRIX_SO) above).
 libbrix.pc:
 	@printf '%s\n' \
 	  'prefix=$(PREFIX)' \
@@ -858,6 +880,7 @@ libbrix.pc:
 	  'Version: $(BRIX_VERSION)' \
 	  'Requires.private: libssl libcrypto zlib' \
 	  'Libs: -L$${libdir} -lbrix' \
+	  'Libs.private: -lxrdproto -lbrix' \
 	  'Cflags: -I$${includedir}/brix -I$${includedir}/brix/xrdproto' > $@
 
 # Install the lib, the public header, and the (self-contained) protocol headers it
@@ -1052,6 +1075,10 @@ TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -
 # those tests link the whole archive (whole_archive above). cred_store_unit instead OVERRIDES a strong
 # lib symbol (brix_cred_s3keys) and must use the plain archive link.
 WHOLEARCH_TESTS := cli_cred_unit cred_unit vfs_posix_unit vfs_block_unit
+# Both link recipes below trail $(CLIENT_LIB) after $(PROTO_LIB) for the same
+# reason $(BRIX_LIBS) exists: libxrdproto calls back into the PAL that libbrix
+# defines, and GNU ld resolves each archive once, in order.  $$lib picks
+# whole-archive per test, so neither can use $(BRIX_LIBS) verbatim.
 test: $(CLIENT_LIB) proto | $(BINDIR)
 	@set -e; for t in $(CLIENT_UNIT_TESTS); do \
 	  echo "== $$t"; \
@@ -1060,7 +1087,7 @@ test: $(CLIENT_LIB) proto | $(BINDIR)
 	  *)         lib='$(CLIENT_LIB)' ;; \
 	  esac; \
 	  $(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(TEST_INC) tests/c/$$t.c \
-	    $$lib $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/$$t; \
+	    $$lib $(PROTO_LIB) $(CLIENT_LIB) $(LDLIBS) -o $(BINDIR)/$$t; \
 	  $(BINDIR)/$$t; \
 	done; echo "client unit tests: ALL PASS"
 	@echo "== man page guard"
@@ -1072,6 +1099,9 @@ test: $(CLIENT_LIB) proto | $(BINDIR)
 # the same recipe the `test` target uses (dashes in the goal map to the source
 # file's underscores).  The pytest fast-tier wrappers drive individual units
 # this way, so a single C unit can run without the full `make test` sweep.
+# Without the trailing $(CLIENT_LIB) (see WHOLEARCH_TESTS above) cred_refresh,
+# relsafe, web_proxy_pem and xrdrc_defaults fail to link on brix_plat_* the
+# moment libxrdproto.a drags in a storage backend.
 %-unit: $(CLIENT_LIB) proto | $(BINDIR)
 	@t=$(subst -,_,$@); \
 	case " $(WHOLEARCH_TESTS) " in \
@@ -1079,7 +1109,7 @@ test: $(CLIENT_LIB) proto | $(BINDIR)
 	*)         lib='$(CLIENT_LIB)' ;; \
 	esac; \
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(TEST_INC) tests/c/$$t.c \
-	  $$lib $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/$$t
+	  $$lib $(PROTO_LIB) $(CLIENT_LIB) $(LDLIBS) -o $(BINDIR)/$$t
 
 # Build the sample consumer against the INSTALLED library via pkg-config.
 example-test:

@@ -112,7 +112,7 @@ PRW_FRONT_PORT      = int(os.environ.get("TEST_PPE_PRW_FRONT_PORT")      or _p_p
 PRW_BACKEND_PORT    = int(os.environ.get("TEST_PPE_PRW_BACKEND_PORT")    or _p_prw_backend)
 
 # ---------------------------------------------------------------------------
-# XRootD wire constants (authoritative: src/XProtocol/XProtocol.hh).
+# XRootD wire constants (authoritative: src/XProtocol/the wire spec).
 # ---------------------------------------------------------------------------
 kXR_auth     = 3000
 kXR_chmod    = 3002

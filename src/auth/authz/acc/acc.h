@@ -125,10 +125,15 @@ typedef struct {
  * brix_acc_entity_t — the request identity.  `name`/`host` are scalar;
  * `tuples` is the positional expansion of the multi-valued VO/role/group
  * attributes (built by entity.c from brix_identity_t).
+ *
+ * Every string here is OWNED by `pool` (or is a literal sentinel).  An entity
+ * outlives the call that built it — it is memoised on the identity — so a
+ * borrowed scalar would be a dangling pointer the next request reads; see
+ * acc_entity_init_scalars in entity.c.
  */
 typedef struct {
-    const char         *name;     /* user name (DN / subject) or "*" */
-    const char         *host;     /* peer host or "?" */
+    const char         *name;     /* user name (DN / subject) or "*"; pool-owned */
+    const char         *host;     /* peer host or "?"; pool-owned */
     int                 isuser;   /* name is a concrete user (not "*") */
     ngx_array_t        *tuples;   /* of brix_acc_attr_t (>= 1 entry) */
     ngx_pool_t         *pool;     /* scratch pool (for the netgroup resolver) */
@@ -279,6 +284,14 @@ brix_acc_entity_t *brix_acc_entity_build(ngx_pool_t *pool,
                                              const char *vorg_csv,
                                              const char *role_csv,
                                              const char *grp_csv);
+
+/* access.c — canonicalize a logical path into the one spelling rules are
+ * matched against (exactly one leading '/').  Every gate MUST run its path
+ * through this before brix_acc_access()/brix_acc_audit(), because the client
+ * picks the spelling and the I/O layer treats them all as one object.  Returns
+ * a borrowed pointer (no allocation for an already-absolute path) or NULL when
+ * the path cannot be canonicalized — NULL means DENY. */
+const char *brix_acc_canon_path(ngx_pool_t *pool, const char *path);
 
 /* access.c (M2) — the decision engine.  Returns granted privileges (0 = deny);
  * for op == BRIX_AOP_ANY returns the effective privilege set. */

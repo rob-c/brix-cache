@@ -544,10 +544,24 @@ def test_collection_finish_skips_collect_only_and_empty_sessions(
 
 
 def _named_spec(name):
-    """A minimal stand-in for a registry spec: only ``.name`` is read by the
-    boot-set closure filter."""
+    """A minimal stand-in for a registry spec.
+
+    ``.name`` is what the boot-set closure filter is about, but the set it
+    filters now passes through ``host_caps.boot_specs`` first — the
+    macOS-era gate that drops members whose third-party daemon is not
+    installed rather than letting one missing ``haproxy`` abort the whole
+    collection barrier.  That reads ``.kind``, ``.template`` and
+    ``.requires``, so a stand-in carrying only a name raised AttributeError
+    from inside the filter and the three cases below failed on a stack trace
+    about SimpleNamespace.  The values are chosen to be available anywhere:
+    ``nginx`` is the kind with no third-party binary, and a template name
+    that resolves to no file probes clean.
+    """
     spec = types.SimpleNamespace()
     spec.name = name
+    spec.kind = "nginx"
+    spec.template = f"{name}.conf"
+    spec.requires = ()
     return spec
 
 

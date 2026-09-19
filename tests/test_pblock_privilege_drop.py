@@ -186,8 +186,15 @@ def test_pblock_large_object_stripes_into_multiple_unprivileged_blocks(harness):
 def test_pblock_fails_closed_when_dropped_worker_cannot_write(harness):
     """If the export is not writable by the dropped account, the write fails closed
     and creates NO file — never a fallback that writes as root. (A worker that did
-    NOT drop would still be root and would have written root-owned files here.)"""
-    export = _mkexport("failclosed", 0o755, owner_uid=0)  # root:root 0755
+    NOT drop would still be root and would have written root-owned files here.)
+
+    The export is 0o555, not 0o755: the launcher widens an export still at the
+    bare `mkdir` default to 0o777 so a de-escalated worker can create its store
+    (`_open_if_still_default`), and 0o755 IS that default — it "says nothing
+    about who may write", so a 0o755 export here was silently handed back as
+    world-writable and the write it was supposed to refuse succeeded. 0o555 is
+    the mode that states the intent, and the launcher leaves it alone."""
+    export = _mkexport("failclosed", 0o555, owner_uid=0)  # root:root, frozen
     url, _ = _start(harness, "pb-failclosed", export)
 
     try:

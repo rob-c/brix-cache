@@ -228,7 +228,7 @@ def _start_stock_gsi(pki, port, hostcert, hostkey, certdir, cfgname, control_roo
         for cred in (pki["valid_proxy"], pki["userkey"]):
             subprocess.run(["chmod", "0600", cred], check=False)
         # The broad `a+rwX` also left the shared CA dirs world-WRITABLE (0777).
-        # XrdCl's TLS client init (XrdClTls.cc InitTLS -> XrdOucUtils::ValPath,
+        # XrdCl's TLS client init (the stock client InitTLS -> XrdOucUtils::ValPath,
         # mask 0755) REFUSES a CA directory with group/other-write bits ("has
         # excessive access rights") and throws "Failed to initialize TLS". Every
         # later roots:// test in this module points X509_CERT_DIR at certs/, so if

@@ -255,7 +255,7 @@ brix_proxy_queue_and_flush(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
  * WHAT: Handle kXR_stat forwarding — translate the fhandle only for a
  *       stat-by-open-handle; forward path/vfs stats (incl. statvfs) untranslated.
  * WHY:  kXR_stat's wire layout differs from kXR_truncate/kXR_fattr: byte 4 is the
- *       `options` field (ClientStatRequest in XProtocol.hh), NOT an fhandle — the
+ *       `options` field (ClientStatRequest in the wire spec), NOT an fhandle — the
  *       fhandle lives at byte 16. Reading byte 4 as the fhandle broke the statvfs
  *       variant, which sets options=kXR_vfs(1): the nonzero options byte was taken
  *       for a live fhandle and rejected with kXR_InvalidRequest. A path-form stat

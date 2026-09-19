@@ -233,7 +233,7 @@ parent and relay the parent's answer back to the client.
 
 The following opcodes appear in the XRootD CMS wire protocol and are now
 handled. Values are verified against `YProtocol.hh` in the XRootD reference
-source tree at `/tmp/brix-src/src/XProtocol/YProtocol.hh`.
+source tree at `XProtocol/YProtocol.hh`.
 
 | Opcode | Value | Direction | Purpose |
 |---|---|---|---|

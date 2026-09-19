@@ -56,6 +56,34 @@ class TestClientDownloadFanout:
         assert n_sec >= 1, "client did not establish any bound secondary by default"
         assert on_sec > 0, "no chunks were read on a secondary (silent fallback?)"
 
+    def test_single_stream_download_takes_the_pipelined_reader(self, endpoint,
+                                                               tmp_path):
+        """`-S 1` has no secondaries to fan across, so it takes the pipelined
+        reader — several kXR_reads in flight on the primary — and never reaches
+        the serial pump that announces substreams.
+
+        This is the other half of the boundary the case above pins.  Both paths
+        exist and the caller picks by asking for streams or not; a "fix" that
+        simply stopped the pipelined reader from ever running would leave the
+        fan-out case green and only this one would notice."""
+        host, port = endpoint
+        size = 16 * 1024 * 1024                    # two XRDC_COPY_CHUNK reads
+        content = _det(size)
+        name = "client-dl-single.bin"
+        _write_data_file(name, content)
+        dst = tmp_path / "dl-single.bin"
+
+        env = dict(os.environ, BRIX_STREAMS_DEBUG="1")
+        res = subprocess.run(
+            [_XRDCP, "-S", "1", "-f", f"root://{host}:{port}//{name}", str(dst)],
+            capture_output=True, text=True, env=env, timeout=120)
+        assert res.returncode == 0, f"single-stream download failed: {res.stderr}"
+        assert dst.read_bytes() == content, "single-stream download not byte-exact"
+
+        assert not [l for l in res.stderr.splitlines()
+                    if "download substreams=" in l], \
+            f"-S 1 fell back to the serial pump: {res.stderr}"
+
     def test_parallel_striped_download_byte_exact(self, endpoint, tmp_path):
         """--parallel runs the TRUE concurrent striped download: one thread per
         bound connection, each pwrite-ing its disjoint byte range.  The stripes

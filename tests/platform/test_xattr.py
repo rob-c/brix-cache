@@ -100,14 +100,30 @@ def test_xattr_set_get_binary(temp_file):
 @pytest.mark.pal_function("brix_plat_setxattr")
 @pytest.mark.pal_function("brix_plat_getxattr")
 def test_xattr_set_get_large(temp_file):
-    """Test set and get with large value"""
+    """Test set and get with large value.
+
+    How large "large" may be is a filesystem property, not a PAL one: ext4
+    keeps each xattr value inside a single block and answers ENOSPC past
+    ~4 KiB, while APFS and XFS take far more. Ask for 10 KiB first, and where
+    the filesystem refuses it, step down to the largest size it will hold. The
+    round-trip is what this test is for, and it stays meaningful at either
+    size; only a filesystem that cannot store 1 KiB is worth skipping over.
+    """
     name = "user.brix_large"
-    value = b"x" * 10000  # 10 KB
-    
-    set_xattr_safe(temp_file, name, value)
-    result = get_xattr_safe(temp_file, name)
-    
-    assert result == value, "Large data should be preserved"
+    for size in (10000, 4096, 2048, 1024):
+        value = b"x" * size
+        try:
+            os.setxattr(str(temp_file), name, value)
+        except OSError as e:
+            if e.errno in (errno.ENOSPC, errno.E2BIG):
+                continue
+            if e.errno in (errno.ENOTSUP, errno.EOPNOTSUPP):
+                pytest.skip("Filesystem does not support extended attributes")
+            raise
+        assert get_xattr_safe(temp_file, name) == value, \
+            f"Large data should be preserved ({size} bytes)"
+        return
+    pytest.skip("Filesystem stores no xattr value of 1 KiB or more")
 
 
 # =============================================================================

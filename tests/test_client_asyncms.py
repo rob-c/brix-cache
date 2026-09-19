@@ -8,7 +8,7 @@ It now surfaces the message (printable-sanitised, to stderr) and keeps
 reading the real reply.
 
 (Of the historical attn action codes, only asyncms and asynresp are still
-active in the 5.6.9 baseline — verified in the stock XProtocol.hh; the rest
+active in the 5.6.9 baseline — verified in the stock the wire spec; the rest
 are marked "No longer supported".  asynresp already has its own waitresp
 path, so asyncms is the one live unsolicited action this closes.)
 

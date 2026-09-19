@@ -298,6 +298,70 @@ def _reference_ip_args():
     return ["-I", f"v{address.version}"]
 
 
+# Stock ``xrootd``/``cmsd`` refuse to start as superuser ("XrdConfig: Security
+# reasons prohibit running as superuser"), so a root-launched mesh used to come
+# up with no reference daemons at all — and the fleet stability sentinel then
+# refused to dispatch ANY test on a root host.  ``-R <user>`` is the supported
+# answer: the daemon does its privileged setup, then becomes that account.  It
+# is the same transition the registry launcher arranges for the fleet's own
+# stock nodes (launcher/internal_operations.py's ``xrootd_runas_user``), down to
+# the REF_RUNAS_USER knob and its ``nobody`` default.
+RUNAS_USER = os.environ.get("REF_RUNAS_USER", "nobody") if os.geteuid() == 0 else None
+
+# Everything a de-escalated daemon touches after the transition — config, admin
+# socket, pid file, log, data, and the cwd it makes its instance directory in —
+# lives under the mesh's throwaway tree, so open the tree whole rather than
+# enumerate paths the daemons only create later.  These two are the exception:
+# XRootD refuses a keytab any other account can read, and reference XrdHttp
+# refuses a world-writable public cert (see gen_cert), so hand those to the
+# run-as user at gen_cert's own modes instead of widening them.
+_RUNAS_PRIVATE = ("*.keytab", "key.pem")
+_RUNAS_PUBLIC = ("cert.pem",)
+
+
+def _retighten_credentials(tree):
+    for pattern in _RUNAS_PRIVATE:
+        for path in glob.glob(os.path.join(tree, "**", pattern), recursive=True):
+            shutil.chown(path, RUNAS_USER)
+            os.chmod(path, 0o600)
+    for pattern in _RUNAS_PUBLIC:
+        for path in glob.glob(os.path.join(tree, "**", pattern), recursive=True):
+            os.chmod(path, 0o644)
+
+
+def _open_ancestors(tree):
+    """a+rx every directory between TEST_ROOT and `tree`, TEST_ROOT included.
+
+    The run-as user has to traverse down to the mesh tree.  TEST_ROOT is the
+    boundary: the fleet owns that directory, and nothing above it is ours to
+    widen.  A mesh pointed outside it (CMS_MESH_DIR / HYBRID_MESH_DIR) has no
+    such boundary to walk, so nothing is touched at all.
+    """
+    stop = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
+    path = tree
+    while path.startswith(stop + os.sep):
+        path = os.path.dirname(path)
+        try:
+            os.chmod(path, os.stat(path).st_mode | 0o555)
+        except OSError:
+            pass
+
+
+def runas_args(tree):
+    """Return the ``-R`` argv for a stock daemon, opening `tree` for it first.
+
+    ``[]`` — and no permission change whatsoever — unless we are running as
+    root, which is the only case where the superuser refusal applies.
+    """
+    if RUNAS_USER is None:
+        return []
+    subprocess.run(["chmod", "-R", "a+rwX", tree], check=False,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    _retighten_credentials(tree)
+    _open_ancestors(tree)
+    return ["-R", RUNAS_USER]
+
+
 class Mesh:
     """Owns one topology's scratch dir + daemons (under MESH_DIR/<name>)."""
 
@@ -361,9 +425,10 @@ class Mesh:
         # this they would litter the pytest CWD (the repo root) with one empty
         # dir per node.  Pin it under the mesh's /tmp working tree instead.
         ip_args = _reference_ip_args()
-        subprocess.run([CMSD_BIN, *ip_args, "-c", cfg, "-n", label, "-l", clog, "-b"],
+        runas = runas_args(self.root)
+        subprocess.run([CMSD_BIN, *ip_args, *runas, "-c", cfg, "-n", label, "-l", clog, "-b"],
                        check=False, start_new_session=True, cwd=self.root)
-        subprocess.run([BRIX_BIN, *ip_args, "-c", cfg, "-n", label, "-l", xlog, "-b"],
+        subprocess.run([BRIX_BIN, *ip_args, *runas, "-c", cfg, "-n", label, "-l", xlog, "-b"],
                        check=False, start_new_session=True, cwd=self.root)
 
     def nginx(self, label, conf_text):

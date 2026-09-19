@@ -225,11 +225,22 @@ def _demo_command(installed, static):
         # those libraries too or the link fails with undefined references.  Only
         # append codecs whose runtime lib is actually present (matches however
         # libxrdproto was built; harmless to over-link, fatal to under-link).
+        # The two archives are mutually dependent, so libbrix.a is offered on
+        # BOTH sides — the same ordering client/Makefile's $(BRIX_LIBS) uses,
+        # and now what `pkg-config --static --libs libbrix` emits.
+        # libxrdproto.a deliberately ships no PAL: its storage backends
+        # (sd_block.o, sd_posix_io.o, vfs_core.o) call brix_plat_* entry points
+        # whose bodies each consumer supplies for its own host, and libbrix.a
+        # is the client's.  GNU ld pulls archive members only for the
+        # undefined symbols it is holding when it REACHES that archive, so a
+        # single leading libbrix.a is already behind it when libxrdproto.a
+        # introduces brix_plat_blockdev_size / brix_plat_fd_reopen_readonly.
         return ([CC, "-std=c11", DEMO_SRC,
                  "-I" + os.path.join(installed, "include", "brix"),
                  "-I" + os.path.join(installed, "include", "brix", "xrdproto"),
                  os.path.join(installed, "lib", "libbrix.a"),
                  os.path.join(installed, "lib", "libxrdproto.a"),
+                 os.path.join(installed, "lib", "libbrix.a"),
                  "-lssl", "-lcrypto", "-lz"]
                 + _codec_link_libs() + _krb5_link_libs() + _uring_link_libs()
                 + _gcov_link_flags(installed))

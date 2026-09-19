@@ -1,7 +1,7 @@
 """xrdfs multi-file readv — per-segment fhandle (parity-audit §7.15).
 
 Stock's readahead_list carries a per-segment fhandle (verified in the stock
-XProtocol.hh: `struct readahead_list { fhandle[4]; rlen; offset; }`), so ONE
+the wire spec: `struct readahead_list { fhandle[4]; rlen; offset; }`), so ONE
 kXR_readv can scatter-gather across multiple open files.  BriX's client sent a
 single fhandle for every segment; the SERVER already supported per-segment
 handles (audit §1), so the gap was purely client-side.  The new

@@ -13,7 +13,7 @@
 #include <string.h>
 #include <stdio.h>
 
-/* kYR_* request opcodes (wire constants from XProtocol/YProtocol.hh). */
+/* kYR_* request opcodes (cmsd wire constants). */
 #define K_CHMOD    1
 #define K_LOCATE   2
 #define K_MKDIR    3

@@ -197,16 +197,30 @@ def pki(tmp_path_factory):
                                           b"base64 at all\n-----END X509 "
                                           b"CRL-----\n")
 
-    # A directory whose only CRL is a perfectly good one the worker may not
-    # read: its own copy of the real CRL, so the ONLY difference from crl_dir
-    # is the mode bits.  Since 2.0 F22 a server pointed at it refuses to start,
-    # so it is a parse-tier subject only — it is deliberately NOT wired into
-    # the running instance, which could not start if it were.
+    # A directory holding one entry the loader's name predicate accepts and
+    # that NOTHING can open.  Since 2.0 F22 a server pointed at it refuses to
+    # start, so it is a parse-tier subject only — it is deliberately NOT wired
+    # into the running instance, which could not start if it were.
+    #
+    # Unopenable is spelled as a symlink loop rather than mode 0o000: this
+    # suite's lanes run as root, root bypasses DAC, and `nginx -t` does its
+    # config-time `access(R_OK)` and its CRL fopen() as the INVOKING user (the
+    # worker de-escalation happens later, and never for -t).  Every case here
+    # therefore watched the loader open the "unreadable" CRL, load it fine and
+    # start — reported as "F22 has reverted", which is the opposite of what
+    # had happened.  ELOOP is refused for every uid, reaches the same
+    # `access()`/`fopen()` failure arms, and leaves the file a real CRL for
+    # the readable twin next to it.
     unread_dir = base / "unreadable"
     unread_dir.mkdir()
+    # The loop's other half is deliberately named so the loader's predicate
+    # (*.pem / *.r[0-9]) does NOT match it: two matching entries means readdir
+    # order decides which path the refusal names, and the assertions below
+    # name one.
     hidden = unread_dir / "fullint.r0"
-    hidden.write_bytes(make_crl(full_int, revoked=[revoked]))
-    hidden.chmod(0o000)
+    partner = unread_dir / "fullint.loop"
+    hidden.symlink_to(partner)
+    partner.symlink_to(hidden)
 
     def _write(cert, tag):
         pem = base / f"{tag}cert.pem"

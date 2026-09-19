@@ -48,7 +48,9 @@ def test_the_verifier_falls_back_to_the_kernel():
     crypt(3) failed to produce the hash's own method, never instead of it."""
     with open(os.path.join(DASHBOARD, "dashboard_auth_creds.c"), encoding="utf-8") as fh:
         source = fh.read()
-    assert "candidate = crypt(plain, hash);" in source
+    # brix_plat_crypt, not crypt: the platform's crypt(3) is reached through the
+    # PAL (INVARIANT 14), which is the call whose ORDER this case is about.
+    assert "candidate = brix_plat_crypt(plain, hash);" in source
     assert "brix_sha_crypt_handles(hash)" in source
-    assert source.index("candidate = crypt(plain, hash);") \
+    assert source.index("candidate = brix_plat_crypt(plain, hash);") \
         < source.index("brix_sha_crypt(plain, hash, sha_out")

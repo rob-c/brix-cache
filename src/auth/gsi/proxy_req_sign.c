@@ -12,7 +12,7 @@
  *   out of proxy_req.c (phase-79 file-size guard) as one cohesive unit; the
  *   request build stays in proxy_req.c and the delegated-chain assembly lives in
  *   proxy_req_assemble.c. Ported faithfully from stock XrdSecgsi
- *   XrdCrypto/XrdCryptosslgsiAux.cc::XrdCryptosslX509SignProxyReq.
+ *   stock XrdSecgsi's X509SignProxyReq.
  *
  * HOW: parse signer PEM + request DER → subject must be '<signer>/CN=<serial>' →
  *   signer must be unexpired (proxy inherits its remaining lifetime) → verify the

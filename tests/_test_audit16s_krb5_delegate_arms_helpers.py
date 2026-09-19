@@ -137,7 +137,7 @@ from fleet_lifecycle_ports import (
 )
 from server_registry import NginxInstanceSpec
 from settings import (
-    CRED_STORE_BASE,
+    CRED_STORE_DEFAULT,
     HOST,
     KRB5_CCACHE,
     KRB5_CLIENT_KEYTAB,
@@ -147,6 +147,7 @@ from settings import (
     KRB5_SERVICE_PRINCIPAL,
     NGINX_BIN,
     url_host,
+    worker_runtime_uid,
 )
 
 def _expression_1(plane, mark, self):
@@ -210,7 +211,10 @@ def _writes(text, value):
 # brix_cred_write (an 8-hex entropy suffix follows), and the per-uid tmpfs
 # staging dir the VOLATILE arm always uses — the resolved shape of #96.
 CAPTURE_GLOB = "brix-krb5-fwd-*"
-DEFAULT_CAPTURE_DIR = Path(f"{CRED_STORE_BASE}.{os.geteuid()}")  # cred_stage.c BRIX_CRED_STAGE_BASE
+#: cred_stage.c BRIX_CRED_STAGE_BASE, scoped to the uid the WORKER runs as —
+#: `.{os.geteuid()}` named the master's, so a root lane watched a store the
+#: de-escalated worker never writes to and read every capture as a missing one.
+DEFAULT_CAPTURE_DIR = Path(CRED_STORE_DEFAULT)
 
 MARKER = "krb5 delegation captured forwarded TGT"
 NOTICE = "brix: krb5 auth configured"

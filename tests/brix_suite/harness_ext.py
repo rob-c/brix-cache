@@ -94,21 +94,66 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
         f"diverges from the direct oracle.")
 
 
+def _revoke_token(p) -> None:
+    from mu_authz_lib import creds
+    p.token = creds.mint_token(p.sub, p.scope, p.name, expired=True)
+
+
+def _revoke_gridmap(p) -> None:
+    lines = [ln for ln in open(ports.MU.GRIDMAP).read().splitlines()
+             if p.dn not in ln and (not p.krb_princ or p.krb_princ not in ln)]
+    with open(ports.MU.GRIDMAP, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def _reload_fleet() -> None:
+    fleet.stop()
+    fleet.start()
+    fleet.wait_listening(20)
+
+
 @pytest.fixture
 def revoke(cast):
-    """Revoke a principal's access by `what` ∈ {token, gridmap} and reload the fleet."""
+    """Revoke a principal's access by `what` ∈ {token, gridmap}, reload, then RESTORE.
+
+    Both revocations outlive the call that makes them, and neither is a fact this
+    test owns: creds.mint_token() writes every mint for a principal to the SAME
+    file, TOKENS_DIR/<name>.jwt, so revoking alice OVERWRITES the credential the
+    session-scoped `cast` hands to every test after this one; the gridmap is a
+    file the whole fleet reads.  Without the restore below, the first test to
+    revoke alice left her holding an expired token for the rest of the run, and
+    because the HTTP probes present the token by preference, each later test then
+    failed setting ITSELF up ("must be cached before revocation") and never
+    reached the property it exists to check.  The root:// cells hid it — their
+    probe falls back to the GSI proxy — so the davs:// cells beside them appeared
+    to be a protocol-specific defect rather than a credential a sibling had
+    expired.
+
+    The restore therefore rewinds file CONTENT, not the path (the path never
+    changed, which is precisely why saving it restored nothing), and reloads once
+    so the fleet the next test meets is the fleet this fixture promised it.
+    """
+    taken: "list[tuple[str, str]]" = []
+
+    def _save(path):
+        with open(path) as fh:
+            taken.append((path, fh.read()))
+
     def _revoke(what, who):
         p = cast[who]
         if what == "token":
-            from mu_authz_lib import creds
-            p.token = creds.mint_token(p.sub, p.scope, p.name, expired=True)
+            _save(p.token)
+            _revoke_token(p)
         elif what == "gridmap":
-            # Drop this principal's line from the gridmap, then reload.
-            lines = [ln for ln in open(ports.MU.GRIDMAP).read().splitlines()
-                     if p.dn not in ln and (not p.krb_princ or p.krb_princ not in ln)]
-            with open(ports.MU.GRIDMAP, "w") as f:
-                f.write("\n".join(lines) + "\n")
-        fleet.stop()
-        fleet.start()
-        fleet.wait_listening(20)
-    return _revoke
+            _save(ports.MU.GRIDMAP)
+            _revoke_gridmap(p)
+        _reload_fleet()
+
+    yield _revoke
+
+    if not taken:
+        return
+    for path, original in reversed(taken):
+        with open(path, "w") as fh:
+            fh.write(original)
+    _reload_fleet()

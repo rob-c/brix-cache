@@ -573,7 +573,7 @@ rpmbuild -bb \
 The finished RPM lands in `~/rpmbuild/RPMS/x86_64/`:
 
 ```
-~/rpmbuild/RPMS/x86_64/nginx-mod-brix-cache-2.0.0-1.el9.x86_64.rpm
+~/rpmbuild/RPMS/x86_64/nginx-mod-brix-cache-2.0.0-2.el9.x86_64.rpm
 ```
 
 You can also build directly from the working tree without a tarball by using

@@ -78,6 +78,19 @@ def _canonical_version() -> str:
 
 CANONICAL_VERSION = _canonical_version()
 
+
+def _canonical_release() -> str:
+    """The spec's `Release:`, which is what an actual built RPM is named."""
+    match = re.search(r"^Release:\s+([0-9]+)%\{\?dist\}", SPEC.read_text(), re.M)
+    assert match, (
+        "packaging/rpm/nginx-mod-brix-cache.spec no longer spells Release as "
+        "<integer>%{?dist}"
+    )
+    return match.group(1)
+
+
+CANONICAL_RELEASE = _canonical_release()
+
 # `nginx-mod-brix-cache-2.0.0-1.el9.x86_64.rpm`, `brix-cache-tests-2.0.0-1.el9.noarch.rpm`
 _PACKAGE_FILE = re.compile(
     r"\b([a-z][a-z0-9-]*?)-([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)\.(el|fc)[0-9]+",
@@ -119,11 +132,21 @@ def test_the_spec_package_set_is_readable():
     assert "wlcg-repo" not in OUR_PACKAGES
 
 
-def test_spec_release_is_still_one():
-    """The `-1` in every documented filename comes from the spec, not a guess."""
-    assert re.search(r"^Release:\s+1%\{\?dist\}", SPEC.read_text(), re.M), (
-        "packaging/rpm/nginx-mod-brix-cache.spec no longer pins Release: 1 — "
-        "the documented package filenames below encode it"
+def test_spec_release_is_a_plain_integer():
+    """The release in every documented filename comes from the spec, not a guess.
+
+    Pinning the literal `1` here made an ordinary rebuild look like a defect:
+    the native-VOMS work shipped as 2.0.0-2 (the spec's own %changelog says so)
+    and this turned red while the actual rot — the docs still quoting `-1` —
+    sat in the test below, measured against the same literal and therefore
+    equally blind.  Read the release the way CANONICAL_VERSION reads the
+    version, from the one file that defines it, and both tests move with the
+    package instead of against it.
+    """
+    assert CANONICAL_RELEASE.isdigit(), (
+        "packaging/rpm/nginx-mod-brix-cache.spec no longer carries a plain "
+        f"integer Release (got {CANONICAL_RELEASE!r}) — the documented package "
+        "filenames encode it"
     )
 
 
@@ -146,11 +169,11 @@ def test_no_user_facing_doc_quotes_a_stale_package_release():
         f"{_relative(path)}: {name}-{version}-{release}"
         for path in DOCS
         for name, version, release in _our_package_versions(path.read_text())
-        if release != "1"
+        if release != CANONICAL_RELEASE
     ]
     assert not stale, (
         "user-facing docs quote a package release other than the spec's "
-        "Release: 1:\n  " + "\n  ".join(stale)
+        f"Release: {CANONICAL_RELEASE}:\n  " + "\n  ".join(stale)
     )
 
 

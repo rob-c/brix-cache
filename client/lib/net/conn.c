@@ -12,9 +12,9 @@
  *       keying on the streamid. Anonymous login sends no credential payload; if
  *       the server demands a security protocol we fail cleanly (auth is M4).
  *
- * wire: XProtocol.hh ClientInitHandShake — {0,0,0,htonl(4),htonl(2012=ROOTD_PQ)}.
- * wire: XProtocol.hh ServerProtocolBody — pval[4] flags[4]; flags carry server caps.
- * wire: XProtocol.hh ServerLoginBody — sessid[16] [+ "&P=..." security list].
+ * wire: ClientInitHandShake — {0,0,0,htonl(4),htonl(2012=ROOTD_PQ)}.
+ * wire: ServerProtocolBody — pval[4] flags[4]; flags carry server caps.
+ * wire: ServerLoginBody — sessid[16] [+ "&P=..." security list].
  */
 #include "brix.h"
 #include "conn_internal.h"                          /* handshake + login (conn_bootstrap.c) */

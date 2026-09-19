@@ -10,8 +10,8 @@
  * HOW:  Each request builds its packed ClientXxxRequest struct from wire.h, sets
  *       big-endian fields, and exchanges frames via frame.c. No ngx, no XrdCl.
  *
- * Clean-room: wire facts come only from the src/protocols/root/protocol headers (cross-checked
- * against XProtocol.hh). See docs/refactor/phase-37-clean-room-log.md.
+ * Clean-room: wire facts come only from the src/protocols/root/protocol headers,
+ * the in-repo spec. See docs/refactor/phase-37-clean-room-log.md.
  */
 #ifndef XRDC_H
 #define XRDC_H

@@ -33,6 +33,7 @@ import pytest
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
+from cmdscripts import open_tree_for_worker
 from conformance_common import NGINX_BIN, PortBlock
 from cmdscripts.cvmfs_publish_txn import _upper, cas_path, parse_manifest, repotool
 from cmdscripts.cvmfs_repo_cli import _build_repotool
@@ -127,6 +128,13 @@ def s0_voms(s0, tmp_path_factory):
         for vo in ("atlas", "cms")
     }
     srv_crt, srv_key = _self_signed(d, "localhost", "server")  # net-literal-allow: throwaway TLS cert subject
+    # The vomsdir and its signer sit in a 0700 pytest tree that the de-escalated
+    # worker (`nobody`) cannot traverse: opendir() fails, brix_voms_lsc_match()
+    # finds nothing and the AC is refused "no vomsdir LSC file or certificate
+    # matches the VOMS server" — a 403 that looks like the VO gate denying.
+    # Same call test_cvmfs_scvmfs_voms makes over the same fixtures; it keeps
+    # in-tree private keys at 0600, which the GSI loaders require.
+    open_tree_for_worker(d)
 
     port = _BLOCK.nginx()
     conf = _nginx_conf(

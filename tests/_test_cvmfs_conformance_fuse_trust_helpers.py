@@ -65,7 +65,7 @@ from cmdscripts.cvmfs_driver_units import (  # noqa: E402
 from lib_py.fuse_host import FUSE_READY  # noqa: E402
 from repo_forge import Dir, File, RepoForge  # noqa: E402
 from settings import HOST
-from cmdscripts.compile_run import LZ4_LINK_FLAGS
+from cmdscripts.compile_run import LZ4_LINK_FLAGS, PLATFORM_HOST_FLAGS
 
 REPO = "trust.cern.ch"
 pytestmark = pytest.mark.timeout(180)
@@ -432,7 +432,15 @@ def _build_brixcvmfs() -> str | None:
                             capture_output=True, text=True).stdout.split()
     libs = subprocess.run(["pkg-config", "--libs", "fuse3"],
                           capture_output=True, text=True).stdout.split()
-    argv = ["gcc", "-O1", "-I", "client/lib", "-I", "src", "-I", "shared",
+    # The PAL host selector, from the same place every other assembled gcc line
+    # gets it (`compile_binary` prepends it; this site rolls its own argv for
+    # -O1 and the prebuilt archives).  Without it `src/platform/platform.h`
+    # stops the build on its own #error — "BRIX_PLATFORM_HOST is not defined" —
+    # and the last stderr line, which is all `_BUILD_ERR` keeps, reads
+    # "compilation terminated.": every case in this suite then SKIPPED with a
+    # message that named neither the platform nor the header.
+    argv = ["gcc", "-O1", *PLATFORM_HOST_FLAGS,
+            "-I", "client/lib", "-I", "src", "-I", "shared",
             "-DXRDPROTO_NO_NGX", *cflags,
             *BRIXCVMFS_DRIVER_SRCS, "client/apps/fs/brixcvmfs_rw.c",
             *_CVMFS_CORE, *_CLIENT_ARCHIVES, *libs, *_EXTRA_LIBS, "-o", out]

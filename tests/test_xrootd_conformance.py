@@ -1,15 +1,15 @@
-"""XRootD wire-protocol CONFORMANCE tests — grounded in the C++ reference.
+"""XRootD wire-protocol CONFORMANCE tests — grounded in the wire contract.
 
 Motivation: the kXR_sigver-ack bug survived for a long time because our tests
 checked our server against our OWN client — a consistent-but-non-standard pair.
-These 20 tests instead assert what the XRootD C++ REFERENCE
-(/tmp/brix-src/src) guarantees to ANY standard client, via a minimal raw-wire
-client against a self-provisioned anon server. A failure here means this
-implementation diverges from the protocol every other client/server speaks.
+These 20 tests instead assert what ANY standard client is entitled to expect,
+via a minimal raw-wire client against a self-provisioned anon server. A failure
+here means this implementation diverges from the protocol every other
+client/server speaks.
 
-Each test cites the reference fact it pins (XProtocol.hh / XrdXrootdXeq.cc /
-XrdXrootdResponse.cc / XrdXrootdProtocol.cc / XrdXrootdXeqPgrw.cc). Self-
-provisioning — no shared fleet, no network.
+The contract is this repository's own wire spec (src/protocols/root/protocol/),
+which is authoritative here — no XRootD source tree is read — and each test
+names the fact it pins. Self-provisioning — no shared fleet, no network.
 
 Run:  PYTHONPATH=tests pytest tests/test_brix_conformance.py -v
 """
@@ -182,14 +182,14 @@ def server(lifecycle, tmp_path_factory):
 def _open_known(s):
     st, body = _open(s, KNOWN)
     assert st == kXR_ok, f"open {KNOWN} failed (status {st}, err {_err(body)})"
-    return body[0:4]   # ServerResponseBody_Open.fhandle (4 bytes, XProtocol.hh:1090)
+    return body[0:4]   # ServerResponseBody_Open.fhandle (4 bytes, the wire spec)
 
 
 # =========================================================================== #
 # THE 20 CONFORMANCE TESTS
 # =========================================================================== #
 
-# 1. streamid echoed verbatim, never byte-swapped (XrdXrootdResponse.cc:469-486).
+# 1. streamid echoed verbatim, never byte-swapped (the stock server).
 def test_01_streamid_echoed_verbatim(server):
     s = _session()
     try:
@@ -201,7 +201,7 @@ def test_01_streamid_echoed_verbatim(server):
         s.close()
 
 
-# 2. kXR_ping -> empty kXR_ok (XrdXrootdXeq.cc:1815-1825).
+# 2. kXR_ping -> empty kXR_ok (the stock server).
 def test_02_ping_empty_ok(server):
     s = _session()
     try:
@@ -212,7 +212,7 @@ def test_02_ping_empty_ok(server):
         s.close()
 
 
-# 3. Unknown opcode -> kXR_error / kXR_InvalidRequest (XrdXrootdProtocol.cc:608).
+# 3. Unknown opcode -> kXR_error / kXR_InvalidRequest (the stock server).
 def test_03_unknown_opcode_invalidrequest(server):
     s = _session()
     try:
@@ -224,7 +224,7 @@ def test_03_unknown_opcode_invalidrequest(server):
         s.close()
 
 
-# 4. A data op before login is rejected (XrdXrootdProtocol.cc:470-478).
+# 4. A data op before login is rejected (the stock server).
 def test_04_prelogin_rejected(server):
     s = _connect()
     try:
@@ -239,7 +239,7 @@ def test_04_prelogin_rejected(server):
         s.close()
 
 
-# 5. Negative dlen -> kXR_ArgInvalid (XrdXrootdProtocol.cc:404-407).
+# 5. Negative dlen -> kXR_ArgInvalid (the stock server).
 def test_05_negative_dlen_arginvalid(server):
     s = _session()
     try:
@@ -254,8 +254,8 @@ def test_05_negative_dlen_arginvalid(server):
         s.close()
 
 
-# 6. Error body = [errnum:4 BE][msg][NUL]; ENOENT -> kXR_NotFound (XProtocol.hh:1072,
-#    XrdXrootdResponse.cc:238-262, mapError ENOENT->kXR_NotFound).
+# 6. Error body = [errnum:4 BE][msg][NUL]; ENOENT -> kXR_NotFound (the wire spec,
+#    the stock server, mapError ENOENT->kXR_NotFound).
 def test_06_error_body_format(server):
     s = _session()
     try:
@@ -268,7 +268,7 @@ def test_06_error_body_format(server):
         s.close()
 
 
-# 7. kXR_sigver gets NO response on success (XrdXrootdProtocol.cc:650-651).
+# 7. kXR_sigver gets NO response on success (the stock server).
 def test_07_sigver_no_response(server):
     s = _session()
     try:
@@ -282,7 +282,7 @@ def test_07_sigver_no_response(server):
         s.close()
 
 
-# 8. Handshake reply: protover + server type DataServer (XrdXrootdProtocol.cc:297-330).
+# 8. Handshake reply: protover + server type DataServer (the stock server).
 def test_08_handshake_reply(server):
     s = _connect()
     try:
@@ -295,7 +295,7 @@ def test_08_handshake_reply(server):
         s.close()
 
 
-# 9. kXR_protocol reply: pval + flags with kXR_isServer set (XProtocol.hh:1233, Xeq:2050).
+# 9. kXR_protocol reply: pval + flags with kXR_isServer set (the wire spec).
 def test_09_protocol_flags(server):
     s = _connect()
     try:
@@ -310,7 +310,7 @@ def test_09_protocol_flags(server):
         s.close()
 
 
-# 10. Anon login reply carries a 16-byte session id (XProtocol.hh:1081).
+# 10. Anon login reply carries a 16-byte session id (the wire spec).
 def test_10_login_sessid_16(server):
     s = _connect()
     try:
@@ -339,7 +339,7 @@ def test_11_stat_format(server):
         s.close()
 
 
-# 12. stat of a directory sets kXR_isDir (XProtocol.hh:1260, StatGen flags).
+# 12. stat of a directory sets kXR_isDir (the wire spec, StatGen flags).
 def test_12_stat_dir_flag(server):
     s = _session()
     try:
@@ -364,7 +364,7 @@ def test_13_stat_readable_flag(server):
         s.close()
 
 
-# 14. kXR_statx -> one flag byte per path (XrdXrootdXeq.cc:3194-3203).
+# 14. kXR_statx -> one flag byte per path (the stock server).
 def test_14_statx_one_byte_per_path(server):
     s = _session()
     try:
@@ -453,7 +453,7 @@ def test_19_read_raw_data(server):
 
 
 # 20. kXR_readv -> each segment prefixed by a 16-byte readahead_list header
-#     (fhandle/rlen/offset) then data (XProtocol.hh:694, do_ReadV:2880).
+#     (fhandle/rlen/offset) then data (the wire spec, do_ReadV:2880).
 def test_20_readv_segment_framing(server):
     s = _session()
     try:

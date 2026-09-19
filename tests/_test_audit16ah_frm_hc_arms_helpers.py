@@ -148,7 +148,7 @@ LEGACY_HANDLE = b"0"
 #: confusable, so the pattern is anchored rather than the string pinned.
 DURABLE = re.compile(rb"^\d+\.\d+@\S+$")
 
-# XRootD wire constants (XProtocol.hh).
+# XRootD wire constants (the wire spec).
 kXR_ok, kXR_error = 0, 4003
 kXR_login, kXR_protocol = 3007, 3006
 kXR_open, kXR_stat = 3010, 3017

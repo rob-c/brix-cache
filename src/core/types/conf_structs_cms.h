@@ -49,7 +49,7 @@ typedef struct {
     struct brix_dns_target_s  *dns;   /* the runtime DNS target behind addr */
 } brix_cms_manager_ent_t;
 
-/* Redundant-manager cap — stock cmsd client parity (XrdCmsFinder.hh MaxMan). */
+/* Redundant-manager cap — stock cmsd client parity (its MaxMan). */
 #define NGX_BRIX_CMS_MAX_MANAGERS  15
 
 /*

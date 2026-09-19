@@ -16,7 +16,7 @@ def test_darwin_gets_the_loopback_identity():
     with mock.patch.object(host_env.sys, "platform", "darwin"), \
             mock.patch.dict(os.environ, {}, clear=True):
         host_env.install()
-        assert os.environ["XRDNET_IDENTITY"] == "localhost"
+        assert os.environ["XRDNET_IDENTITY"] == "localhost"  # net-literal-allow: the exact advertised identity is the assertion
 
 
 def test_an_operator_value_is_kept():

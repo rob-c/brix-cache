@@ -2,7 +2,7 @@
 
 How the **Scalable Service Interface (SSI)** works on the wire, how it relates to
 the rest of XRootD, and what our native nginx implementation does. Everything
-here was traced from the XRootD source (`/tmp/brix-src/src/XrdSsi`,
+here was traced from the XRootD source (`XrdSsi`,
 `src/XrdCl`, `src/XProtocol`) and **validated against the real `libXrdSsi`
 client** driving our module.
 

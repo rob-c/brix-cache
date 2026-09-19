@@ -37,7 +37,7 @@ from settings import (
 
 # ---------------------------------------------------------------------------
 # Opcodes / status / error codes (verified against
-# /tmp/brix-src/src/XProtocol/XProtocol.hh enum XRequestTypes / XResponseType
+# src/protocols/root/protocol/opcodes.h — kXR_* request and response codes
 # / XErrorCode — base 3000 for requests, 4000 for responses, 3000 for errors)
 # ---------------------------------------------------------------------------
 
@@ -67,7 +67,7 @@ kXR_NotFound    = 3011
 kXR_Unsupported = 3013
 kXR_ChkSumErr   = 3019
 
-# Open flags (XProtocol.hh enum XOpenRequestMode)
+# Open flags (the wire spec enum XOpenRequestMode)
 kXR_open_read = 0x0010
 kXR_open_updt = 0x0020
 kXR_open_new  = 0x0008
@@ -108,7 +108,7 @@ _CRC32C_OK = crc32c(b"123456789") == 0xE3069283
 
 # ---------------------------------------------------------------------------
 # Raw socket helpers (mirror tests/test_readv_security.py exactly; every
-# struct.pack layout below was checked field-by-field against XProtocol.hh)
+# struct.pack layout below was checked field-by-field against the wire spec)
 # ---------------------------------------------------------------------------
 
 def _recv_exact(sock, nbytes):
@@ -255,7 +255,7 @@ def _stat(sock, path, streamid=b"\x00\x0a"):
 
 def _statx(sock, paths, streamid=b"\x00\x0b"):
     """Path-based kXR_statx.  Shares ClientStatRequest's header layout
-    (no dedicated ClientStatxRequest exists in XProtocol.hh); the payload is a
+    (no dedicated ClientStatxRequest exists in the wire spec); the payload is a
     NUL-separated path list (src/protocols/root/read/statx.c)."""
     if isinstance(paths, str):
         payload = paths.encode() + b"\x00"

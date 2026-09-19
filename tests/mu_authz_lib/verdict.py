@@ -9,7 +9,15 @@ enforcing code paths, e.g.:
   - "VO not authorized"   -> vo_acl      (open_cache.c:26, prepare.c:216)
   - "token scope denied"  -> token_scope (prepare.c:221)
   - "not authorized"      -> authdb      (auth_gate / prepare.c:210)
+  - "xrdacc denied"       -> authdb      (auth_gate.c:417, the XrdAcc engine)
+  - "authdb denied"       -> authdb      (auth_gate.c:421, the native engine)
   - read-only / write     -> allow_write (policy.c global pre-gate)
+
+An unmatched reason falls to "unknown", and "unknown" compares equal to itself — so a tier
+this table does not know makes the oracle agree for the wrong reason instead of failing.
+That is exactly what "xrdacc denied" did while it was missing: every MU denial landed in
+"unknown", and a cache that had re-authorized at a WEAKER tier than the direct server would
+have been read as transparent.  A new enforcing string belongs here the day it is added.
 """
 from dataclasses import dataclass
 
@@ -22,6 +30,8 @@ REASON_TIER = [
     ("scope", "token_scope"),
     ("read-only", "allow_write"),
     ("write not allowed", "allow_write"),
+    ("xrdacc denied", "authdb"),        # auth_gate.c:417, the XrdAcc engine tier
+    ("authdb denied", "authdb"),        # auth_gate.c:421, the NATIVE engine tier
     ("not authorized", "authdb"),
     ("permission denied", "authdb"),
     ("access denied", "authdb"),

@@ -224,11 +224,6 @@ char *brix_plat_crypt(const char *key, const char *setting);
 int brix_plat_self_exe(char *buf, size_t cap);
 
 /**
- * The kernel's per-boot identifier, NUL-terminated with no trailing newline
- * (Linux: /proc/sys/kernel/random/boot_id; Darwin: kern.bootsessionuuid).
- * @return 0, or -1 with errno
- */
-/**
  * Wait up to `timeout_ms` for `pid` to exit, WITHOUT reaping it.
  * Linux polls a pidfd; Darwin arms kqueue's EVFILT_PROC/NOTE_EXIT.  A host
  * that can do neither answers 0 ("exited"), which degrades to the unbounded
@@ -237,6 +232,13 @@ int brix_plat_self_exe(char *buf, size_t cap);
  */
 int brix_plat_wait_pid_timeout(pid_t pid, unsigned timeout_ms);
 
+/**
+ * The kernel's per-boot identifier, NUL-terminated with no trailing newline
+ * (Linux: /proc/sys/kernel/random/boot_id; Darwin: kern.bootsessionuuid).
+ * A buffer too small for the whole id fails ENAMETOOLONG; callers compare
+ * boot ids for equality, so a truncated prefix is never returned as valid.
+ * @return 0, or -1 with errno (ENAMETOOLONG when `cap` is too small)
+ */
 int brix_plat_boot_id(char *buf, size_t cap);
 
 #endif /* BRIX_PLATFORM_API_POSIX_H */

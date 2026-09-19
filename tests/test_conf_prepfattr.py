@@ -251,7 +251,7 @@ def test_raw_prepare_empty_path_list_parity(srv):
 @pytest.mark.parametrize("optX", [0x0001])  # kXR_evict
 def test_raw_prepare_evict_optionx_parity(srv, optX):
     """RAW kXR_prepare with optionX kXR_evict set -> success/category parity
-    (XProtocol.hh:630, do_Prepare evict path, Xeq:1852)."""
+    (the wire spec, do_Prepare evict path, Xeq:1852)."""
     so, sf = _both()
     try:
         st_o, b_o = _prepare(so, ["/hello.txt"], options=0, optionX=optX)

@@ -9,7 +9,8 @@ import subprocess
 import tempfile
 import time
 
-from cmdscripts.compile_run import REPO_ROOT, compile_binary, result, run
+from cmdscripts.compile_run import (REPO_ROOT, client_pal_host_sources,
+                                    compile_binary, result, run)
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST
 
@@ -117,6 +118,13 @@ BRIXCVMFS_DRIVER_SRCS = [
     "client/apps/fs/brixcvmfs_prefetch.c",
     "client/apps/fs/brixcvmfs_ops.c",
     "client/apps/fs/brixcvmfs_mount.c",
+    # The mount path asks the client PAL which -o options this host's libfuse
+    # accepts and what it adds of its own (xrootdfs_argsplit.h ->
+    # brix_plat_fuse_opt_supported / brix_plat_fuse_host_opts, bodies in
+    # client/lib/platform/<host>/posix.c).  client/Makefile compiles the whole
+    # host directory; a standalone line has to name it, or the driver fails to
+    # LINK on two symbols that say nothing about CVMFS.
+    *client_pal_host_sources("posix"),
 ]
 
 

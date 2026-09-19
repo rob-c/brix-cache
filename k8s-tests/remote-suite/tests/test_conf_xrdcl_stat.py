@@ -13,17 +13,17 @@ The two servers serve byte-identical trees, so the parsed ``StatInfo`` /
 Stock is ground truth: any divergence is treated as OUR bug.
 
 Contract sources (cited inline):
-  * StatInfoImpl::ParseServerResponse  XrdClXRootDResponses.cc:140
+  * StatInfoImpl::ParseServerResponse  the stock client
       response is space-split; chunks[0]=id (string), chunks[1]=size
       (strtoll base 0 — MUST be a clean integer or the WHOLE parse fails),
       chunks[2]=flags (strtol), chunks[3]=modtime; if >=9 chunks then
       [4]=ctime [5]=atime [6]=mode-string(>=4 chars) [7]=owner [8]=group.
-  * StatInfo::Flags enum  XrdClXRootDResponses.hh:420
+  * StatInfo::Flags enum  the stock client
       XBitSet=1 IsDir=2 Other=4 Offline=8 IsReadable=16 IsWritable=32
       POSCPending=64 BackUpExists=128.
-  * StatInfoVFS::ParseServerResponse  XrdClXRootDResponses.cc:452
+  * StatInfoVFS::ParseServerResponse  the stock client
       six fields: nrw frw urw nstg fstg ustg.
-  * id formula  XrdXrootdProtocol::StatGen  XrdXrootdProtocol.cc:755-767
+  * id formula  XrdXrootdProtocol::StatGen  the stock server
       Dev.uuid = (st_dev << 32) | st_ino  (hi=st_dev, lo=st_ino).
 
 Because the id encodes the real on-disk (dev, ino) of two SEPARATE servers, its
@@ -72,7 +72,7 @@ bindings_required = pytest.mark.skipif(
 OUR_PORT = L.worker_port(14900)
 OFF_PORT = L.worker_port(14901)
 # --------------------------------------------------------------------------
-# StatInfo::Flags — captured from XrdClXRootDResponses.hh:420 for decode tests.
+# StatInfo::Flags — captured from the stock client for decode tests.
 # --------------------------------------------------------------------------
 F_XBITSET = 1
 F_ISDIR = 2
@@ -140,7 +140,7 @@ def _id_is_clean_int(sid):
 
 def _decode_flags(flags):
     """Decode a StatInfo.flags bitmask into the canonical predicate dict the
-    contract (XrdClXRootDResponses.hh:420) defines."""
+    contract (the stock client) defines."""
     return {
         "XBitSet": bool(flags & F_XBITSET),
         "IsDir": bool(flags & F_ISDIR),
@@ -669,9 +669,9 @@ def test_statvfs_root_node_present(fs_our, fs_off):
 # DIVERGENCE (recorded, NOT a parse failure): StatInfo.id (chunks[0]).
 #   our output:   inode only          (e.g. "5240720")
 #   stock output: (st_dev<<32)|st_ino (e.g. "22508867036383280")
-#   contract:     XrdXrootdProtocol::StatGen XrdXrootdProtocol.cc:755-767
+#   contract:     XrdXrootdProtocol::StatGen the stock server
 #                 Dev.uuid = (st_dev<<32)|st_ino; XrdCl exposes it verbatim
-#                 (XrdClXRootDResponses.cc:140). gfal/FTS/Rucio ignore id, and
+#                 (the stock client). gfal/FTS/Rucio ignore id, and
 #                 the value can never match across two distinct on-disk servers,
 #                 so we pin the SHAPE (clean, non-empty, base-0 integer) that
 #                 the bindings actually require — NOT the value.

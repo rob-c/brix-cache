@@ -8,7 +8,7 @@ and do NOT xfail/skip to hide a real diff.
 The two probe classes:
 
   QUERY      kXR_query config/checksum/stats/space against OUR server, with the
-             reference format derived from XrdXrootdXeq.cc do_Qconf(): each key
+             reference format derived from the stock server do_Qconf(): each key
              returns a *bare value* terminated by '\n' (never "<key>=..."),
              unknown keys are echoed back. Numeric keys yield an integer line.
 

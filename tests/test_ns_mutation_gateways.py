@@ -70,7 +70,7 @@ pytestmark = [
                        reason="libXrdCl python bindings unavailable"),
 ]
 
-# XProtocol.hh:1031+
+# the wire spec
 kXR_FSError = 3005
 kXR_IOError = 3007
 kXR_NotFound = 3011

@@ -15,14 +15,14 @@ Philosophy (per the maintainer): a divergence — wrong dlen/framing, wrong
 success/failure, wrong on-disk effect, mode mismatch, POSC semantics differ —
 is a BUG IN OUR SERVER. We pin the stock server's behavior.
 
-Reference facts pinned (XProtocol.hh / XrdXrootdXeq.cc do_Open):
+Reference facts pinned (the wire spec / the stock server do_Open):
   * ClientOpenRequest: streamid[2] requestid[2] mode[2] options[2] optiont[2]
-    reserved[6] fhtemplt[4] dlen[4] then path (XProtocol.hh:509).
+    reserved[6] fhtemplt[4] dlen[4] then path (the wire spec).
   * option bits: kXR_open_read 0x10, kXR_delete 0x02, kXR_new 0x08,
     kXR_open_updt 0x20, kXR_mkpath 0x100, kXR_open_apnd 0x200,
-    kXR_retstat 0x400, kXR_posc 0x1000, kXR_open_wrto 0x8000 (XProtocol.hh:482).
+    kXR_retstat 0x400, kXR_posc 0x1000, kXR_open_wrto 0x8000 (the wire spec).
   * ServerResponseBody_Open: fhandle[4] (+cpsize/cptype only if compress/retstat)
-    then stat text if retstat (XProtocol.hh:1090, Xeq:1742-1757).
+    then stat text if retstat (the wire spec).
   * do_Open: kXR_new -> O_CREAT (fail if exists unless force); kXR_delete ->
     O_TRUNC; mode = mapMode(mode) | S_IRUSR | S_IWUSR (Xeq:1521-1565).
   * mapError: ENOENT->NotFound, EISDIR->isDirectory, EEXIST->ItExists.
@@ -88,7 +88,7 @@ kXR_write, kXR_read = 3012, 3013
 kXR_ok, kXR_error = 0, 4003
 DROPPED = -1   # sentinel: server dropped the link instead of replying (a valid rejection)
 
-# kXR_open option bits (XProtocol.hh:482-499)
+# kXR_open option bits (the wire spec)
 kXR_compress = 0x0001
 kXR_delete = 0x0002
 kXR_force = 0x0004
@@ -101,7 +101,7 @@ kXR_retstat = 0x0400
 kXR_posc = 0x1000
 kXR_open_wrto = 0x8000
 
-# error codes (XErrorCode, XProtocol.hh:1032+)
+# error codes (XErrorCode, the wire spec)
 kXR_NotFound = 3011
 kXR_isDirectory = 3016
 kXR_ItExists = 3018
@@ -282,7 +282,7 @@ READ_FILES = [
 @pytest.mark.parametrize("path", READ_FILES)
 def test_read_open_returns_bare_4byte_handle(srv, path):
     """open(read) of an existing file -> kXR_ok, body is exactly the 4-byte
-    fhandle (dlen==4, NO stat) on BOTH servers (XProtocol.hh:1090)."""
+    fhandle (dlen==4, NO stat) on BOTH servers (the wire spec)."""
     st_o, b_o, st_f, b_f, raw = assert_same_category(srv, path, kXR_open_read)
     assert st_o == kXR_ok, f"open(read) of existing {path} failed:{raw}"
     assert len(b_o) == 4, f"OUR open(read) {path} body is {len(b_o)} bytes, want 4:{raw}"
@@ -420,7 +420,7 @@ def test_open_new_on_existing_fails_parity(srv, idx):
             pytest.xfail(
                 f"OUR-SERVER BUG: open(new)-on-existing errno {eo} != stock {ef} "
                 f"(stock=kXR_ItExists 3018, ours=kXR_FileLocked 3003 — EEXIST "
-                f"should map to kXR_ItExists per mapError, XProtocol.hh:1425):{raw}")
+                f"should map to kXR_ItExists per mapError, the wire spec):{raw}")
         assert eo == ef
     finally:
         so.close()
@@ -686,7 +686,7 @@ def test_open_append_parity(srv, idx):
 # J. MODE BITS on create -> on-disk mode parity (mapMode | S_IRUSR|S_IWUSR)
 # =========================================================================== #
 # request mode bits are XrdXrootd Map_Mode: ur=0x100,uw=0x80,ux=0x40,
-# gr=0x20,gw=0x10,gx=0x08,or=0x04,ox=0x01 (XProtocol.hh). do_Open always ORs
+# gr=0x20,gw=0x10,gx=0x08,or=0x04,ox=0x01 (the wire spec). do_Open always ORs
 # S_IRUSR|S_IWUSR, so the effective floor is 0600.
 M_UR, M_UW, M_UX = 0x100, 0x080, 0x040
 M_GR, M_GW, M_GX = 0x020, 0x010, 0x008

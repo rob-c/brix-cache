@@ -153,7 +153,16 @@ class TestAnUnreadableCrlAnywhereRefusesToStart:
         rc, out = _parse_stream(tmp_path, _gsi_block(
             pki, f"brix_crl {pki['unread_file']};", "brix_crl_mode require;"))
         assert rc != 0, f"an unreadable CRL file was accepted at startup\n{out}"
-        assert "failed permission check" in out, out
+        # `brix_validate_path` refuses on whichever arm trips first: a mode the
+        # caller may not read fails `access()` ("failed permission check"), a
+        # path that cannot be resolved at all fails the `stat()` before it
+        # ("is not accessible", carrying the errno).  Both are the same
+        # config-time refusal naming the same directive and path — pinning only
+        # the access() wording made the case a test of WHICH kind of unreadable
+        # the fixture happened to build.
+        assert "brix_crl path" in out and pki["unread_file"] in out, out
+        assert ("failed permission check" in out
+                or "is not accessible" in out), out
 
     def test_naming_its_directory_is_now_a_config_error_too(self, tmp_path,
                                                             pki):
@@ -227,6 +236,28 @@ class TestAnUnreadableCrlAnywhereRefusesToStart:
             pki, f"brix_crl {pki['crls']};", "brix_crl_mode require;"))
         assert rc == 0, out
         assert "cannot build the GSI trust store" not in out, out
+
+    def test_an_entry_that_is_genuinely_absent_still_costs_nothing(
+            self, tmp_path, pki):
+        """(success) The OTHER half of the stat predicate, and the reason it is
+        a split rather than a blanket refusal.
+
+        A name-matching entry whose stat fails with ENOENT is not a broken feed:
+        it is a dangling symlink, or a file unlinked between readdir and stat —
+        the exact shape a CA directory takes while `fetch-crl` rotates it, and
+        the exact shape of the stale hash links Grid CA packages leave behind.
+        Refusing those would take the server down every time the CRL cron ran.
+        Only "present and unreadable" is fatal; this parses, and the three real
+        CRLs beside the dangling name still load."""
+        good = tmp_path / "rotating"
+        good.mkdir()
+        for name in os.listdir(pki["crls"]):
+            shutil.copy(os.path.join(pki["crls"], name), good / name)
+        (good / "vanished.r0").symlink_to(good / "not-written-yet.r0")
+        rc, out = _parse_stream(tmp_path, _gsi_block(
+            pki, f"brix_crl {good};", "brix_crl_mode require;"))
+        assert rc == 0, out
+        assert "cannot open CRL file" not in out, out
 
 
 # --------------------------------------------------------------------------- #

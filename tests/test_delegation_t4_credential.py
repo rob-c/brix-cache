@@ -25,7 +25,9 @@ Run:
 """
 
 import http.client
+import os
 import re
+import shutil
 import ssl
 import subprocess
 
@@ -82,6 +84,15 @@ def front(tmp_path_factory, pki):
     # itself is held to.
     creds.mkdir(mode=0o700)
     creds.chmod(0o700)
+    # ...and 0700 only works for whoever OWNS it.  Under a root harness the
+    # always-on de-escalation drops the workers to `nobody`, and the module
+    # says so at start ("credential store ... is owned by uid 0 but the workers
+    # run as uid 65534 — credential delegation will not work"); a root-owned
+    # 0700 store EACCESes every putProxy back to the same 507 the mode was
+    # tightened to avoid.  Same contract test_credential_dir_default pins on
+    # the /dev/shm default store, which the module itself hands to that user.
+    if os.geteuid() == 0:
+        shutil.chown(creds, os.environ.get("BRIX_WORKER_USER", "nobody"))
     harness = LifecycleHarness()
     try:
         ep = harness.start(NginxInstanceSpec(

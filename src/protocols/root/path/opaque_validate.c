@@ -54,7 +54,7 @@ static const char BRIX_OPAQUE_ALLOWED[] =
     "%+"        /* percent-encoding, plus-as-space */
     "=&,?;";    /* CGI structure: '&' is the SOLE key/val separator, '=' assignment,
                  * ',' list, '?' nested-query. ';' is permitted as ORDINARY VALUE
-                 * CONTENT — XRootD tokenizes the opaque on '&' only (XrdOucEnv.cc
+                 * CONTENT — XRootD tokenizes the opaque on '&' only (its env
                  * scans for '&'; XrdCl URL::SetParams likewise), so "k=v;other=z" is
                  * the single pair k="v;other=z". Rejecting ';' would break that
                  * parity; the parameter-smuggling risk is closed the correct way

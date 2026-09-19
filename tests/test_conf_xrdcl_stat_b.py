@@ -101,9 +101,9 @@ def test_statvfs_root_node_present(fs_our, fs_off):
 # DIVERGENCE (recorded, NOT a parse failure): StatInfo.id (chunks[0]).
 #   our output:   inode only          (e.g. "5240720")
 #   stock output: (st_dev<<32)|st_ino (e.g. "22508867036383280")
-#   contract:     XrdXrootdProtocol::StatGen XrdXrootdProtocol.cc:755-767
+#   contract:     XrdXrootdProtocol::StatGen the stock server
 #                 Dev.uuid = (st_dev<<32)|st_ino; XrdCl exposes it verbatim
-#                 (XrdClXRootDResponses.cc:140). gfal/FTS/Rucio ignore id, and
+#                 (the stock client). gfal/FTS/Rucio ignore id, and
 #                 the value can never match across two distinct on-disk servers,
 #                 so we pin the SHAPE (clean, non-empty, base-0 integer) that
 #                 the bindings actually require — NOT the value.

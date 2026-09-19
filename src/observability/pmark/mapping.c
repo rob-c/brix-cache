@@ -8,7 +8,7 @@
  *   brix_pmark_map_codes() picks the (experiment, activity) for one flow.
  *
  * WHY: This is the nginx analogue of XRootD's XrdNetPMarkCfg::getCodes
- *   (XrdNetPMarkCfg.cc:774-843).  Resolution is deferred to first use so it works
+ *   (as XRootD's packet-marking config does).  Resolution is deferred to first use so it works
  *   uniformly for the stream and HTTP modules without walking every server/
  *   location conf at startup; the result is cached on the conf (COW per worker).
  *

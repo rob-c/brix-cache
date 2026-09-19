@@ -94,7 +94,7 @@ def _skip_if_http_down():
 # Raw-wire root:// helpers — connect to ("::1", port) (AF_INET6 automatically),
 # drive handshake + login, then locate / open.  Frame layouts mirror
 # tests/test_handshake_protocol_wire.py and tests/test_pgread_wire_conformance.py
-# and are verified against /tmp/brix-src/src/XProtocol/XProtocol.hh.
+# and are verified against src/protocols/root/protocol/opcodes.h.
 # ===========================================================================
 
 kXR_protocol = 3006

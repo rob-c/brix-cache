@@ -20,9 +20,14 @@ def test_render_is_consistent_across_backends():
     out = policy.render_policy(pol, cast)
 
     authdb = open(out["authdb"]).read()
-    assert "brixtest_alice" in authdb and "/cms/secret.dat" in authdb
+    # The grant is keyed on the DN, not the gridmap name: authorization sees
+    # whatever brix_authz_mapped_name() resolves to, which is the raw DN unless a
+    # gridmap is loaded, and every MU template using this engine sets
+    # `brix_idmap off`.  Granting "brixtest_alice" there matches nothing — see
+    # the module docstring in policy.py.
+    assert f"u {cast['alice'].dn} " in authdb and "/cms/secret.dat" in authdb
     # carol (same VO, denied) must NOT get an authdb grant.
-    assert "brixtest_carol" not in authdb
+    assert cast["carol"].dn not in authdb
 
     gridmap = open(out["gridmap"]).read()
     assert cast["alice"].dn in gridmap and "brixtest_alice" in gridmap

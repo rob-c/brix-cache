@@ -73,6 +73,8 @@ def _guard_env_3(spec, repo_dir, ctx):
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
+from cmdscripts.c_regression_units import _gcov_flags  # noqa: E402
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS  # noqa: E402
 from cmdscripts.cvmfs_driver_units import (  # noqa: E402
     BRIXCVMFS_CORE_DEPS,
     BRIXCVMFS_DRIVER_SRCS,
@@ -308,6 +310,29 @@ CASES = [
 
 # ---- module fixture: forge once, stamp per case, check all in parallel ------
 
+# brixcvmfs.c pulls in the client net stack (net/cpool.h -> brix.h -> src wire
+# structs, brix_cpool_* in libbrix.a), so the standalone compile needs the
+# prebuilt client archives — else it dies "net/cpool.h: No such file or
+# directory".  This is client/Makefile's $(BRIX_LIBS) order, repeat included:
+# libxrdproto calls back into the PAL that libbrix defines, and ld reads each
+# archive once, in order.
+_ARCHIVES = ["client/libbrix.a", "shared/xrdproto/libxrdproto.a",
+             "client/libbrix.a"]
+
+
+def _archive_flags(root: Path) -> list[str]:
+    """Skip unless every archive is built; return the flags they imply.
+
+    A coverage tree stamps __gcov_* into every object and the link dies without
+    the runtime, so the flags come from the archives themselves rather than from
+    an assumption about how this checkout was configured.
+    """
+    for archive in dict.fromkeys(_ARCHIVES):
+        if not (root / archive).is_file():
+            pytest.skip(f"prebuilt {archive} not present (build the client first)")
+    return _gcov_flags([root / archive for archive in dict.fromkeys(_ARCHIVES)])
+
+
 def _compile_brixcvmfs(dst: Path) -> None:
     cflags = subprocess.run(["pkg-config", "--cflags", "fuse3"], check=True,
                             stdout=subprocess.PIPE, text=True).stdout.split()
@@ -320,16 +345,10 @@ def _compile_brixcvmfs(dst: Path) -> None:
     deps = [*BRIXCVMFS_DRIVER_SRCS,
             *[d for d in BRIXCVMFS_CORE_DEPS
               if d.startswith("shared/") and d.endswith(".c")]]
-    # brixcvmfs.c now pulls in the client net stack (net/cpool.h -> brix.h -> src
-    # wire structs, brix_cpool_* in libbrix.a), so the standalone compile needs
-    # the client/lib + src includes, the XRDPROTO_NO_NGX shim, and the prebuilt
-    # client archives — else it dies "net/cpool.h: No such file or directory".
-    archives = ["client/libbrix.a", "shared/xrdproto/libxrdproto.a"]
-    for a in archives:
-        if not (root / a).is_file():
-            pytest.skip(f"prebuilt {a} not present (build the client first)")
+    coverage = _archive_flags(root)
     subprocess.run(["gcc", "-Wall", "-I", "shared", "-I", "client/lib", "-I", "src",
-                    "-DXRDPROTO_NO_NGX", *cflags, *deps, *archives, *libs,
+                    "-DXRDPROTO_NO_NGX", *PLATFORM_HOST_FLAGS, *coverage,
+                    *cflags, *deps, *_ARCHIVES, *libs,
                     "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-lzstd", "-lssl",
                     "-pthread",
                     "-o", str(dst)],

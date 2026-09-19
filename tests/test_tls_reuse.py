@@ -61,6 +61,27 @@ def _nginx_t(tmp_path, reuse_line):
         capture_output=True, text=True, timeout=30)
 
 
+def _out(r, tmp_path):
+    """Everything the config test said, wherever nginx chose to say it.
+
+    A config-time NGX_LOG_NOTICE goes to `cf->log`, which is still the log
+    ngx_log_init() opened — the COMPILED-IN default, `<prefix>/logs/error.log`,
+    because `error_log` only takes effect after the whole config is parsed.
+    That file used not to exist, so nginx fell back to stderr and the notice
+    landed in the captured output; `inject_nginx_runtime_paths` now creates the
+    prefix's logs/ directory, so the open succeeds and the notice goes to the
+    file instead.  Both are read here, which also puts teeth back into the case
+    that asserts the notice is ABSENT — against stderr alone it could not have
+    failed.
+    """
+    text = r.stdout + r.stderr
+    for name in ("logs/error.log", "err.log"):
+        path = tmp_path / name
+        if path.exists():
+            text += path.read_text(encoding="utf-8", errors="replace")
+    return text
+
+
 def _requirements():
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
@@ -90,7 +111,7 @@ def test_reuse_off_takes_the_disable_branch(tmp_path):
     resumption was disabled — proving the off branch actually runs."""
     _requirements()
     r = _nginx_t(tmp_path, "brix_tls_reuse off;")
-    out = r.stdout + r.stderr
+    out = _out(r, tmp_path)
     assert r.returncode == 0, f"brix_tls_reuse off failed config test:\n{out}"
     assert _NOTICE in out, \
         f"the resumption-disabled branch did not run for off:\n{out}"
@@ -101,7 +122,7 @@ def test_default_keeps_resumption_enabled(tmp_path):
     byte-identical to a server without the knob."""
     _requirements()
     r = _nginx_t(tmp_path, "")
-    out = r.stdout + r.stderr
+    out = _out(r, tmp_path)
     assert r.returncode == 0, f"tls config without the knob failed:\n{out}"
     assert _NOTICE not in out, \
         "resumption was disabled even though brix_tls_reuse was not set"

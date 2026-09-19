@@ -56,7 +56,7 @@ from test_a_robustness import (
     kXR_rm,
 )
 
-# Opcodes not exported by test_a_robustness (values from XProtocol.hh).
+# Opcodes not exported by test_a_robustness (values from the wire spec).
 def _guard_planted_symlinks_2(made):
     if not made:
         pytest.skip("could not plant symlinks under the export root")

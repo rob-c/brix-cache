@@ -8,7 +8,7 @@ class 2), HTTP third-party-copy (HTTP-TPC, the WebDAV `COPY` push/pull dialect u
 by FTS/gfal2), and the S3 REST gateway.
 
 Every claim below is grounded in source. The official side cites the upstream tree
-under `/tmp/brix-src/src/` (`XrdHttp/`, `XrdHttpTpc/`, `XrdHttpCors/`, and the
+in the upstream subsystems (`XrdHttp/`, `XrdHttpTpc/`, `XrdHttpCors/`, and the
 *client-side* `XrdClS3/` plugin). The BriX-Cache side cites this repository's
 `src/protocols/webdav/` and `src/protocols/s3/` trees. Where a fact was already established by the
 companion comparison documents, this doc reuses it rather than re-deriving it:
@@ -460,7 +460,7 @@ not handle is `PATCH`.
 
 ## Source references
 
-**Official XRootD** (`/tmp/brix-src/src/`):
+**Official XRootD** (upstream):
 
 - `XrdHttp/XrdHttpReq.hh` — `ReqType` method enum (`rtGET`…`rtCOPY`); `XrdHttpReq.cc` —
   `addETagHeader()`, range/multipart byteranges, digest handling.

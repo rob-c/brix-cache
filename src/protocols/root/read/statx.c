@@ -17,7 +17,7 @@
 
 #define BRIX_STATX_MAX_PATHS  256
 /* kXR_statx returns exactly ONE flag byte per requested path — a packed byte
- * array, no separators, no NUL (reference XrdXrootdXeq.cc:3194-3203):
+ * array, no separators, no NUL (the stock server's kXR_statx reply):
  * kXR_file(0) / kXR_isDir(2) / kXR_other(4) / kXR_offline(8). An inaccessible or
  * missing path yields kXR_offline. (We previously emitted a full "id size flags
  * mtime" text line per path — a kXR_stat body — which no standard statx parser
@@ -200,7 +200,7 @@ brix_statx_compute_flag(brix_ctx_t *ctx,
  *        The reference do_Statx returns an ERROR (fsError) on the FIRST path
  *        whose stat/authz fails — it does NOT emit a per-path sentinel and
  *        continue — so any failure here terminates the batch with a kXR_error,
- *        matching XrdXrootdXeq.cc:do_Statx and every standard statx parser.
+ *        matching the stock server's kXR_statx and every standard statx parser.
  * HOW:   On any denial/miss the BRIX_RETURN_ERR macro logs, meters and sends the
  *        kXR_error, returning the wire result (which the caller propagates).  A
  *        full response buffer returns NGX_ABORT (caller breaks the batch).  On

@@ -5,7 +5,7 @@ anonymous root:// (or http) tier, driving raw-wire / curl requests to prove a ga
 that the initial port left open:
 
   RA1  create-vs-update — kXR_new opens use AOP_Create (needs `i`/insert); other
-       write opens use AOP_Update (needs only `w`).  `XrdOfs.cc` keys Create off
+       write opens use AOP_Update (needs only `w`).  `the stock OFS layer` keys Create off
        O_CREAT (kXR_new) only — kXR_delete (truncate) is still Update.
   RA2  prepare staging routes through the engine with AOP_Stage (priv 0x180, only
        granted by `a`), not the native authdb.
@@ -33,7 +33,7 @@ from settings import free_port, HOST, BIND_HOST, url_host
 
 NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 
-# Wire constants (XProtocol.hh).
+# Wire constants (the wire spec).
 kXR_login = 3007
 kXR_open = 3010
 kXR_stat = 3017

@@ -113,7 +113,7 @@ class TestXrdHttpStatus:
         assert status_hdr != "" and status_hdr != "0", (
             f"Expected non-zero X-Xrootd-Status on 404, got: {status_hdr!r}"
         )
-        # kXR_NotFound == 3011 per XProtocol.hh
+        # kXR_NotFound == 3011 per the wire spec
         assert status_hdr == "3011", (
             f"Expected X-Xrootd-Status: 3011 (kXR_NotFound), got: {status_hdr!r}"
         )

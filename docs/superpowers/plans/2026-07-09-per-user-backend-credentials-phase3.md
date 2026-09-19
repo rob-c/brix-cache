@@ -23,7 +23,7 @@
 
 ### Task 2: root:// origin dirlist (kXR_dirlist wire + sd_xroot opendir/readdir/closedir)
 
-**Files:** `src/fs/cache/origin_ns.c` (+ cache_internal.h decl) — a `brix_cache_origin_dirlist(t, oc, path, cb/buffer)` implementing kXR_dirlist against the origin; `src/fs/backend/xroot/sd_xroot_ns.c` — opendir/readdir/closedir + opendir_cred slots backed by it; `src/fs/backend/xroot/sd_xroot.c` — register the slots + advertise CAP_DIRS; wire spec at `/tmp/brix-src/src/XProtocol/XProtocol.hh` for kXR_dirlist framing.
+**Files:** `src/fs/cache/origin_ns.c` (+ cache_internal.h decl) — a `brix_cache_origin_dirlist(t, oc, path, cb/buffer)` implementing kXR_dirlist against the origin; `src/fs/backend/xroot/sd_xroot_ns.c` — opendir/readdir/closedir + opendir_cred slots backed by it; `src/fs/backend/xroot/sd_xroot.c` — register the slots + advertise CAP_DIRS; wire spec at `XProtocol/XProtocol.hh` for kXR_dirlist framing.
 
 Implement kXR_dirlist (opcode + dlen framing; the origin returns a newline-separated name list, optionally with stat via kXR_dstat). sd_xroot opendir issues it once, buffers the names, readdir yields them one per call, closedir frees. The cred variant threads the per-user cred (T1's brix_vfs_ns_leaf already dispatches opendir_cred on the leaf) so a remote dirlist authenticates as the user. This closes the "root:// dirlist over remote xroot" gap.
 

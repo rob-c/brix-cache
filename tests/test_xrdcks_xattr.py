@@ -7,7 +7,7 @@ stored checksum (compute+store on a miss); a hex value → store it; `delete` �
 remove it.
 
 The on-disk record is the fixed 96-byte XrdCksData layout (verified against
-the stock XrdCksData.hh):
+the stock the stock XrdCks layer):
     Name[16]  fmTime[8 BE]  csTime[4 BE]  Rsvd[3]  Length[1]  Value[64]
 This implementation is correct to that FORMAT — deliberately NOT bug-compatible
 with the stock CLI, which on some builds segfaults on get and drops the leading

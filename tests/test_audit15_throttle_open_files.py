@@ -44,7 +44,7 @@ from test_phase92_bwm_reservation import _xrd_close
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15-throttle")]
 
-# kXR wire constants (XProtocol.hh).
+# kXR wire constants (the wire spec).
 KXR_OK = 0
 KXR_ERROR = 4003
 KXR_OVERLOADED = 3024   # server error num -> the open-refusal code

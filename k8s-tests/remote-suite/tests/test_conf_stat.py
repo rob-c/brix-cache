@@ -5,7 +5,7 @@ nginx-xrootd server and the stock xrootd data server, on byte-identical data
 trees. The assertion pins OUR behavior to the STOCK reference: a divergence is
 assumed to be a bug in our implementation.
 
-Field semantics follow XrdXrootdXeq.cc (StatGen / do_Stat / do_Dirlist):
+Field semantics follow the stock server (StatGen / do_Stat / do_Dirlist):
   StatGen emits "id size flags mtime" -> xrdfs renders
     Path:  <path>
     Id:    <dev>:<ino>

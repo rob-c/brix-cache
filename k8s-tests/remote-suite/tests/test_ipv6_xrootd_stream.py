@@ -18,7 +18,7 @@ What this proves:
     BRACKETED "Sr[::1]:<port>" location token, never the bare "Sr::1:<port>"
     form (GATING — proves the AF_INET6 bracket-on-emit in src/protocols/root/read/locate.c).
 
-Wire framing verified against /tmp/brix-src/src/XProtocol/XProtocol.hh:
+Wire framing verified against src/protocols/root/protocol/frame_hdr.h:
   * ClientInitHandShake — five 32-bit BE words; word4==4, word5==2012.
   * ClientProtocolRequest / ClientLoginRequest — see the handshake-wire suite.
   * ClientOpenRequest    — streamid[2] reqid[2] mode[2] options[2] optiont[2]
@@ -88,7 +88,7 @@ IPV6_PORT = IPV6_STREAM_PORT
 
 
 # ---------------------------------------------------------------------------
-# Wire constants (src/protocols/root/protocol/opcodes.h + flags.h, mirroring XProtocol.hh)
+# Wire constants (src/protocols/root/protocol/opcodes.h + flags.h, mirroring the wire spec)
 # ---------------------------------------------------------------------------
 
 ROOTD_PQ         = 2012   # handshake 5th word magic
@@ -223,7 +223,7 @@ def _write(sock, fhandle, offset, data, streamid=b"\x00\x07"):
     """ClientWriteRequest: streamid[2] reqid[2] fhandle[4] offset[8] pathid[1]
     reserved[3] dlen[4] + data.  The pathid+reserved (4 zero bytes) are packed
     as a single int32 between offset and dlen, matching the wire spec layout
-    (XProtocol.hh ClientWriteRequest) and tests/test_wire_protocol_security.py.
+    (the wire spec ClientWriteRequest) and tests/test_wire_protocol_security.py.
     """
     req = struct.pack("!2sH4sqiI", streamid, kXR_write, fhandle,
                       offset, 0, len(data))

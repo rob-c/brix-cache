@@ -8,7 +8,7 @@
  *       $XDG_RUNTIME_DIR/bt_u<uid>, /tmp/bt_u<uid>. Payload = "ztn\0" + JWT
  *       (the server skips the 4-byte tag and strips trailing whitespace/NULs).
  *
- * wire: XProtocol.hh kXR_auth — credtype "ztn", payload repeats "ztn\0" then JWT.
+ * wire: kXR_auth — credtype "ztn", payload repeats "ztn\0" then JWT.
  */
 #include "sec.h"
 #include "auth/cred/cred.h"

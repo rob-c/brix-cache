@@ -62,7 +62,7 @@ data servers in either direction.
 | File | Responsibility |
 |------|----------------|
 | `frame_io.c` / `frame_io.h` | Transport primitives used by both halves: `brix_cms_send_all` (loop `c->send` to completion) and `brix_cms_send_frame` (build the 8-byte header + dispatch payload). |
-| `router.c` / `router.h` | Table-driven CMS opcode routing mirroring `XrdCmsRouting.cc`: per-role descriptor tables (manager merges redirector + server groups; node table = ops a data server accepts) consulted via `brix_cms_route_lookup`; unit-tested (`router_unittest.c`). |
+| `router.c` / `router.h` | Table-driven CMS opcode routing mirroring the stock cmsd: per-role descriptor tables (manager merges redirector + server groups; node table = ops a data server accepts) consulted via `brix_cms_route_lookup`; unit-tested (`router_unittest.c`). |
 | `rrdata.c` / `rrdata.h` | Typed, byte-exact decode of CMS request/forwarded-op payloads reproducing `XrdCmsParser`'s Pup arg vectors; pure C, no nginx dependency, unit-tested standalone (`rrdata_unittest.c`). |
 
 ### Manager-side server (`ngx_stream_brix_cms_srv_module`)

@@ -353,6 +353,25 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
                                            "    brix_allow_write on;\n",
                                            None, nginx_bin, rig)
         seed_tree(control_export)
+        # The origin seeds BEFORE its server starts, so run()'s
+        # _maybe_open_tree_for_deescalated_worker() opens the seeded files along
+        # with the prefix.  The control export cannot: _start_gateway() creates
+        # it, so the seed can only land afterwards — root-owned 0644 under a
+        # worker that de-escalated to `nobody`.  The directory is already a+rwX;
+        # it is the FILES that decide, and every probe that opens one for update
+        # (open updt/append/wrto, chmod, truncate-by-path, setattr, link) then
+        # comes back "permission denied" — turning the positive control, whose
+        # whole job is to show the probe frames are well-formed, red for a reason
+        # that has nothing to do with the gate.
+        #
+        # a+rwX settles the content probes, but not chmod and setattr: POSIX
+        # gives those to the OWNER alone, so a mode can never buy them, and
+        # root-owned seed files answer EACCES/EPERM whatever their bits.  Hand
+        # the export over the way a real deployment would — owned by the user
+        # that serves it.  Chown first, because open_tree_for_worker() restores
+        # in-tree key modes afterwards.
+        _hand_tree_to_worker(control_export)
+        open_tree_for_worker(control_export)
         # brix_data_substreams merges to ON, so the documented gateway above
         # already accepts a kXR_bind secondary — the one route by which a bare
         # kXR_write reaches the gate without an open on the same connection.

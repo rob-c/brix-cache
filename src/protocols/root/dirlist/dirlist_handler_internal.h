@@ -26,6 +26,10 @@ typedef struct {
     char               cksum_algo[32];              /* negotiated cksum algo */
     char               reqpath[BRIX_MAX_PATH + 1];  /* client-supplied path */
     char               full_path[PATH_MAX];         /* confined absolute path */
+    /* The open stage's VFS ctx is a local of that stage and does NOT outlive
+     * it; the handle may be used for the whole request. That is safe because a
+     * VFS handle is self-contained by contract — see brix_vfs_dir_s, which
+     * captures the N2N cfg rather than borrowing the ctx. */
     brix_vfs_dir_t    *dh;                          /* open directory handle */
     u_char            *chunk;                       /* hdr + data accumulator */
     size_t             chunk_cap;                   /* data capacity (64KB) */

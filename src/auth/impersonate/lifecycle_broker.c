@@ -128,6 +128,111 @@ imp_kill_stale_broker(ngx_log_t *log)
     unlink(pf);
 }
 
+/* Is `fd` one of the `n` descriptors the broker owns? */
+static int
+imp_fd_is_kept(int fd, const int *keep, int n)
+{
+    int i;
+
+    for (i = 0; i < n; i++) {
+        if (keep[i] == fd) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+/*
+ * Point the std streams the broker does NOT own at /dev/null, without freeing
+ * the slots: a closed 0/1/2 is handed straight back by the next open(), and a
+ * stray write to what the process still calls "stderr" would then land in a
+ * real file.  A std descriptor that IS kept is left alone — `error_log stderr`
+ * puts the broker's own log on fd 2.
+ */
+static void
+imp_broker_null_stdio(const int *keep, int n)
+{
+    int nullfd, fd;
+
+    nullfd = open("/dev/null", O_RDWR | O_CLOEXEC);  /* vfs-seam-allow: NOT_STORAGE — the null device, not an export object */
+    if (nullfd < 0) {
+        return;
+    }
+    for (fd = STDIN_FILENO; fd <= STDERR_FILENO; fd++) {
+        if (!imp_fd_is_kept(fd, keep, n)) {
+            (void) dup2(nullfd, fd);
+        }
+    }
+    if (nullfd > STDERR_FILENO) {
+        (void) close(nullfd);
+    }
+}
+
+
+/*
+ * WHAT: Drop every descriptor the broker inherited from the master except the
+ *       three it owns: its AF_UNIX listener, the O_PATH confinement root, and
+ *       the log it writes diagnostics to.
+ *
+ * WHY:  The broker forks out of init_module, which nginx runs INSIDE
+ *       ngx_init_cycle() — after ngx_open_listening_sockets() and before
+ *       ngx_daemon().  So at the moment of the fork the master is holding every
+ *       bound listener, every open log, and still has the supervising process's
+ *       stdio on 0/1/2; the child gets a copy of all of it and, because the
+ *       double-fork deliberately reparents it to init, keeps that copy for as
+ *       long as the broker lives, which is longer than the nginx generation it
+ *       came from.  Three concrete consequences, all observed:
+ *         - the TCP listener stays bound after nginx exits, so the next start
+ *           of the same server dies with EADDRINUSE against a process that is
+ *           not nginx and does not appear in its pid file;
+ *         - the log fds pin deleted inodes, so rotated/removed logs never
+ *           return their space;
+ *         - holding the supervisor's stdout/stderr pipe ends withholds EOF from
+ *           a parent that reads them to completion.
+ *       It is also plain privilege hygiene: this process runs as root for the
+ *       lifetime of the node, and a root process should hold the descriptors
+ *       its job needs and no others.
+ *
+ * HOW:  Repoint 0/1/2 at /dev/null (so nothing is left dangling and a stray
+ *       write cannot land in a real file), then close everything above the
+ *       highest kept descriptor with the PAL's brix_plat_close_from(), and walk
+ *       the short gap below it closing whatever is not kept.
+ */
+static void
+imp_broker_seal_fds(int lfd, int rootfd, ngx_log_t *log)
+{
+    int keep[3];
+    int n = 0;
+    int i, fd, top;
+
+    keep[n++] = lfd;
+    keep[n++] = rootfd;
+    if (log != NULL && log->file != NULL
+        && log->file->fd != NGX_INVALID_FILE)
+    {
+        keep[n++] = (int) log->file->fd;
+    }
+
+    imp_broker_null_stdio(keep, n);
+
+    top = STDERR_FILENO;
+    for (i = 0; i < n; i++) {
+        if (keep[i] > top) {
+            top = keep[i];
+        }
+    }
+
+    (void) brix_plat_close_from(top + 1);
+
+    for (fd = STDERR_FILENO + 1; fd <= top; fd++) {
+        if (!imp_fd_is_kept(fd, keep, n)) {
+            (void) close(fd);
+        }
+    }
+}
+
+
 /* The broker child body (post double-fork): record pid, run the serve loop. */
 static void
 imp_broker_child(int lfd, int rootfd, ngx_log_t *log)
@@ -136,6 +241,7 @@ imp_broker_child(int lfd, int rootfd, ngx_log_t *log)
     FILE *fp;
 
     setsid();
+    imp_broker_seal_fds(lfd, rootfd, log);
     imp_pidfile(pf, sizeof(pf));
     fp = fopen(pf, "we");
     if (fp != NULL) {

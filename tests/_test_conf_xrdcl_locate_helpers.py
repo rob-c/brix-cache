@@ -11,20 +11,20 @@ stock data server simply lacks a checksum/prepare plugin, in which case we pin
 OUR value against an INDEPENDENT reference rather than against the stock error).
 
 Contract citations (consulted, never modified):
-  * LocationInfo wire parse — XrdClXRootDResponses.cc:26 (ProcessLocation):
+  * LocationInfo wire parse — the stock client (ProcessLocation):
     space-split; token[0] = type char M/m/S/s (ManagerOnline/ManagerPending/
     ServerOnline/ServerPending), token[1] = access char r (Read) / w (ReadWrite),
     rest = host:port; a bad type/access char makes XrdCl reject the WHOLE
     response; a token shorter than its 2-char prefix + host is rejected.
-    LocationType enum — XrdClXRootDResponses.hh:49  (0=ManagerOnline,
+    LocationType enum — the stock client  (0=ManagerOnline,
     1=ManagerPending, 2=ServerOnline, 3=ServerPending).
-    AccessType enum   — XrdClXRootDResponses.hh:60  (0=Read, 1=ReadWrite).
-  * QueryCode enum — XrdClFileSystem.hh:48 (Config/ChecksumCancel/Checksum/
+    AccessType enum   — the stock client  (0=Read, 1=ReadWrite).
+  * QueryCode enum — the stock client (Config/ChecksumCancel/Checksum/
     Opaque/OpaqueFile/Prepare/Space/Stats/Visa/XAttr/...).
   * do_Qconf bare-value format / unknown-key echo / role / sitename cases —
-    XrdXrootd/XrdXrootdXeq.cc:2168-2268.
+    the stock server.
   * do_Query reqcode dispatch (Qvisa has NO case -> rejected; Qprep ->
-    do_Prepare(true) -> unknown reqid rejected) — XrdXrootdXeq.cc::do_Query.
+    do_Prepare(true) -> unknown reqid rejected) — the stock server's do_Query.
 
 Because the binding REJECTS the entire locate response on a single malformed
 token, ``status.ok`` on a locate is itself a strong structural assertion: it
@@ -84,7 +84,7 @@ def fs_off(srv):
 
 
 # --------------------------------------------------------------------------- #
-# LocationInfo enum constants (XrdClXRootDResponses.hh).                       #
+# LocationInfo enum constants (the stock client).                       #
 # --------------------------------------------------------------------------- #
 LT_MGR_ONLINE, LT_MGR_PENDING, LT_SRV_ONLINE, LT_SRV_PENDING = 0, 1, 2, 3
 ACC_READ, ACC_READWRITE = 0, 1

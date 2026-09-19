@@ -14,110 +14,20 @@ from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST
 
 
-CVMFS_CORE_DEPS = [
-    "shared/cvmfs/grammar/classify.c",
-    "shared/cvmfs/grammar/hash.c",
-    "shared/cvmfs/signature/manifest.c",
-    "shared/cvmfs/signature/whitelist.c",
-    "shared/cvmfs/signature/verify.c",
-    "shared/cvmfs/config/repo.c",
-    "shared/cvmfs/object/object.c",
-    "shared/cvmfs/failover/failover.c",
-]
-
-CVMFS_CLIENT_DEPS = [
-    "shared/cvmfs/client/client.c",
-    # phase-87 G1: negative-lookup filter (resolve hook in client.c, lifecycle
-    # + verified paths-walk build in client_negfilter.c).
-    "shared/cvmfs/client/client_negfilter.c",
-    # phase-87 G6: mmap path index (fast-path hooks in client.c, lifecycle in
-    # client_pathidx.c, format/lookup in pathidx.c).
-    "shared/cvmfs/client/client_pathidx.c",
-    "shared/cvmfs/index/pathidx.c",
-    "shared/cvmfs/filter/xorf.c",
-    "shared/cvmfs/walk/walk.c",
-    "shared/cvmfs/fetch/fetch.c",
-    "shared/cvmfs/object/object.c",
-    "shared/cvmfs/failover/failover.c",
-    "shared/cvmfs/catalog/catalog.c",
-    "shared/cvmfs/grammar/hash.c",
-    "shared/cvmfs/grammar/classify.c",
-    "shared/cvmfs/signature/manifest.c",
-    "shared/cvmfs/signature/whitelist.c",
-    "shared/cvmfs/signature/verify.c",
-    "shared/cvmfs/config/repo.c",
-    # phase-87 G4/G5: cas_store dispatches to the packed backend when armed.
-    "shared/cache/cas_store.c",
-    "shared/cache/cas_pack.c",
-    "shared/cvmfs/platform/platform.c",
-]
-
-CVMFS_WALK_DEPS = [
-    "shared/cvmfs/walk/walk.c",
-    "shared/cvmfs/fetch/fetch.c",
-    "shared/cvmfs/object/object.c",
-    "shared/cvmfs/failover/failover.c",
-    "shared/cvmfs/catalog/catalog.c",
-    "shared/cvmfs/grammar/hash.c",
-    "shared/cache/cas_store.c",
-    "shared/cache/cas_pack.c",
-    "shared/cvmfs/platform/platform.c",
-]
-
-BRIXCVMFS_CORE_DEPS = [
-    "shared/cvmfs/client/client.c",
-    "shared/cvmfs/client/client_negfilter.c",
-    "shared/cvmfs/client/client_pathidx.c",
-    "shared/cvmfs/index/pathidx.c",
-    "shared/cvmfs/filter/xorf.c",
-    "shared/cvmfs/walk/walk.c",
-    "shared/cvmfs/fetch/fetch.c",
-    # phase-87 G2: -o bundle batch prefetch (ingest + wire framing).
-    "shared/cvmfs/fetch/fetch_bundle.c",
-    "shared/cvmfs/bundle/bundle.c",
-    # phase-87 G3: -o dict shared-dictionary transfer coding.
-    "shared/cvmfs/dict/dict.c",
-    "shared/cvmfs/object/object.c",
-    "shared/cvmfs/failover/failover.c",
-    "shared/cvmfs/catalog/catalog.c",
-    "shared/cvmfs/grammar/hash.c",
-    "shared/cvmfs/grammar/classify.c",
-    "shared/cvmfs/signature/manifest.c",
-    "shared/cvmfs/signature/whitelist.c",
-    "shared/cvmfs/signature/verify.c",
-    "shared/cvmfs/config/repo.c",
-    "shared/cvmfs/config/cvmfs_conf.c",
-    "shared/cache/cas_store.c",
-    "shared/cache/cas_pack.c",
-    "shared/cvmfs/platform/platform.c",
-    "shared/net/proxy_env.c",
-    # phase-86: brixcvmfs now pools its libcurl handles through brix_cpool.
-    "client/lib/net/cpool.c",
-    "client/lib/core/types/status.c",
-    "shared/xrdproto/build/kxr_names.o",
-    "shared/xrdproto/build/error_mapping.o",
-]
-
-# Phase-38: the brixcvmfs driver is split by concern (front-end + transport/
-# prefetch/ops/mount siblings, bound through brixcvmfs_split.h). None of the
-# siblings live in an archive, so every standalone-compile site must list all
-# five .c files. This is the single truth — the whitelist/trust fuse suites that
-# filter BRIXCVMFS_CORE_DEPS to shared/*.c must prepend these app sources too.
-BRIXCVMFS_DRIVER_SRCS = [
-    "client/apps/fs/brixcvmfs.c",
-    "client/apps/fs/brixcvmfs_transport.c",
-    # phase-116: the transport's libcurl calls are address-pinned and the pin
-    # helper is its own TU in BRIXCVMFS_SPLIT — a site that compiles the
-    # transport without it fails to link on cvmfs_curl_perform_pinned.
-    "client/apps/fs/brixcvmfs_curl_pin.c",
-    # phase-116: the pin resolves every name through the client DNS seam, so a site
-    # that compiles it links brix_resolve()/brix_netpref_family() too.
-    "client/lib/net/resolve.c",
-    "client/lib/net/netpref.c",
-    "client/apps/fs/brixcvmfs_prefetch.c",
-    "client/apps/fs/brixcvmfs_ops.c",
-    "client/apps/fs/brixcvmfs_mount.c",
-]
+# The dependency lists (CVMFS_CORE_DEPS, CVMFS_CLIENT_DEPS, CVMFS_WALK_DEPS,
+# BRIXCVMFS_CORE_DEPS, BRIXCVMFS_DRIVER_SRCS) live in the loader, not here.
+#
+# The file-size split copied them verbatim into this shard, and because
+# `split_continuation.load` execs a shard INTO the loader's globals — at the
+# very end of it — the copies did not shadow harmlessly: they WON.  Every site
+# that reads `cmdscripts.cvmfs_driver_units.BRIXCVMFS_DRIVER_SRCS` got the copy,
+# `_compile_brixcvmfs` (defined in the loader) resolved the copy through its own
+# module globals, and an entry added to the list beside that function changed
+# nothing at all.  Adding the client PAL body `client/lib/platform/<host>/posix.c`
+# to the loader's list left `brixcvmfs` still failing to link on
+# `brix_plat_fuse_host_opts`, with both lists on screen reading as if it were
+# there.  Nothing in this shard needs them — its functions call
+# `_compile_brixcvmfs()` — so the second copy is simply gone.
 
 
 def brixcvmfs_check(base: Path) -> tuple[bool, str]:

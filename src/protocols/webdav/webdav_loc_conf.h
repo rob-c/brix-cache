@@ -18,7 +18,7 @@ typedef struct {
     /* cache_root + cache_root_canon moved to the shared preamble (common.*) —
      * phase-101 W8; brix_cache_root is registered by the common module. */
 
-    /* --- VOMS VO extraction (optional; requires libvomsapi) --- */
+    /* --- VOMS VO extraction (optional; native verifier, shared/voms/) --- */
     /* vomsdir/voms_cert_dir moved to common preamble (phase-101 W4). */
 
     /* --- X.509 / GSI authentication --- */

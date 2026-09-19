@@ -82,7 +82,7 @@ and the global `allow_write` policy for write-mode opens.
   its size, the windowed-read cursor (`rd_win_*`), `session_bytes`, the
   `cms_wait_streamid`, and the `XRD_ST_*` state (`XRD_ST_AIO`, `XRD_ST_WAITING_CMS`,
   `XRD_ST_SENDING`, …) used to suspend/resume across AIO and CMS round-trips.
-- **Wire request structs** (`../protocol/`, mirroring `XProtocol.hh`):
+- **Wire request structs** (`../protocol/`, mirroring the published wire spec):
   `ClientOpenRequest`, `ClientReadRequest`, `ClientPgReadRequest`, `readahead_list`
   (one `kXR_readv` segment), `ClientStatRequest`, `ClientLocateRequest`,
   `ClientCloseRequest`, `ClientCloneRequest`/`clone_item`. Offsets are big-endian int64,
@@ -199,7 +199,7 @@ bound and calls one `brix_handle_*()`. From there:
 
 To add a **new read-side opcode** (e.g. a hypothetical `kXR_foo`):
 
-1. Add the opcode constant and any wire struct in `../protocol/` (mirror `XProtocol.hh`).
+1. Add the opcode constant and any wire struct in `../protocol/` (mirror the published wire spec).
 2. Create `foo.c` + `foo.h` here exporting `ngx_int_t brix_handle_foo(brix_ctx_t *,
    ngx_connection_t *, ...)`. Reuse the helpers — `brix_validate_*_handle`,
    `brix_extract_path` + `RESOLVE_BENEATH`, `brix_auth_gate`, the AIO offload
