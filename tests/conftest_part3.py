@@ -555,14 +555,22 @@ def _scale_item_timeout(item, scale):
     that default outright, so the suite's 518 files carrying an explicit
     timeout would keep a budget sized for the CI reference host. The
     directory-ingest publish is the worked example: 164 s standalone here,
-    over its fixed 900 s inside a lane (2026-09-17). Appending the scaled
-    marker is enough — pytest reads the closest one, and an item's own markers
-    are closer than the module's, the last added winning.
+    over its fixed 900 s inside a lane (2026-09-17).
+
+    APPENDING the scaled marker is NOT enough, which is what this used to do.
+    get_closest_marker() walks own_markers in order and returns the FIRST
+    match, so an appended second `timeout` at the same scope never wins and the
+    original budget stayed in force — TEST_BUDGET_SCALE=4 still aborted a
+    marked test at its unscaled seconds.  Drop the existing marker(s) from the
+    item's own list before adding the scaled one, so the replacement is the
+    only one left to find.
     """
     marker = item.get_closest_marker("timeout")
     scaled = _scaled_timeout_marker(marker, scale) if marker else None
-    if scaled is not None:
-        item.add_marker(scaled)
+    if scaled is None:
+        return
+    item.own_markers[:] = [m for m in item.own_markers if m.name != "timeout"]
+    item.add_marker(scaled)
 
 
 def pytest_collection_modifyitems(config, items):

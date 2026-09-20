@@ -7,14 +7,43 @@ import pytest
 
 
 def pal_sources():
-    """Select the POSIX owner used by the current host build."""
+    """Every translation unit of the host PAL, plus the portable runtime.
+
+    INVARIANT 14 puts the whole implementation in src/platform/<host>/, so the
+    set is that directory -- not a hand-listed subset.  Naming only
+    posix_wrapper.c left brix_plat_name / brix_plat_pipe2 /
+    brix_plat_spawn_closefrom (host_info.c, storage_wrapper.c,
+    process_wrapper.c) undefined at link, and every new PAL unit would have had
+    to be added here by hand.  *_unittest.c is excluded: those carry their own
+    main().  The callers link with -Wl,--gc-sections, so unused units cost
+    nothing in the built probe.
+    """
     import sys
+    from pathlib import Path as _Path
     host = {'linux': 'linux', 'darwin': 'darwin'}[sys.platform]
-    sources = ['src/platform/platform_runtime.c',
-               f'src/platform/{host}/posix_wrapper.c']
+    root = _Path(__file__).resolve().parents[2]
+    host_dir = root / 'src' / 'platform' / host
+    sources = ['src/platform/platform_runtime.c']
+    sources += sorted(f'src/platform/{host}/{p.name}'
+                      for p in host_dir.glob('*.c')
+                      if not p.name.endswith('_unittest.c'))
     if host == 'linux':
         sources.append('shared/cvmfs/platform/platform.c')
     return sources
+
+
+def _available_pal_libraries():
+    """-l flags for the optional libraries the host PAL units reference."""
+    import shutil
+    import subprocess
+    found = []
+    for pkg, flag in (('libseccomp', '-lseccomp'), ('liburing', '-luring'),
+                      ('libcrypt', '-lcrypt')):
+        if shutil.which('pkg-config') and subprocess.run(
+                ['pkg-config', '--exists', pkg],
+                capture_output=True).returncode == 0:
+            found.append(flag)
+    return found
 
 
 def _bind(library, name, result, arguments):
@@ -43,8 +72,16 @@ uint64_t test_byte_order_batch(uint64_t count) {
     return value;
 }
 '''
+    # The host PAL is one unit set (INVARIANT 14), so the probe links the whole
+    # of it and must carry its optional-feature libraries too: security_wrapper.c
+    # calls seccomp_* under BRIX_HAVE_SECCOMP, and dlopen of the .so fails with
+    # "undefined symbol: seccomp_init" without -lseccomp.  Each library is added
+    # only when this host actually has it, so a build without the feature links
+    # exactly as before.
+    link = ['-O2', '-shared', '-fPIC']
+    link += _available_pal_libraries()
     library = ctypes.CDLL(str(native_compile(
-        'pal-native.so', code, pal_sources(), ['-O2', '-shared', '-fPIC'])),
+        'pal-native.so', code, pal_sources(), link)),
         use_errno=True)
     for bits, value_type in ((16, ctypes.c_uint16), (32, ctypes.c_uint32),
                              (64, ctypes.c_uint64)):

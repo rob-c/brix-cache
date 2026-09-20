@@ -7,6 +7,8 @@ import subprocess
 
 import pytest
 
+from sanitizer_preload import asan_options
+
 from test_platform_linux_native import native_compile
 
 
@@ -24,7 +26,8 @@ def security_binary(native_compile):
 def _observe(binary, profile, mode):
     """Require clean native ownership and return the ordered boundary calls."""
     environment = {**os.environ,
-                   'ASAN_OPTIONS': 'detect_leaks=1:halt_on_error=1:abort_on_error=1',
+                   'ASAN_OPTIONS': asan_options('detect_leaks=1', 'halt_on_error=1',
+                                               'abort_on_error=1'),
                    'LSAN_OPTIONS': 'exitcode=23',
                    'UBSAN_OPTIONS': 'halt_on_error=1:print_stacktrace=1'}
     result = subprocess.run([str(binary), profile, mode], env=environment,

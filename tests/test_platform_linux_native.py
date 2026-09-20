@@ -94,7 +94,13 @@ int main(int argc, char **argv) {
     } else { assert(brix_plat_total_memory() == 4194304); }
     return 0;
 }
-''', ['src/platform/platform_runtime.c'], ['-Wl,--wrap=sysinfo'])
+''', ['src/platform/platform_runtime.c',
+      # brix_plat_total_memory/_available_memory live in the HOST PAL file
+      # (INVARIANT 14), not in the portable runtime — without it the probe
+      # cannot link.  Sibling fixtures below list their linux/ source the
+      # same way; this one was missed, and the whole native family skips
+      # unless BRIX_NGINX_BUILD_DIR is configured, so it stayed latent.
+      'src/platform/linux/host_info.c'], ['-Wl,--wrap=sysinfo'])
 
 
 @pytest.mark.parametrize('case', ['success', 'error', 'swap-only'])

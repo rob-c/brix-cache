@@ -52,9 +52,24 @@ DYN_FILTER_SO = Path(os.environ.get(
 _core_stream = os.environ.get("BRIX_DYN_NGX_STREAM_MODULE")
 DYN_NGX_STREAM_MODULE = Path(_core_stream) if _core_stream else None
 
+def _present(path):
+    """True when `path` is there AND we may stat it.
+
+    Path.exists() only swallows ENOENT/ENOTDIR/EBADF/ELOOP — an unreadable
+    PARENT raises PermissionError instead.  The default DYN_ROOT lives under a
+    developer home, so on a shared box an unprivileged suite run (the
+    TEST USER == SERVER USER mode) aborted collection here rather than taking
+    the clean skip below.  Unreachable is "not present" for this probe.
+    """
+    try:
+        return os.path.exists(path)
+    except OSError:
+        return False
+
+
 _missing = [p for p in (DYN_NGINX, DYN_STREAM_SO, DYN_FILTER_SO)
-            if not p.exists()]
-if DYN_NGX_STREAM_MODULE is not None and not DYN_NGX_STREAM_MODULE.exists():
+            if not _present(p)]
+if DYN_NGX_STREAM_MODULE is not None and not _present(DYN_NGX_STREAM_MODULE):
     _missing.append(DYN_NGX_STREAM_MODULE)
 if _missing:
     pytestmark.append(pytest.mark.skip(

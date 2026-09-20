@@ -14,6 +14,8 @@ import subprocess
 
 import pytest
 
+from sanitizer_preload import asan_options
+
 from csource_scan import function_body
 from test_platform_linux_native import native_compile
 
@@ -84,7 +86,8 @@ def ownership_binary(native_compile, request):
 def test_container_ownership(ownership_binary, case):
     """Require correct results and clean ownership on normal and error exits."""
     environment = {**os.environ,
-                   'ASAN_OPTIONS': 'detect_leaks=1:halt_on_error=1:abort_on_error=1',
+                   'ASAN_OPTIONS': asan_options('detect_leaks=1', 'halt_on_error=1',
+                                               'abort_on_error=1'),
                    'LSAN_OPTIONS': 'exitcode=23',
                    'UBSAN_OPTIONS': 'halt_on_error=1:print_stacktrace=1'}
     result = subprocess.run([str(ownership_binary), case], env=environment,

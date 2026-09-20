@@ -6,6 +6,8 @@ import subprocess
 
 import pytest
 
+from sanitizer_preload import asan_options
+
 from test_platform_linux_native import native_compile
 
 
@@ -23,7 +25,8 @@ def plugin_binary(native_compile):
 def test_plugin_option_copy_contract(plugin_binary, scenario):
     """An absent option is valid; excessive lengths stop before copy or loading."""
     environment = {**os.environ,
-                   'ASAN_OPTIONS': 'detect_leaks=1:halt_on_error=1:abort_on_error=1',
+                   'ASAN_OPTIONS': asan_options('detect_leaks=1', 'halt_on_error=1',
+                                               'abort_on_error=1'),
                    'UBSAN_OPTIONS': 'halt_on_error=1:print_stacktrace=1'}
     result = subprocess.run([str(plugin_binary), scenario], env=environment,
                             capture_output=True, text=True, timeout=30)

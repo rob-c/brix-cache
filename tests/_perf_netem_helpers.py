@@ -139,7 +139,12 @@ def netns_bdp_available():
         r = subprocess.run(
             _NS_LAUNCH + ["bash", "-c", probe],
             capture_output=True, text=True, timeout=30)
-    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+    except (OSError, subprocess.TimeoutExpired) as e:
+        # OSError, not just FileNotFoundError: when PATH holds a directory the
+        # caller cannot traverse (e.g. an unprivileged suite run that inherited
+        # root's PATH), the execvp walk reports EACCES rather than ENOENT.  An
+        # availability probe must report "unavailable", never raise through
+        # module-level collection.
         return False, f"podman/unshare/tc unavailable: {e}"
     if r.returncode == 0 and "OK" in r.stdout:
         return True, "podman-unshare + nested netns with tc netem available"

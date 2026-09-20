@@ -619,8 +619,13 @@ class TestXrdAccOverASigV4Principal:
 
     def test_the_acc_tier_reads_the_dn_that_sigv4_never_writes(self):
         """DEFECT #37 at the seam: two files, two different identity slots."""
-        handler = (S3_SRC / "handler.c").read_text(encoding="utf-8")
-        acc = handler.split("s3_acc_check(ngx_http_request_t", 1)[1] \
+        # s3_acc_check lives in auth_acc.c; handler.c only calls it now.  The
+        # old slice of handler.c silently produced an IndexError rather than a
+        # readable failure, so this pin stopped guarding DEFECT #37 entirely.
+        acc_src = (S3_SRC / "auth_acc.c").read_text(encoding="utf-8")
+        assert "s3_acc_check(ngx_http_request_t" in acc_src, \
+            f"{DEFECT37} s3_acc_check is no longer defined in auth_acc.c"
+        acc = acc_src.split("s3_acc_check(ngx_http_request_t", 1)[1] \
                      .split("\n}", 1)[0]
         assert "brix_identity_dn_cstr(id)" in acc, \
             f"{DEFECT37} s3_acc_check no longer reads the DN"

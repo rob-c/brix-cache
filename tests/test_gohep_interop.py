@@ -346,8 +346,18 @@ def test_static_map_tripwire_ignores_a_mention_in_a_comment(tmp_path):
 def test_root_prefix_match_tripwire():
     """Bug #3: the prefix matcher must treat a trailing-'/' prefix as boundary-
     aligned, so the root '/' (and any '/dir/') matches everything beneath it."""
-    fr = _read("src/auth/authz/find_rule.c")
-    assert "prefix[prefix_len - 1] == '/'" in fr, (
+    # The special case lives in the ONE shared boundary-aware matcher
+    # (path_internal.h: "why there is exactly one of these"); find_rule.c used to
+    # carry its own copy and now delegates.  Assert the behaviour where it now
+    # lives AND that the authz scan still routes through it, so this tripwire
+    # tracks the guarantee rather than a filename.
+    helpers = _read("src/fs/path/helpers.c")
+    assert "prefix[prefix_len - 1] == '/'" in helpers, (
         "brix_path_prefix_match no longer special-cases a trailing-'/' prefix "
         "(bug #3) — a root-level manager_map/VO/authdb/group rule will match only "
         "'/' and not its children")
+    fr = _read("src/auth/authz/find_rule.c")
+    assert "brix_path_prefix_match" in fr, (
+        "the authz longest-prefix scan no longer calls brix_path_prefix_match, so "
+        "the trailing-'/' guarantee above no longer covers manager_map/VO/group "
+        "rules (bug #3)")

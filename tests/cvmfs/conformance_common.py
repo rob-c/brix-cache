@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import re
 import shutil
 import socket
 import subprocess
@@ -28,6 +29,7 @@ from cmdscripts.live_common import LiveRun
 from lib_py.util import wait_tcp
 from lib_py import fuse_host
 from settings import BIND_HOST, HOST, TEST_PORT_START
+from lib_py.util import budget_scale
 from port_ladder import CVMFS_CONFORMANCE_OFFSET
 
 MOCK = str(REPO_ROOT / "tests/cvmfs/mock_stratum1.py")
@@ -78,21 +80,102 @@ _SESSION_OFFSET = 0
 # TEST_PORT_START+2000; hand out a distinct fixed port per caller, thread-safely,
 # so these mocks never fall back to an OS-ephemeral port (which would escape the
 # +2000 fleet band).
+# The block map above is collision-free under xdist because a module runs in one
+# worker and distinct files own distinct blocks.  This shared round-robin range
+# broke that invariant: threading.Lock serialises THREADS, but every xdist worker
+# is its own PROCESS, each starting _matrix_next at 0 and therefore handing out
+# the identical sequence.  Two files whose matrices ran on two workers both took
+# base+0, base+1, ... -- "bind() to 127.0.0.1:<port> failed (98: Address already
+# in use)", the single largest source of failures in a high-concurrency run.
+# Fix: give each worker a DISJOINT slice of the window, so the per-process
+# counter can no longer overlap another worker's ports.
+def _xdist_worker_slot() -> tuple[int, int]:
+    """(index, total) for this xdist worker; (0, 1) when not running under it.
+
+    Callers that must partition a resource per worker key on the INDEX: it is
+    disjoint by construction, unlike a pid folded into a fixed number of slots.
+    """
+    match = re.match(r"gw(\d+)$", os.environ.get("PYTEST_XDIST_WORKER", ""))
+    if match is None:
+        return 0, 1
+    try:
+        total = max(1, int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1")))
+    except ValueError:
+        total = 1
+    return int(match.group(1)), total
+
+
+# The matrix sub-range is part of the DECLARED ladder (test_fleet_ports asserts
+# the named lane is fully accounted for), so it stays where it is.  What changes
+# is the counter: it was a round-robin int guarded by a threading.Lock, which
+# serialises THREADS while every xdist worker is its own PROCESS -- each
+# restarting at 0 and handing out the identical sequence, so two workers took
+# base+0, base+1, ... and collided.  That was the single largest source of
+# "bind() ... Address already in use" in a parallel run.  The cursor now lives in
+# a file under TEST_ROOT with an flock around the increment, exactly like
+# ephemeral_port's lease registry, so it is unique ACROSS processes too.
 _MATRIX_WIDTH = 48
 _MATRIX_BASE = _CVMFS_BASE + len(_CANONICAL_ORDER) * 20
 _matrix_lock = threading.Lock()
-_matrix_next = 0
+
+
+def _matrix_cursor_path() -> "Path":
+    root = Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test"))
+    root.mkdir(parents=True, exist_ok=True)
+    return root / f"cvmfs-matrix-cursor.{_MATRIX_BASE}"
 
 
 def matrix_port() -> int:
-    """Return a distinct fixed port from the cvmfs matrix sub-range (round-robin,
-    thread-safe).  Anchored to TEST_PORT_START, so every port stays within +2000
-    of the start and a second suite draws a disjoint range."""
-    global _matrix_next
+    """Return a distinct fixed port from the cvmfs matrix sub-range.
+
+    The cursor lives in a TEST_ROOT file under an flock, so the sequence is
+    unique across xdist WORKER PROCESSES -- the old threading.Lock only
+    serialised threads inside one process, and every worker restarted the
+    counter at 0 and replayed the same ports.  The search for a free slot and
+    the cursor write happen under that same lock, so two workers cannot pick
+    the same slot, and the cursor advances PAST whatever was skipped so
+    back-to-back calls never repeat a number.
+    """
+    import fcntl
+
+    path = _matrix_cursor_path()
     with _matrix_lock:
-        p = _MATRIX_BASE + (_matrix_next % _MATRIX_WIDTH)
-        _matrix_next += 1
-    return p
+        with open(path, "a+", encoding="utf-8") as cursor:
+            fcntl.flock(cursor.fileno(), fcntl.LOCK_EX)
+            try:
+                cursor.seek(0)
+                try:
+                    nxt = int(cursor.read().strip() or "0")
+                except ValueError:
+                    nxt = 0
+                chosen, advance = None, 1
+                for step in range(_MATRIX_WIDTH):
+                    candidate = _MATRIX_BASE + ((nxt + step) % _MATRIX_WIDTH)
+                    if _port_is_free(candidate):
+                        chosen, advance = candidate, step + 1
+                        break
+                if chosen is None:               # every slot busy: let it fail loudly
+                    chosen, advance = _MATRIX_BASE + (nxt % _MATRIX_WIDTH), 1
+                cursor.seek(0)
+                cursor.truncate()
+                cursor.write(str(nxt + advance))
+                cursor.flush()
+            finally:
+                fcntl.flock(cursor.fileno(), fcntl.LOCK_UN)
+    return chosen
+
+
+def _port_is_free(port: int) -> bool:
+    """True when nothing is listening on `port` right now."""
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        probe.bind((HOST, port))
+        return True
+    except OSError:
+        return False
+    finally:
+        probe.close()
 
 
 class PortBlock:
@@ -124,7 +207,8 @@ class PortBlock:
 # ---- mock control-plane helpers -------------------------------------------
 
 def _ctl_get(port: int, endpoint: str) -> object:
-    with urllib.request.urlopen(f"http://{HOST}:{port}/ctl/{endpoint}", timeout=10) as r:
+    with urllib.request.urlopen(f"http://{HOST}:{port}/ctl/{endpoint}",
+                                timeout=10 * budget_scale()) as r:
         return json.load(r)
 
 
@@ -132,7 +216,7 @@ def _ctl_post(port: int, endpoint: str, payload: dict | None = None) -> None:
     data = json.dumps(payload).encode() if payload is not None else b""
     req = urllib.request.Request(f"http://{HOST}:{port}/ctl/{endpoint}",
                                  method="POST", data=data)
-    urllib.request.urlopen(req, timeout=10).read()
+    urllib.request.urlopen(req, timeout=10 * budget_scale()).read()
 
 
 class Server:
@@ -346,7 +430,16 @@ def _unmount(mnt: Path) -> None:
 
 
 def _wait_mounted(mnt: Path, timeout: float) -> bool:
-    deadline = time.monotonic() + timeout
+    """Wait for the FUSE mount, stretching the budget on a busy/shared host.
+
+    Every other wall-clock budget in the suite scales through budget_scale()
+    (that is what TEST_BUDGET_SCALE exists for); these cvmfs helpers were the
+    exception, so a mount that simply took longer under a high-concurrency run
+    -- several lanes plus their fleets on one box -- reported as a fixture ERROR
+    rather than as "slow".  budget_scale() floors at 1.0, so a host that
+    declares nothing keeps the original timeout exactly.
+    """
+    deadline = time.monotonic() + timeout * budget_scale()
     while time.monotonic() < deadline:
         if os.path.ismount(str(mnt)):
             return True

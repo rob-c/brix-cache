@@ -509,6 +509,13 @@ def _try_manager_conf(
         "}\n",
         encoding="utf-8",
     )
+    # This config uses `stream` and the brix directives, both of which are
+    # DYNAMIC modules in a packaged nginx.  Without the load_module lines the
+    # parse dies at `unknown directive "stream"` — still a non-zero rc, so the
+    # refusal probe looked satisfied while the assertion that the message names
+    # both conflicting directives failed on a diagnostic about something else.
+    from cmdscripts.live_common import inject_nginx_load_modules
+    inject_nginx_load_modules(conf, nginx_bin)
     process = subprocess.run(
         [nginx_bin, "-p", str(work), "-c", str(conf), "-t"],
         capture_output=True,

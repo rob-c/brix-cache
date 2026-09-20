@@ -14,6 +14,38 @@ from csource_scan import function_body
 from test_platform_linux_native import native_compile
 
 
+# The PAL seam sd_frm_exec.c now calls (INVARIANT 14).  It used to carry its own
+# "#ifndef RENAME_EXCHANGE" compat block, which this fixture spliced in; that
+# block moved into brix_plat_renameat2(), so there is nothing left to splice and
+# the harness must supply the seam itself.  Mirrors platform_api_posix.h: the
+# flag is translated to the kernel bit, and a platform that cannot issue the
+# call answers ENOTSUP WITHOUT a syscall -- which is exactly what the 'darwin'
+# and 'no-syscall' arms assert.
+_PAL_STUB = r'''
+#define BRIX_RENAME_NOREPLACE  1
+#define BRIX_RENAME_EXCHANGE   2
+static int brix_plat_renameat2(int sfd, const char *sbase, int dfd,
+    const char *dbase, unsigned int flags) {
+#if defined(__APPLE__) || !defined(SYS_renameat2)
+    (void)sfd; (void)sbase; (void)dfd; (void)dbase; (void)flags;
+    errno = ENOTSUP;
+    return -1;
+#else
+    unsigned int kflags = 0;
+    if (flags & BRIX_RENAME_NOREPLACE) { kflags |= 1u; }
+    if (flags & BRIX_RENAME_EXCHANGE)  { kflags |= 2u; }
+    if (syscall(SYS_renameat2, sfd, sbase, dfd, dbase, kflags) == 0) {
+        return 0;
+    }
+    if (errno == ENOSYS || errno == EINVAL) {
+        errno = ENOTSUP;
+    }
+    return -1;
+#endif
+}
+'''
+
+
 _ADAPTER = r'''
 #include <assert.h>
 #include <errno.h>
@@ -82,11 +114,9 @@ def frm_exchange_binaries(native_compile):
     root = Path(__file__).resolve().parents[1] / 'src/fs/backend/frm'
     source = (root / 'sd_frm_exec.c').read_text()
     paths = (root / 'sd_frm_mss_ops.c').read_text()
-    macro_start = source.index('#ifndef RENAME_EXCHANGE')
-    macro_end = source.index('#endif', macro_start) + len('#endif')
     bodies = ('int frm_online_path(const char *base, const char *key, char *out, size_t cap)'
               + function_body(paths, 'frm_online_path') + '\n'
-              + source[macro_start:macro_end] + '\n'
+              + _PAL_STUB + '\n'
               + 'int frm_mss_exchange(void *mss, const char *a, const char *b)'
               + function_body(source, 'frm_mss_exchange'))
     switches = {'linux': '', 'darwin': '#undef __linux__\n#define __APPLE__ 1\n#define __MACH__ 1\n',

@@ -25,6 +25,7 @@ Two guards, pinned here:
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -168,7 +169,12 @@ print(json.dumps({"first": first, "again": again, "rebuilt": rebuilt}))
 @pytest.fixture(scope="module")
 def pki_phases(tmp_path_factory):
     """The CA digest after a cold build, a re-prep, and a repair."""
-    if not any(Path(d, "openssl").exists() for d in os.get_exec_path()):
+    # shutil.which(), not Path(...).exists() over get_exec_path(): an entry on
+    # PATH that we cannot traverse (an unprivileged run inheriting root's PATH
+    # carries /root/.local/bin) makes Path.exists() raise PermissionError, which
+    # errored this fixture instead of taking the skip.  which() treats an
+    # unreachable PATH entry as "not here", which is what this probe means.
+    if shutil.which("openssl") is None:
         pytest.skip("openssl not installed")
     root = tmp_path_factory.mktemp("lane")
     tests = Path(__file__).resolve().parent

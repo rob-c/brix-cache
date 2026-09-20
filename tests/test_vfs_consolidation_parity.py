@@ -412,10 +412,20 @@ def test_n2n_stage_delegates_and_adds_no_logic():
     fwd = _fn(_src("src/fs/path/n2n_stage.c"), "brix_path_lfn_to_pfn")
     rev = _fn(_src("src/fs/path/n2n_stage.c"), "brix_path_pfn_to_lfn")
     assert "brix_n2n_lfn2pfn(" in fwd, fwd
-    assert "brix_n2n_pfn2lfn(" in rev, rev
+    # The reverse may reach the pure translator through the cfg-level entry point
+    # brix_path_cfg_pfn_to_lfn(), which exists because vfs_dir_iter.c holds a cfg
+    # (dh->n2n) rather than a ctx.  That is still delegation, so follow the hop
+    # and hold the SAME guarantee one level down rather than demanding a literal
+    # call here — A.4 is about adding no logic, not about the call being direct.
+    bodies = {"pfn_to_lfn": rev}
+    if "brix_n2n_pfn2lfn(" not in rev:
+        assert "brix_path_cfg_pfn_to_lfn(" in rev, rev
+        cfg_rev = _fn(_src("src/fs/path/n2n_stage.c"), "brix_path_cfg_pfn_to_lfn")
+        assert "brix_n2n_pfn2lfn(" in cfg_rev, cfg_rev
+        bodies["cfg_pfn_to_lfn"] = cfg_rev
     # No re-implemented composition: a wrapper that concatenated a prefix itself
     # (rather than delegating) is exactly the "adds logic" A.4 forbids.
-    for name, body in (("lfn_to_pfn", fwd), ("pfn_to_lfn", rev)):
+    for name, body in (("lfn_to_pfn", fwd), *bodies.items()):
         for banned in ("strcat", "strncat", "memcpy", "snprintf", "sprintf",
                        "BRIX_N2N_RAL", "BRIX_N2N_CEPHFS_PATH"):
             assert banned not in body, (

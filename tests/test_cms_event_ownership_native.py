@@ -20,7 +20,13 @@ def cms_event_binary(native_compile):
     root = Path(__file__).resolve().parents[1]
     build = Path(os.environ.get("BRIX_NGINX_BUILD_DIR", root / "build/alma9-merged"))
     timer_tree = build.resolve() / "nginx-src/src/core/ngx_rbtree.c"
-    return native_compile("cms-event-ownership", _NATIVE_SOURCE, [timer_tree], [
+    # The production owners call the PAL (INVARIANT 14), so its host units have
+    # to be linked or brix_plat_pipe2 / brix_plat_spawn_closefrom are undefined.
+    # They bottom out in pipe2()/posix_spawn(), which this build already wraps,
+    # so the real PAL still routes through the interception below.
+    pal = ["src/platform/linux/storage_wrapper.c",
+           "src/platform/linux/process_wrapper.c"]
+    return native_compile("cms-event-ownership", _NATIVE_SOURCE, [timer_tree, *pal], [
         "-DNGX_DEBUG=1", "-ffunction-sections", "-fdata-sections",
         "-Wl,--gc-sections", "-Wl,--wrap=socket", "-Wl,--wrap=connect",
         "-Wl,--wrap=pipe2", "-Wl,--wrap=posix_spawn", "-Wl,--wrap=kill",
@@ -141,7 +147,11 @@ int __wrap_posix_spawn(pid_t *pid, const char *path,
                       char *const argv[], char *const environment[]) {
     (void)environment;
     assert(strcmp(path, "/bin/sh") == 0 && actions != NULL);
-    assert(attributes == NULL && strcmp(argv[1], "-c") == 0);
+    /* attributes is no longer NULL: perf_pgm.c now inits a posix_spawnattr_t
+       and passes it alongside the closefrom file action.  Pinning NULL here
+       forbade that hardening rather than testing anything, so assert the
+       part that is the contract -- the shell invocation itself. */
+    assert(strcmp(argv[1], "-c") == 0);
     *pid = 123456;
     observed.spawns++;
     return 0;

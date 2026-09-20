@@ -39,7 +39,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
-from conformance_common import NGINX_BIN, PortBlock, request, srv_instance
+from conformance_common import (NGINX_BIN, PortBlock, request, srv_instance,
+                                _xdist_worker_slot)
 from settings import BIND_HOST, HOST
 
 REPO = "test.cern.ch"
@@ -59,10 +60,17 @@ pytestmark = [pytest.mark.skipif(not os.path.exists(NGINX_BIN),
 # --------------------------------------------------------------------------- #
 
 _ip_seq = itertools.count(1)
-# Give each pytest/xdist process its own /24 inside 127/8.  A module-level
-# counter alone restarts at 1 in every worker, making two workers bind the same
-# listener address (127.84.0.2:8000) when these cases join the parallel suite.
-_ip_net = os.getpid() % (64 * 256)
+# Give each xdist worker its own /24 inside 127/8.  A module-level counter alone
+# restarts at 1 in every worker, making two workers bind the same listener
+# address (127.84.0.2:8000) when these cases join the parallel suite.
+#
+# Keyed on the xdist worker INDEX, not os.getpid(): a pid folded into 16384 slots
+# is only probably distinct, and two workers that happened to collide would bind
+# the same address for a reason almost impossible to reproduce.  The worker index
+# is disjoint by construction.  Outside xdist there is one process, so the pid
+# fallback keeps concurrent standalone runs apart.
+_ip_net = (_xdist_worker_slot()[0] if os.environ.get("PYTEST_XDIST_WORKER")
+           else os.getpid()) % (64 * 256)
 
 
 def fresh_ip() -> str:

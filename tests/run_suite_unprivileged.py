@@ -52,6 +52,7 @@ USAGE
 """
 
 import os
+import pwd
 import shutil
 import subprocess
 import sys
@@ -137,6 +138,59 @@ def _pick_nginx() -> str:
 # (force_stop_nginx would have to kill another uid's process), so a leftover root
 # fleet becomes an unfixable "Address already in use".  Clear it here, while we
 # still have the privileges to do it.
+# Product defaults that live at a FIXED path in shared /tmp.  A run as root (or
+# any other account) creates them owned by that account -- brix's default stage
+# store comes up root:root 0711 -- and every later unprivileged run then fails to
+# create its subdirectory:
+#     brix: cannot create the default stage store "/tmp/staging/<backend>.<uid>"
+#     -- write staging stays OFF (13: Permission denied)
+# which surfaces as a missing banner or a silently disabled feature, nowhere near
+# the real cause.  Clearing the fleet does not touch these, so do it here: only
+# root can remove another account's directory, which is exactly what this handoff
+# exists for.  Every one of these is a regenerable cache/scratch path.
+_SHARED_PRODUCT_PATHS = (
+    "/tmp/staging",                      # BRIX_TIER_DEFAULT_STAGE_BASE
+    "/tmp/cta_queue_ut.journal",
+    "/tmp/xferjournal_unit.journal",
+    "/tmp/xrdrc_defaults_unit.rc",
+    "/tmp/vfs_no_such_file_brix_unit",
+)
+
+
+def _foreign_owner(path: str, target_uid: int):
+    """The uid owning `path` when that is someone other than `target_uid`."""
+    try:
+        owner = os.stat(path).st_uid
+    except OSError:
+        return None                      # absent, or unreadable -> leave alone
+    return None if owner == target_uid else owner
+
+
+def _remove_path(path: str) -> None:
+    """Delete a file or directory, reporting rather than raising."""
+    try:
+        if os.path.isdir(path) and not os.path.islink(path):
+            shutil.rmtree(path)
+        else:
+            os.unlink(path)
+    except OSError as exc:
+        log(f"WARNING: could not clear {path}: {exc}")
+
+
+def _clear_foreign_shared_paths() -> None:
+    """Remove fixed shared-/tmp product paths not owned by the test user."""
+    try:
+        target = pwd.getpwnam(BRIX_TEST_USER).pw_uid
+    except KeyError:
+        return
+    for path in _SHARED_PRODUCT_PATHS:
+        owner = _foreign_owner(path, target)
+        if owner is None:
+            continue
+        _remove_path(path)
+        log(f"cleared {path} (was uid {owner}, not {BRIX_TEST_USER})")
+
+
 def _clear_foreign_fleet() -> None:
     log("clearing any root-owned fleet off the fixed ports")
     subprocess.run(
@@ -233,6 +287,30 @@ def _run_in_place(nginx: str, extra: list[str]) -> "int":
     os.execvpe(_suite_argv(extra)[0], _suite_argv(extra), env)
 
 
+def _user_can_search(directory: str, uid: str) -> bool:
+    """True when uid may search `directory` — i.e. it is usable as a PATH entry.
+
+    Tested by actually becoming the user in a forked child: an access(2) from
+    root succeeds on paths the target cannot reach, so asking as root is useless.
+    """
+    try:
+        target = int(uid)
+        entry = pwd.getpwuid(target)
+    except (TypeError, ValueError, KeyError):
+        return True                      # cannot tell — keep the entry
+    pid = os.fork()
+    if pid == 0:                         # child: drop, then probe
+        try:
+            os.setgroups([])
+            os.setresgid(entry.pw_gid, entry.pw_gid, entry.pw_gid)
+            os.setresuid(target, target, target)
+            os._exit(0 if os.access(directory, os.R_OK | os.X_OK) else 1)
+        except Exception:
+            os._exit(1)
+    _, status = os.waitpid(pid, 0)
+    return os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+
+
 def _run_root_handoff(nginx: str, extra: list[str]) -> None:
     # ---- root mode: sync to a neutral tree, hand over, drop ------------------ #
     _guard_run_root_handoff_2()
@@ -245,16 +323,21 @@ def _run_root_handoff(nginx: str, extra: list[str]) -> None:
     log(f"target user: {BRIX_TEST_USER} (uid {target_uid})")
 
     _clear_foreign_fleet()
+    _clear_foreign_shared_paths()
 
     # Sync the checkout to somewhere the user can actually reach.  --delete so a
-    # removed/renamed file cannot linger and silently pass a stale test; .git is
-    # excluded (no test reads it, and it is the bulk of the tree).  Build outputs
-    # are excluded too — they are rebuilt/installed separately and are large.
+    # removed/renamed file cannot linger and silently pass a stale test.  .git is
+    # INCLUDED: ten test modules shell out to `git ls-files` to ask what a fresh
+    # clone actually ships (the CI-guard, register-integrity and README
+    # self-reference suites), so a tree without it fails them for a reason that
+    # has nothing to do with the code under test.  It is also not the bulk of the
+    # tree — 141M against 704M here.  Build outputs stay excluded — they are
+    # rebuilt/installed separately and are large.
     log(f"syncing checkout -> {BRIX_TEST_TREE} (/root is left untouched)")
     os.makedirs(BRIX_TEST_TREE, exist_ok=True)
     subprocess.run(
         ["rsync", "-a", "--delete",
-         "--exclude", ".git/", "--exclude", "build/",
+         "--exclude", "build/",
          "--exclude", "__pycache__/", "--exclude", ".pytest_cache/",
          f"{REPO}/", f"{BRIX_TEST_TREE}/"],
         check=True,
@@ -267,8 +350,15 @@ def _run_root_handoff(nginx: str, extra: list[str]) -> None:
     # workers and the reference xrootd (which runs un-shimmed as this user) can
     # write what they must.
     os.makedirs(os.path.join(test_root, "home"), exist_ok=True)
+    # XDG_RUNTIME_DIR leaks across the drop the same way PATH does, still naming
+    # root's /run/user/0 — which the target cannot write, so rootless podman (the
+    # netns/BDP harness) dies with "mkdir /run/user/0/libpod: permission denied".
+    # runuser does not create a real per-user runtime dir, so own one here.
+    xdg_runtime = os.path.join(test_root, "run")
+    os.makedirs(xdg_runtime, exist_ok=True)
     subprocess.run(["chown", "-R", BRIX_TEST_USER, test_root], check=True)
     os.chmod(test_root, 0o755)
+    os.chmod(xdg_runtime, 0o700)          # XDG_RUNTIME_DIR must be user-private
     log(f"TEST_ROOT={test_root} owned by {BRIX_TEST_USER}")
 
     _guard_run_root_handoff_5(nginx)
@@ -279,6 +369,16 @@ def _run_root_handoff(nginx: str, extra: list[str]) -> None:
     # HOME must exist and be writable: `nobody`'s passwd home is / and Python/tools
     # will try to write there.  Re-exec the COPY, not REPO — the user cannot read
     # REPO, which is the whole reason for the sync.
+    # PATH is inherited across the drop, so root's own entries (/root/.local/bin,
+    # /root/bin) ride along into a user that cannot traverse /root (0750).  Any
+    # probe that walks PATH then gets EACCES instead of "absent" — Path.exists()
+    # raises PermissionError rather than returning False, and an execvp() walk
+    # reports EACCES rather than ENOENT.  Drop the entries the target user cannot
+    # use instead of replacing PATH, so venv/tool dirs on it survive.
+    usable = [d for d in os.environ.get("PATH", "").split(os.pathsep)
+              if d and _user_can_search(d, target_uid)]
+    child_path = os.pathsep.join(usable)
+
     tree_script = os.path.join(BRIX_TEST_TREE, "tests", "run_suite_unprivileged.py")
     argv = [
         "runuser", "-u", BRIX_TEST_USER, "--", "env",
@@ -290,6 +390,8 @@ def _run_root_handoff(nginx: str, extra: list[str]) -> None:
         f"PYTEST_ADDOPTS={os.environ.get('PYTEST_ADDOPTS', '')} "
         f"-o cache_dir={test_root}/.pytest_cache".strip(),
         f"BRIX_TEST_USER={BRIX_TEST_USER}",
+        f"PATH={child_path}",
+        f"XDG_RUNTIME_DIR={xdg_runtime}",
         sys.executable, tree_script, *extra,
     ]
     os.execvp(argv[0], argv)

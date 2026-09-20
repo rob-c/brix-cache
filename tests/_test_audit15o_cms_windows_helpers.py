@@ -91,6 +91,7 @@ from pathlib import Path
 import pytest
 
 from server_registry import NginxInstanceSpec
+from fleet_lifecycle_ports import SHARED_PARSE_PLACEHOLDER_PORT
 from settings import BIND_HOST, NGINX_BIN, SERVER_HOST
 from _test_cms_wire_pup_conformance_helpers import (
     _build_frame,
@@ -467,7 +468,11 @@ def _guard_conf(directive_lines):
             "events { worker_connections 16; }\n"
             "stream {\n"
             "    server {\n"
-            f"        listen {BIND_HOST}:1;\n"
+            # The parse-only placeholder, as the other config-guard suites use:
+            # port 1 is privileged, so an unprivileged run (the documented
+            # TEST USER == SERVER USER posture) cannot bind it and every case
+            # here failed on the port rather than on the directive under test.
+            f"        listen {BIND_HOST}:{SHARED_PARSE_PLACEHOLDER_PORT};\n"
             "        brix_root on;\n"
             "        brix_auth none;\n"
             "        brix_manager_mode on;\n"

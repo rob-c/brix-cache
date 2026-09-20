@@ -39,6 +39,7 @@ Run:
     PYTHONPATH=tests pytest tests/test_io_uring_rxtx.py -v
 """
 
+import functools
 import os
 import re
 import shutil
@@ -52,9 +53,30 @@ from settings import BIND_HOST, HOST, SERVER_CERT, SERVER_KEY, CA_CERT, CA_DIR
 
 # One C driver on one fixed exclusive port; serialise the whole file onto it so
 # the fixed listen never has two concurrent drivers (mirrors test_io_uring_runtime).
+@functools.lru_cache(maxsize=1)
+def _strace_usable():
+    """True only when strace can actually TRACE here, not merely exist.
+
+    kernel.yama.ptrace_scope=2 restricts PTRACE_TRACEME to CAP_SYS_PTRACE, so on
+    a hardened host an unprivileged run (the TEST USER == SERVER USER mode) has
+    an strace binary that fails every attach.  Wrapping the smoke client in it
+    then made the CLIENT fail, turning "cannot observe syscalls" into a false
+    transfer failure.  Probing keeps the run untraced instead, which the callers
+    already handle via `counts is None`."""
+    if shutil.which("strace") is None:
+        return False
+    try:
+        probe = subprocess.run(
+            ["strace", "-o", os.devnull, "/bin/true"],
+            capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return probe.returncode == 0
+
+
 def _expression_1(trace):
     return (
-        trace is not None and shutil.which("strace") is not None
+        trace is not None and _strace_usable()
     )
 
 def _expression_2(trace):

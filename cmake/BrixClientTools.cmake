@@ -89,7 +89,7 @@ add_custom_target(brix-client-proto
 # Core binaries that must always build — verified after the tools target.
 set(_brix_core_bins
     xrd xrdfs xrdcp xrdcksum xrdprep xrdgsiproxy xrddiag
-    xrdmapc xrdgsitest xrdsssadmin xrdstorascan)
+    xrdmapc xrdgsitest xrdsssadmin-brix xrdstorascan)
 
 add_custom_target(brix-client-tools
     COMMAND make -C "${REPO_ROOT}/client" -j${NPROC} ${_client_make_flags}
@@ -153,7 +153,8 @@ if(BRIX_BUILD_COMPAT)
     # POST_BUILD check above (same guarantee, brix- names).
     set(_brix_core_compat_bins "")
     foreach(_b IN LISTS _brix_core_bins)
-        list(APPEND _brix_core_compat_bins "brix-${_b}")
+        string(REGEX REPLACE "-brix$" "" _b_base "${_b}")
+        list(APPEND _brix_core_compat_bins "brix-${_b_base}")
     endforeach()
     add_custom_command(TARGET brix-client-compat POST_BUILD
         COMMAND ${CMAKE_COMMAND}

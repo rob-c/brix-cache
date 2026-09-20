@@ -270,6 +270,7 @@ def test_pal_anon_fd_basic(test_c_program, temp_dir):
     """Test brix_plat_anon_fd() creates anonymous file descriptor"""
     code = """
 #include <stdio.h>
+#include <string.h>          /* strcmp below; the probe builds -Werror */
 #include <unistd.h>
 #include <fcntl.h>
 #include "platform/platform_api.h"

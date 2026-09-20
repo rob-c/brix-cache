@@ -14,8 +14,49 @@ runtimes the shim's own undefined symbols actually reference — a plain
 
 from __future__ import annotations
 
+import functools
 import os
 import subprocess
+
+
+@functools.lru_cache(maxsize=1)
+def leak_detection_available() -> bool:
+    """True when LeakSanitizer can actually run on this host.
+
+    LSan stops threads and walks memory through ptrace, so where
+    ``kernel.yama.ptrace_scope`` is restricted an unprivileged process dies at
+    exit with "LeakSanitizer has encountered a fatal error ... does not work
+    under ptrace".  That turns EVERY instrumented binary's exit into a spurious
+    non-zero, which is indistinguishable from the failure the test is looking
+    for.  Root keeps CAP_SYS_PTRACE whatever the scope says.
+    """
+    if os.geteuid() == 0:
+        return True
+    try:
+        with open("/proc/sys/kernel/yama/ptrace_scope", encoding="ascii") as fh:
+            return fh.read().strip() == "0"
+    except FileNotFoundError:
+        return True                      # no yama LSM -> ptrace unrestricted
+    except OSError:
+        return True                      # unreadable -> assume usable
+
+
+def asan_options(*settings: str) -> str:
+    """Join ASAN_OPTIONS `settings`, dropping leak detection where it cannot run.
+
+    Callers keep asking for ``detect_leaks=1``; this downgrades that one key to
+    ``0`` on a ptrace-restricted host so the rest of the sanitizer (the
+    use-after-free / overflow checks the test is actually asserting) still
+    runs, instead of the whole binary aborting before it reports anything.
+    """
+    usable = leak_detection_available()
+    out = []
+    for item in settings:
+        key = item.split("=", 1)[0]
+        if key == "detect_leaks" and not usable:
+            item = "detect_leaks=0"
+        out.append(item)
+    return ":".join(out)
 
 
 def sanitizer_runtimes(shim_path: str) -> str:

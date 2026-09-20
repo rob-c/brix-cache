@@ -205,6 +205,12 @@ EXEMPT_PORTS = {
     "WEBDAV_TPC_DEST_NO_SERVICE_CERT_PORT": "launched by test_webdav_tpc's tpc_nginx fixture, not the fleet",
     "WEBDAV_TPC_DEST_DISABLED_PORT": "launched by test_webdav_tpc's tpc_nginx fixture, not the fleet",
     "WEBDAV_TPC_DEST_READONLY_PORT": "launched by test_webdav_tpc's tpc_nginx fixture, not the fleet",
+    # The krb5 tier is a DEDICATED instance (lib_py.dedicated.start_dedicated_nginx)
+    # plus an MIT KDC that kdc_helpers provisions, both gated on the krb5 tooling
+    # being present -- neither is a registry spec, so no CONST_TO_SPEC entry can
+    # own them and the lint counted them as unclassified.
+    "NGINX_KRB5_PORT": "dedicated krb5 nginx tier (lib_py.dedicated), not a fleet spec",
+    "KRB5_KDC_PORT": "MIT KDC provisioned by kdc_helpers, an external daemon, not a fleet spec",
 }
 
 
