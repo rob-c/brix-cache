@@ -3,6 +3,7 @@
  * write-back staging the eviction guard would otherwise protect forever.
  */
 
+#include "core/compat/log_event.h"
 #include "cache_reap.h"   /* + cache_internal.h: brix_cache_state_root */
 #include "cinfo.h"
 #include "cache_storage.h"
@@ -207,7 +208,7 @@ reap_remove(const char *child, const reap_ctx_t *rc,
         (void) unlink(child);
     }
     if (lstat(child, &leftover) == 0) {
-        ngx_log_error(NGX_LOG_ERR, rc->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, rc->log, 0,
             "brix: cache reaper could not remove \"%s\" (left in place)",
             child);
         return;
@@ -218,15 +219,15 @@ reap_remove(const char *child, const reap_ctx_t *rc,
         (void) ngx_atomic_fetch_add(&rc->slot->cache_dirty_reaped[reason], 1);
     }
     if (reason == BRIX_CACHE_REAP_COLD) {
-        ngx_log_error(NGX_LOG_NOTICE, rc->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, rc->log, 0,
             "brix: cache purged cold file (untouched past "
             "brix_cache_cold_max_age, re-fetchable): \"%s\"", child);
     } else if (reason == BRIX_CACHE_REAP_COMPLETED) {
-        ngx_log_error(NGX_LOG_NOTICE, rc->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, rc->log, 0,
             "brix: cache reaped completed write-back file "
             "(flushed, reclaimed): \"%s\"", child);
     } else {
-        ngx_log_error(NGX_LOG_WARN, rc->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, rc->log, 0,
             "brix: cache reaped stale-dirty file (reason=%s, %uL "
             "un-flushed bytes discarded): \"%s\"",
             reason == BRIX_CACHE_REAP_INCOMPLETE ? "incomplete"

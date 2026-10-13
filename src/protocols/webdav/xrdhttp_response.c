@@ -171,25 +171,22 @@ xrdhttp_add_response_headers(ngx_http_request_t *r, ngx_int_t http_status)
  * Check if query string contains a bare key (no '=' required, or key=anything).
  * Used for ?xrd.stats detection.
  */
-static int
-xrdhttp_args_has_key(const ngx_str_t *args, const char *key, size_t key_len)
-{
-    (void) key_len;
-
-    return brix_http_query_has(*args, key,
-                                 BRIX_HTTP_QUERY_CASE_INSENSITIVE
-                                 | BRIX_HTTP_QUERY_HAS_VALUE_OK);
-}
-
 /* ?xrd.stats detection */
 int
 xrdhttp_request_is_stats_query(ngx_http_request_t *r)
 {
+    xrdhttp_req_ctx_t *ctx;
+
     if (r->args.len == 0) {
         return 0;
     }
-    return xrdhttp_args_has_key(&r->args, "xrd.stats",
-                                sizeof("xrd.stats") - 1);
+    ctx = xrdhttp_get_ctx(r);
+    if (ctx == NULL) {
+        return 0;
+    }
+    return brix_http_query_parsed_has(&ctx->query, "xrd.stats",
+               BRIX_HTTP_QUERY_CASE_INSENSITIVE |
+               BRIX_HTTP_QUERY_HAS_VALUE_OK) == 1;
 }
 
 /* multirange detection */

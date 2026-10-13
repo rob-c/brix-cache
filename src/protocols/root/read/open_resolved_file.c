@@ -19,6 +19,7 @@
 #include "core/compat/codec_core.h"
 #include "protocols/root/protocol/open_flags.h"   /* shared kXR_open option-bit semantics */
 #include "protocols/root/protocol/stat_flags.h"   /* brix_stat_flags_from_stat (StatGen parity) */
+#include "protocols/root/read/stat.h"             /* VFS metadata projection */
 #include "observability/sesslog/sesslog_ngx.h"
 
 #include <string.h>
@@ -90,19 +91,32 @@ brix_open_build_retstat(brix_open_args_t *a)
 		              ? 1 : (fstat(fd, st) == 0);
 
 		if (have_st) {
-			/* Compute the wire `flags` field through the shared StatGen-mirroring
-			 * helper (readable/writable/xset + isDir/other, all euid-relative) so
-			 * the kXR_open retstat matches stock XRootD exactly — the hand-rolled
-			 * subset here dropped kXR_xset (and the type bits), so an executable
-			 * (mode-777) file's open-handle stat diverged from stock by the xset
-			 * bit. Same predicate as the plain kXR_stat path (brix_make_stat_body). */
-			int stat_flags = brix_stat_flags_from_stat(st, geteuid(), getegid(),
-				ctx->files[idx].from_cache ? kXR_cachersp : 0);
-			snprintf(statbuf, statbuf_sz, "%llu %lld %d %ld",
-					 (unsigned long long) st->st_ino,
-					 (long long) st->st_size,
-					 stat_flags,
-					 (long) st->st_mtime);
+			/* Some shared-filesystem transports expose remapped ownership through
+			 * path stat while fstat on the confined open fd reports the host-side
+			 * owner.  The VFS is the metadata authority.  Refresh the snapshot only
+			 * when the path still names this exact handle, so a concurrent rename
+			 * cannot substitute unrelated retstat metadata.  Cache/stage domains
+			 * remain handle-only because they are deliberately outside the export. */
+			if (!a->from_cache && !a->stage) {
+				brix_vfs_ctx_t  vctx;
+				brix_vfs_stat_t vst;
+				struct stat     vst_projected;
+
+				brix_root_vfs_ctx_init(ctx, a->c, a->conf, &vctx, a->resolved);
+				if (brix_vfs_probe(&vctx, 0 /* follow */, &vst) == NGX_OK) {
+					brix_vfs_to_struct_stat(&vst, &vst_projected);
+					if (vst_projected.st_ino == st->st_ino
+					    && vst_projected.st_dev == st->st_dev)
+					{
+						*st = vst_projected;
+					}
+				}
+			}
+			/* Use the one stat-line encoder so retstat and path/handle stat agree
+			 * on composed device+inode ids and permission/type flags. */
+			brix_make_stat_body_for_export(st, 0,
+				ctx->files[idx].from_cache ? kXR_cachersp : 0,
+				a->conf->common.allow_write, statbuf, statbuf_sz);
 		} else {
 			*want_stat = 0;
 		}
@@ -173,7 +187,8 @@ brix_open_build_response(brix_open_args_t *a, u_char **out_buf,
 	uint8_t    sig_codec = ctx->files[idx].read_codec
 	    ? ctx->files[idx].read_codec : ctx->files[idx].write_codec;
 	ngx_flag_t have_codec = (sig_codec != BRIX_CODEC_IDENTITY);
-	ngx_flag_t full_body  = want_stat || have_codec;
+	ngx_flag_t full_body  = want_stat || have_codec
+	    || (a->options & kXR_compress) != 0;
 	size_t     hbytes     = full_body ? sizeof(ServerOpenBody)
 	                                   : sizeof(body.fhandle);  /* 4 */
 	size_t     bodylen;
@@ -333,7 +348,7 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 		BRIX_RETURN_ERR(ctx, c,
 						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 						  "OPEN", resolved, is_write ? "wr" : "rd",
-						  kXR_ServerError, "too many open files");
+						  kXR_NoMemory, "too many open files");
 	}
 
 	/* Layer 3: a non-default storage driver bound to this export (block-striped

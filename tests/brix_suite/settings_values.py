@@ -111,7 +111,7 @@ def worker_runtime_uid():
     `os.geteuid()` under a root lane therefore watches
     `/dev/shm/brix-creds.0` while the server stages into
     `/dev/shm/brix-creds.65534` and reads every capture as a missing one.
-    Unprivileged lanes de-escalate nothing, so there the worker is us.
+    Unprivileged lanes deescalate nothing, so there the worker is us.
     """
     if os.geteuid() != 0:
         return os.geteuid()

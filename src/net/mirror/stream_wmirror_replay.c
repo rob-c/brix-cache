@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "platform/platform_api.h"
 /*
  * stream_wmirror_replay.c — XRootD stream data-write mirror: detached-replay
@@ -140,7 +141,7 @@ wmir_finish(brix_wmirror_replay_t *r, int ok)
     } else {
         BRIX_WMIR_METRIC_INC(mirror_stream_errors_total);
         if (r->log_diverge) {
-            ngx_log_error(NGX_LOG_NOTICE, r->log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, r->log, 0,
                 "xrootd write-mirror: shadow write replay failed/diverged");
         }
     }

@@ -54,4 +54,11 @@ typedef struct {
 ngx_int_t writev_try_aio(const writev_run_t *run, int do_sync,
                          ngx_flag_t *posted);
 
+/* Staged handles have no fd and remain on the event-loop thread. */
+ngx_flag_t writev_has_staged(const writev_run_t *run);
+ngx_int_t writev_staged_segment(brix_ctx_t *ctx, ngx_connection_t *c,
+    const write_list *seg, const u_char **data_ptr,
+    size_t *bytes_written_total);
+ngx_int_t writev_sync_staged(brix_ctx_t *ctx, ngx_connection_t *c, int idx);
+
 #endif /* BRIX_WRITEV_INTERNAL_H */

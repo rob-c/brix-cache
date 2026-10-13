@@ -13,6 +13,7 @@
  *   the flag after every tap feed and tears the connection down.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "relay_guard.h"
 #include "protocols/root/protocol/opcodes.h"
@@ -139,7 +140,7 @@ relay_guard_audit(brix_relay_guard_t *g, const guard_request_t *req,
     ts[ts_len] = '\0';
 
     if (guard_audit_format(req, reason, ts, line, sizeof(line)) > 0) {
-        ngx_log_error(NGX_LOG_INFO, g->log, 0, "%s", line);
+        BRIX_LOG(NGX_LOG_INFO, g->log, 0, "%s", line);
     }
 }
 

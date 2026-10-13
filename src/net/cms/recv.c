@@ -22,6 +22,7 @@
  * worker after a bounded number of frames.
  */
 
+#include "core/compat/log_event.h"
 #include "cms_internal.h"
 #include "recv_internal.h"
 #include "observability/metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
@@ -62,7 +63,7 @@ cms_recv_accumulate(ngx_brix_cms_ctx_t *ctx, ngx_connection_t *c,
         }
 
         if (n == NGX_ERROR || n == 0) {
-            ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+            BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                            "brix: CMS recv EOF/error, disconnecting");
             cms_conn_fail(ctx, n == 0 ? BRIX_SESS_END_SERVER
                                       : BRIX_SESS_END_ERROR);
@@ -81,7 +82,7 @@ cms_recv_accumulate(ngx_brix_cms_ctx_t *ctx, ngx_connection_t *c,
             if ((size_t) dlen + NGX_BRIX_CMS_HDR_LEN
                 > NGX_BRIX_CMS_MAX_FRAME)
             {
-                ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                BRIX_LOG(NGX_LOG_WARN, ev->log, 0,
                               "brix: CMS frame too large: %ui",
                               (ngx_uint_t) dlen);
                 cms_conn_fail(ctx, BRIX_SESS_END_ERROR);
@@ -95,6 +96,16 @@ cms_recv_accumulate(ngx_brix_cms_ctx_t *ctx, ngx_connection_t *c,
         }
 
         return NGX_OK;
+    }
+}
+
+static void
+cms_read_resume(ngx_event_t *ev)
+{
+    ngx_brix_cms_ctx_t  *ctx = ev->data;
+
+    if (ctx->connection != NULL) {
+        ngx_brix_cms_read_handler(ctx->connection->read);
     }
 }
 
@@ -118,7 +129,7 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
         return;
     }
 
-    ngx_log_debug3(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                    "brix: CMS read handler timedout=%d in_pos=%uz in_need=%uz",
                    (int) ev->timedout, ctx->in_pos, ctx->in_need);
 
@@ -128,7 +139,7 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
          * half-open).  Tear down and reconnect with backoff so we fail over
          * instead of heartbeating into a dead socket forever.
          */
-        ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ev->log, 0,
                       "brix: CMS manager silent past read timeout — "
                       "reconnecting");
         BRIX_RESIL_METRIC_INC(cms_read_timeouts_total);
@@ -145,7 +156,7 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
             return;   /* accumulate already tore the connection down */
         }
 
-        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                        "brix: CMS process_frame code=%ui",
                        (ngx_uint_t) ctx->inbuf[4]);
 
@@ -161,16 +172,20 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
          * deadline so a responsive manager is never reconnected. */
         ngx_brix_cms_arm_read_deadline(ctx);
 
-        /* A2: fairness — after a bounded number of frames, yield the worker to
-         * other connections and resume via a posted read event, so a flooding
-         * manager cannot monopolise the event loop. */
+        /* A2: fairness — after a bounded number of frames, schedule a separate
+         * zero-delay continuation.  This returns through the event loop
+         * without reusing the socket event while kqueue owns its readiness
+         * state or repeatedly extending the current posted-event drain. */
         if (++processed >= NGX_BRIX_CMS_MAX_FRAMES_PER_WAKEUP) {
             if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
                 cms_conn_fail(ctx, BRIX_SESS_END_ERROR);
                 return;
             }
             BRIX_RESIL_METRIC_INC(cms_frame_yields_total);
-            ngx_post_event(c->read, &ngx_posted_events);
+            ctx->read_resume.handler = cms_read_resume;
+            ctx->read_resume.data = ctx;
+            ctx->read_resume.log = ev->log;
+            ngx_add_timer(&ctx->read_resume, 0);
             return;
         }
     }

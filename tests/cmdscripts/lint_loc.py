@@ -47,7 +47,10 @@ def _walk_patterns(patterns):
 
 
 def _listed_paths(patterns):
-    proc = run(["git", "-C", str(REPO_ROOT), "ls-files", *patterns], cwd=REPO_ROOT)
+    proc = run([
+        "git", "-c", f"safe.directory={REPO_ROOT}",
+        "-C", str(REPO_ROOT), "ls-files", *patterns,
+    ], cwd=REPO_ROOT)
     if proc.returncode == 0:
         return proc.stdout.splitlines()
     if "not a git repository" in (proc.stderr or proc.stdout):

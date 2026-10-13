@@ -73,6 +73,7 @@ RUN set -euo pipefail && \
         -C /build/src . && \
     rpmbuild -ba \
         --define "version_override ${version}" \
+        --define "brix_vendor_alma 1" \
         /build/src/packaging/rpm/nginx-mod-brix-cache.spec
 
 RUN mkdir -p /artifacts && \

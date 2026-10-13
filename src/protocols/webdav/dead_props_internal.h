@@ -18,14 +18,17 @@
 #endif
 
 /*
- * xattr naming scheme: an xattr key is
+ * Legacy xattr naming scheme: an xattr key is
  *   "user.nginx_xrootd.webdav." <hex(namespace-URI)> "." <hex(local-name)>
  * Both the XML namespace URI and the local element name are lowercase-hex
  * encoded so that arbitrary URI bytes (':', '/', '.', etc.) survive the
  * "user." flat keyspace, and the single literal '.' separator is unambiguous
  * (real dots inside the URI/name become "2e", never a bare '.').
- * NAME_MAX 255 is the Linux xattr-key limit; VALUE_MAX/LIST_MAX cap how much
- * we will read back so a hostile filesystem cannot force unbounded allocs.
+ * When that spelling exceeds the selected host's xattr-name limit, the payload
+ * is written as "~" + base64url(namespace) + "." + base64url(local-name).
+ * The marker cannot occur in legacy hex, so both formats remain readable.
+ * NAME_MAX is the largest supported host budget; VALUE_MAX/LIST_MAX cap how
+ * much we will read back so a hostile filesystem cannot force unbounded allocs.
  */
 #define WEBDAV_DEAD_PROP_PREFIX      "user.nginx_xrootd.webdav."
 #define WEBDAV_DEAD_PROP_PREFIX_LEN  (sizeof(WEBDAV_DEAD_PROP_PREFIX) - 1)

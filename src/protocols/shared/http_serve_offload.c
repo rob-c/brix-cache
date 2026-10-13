@@ -2,6 +2,7 @@
  * http_serve_offload.c - off-event-loop serve of a remote (socket-wire) object.
  * See http_serve_offload.h for the WHAT/WHY/HOW.
  */
+#include "core/compat/log_event.h"
 #include "http_serve_offload.h"
 #include "core/aio/aio.h"                          /* brix_task_bind */
 #include "core/http/http_headers.h"     /* brix_http_request_is_tls */
@@ -141,7 +142,7 @@ serve_offload_tmp_open(ngx_log_t *log)
             return fd;
         }
     }
-    ngx_log_error(NGX_LOG_ERR, log, errno,
+    BRIX_LOG(NGX_LOG_ERR, log, errno,
         "serve offload: cannot open a temp scratch file under \"%s\"", dir);
     return -1;
 }
@@ -266,7 +267,7 @@ serve_offload_done(ngx_event_t *ev)
         if (t->tmp_fd >= 0) {
             (void) close(t->tmp_fd);
         }
-        ngx_log_error(NGX_LOG_ERR, c->log, t->mret,
+        BRIX_LOG(NGX_LOG_ERR, c->log, t->mret,
             "serve offload: materialise failed for \"%s\" - returning %d",
             t->fs_path, (t->mret == ENOENT) ? 404 : 502);
         ngx_http_finalize_request(r,
@@ -287,7 +288,7 @@ serve_offload_done(ngx_event_t *ev)
         != NGX_OK)
     {
         (void) close(t->tmp_fd);
-        ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, c->log, ngx_errno,
             "serve offload: temp adopt failed for \"%s\"", t->fs_path);
         ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
         ngx_http_run_posted_requests(c);
@@ -384,7 +385,7 @@ serve_offload_cred_gate(ngx_http_request_t *r, brix_vfs_ctx_t *vctx,
     {
         return NGX_OK;
     }
-    ngx_log_error(NGX_LOG_ERR, r->connection->log,
+    BRIX_LOG(NGX_LOG_ERR, r->connection->log,
         gate_err ? gate_err : EACCES,
         "serve offload: credential denied for \"%s\" - refusing "
         "before origin open", fs_path);
@@ -517,7 +518,7 @@ brix_http_serve_offload_remote(ngx_http_request_t *r,
 
     pool = brix_http_thread_pool(common);
     if (pool == NULL) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
             "serve offload: \"%s\" reads from a remote socket backend but no "
             "thread pool is configured - serving inline (may stall)", fs_path);
         return NGX_DECLINED;
@@ -556,7 +557,7 @@ brix_http_serve_offload_remote(ngx_http_request_t *r,
         return NGX_ERROR;
     }
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
         "serve offload: materialising remote \"%s\" on the thread pool", fs_path);
     r->main->count++;
     return NGX_DONE;

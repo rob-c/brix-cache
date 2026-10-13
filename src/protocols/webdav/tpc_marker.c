@@ -28,6 +28,7 @@
  * transfer if the request is destroyed before completion.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "core/compat/net_target.h"
 #include "core/compat/staged_file.h"
@@ -167,7 +168,7 @@ tpc_marker_commit_pull(ngx_http_request_t *r, tpc_marker_ctx_t *ctx)
         if (brix_link_confined_canon(r->connection->log, ctx->root_canon,
                                        ctx->tmp_path, ctx->final_path) != 0)
         {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
+            BRIX_LOG(NGX_LOG_ERR, r->connection->log, ngx_errno,
                           "brix_webdav: TPC marker link() failed");
             brix_unlink_confined_canon(r->connection->log, ctx->root_canon,
                                          ctx->tmp_path, 0);
@@ -184,7 +185,7 @@ tpc_marker_commit_pull(ngx_http_request_t *r, tpc_marker_ctx_t *ctx)
     if (brix_rename_confined_canon(r->connection->log, ctx->root_canon,
                                      ctx->tmp_path, ctx->final_path) != 0)
     {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, ngx_errno,
                       "brix_webdav: TPC marker rename() failed");
         brix_unlink_confined_canon(r->connection->log, ctx->root_canon,
                                      ctx->tmp_path, 0);

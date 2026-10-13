@@ -374,10 +374,8 @@ def _rt70_2_query_checksum_x_concurrent_identity(sgm2, gid_of, SG, TAG, have_roo
     ok(all((sgm2 & 1024, gid_of(SG) == GID_SHARED)),
        f"{TAG}(1): setgid dir keeps setgid+shared after the pull (mode={sgm2:o})")
 
-    _deep_novel_combos_r8_p1(have_root, have_s3, lock_file, tb, port, ta, key, body_of, GW, TAG, mkfile, exists, s3port, upid, V_OLD, V_NEW, base, uid_of, GR, GR_BODY, SG, etag, digest_of, BOB_SECRET, svc_root_residue, GWD, A_BODY, sub, gid_of, complete_xml, ACK, BCK, rel, sink)
 
 
-def _deep_novel_combos_r8_p1(have_root, have_s3, lock_file, tb, port, ta, key, body_of, GW, TAG, mkfile, exists, s3port, upid, V_OLD, V_NEW, base, uid_of, GR, GR_BODY, SG, etag, digest_of, BOB_SECRET, svc_root_residue, GWD, A_BODY, sub, gid_of, complete_xml, ACK, BCK, rel, sink):
     # =====================================================================
     # (2) QUERY-CHECKSUM x CONCURRENT IDENTITY-SWITCH on shared workers.  alice and
     #     bob CONCURRENTLY query checksums of their OWN distinct 0644 files in a
@@ -403,10 +401,8 @@ def _deep_novel_combos_r8_p1(have_root, have_s3, lock_file, tb, port, ta, key, b
     #     secret + ownership survive untouched.  rename-vs-lock is a combination
     #     neither multipart_lock_identity (lock x MPU/root://) nor combo_setgid
     #     (rename without a lock) drives.
-    _deep_novel_combos_r8_p2(have_s3, have_root, lock_file, tb, port, ta, key, body_of, GW, TAG, mkfile, exists, s3port, upid, V_OLD, V_NEW, base, uid_of, GR, GR_BODY, SG, etag, digest_of, BOB_SECRET, svc_root_residue, GWD, A_BODY, gid_of, complete_xml)
 
 
-def _deep_novel_combos_r8_p2(have_s3, have_root, lock_file, tb, port, ta, key, body_of, GW, TAG, mkfile, exists, s3port, upid, V_OLD, V_NEW, base, uid_of, GR, GR_BODY, SG, etag, digest_of, BOB_SECRET, svc_root_residue, GWD, A_BODY, gid_of, complete_xml):
     # =====================================================================
     bob_locked = f"bob/{TAG}_locked.txt"
     LOCK_MARK = b"DNC8-BOB-LOCKED-SECRET"

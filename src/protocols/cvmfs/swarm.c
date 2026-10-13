@@ -32,6 +32,7 @@
  *       Published rings are immutable and never freed (see
  *       brix_sd_cache_ring_swap); churn leaks ~4.5 KiB per swap by design.
  */
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "swarm_internal.h"
 #include "fs/vfs/vfs_backend_registry.h"
@@ -182,7 +183,7 @@ cvmfs_swarm_member_add(cvmfs_swarm_ctx_t *sw, const char *label,
     cvmfs_swarm_member_t *m;
 
     if (sw->n_members >= CVMFS_SWARM_MAX_MEMBERS) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "cvmfs-swarm (export %s): membership view full (%d) - "
             "dropping learned member %s", sw->reg->root,
             CVMFS_SWARM_MAX_MEMBERS, label);
@@ -240,7 +241,7 @@ cvmfs_swarm_seed(cvmfs_swarm_ctx_t *sw, ngx_log_t *log)
     }
     sw->self_gen = (uint64_t) ngx_time(); /* boot generation: rejoin refutes */
     sw->seeded   = 1;
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
         "cvmfs-swarm (export %s): seeded %ui member(s) from "
         "brix_cache_peers (self=%s, gen=%uL)", sw->reg->root,
         sw->n_members, sw->members[sw->self].label, sw->self_gen);
@@ -287,7 +288,7 @@ cvmfs_swarm_gossip_dead(cvmfs_swarm_ctx_t *sw, cvmfs_swarm_member_t *m,
     ngx_log_t *log)
 {
     m->dead = 1;
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
         "cvmfs-swarm (export %s): member %s marked dead via gossip, "
         "its keys route around it", sw->reg->root, m->label);
 }
@@ -334,7 +335,7 @@ cvmfs_swarm_merge_line(cvmfs_swarm_ctx_t *sw, const char *label, int dead,
     if (strcmp(label, sw->members[sw->self].label) == 0) {
         if (dead && gen >= sw->self_gen) {
             sw->self_gen = gen + 1;        /* SWIM refutation */
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                 "cvmfs-swarm (export %s): refuting gossip that says "
                 "this node is dead (gen -> %uL)", sw->reg->root,
                 sw->self_gen);
@@ -351,7 +352,7 @@ cvmfs_swarm_merge_line(cvmfs_swarm_ctx_t *sw, const char *label, int dead,
         }
         m->gen  = gen;
         m->dead = dead ? 1 : 0;
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "cvmfs-swarm (export %s): learned member %s (%s) "
             "via gossip", sw->reg->root, m->label,
             dead ? "dead" : "alive");
@@ -455,7 +456,7 @@ cvmfs_swarm_intro_caller(cvmfs_swarm_ctx_t *sw, ngx_http_request_t *r)
         m = cvmfs_swarm_member_add(sw, label, r->connection->log);
         if (m != NULL) {
             fresh = 1;
-            ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, r->connection->log, 0,
                 "cvmfs-swarm (export %s): member %s introduced "
                 "itself", sw->reg->root, m->label);
         }

@@ -13,11 +13,21 @@ import os
 from cmdscripts.compile_run import REPO_ROOT
 
 
-DEFAULT_NGX_SRC = Path(os.environ.get(
-    "NGX_SRC",
-    "/tmp/nginx-1.28.3" if Path("/tmp/nginx-1.28.3/src/core/ngx_config.h").exists()
-    else "/tmp/nginx-1.24.0",
-))
+def _default_nginx_source() -> Path:
+    override = os.environ.get("NGX_SRC")
+    if override:
+        return Path(override)
+    candidates = (Path("/tmp/nginx-1.28.3"), Path("/tmp/nginx-1.24.0"))
+    for candidate in candidates:
+        if (candidate / "src/core/ngx_config.h").is_file():
+            return candidate
+    distro_headers = sorted(Path("/usr/src").glob("nginx-*/src/core/ngx_config.h"))
+    if distro_headers:
+        return distro_headers[-1].parents[2]
+    return candidates[-1]
+
+
+DEFAULT_NGX_SRC = _default_nginx_source()
 TEST_C = REPO_ROOT / "tests" / "c"
 SRC_DNS = REPO_ROOT / "src" / "net" / "dns"
 CLIENT = REPO_ROOT / "client"

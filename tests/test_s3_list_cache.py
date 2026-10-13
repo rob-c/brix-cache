@@ -67,13 +67,6 @@ def _keys_in(xml_text):
 def cache_server(lifecycle, tmp_path):
     data = tmp_path / "data"
     data.mkdir()
-    # The list cache watches the export-root (DATA_DIR) mtime at SECOND
-    # granularity.  This per-test server (function scope) starts with no
-    # accumulated history, so a warm + a top-level PUT within the same wall-clock
-    # second would read an unchanged root mtime and serve the stale cached
-    # listing.  Backdate the root so the top-level PUT lands on a strictly newer
-    # second and the mtime-invalidation path fires.
-    os.utime(data, (time.time() - 5, time.time() - 5))
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-s3-list-cache",
         template="nginx_lc_s3_list_cache_self.conf",
@@ -142,8 +135,15 @@ def test_cache_serves_stale_then_refreshes_on_ttl(cache_server):
 
 
 def test_toplevel_change_bumps_mtime_and_invalidates(cache_server):
-    _ = _list()                      # warm
+    data = cache_server
+    same_second = int(time.time()) - 1
+    first_stamp = same_second * 1_000_000_000 + 100_000_000
+    second_stamp = same_second * 1_000_000_000 + 200_000_000
+    os.utime(data, ns=(first_stamp, first_stamp))
+    _ = _list()                      # warm at first_stamp
     top = f"toplevel-{uuid.uuid4().hex}"
-    _put(top)                        # a new top-level key bumps the root mtime
-    # No TTL wait: the mtime change alone must invalidate immediately.
+    _put(top)
+    # Keep tv_sec unchanged and alter only tv_nsec.  The full timestamp must
+    # invalidate immediately; a seconds-only cache key serves the stale list.
+    os.utime(data, ns=(second_stamp, second_stamp))
     assert top in _keys_in(_list())

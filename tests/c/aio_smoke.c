@@ -25,6 +25,7 @@
  */
 #include "core/aio/aio.h"
 #include "brix.h"
+#include "platform/platform_api.h"
 #include "protocols/root/protocol/protocol.h"
 
 #include <pthread.h>
@@ -32,7 +33,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <arpa/inet.h>
-#include <endian.h>
 
 #define FILE_SIZE   (4 * 1024 * 1024)   /* 4 MiB — large reads force oksofar */
 #define PING_FLOOD  256
@@ -105,7 +105,7 @@ build_read(uint8_t hdr[XRD_REQUEST_HDR_LEN], const uint8_t fhandle[4],
     uint16_t rid = htons(kXR_read);
     memcpy(hdr + 2, &rid, 2);
     memcpy(hdr + 4, fhandle, 4);            /* fhandle[4] @ 4  */
-    uint64_t off_be = htobe64((uint64_t) offset);
+    uint64_t off_be = brix_plat_htobe64((uint64_t) offset);
     memcpy(hdr + 8, &off_be, 8);            /* offset[8]  @ 8  */
     uint32_t rl_be = htonl(rlen);
     memcpy(hdr + 16, &rl_be, 4);            /* rlen[4]    @ 16 */

@@ -27,6 +27,7 @@ from pathlib import Path
 
 import pytest
 
+from log_records import semantic_log_text
 from cmdscripts.live_common import (
     inject_nginx_load_modules,
     inject_nginx_runtime_paths,
@@ -160,7 +161,8 @@ def test_sibling_hit_avoids_origin(mesh):
     assert status == 200 and got == body
     assert mesh.main.count_log(path) == 0, \
         "peer-owned key still pulled origin data on the requesting node"
-    log = mesh.main.error_log.read_text(encoding="utf-8", errors="replace")
+    log = semantic_log_text(
+        mesh.main.error_log.read_text(encoding="utf-8", errors="replace"))
     assert f'filled "{path}" from mesh sibling {mesh.labels[1]}' in log
     # and it is a normal local cache hit afterwards
     assert GET(mesh.main, path)[2] == body

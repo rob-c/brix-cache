@@ -7,6 +7,7 @@ usr/bin/brix-xrdcrc64
 usr/bin/brix-xrdadler32
 usr/bin/brix-xrdckverify
 usr/bin/brix-xrdcinfo
+usr/bin/brix-xrdcks
 usr/bin/brix-xrdqstats
 usr/bin/brix-wait41
 usr/bin/brix-xrdprep

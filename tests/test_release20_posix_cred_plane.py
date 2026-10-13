@@ -207,9 +207,14 @@ def _renameat2(old: str, new: str, flags: int) -> int:
     libc = ctypes.CDLL(ctypes.util.find_library("c")
                   or ("libc.dylib" if sys.platform == "darwin" else "libc.so.6"),
                   use_errno=True)
+    renameat2 = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        return -errno.ENOSYS
+    renameat2.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                          ctypes.c_char_p, ctypes.c_uint]
+    renameat2.restype = ctypes.c_int
     ctypes.set_errno(0)
-    rc = libc.syscall(
-        ctypes.c_long(316),                       # SYS_renameat2 on x86_64
+    rc = renameat2(
         ctypes.c_int(-100),                       # AT_FDCWD
         ctypes.c_char_p(old.encode()),
         ctypes.c_int(-100),
@@ -218,8 +223,6 @@ def _renameat2(old: str, new: str, flags: int) -> int:
     return rc if rc == 0 else -ctypes.get_errno()
 
 
-@pytest.mark.skipif(os.uname().machine != "x86_64",
-                    reason="SYS_renameat2 number is hard-coded for x86_64")
 def test_renameat2_exchange_swaps_both_names(tmp_path):
     """SUCCESS: the swap the broker performs.  Asserted on the CONTENT behind
     each name, not on a return code -- an exchange that left both names
@@ -235,8 +238,6 @@ def test_renameat2_exchange_swaps_both_names(tmp_path):
     assert b.read_text() == "alpha"
 
 
-@pytest.mark.skipif(os.uname().machine != "x86_64",
-                    reason="SYS_renameat2 number is hard-coded for x86_64")
 def test_renameat2_exchange_refuses_a_missing_destination(tmp_path):
     """ERROR + SECURITY-NEGATIVE: an exchange needs BOTH names to exist.  A
     plain rename would have succeeded here by MOVING the source, so the source

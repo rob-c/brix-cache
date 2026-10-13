@@ -49,6 +49,8 @@
 typedef struct {
     int  kxr;        /* kXR_* server error code; 0 = none; <0 = local/socket */
     int  sys_errno;  /* local errno when the failure was a syscall */
+    uint32_t wire_message_len; /* undecorated kXR_error message bytes */
+    int wire_message_terminated; /* final wire byte was NUL */
     char msg[XRDC_MSG_MAX];
 } brix_status;
 

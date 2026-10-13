@@ -84,6 +84,18 @@ ngx_int_t brix_dispatch_require_auth(brix_ctx_t *ctx,
     ngx_connection_t *c);
 
 /*
+ * brix_dispatch_require_open_write — inspect a kXR_open request before the
+ * read-dispatcher's authentication gate and refuse write intent on a read-only
+ * export.  This keeps kXR_open aligned with the ordinary write dispatcher:
+ * endpoint policy answers kXR_fsReadOnly before credential state can answer
+ * kXR_NotAuthorized. A disabled native-push target continues to the authenticated
+ * TPC feature gate so it can answer kXR_Unsupported. Read opens and manager
+ * redirects continue normally.
+ */
+ngx_int_t brix_dispatch_require_open_write(brix_ctx_t *ctx,
+    ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf);
+
+/*
  * brix_dispatch_require_write — reject if the server is configured read-only
  * (conf->common.allow_write == 0).  Returns BRIX_DISPATCH_CONTINUE if writes are
  * permitted.

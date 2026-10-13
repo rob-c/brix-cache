@@ -27,8 +27,16 @@ class TestReadvOOBRaw:
         # -1 as int64; the handler's `offset < 0` guard must fire.
         _, status, body = _readv(sock, [_seg(fh, 64, -1)])
         assert status == kXR_error
-        assert _error_code(body) == kXR_IOError
+        assert _error_code(body) == kXR_ArgInvalid
         # Session still usable, no bytes leaked.
+        assert _ping(sock)[1] == kXR_ok
+
+    def test_negative_length_rejected(self, rd_handle):
+        """rlen with the sign bit set is an invalid signed wire field."""
+        sock, fh = rd_handle
+        _, status, body = _readv(sock, [_seg(fh, -1, 0)])
+        assert status == kXR_error
+        assert _error_code(body) == kXR_ArgInvalid
         assert _ping(sock)[1] == kXR_ok
 
     def test_offset_overflow_rejected(self, rd_handle):
@@ -112,8 +120,8 @@ class TestReadvOOBRaw:
         segs = [_seg(fh, 1, (i % 100)) for i in range(READV_MAXSEGS + 1)]
         try:
             _, status, body = _readv(sock, segs)
-        except ConnectionError:
-            return  # acceptable: recv-layer cap closed the connection
+        except ConnectionError as exc:
+            pytest.fail(f"one-over segment count reset the connection: {exc}")
         assert status == kXR_error
         assert _error_code(body) in (kXR_ArgTooLong, kXR_ArgInvalid)
 
@@ -194,7 +202,7 @@ class TestPgreadSecurity:
         sock, fh = rd_handle
         _, status, body, _ = _pgread(sock, fh, -1, 4096)
         assert status == kXR_error
-        assert _error_code(body) == kXR_IOError
+        assert _error_code(body) == kXR_ArgInvalid
         assert _ping(sock)[1] == kXR_ok
 
     @pytest.mark.skipif(not _CRC32C_OK, reason="local CRC32c self-test failed")

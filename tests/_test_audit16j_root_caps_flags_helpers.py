@@ -138,6 +138,7 @@ from _test_conf_write_helpers import (_close, _connect, _login, _open,
                                       kXR_delete, kXR_new, kXR_ok,
                                       kXR_open_read, kXR_open_updt)
 from config_parse import nginx_t
+from log_records import semantic_log_text
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS, PARSE_PLACEHOLDER_PORT
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, NGINX_BIN
@@ -217,12 +218,14 @@ class _Caps:
     def errlog(self):
         """Instance prefixes are wiped at teardown, so failures quote inline."""
         log = self._logs() / "error.log"
-        return log.read_text(errors="replace") if log.exists() else ""
+        return semantic_log_text(log.read_text(errors="replace")) \
+            if log.exists() else ""
 
     def access(self, which):
         """One server's brix access log, or "" before it has written a line."""
         log = self._logs() / f"{which}-access.log"
-        return log.read_text(errors="replace") if log.exists() else ""
+        return semantic_log_text(log.read_text(errors="replace")) \
+            if log.exists() else ""
 
     def tree(self, which):
         return self.trees[which]

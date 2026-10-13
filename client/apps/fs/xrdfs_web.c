@@ -2,6 +2,7 @@
  * xrdfs_web.c - extracted concern
  * Phase-38 split of xrdfs.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdfs_internal.h"
 
 
@@ -312,7 +313,7 @@ web_mv(const web_ctx *w, const char *cwd, int argc, char **argv)
     if (brix_webdav_move(w->u, src, dest_url, w->bearer, w->verify, w->ca_dir,
                          pcert, &st) != 0) {
         /* two-path op: mirror xrdfs's mv error line (src -> dst) then hint. */
-        fprintf(stderr, "xrdfs: mv %s -> %s failed: %s\n", src, dst, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: mv %s -> %s failed: %s\n", src, dst, st.msg);
         xrdfs_web_hints(&st, 1, w);
         return 50;
     }
@@ -333,7 +334,7 @@ web_dispatch(const web_ctx *w, int argc, char **argv)
     if (strcmp(cmd, "rm") == 0)    { return web_delete(w, "/", "rm", argc, argv); }
     if (strcmp(cmd, "rmdir") == 0) { return web_delete(w, "/", "rmdir", argc, argv); }
     if (strcmp(cmd, "mv") == 0)    { return web_mv(w, "/", argc, argv); }
-    fprintf(stderr, "xrdfs: '%s' is not supported over an http(s)/WebDAV endpoint "
+    BRIX_CLIENT_LOG("ERROR",  "xrdfs: '%s' is not supported over an http(s)/WebDAV endpoint "
                     "(metadata only: ls, stat, mkdir, rm, rmdir, mv). Use a root:// "
                     "endpoint for the full command set.\n", cmd);
     return 50;

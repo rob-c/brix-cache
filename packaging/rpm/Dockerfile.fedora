@@ -1,0 +1,29 @@
+# Native RPM builder for supported Fedora releases and Rawhide.
+# Select the release with --build-arg FEDORA_RELEASE=43|44|rawhide.
+
+ARG FEDORA_RELEASE=44
+FROM fedora:${FEDORA_RELEASE} AS builder
+
+RUN dnf install -y \
+        gcc gcc-c++ make git pkgconf-pkg-config rpm-build rpmdevtools redhat-rpm-config \
+        nginx-mod-devel openssl-devel pcre2-devel zlib-devel \
+        libxml2-devel jansson-devel libcurl-devel krb5-devel libcom_err-devel \
+        libxcrypt-devel fuse3-devel sqlite-devel libseccomp-devel \
+        liburing-devel libzstd-devel brotli-devel xz-devel bzip2-devel lz4-devel \
+        selinux-policy-devel systemd-rpm-macros \
+        librados-devel libradospp-devel libradosstriper-devel libcephfs-devel \
+    && dnf clean all
+
+ARG VERSION=""
+WORKDIR /build/src
+COPY . .
+
+RUN RPMBUILD_TOPDIR=/root/rpmbuild packaging/rpm/build-rpm.sh "${VERSION}"
+
+RUN mkdir -p /artifacts && \
+    find /root/rpmbuild/RPMS /root/rpmbuild/SRPMS -name '*.rpm' -exec cp {} /artifacts/ \;
+
+ARG FEDORA_RELEASE=44
+FROM fedora:${FEDORA_RELEASE} AS final
+COPY --from=builder /artifacts /artifacts
+CMD ["find", "/artifacts", "-name", "*.rpm"]

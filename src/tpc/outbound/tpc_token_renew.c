@@ -42,6 +42,7 @@
  *      packet capture reads unambiguously.
  */
 
+#include "core/compat/log_event.h"
 #include "tpc/engine/tpc_internal.h"
 #include "tpc/common/cred_renew.h"
 #include "auth/token/token.h"
@@ -125,7 +126,7 @@ tpc_cred_renew_give_up(brix_tpc_pull_t *t, brix_tpc_renew_verdict_t verdict,
         return -1;
     }
 
-    ngx_log_error(NGX_LOG_WARN, tpc_renew_log(t), 0,
+    BRIX_LOG(NGX_LOG_WARN, tpc_renew_log(t), 0,
                   "brix: TPC delegated credential %s mid-transfer: %s "
                   "(token_mode \"%s\") - continuing",
                   brix_tpc_renew_verdict_name(verdict), why, t->token_mode);
@@ -173,7 +174,7 @@ tpc_cred_mint_and_present(brix_tpc_pull_t *t, int fd)
 static void
 tpc_cred_renew_note_success(brix_tpc_pull_t *t, time_t now)
 {
-    ngx_log_error(NGX_LOG_NOTICE, tpc_renew_log(t), 0,
+    BRIX_LOG(NGX_LOG_NOTICE, tpc_renew_log(t), 0,
                   "brix: TPC delegated credential renewed mid-transfer "
                   "(token_mode \"%s\", renewal %ui, offset %uz)",
                   t->token_mode, t->cred_renewals, t->bytes_written);
@@ -186,7 +187,7 @@ tpc_cred_renew_note_success(brix_tpc_pull_t *t, time_t now)
     }
 
     t->cred_renew_off = 1;
-    ngx_log_error(NGX_LOG_WARN, tpc_renew_log(t), 0,
+    BRIX_LOG(NGX_LOG_WARN, tpc_renew_log(t), 0,
                   "brix: TPC renewed credential is still inside the "
                   "brix_tpc_outbound_renew_lead window - the issuer's lifetime "
                   "is shorter than the lead; renewal disabled for this transfer");

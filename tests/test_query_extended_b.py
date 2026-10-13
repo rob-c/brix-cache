@@ -127,9 +127,9 @@ class TestQueryConsistency:
         assert s1 == kXR_ok
         assert s2 == kXR_ok
 
-    def test_unknown_infotype_returns_unsupported(self):
+    def test_unknown_infotype_returns_arg_invalid(self):
         sock = _session()
         status, body = _query(sock, 999)
         sock.close()
         assert status == kXR_error
-        assert _error_code(body) == kXR_Unsupported
+        assert _error_code(body) == kXR_ArgInvalid

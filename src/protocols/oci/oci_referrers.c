@@ -18,6 +18,7 @@
  *       grammar (§0.7.2), so neither can spell a path component of its own.
  */
 
+#include "core/compat/log_event.h"
 #include "oci_referrers.h"
 
 #include "core/http/http_headers.h"
@@ -200,7 +201,7 @@ brix_oci_referrers_index(const brix_oci_store_t *st,
      * has already refused a subject that does not parse — and checked anyway,
      * because this hex is about to name a directory. */
     if (brix_oci_digest_parse(sd, ngx_strlen(sd), &subject) != 0) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "oci: manifest declares an unparsable subject digest");
         return NGX_ERROR;
     }

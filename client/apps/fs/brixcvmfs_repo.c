@@ -86,11 +86,15 @@ static int rp_write_cert(const char *path, EVP_PKEY *pk, const char *fqrn) {
     X509_gmtime_adj(X509_getm_notBefore(x), 0);
     X509_gmtime_adj(X509_getm_notAfter(x), 3650L * 86400);
     X509_set_pubkey(x, pk);
-    X509_NAME *name = X509_get_subject_name(x);
-    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-                               (const unsigned char *) fqrn, -1, -1, 0);
-    X509_set_issuer_name(x, name);
-    int ok = X509_sign(x, pk, EVP_sha256()) != 0;
+    X509_NAME *name = X509_NAME_new();
+    int ok = name != NULL
+             && X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
+                                            (const unsigned char *) fqrn,
+                                            -1, -1, 0) == 1
+             && X509_set_subject_name(x, name) == 1
+             && X509_set_issuer_name(x, name) == 1
+             && X509_sign(x, pk, EVP_sha256()) != 0;
+    X509_NAME_free(name);
     FILE *f = ok ? fopen(path, "w") : NULL;
     if (f != NULL) {
         ok = PEM_write_X509(f, x) == 1;

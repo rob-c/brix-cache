@@ -17,6 +17,9 @@ int s3_has_query_flag(ngx_http_request_t *r, const char *key);
 /* Copy query parameter <key>'s value into out (NUL-terminated, truncated to
  * outsz). Returns 1 on success, 0 if absent or value empty. */
 int s3_get_query_param(ngx_http_request_t *r, const char *key, char *out, size_t outsz);
+int s3_get_query_param_flags(ngx_http_request_t *r, const char *key,
+    char *out, size_t outsz, unsigned flags);
+int s3_query_prepare(ngx_http_request_t *r, ngx_http_s3_req_ctx_t *ctx);
 /* Build the hidden MPU staging dir path (".<basename>.mpu-<upload_id>" beside
  * fs_path) into out_dir; always NUL-terminates within outsz. */
 void s3_get_mpu_dir(const char *fs_path, const char *upload_id, char *out_dir, size_t outsz);

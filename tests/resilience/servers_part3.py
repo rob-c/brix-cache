@@ -99,6 +99,15 @@ class FaultProxy:
         )
         _wait_port(self.control, proc=self.proc)
         _wait_port(self.listen, proc=self.proc)
+        # The listen-port readiness connection is accepted asynchronously.
+        # Do not return until it is reflected in the counters; otherwise a
+        # caller's first baseline can race that probe and charge it to the next
+        # real relay.
+        deadline = time.monotonic() + 5
+        while self.counters().get("conns_total", 0) < 1:
+            if time.monotonic() >= deadline:
+                raise RuntimeError("fault proxy readiness connection was not accepted")
+            time.sleep(0.01)
         return self
 
     def ctl(self, cmd):

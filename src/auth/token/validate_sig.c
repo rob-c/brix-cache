@@ -26,6 +26,7 @@
  * or brix_token_malformed() (shared with validate.c) so log lines stay uniform.
  */
 
+#include "core/compat/log_event.h"
 #include "core/types/tunables.h"
 #include "token_internal.h"
 #include "validate_internal.h"
@@ -114,7 +115,7 @@ token_check_header(const brix_token_validate_args_t *a, const xrdjwt_seg *seg,
     if (strcmp(hdr->alg, "RS256") != 0 && strcmp(hdr->alg, "ES256") != 0) {
         char safe_alg[64];
         token_sanitize_for_log(hdr->alg, safe_alg, sizeof(safe_alg));
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                       "brix_token: unsupported JWT algorithm \"%s\" "
                       "(only RS256 and ES256 accepted)", safe_alg);
         return -1;
@@ -126,7 +127,7 @@ token_check_header(const brix_token_validate_args_t *a, const xrdjwt_seg *seg,
     /* RFC 7515 §4.1.11: we implement no `crit` extension parameters, so any
      * token asserting critical headers we do not understand MUST be rejected. */
     if (json_has_member((char *) hdr_json, (size_t) hdr_len, "crit")) {
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                       "brix_token: JWS 'crit' header not supported — rejecting");
         return -1;
     }
@@ -166,7 +167,7 @@ token_select_key_by_kid(const brix_token_validate_args_t *a, const token_hdr_t *
     if (pkey == NULL) {
         char safe_kid[256];
         token_sanitize_for_log(hdr->kid, safe_kid, sizeof(safe_kid));
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                       "brix_token: no JWKS key matching kid=\"%s\"",
                       safe_kid);
     }
@@ -198,7 +199,7 @@ token_verify_signature(const brix_token_validate_args_t *a, const xrdjwt_seg *se
 
     sig_len = b64url_decode(seg[2].p, seg[2].n, sig_bin, sizeof(sig_bin));
     if (sig_len < 0) {
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                       "brix_token: cannot decode JWT signature");
         return -1;
     }
@@ -223,7 +224,7 @@ token_verify_signature(const brix_token_validate_args_t *a, const xrdjwt_seg *se
         }
     }
     if (!sig_ok) {
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                       "brix_token: JWT signature verification failed");
         return -1;
     }

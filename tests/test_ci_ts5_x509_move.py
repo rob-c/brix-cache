@@ -55,19 +55,19 @@ _ARCHIVES = ("x509forge_flat.py", "x509forge_part2_flat.py",
 # these names are not permission for arbitrary later drift.
 _POST_MOVE_CHANGED = {
     '_make_ca_openssl': (
-        'd7d6f6d0c0589485d714d3ba6e33b81b4ae79dc8539a69f8acf825f5ed98e379',
-        'b8537430e7ede7ef178b9d41fc55bdae157cf9ee74955815b680b37ec1d0e455',
+        'a5f8a75b9716b59b0e6476d8f3d915cf62288b66124ada8d421e77a7831311f7',
+        '349960bc5efa572f3aa603021dd72936514ef646c90ae798e1f64a3277ec2449',
     ),
     '_make_eec_openssl': (
-        'c911b25a90e540bab68b78bba79a67af3fe78628b000ccc87c529b12763b2490',
-        'a07e6f686d752a5e8127a0e99127b86a4c4ca713ece5ebbcc81ad79d3bd2e5ce',
+        'a6d32c48a600a7f4c4caab906ac1bd97b245563948dde7fbee5aebee8434a057',
+        'f7e48ccd273648a995006b4107f0e8276d62d644605d5ed3274d721b1f44e742',
     ),
 }
 _POST_MOVE_ADDED = {
     '_fixture_signing_env':
-        'ea489f37fe576440d0315b1ee831b92960709be682a6818f13ccfc15c65be38a',
+        '778ef778e42ab748d4a5685148b522925fac2e31a2ac78297caa4987cf74e311',
     '_write_fixture_key':
-        '71d997af16b706a2aaadfa7f20053ed28d12ea53fa787221499e7b9737c386c5',
+        'c2885623f0b88b664939645f1ee5673197ae879990a9fcd4e66b408ba5d0aae1',
 }
 
 _PREAMBLE = ("import sys; sys.path[:0] = [%r, %r, %r]\n"

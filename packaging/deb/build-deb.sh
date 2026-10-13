@@ -3,7 +3,7 @@
 # The deb counterpart of packaging/rpm/build-rpm.sh: stages a filtered copy
 # of the source tree, drops packaging/deb/debian/ in as ./debian, generates
 # debian/changelog from the version baked into src/core/ident.h, unpacks the
-# nginx source the module must be built against, and runs dpkg-buildpackage.
+# nginx source/SDK the module must be built against, and runs dpkg-buildpackage.
 #
 # Usage:
 #   packaging/deb/build-deb.sh [options]
@@ -112,6 +112,21 @@ resolve_nginx_version() {
     printf '%s\n' "$org_nginx_fallback"
 }
 
+resolve_distro_package_version() {
+    local cand
+    if cand="$(dpkg-query -W -f '${Version}' nginx 2>/dev/null)" && [[ -n "$cand" ]]; then
+        printf '%s\n' "$cand"
+        return
+    fi
+    cand="$(apt-cache policy nginx 2>/dev/null | sed -n 's/^ *Candidate: //p')"
+    if [[ -n "$cand" && "$cand" != "(none)" ]]; then
+        printf '%s\n' "$cand"
+        return
+    fi
+    echo "error: cannot resolve the Ubuntu-archive nginx package version" >&2
+    exit 1
+}
+
 if [[ -z "$nginx_version" ]]; then
     nginx_version="$(resolve_nginx_version)"
 fi
@@ -132,42 +147,74 @@ echo "==> Building .debs: brix ${deb_version}, nginx ${nginx_version} (${flavor}
 rm -rf "$stage"
 mkdir -p "$srcdir" "$cache" "$outdir"
 
-# --- nginx source (vanilla nginx.org tarball; both the Ubuntu-archive and
-# nginx.org binaries are built --with-compat, so a --with-compat module built
-# from vanilla source of the matching version loads into either) ---
-tarball="$cache/nginx-$nginx_version.tar.gz"
-if [[ ! -s "$tarball" ]]; then
-    echo "==> Downloading nginx-$nginx_version.tar.gz"
-    curl -fL --retry 3 -o "$tarball.tmp" \
-        "https://nginx.org/download/nginx-$nginx_version.tar.gz"
-    mv "$tarball.tmp" "$tarball"
+# --- nginx source ----------------------------------------------------------
+# Ubuntu may carry ABI-affecting patches without changing NGINX_VERSION or the
+# dynamic-module signature.  In particular, resolute added a field to
+# ngx_http_request_t; a module built from the same-version vanilla tarball
+# loaded successfully and then misread request flags.  Distro builds therefore
+# use the exact, version-locked nginx-dev SDK.  nginx.org builds continue to use
+# the matching upstream tarball.
+if [[ "$flavor" == "distro" ]]; then
+    distro_package_version="$(resolve_distro_package_version)"
+    sdk_version="$(dpkg-query -W -f '${Version}' nginx-dev 2>/dev/null || true)"
+    sdk_source="/usr/share/nginx/src"
+    if [[ "$sdk_version" != "$distro_package_version" ]]; then
+        echo "error: distro builds require nginx-dev=$distro_package_version" >&2
+        echo "       installed nginx-dev version: ${sdk_version:-not installed}" >&2
+        echo "       install the exact candidate with: apt-get install nginx-dev=$distro_package_version" >&2
+        exit 1
+    fi
+    if [[ ! -x "$sdk_source/configure" ]]; then
+        echo "error: nginx-dev did not provide $sdk_source/configure" >&2
+        exit 1
+    fi
+    sdk_nginx_version="$(sed -n 's/^#define NGINX_VERSION *"\([^"]*\)".*/\1/p' \
+        "$sdk_source/src/core/nginx.h")"
+    if [[ "$sdk_nginx_version" != "$nginx_version" ]]; then
+        echo "error: nginx-dev SDK version $sdk_nginx_version does not match requested nginx $nginx_version" >&2
+        exit 1
+    fi
+    echo "==> Copying patched Ubuntu nginx SDK ${sdk_version}"
+    mkdir -p "$nginx_src"
+    cp -a "$sdk_source/." "$nginx_src/"
+else
+    tarball="$cache/nginx-$nginx_version.tar.gz"
+    if [[ ! -s "$tarball" ]]; then
+        echo "==> Downloading nginx-$nginx_version.tar.gz"
+        curl -fL --retry 3 -o "$tarball.tmp" \
+            "https://nginx.org/download/nginx-$nginx_version.tar.gz"
+        mv "$tarball.tmp" "$tarball"
+    fi
+    tar -xzf "$tarball" -C "$stage"
 fi
-tar -xzf "$tarball" -C "$stage"
 
 # --- staged source tree: same exclude set as build-rpm.sh's tar ---
 tar \
     --exclude-vcs \
     --exclude='./.rpmbuild' \
     --exclude='./.debbuild' \
+    --exclude='./.agents' \
     --exclude='./.tmp' \
     --exclude='./.claude' \
     --exclude='./.codex' \
     --exclude='./.pytest_cache' \
     --exclude='./.venv' \
     --exclude='./.venv*' \
+    --exclude='./build' \
     --exclude='./__pycache__' \
     --exclude='./*.pyc' \
     --exclude='./davs:*' \
     --exclude='./tests/davs:*' \
     --exclude='./tests/nginx-bin' \
     --exclude='./tests/__pycache__' \
+    --exclude='./client/bin' \
+    --exclude='./client/*.dylib' \
     --exclude='*.o' \
     --exclude='*.a' \
     --exclude='./client/*.d' \
     --exclude='*.so' \
     --exclude='*.pc' \
     --exclude='./shared/xrdproto/build' \
-    --exclude='./tools' \
     --exclude='./dist' \
     --exclude='./*.rpm' \
     --exclude='./*.deb' \

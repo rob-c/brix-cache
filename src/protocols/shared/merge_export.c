@@ -1,6 +1,7 @@
 /*
  * merge_export.c — see merge_export.h for the WHAT/WHY/HOW.
  */
+#include "core/compat/log_event.h"
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
@@ -57,7 +58,7 @@ brix_http_attach_storage_credential(ngx_conf_t *cf,
                 ngx_min(common->storage_credential.len + 1, sizeof(cred_z)));
     cred = brix_credential_lookup(cred_z);
     if (cred == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_credential: no brix_credential \"%V\"",
             &common->storage_credential);
         return NGX_CONF_ERROR;

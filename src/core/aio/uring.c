@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "aio.h"
 #include "uring.h"
@@ -98,7 +99,7 @@ brix_uring_init_fail(brix_uring_t *u, ngx_cycle_t *cycle, ngx_uint_t mode_on,
      * parenthesize its level argument, so a raw ternary would bind under >=. */
     ngx_uint_t level = mode_on ? NGX_LOG_EMERG : NGX_LOG_NOTICE;
 
-    ngx_log_error(level, cycle->log, ngx_errno,
+    BRIX_LOG(level, cycle->log, ngx_errno,
         "brix: io_uring bring-up failed at %s%s", what,
         mode_on
             ? " — \"brix_io_uring on\" requires it; this worker refuses to run"
@@ -171,7 +172,7 @@ brix_uring_bring_up(brix_uring_t *u, ngx_cycle_t *cycle,
     u->disabled_flag = brix_uring_killswitch_ptr();
 
     u->enabled = 1;
-    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
         "brix: io_uring disk-I/O backend active (queue_depth=%ui%s)",
         (ngx_uint_t) u->queue_depth,
         u->restrict_ops ? ", restricted" : "");
@@ -245,7 +246,7 @@ brix_uring_quiesce_tick(void)
          * (the reaper needs it); the moment the last CQE drains, drop it. */
         if (u->enabled && u->inflight == 0) {
             brix_uring_teardown(u);
-            ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
                 "brix: io_uring ring quiesced (kill switch): "
                 "ring + eventfd released");
         }
@@ -258,7 +259,7 @@ brix_uring_quiesce_tick(void)
 
     what = brix_uring_bring_up(u, cycle, &brix_uring_saved_scan);
     if (what != NULL) {
-        ngx_log_error(NGX_LOG_ERR, cycle->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, cycle->log, ngx_errno,
             "brix: io_uring re-enable failed at %s; "
             "retrying on the next maintenance tick", what);
         brix_uring_teardown(u);

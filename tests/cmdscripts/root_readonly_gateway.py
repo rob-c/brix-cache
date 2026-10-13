@@ -71,6 +71,7 @@ import tempfile
 import time
 
 from cmdscripts import open_tree_for_worker, run
+from brix_suite.worker_identity import nginx_default_worker_user
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
 
@@ -366,18 +367,19 @@ def seed_tree(root: Path) -> None:
             (root / rel.lstrip("/")).mkdir(parents=True, exist_ok=True)
 
 
-def _hand_tree_to_worker(root: Path) -> None:
+def _hand_tree_to_worker(root: Path, nginx_bin: str) -> None:
     """Give ``root`` to the identity the nginx worker de-escalates to.
 
     ``open_tree_for_worker()`` opens MODES, which is everything a read or a
     write needs — but chmod(2) and the setattr family are the owner's alone, so
     no mode reaches them and a root-owned tree refuses them to a worker running
-    as ``nobody``.  Only the writable control export wants this: the read-only
-    gateways must never be able to touch their own export, and the origin's tree
-    is the integrity baseline.  No-op unless running as root (a non-root harness
-    is already the worker), and a chown that fails leaves the tree as it was.
+    as the configured nginx account. Only the writable control export wants
+    this: the read-only gateways must never be able to touch their own export,
+    and the origin's tree is the integrity baseline. No-op unless running as
+    root (a non-root harness is already the worker), and a chown that fails
+    leaves the tree as it was.
     """
-    worker = os.environ.get("BRIX_WORKER_USER", "nobody")
+    worker = nginx_default_worker_user(nginx_bin)
     if os.geteuid() != 0 or not worker:
         return
     subprocess.run(["chown", "-R", worker, str(root)], check=False,

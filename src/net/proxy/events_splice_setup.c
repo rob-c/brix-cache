@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "proxy_internal.h"
 #include "protocols/root/connection/handler.h"
 #include "protocols/root/connection/write_helpers.h"   /* brix_queue_response_base */
@@ -81,7 +82,7 @@ brix_proxy_splice_pipe_ensure(brix_proxy_ctx_t *proxy)
     }
 
     if (brix_plat_pipe2(proxy->splice_pipe, BRIX_PIPE_NONBLOCK) < 0) {
-        ngx_log_error(NGX_LOG_WARN, proxy->client_conn->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_WARN, proxy->client_conn->log, ngx_errno,
                       "xrootd proxy: pipe2 failed, using buffered path");
         return NGX_DECLINED;
     }
@@ -94,7 +95,7 @@ brix_proxy_splice_pipe_ensure(brix_proxy_ctx_t *proxy)
      * case the kernel keeps the default size and splice still works correctly.
      */
     if (fcntl(proxy->splice_pipe[1], F_SETPIPE_SZ, 1 << 20) < 0) {
-        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log,
                        ngx_errno,
                        "xrootd proxy: F_SETPIPE_SZ(1MiB) failed (errno=%d), "
                        "using default pipe size", ngx_errno);
@@ -139,7 +140,7 @@ brix_proxy_splice_send_hdr(brix_proxy_ctx_t *proxy)
             continue;                      /* partial — send the remainder */
         }
         if (sent == NGX_AGAIN && off == 0) {
-            ngx_log_debug0(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+            BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
                            "xrootd proxy: splice header would block, "
                            "using buffered path");
             return NGX_DECLINED;
@@ -147,7 +148,7 @@ brix_proxy_splice_send_hdr(brix_proxy_ctx_t *proxy)
         /* NGX_AGAIN after a partial header, or a socket error: cannot fall
          * back without duplicating on-wire bytes, and the splice path has no
          * deferred-header state.  Abort rather than corrupt. */
-        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
                        "xrootd proxy: splice header send incomplete (%z), "
                        "aborting to avoid frame corruption", sent);
         brix_proxy_abort(proxy, "proxy: splice header send incomplete");

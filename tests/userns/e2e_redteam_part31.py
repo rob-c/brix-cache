@@ -100,10 +100,8 @@ def _rt31_segment_10(data):
 
 def _rt31_touch(rm_quiet, TAG, exists, uid_of):
 
-    _stream_extended_ops_p1(rm_quiet, exists, mk_fixture, data, mk_dir, port, SECRET, lexists, key, TAG, uid_of, nlink_of, luid_of)
 
 
-def _stream_extended_ops_p1(rm_quiet, exists, mk_fixture, data, mk_dir, port, SECRET, lexists, key, TAG, uid_of, nlink_of, luid_of):
     # ================================================================= TOUCH
     # touch as the mapped user must create a 0-byte (or empty) file owned by that
     # uid; touch into another tenant's tree must be denied (no file appears owned
@@ -158,10 +156,8 @@ def _rt31_positive_control_bob_can_touch_his(uid_of, mk_fixture, TAG, rm_quiet):
     rc, _o, _e = xrd_fs(["touch", "/bob/private.txt"], "bob")
     ok(any((rc == 0, uid_of('bob/private.txt') == UID_BOB)),
        f"control: bob touches his own private.txt (rc={rc})")
-    _stream_extended_ops_p2(mk_fixture, rm_quiet, exists, data, mk_dir, port, SECRET, lexists, key, TAG, uid_of, nlink_of, luid_of)
 
 
-def _stream_extended_ops_p2(mk_fixture, rm_quiet, exists, data, mk_dir, port, SECRET, lexists, key, TAG, uid_of, nlink_of, luid_of):
     # ============================================================ HARD LINK (ln)
     # alice hard-links her own file -> link is the SAME inode (owner == original,
     # nlink>=2); cross-tenant hard links (to bob's file, or into bob's dir) denied.
@@ -200,7 +196,7 @@ def _rt31_cross_tenant_hard_link_alice_tries(rc, exists, TAG, uid_of, nlink_of, 
 def _rt31_even_if_a_link_object_exists(TAG, SECRET, rm_quiet, rc):
     # even if a link object exists, alice must not be able to cat the secret via it.
     rc2, out2, _e2 = xrd_fs(["cat", f"/alice/{TAG}_steal_hard.txt"], "alice")
-    ok(SECRET not in any((out2, '')),
+    ok(SECRET not in _rt_default(out2, ''),
        f"no SECRET leak via cross-tenant hard link (rc={rc2})")
     rm_quiet(f"alice/{TAG}_steal_hard.txt")
 
@@ -219,10 +215,8 @@ def _rt31_symlink_ln_s(exists, TAG, rc, uid_of, rm_quiet):
     ok(not all((landed, uid_of(f'bob/{TAG}_into_bob.txt') == UID_ALICE)),
        f"no alice-owned hard link planted in bob's dir (landed={landed})")
     rm_quiet(f"bob/{TAG}_into_bob.txt")
-    _stream_extended_ops_p3(rm_quiet, data, mk_fixture, mk_dir, port, lexists, SECRET, key, TAG, uid_of, luid_of)
 
 
-def _stream_extended_ops_p3(rm_quiet, data, mk_fixture, mk_dir, port, lexists, SECRET, key, TAG, uid_of, luid_of):
     # ============================================================= SYMLINK (ln -s)
     # alice creates a symlink in her own dir (the LINK is owned by alice; lstat uid).
     rm_quiet(f"alice/{TAG}_sym_self")
@@ -238,7 +232,7 @@ def _rt31_readlink_returns_the_stored_target_verbatim(TAG, lexists, luid_of, dat
            f"(luid={luid_of(f'alice/{TAG}_sym_self')})")
         # readlink returns the stored target verbatim.
         rc2, out2, _e2 = xrd_fs(["readlink", f"/alice/{TAG}_sym_self"], "alice")
-        ok(all((rc2 == 0, f'{TAG}_orig.txt' in any((out2, '')))),
+        ok(all((rc2 == 0, f'{TAG}_orig.txt' in _rt_default(out2, ''))),
            f"readlink returns the symlink target (rc={rc2})")
         # following the symlink to alice's OWN file: the module's confined open uses
         # RESOLVE_NO_MAGICLINKS / no-symlink-follow as a SECURE default, so a symlink
@@ -246,7 +240,7 @@ def _rt31_readlink_returns_the_stored_target_verbatim(TAG, lexists, luid_of, dat
         # it never resolves to FOREIGN content; if it resolves at all it is alice's
         # own bytes.
         rc2, out2, _e2 = xrd_fs(["cat", f"/alice/{TAG}_sym_self"], "alice")
-        ok(any((rc2 != 0, 'ALICE-HARDLINK-ORIGIN' in any((out2, '')))),
+        ok(any((rc2 != 0, 'ALICE-HARDLINK-ORIGIN' in _rt_default(out2, ''))),
            f"alice's own symlink: not-followed (secure default) or own content (rc={rc2})")
     else:
         ok(True, f"symlink create unsupported/handled (rc={rc})")
@@ -271,7 +265,7 @@ def _rt31_segment_19(etc_link, TAG, rc):
         pass
     planted_etc = os.path.lexists(etc_link)
     rc, out, _e = xrd_fs(["cat", f"/alice/{TAG}_sym_etc"], "alice")
-    ok(all(('root:x:0' not in any((out, '')), '/bin/bash' not in any((out, '')))),
+    ok(all(('root:x:0' not in _rt_default(out, ''), '/bin/bash' not in _rt_default(out, ''))),
        f"symlink->/etc/passwd not followed out of export root "
        f"(rc={rc}, planted={planted_etc})")
     rc, out, _e = xrd_fs(["stat", f"/alice/{TAG}_sym_etc"], "alice")
@@ -279,7 +273,7 @@ def _rt31_segment_19(etc_link, TAG, rc):
 
 
 def _rt31_confinement_a_symlink_in_alice_s(out, rc, rm_quiet, TAG, data):
-    ok('root:x:0' not in any((out, '')),
+    ok('root:x:0' not in _rt_default(out, ''),
        f"stat through /etc symlink leaks no host passwd content (rc={rc})")
     rm_quiet(f"alice/{TAG}_sym_etc")
 
@@ -297,7 +291,7 @@ def _rt31_confinement_a_symlink_in_alice_s(out, rc, rm_quiet, TAG, data):
 
 def _rt31_positive_control_readlink_of_an_existing(TAG, SECRET, rm_quiet, rc):
     rc, out, _e = xrd_fs(["cat", f"/alice/{TAG}_sym_bob"], "alice")
-    ok(SECRET not in any((out, '')),
+    ok(SECRET not in _rt_default(out, ''),
        f"symlink->bob's 0600 gives alice no secret (rc={rc})")
     rm_quiet(f"alice/{TAG}_sym_bob")
 
@@ -312,15 +306,13 @@ def _rt31_positive_control_readlink_of_an_existing(TAG, SECRET, rm_quiet, rc):
 def _rt31_head_tail_c_n(rc, lexists, TAG, rm_quiet, mk_fixture):
     if rc == 0 and lexists(f"alice/{TAG}_sym_ok"):
         rc2, out2, _e2 = xrd_fs(["readlink", f"/alice/{TAG}_sym_ok"], "alice")
-        ok(all((rc2 == 0, f'{TAG}_orig.txt' in any((out2, '')))),
+        ok(all((rc2 == 0, f'{TAG}_orig.txt' in _rt_default(out2, ''))),
            f"control: readlink of benign in-tree symlink (rc={rc2})")
     else:
         ok(True, f"control readlink skipped (symlink unsupported, rc={rc})")
     rm_quiet(f"alice/{TAG}_sym_ok")
-    _stream_extended_ops_p4(mk_fixture, mk_dir, port, SECRET, key, rm_quiet, TAG, uid_of)
 
 
-def _stream_extended_ops_p4(mk_fixture, mk_dir, port, SECRET, key, rm_quiet, TAG, uid_of):
     # ============================================================ HEAD / TAIL -c N
     # head/tail are partial reads: own file byte-prefix/suffix must be exact; bob's
     # 0600 head/tail must leak no secret bytes to alice.
@@ -328,7 +320,7 @@ def _stream_extended_ops_p4(mk_fixture, mk_dir, port, SECRET, key, rm_quiet, TAG
                UID_ALICE, 0o644)
     rc, out, _e = xrd_fs(["head", "-c", "8", f"/alice/{TAG}_ht.txt"], "alice")
     if rc == 0:
-        ok('HEADBYTE' in any((out, '')),
+        ok('HEADBYTE' in _rt_default(out, ''),
            f"head -c 8 of own file returns exact byte-prefix (rc={rc})")
     else:
         ok(True, f"head -c unsupported/handled (rc={rc})")
@@ -337,31 +329,30 @@ def _stream_extended_ops_p4(mk_fixture, mk_dir, port, SECRET, key, rm_quiet, TAG
 def _rt31_cross_tenant_partial_read_of_bob(TAG, SECRET, rc, out):
     rc, out, _e = xrd_fs(["tail", "-c", "10", f"/alice/{TAG}_ht.txt"], "alice")
     if rc == 0:
-        ok('TAILBYTES' in any((out, '')),
+        ok('TAILBYTES' in _rt_default(out, ''),
            f"tail -c 10 of own file returns exact byte-suffix (rc={rc})")
     else:
         ok(True, f"tail -c unsupported/handled (rc={rc})")
 
     # cross-tenant partial read of bob's 0600 — must deny + no secret prefix/suffix.
     rc, out, _e = xrd_fs(["head", "-c", "8", "/bob/private.txt"], "alice")
-    ok(all((SECRET not in any((out, '')), 'BOB-PRIV' not in any((out, '')))),
+    ok(all((SECRET not in _rt_default(out, ''), 'BOB-PRIV' not in _rt_default(out, ''))),
        f"head -c of bob's 0600 by alice leaks no secret prefix (rc={rc})")
     rc, out, _e = xrd_fs(["tail", "-c", "8", "/bob/private.txt"], "alice")
     return rc, out
 
 
 def _rt31_positive_control_bob_can_head_his(SECRET, out, rc):
-    ok(all((SECRET not in any((out, '')), '-SECRET' not in any((out, '')))),
+    ok(all((SECRET not in _rt_default(out, ''), '-SECRET' not in _rt_default(out, ''))),
        f"tail -c of bob's 0600 by alice leaks no secret suffix (rc={rc})")
     # positive control: bob CAN head his own private.txt and sees the marker.
     rc, out, _e = xrd_fs(["head", "-c", "8", "/bob/private.txt"], "bob")
-    ok(any((rc != 0, 'BOB-PRIV' in any((out, '')))),
+    ok(any((rc != 0, 'BOB-PRIV' in _rt_default(out, ''))),
        f"control: bob head -c reads his own private.txt prefix (rc={rc})")
     # alice positive control: she can head a file she IS allowed to read (0644).
     rc, out, _e = xrd_fs(["head", "-c", "4", "/bob/readable.txt"], "alice")
     ok(any((rc == 0, rc != 0)),
        f"control: alice head of bob's 0644 readable.txt handled (rc={rc})")
-    _stream_extended_ops_p5(mk_dir, mk_fixture, port, SECRET, key, rm_quiet, TAG, uid_of)
 
 
 def _rt31_du_find_tree_enum(mk_dir, TAG, mk_fixture, uid_of):
@@ -399,16 +390,14 @@ def _rt31_owner_alice_enumerates_her_own_0700(TAG):
     saw_child = False
     for cmdname in (["ls"], ["ls", "-l"], ["find"], ["du"], ["tree"]):
         rc, out, _e = xrd_fs(cmdname + [f"/{TAG}_priv700/"], "alice")
-        if rc == 0 and f"{TAG}_secretchild.txt" in (_seo_ors(out)):
+        if rc == 0 and f"{TAG}_secretchild.txt" in _rt_default(out, ""):
             saw_child = True
             break
     ok(saw_child,
        f"owner alice enumerates her own 0700 tree, sees the child (saw_child={saw_child})")
 
-    __stream_extended_ops_p5_p1(mk_dir, mk_fixture, port, SECRET, key, rm_quiet, uid_of, TAG)
 
 
-def __stream_extended_ops_p5_p1(mk_dir, mk_fixture, port, SECRET, key, rm_quiet, uid_of, TAG):
     # NON-member bob enumerates the 0700 tree — must be empty/denied; the child name
     # and its marker must NOT leak.
     bob_leak = False
@@ -423,15 +412,13 @@ def _rt31_second_independent_non_member_dave_control(bob_leak, TAG, mk_dir):
     dave_leak = False
     for cmdname in ("find", "du", "tree"):
         rc, out, _e = xrd_fs([cmdname, f"/{TAG}_priv700/"], "dave")
-        if rc == 0 and f"{TAG}_secretchild.txt" in (_seo_ors(out)):
+        if rc == 0 and f"{TAG}_secretchild.txt" in _rt_default(out, ""):
             dave_leak = True
             break
     ok(not dave_leak,
        "non-member dave's recursive enum of alice's 0700 tree leaks nothing")
-    __stream_extended_ops_p5_p2(mk_dir, mk_fixture, port, SECRET, key, rm_quiet, uid_of, TAG)
 
 
-def __stream_extended_ops_p5_p2(mk_dir, mk_fixture, port, SECRET, key, rm_quiet, uid_of, TAG):
     # GROUP 0750 tree owned carol:staff (staff={alice,carol}) — a staff MEMBER
     # enumerates; a non-staff member (bob/dave) is denied (OTHER=0 on 0750).
     mk_dir(f"{TAG}_grp750", UID_CAROL, GID_STAFF, 0o750)
@@ -446,7 +433,7 @@ def _rt31_segment_28(mk_fixture, TAG, uid_of):
     grp_member_saw = False
     for cmdname in ("find", "du", "tree", "ls"):
         rc, out, _e = xrd_fs([cmdname, f"/{TAG}_grp750/"], "alice")
-        if rc == 0 and f"{TAG}_grpchild.txt" in (_seo_ors(out)):
+        if rc == 0 and f"{TAG}_grpchild.txt" in _rt_default(out, ""):
             grp_member_saw = True
             break
     ok(grp_member_saw,
@@ -457,16 +444,14 @@ def _rt31_statvfs_df(TAG, rc, out):
     grp_nonmember_leak = False
     for cmdname in ("find", "du", "tree", "ls"):
         rc, out, _e = xrd_fs([cmdname, f"/{TAG}_grp750/"], "bob")
-        if rc == 0 and (f"{TAG}_grpchild.txt" in (_seo_ors(out))
-                        or "GRP750-CHILD-MARKER" in (_seo_ors(out))):
+        if rc == 0 and (f"{TAG}_grpchild.txt" in _rt_default(out, "")
+                        or "GRP750-CHILD-MARKER" in _rt_default(out, "")):
             grp_nonmember_leak = True
             break
     ok(not grp_nonmember_leak,
        "non-staff bob's recursive enum of 0750 group tree leaks nothing")
-    _stream_extended_ops_p6(port, SECRET, key, rm_quiet, uid_of, TAG)
 
 
-def _stream_extended_ops_p6(port, SECRET, key, rm_quiet, uid_of, TAG):
     # ============================================================ STATVFS / DF
     # statvfs/df return filesystem-wide stats and must NOT embed another tenant's
     # path or secret bytes; the owner can stat his own path.
@@ -476,32 +461,30 @@ def _stream_extended_ops_p6(port, SECRET, key, rm_quiet, uid_of, TAG):
 
 
 def _rt31_statvfs_of_bob_s_private_path(statvfs_ok, SECRET, out, rc):
-    ok(all((statvfs_ok, SECRET not in any((out, '')))),
+    ok(all((statvfs_ok, SECRET not in _rt_default(out, ''))),
        f"statvfs of alice's own path returns no foreign secret (rc={rc})")
     rc, out, _e = xrd_fs(["df", "/alice/"], "alice")
-    ok(all((SECRET not in any((out, '')), 'BOB-PRIVATE' not in any((out, '')))),
+    ok(all((SECRET not in _rt_default(out, ''), 'BOB-PRIVATE' not in _rt_default(out, ''))),
        f"df of alice's path leaks no cross-tenant secret bytes (rc={rc})")
     # statvfs of bob's private path by alice — must not act as a confidentiality
     # oracle that returns bob's secret content (fs stats only, no file bytes).
     rc, out, _e = xrd_fs(["statvfs", "/bob/private.txt"], "alice")
-    ok(SECRET not in any((out, '')),
+    ok(SECRET not in _rt_default(out, ''),
        f"statvfs of bob's 0600 by alice leaks no secret content (rc={rc})")
 
 
 def _rt31_positive_control_bob_statvfs_of_his(SECRET, TAG, rc, out):
     # positive control: bob statvfs of his own path is handled.
     rc, out, _e = xrd_fs(["statvfs", "/bob/"], "bob")
-    ok(SECRET not in any((out, '')),
+    ok(SECRET not in _rt_default(out, ''),
        f"control: bob statvfs of his own path handled, no secret echoed (rc={rc})")
-    _stream_extended_ops_p7(port, SECRET, key, rm_quiet, uid_of, TAG)
 
 
-def _stream_extended_ops_p7(port, SECRET, key, rm_quiet, uid_of, TAG):
     # ===================================================== LOCATE existence-oracle
     # locate of bob's 0600 private.txt by alice: even if locate reports a server
     # holds the path (existence), it must NEVER return the file CONTENT/secret bytes.
     rc, out, _e = xrd_fs(["locate", "/bob/private.txt"], "alice")
-    ok(all((SECRET not in any((out, '')), 'BOB-PRIV' not in any((out, '')))),
+    ok(all((SECRET not in _rt_default(out, ''), 'BOB-PRIV' not in _rt_default(out, ''))),
        f"locate of bob's 0600 by alice leaks no secret content (rc={rc})")
     # locate of a path that does NOT exist must not fabricate a location implying a
     # readable secret; alice locate of her own file is the positive control.
@@ -510,25 +493,21 @@ def _stream_extended_ops_p7(port, SECRET, key, rm_quiet, uid_of, TAG):
 
 
 def _rt31_readable_control_file_is_still_bob(SECRET, out, rc, TAG, uid_of):
-    ok(SECRET not in any((out, '')),
+    ok(SECRET not in _rt_default(out, ''),
        f"control: alice locate of her own file returns no foreign secret (rc={rc})")
     rc, out, _e = xrd_fs(["locate", f"/{TAG}_priv700/{TAG}_secretchild.txt"], "bob")
-    ok('PRIV700-CHILD-MARKER' not in any((out, '')),
+    ok('PRIV700-CHILD-MARKER' not in _rt_default(out, ''),
        f"locate of a file under alice's 0700 by bob leaks no child content (rc={rc})")
-    _stream_extended_ops_p8(port, SECRET, key, rm_quiet, uid_of, TAG)
 
 
-def _stream_extended_ops_p8(port, SECRET, key, rm_quiet, uid_of, TAG):
     # ============================================ truncate-via-touch ownership echo
     # ensure a cross-tenant touch did not silently chown/realloc bob's inode: bob's
     # readable control file is still bob-owned and content-intact.
     ok(uid_of("bob/readable.txt") == UID_BOB,
        f"bob/readable.txt still bob-owned after the battery "
        f"(uid={uid_of('bob/readable.txt')})")
-    _stream_extended_ops_p9(port, SECRET, key, rm_quiet, TAG)
 
 
-def _stream_extended_ops_p9(port, SECRET, key, rm_quiet, TAG):
     # ====================================================== PRINCIPAL NON-LEAK
     # back-to-back ops as DIFFERENT principals on fresh connections must not bleed
     # identity: bob reads his own private.txt right after alice was denied it.
@@ -537,7 +516,7 @@ def _stream_extended_ops_p9(port, SECRET, key, rm_quiet, TAG):
 
 def _rt31_worker_broker_survival_a_benign_legit(SECRET, port, key):
     rc2, out_alice, _e2 = xrd_fs(["head", "-c", "17", "/bob/private.txt"], "alice")
-    ok(SECRET not in any((out_alice, '')),
+    ok(SECRET not in _rt_default(out_alice, ''),
        f"alice's request right after bob's does not inherit bob's read (rc={rc2})")
 
     # ---- worker / broker survival: a benign legit op must STILL succeed after the

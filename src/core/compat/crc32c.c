@@ -112,6 +112,11 @@ brix_crc32c_extend(uint32_t crc, const void *buf, size_t len)
     }
 #endif
 
+#if defined(BRIX_ARCH_ARM64) && BRIX_ARCH_ARM64 \
+    && defined(__ARM_FEATURE_CRC32)
+    return brix_crc32c_arm64_extend(crc, p, len);
+#endif
+
     return brix_crc32c_sw_extend(crc, p, len);
 }
 
@@ -142,6 +147,11 @@ brix_crc32c_copy_value(const unsigned char *src, unsigned char *dst,
         }
         return brix_crc32c_copy_hw(src, dst, len);
     }
+#endif
+
+#if defined(BRIX_ARCH_ARM64) && BRIX_ARCH_ARM64 \
+    && defined(__ARM_FEATURE_CRC32)
+    return brix_crc32c_arm64_copy(src, dst, len);
 #endif
 
     return brix_crc32c_copy_sw(src, dst, len);

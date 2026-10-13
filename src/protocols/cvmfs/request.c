@@ -47,35 +47,79 @@ brix_cvmfs_proxy_scheme_check(ngx_http_request_t *r)
     return NGX_OK;
 }
 
-/* ---- Recover the target port from the raw request line ----
+/* ---- Extract the host and port from the validated authority span ----
  *
- * WHAT: sets *port to the absolute-form target's port, defaulting to 80 when
- *       no ":port" is present. Returns NGX_OK, or NGX_HTTP_BAD_REQUEST when the
- *       port digits are out of the 1..65535 range.
+ * WHAT: fills host and port from the absolute-form target, defaulting the port
+ *       to 80. Returns NGX_OK, or NGX_HTTP_BAD_REQUEST for malformed bounds,
+ *       bracket syntax, separators, or a port outside 1..65535.
  *
- * WHY:  nginx (>= 1.11) keeps no port_start/port_end for absolute-form
- *       targets, so the port must be read back from the request line between
- *       host_end (":") and uri_start ("/") — both recorded by the parser.
+ * WHY:  nginx versions disagree on whether r->host_end points at the colon or
+ *       after the complete host:port authority. The security allowlist is
+ *       host-only, so using that unstable endpoint can reject valid packaged
+ *       builds or accidentally compare the wrong authority bytes.
  *
- * HOW:  1. Default the port to 80.
- *       2. When a ':' separates host_end from uri_start, parse the digits.
- *       3. Reject an out-of-range value; otherwise publish it.
+ * HOW:  1. Bound the authority by nginx's validated host_start and uri_start.
+ *       2. For bracketed IPv6, retain the brackets and find the closing one;
+ *          otherwise the first colon separates the host from its port.
+ *       3. Require any trailing authority bytes to be exactly :<valid-port>.
  */
 static ngx_int_t
-brix_cvmfs_proxy_parse_port(ngx_http_request_t *r, in_port_t *port)
+brix_cvmfs_proxy_extract_authority(ngx_http_request_t *r, ngx_str_t *host,
+    in_port_t *port)
 {
-    ngx_int_t p;
+    u_char    *authority_end, *cursor, *host_end, *port_start;
+    ngx_int_t  parsed_port;
 
-    *port = 80;
-    if (r->uri_start != NULL && r->host_end != NULL
-        && r->host_end < r->uri_start && *r->host_end == ':')
+    if (r->host_start == NULL || r->uri_start == NULL
+        || r->host_start >= r->uri_start)
     {
-        p = ngx_atoi(r->host_end + 1,
-                     (size_t) (r->uri_start - (r->host_end + 1)));
-        if (p < 1 || p > 65535) {
+        return NGX_HTTP_BAD_REQUEST;
+    }
+
+    authority_end = r->uri_start;
+    port_start = NULL;
+    if (*r->host_start == '[') {
+        cursor = r->host_start + 1;
+        while (cursor < authority_end && *cursor != ']') {
+            cursor++;
+        }
+        if (cursor == authority_end) {
             return NGX_HTTP_BAD_REQUEST;
         }
-        *port = (in_port_t) p;
+        host_end = cursor + 1;
+        if (host_end < authority_end) {
+            if (*host_end != ':') {
+                return NGX_HTTP_BAD_REQUEST;
+            }
+            port_start = host_end + 1;
+        }
+    } else {
+        host_end = authority_end;
+        for (cursor = r->host_start; cursor < authority_end; cursor++) {
+            if (*cursor == ':') {
+                host_end = cursor;
+                port_start = cursor + 1;
+                break;
+            }
+        }
+    }
+
+    if (host_end == r->host_start) {
+        return NGX_HTTP_BAD_REQUEST;
+    }
+    host->data = r->host_start;
+    host->len = (size_t) (host_end - r->host_start);
+    *port = 80;
+    if (port_start != NULL) {
+        if (port_start == authority_end) {
+            return NGX_HTTP_BAD_REQUEST;
+        }
+        parsed_port = ngx_atoi(port_start,
+                              (size_t) (authority_end - port_start));
+        if (parsed_port < 1 || parsed_port > 65535) {
+            return NGX_HTTP_BAD_REQUEST;
+        }
+        *port = (in_port_t) parsed_port;
     }
     return NGX_OK;
 }
@@ -127,9 +171,9 @@ brix_cvmfs_proxy_host_allowed(const brix_cvmfs_conf_t *cc, const ngx_str_t *host
  *
  * HOW:  1. Absent host_start means origin-form → NGX_DECLINED.
  *       2. Enforce the scheme policy (http always, https only when secure).
- *       3. Publish the host span nginx already parsed.
- *       4. Recover the target port from the request line.
- *       5. Authorize the host against the Stratum-1 allowlist.
+ *       3. Extract the bounded host and port independent of nginx-version
+ *          host_end semantics.
+ *       4. Authorize the request-target host against the Stratum-1 allowlist.
  */
 ngx_int_t
 brix_cvmfs_proxy_target(ngx_http_request_t *r, const brix_cvmfs_conf_t *cc,
@@ -146,10 +190,7 @@ brix_cvmfs_proxy_target(ngx_http_request_t *r, const brix_cvmfs_conf_t *cc,
         return rc;
     }
 
-    host->data = r->host_start;
-    host->len  = (size_t) (r->host_end - r->host_start);
-
-    rc = brix_cvmfs_proxy_parse_port(r, port);
+    rc = brix_cvmfs_proxy_extract_authority(r, host, port);
     if (rc != NGX_OK) {
         return rc;
     }

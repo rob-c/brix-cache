@@ -6,6 +6,7 @@
  * stub_copyfile filesystem helpers from sd_frm_stub.c (via sd_frm_mss.h).
  */
 
+#include "core/compat/log_event.h"
 #include "sd_frm_mss.h"
 #include "core/compat/subprocess.h"   /* shared SIGCHLD-safe reparented runner */
 #include "platform/platform_api.h"     /* brix_plat_renameat2 */
@@ -169,7 +170,7 @@ exec_run(const exec_ctx_t *c, const char *verb, const char *key,
 
     if (brix_subprocess_run(&req, NULL, &exit_code) != 0) {
         if (errno == ETIMEDOUT) {
-            ngx_log_error(NGX_LOG_ERR, c->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                 "xrootd frm: stage command \"%s %s %s\" exceeded "
                 "brix_frm_copy_timeout (%M ms) and was killed",
                 c->stagecmd, verb, key, c->timeout_ms);

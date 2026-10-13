@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # run_codechecker.py — Clang Static Analyzer + clang-tidy regression ratchet.
 #
@@ -78,7 +83,7 @@ def resolve_cc() -> str:
 
 
 def fail(msg: str) -> None:
-    print(f"run_codechecker: {msg}", file=sys.stderr)
+    _brix_diagnostic('ERROR', 'tools/ci/run_codechecker.py', 'fail', f"run_codechecker: {msg}", file=sys.stderr)
     sys.exit(2)
 
 
@@ -247,7 +252,7 @@ def _check_failed_reports(reports, analyze_log):
     print(f"---- {count} translation unit(s) FAILED to compile — analysis did NOT run on them ----")
     for name in entries[:20]:
         print(name)
-    print(f"(see {analyze_log}; likely a clang-incompatible flag or missing header / bad NGX_BUILD)",
+    _brix_diagnostic('ERROR', 'tools/ci/run_codechecker.py', '_check_failed_reports', f"(see {analyze_log}; likely a clang-incompatible flag or missing header / bad NGX_BUILD)",
           file=sys.stderr)
     fail(f"{count} TU(s) failed under the analyzer flags — fix flag extraction before trusting a clean gate")
 
@@ -306,10 +311,10 @@ def _report_new_findings(new):
     print(f"---- NEW findings not in baseline ({len(new)}) ----")
     for key in new:
         print(key)
-    print(f"run_codechecker: FAIL — {len(new)} new finding(s). For a human view of one file, run:",
+    _brix_diagnostic('ERROR', 'tools/ci/run_codechecker.py', '_report_new_findings', f"run_codechecker: FAIL — {len(new)} new finding(s). For a human view of one file, run:",
           file=sys.stderr)
-    print("               tools/ci/run_codechecker.py --filter <path-prefix>", file=sys.stderr)
-    print("               Fix them, or if false-positive, review and re-baseline with --regen",
+    _brix_diagnostic('ERROR', 'tools/ci/run_codechecker.py', '_report_new_findings', "               tools/ci/run_codechecker.py --filter <path-prefix>", file=sys.stderr)
+    _brix_diagnostic('ERROR', 'tools/ci/run_codechecker.py', '_report_new_findings', "               Fix them, or if false-positive, review and re-baseline with --regen",
           file=sys.stderr)
     return 1
 

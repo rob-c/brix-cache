@@ -209,7 +209,14 @@ class TestTheDeclarationsAndTheMerge:
         configurations ``brix_strict_security`` can refuse."""
         callers = []
         for path in sorted(SRC_DIR.rglob("*.c")):
-            text = path.read_text(errors="replace")
+            try:
+                text = path.read_text(errors="replace")
+            except FileNotFoundError:
+                # Guard-negative tests briefly add a probe below src/ and
+                # remove it after their subprocess finishes.  Under xdist the
+                # directory walk can observe that probe just before removal;
+                # a vanished entry is not part of the tree being audited.
+                continue
             if "brix_shared_security_gate(" in text:
                 callers.append(str(path.relative_to(ROOT)))
         assert callers == ["src/observability/dashboard/module.c",

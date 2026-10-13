@@ -22,6 +22,7 @@
  *   fails closed (errno=EIO).  No goto; pure helpers, side effects at the edges.
  */
 
+#include "core/compat/log_event.h"
 #include "impersonate.h"
 #include "impersonate_proto.h"
 #include "client_internal.h"
@@ -109,7 +110,7 @@ brix_imp_client_connect(const char *path, ngx_log_t *log)
 
     imp_drop_conn();
     if (imp_ensure_conn() < 0) {
-        if (log) ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        if (log) BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                                "impersonate client: connect to broker \"%s\" failed",
                                path);
         return NGX_ERROR;
@@ -316,7 +317,7 @@ imp_exchange(const imp_req_t *req, imp_rep_t *rep, int *out_fd,
     }
 
     if (imp_log) {
-        ngx_log_error(NGX_LOG_ERR, imp_log, 0,
+        BRIX_LOG(NGX_LOG_ERR, imp_log, 0,
                       "impersonate client: broker unreachable (op=%ud)", req->op);
     }
     errno = EIO;

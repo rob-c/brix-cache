@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "tpc_internal.h"
 #include "fs/vfs/vfs.h"   /* brix_vfs_open_fd_at (handle-table confined open) */
 #include "core/compat/host_format.h"  /* brix_format_host_port — IPv6 bracketing */
@@ -297,7 +298,7 @@ tpc_pull_attach_creds(brix_tpc_pull_t *t, brix_ctx_t *ctx,
          */
         if (brix_tpc_proxy_pem_expired(ctx->gsi.deleg_proxy_pem,
                                         ctx->gsi.deleg_proxy_len, c->log) == 1) {
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                           "brix: TPC delegated proxy expired; refusing pull "
                           "(dn=\"%s\")", ctx->login.dn);
             brix_metric_tpc_gsi_deleg(BRIX_TPC_DELEG_EXPIRED);

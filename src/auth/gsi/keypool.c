@@ -6,6 +6,7 @@
  * every other connection on the worker.
  */
 
+#include "core/compat/log_event.h"
 #include "keypool.h"
 #include "gsi_core.h"             /* brix_gsi_dh_keygen (shared kernel) */
 #include "core/aio/aio.h"            /* brix_task_bind */
@@ -101,7 +102,7 @@ brix_kp_refill_done(ngx_event_t *ev)
      * hook that the lazy seed path really did finish filling the pool). */
     if (!brix_kp_warmed_logged && brix_kp_count >= brix_kp_target) {
         brix_kp_warmed_logged = 1;
-        ngx_log_error(NGX_LOG_NOTICE, brix_kp_log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, brix_kp_log, 0,
                       "brix: GSI DH key pool warmed to %ui/%ui keys "
                       "(off-thread)", brix_kp_count, brix_kp_target);
     }
@@ -171,7 +172,7 @@ brix_gsi_keypool_init(ngx_cycle_t *cycle, ngx_thread_pool_t *pool,
         brix_kp_schedule_refill(pool);   /* background warm-up to target */
     }
 
-    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
                   "brix: GSI DH key pool seeded %ui/%ui keys (%s)",
                   brix_kp_count, brix_kp_target,
                   pool != NULL ? "rest filling off-thread"

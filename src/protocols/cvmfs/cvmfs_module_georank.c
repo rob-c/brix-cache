@@ -29,6 +29,7 @@
  *   build in cvmfs_module_build.c call them).
  */
 
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "cvmfs_module_internal.h"
 #include "core/config/config.h"           /* brix_metrics_ensure_zone */
@@ -158,7 +159,7 @@ cvmfs_geo_compute_metrics(ngx_conf_t *cf,
     if (conf->cvmfs.here.len == 0
         || cvmfs_parse_latlon(&conf->cvmfs.here, &here_lat, &here_lon) != 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_origin_select geo requires brix_cvmfs_here "
             "<lat>:<lon>");
         return NGX_CONF_ERROR;
@@ -166,7 +167,7 @@ cvmfs_geo_compute_metrics(ngx_conf_t *cf,
     if (conf->cvmfs.origin_coords == NULL
         || conf->cvmfs.origin_coords->nelts == 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_origin_select geo requires one "
             "brix_cvmfs_origin_coords per configured origin");
         return NGX_CONF_ERROR;
@@ -200,14 +201,14 @@ cvmfs_geo_compute_metrics(ngx_conf_t *cf,
             break;
         }
         if (!matched) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cvmfs_origin_select geo: no brix_cvmfs_origin_coords "
                 "for origin %s:%d", host, port);
             return NGX_CONF_ERROR;
         }
     }
     if (n == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_origin_select geo requires an http(s) "
             "brix_storage_backend");
         return NGX_CONF_ERROR;
@@ -264,7 +265,7 @@ cvmfs_geo_apply_ranks(ngx_conf_t *cf,
         {
             break;
         }
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix_cvmfs_origin_select geo [selection report]: origin "
             "%s:%d is %.0f km from here (%.4f:%.4f) -> rank %d%s",
             host, port, calc->metric[idx], calc->here_lat, calc->here_lon,

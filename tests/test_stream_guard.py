@@ -25,6 +25,7 @@ import time
 import pytest
 
 from guard_http_lib import NGINX_BIN
+from log_records import semantic_log_text
 from settings import BIND_HOST
 from server_registry import NginxInstanceSpec
 
@@ -45,7 +46,7 @@ def _check_test_nonroot_client_dropped_5(dropped, wire):
     assert dropped, f"{wire}: guard did not drop the connection"
 
 def _check_test_nonroot_client_dropped_6(nr, wire):
-    assert f'path="{wire}"' in nr[-1], nr[-1]
+    assert f'path="{wire}"' in semantic_log_text(nr[-1]), nr[-1]
 
 
 REPO = pathlib.Path(__file__).resolve().parents[1]

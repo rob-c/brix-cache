@@ -205,12 +205,8 @@ EXEMPT_PORTS = {
     "WEBDAV_TPC_DEST_NO_SERVICE_CERT_PORT": "launched by test_webdav_tpc's tpc_nginx fixture, not the fleet",
     "WEBDAV_TPC_DEST_DISABLED_PORT": "launched by test_webdav_tpc's tpc_nginx fixture, not the fleet",
     "WEBDAV_TPC_DEST_READONLY_PORT": "launched by test_webdav_tpc's tpc_nginx fixture, not the fleet",
-    # The krb5 tier is a DEDICATED instance (lib_py.dedicated.start_dedicated_nginx)
-    # plus an MIT KDC that kdc_helpers provisions, both gated on the krb5 tooling
-    # being present -- neither is a registry spec, so no CONST_TO_SPEC entry can
-    # own them and the lint counted them as unclassified.
-    "NGINX_KRB5_PORT": "dedicated krb5 nginx tier (lib_py.dedicated), not a fleet spec",
-    "KRB5_KDC_PORT": "MIT KDC provisioned by kdc_helpers, an external daemon, not a fleet spec",
+    "NGINX_KRB5_PORT": "Kerberos tier omitted when the selected module has no libkrb5 dependency",
+    "KRB5_KDC_PORT": "KDC omitted when the selected module has no libkrb5 dependency",
 }
 
 
@@ -276,6 +272,14 @@ def const_to_spec() -> dict[str, str]:
 
 #: Module-level cached view for import-time consumers (conftest gate, lint).
 CONST_TO_SPEC = const_to_spec()
+
+# Kerberos support is capability-dependent.  When selected nginx/modules link
+# libkrb5, support_specs() declares both primary ports and the automatic map
+# owns them.  A build without libkrb5 omits those specs, leaving the constants
+# as intentional exemptions instead.
+for _conditional_const in ("NGINX_KRB5_PORT", "KRB5_KDC_PORT"):
+    if _conditional_const in CONST_TO_SPEC:
+        EXEMPT_PORTS.pop(_conditional_const, None)
 
 
 # ---------------------------------------------------------------------------

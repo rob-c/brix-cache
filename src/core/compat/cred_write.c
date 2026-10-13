@@ -24,6 +24,7 @@
  *       cannot).
  */
 
+#include "core/compat/log_event.h"
 #include <ngx_config.h>
 #include <ngx_core.h>
 
@@ -53,7 +54,7 @@ cred_write_audit(ngx_log_t *log, const brix_cred_write_req_t *req,
 
     level = (err == 0) ? NGX_LOG_NOTICE : NGX_LOG_ERR;
 
-    ngx_log_error(level, log, err,
+    BRIX_LOG(level, log, err,
                   "brix: cred: arm=%s kind=%s dir=\"%s\" outcome=%s",
                   brix_cred_arm_names[req->arm],
                   brix_cred_kind_names[req->kind],

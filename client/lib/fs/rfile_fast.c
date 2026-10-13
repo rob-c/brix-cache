@@ -31,6 +31,7 @@
  * attach/detach and the socket's blocking mode.  The ring and the fill → wait →
  * deliver loop over it are in rfile_fast_ring.c, behind rfile_fast.h.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "rfile_fast.h"
 #include "brix_ops.h"
@@ -115,7 +116,7 @@ static void
 fast_trace(const char *what, long long a, long long b)
 {
     if (getenv("XRDC_PIPELINE_TRACE") != NULL) {
-        fprintf(stderr, "brix pipeline: %s %lld %lld\n", what, a, b);
+        BRIX_CLIENT_LOG("DEBUG", "brix pipeline: %s %lld %lld\n", what, a, b);
     }
 }
 

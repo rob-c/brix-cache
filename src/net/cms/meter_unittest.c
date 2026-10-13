@@ -1,16 +1,40 @@
 /*
  * meter_unittest.c — standalone unit test for the CMS load meter (Phase-89 W4).
  *
- *   gcc -Wall -Wextra -Werror -I src/net/cms -o /tmp/cms_meter_ut \
+ *   gcc -Wall -Wextra -Werror -I src -I src/net/cms \
+ *       -DBRIX_PLATFORM_HOST=darwin -DBRIX_PLATFORM_DARWIN=1 \
+ *       -DBRIX_PLATFORM_LINUX=0 -DBRIX_PLATFORM_WINDOWS=0 \
+ *       -o /tmp/cms_meter_ut \
  *       src/net/cms/meter_unittest.c src/net/cms/meter.c && /tmp/cms_meter_ut
  *
  * Exit 0 = all checks pass. No nginx dependency (meter.c is pure C).
  */
 
 #include "meter.h"
+#include "platform/platform_api.h"
 
 #include <stdio.h>
 #include <string.h>
+
+/* The standalone test does not link a host PAL. This deterministic sample
+ * pins the portable CMS conversion and delta logic independently of host load. */
+int brix_plat_cpu_count(void) { return 4; }
+int
+brix_plat_sysload_sample(brix_plat_sysload_t *sample)
+{
+    static uint64_t tick;
+
+    memset(sample, 0, sizeof(*sample));
+    sample->load1 = 2.0;
+    sample->total_memory = 100;
+    sample->available_memory = 25;
+    sample->net_bytes = 1000 + tick * 100;
+    sample->paging_events = 20 + tick;
+    sample->have = BRIX_SYSLOAD_HAVE_LOAD | BRIX_SYSLOAD_HAVE_MEMORY
+        | BRIX_SYSLOAD_HAVE_NET | BRIX_SYSLOAD_HAVE_PAGING;
+    tick++;
+    return 0;
+}
 
 static int   g_fail;
 #define CHECK(cond) do { \
@@ -72,6 +96,20 @@ test_meminfo(void)
 
 
 static void
+test_memory_pct(void)
+{
+    uint8_t pct = 77;
+
+    CHECK(brix_cms_meter_memory_pct(1000, 250, &pct) == 0);
+    CHECK(pct == 75);
+    CHECK(brix_cms_meter_memory_pct(100, 200, &pct) == 0);
+    CHECK(pct == 0);
+    CHECK(brix_cms_meter_memory_pct(0, 0, &pct) == -1);
+    CHECK(brix_cms_meter_memory_pct(100, 50, NULL) == -1);
+}
+
+
+static void
 test_netdev(void)
 {
     uint64_t total = 0;
@@ -128,19 +166,19 @@ test_rate_pct(void)
 
 
 static void
-test_sample_live(void)
+test_sample_driver(void)
 {
-    /* Smoke on the real /proc: bytes must be percentages and the call must
-     * not crash; the first (unprimed) sample reports 0 for net/pag. */
+    /* The first sample reports zero deltas; the second consumes monotonic PAL
+     * counters without ever accepting a configurable host path. */
     brix_cms_meter_t m;
     uint8_t out5[5] = {1, 2, 3, 4, 5};
 
     memset(&m, 0, sizeof(m));
     brix_cms_meter_sample(&m, 1000, out5);
-    CHECK(out5[0] <= 100);
+    CHECK(out5[0] == 50);
     CHECK(out5[1] == 0);                    /* unprimed delta */
     CHECK(out5[2] == 0);                    /* xeq always 0 */
-    CHECK(out5[3] <= 100);
+    CHECK(out5[3] == 75);
     CHECK(out5[4] == 0);                    /* unprimed delta */
 
     brix_cms_meter_sample(&m, 2000, out5);  /* primed second sample */
@@ -154,10 +192,11 @@ main(void)
 {
     test_loadavg();
     test_meminfo();
+    test_memory_pct();
     test_netdev();
     test_vmstat();
     test_rate_pct();
-    test_sample_live();
+    test_sample_driver();
 
     if (g_fail) {
         printf("%d check(s) FAILED\n", g_fail);

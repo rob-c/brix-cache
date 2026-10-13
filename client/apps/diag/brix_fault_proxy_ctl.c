@@ -17,6 +17,7 @@
  *       flushes, then drain the reply. Exit: 0 ok/status · 3 err/{"ok":false} ·
  *       4 connect failure · 2 usage. The server code is untouched.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -199,7 +200,7 @@ fp_ctl_main(int argc, char **argv)
 
     int fd = ctl_dial(argv[2]);
     if (fd < 0) {
-        fprintf(stderr, "brix-fault-proxy: ctl: cannot reach %s\n", argv[2]);
+        BRIX_CLIENT_LOG("ERROR",  "brix-fault-proxy: ctl: cannot reach %s\n", argv[2]);
         return CTL_CONNFAIL;
     }
 

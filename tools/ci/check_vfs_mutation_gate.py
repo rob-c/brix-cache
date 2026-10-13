@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # check_vfs_mutation_gate.py — enforce "an export mutation is gated by the
 # endpoint's read-only policy" (phase-105 §4.1).
@@ -218,29 +223,29 @@ def regen():
 def check():
     patterns = _backlog_patterns()
     if patterns is None:
-        print(f"check_vfs_mutation_gate: missing {BACKLOG} "
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_mutation_gate.py', 'check', f"check_vfs_mutation_gate: missing {BACKLOG} "
               "(run with --regen to seed it)", file=sys.stderr)
         return 2
 
     violations = [v for v in current_violations()
                   if not any(p in v for p in patterns)]
     if violations:
-        print("ERROR: ungated export mutation — a read-only endpoint could be "
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_mutation_gate.py', 'check', "ERROR: ungated export mutation — a read-only endpoint could be "
               "written through this call.", file=sys.stderr)
-        print("       Use the policy-bearing twin (brix_vfs_export_*, "
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_mutation_gate.py', 'check', "       Use the policy-bearing twin (brix_vfs_export_*, "
               "fs/vfs/vfs_policy.h), which refuses", file=sys.stderr)
-        print("       a read-only export with EROFS before touching the "
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_mutation_gate.py', 'check', "       a read-only export with EROFS before touching the "
               "filesystem:", file=sys.stderr)
         for line in violations:
-            print("    " + line, file=sys.stderr)
-        print("", file=sys.stderr)
-        print("If the mutation is SERVICE-OWNED — reclaiming a temp or journal "
+            _brix_diagnostic('ERROR', 'tools/ci/check_vfs_mutation_gate.py', 'check', "    " + line, file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_mutation_gate.py', 'check', "", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_mutation_gate.py', 'check', "If the mutation is SERVICE-OWNED — reclaiming a temp or journal "
               "record this server", file=sys.stderr)
-        print("itself created under an already-authorised write — add a "
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_mutation_gate.py', 'check', "itself created under an already-authorised write — add a "
               "'/* vfs-mutation-gate-allow:", file=sys.stderr)
-        print("<reason> */' marker on the call or in the comment block above "
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_mutation_gate.py', 'check', "<reason> */' marker on the call or in the comment block above "
               "it. A 'vfs-seam-allow'", file=sys.stderr)
-        print("marker does NOT waive mutation policy (phase-105 §4.1).",
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_mutation_gate.py', 'check', "marker does NOT waive mutation policy (phase-105 §4.1).",
               file=sys.stderr)
         return 1
 

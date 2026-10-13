@@ -27,6 +27,8 @@ import time
 from pathlib import Path
 from urllib.parse import quote
 
+from lib_py.util import nologin_shell
+
 # utils/ lives at the repo root, one level above tests/.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
@@ -85,7 +87,7 @@ def provision_accounts() -> None:
                        check=True, capture_output=True)
         subprocess.run(
             ["useradd", "-M", "-N", "-o", "-u", str(uid), "-g", str(uid),
-             "-s", "/usr/sbin/nologin", u],
+             "-s", nologin_shell(), u],
             check=True, capture_output=True)
 
 

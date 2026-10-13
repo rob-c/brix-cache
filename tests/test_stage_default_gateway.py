@@ -33,6 +33,7 @@ import textwrap
 import pytest
 
 from settings import BIND_HOST, HOST, NGINX_BIN, worker_runtime_uid
+from cmdscripts.live_common import inject_nginx_load_modules
 from server_launcher import RegistryCommandFailure
 from server_registry import NginxInstanceSpec
 
@@ -177,7 +178,8 @@ def test_privatetmp_service_warned_loudly(tmp_path):
 
     base = "/var/tmp/brix-privatetmp-test"
     shutil.rmtree(base, ignore_errors=True)
-    for d in ("logs", "tmp", "data"):
+    for d in ("logs", "tmp", "tmp/client", "tmp/proxy", "tmp/fastcgi",
+              "tmp/uwsgi", "tmp/scgi", "data"):
         os.makedirs(os.path.join(base, d), exist_ok=True)
     conf = os.path.join(base, "nginx.conf")
     with open(conf, "w") as f:
@@ -189,7 +191,11 @@ def test_privatetmp_service_warned_loudly(tmp_path):
             events {{ worker_connections 64; }}
             http {{
                 access_log off;
-                client_body_temp_path {base}/tmp;
+                client_body_temp_path {base}/tmp/client;
+                proxy_temp_path {base}/tmp/proxy;
+                fastcgi_temp_path {base}/tmp/fastcgi;
+                uwsgi_temp_path {base}/tmp/uwsgi;
+                scgi_temp_path {base}/tmp/scgi;
                 server {{
                     listen {BIND_HOST}:39199;
                     location /dav/ {{
@@ -202,6 +208,10 @@ def test_privatetmp_service_warned_loudly(tmp_path):
                 }}
             }}
             """))
+    # This case launches a copied nginx directly rather than through the
+    # lifecycle runner, so carry the selected packaged build's dynamic module
+    # preamble into its handwritten config before entering the mount namespace.
+    inject_nginx_load_modules(conf, NGINX_BIN)
     # The build-tree nginx binary may itself live under /tmp — copy it out so
     # it survives the bind mount that replaces /tmp inside the namespace.
     nginx = os.path.join(base, "nginx")

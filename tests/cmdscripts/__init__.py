@@ -335,7 +335,14 @@ def _hand_conf_credentials_to_worker(conf, tree) -> None:
 
 def _worker_user() -> str | None:
     import pwd  # noqa: PLC0415
-    worker = os.environ.get("BRIX_WORKER_USER", "nobody")
+    worker = os.environ.get("BRIX_WORKER_USER")
+    if worker is None:
+        from brix_suite.worker_identity import (  # noqa: PLC0415
+            nginx_default_worker_user,
+        )
+        from settings import NGINX_BIN  # noqa: PLC0415
+
+        worker = nginx_default_worker_user(str(NGINX_BIN))
     try:
         pwd.getpwnam(worker)
     except KeyError:

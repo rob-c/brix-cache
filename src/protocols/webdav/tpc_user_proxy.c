@@ -15,6 +15,7 @@
  *     PASSTHROUGH seam uses (brix_proxy_gsi_write_pem_temp).
  */
 
+#include "core/compat/log_event.h"
 #include "tpc_user_proxy.h"
 
 #include "fs/backend/ucred.h"          /* brix_sd_ucred_select / brix_sd_ucred_t */
@@ -82,7 +83,7 @@ webdav_tpc_user_proxy_materialise(ngx_http_request_t *r,
     webdav_tpc_user_proxy_temp_t   *payload;
 
     if (brix_proxy_gsi_write_pem_temp(pem, pem_len, tmp, sizeof(tmp)) != 0) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, ngx_errno,
                       "brix_webdav: TPC pull could not materialise delegated"
                       " proxy temp");
         return NGX_ERROR;
@@ -148,7 +149,7 @@ webdav_tpc_user_proxy_from_passthrough(ngx_http_request_t *r,
         out->deny = 1;
         return 1;
     }
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
                   "brix_webdav: TPC pull presenting delegated proxy"
                   " (passthrough) to source");
     return 1;
@@ -212,7 +213,7 @@ webdav_tpc_user_proxy_from_store(ngx_http_request_t *r,
     out->have      = 1;
     out->cert_path = path;
     out->key_path  = path;   /* stored .pem carries cert + key in one file */
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
                   "brix_webdav: TPC pull presenting delegated proxy"
                   " (store) to source");
     brix_sd_ucred_wipe(&cred);   /* x509 proxy PATH captured; erase residue */

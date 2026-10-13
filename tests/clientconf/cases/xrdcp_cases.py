@@ -24,6 +24,7 @@ TOOL = "xrdcp"
 DL_EPS = frozenset({"anon", "gsi", "tls", "token", "ref"})
 UP_EPS = frozenset({"anon", "gsi", "tls", "token", "ref"})
 KNOB_EPS = frozenset({"anon", "gsi", "tls", "token", "ref"})   # knobs across all tiers
+VERIFY_EPS = KNOB_EPS - {"ref"}  # reference fixture has no Qcksum capability
 
 
 # --------------------------------------------------------------------------- #
@@ -160,7 +161,7 @@ def _upload_cases():
 
 def _knobs():
     return [
-        KnobSpec("--verify", _b_rc0, endpoints=KNOB_EPS),
+        KnobSpec("--verify", _b_rc0, endpoints=VERIFY_EPS),
         KnobSpec("--pgrw", _b_rc0, endpoints=KNOB_EPS),
         KnobSpec("--compress", _b_rc0, extra_args=["gzip"], endpoints=KNOB_EPS),
         KnobSpec("--no-retry", _b_rc0, endpoints=KNOB_EPS),

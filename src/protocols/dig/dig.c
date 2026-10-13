@@ -11,6 +11,7 @@
  *     unset/unreadable allow-file, or no matching rule all DENY (403).
  */
 
+#include "core/compat/log_event.h"
 #include "dig.h"
 #include "protocols/webdav/webdav.h"
 #include "fs/path/beneath.h"
@@ -263,7 +264,7 @@ dig_authz(ngx_http_request_t *r, ngx_http_brix_webdav_loc_conf_t *conf,
     if (dig_authorize((const char *) conf->dig_auth_file.data, principal,
                       req->export) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                       "xrootd dig: deny principal=\"%s\" export=\"%s\"",
                       principal ? principal : "(anonymous)", req->export);
         return NGX_HTTP_FORBIDDEN;

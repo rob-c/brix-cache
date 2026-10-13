@@ -125,6 +125,22 @@ def _matrix_cursor_path() -> "Path":
     return root / f"cvmfs-matrix-cursor.{_MATRIX_BASE}"
 
 
+def _read_matrix_cursor(cursor) -> int:
+    cursor.seek(0)
+    try:
+        return int(cursor.read().strip() or "0")
+    except ValueError:
+        return 0
+
+
+def _choose_matrix_port(nxt: int) -> tuple[int, int]:
+    for step in range(_MATRIX_WIDTH):
+        candidate = _MATRIX_BASE + ((nxt + step) % _MATRIX_WIDTH)
+        if _port_is_free(candidate):
+            return candidate, step + 1
+    return _MATRIX_BASE + (nxt % _MATRIX_WIDTH), 1
+
+
 def matrix_port() -> int:
     """Return a distinct fixed port from the cvmfs matrix sub-range.
 
@@ -143,19 +159,8 @@ def matrix_port() -> int:
         with open(path, "a+", encoding="utf-8") as cursor:
             fcntl.flock(cursor.fileno(), fcntl.LOCK_EX)
             try:
-                cursor.seek(0)
-                try:
-                    nxt = int(cursor.read().strip() or "0")
-                except ValueError:
-                    nxt = 0
-                chosen, advance = None, 1
-                for step in range(_MATRIX_WIDTH):
-                    candidate = _MATRIX_BASE + ((nxt + step) % _MATRIX_WIDTH)
-                    if _port_is_free(candidate):
-                        chosen, advance = candidate, step + 1
-                        break
-                if chosen is None:               # every slot busy: let it fail loudly
-                    chosen, advance = _MATRIX_BASE + (nxt % _MATRIX_WIDTH), 1
+                nxt = _read_matrix_cursor(cursor)
+                chosen, advance = _choose_matrix_port(nxt)
                 cursor.seek(0)
                 cursor.truncate()
                 cursor.write(str(nxt + advance))

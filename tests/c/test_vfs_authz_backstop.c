@@ -16,13 +16,6 @@ static unsigned metric_count[BRIX_AUTHZ_BACKSTOP_RESULT_N];
 static char order_tape[8];
 static size_t order_len;
 
-void
-ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
-    const char *fmt, ...)
-{
-    (void) level; (void) log; (void) err; (void) fmt;
-}
-
 static void
 reset_spy(void)
 {

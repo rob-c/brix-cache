@@ -49,6 +49,11 @@ int  brix_web_readdir(const brix_weburl *u, const char *path, const char *bearer
                       int verify, const char *ca_dir, const char *client_cert,
                       brix_dirent **ents,
                       size_t *n, brix_status *st);
+/* Parse one already-bounded Depth-1 multistatus body into direct children.
+ * Used by diagnostics that must charge the request through their own budget. */
+int  brix_webdav_parse_dirents(const char *body, size_t body_len,
+                               const char *self, brix_dirent **ents,
+                               size_t *n, brix_status *st);
 /* Pooled keep-alive variants (Phase-86): the FUSE driver's getattr/readdir path.
  * `pool` is a brix_cpool of brix_webmeta (one origin+identity per pool); each
  * call reuses a persistent connection instead of connect/close per op. 0 / -1. */

@@ -146,6 +146,7 @@ All three modes run inside a single nginx instance. Details: [Deployment Modes](
 | [Build Guide](03-configuration/build-guide.md) | Detailed nginx source build with all dependencies |
 | [AlmaLinux 9 build and verification log](03-configuration/BUILD.md) | Required packages, nginx compatibility builds, current evidence and remaining verification work |
 | [Configuration Reference](03-configuration/config-reference.md) | All directives with defaults (complete reference) |
+| [XRootD Configuration Migration](03-configuration/xrootd-config-migration.md) | Use the offline assistant for common VOMS, PFC/PSS, XrdHttp, and XrdCeph/librados configurations |
 | [TLS Configuration](03-configuration/tls-config.md) | `root://` upgrade, `roots://`, HTTPS setup |
 | [Production Deployment](03-configuration/production-deployment.md) | Production deployment patterns and best practices |
 | [Read-Only Public `root://` Gateway](03-configuration/read-only-root-gateway.md) | Anonymous read-only `root://` front end for an XRootD origin, with the verified opcode-by-opcode refusal matrix |

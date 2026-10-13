@@ -38,6 +38,7 @@
  *       to the block truth. Mutating modes refuse to run against a catalog whose
  *       PRAGMA user_version this build does not know (fail-closed on schema).
  */
+#include "../../shared/observability/log_stdio.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -250,7 +251,7 @@ check_rows(sqlite3 *db, const struct opts *o, struct blobset *bs)
         "SELECT path, blob_id, size, block_size FROM objects "
         "WHERE is_dir = 0 AND blob_id <> '';", -1, &st, NULL);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "pblock-fsck: query objects: %s\n", sqlite3_errmsg(db));
+        BRIX_TOOL_LOG("ERROR",  "pblock-fsck: query objects: %s\n", sqlite3_errmsg(db));
         return 2;
     }
     while ((rc = sqlite3_step(st)) == SQLITE_ROW) {
@@ -417,7 +418,7 @@ verify_csi(sqlite3 *db, const struct opts *o)
         "SELECT path, blob_id FROM objects "
         "WHERE is_dir = 0 AND blob_id <> '';", -1, &rows, NULL);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "pblock-fsck: query objects: %s\n", sqlite3_errmsg(db));
+        BRIX_TOOL_LOG("ERROR",  "pblock-fsck: query objects: %s\n", sqlite3_errmsg(db));
         return 2;
     }
     if (sqlite3_prepare_v2(db,
@@ -512,7 +513,7 @@ verify_usage(sqlite3 *db)
         return 0;                          /* not a quota export ⇒ nothing */
     }
     if (sqlite3_prepare_v2(db, q, -1, &st, NULL) != SQLITE_OK) {
-        fprintf(stderr, "pblock-fsck: query usage: %s\n", sqlite3_errmsg(db));
+        BRIX_TOOL_LOG("ERROR",  "pblock-fsck: query usage: %s\n", sqlite3_errmsg(db));
         return 2;
     }
     while ((rc = sqlite3_step(st)) == SQLITE_ROW) {
@@ -571,7 +572,7 @@ verify_refs(sqlite3 *db)
     (void) snprintf(q + n, sizeof(q) - n,
         " AS refs FROM blobs b WHERE b.refcount != refs;");
     if (sqlite3_prepare_v2(db, q, -1, &st, NULL) != SQLITE_OK) {
-        fprintf(stderr, "pblock-fsck: query blobs: %s\n", sqlite3_errmsg(db));
+        BRIX_TOOL_LOG("ERROR",  "pblock-fsck: query blobs: %s\n", sqlite3_errmsg(db));
         return 2;
     }
     while ((rc = sqlite3_step(st)) == SQLITE_ROW) {
@@ -702,7 +703,7 @@ do_snapshot(sqlite3 *db, const char *name)
     int           rc;
 
     if (!snap_valid_name(name)) {
-        fprintf(stderr, "pblock-fsck: invalid snapshot name\n");
+        BRIX_TOOL_LOG("ERROR",  "pblock-fsck: invalid snapshot name\n");
         return 3;
     }
     if (snap_init_tables(db) != 0
@@ -720,7 +721,7 @@ do_snapshot(sqlite3 *db, const char *name)
     sqlite3_finalize(st);
     if (rc != SQLITE_DONE) {
         sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-        fprintf(stderr, "pblock-fsck: snapshot %s already exists\n", name);
+        BRIX_TOOL_LOG("INFO",  "pblock-fsck: snapshot %s already exists\n", name);
         return 1;
     }
     if (snap_run1(db,
@@ -752,11 +753,11 @@ do_restore(sqlite3 *db, const char *name)
     int           rc;
 
     if (!snap_valid_name(name)) {
-        fprintf(stderr, "pblock-fsck: invalid snapshot name\n");
+        BRIX_TOOL_LOG("ERROR",  "pblock-fsck: invalid snapshot name\n");
         return 3;
     }
     if (!table_present(db, "snapshots")) {
-        fprintf(stderr, "pblock-fsck: no snapshots on this export\n");
+        BRIX_TOOL_LOG("INFO",  "pblock-fsck: no snapshots on this export\n");
         return 1;
     }
     if (sqlite3_prepare_v2(db, "SELECT 1 FROM snapshots WHERE name = ?1;",
@@ -767,7 +768,7 @@ do_restore(sqlite3 *db, const char *name)
     rc = sqlite3_step(st);
     sqlite3_finalize(st);
     if (rc != SQLITE_ROW) {
-        fprintf(stderr, "pblock-fsck: snapshot %s not found\n", name);
+        BRIX_TOOL_LOG("ERROR",  "pblock-fsck: snapshot %s not found\n", name);
         return 1;
     }
     if (sqlite3_exec(db, "BEGIN IMMEDIATE;", NULL, NULL, NULL) != SQLITE_OK) {
@@ -893,7 +894,7 @@ do_undelete(sqlite3 *db, const char *path)
     int           rc;
 
     if (!table_present(db, "trash")) {
-        fprintf(stderr, "pblock-fsck: no trash on this export\n");
+        BRIX_TOOL_LOG("INFO",  "pblock-fsck: no trash on this export\n");
         return 1;
     }
     if (sqlite3_prepare_v2(db, "SELECT 1 FROM objects WHERE path = ?1;",
@@ -904,7 +905,7 @@ do_undelete(sqlite3 *db, const char *path)
     rc = sqlite3_step(st);
     sqlite3_finalize(st);
     if (rc == SQLITE_ROW) {
-        fprintf(stderr, "pblock-fsck: %s already exists (EEXIST)\n", path);
+        BRIX_TOOL_LOG("INFO",  "pblock-fsck: %s already exists (EEXIST)\n", path);
         return 1;
     }
     if (sqlite3_exec(db, "BEGIN IMMEDIATE;", NULL, NULL, NULL) != SQLITE_OK) {
@@ -922,7 +923,7 @@ do_undelete(sqlite3 *db, const char *path)
     if (sqlite3_step(st) != SQLITE_ROW) {
         sqlite3_finalize(st);
         sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-        fprintf(stderr, "pblock-fsck: %s not in trash\n", path);
+        BRIX_TOOL_LOG("INFO",  "pblock-fsck: %s not in trash\n", path);
         return 1;
     }
     trash_id = sqlite3_column_int64(st, 0);
@@ -1185,7 +1186,7 @@ replay_diff(sqlite3 *tgt, const char *label)
                 " WHERE a.path = b.path AND (a.is_dir <> b.is_dir"
                 "    OR a.size <> b.size OR a.uid <> b.uid OR a.gid <> b.gid)"
                 " ORDER BY 1;", -1, &st, NULL) != SQLITE_OK) {
-            fprintf(stderr, "pblock-fsck: replay diff query failed\n");
+            BRIX_TOOL_LOG("ERROR",  "pblock-fsck: replay diff query failed\n");
             g_findings++;
             return;
         }
@@ -1228,7 +1229,7 @@ do_replay(sqlite3 *db, const char *srcdb)
     int           rc = 0;
 
     if (strchr(srcdb, '\'') != NULL) {     /* path is spliced into ATTACH */
-        fprintf(stderr, "pblock-fsck: source path must not contain '\n");
+        BRIX_TOOL_LOG("INFO",  "pblock-fsck: source path must not contain '\n");
         return 2;
     }
     /* Prefer a read-only URI attach; fall back to a plain-path attach when
@@ -1239,14 +1240,14 @@ do_replay(sqlite3 *db, const char *srcdb)
         snprintf(attach, sizeof(attach),
                  "ATTACH DATABASE '%s' AS src;", srcdb);
         if (sqlite3_exec(db, attach, NULL, NULL, NULL) != SQLITE_OK) {
-            fprintf(stderr, "pblock-fsck: cannot attach source %s: %s\n",
+            BRIX_TOOL_LOG("ERROR",  "pblock-fsck: cannot attach source %s: %s\n",
                     srcdb, sqlite3_errmsg(db));
             return 2;
         }
     }
     if (sqlite3_prepare_v2(db, "SELECT 1 FROM src.oplog LIMIT 1;", -1, &st,
                            NULL) != SQLITE_OK) {
-        fprintf(stderr, "pblock-fsck: source catalog has no oplog table "
+        BRIX_TOOL_LOG("INFO",  "pblock-fsck: source catalog has no oplog table "
                         "(driver ran without audit=1)\n");
         return 2;
     }
@@ -1262,7 +1263,7 @@ do_replay(sqlite3 *db, const char *srcdb)
             sqlite3_finalize(st);
         }
         if (have) {
-            fprintf(stderr, "pblock-fsck: refusing --replay into a non-empty "
+            BRIX_TOOL_LOG("ERROR",  "pblock-fsck: refusing --replay into a non-empty "
                             "catalog (target must be a fresh export)\n");
             return 3;
         }
@@ -1283,7 +1284,7 @@ do_replay(sqlite3 *db, const char *srcdb)
             "  xform TEXT NOT NULL DEFAULT '');"
             "CREATE INDEX IF NOT EXISTS objects_parent ON objects(parent);",
             NULL, NULL, NULL) != SQLITE_OK) {
-        fprintf(stderr, "pblock-fsck: cannot create target schema: %s\n",
+        BRIX_TOOL_LOG("ERROR",  "pblock-fsck: cannot create target schema: %s\n",
                 sqlite3_errmsg(db));
         return 2;
     }
@@ -1348,7 +1349,7 @@ do_replay(sqlite3 *db, const char *srcdb)
     }
     sqlite3_finalize(st);
     if (rc != 0) {
-        fprintf(stderr, "pblock-fsck: replay write failed: %s\n",
+        BRIX_TOOL_LOG("ERROR",  "pblock-fsck: replay write failed: %s\n",
                 sqlite3_errmsg(db));
         return 2;
     }
@@ -1410,7 +1411,7 @@ main(int argc, char **argv)
 
     snprintf(catpath, sizeof(catpath), "%s/catalog.db", o.root);
     if (sqlite3_open(catpath, &db) != SQLITE_OK) {
-        fprintf(stderr, "pblock-fsck: open %s: %s\n", catpath,
+        BRIX_TOOL_LOG("ERROR",  "pblock-fsck: open %s: %s\n", catpath,
                 sqlite3_errmsg(db));
         sqlite3_close(db);
         return 2;
@@ -1420,7 +1421,7 @@ main(int argc, char **argv)
     if ((o.gc || o.repair || o.snapshot || o.restore || o.undelete || o.replay)
         && !schema_known(db))
     {
-        fprintf(stderr, "pblock-fsck: refusing a mutating op on an unknown "
+        BRIX_TOOL_LOG("ERROR",  "pblock-fsck: refusing a mutating op on an unknown "
                         "catalog schema version\n");
         sqlite3_close(db);
         return 3;

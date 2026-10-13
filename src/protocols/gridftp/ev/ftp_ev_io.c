@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "ftp_ev.h"
 
 #include <unistd.h>    /* close() for the passive listener on teardown */
@@ -103,7 +104,7 @@ brix_ftp_ev_finalize(ftp_ev_t *fc, ngx_int_t rc)
         fc->pasv_fd = -1;
     }
 
-    ngx_log_error(NGX_LOG_INFO, fc->c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, fc->c->log, 0,
                   "brix: GridFTP(ev) gateway session end");
     ngx_stream_finalize_session(fc->s, (ngx_uint_t) rc);
 }
@@ -220,7 +221,7 @@ brix_ftp_ev_process(ftp_ev_t *fc)
         /* (2) Frame and dispatch one complete command line. */
         line = ev_take_line(fc, &too_long);
         if (too_long) {
-            ngx_log_error(NGX_LOG_INFO, c->log, 0,
+            BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                           "brix: GridFTP(ev) over-long command line — closing");
             brix_ftp_ev_finalize(fc, NGX_STREAM_OK);
             return;
@@ -263,7 +264,7 @@ brix_ftp_ev_read_handler(ngx_event_t *rev)
                                    ngx_stream_brix_ftp_module);
 
     if (rev->timedout) {
-        ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
+        BRIX_LOG(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
                       "brix: GridFTP(ev) control channel idle timeout");
         c->timedout = 1;
         brix_ftp_ev_finalize(fc, NGX_STREAM_OK);
@@ -287,7 +288,7 @@ brix_ftp_ev_write_handler(ngx_event_t *wev)
                                    ngx_stream_brix_ftp_module);
 
     if (wev->timedout) {
-        ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
+        BRIX_LOG(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
                       "brix: GridFTP(ev) control channel write timeout");
         c->timedout = 1;
         brix_ftp_ev_finalize(fc, NGX_STREAM_OK);
@@ -336,7 +337,7 @@ brix_ftp_ev_handler(ngx_stream_session_t *s)
     c->read->handler  = brix_ftp_ev_read_handler;
     c->write->handler = brix_ftp_ev_write_handler;
 
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "brix: GridFTP(ev) gateway session start (export=%s write=%d)",
                   conf->common.root_canon, conf->common.allow_write ? 1 : 0);
 

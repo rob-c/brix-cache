@@ -92,8 +92,13 @@ brix_readv_validate_extent(brix_ctx_t *ctx, ngx_connection_t *c,
 {
     off_t file_size;
 
-    if (offset < 0 || brix_readv_current_size(ctx, handle_index, &file_size)
-                      != NGX_OK
+    if (offset < 0) {
+        BRIX_OP_ERR(ctx, BRIX_OP_READV);
+        *rc_out = brix_send_error(ctx, c, kXR_ArgInvalid,
+                                    "readv offset is negative");
+        return 0;
+    }
+    if (brix_readv_current_size(ctx, handle_index, &file_size) != NGX_OK
         || file_size < 0 || (uint64_t) offset > (uint64_t) file_size
         || length > (size_t) ((uint64_t) file_size - (uint64_t) offset))
     {
@@ -169,6 +174,13 @@ brix_readv_validate_and_size(brix_ctx_t *ctx, ngx_connection_t *c,
         if (!brix_validate_read_handle(ctx, c, handle_index, "READV",
                                          BRIX_OP_READV, &validate_rc)) {
             *rc_out = validate_rc;
+            return 0;
+        }
+
+        if ((int32_t) read_length < 0) {
+            BRIX_OP_ERR(ctx, BRIX_OP_READV);
+            *rc_out = brix_send_error(ctx, c, kXR_ArgInvalid,
+                                        "readv length is negative");
             return 0;
         }
 

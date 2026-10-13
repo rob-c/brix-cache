@@ -3,7 +3,7 @@
 With `quota=`/`quota_inodes=` in the backend `?tail`, the driver arms a
 `usage(scope, id, bytes, inodes)` rollup maintained by SQLite triggers on
 `objects` (transactional by construction — no call site can forget it) and
-refuses quota-busting work with EDQUOT (→ kXR_NoSpace on the wire) at the
+refuses quota-busting work with EDQUOT (→ kXR_overQuota on the wire) at the
 catalog boundaries: create, staged open/commit, mkdir, server_copy and the
 close-time size write-back. The armed byte quota also feeds the driver `space`
 slot, so `xrdfs statvfs` reports the quota — not the backing disk. The tests
@@ -222,7 +222,7 @@ def test_quota_rollup_tracks_workload_and_statvfs(lifecycle, fsck: Path) -> None
 @pytest.mark.timeout(150)
 def test_quota_exceeded_put_fails_and_rolls_back(lifecycle, fsck: Path) -> None:
     """(error) With a 3m byte quota, the first 2.5MB PUT lands and the second
-    is refused at staged-commit (EDQUOT → kXR_NoSpace) — before the existing
+    is refused at staged-commit (EDQUOT → kXR_overQuota) — before the existing
     namespace is touched: the first file still reads byte-exact, the usage
     rollup is unchanged by the refused transfer, and the oracle stays quiet
     (the abort path leaked nothing into the accounting)."""
@@ -240,7 +240,7 @@ def test_quota_exceeded_put_fails_and_rolls_back(lifecycle, fsck: Path) -> None:
         _check_test_quota_exceeded_put_fails_and_rolls_back_11(before)
 
         # 2.5MB more against a 3m quota → refused on the wire (EDQUOT →
-        # kXR_NoSpace at the pwrite that would cross the cap).
+        # kXR_overQuota at the pwrite that would cross the cap).
         over = run.call([XRDCP, "-f", src, f"{hub}second.bin"], check=False)
         _check_test_quota_exceeded_put_fails_and_rolls_back_12(over)
 

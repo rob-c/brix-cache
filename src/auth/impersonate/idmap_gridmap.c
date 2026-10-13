@@ -14,6 +14,7 @@
  *   in idmap_internal.h).  No goto; pure helpers, side effects at the edges.
  */
 
+#include "core/compat/log_event.h"
 #include "impersonate.h"
 #include "core/compat/cstr.h"
 #include "idmap_internal.h"
@@ -148,7 +149,7 @@ idmap_gridmap_load(const char *path, ngx_log_t *log)
     fp = fopen(path, "re");
     if (fp == NULL) {
         if (log != NULL) {
-            ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
+            BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
                           "impersonate: cannot open grid-mapfile \"%s\"", path);
         }
         return NGX_ERROR;
@@ -189,7 +190,7 @@ idmap_gridmap_load(const char *path, ngx_log_t *log)
     (void) fclose(fp);
 
     if (log != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                       "impersonate: loaded %uz grid-mapfile entries from \"%s\"",
                       idmap_gridmap_n, path);
     }

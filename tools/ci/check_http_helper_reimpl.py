@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # check_http_helper_reimpl.py — protocols must not regrow private copies of the
 # shared HTTP helpers in src/core/http/.  Faithful Python port of the byte-for-byte
@@ -132,9 +137,9 @@ def main() -> int:
     os.chdir(ROOT)
     ok, msgs = run(ROOT)
     for m in msgs:
-        print(m, file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_http_helper_reimpl.py', 'main', m, file=sys.stderr)
     if not ok:
-        print("check_http_helper_reimpl: FAIL", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_http_helper_reimpl.py', 'main', "check_http_helper_reimpl: FAIL", file=sys.stderr)
         return 1
     print("check_http_helper_reimpl: OK")
     return 0

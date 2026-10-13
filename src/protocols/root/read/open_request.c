@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "open.h"
 #include "open_internal.h"
 #include "protocols/ssi/ssi.h"
@@ -109,7 +110,7 @@ brix_open_opaque_guard(brix_ctx_t *ctx, ngx_connection_t *c,
 	}
 
 	if (brix_opaque_illegal_byte(opq_raw, &bad_byte)) {
-		ngx_log_error(NGX_LOG_INFO, c->log, 0,
+		BRIX_LOG(NGX_LOG_INFO, c->log, 0,
 					  "brix: rejecting kXR_open — illegal opaque byte 0x%02xd",
 					  (int) bad_byte);
 		BRIX_RETURN_ERR(ctx, c,
@@ -124,7 +125,7 @@ brix_open_opaque_guard(brix_ctx_t *ctx, ngx_connection_t *c,
 												sizeof(badkey));
 
 		if (verdict != BRIX_OPAQUE_SCHEMA_OK) {
-			ngx_log_error(NGX_LOG_INFO, c->log, 0,
+			BRIX_LOG(NGX_LOG_INFO, c->log, 0,
 						  "brix: rejecting kXR_open — opaque schema %s for key \"%s\"",
 						  verdict == BRIX_OPAQUE_SCHEMA_BAD_TYPE
 							  ? "type mismatch" : "unknown key",
@@ -177,12 +178,16 @@ brix_open_precheck(brix_ctx_t *ctx, ngx_connection_t *c,
 	/* Strip XRootD CGI query string ("?oss.asize=N" etc.) from the path.
 	 * xrdcp and other clients append these for metadata; they are not part
 	 * of the filesystem path. */
-	if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
-							 clean_path, PATH_MAX, 1)) {
-		BRIX_RETURN_ERR(ctx, c,
-						  op,
-						  "OPEN", "-", md,
-						  kXR_ArgInvalid, "invalid path payload");
+	{
+		int path_error;
+
+		if (!brix_extract_path_kxr(c->log, ctx->recv.payload,
+				ctx->recv.cur_dlen, clean_path, PATH_MAX, 1, &path_error)) {
+			BRIX_RETURN_ERR(ctx, c,
+							  op,
+							  "OPEN", "-", md,
+							  path_error, "invalid path payload");
+		}
 	}
 
 	/* Reject any ".." component (the reference does not normalize ".."); the
@@ -343,6 +348,38 @@ brix_open_declared_asize(brix_ctx_t *ctx)
 	return (off_t) brix_opaque_asize(opq);
 }
 
+/*
+ * WHAT: Detect mutually exclusive kXR_open access-mode bits.
+ * WHY:  Treating an all-bits or multi-mode request as an ordered set of hints
+ *       partially honours attacker-chosen semantics (for example truncate plus
+ *       append) instead of rejecting the contradictory request atomically.
+ * HOW:  Normalize the stock-compatible wrto|apnd spelling to append, then count
+ *       the effective access modes; zero/one is defined and two or more fails
+ *       before TPC, path, or VFS work.
+ */
+static int
+brix_open_options_conflict(uint16_t options)
+{
+	uint16_t access = options
+	    & (kXR_open_read | kXR_open_updt | kXR_open_apnd | kXR_open_wrto);
+	unsigned count = 0;
+
+	/* Stock clients send wrto|apnd for a write-only append open.  In that
+	 * shape wrto declares the access direction and apnd refines its placement;
+	 * they are one effective mode, not two contradictory modes. */
+	if ((access & (kXR_open_wrto | kXR_open_apnd))
+	    == (kXR_open_wrto | kXR_open_apnd))
+	{
+		access &= (uint16_t) ~kXR_open_wrto;
+	}
+
+	while (access != 0) {
+		count += access & 1U;
+		access >>= 1;
+	}
+	return count > 1;
+}
+
 /* 2.0 F5 (upstream pfc.urlcgi): the per-open cache hints, read leniently from
  * the raw opaque ("?pfc.blocksize=N&pfc.prefetch=M") on a READ open, after the
  * opaque guard has passed (strict mode already rejected a malformed value as
@@ -466,6 +503,18 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 
 	/* Determine whether this is a write-mode open (shared write-bit set). */
 	is_write = brix_open_options_is_write(options);
+	if (brix_open_options_conflict(options)) {
+		BRIX_RETURN_ERR(ctx, c,
+			is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
+			"OPEN", "-", is_write ? "wr" : "rd",
+			kXR_ArgInvalid, "conflicting open access modes");
+	}
+	if (options & kXR_replica) {
+		BRIX_RETURN_ERR(ctx, c,
+			is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
+			"OPEN", "-", is_write ? "wr" : "rd",
+			kXR_Unsupported, "replica open is not supported");
+	}
 
 	/*
 	 * §7 XrdSsi: an open of a "/.ssi/<service>" resource is a unary RPC channel,

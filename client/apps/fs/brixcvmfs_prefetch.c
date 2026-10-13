@@ -14,6 +14,7 @@
  *       checkout, so it never races the foreground loop) and is bounded by a
  *       byte budget. Single-writer packed caches share the mount's store.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "cvmfs/walk/walk.h"
 #include "cvmfs/bundle/bundle.h"
 #include "brixcvmfs_split.h"
@@ -170,7 +171,7 @@ static int pf_visit(const cvmfs_walk_item_t *it, void *ud) {
     if (g_pf.budget > 0 && g_pf.spent >= g_pf.budget) {
         if (!g_pf.capped) {
             g_pf.capped = 1;
-            fprintf(stderr, "brixcvmfs: audit signal=prefetchcap repo=%s "
+            BRIX_CLIENT_LOG("INFO",  "brixcvmfs: audit signal=prefetchcap repo=%s "
                     "budget=%ld spent=%ld (prefetch stopped, foreground unaffected)\n",
                     g_cl->config.name, g_pf.budget, g_pf.spent);
         }

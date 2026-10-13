@@ -19,6 +19,7 @@
  *   pure helpers, side effects at the edges.
  */
 
+#include "core/compat/log_event.h"
 #include "impersonate.h"
 #include "core/compat/cstr.h"
 #include "idmap_internal.h"
@@ -85,7 +86,7 @@ idmap_init_policy(const brix_idmap_conf_t *conf, ngx_log_t *log)
      */
     if (brix_idmap_get_min_uid() < BRIX_IMP_HARD_MIN_ID) {
         if (log != NULL) {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                           "impersonate: brix_idmap_min_uid %d raised to the hard "
                           "reserved-id floor %d (uids/gids below %d can never be "
                           "impersonated)", (int) brix_idmap_get_min_uid(),
@@ -219,7 +220,7 @@ brix_idmap_resolve(const brix_idmap_conf_t *conf, const char *principal,
 
     rc = idmap_resolve_uncached(principal, &creds, &user);
     if (rc != BRIX_IDMAP_OK && rc != BRIX_IDMAP_SQUASH && log != NULL) {
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
                       "impersonate: no UNIX mapping for principal \"%s\" "
                       "(user=\"%s\") -> deny", principal, user);
     }

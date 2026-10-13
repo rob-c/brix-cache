@@ -6,6 +6,7 @@
  * WebDAV PUT, and other operations that need crash-safe writes.
  */
 
+#include "core/compat/log_event.h"
 #include "staged_file.h"
 #include "tmp_path.h"
 #include "lock_record.h"                    /* phase-107 C7: lock carry-over */
@@ -19,7 +20,6 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "platform/platform_api.h"   /* lgetxattr / lsetxattr on every host */
 
 /*
  * Confinement (Phase 8): the temp file and its final destination always live
@@ -234,7 +234,7 @@ staged_seal_temp(ngx_log_t *log, const char *root_canon,
     }
     if (fsync(staged->fd) != 0) {
         int e = errno;
-        ngx_log_error(NGX_LOG_ERR, log, e,
+        BRIX_LOG(NGX_LOG_ERR, log, e,
                       "brix: staged commit fsync failed — not publishing "
                       "\"%s\"", final_path);
         ngx_close_file(staged->fd);
@@ -265,28 +265,41 @@ staged_seal_temp(ngx_log_t *log, const char *root_canon,
  *       not silently discharge the lock: RFC 4918 §7.4 — a write does not
  *       remove a lock. Only the lock STATE MACHINE (UNLOCK/expiry reap) may.
  *
- * HOW:  Quiet lgetxattr on the current destination; the absent class (ENOENT,
- *       ENODATA, ENOTSUP, an over-cap value) means nothing to carry (NGX_OK).
- *       A record found is copied VERBATIM onto the about-to-publish temp —
- *       expired records included: expiry is the gate's question, and the reap
- *       belongs to the WebDAV edge, never to a commit. A failed copy FAILS
- *       the commit (errno preserved): publishing would strip the lock.
+ * HOW:  Read the current destination through the confined xattr helper, which
+ *       routes through the mapped-user broker when impersonation is active.
+ *       The absent class (ENOENT, ENODATA, ENOTSUP, an over-cap value) means
+ *       nothing to carry (NGX_OK). A record found is copied VERBATIM through
+ *       the same helper onto the about-to-publish temp — expired records
+ *       included: expiry is the gate's question, and the reap belongs to the
+ *       WebDAV edge, never to a commit. A failed copy FAILS the commit (errno
+ *       preserved): publishing would strip the lock.
  */
 ngx_int_t
-brix_staged_lock_carry(ngx_log_t *log, const char *final_path,
-    const char *tmp_path)
+brix_staged_lock_carry(ngx_log_t *log, const char *root_canon,
+    const char *final_path, const char *tmp_path)
 {
     char     buf[BRIX_LOCK_XATTR_MAXLEN];
     ssize_t  n;
 
-    n = lgetxattr(final_path, BRIX_LOCK_XATTR_KEY, buf, sizeof(buf));
+    if (root_canon == NULL && brix_imp_client_active()) {
+        errno = EACCES;
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
+                 "brix: staged publish has no confinement root for mapped-user "
+                 "lock carry — refusing publish");
+        return NGX_ERROR;
+    }
+    n = brix_getxattr_confined_canon(log, root_canon, final_path,
+                                      BRIX_LOCK_XATTR_KEY, buf, sizeof(buf));
     if (n <= 0) {
         return NGX_OK;              /* absent class: nothing to carry */
     }
-    if (lsetxattr(tmp_path, BRIX_LOCK_XATTR_KEY, buf, (size_t) n, 0) != 0) {
+    if (brix_setxattr_confined_canon(log, root_canon, tmp_path,
+                                      BRIX_LOCK_XATTR_KEY, buf, (size_t) n,
+                                      0) != 0)
+    {
         int e = errno;
 
-        ngx_log_error(NGX_LOG_ERR, log, e,
+        BRIX_LOG(NGX_LOG_ERR, log, e,
                       "brix: staged publish could not carry the lock record "
                       "onto \"%s\" — refusing a lock-stripping publish",
                       tmp_path);
@@ -382,7 +395,8 @@ staged_commit_internal(ngx_log_t *log, const char *root_canon,
      * does not discharge it (brix_staged_lock_carry). The exclusive commit
      * (RENAME_NOREPLACE) has no destination inode to carry from. */
     if (!exclusive
-        && brix_staged_lock_carry(log, final_path, staged->tmp_path) != NGX_OK)
+        && brix_staged_lock_carry(log, root_canon, final_path,
+                                   staged->tmp_path) != NGX_OK)
     {
         int e = errno;
 
@@ -502,7 +516,7 @@ brix_publish_dirsync(ngx_log_t *log, int rootfd, const char *root_canon,
     if (fsync(dirfd) != 0) {
         e = errno;
         close(dirfd);
-        ngx_log_error(NGX_LOG_CRIT, log, e,
+        BRIX_LOG(NGX_LOG_CRIT, log, e,
                       "brix: durable publish: parent dirsync of \"%s\" "
                       "failed — the published name is NOT durable", final_path);
         errno = e ? e : EIO;

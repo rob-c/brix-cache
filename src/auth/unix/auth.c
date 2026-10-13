@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "observability/metrics/unified.h"
 #include "protocols/root/session/registry.h"
@@ -301,13 +302,13 @@ brix_unix_finalize(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ctx->login.session_slot_hint =
         brix_session_register(ctx->login.sessid, ctx->login.dn,
-                                ctx->login.vo_list, 0);
+                                ctx->login.vo_list, 0, 0);
     brix_unix_track_identity(ctx);
 
     brix_sanitize_log_string(names->user, safe_user, sizeof(safe_user));
     brix_sanitize_log_string(names->group[0] ? names->group : "-", safe_group,
                                sizeof(safe_group));
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "brix: unix auth OK user=\"%s\" group=\"%s\"",
                   safe_user, safe_group);
 }

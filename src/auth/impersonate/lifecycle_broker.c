@@ -11,6 +11,7 @@
  * is the module's single per-cycle master hook.
  */
 
+#include "core/compat/log_event.h"
 #include "lifecycle.h"
 #include "impersonate.h"
 #include "impersonate_proto.h"
@@ -63,7 +64,7 @@ imp_make_listen(const char *path, uid_t wuid, ngx_log_t *log)
     int                lfd;
 
     if (ngx_strlen(path) >= sizeof(addr.sun_path)) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, log, 0,
                       "impersonate: socket path too long \"%s\"", path);
         return -1;
     }
@@ -91,7 +92,7 @@ imp_make_listen(const char *path, uid_t wuid, ngx_log_t *log)
     chmod(path, BRIX_PERM_PRIVATE);
     if (wuid != (uid_t) -1) {
         if (chown(path, wuid, (gid_t) -1) != 0) {
-            ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+            BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                           "impersonate: chown socket to uid %d failed",
                           (int) wuid);
         }
@@ -121,7 +122,7 @@ imp_kill_stale_broker(ngx_log_t *log)
     }
     if (fscanf(fp, "%ld", &pid) == 1 && pid > 1 && kill((pid_t) pid, 0) == 0) {
         kill((pid_t) pid, SIGTERM);
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                       "impersonate: terminated stale broker pid %ld", pid);
     }
     (void) fclose(fp); /* phase74-fp: read-only pidfile stream, pid already parsed and acted on */
@@ -422,7 +423,7 @@ imp_spawn_broker(int lfd, int rootfd, ngx_log_t *log)
         sigprocmask(SIG_SETMASK, &prev, NULL);
         close(lfd);
         close(rootfd);
-        ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
                       "impersonate: broker fork failed");
         return NGX_ERROR;
     }
@@ -516,7 +517,7 @@ brix_imp_init_module(ngx_cycle_t *cycle)
         return NGX_ERROR;
     }
 
-    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
                   "impersonate: started privileged broker on \"%s\" "
                   "(export root \"%s\", worker uid %d)",
                   sockbuf, rootbuf, (int) wuid);

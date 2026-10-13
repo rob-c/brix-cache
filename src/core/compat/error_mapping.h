@@ -30,8 +30,9 @@
 /* Section 1: errno → kXR (and the inverse) */
 uint16_t brix_kxr_from_errno(int err);
 uint16_t brix_kxr_map_ns_status(brix_ns_status_t status, int sys_errno);
-/* kXR → errno (positive; 0 if not a recognised kXR error). Inverse of
- * brix_kxr_from_errno — the native client's POSIX layers negate the result. */
+/* kXR → representative errno (positive; 0 if not recognised). This is not
+ * a mathematical inverse: several native errors intentionally collapse onto
+ * one wire code. The native client's POSIX layers negate the result. */
 int brix_errno_from_kxr(uint16_t kxr);
 
 /* Section 2: errno → HTTP status codes (plain integer) */

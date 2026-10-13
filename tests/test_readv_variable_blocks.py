@@ -74,7 +74,10 @@ def demo_bin(tmp_path_factory):
     out = str(tmp_path_factory.mktemp("readv_demo") / "demo")
     cmd = [CC, "-std=c11", "-O2",
            f"-I{os.path.join(CLIENT, 'lib')}", f"-I{SRC}", "-DXRDPROTO_NO_NGX",
-           DEMO_SRC, LIBXRDC, LIBXRDPROTO,
+           # libxrdproto's storage objects introduce PAL references supplied
+           # by libbrix.  Repeat libbrix after it for single-pass static
+           # linkers, matching client/Makefile's documented BRIX_LIBS order.
+           DEMO_SRC, LIBXRDC, LIBXRDPROTO, LIBXRDC,
            "-lssl", "-lcrypto", "-lz",
            *_codec_link_libs(), *_krb5_link_libs(), *_uring_link_libs(),
            "-lpthread", "-ldl", "-o", out]

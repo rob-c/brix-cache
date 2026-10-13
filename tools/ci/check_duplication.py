@@ -45,6 +45,11 @@
 # Requires: lizard  (pip install --user lizard)
 
 from __future__ import annotations
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import os
 import re
@@ -99,9 +104,10 @@ _DATA_ROW = re.compile(
 
 
 def find_lizard() -> str | None:
-    """Locate lizard from PATH, the active virtualenv, or a user install."""
+    """Locate the active Python environment's lizard before PATH."""
     venv_lizard = Path(sys.executable).parent / "lizard"
-    for c in ("lizard", str(venv_lizard), os.path.expanduser("~/.local/bin/lizard")):
+    for c in (str(venv_lizard), "lizard",
+              os.path.expanduser("~/.local/bin/lizard")):
         if shutil.which(c) or os.path.exists(c):
             return c
     return None
@@ -151,6 +157,21 @@ def list_duplicates(lizard: str, root: Path = ROOT) -> list[str]:
             text=True,
             check=False,
         )
+        # Python lizard exits 1 when its ordinary warning table is non-empty,
+        # including for the over-threshold functions that this repository's
+        # separate complexity gate owns.  That is still a successful duplicate
+        # scan.  Any other non-zero shape is an invocation/runtime failure.
+        warning_exit = (
+            result.returncode == 1
+            and "NLOC" in result.stdout
+            and "location" in result.stdout
+        )
+        if result.returncode != 0 and not warning_exit:
+            detail = (result.stderr or result.stdout).strip()
+            raise RuntimeError(
+                f"lizard duplicate scan failed with exit "
+                f"{result.returncode}: {detail}"
+            )
         keys.extend(_parse_blocks(result.stdout))
     return sorted(set(keys))
 
@@ -337,7 +358,7 @@ def _verdict(fail_lines: list[str], exempt_count: int) -> int:
               f"{exempt_count} shape-only matches exempt)")
         return 0
     count = sum(1 for line in fail_lines if line.startswith("FAIL"))
-    print(f"check_duplication: FAIL ({count} duplicated block(s) — extract "
+    _brix_diagnostic('ERROR', 'tools/ci/check_duplication.py', '_verdict', f"check_duplication: FAIL ({count} duplicated block(s) — extract "
           f"shared helpers; there is no backlog to hide behind)",
           file=sys.stderr)
     return 1
@@ -354,7 +375,7 @@ def check(explain: bool) -> int:
 
 def main() -> int:
     if find_lizard() is None:
-        print("check_duplication: FAIL — lizard not found "
+        _brix_diagnostic('ERROR', 'tools/ci/check_duplication.py', 'main', "check_duplication: FAIL — lizard not found "
               "(pip install --user lizard)", file=sys.stderr)
         return 1
     # Run from the repo root so lizard's tree paths are repo-relative.

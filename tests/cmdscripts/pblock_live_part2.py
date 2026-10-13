@@ -154,10 +154,11 @@ def _build_meta_bench(run: LiveRun) -> Path:
     build = run.call(
         [
             "cc", "-O2", "-Wall", "-I", REPO_ROOT / "client/lib", "-I", REPO_ROOT / "src",
-            "-DXRDPROTO_NO_NGX", META_BENCH_SRC, LIBXRDC, PROTOLIB,
+            "-DXRDPROTO_NO_NGX", META_BENCH_SRC, LIBXRDC, PROTOLIB, LIBXRDC,
             "-lssl", "-lcrypto", "-lz", "-lkrb5", "-lk5crypto", "-lcom_err", "-lzstd",
             "-llzma", "-lbrotlienc", "-lbrotlidec", "-lbz2", *LZ4_LINK_FLAGS,
-            "-luring", "-lpthread", *_gcov_flags([LIBXRDC, PROTOLIB]), "-o", bench,
+            *([] if sys.platform == "darwin" else ["-luring"]),
+            "-lpthread", *_gcov_flags([LIBXRDC, PROTOLIB]), "-o", bench,
         ],
         check=False,
     )

@@ -26,7 +26,7 @@ import pytest
 
 from settings import BIND_HOST
 from server_registry import NginxInstanceSpec
-from official_interop_lib import worker_reachable
+from official_interop_lib import chown_brix, worker_reachable
 
 from _test_release20_metrics_helpers import wait_port
 from _test_xfer_wt_wire import write_file
@@ -312,6 +312,7 @@ def test_unwritable_feed_logs_once_never_fails_a_stage_and_recovers(
         assert not feed.exists()
         assert _error_log(ep).count("open failed; stage notifications are off") == 1
         locked.chmod(0o700)
+        chown_brix(locked)
         _prepare(ep.port, "/tape/second")
         evs = _wait_events(feed, lambda e: e[:2] == ("prepare", "online")
                            and e[3].endswith("second"))

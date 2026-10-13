@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "cache_internal.h"
 
 
@@ -171,7 +172,7 @@ brix_cache_wait_or_lock(brix_cache_fill_t *t, int *owned)
                                        t->conf->cache_lock_timeout))
         {
             if (unlink(t->lock_path) == 0 && t->c != NULL) {
-                ngx_log_error(NGX_LOG_WARN, t->c->log, 0,
+                BRIX_LOG(NGX_LOG_WARN, t->c->log, 0,
                     "brix: reclaimed stale cache-fill lock \"%s\" "
                     "(owner process gone)", t->lock_path);
             }

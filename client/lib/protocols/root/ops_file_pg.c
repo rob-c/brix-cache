@@ -18,83 +18,6 @@
  */
 
 
-/* Read and validate one kXR_status frame's 24-byte body. On success sets
- * *resptype (0=Final,1=Partial), *pgdlen (page-data bytes that follow), and
- * *foff (the frame's file offset). kXR_error is surfaced via st. 0 / -1. */
-int
-read_status_frame(brix_conn *c, uint16_t want_sid, uint8_t *resptype,
-                  uint32_t *pgdlen, int64_t *foff, brix_status *st)
-{
-    uint8_t  hdr[XRD_RESPONSE_HDR_LEN];
-    uint8_t  sb[XRDC_PG_STATUSBODY];
-    uint16_t sid, stat;
-    uint32_t dlen, want_crc, got_crc;
-    uint64_t off_be;
-
-    if (brix_read_full(&c->io, hdr, sizeof(hdr), st) != 0) {
-        return -1;
-    }
-    xrd_resp_hdr_unpack(hdr, &sid, &stat, &dlen);   /* unaligned-safe */
-
-    if (stat == kXR_error) {
-        uint8_t *eb = NULL;
-        int      errnum = 0;
-        if (dlen > 0 && dlen <= XRDC_DLEN_MAX) {
-            eb = (uint8_t *) malloc(dlen);
-            if (eb != NULL && brix_read_full(&c->io, eb, dlen, st) == 0) {
-                const char *emsg = "";
-                size_t      emlen = 0;
-                /* bounded msg slice — eb is not NUL-terminated. */
-                xrd_error_body_decode(eb, dlen, &errnum, &emsg, &emlen);
-                brix_status_set(st, errnum, 0, "%.*s (%s)", (int) emlen,
-                                emsg ? emsg : "", brix_kxr_name(errnum));
-            }
-        }
-        free(eb);
-        if (st->kxr == 0) {
-            brix_status_set(st, XRDC_EPROTO, 0, "pg op error (status %u)", stat);
-        }
-        return -1;
-    }
-    if (stat != kXR_status) {
-        brix_status_set(st, XRDC_EPROTO, 0,
-                        "expected kXR_status, got %u", stat);
-        return -1;
-    }
-    if (want_sid != 0xffff && sid != want_sid) {
-        brix_status_set(st, XRDC_EPROTO, 0,
-                        "stream id mismatch (got %u, want %u)", sid, want_sid);
-        return -1;
-    }
-    if (dlen != XRDC_PG_STATUSBODY) {
-        brix_status_set(st, XRDC_EPROTO, 0,
-                        "bad kXR_status body length %u (want %d)",
-                        dlen, XRDC_PG_STATUSBODY);
-        return -1;
-    }
-    if (brix_read_full(&c->io, sb, sizeof(sb), st) != 0) {
-        return -1;
-    }
-
-    /* crc32c covers sb[4..24): streamID(2) requestid(1) resptype(1) reserved(4)
-     * dlen(4) offset(8) = 20 bytes. */
-    want_crc = xrd_get_u32_be(sb);                  /* unaligned-safe */
-    got_crc  = brix_crc32c_value(sb + 4, XRDC_PG_STATUSBODY - 4);
-    if (want_crc != got_crc) {
-        brix_status_set(st, XRDC_EINTEGRITY, 0,
-                        "kXR_status header CRC mismatch (got %08x want %08x)",
-                        got_crc, want_crc);
-        return -1;
-    }
-
-    *resptype = sb[7];
-    *pgdlen   = xrd_get_u32_be(sb + 12);            /* unaligned-safe */
-    memcpy(&off_be, sb + 16, 8);
-    *foff = (int64_t) be64toh(off_be);
-    return 0;
-}
-
-
 /* Decode one frame's page-data buffer (units of [crc 4][data], file-offset
  * aligned at file_off) into dst, verifying each page's CRC32c. Returns decoded
  * data bytes, or -1 (st set) on a CRC mismatch or malformed framing. */
@@ -125,62 +48,44 @@ decode_pages(const uint8_t *pg, uint32_t pglen, int64_t file_off,
 /* kXR_pgRetry attempts per corrupt page before the integrity verdict. */
 #define XRDC_PGREAD_RETRIES    2
 
-/* ---- Re-request ONE corrupt page with the kXR_pgRetry request args ----
- *
- * WHAT: Issues a fresh kXR_pgread of exactly [pgoff, pgoff+pglen) carrying the
- *       ClientPgReadReqArgs payload {pathid=0, reqflags=kXR_pgRetry}, decodes
- *       it STRICTLY (any CRC mismatch fails), and writes the page into dst.
- *       Returns 0 corrected / -1 (st set).
- *
- * WHY: §7.14 — a single flipped bit between server and client used to abort
- *      the whole transfer even though the server still holds good bytes; the
- *      write side already re-sends corrupt pages (pgwrite_retry_one), so the
- *      read side re-REQUESTS them. The args payload is the §1.2 wire surface:
- *      stock and BriX servers both serve it as a fresh re-read (verified live
- *      against 5.6.9 — unknown flags tolerated, pathid 0 always valid).
- *
- * HOW: 1. pgread request with offset=pgoff, rlen=pglen, 2-byte args payload.
- *      2. Frame loop mirroring file_pgread_frames, but decode_pages (strict)
- *         — a retry that comes back corrupt again is a failed retry.
- *      3. Total must equal pglen: a short answer is a protocol error.
- */
 static int
-pgread_retry_page(brix_conn *c, brix_file *f, int64_t pgoff, uint32_t pglen,
-                  uint8_t *dst, brix_status *st)
+pgread_frame_type(uint8_t resptype, unsigned *partial_frames, brix_status *st)
 {
-    ClientPgReadRequest req;
-    brix_payload        pl;
-    uint8_t             args[2] = { 0, kXR_pgRetry };
-    uint16_t            sid;
-    size_t              total = 0;
-
-    memset(&req, 0, sizeof(req));
-    req.requestid = htons(kXR_pgread);
-    {
-        xrdw_pgread_req_t b = { .offset = pgoff, .rlen = (int32_t) pglen };
-        memcpy(b.fhandle, f->fhandle, XRD_FHANDLE_LEN);
-        xrdw_pgread_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    if (resptype == kXR_FinalResult) return 0;
+    if (resptype == kXR_PartialResult) {
+        (*partial_frames)++;
+        return 0;
     }
-    pl.data = args;
-    pl.len  = sizeof(args);
+    brix_status_set(st, XRDC_EPROTO, 0,
+                    "unexpected pgread response type %u", resptype);
+    return -1;
+}
 
-    if (brix_send(c, &req, &pl, &sid, st) != 0) {
-        return -1;
-    }
+static ssize_t
+pgread_args_frames(brix_conn *c, uint16_t sid, int64_t pgoff, void *dst,
+                   size_t pglen, unsigned *partial_frames, brix_status *st)
+{
+    size_t total = 0;
+
+    *partial_frames = 0;
+
     for (;;) {
-        uint8_t  resptype = 0;
+        uint8_t resptype = 0;
         uint32_t pgdlen = 0;
-        int64_t  foff = 0;
+        int64_t foff = 0;
         uint8_t *pg;
-        ssize_t  decoded;
+        ssize_t decoded;
 
-        if (read_status_frame(c, sid, &resptype, &pgdlen, &foff, st) != 0) {
+        if (read_status_frame(c, sid, kXR_pgread - kXR_1stRequest,
+                &resptype, &pgdlen, &foff, st) != 0) return -1;
+        if (foff != pgoff + (int64_t) total) {
+            brix_status_set(st, XRDC_EPROTO, 0,
+                            "pgread argument offset mismatch");
             return -1;
         }
+        if (pgread_frame_type(resptype, partial_frames, st) != 0) return -1;
         if (pgdlen == 0) {
-            if (resptype == kXR_FinalResult) {
-                break;
-            }
+            if (resptype == kXR_FinalResult) break;
             continue;
         }
         pg = (uint8_t *) malloc(pgdlen);
@@ -192,24 +97,72 @@ pgread_retry_page(brix_conn *c, brix_file *f, int64_t pgoff, uint32_t pglen,
             free(pg);
             return -1;
         }
-        decoded = decode_pages(pg, pgdlen, foff, dst + total,
-                               (size_t) pglen - total, st);
+        decoded = decode_pages(pg, pgdlen, foff, (uint8_t *) dst + total,
+                               pglen - total, st);
         free(pg);
-        if (decoded < 0) {
-            return -1;
-        }
+        if (decoded < 0) return -1;
         total += (size_t) decoded;
-        if (resptype == kXR_FinalResult) {
-            break;
-        }
+        if (resptype == kXR_FinalResult) break;
     }
-    if (total != (size_t) pglen) {
+    if (total != pglen) {
         brix_status_set(st, XRDC_EPROTO, 0,
-                        "pgread retry short answer (%zu of %u bytes)",
+                        "pgread argument request short answer (%zu of %zu bytes)",
                         total, pglen);
         return -1;
     }
-    return 0;
+    return (ssize_t) total;
+}
+
+/* ---- Issue one pgread with an explicit optional argument payload ----
+ *
+ * WHAT: Issues a fresh kXR_pgread of exactly [pgoff, pgoff+pglen) carrying the
+ *       caller's payload, decodes it STRICTLY (any CRC mismatch fails), and
+ *       writes the page into dst. Returns the exact byte count / -1 (st set).
+ *
+ * WHY: §7.14 — a single flipped bit between server and client used to abort
+ *      the whole transfer even though the server still holds good bytes; the
+ *      write side already re-sends corrupt pages (pgwrite_retry_one), so the
+ *      read side re-REQUESTS them. The args payload is the §1.2 wire surface:
+ *      stock and BriX servers both serve it as a fresh re-read (verified live
+ *      against 5.6.9 — unknown flags tolerated, pathid 0 always valid).
+ *
+ * HOW: 1. pgread request with offset=pgoff, rlen=pglen and caller payload.
+ *      2. Frame loop mirroring file_pgread_frames, but decode_pages (strict)
+ *         — a retry that comes back corrupt again is a failed retry.
+ *      3. Total must equal pglen: a short answer is a protocol error.
+ */
+ssize_t
+brix_file_pgread_args(brix_conn *c, brix_file *f, int64_t pgoff, void *dst,
+                      size_t pglen, const void *args, uint32_t args_len,
+                      brix_status *st)
+{
+    ClientPgReadRequest req;
+    brix_payload        pl;
+    uint16_t            sid;
+
+    if (pglen > INT32_MAX || (args_len > 0 && args == NULL)) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "invalid pgread argument request");
+        return -1;
+    }
+
+    memset(&req, 0, sizeof(req));
+    req.requestid = htons(kXR_pgread);
+    {
+        xrdw_pgread_req_t b = { .offset = pgoff, .rlen = (int32_t) pglen };
+        memcpy(b.fhandle, f->fhandle, XRD_FHANDLE_LEN);
+        xrdw_pgread_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
+    pl.data = args;
+    pl.len  = args_len;
+
+    if (brix_send(c, &req, args_len == 0 ? NULL : &pl, &sid, st) != 0) {
+        return -1;
+    }
+    {
+        unsigned partial_frames;
+        return pgread_args_frames(c, sid, pgoff, dst, pglen,
+            &partial_frames, st);
+    }
 }
 
 /* §7.14: re-request each corrupt page (bounded), overwriting its bytes in
@@ -223,14 +176,15 @@ pgread_refetch_bad(brix_conn *c, brix_file *f, int64_t offset, void *buf,
 
     for (k = 0; k < nbad; k++) {
         int attempt, fixed = 0;
+        uint8_t args[2] = { 0, kXR_pgRetry };
 
         for (attempt = 0; attempt < XRDC_PGREAD_RETRIES && !fixed; attempt++) {
             brix_status rst;
             brix_status_clear(&rst);
-            if (pgread_retry_page(c, f, bad[k].off, bad[k].dlen,
-                                  (uint8_t *) buf
-                                  + (size_t) (bad[k].off - offset),
-                                  &rst) == 0)
+            if (brix_file_pgread_args(c, f, bad[k].off,
+                    (uint8_t *) buf + (size_t) (bad[k].off - offset),
+                    bad[k].dlen, args, sizeof(args), &rst)
+                == (ssize_t) bad[k].dlen)
             {
                 fixed = 1;
             } else if (rst.kxr != XRDC_EINTEGRITY) {
@@ -252,13 +206,15 @@ pgread_refetch_bad(brix_conn *c, brix_file *f, int64_t offset, void *buf,
 
 static ssize_t
 file_pgread_frames(brix_conn *c, brix_file *f, int64_t offset, void *buf,
-                   size_t len, brix_status *st)
+                   size_t len, unsigned *partial_frames, brix_status *st)
 {
     ClientPgReadRequest req;
     uint16_t            sid;
     size_t              total = 0;
     xrdp_pg_bad_t       bad[XRDC_PGREAD_BADMAX];
     size_t              nbad = 0;
+
+    *partial_frames = 0;
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_pgread);
@@ -287,9 +243,16 @@ file_pgread_frames(brix_conn *c, brix_file *f, int64_t offset, void *buf,
         ssize_t  decoded;
         size_t   frame_bad = 0;
 
-        if (read_status_frame(c, sid, &resptype, &pgdlen, &foff, st) != 0) {
+        if (read_status_frame(c, sid, kXR_pgread - kXR_1stRequest,
+                &resptype, &pgdlen, &foff, st) != 0) {
             return -1;
         }
+        if (foff != offset + (int64_t) total) {
+            brix_status_set(st, XRDC_EPROTO, 0,
+                            "pgread frame offset mismatch");
+            return -1;
+        }
+        if (pgread_frame_type(resptype, partial_frames, st) != 0) return -1;
         if (pgdlen == 0) {
             if (resptype == kXR_FinalResult) {
                 break;
@@ -343,8 +306,22 @@ brix_file_pgread(brix_conn *c, brix_file *f, int64_t offset, void *buf,
                  size_t len, brix_status *st)
 {
     ssize_t rc;
+    unsigned partial_frames;
     brix_io_stall_arm(&c->io);
-    rc = file_pgread_frames(c, f, offset, buf, len, st);
+    rc = file_pgread_frames(c, f, offset, buf, len, &partial_frames, st);
+    brix_io_stall_disarm(&c->io);
+    return rc;
+}
+
+ssize_t
+brix_file_pgread_profile(brix_conn *c, brix_file *f, int64_t offset,
+                         void *buf, size_t len, unsigned *partial_frames,
+                         brix_status *st)
+{
+    ssize_t rc;
+
+    brix_io_stall_arm(&c->io);
+    rc = file_pgread_frames(c, f, offset, buf, len, partial_frames, st);
     brix_io_stall_disarm(&c->io);
     return rc;
 }
@@ -394,7 +371,13 @@ pgwrite_retry_one(brix_conn *c, brix_file *f, const uint8_t *buf, int64_t base,
             return -1;
         }
     }
-    if (read_status_frame(c, sid, &resptype, &pgdlen, &foff, st) != 0) {
+    if (read_status_frame(c, sid, kXR_pgwrite - kXR_1stRequest,
+            &resptype, &pgdlen, &foff, st) != 0) {
+        return -1;
+    }
+    if (foff != pgoff) {
+        brix_status_set(st, XRDC_EPROTO, 0,
+                        "pgwrite retry offset mismatch");
         return -1;
     }
     if (pgdlen != 0) {
@@ -555,8 +538,15 @@ brix_file_pgwrite(brix_conn *c, brix_file *f, int64_t offset, const void *buf,
             return -1;
         }
     }
-    if (read_status_frame(c, sid, &resptype, &pgdlen, &foff, st) != 0) {
+    if (read_status_frame(c, sid, kXR_pgwrite - kXR_1stRequest,
+            &resptype, &pgdlen, &foff, st) != 0) {
         free(payload);   /* kXR_ChkSumErr (CRC rejected) surfaces here */
+        return -1;
+    }
+    if (foff != offset) {
+        brix_status_set(st, XRDC_EPROTO, 0,
+                        "pgwrite response offset mismatch");
+        free(payload);
         return -1;
     }
     if (pgdlen != 0) {

@@ -15,6 +15,7 @@
  * mirror_finalize_request onto r->upstream; nginx invokes them across the
  * connect→send→read→finalize lifecycle of each background shadow subrequest.
  */
+#include "core/compat/log_event.h"
 #include "http_mirror.h"
 #include "http_mirror_internal.h"
 #include "core/http/http_body.h"
@@ -464,7 +465,7 @@ mirror_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
         MIR_HTTP_INC(mirror_http_total);
     } else {
         MIR_HTTP_INC(mirror_http_errors_total);
-        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "xrootd mirror: shadow request failed (rc=%i) uri=%V",
                        rc, &r->uri);
         mirror_note_unreachable(r, conf);
@@ -480,7 +481,7 @@ mirror_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
         {
             MIR_HTTP_INC(mirror_http_divergence_total);
             if (conf->common.mirror.log_diverge) {
-                ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+                BRIX_LOG(NGX_LOG_NOTICE, r->connection->log, 0,
                     "xrootd mirror divergence: primary=%ui shadow=%ui uri=%V",
                     pctx->primary_status, shadow_status, &parent->uri);
             }

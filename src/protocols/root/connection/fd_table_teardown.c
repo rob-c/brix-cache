@@ -95,6 +95,26 @@ fhandle_release_descriptors(brix_file_t *file)
     }
 }
 
+/* An unfinished native TPC pull owns the final destination name directly on a
+ * random-write backend.  Unlike an ordinary write, abandoning that handle is an
+ * abort: the empty/partial final object must disappear.  Staged destinations
+ * are already discarded by writer_abort above, and a completed pull is the
+ * caller's durable object.  The handle carries its mutation authority by value,
+ * so disconnect cleanup cannot acquire broader authority after a reload. */
+static void
+fhandle_abort_tpc_final(const brix_file_t *file, const char *root_canon,
+    ngx_log_t *log, ngx_flag_t direct_destination)
+{
+    brix_vfs_export_op_ctx_t export_op_ctx;
+
+    if (!direct_destination || file->path == NULL || root_canon == NULL) {
+        return;
+    }
+    brix_vfs_export_op_ctx_init(&export_op_ctx, log, root_canon,
+        file->mutation_policy, BRIX_PROTO_ROOT);
+    (void) brix_vfs_export_unlink(&export_op_ctx, file->path);
+}
+
 /* fhandle_release_staging_files — unlink + free the handle-owned staging temps and
  * the heap path copy, and drop the TPC registry entry. WHY: checkpoint and POSC temps
  * are rollback state owned by the handle; if still set at teardown the session ended
@@ -229,6 +249,7 @@ brix_free_fhandle(brix_ctx_t *ctx, int handle_index)
     ngx_stream_brix_srv_conf_t *conf;
     const char                   *root_canon;
     ngx_log_t                    *tlog;
+    ngx_flag_t                    abort_tpc_final;
 
     if (handle_index < 0 || handle_index >= BRIX_MAX_FILES
         || ctx->files == NULL)
@@ -244,6 +265,8 @@ brix_free_fhandle(brix_ctx_t *ctx, int handle_index)
     root_canon = (conf != NULL) ? conf->common.root_canon : NULL;
     tlog = (ctx->session != NULL && ctx->session->connection != NULL)
            ? ctx->session->connection->log : NULL;
+    abort_tpc_final = file->tpc_destination && !file->tpc_done
+                      && file->writer == NULL;
 
     if (!ctx->is_bound && file->fd >= 0) {
         /* Round 14: clear at the publish-time slot.  At disconnect this runs
@@ -269,6 +292,7 @@ brix_free_fhandle(brix_ctx_t *ctx, int handle_index)
     }
 
     fhandle_release_descriptors(file);
+    fhandle_abort_tpc_final(file, root_canon, tlog, abort_tpc_final);
     fhandle_release_staging_files(file, root_canon, tlog);
     brix_wt_mark_clean(ctx, handle_index);
     fhandle_reset_slot(file);

@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "observability/accesslog/access_log.h"
 #include "observability/sesslog/sesslog_ngx.h"
@@ -193,7 +194,7 @@ brix_sess_alloc(ngx_log_t *log)
     if (idx < 0) {
         if (!brix_sess_full_warned) {
             if (log != NULL) {
-                ngx_log_error(NGX_LOG_WARN, log, 0,
+                BRIX_LOG(NGX_LOG_WARN, log, 0,
                               "sesslog: registry full (%d); further sessions "
                               "unlogged", BRIX_SESSLOG_REGISTRY_SLOTS);
             }

@@ -57,6 +57,20 @@ brix_statline_format(char *out, size_t outsz, unsigned long long id,
     return snprintf(out, outsz, "%llu %lld %d %ld", id, size, flags, mtime);
 }
 
+/* Encode the interoperable long-stat form used by stock XRootD.  `mode` is a
+ * permission/special-bit value (no file-type bits); owner and group may be
+ * numeric strings, which avoids request-path NSS lookups while remaining a
+ * valid identity representation for XrdCl/GFAL. */
+static inline int
+brix_statline_format_ext(char *out, size_t outsz, unsigned long long id,
+    long long size, int flags, long mtime, long ctime, long atime,
+    unsigned mode, const char *owner, const char *group)
+{
+    return snprintf(out, outsz, "%llu %lld %d %ld %ld %ld %04o %s %s",
+                    id, size, flags, mtime, ctime, atime, mode & 07777,
+                    owner, group);
+}
+
 /*
  * Decode a stat line. Fills the four mandatory fields (any out-pointer may be
  * NULL) and, when `ext` is non-NULL, the optional EOS tail (have_ext records

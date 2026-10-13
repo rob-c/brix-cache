@@ -38,6 +38,7 @@ void brix_session_shrink(brix_session_table_t *tbl);
 void brix_session_fill_slot(brix_session_table_t *tbl, ngx_uint_t slot,
     const u_char sessid[BRIX_SESSION_ID_LEN],
     const char *dn, const char *vo_list, ngx_uint_t token_auth,
+    ngx_uint_t request_signing,
     const char *src_key, ngx_msec_t now);
 brix_session_entry_t *brix_session_find_locked(brix_session_table_t *tbl,
     const u_char sessid[BRIX_SESSION_ID_LEN]);

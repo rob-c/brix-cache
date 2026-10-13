@@ -165,7 +165,7 @@ def _rt53_segment_10(H, ta, ext, port, bob_secret_intact, data):
     ok(bob_secret_intact(),
        "chunk-extension junk did not desync into a smuggled write to bob")
     fext = os.path.join(data, "alice", "sds_ext.txt")
-    ok(any((not os.path.exists(fext), os.stat(fext).st_uid == UID_ALICE)),
+    ok(_rt_missing_or_stat(fext, lambda meta: meta.st_uid == UID_ALICE),
        "chunk-ext PUT (if created) owned by alice, never worker/root")
 
 
@@ -184,7 +184,7 @@ def _rt53_7_trailer_headers_after_the_final(survives, H, ta, tb, port, data):
              + b"Host: bob.example\r\n\r\n")
     resp = raw_http(trail, port, read_timeout=3.0)
     ftr = os.path.join(data, "alice", "sds_trail.txt")
-    ok(any((not os.path.exists(ftr), os.stat(ftr).st_uid == UID_ALICE)),
+    ok(_rt_missing_or_stat(ftr, lambda meta: meta.st_uid == UID_ALICE),
        "trailer-injected Authorization did NOT re-map identity (file stays alice-owned)")
 
 
@@ -239,7 +239,7 @@ def _rt53_10_desync_poison_the_next_connection(survives, H, ta, port, SECRET):
               + H.encode() + b"\r\n")
     raw_http(prefix, port, read_timeout=2.0)
     st, b = http("GET", "/alice/sds_clean.txt", port, ta)
-    ok(all((st == 200, b == b'SDS-ALICE-CLEAN\n', SECRET not in any((b, b'')))),
+    ok(all((st == 200, b == b'SDS-ALICE-CLEAN\n', SECRET not in _rt_default(b, b''))),
        "after smuggle-prefix: next conn alice GET clean, no bob bytes bled in (HTTP %s)" % st)
 
 

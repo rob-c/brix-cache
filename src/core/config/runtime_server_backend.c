@@ -5,6 +5,7 @@
  * declared in shared_conf.h (reached via config.h).
  */
 
+#include "core/compat/log_event.h"
 #include "config.h"
 #include "root_prepare.h"
 #include "credential_block.h"             /* §14 brix_credential lookup/bearer */
@@ -233,19 +234,19 @@ brix_tier_validate_dependencies(ngx_conf_t *cf,
     if (brix_storage_backend_is_nearline(common)
         && common->cache_store.len == 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix: a \"tape://\"/\"frm://\"/\"root+tape://\" backend is "
             "nearline and requires brix_cache_store (the recall target); "
             "add a cache tier");
         return NGX_ERROR;
     }
     if (common->cache_cold_store.len > 0 && common->cache_store.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_cold_store requires brix_cache_store (the hot tier)");
         return NGX_ERROR;
     }
     if (common->cache_peers != NULL && common->cache_store.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_peers requires brix_cache_store (the mesh fills "
             "the cache tier)");
         return NGX_ERROR;
@@ -270,7 +271,7 @@ brix_tier_register_stage_store(ngx_conf_t *cf,
     if (common->stage_enable != 1)
         return NGX_OK;
     if (common->stage_store.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_stage on requires brix_stage_store");
         return NGX_ERROR;
     }

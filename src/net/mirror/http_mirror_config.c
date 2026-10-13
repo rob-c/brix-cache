@@ -12,6 +12,7 @@
  * setters are registered in the WebDAV directive table (src/webdav/module.c) and
  * populate the preamble mirror block (common.mirror).  All three are declared in http_mirror.h.
  */
+#include "core/compat/log_event.h"
 #include "http_mirror.h"
 
 
@@ -104,7 +105,7 @@ brix_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     } else if (ngx_strncasecmp(url.data, (u_char *) "http://", 7) == 0) {
         ssl = 0; scheme_len = 7; default_port = 80;
     } else {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_mirror_url: \"%V\" must start with http:// or https://",
             &url);
         return NGX_CONF_ERROR;
@@ -116,7 +117,7 @@ brix_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         if (m->targets == NULL) { return NGX_CONF_ERROR; }
     }
     if (m->targets->nelts >= BRIX_MIRROR_MAX_TARGETS) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_mirror_url: at most %d targets supported",
             BRIX_MIRROR_MAX_TARGETS);
         return NGX_CONF_ERROR;
@@ -129,7 +130,7 @@ brix_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     u.default_port = default_port;
     u.no_resolve   = 1;              /* phase-116: parse only, resolve at runtime */
     if (ngx_parse_url(cf->pool, &u) != NGX_OK || u.host.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_mirror_url: cannot parse \"%V\"%s%s", &url,
             u.err ? ": " : "", u.err ? u.err : "");
         return NGX_CONF_ERROR;
@@ -169,7 +170,7 @@ brix_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                                       &((brix_shared_conf_t *) conf)->dns);
     if (t->dns == NULL) { return NGX_CONF_ERROR; }
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: WebDAV mirror target %V (ssl=%d)", &t->url_base, (int) ssl);
     return NGX_CONF_OK;
 }
@@ -195,7 +196,7 @@ brix_http_mirror_set_methods(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         else if (ngx_strcasecmp(v->data, (u_char *) "MOVE")     == 0) mask |= BRIX_MIRROR_M_MOVE;
         else if (ngx_strcasecmp(v->data, (u_char *) "COPY")     == 0) mask |= BRIX_MIRROR_M_COPY;
         else {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_mirror_methods: unsupported method \"%V\" (one of"
                 " GET HEAD PROPFIND OPTIONS PUT DELETE MKCOL MOVE COPY;"
                 " write methods also need brix_mirror_writes on)", v);

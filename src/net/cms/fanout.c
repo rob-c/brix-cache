@@ -24,6 +24,7 @@
  * holder of the path, so replies and the parked client share one worker.
  */
 
+#include "core/compat/log_event.h"
 #include "fanout.h"
 #include "cms_internal.h"
 #include "server.h"                       /* per-worker node list */
@@ -101,13 +102,13 @@ brix_cms_fanout_finalize(brix_cms_fanout_slot_t *slot, ngx_log_t *log)
     ngx_atomic_uint_t         conn_number;
     u_char                    client_streamid[2];
 
-    ngx_log_error(NGX_LOG_INFO, log, 0,
+    BRIX_LOG(NGX_LOG_INFO, log, 0,
                   "brix: CMS fan-out: finalize sid=%uD errors %ui/%ui",
                   slot->sid, slot->got_err, slot->expected);
 
     pending = brix_pending_lookup(slot->sid, ngx_pid);
     if (pending == NULL) {
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
                       "brix: CMS fan-out: sid=%uD client already gone "
                       "(errors %ui/%ui)", slot->sid, slot->got_err,
                       slot->expected);
@@ -233,7 +234,7 @@ brix_cms_fanout_send_all(brix_cms_srv_ctx_t **elig, ngx_uint_t n_elig,
         {
             sent++;
         } else {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix: CMS fan-out: forward of \"%s\" to %s:%d "
                           "failed", path, elig[i]->host, (int) elig[i]->port);
         }
@@ -310,7 +311,7 @@ brix_cms_fanout_mutation(brix_ctx_t *ctx, ngx_connection_t *c,
     ctx->state = XRD_ST_WAITING_CMS;
     ngx_add_timer(c->read, conf->cms.fanout_window * 2);
 
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "brix: CMS fan-out: op=%ui \"%s\" -> %ui nodes "
                   "(sid=%uD window=%M)",
                   (ngx_uint_t) ctx->recv.cur_reqid, path, sent, sid,
@@ -346,7 +347,7 @@ brix_cms_fanout_note_error(uint32_t streamid, uint32_t ecode,
         slot->errtext[i] = '\0';
     }
 
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                   "brix: CMS fan-out: node error %ui/%ui for sid=%uD: %s",
                   slot->got_err, slot->expected, streamid,
                   slot->errtext);

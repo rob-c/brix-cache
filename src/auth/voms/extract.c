@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "voms_internal.h"
 #include <limits.h>
 
@@ -62,7 +63,7 @@ brix_voms_log_rejections(ngx_log_t *log, const brix_voms_result_t *res)
             continue;
         }
         brix_sanitize_log_string(e->vo, vo, sizeof(vo));
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: VOMS attribute certificate for VO \"%s\" rejected: %s",
                       vo, brix_voms_strerror(e->verdict));
     }
@@ -101,7 +102,7 @@ brix_extract_voms_fqans(ngx_log_t *log, const brix_voms_in_t *in,
         return NGX_DECLINED;   /* a plain grid proxy */
     }
     if (res == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: VOMS extension rejected: %s", brix_voms_strerror(status));
         return NGX_ERROR;
     }

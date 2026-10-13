@@ -13,6 +13,7 @@
  *
  * Clean-room: keytab grammar matches src/auth/sss/config.c; no XrdSecsssAdmin code.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "auth/sss/sss_keytab.h"
 #include "core/version.h"
@@ -65,7 +66,7 @@ load_or_empty(const char *path, brix_sss_key *keys, int max, int *n)
     }
     brix_status_clear(&st);
     if (brix_sss_keytab_read(path, keys, max, n, &st) != 0) {
-        fprintf(stderr, "xrdsssadmin-brix: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdsssadmin-brix: %s\n", st.msg);
         return -1;
     }
     return 0;
@@ -109,7 +110,7 @@ add_fill_entry(brix_sss_key *k, const add_args_t *a, int64_t maxid, int keylen)
     k->id = (a->want_id >= 0) ? a->want_id : maxid + 1;
     k->key_len = (size_t) keylen;
     if (RAND_bytes(k->key, keylen) != 1) {
-        fprintf(stderr, "xrdsssadmin-brix: RAND_bytes failed\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdsssadmin-brix: RAND_bytes failed\n");
         return -1;
     }
     snprintf(k->user, sizeof(k->user), "%s", a->user ? a->user : "anybody");
@@ -153,7 +154,7 @@ cmd_add(const char *path, const add_args_t *a)
         return 1;
     }
     if (n >= XRDC_SSS_KEYS_MAX) {
-        fprintf(stderr, "xrdsssadmin-brix: keytab full (%d keys)\n", n);
+        BRIX_CLIENT_LOG("INFO",  "xrdsssadmin-brix: keytab full (%d keys)\n", n);
         return 1;
     }
     if (keylen <= 0 || keylen > XRDC_SSS_KEY_MAX) {
@@ -172,13 +173,13 @@ cmd_add(const char *path, const add_args_t *a)
 
     brix_status_clear(&st);
     if (brix_sss_keytab_write(path, keys, n, &st) != 0) {
-        fprintf(stderr, "xrdsssadmin-brix: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdsssadmin-brix: %s\n", st.msg);
         return 1;
     }
     /* Self-validate: re-read and confirm the new id is present. */
     brix_status_clear(&st);
     if (brix_sss_keytab_read(path, chk, XRDC_SSS_KEYS_MAX, &m, &st) != 0) {
-        fprintf(stderr, "xrdsssadmin-brix: re-read failed: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdsssadmin-brix: re-read failed: %s\n", st.msg);
         return 1;
     }
     printf("added key id=%lld (%d-byte) to %s (%d keys)\n",
@@ -195,7 +196,7 @@ cmd_list(const char *path)
 
     brix_status_clear(&st);
     if (brix_sss_keytab_read(path, keys, XRDC_SSS_KEYS_MAX, &n, &st) != 0) {
-        fprintf(stderr, "xrdsssadmin-brix: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdsssadmin-brix: %s\n", st.msg);
         return 1;
     }
     printf("%s: %d key(s)\n", path, n);
@@ -219,12 +220,12 @@ cmd_del(const char *path, int64_t id)
     int          n = 0, i, out = 0, removed = 0;
 
     if (id < 0) {
-        fprintf(stderr, "xrdsssadmin-brix: del requires --id N\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdsssadmin-brix: del requires --id N\n");
         return 1;
     }
     brix_status_clear(&st);
     if (brix_sss_keytab_read(path, keys, XRDC_SSS_KEYS_MAX, &n, &st) != 0) {
-        fprintf(stderr, "xrdsssadmin-brix: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdsssadmin-brix: %s\n", st.msg);
         return 1;
     }
     for (i = 0; i < n; i++) {
@@ -238,12 +239,12 @@ cmd_del(const char *path, int64_t id)
         out++;
     }
     if (removed == 0) {
-        fprintf(stderr, "xrdsssadmin-brix: no key with id=%lld\n", (long long) id);
+        BRIX_CLIENT_LOG("INFO",  "xrdsssadmin-brix: no key with id=%lld\n", (long long) id);
         return 1;
     }
     brix_status_clear(&st);
     if (brix_sss_keytab_write(path, keys, out, &st) != 0) {
-        fprintf(stderr, "xrdsssadmin-brix: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdsssadmin-brix: %s\n", st.msg);
         return 1;
     }
     printf("removed %d key(s) with id=%lld; %d remain in %s\n",
@@ -372,7 +373,7 @@ parse_opts(int argc, char **argv, cli_opts_t *o, int *stop)
         } else if (a[0] != '-' && o->cmd == NULL) {
             o->cmd = a;
         } else {
-            fprintf(stderr, "xrdsssadmin-brix: unexpected arg '%s'\n", a);
+            BRIX_CLIENT_LOG("ERROR",  "xrdsssadmin-brix: unexpected arg '%s'\n", a);
             usage(argv[0]); *stop = 1; return 2;
         }
     }
@@ -404,7 +405,7 @@ dispatch_cmd(const cli_opts_t *o, const char *keytab, const char *prog)
     if (strcmp(o->cmd, "del") == 0) {
         return cmd_del(keytab, o->id);
     }
-    fprintf(stderr, "xrdsssadmin-brix: unknown command '%s'\n", o->cmd);
+    BRIX_CLIENT_LOG("ERROR",  "xrdsssadmin-brix: unknown command '%s'\n", o->cmd);
     usage(prog);
     return 2;
 }

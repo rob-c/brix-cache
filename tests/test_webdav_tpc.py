@@ -99,6 +99,11 @@ class TestXrootdHttpInteropTPC:
 
     @pytest.mark.registry_server("webdav-tpc")
     def test_nginx_plugin_source_to_brix_http_destination(self, tpc_nginx, reference_xrd_http):
+        if _reference_tpc_pull_unsafe(reference_xrd_http):
+            pytest.skip(
+                "Homebrew XrdHttpTPC links system libcurl with Homebrew "
+                "OpenSSL; its pull path crashes in SSL_CTX_free on macOS"
+            )
         content = b"nginx plugin source pulled into xrootd http destination\n"
         _write(tpc_nginx.source_open_root / "nginx-source-for-xrd.txt", content)
 

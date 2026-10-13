@@ -115,7 +115,7 @@ def _rt73_b(absp, disk_tag, s3port, SECRET):
     bpriv = absp("bob/private.txt")
     priv_tag_before = disk_tag(bpriv)
     st, b = s3("GET", "bob/private.txt", s3port, params={"tagging": ""})
-    ok(all((st in (403, 404), SECRET not in any((b, b'')))),
+    ok(all((st in (403, 404), SECRET not in _rt_default(b, b''))),
        f"S3 alice GET ?tagging on bob's 0600 DENIED (broker open as alice fails), "
        f"no secret (HTTP {st})")
     ok(disk_tag(bpriv) == priv_tag_before,
@@ -150,7 +150,7 @@ def _rt73_if_the_store_succeeded_the_tag(own_after, own_before, stp, s3port, xat
         # If the store succeeded, the tag must round-trip in the GET XML and be the
         # value alice supplied -- and on disk (when the FS keeps user.* xattrs) the
         # blob is alice's tag, not anything svc-authored.
-        ok(all((stg == 200, b'ALICE-TAG' in any((gb, b'')), b'team' in any((gb, b'')))),
+        ok(all((stg == 200, b'ALICE-TAG' in _rt_default(gb, b''), b'team' in _rt_default(gb, b''))),
            f"S3 PUT->GET ?tagging round-trips alice's own tag set (PUT {stp}, GET {stg})")
         ok(any((not xattr_fs_ok, b'ALICE-TAG' in disk_tag(own))),
            "S3 own-object tag is persisted in the object's user.s3.tagging xattr")
@@ -248,7 +248,7 @@ def _rt73_the_malformed_sweep_must_not_have(stat_triple, own, s3port):
     # WORKER LIVENESS: after the ACL + tagging + malformed sweep the worker still
     # serves a clean request as alice (no crash / connection wedge).
     st, b = s3("GET", "alice/acl_own.txt", s3port)
-    ok(all((st == 200, b'ACL-OWN-BODY' in any((b, b'')))),
+    ok(all((st == 200, b'ACL-OWN-BODY' in _rt_default(b, b''))),
        f"S3 worker survived acl/tagging DAC sweep (follow-up GET OK, HTTP {st})")
 
 

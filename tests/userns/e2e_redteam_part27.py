@@ -63,7 +63,7 @@ def _rt27_floor1000_reads_back_its_own_file(exists, g, u, FL, port, key, owner_o
 
     # floor1000 reads back its OWN file -> positive read control through the gateway.
     st, b = http("GET", f"/pub/{FL}", port, mint(key, "floor1000"))
-    ok(all((st == 200, b'FLOOR-OK-BODY' in any((b, b'')))),
+    ok(all((st == 200, b'FLOOR-OK-BODY' in _rt_default(b, b''))),
        f"floor1000 reads back its own file via the gateway (HTTP {st})")
 
     # floor1000 over root:// (the stream plane uses the same idmap floor check).
@@ -114,7 +114,7 @@ def _rt27_control_proving_the_denies_above_are(port, key, owner_of, FL):
         # the denied PUT created nothing, so a follow-up GET must 404/deny and leak
         # none of the marker bytes (no half-written body served back).
         st, b = http("GET", f"/pub/{rel}", port, mint(key, sub))
-        ok(all((st != 200, marker not in any((b, b'')))),
+        ok(all((st != 200, marker not in _rt_default(b, b''))),
            f"{sub} GET of its (never-created) file denied, no marker leak (HTTP {st})")
 
         # ---- root:// stream plane (same idmap guard, different code path) ----
@@ -138,10 +138,8 @@ def _rt27_control_proving_the_denies_above_are(port, key, owner_of, FL):
                 rc, _o, _e = xrd_fs(["stat", f"/pub/{FL}"], sub)
                 ok(rc != 0,
                    f"{sub} ({label}) root:// stat refused (mapping denied) (rc={rc})")
-    _boundary_mapping_p2(s3port, port, owner_of, scan_pub_reserved, key, data, PUB)
 
 
-def _boundary_mapping_p2(s3port, port, owner_of, scan_pub_reserved, key, data, PUB):
     # ===================== BOUNDARY-ADJACENT POSITIVE CONTROLS ===============
     # alice (uid 1001, well above floor, no forbidden group) is the always-allowed
     # control proving the DENIES above are identity-specific, not a blanket /pub
@@ -156,7 +154,7 @@ def _rt27_bob_uid_1002_second_above_floor(st, exists, u, AR, port, key):
     ok(all((st in (200, 201, 204), exists, u == UID_ALICE)),
        f"control: alice (above floor) PUT into /pub allowed, owned 1001 (HTTP {st}, uid={u})")
     st, b = http("GET", f"/pub/{AR}", port, mint(key, "alice"))
-    ok(all((st == 200, b'ALICE-CTRL' in any((b, b'')))),
+    ok(all((st == 200, b'ALICE-CTRL' in _rt_default(b, b''))),
        f"control: alice reads back her /pub file (HTTP {st})")
 
     # bob (uid 1002) second above-floor control — distinct uid lands a distinct
@@ -170,10 +168,8 @@ def _rt27_repeated_attempt_no_drift_invariant(owner_of, BR, st):
     exists, u, _g = owner_of(BR)
     ok(all((st in (200, 201, 204), exists, u == UID_BOB)),
        f"control: bob (above floor) PUT into /pub allowed, owned 1002 (HTTP {st}, uid={u})")
-    _boundary_mapping_p3(s3port, scan_pub_reserved, port, data, PUB, key, owner_of, AR)
 
 
-def _boundary_mapping_p3(s3port, scan_pub_reserved, port, data, PUB, key, owner_of, AR):
     # =================== REPEATED-ATTEMPT / NO-DRIFT INVARIANT ===============
     # hammer the floor boundary: many interleaved attempts (allowed floor1000 +
     # denied lowu) must never, under any race, drift a denied identity into a
@@ -212,7 +208,6 @@ def _rt27_segment_10(_floor_worker, leaks):
        f"race: no denied lowu PUT ever created a file (drift={leaks['deny_created']})")
     ok(leaks["allow_missing"] == 0,
        f"race: every allowed floor1000 PUT landed owned 1000 (misses={leaks['allow_missing']})")
-    _boundary_mapping_p4(s3port, scan_pub_reserved, port, data, PUB, key, AR)
 
 
 def _rt27_s3_boundary_control_alice_leg(s3port, data, scan_pub_reserved):
@@ -262,7 +257,7 @@ def _rt27_worker_survival_a_plain_allowed_op(PUB, forbidden_uids, forbidden_owne
     # worker survival: a plain allowed op still works after all the denied storms —
     # proves no rejected mapping wedged or crashed the worker/broker.
     st, b = http("GET", f"/pub/{AR}", port, mint(key, "alice"))
-    ok(all((st == 200, b'ALICE-CTRL' in any((b, b'')))),
+    ok(all((st == 200, b'ALICE-CTRL' in _rt_default(b, b''))),
        f"worker survives the forbidden-identity storm (alice GET still 200) (HTTP {st})")
 
 

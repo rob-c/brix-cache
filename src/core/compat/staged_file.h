@@ -132,8 +132,8 @@ void brix_staged_abort(ngx_log_t *log, const char *root_canon,
  * an ADMITTED write does not silently discharge the lock (RFC 4918 §7.4).
  * Absent record = NGX_OK; a failed copy fails the commit (errno preserved).
  * See staged_file.c for WHAT/WHY/HOW. */
-ngx_int_t brix_staged_lock_carry(ngx_log_t *log, const char *final_path,
-    const char *tmp_path);
+ngx_int_t brix_staged_lock_carry(ngx_log_t *log, const char *root_canon,
+    const char *final_path, const char *tmp_path);
 
 /*
  * brix_publish_dirsync — the phase-107 C3 durable-publish barrier.

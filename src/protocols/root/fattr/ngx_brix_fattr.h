@@ -46,11 +46,31 @@ typedef struct {
     uint16_t errcode;   /* per-attribute XRootD error code (0 = success) */
 } brix_fattr_entry_t;
 
+typedef struct {
+    const char *name;
+    size_t      nlen;
+    u_char     *value;
+    size_t      vlen;
+} brix_fattr_stored_t;
+
 /* Map a POSIX errno to the nearest XRootD fattr status code. */
 uint16_t fattr_errno_to_xrd(int err);
 
 /* Write the 2-byte XRootD status code into the in-place nvec rc slot. */
 void fattr_set_rc(brix_fattr_entry_t *attr, uint16_t rc);
+
+/* Portable storage adapter for wire names which exceed a host xattr-name
+ * limit. Normal names remain direct `user.U.<name>` attributes. */
+ngx_int_t fattr_storage_set(ngx_pool_t *pool, brix_vfs_ctx_t *vctx,
+    const char *path, int fd, const char *name, size_t nlen,
+    const void *value, size_t vlen, int flags);
+ssize_t fattr_storage_get(ngx_pool_t *pool, brix_vfs_ctx_t *vctx,
+    const char *path, int fd, const char *name, size_t nlen, u_char **value);
+ngx_int_t fattr_storage_remove(brix_vfs_ctx_t *vctx, const char *path,
+    int fd, const char *name, size_t nlen);
+int fattr_storage_decode_list(ngx_pool_t *pool, brix_vfs_ctx_t *vctx,
+    const char *path, int fd, const char *stored_key,
+    brix_fattr_stored_t *stored);
 
 /*
  * fattr_parse_nvec — parse the name vector from the request payload into the

@@ -11,6 +11,7 @@
  *   - a future "scan for stale tmps" monitor only needs one pattern
  */
 
+#include "core/compat/log_event.h"
 #include "tmp_path.h"
 #include "crypto.h"
 #include "hex.h"
@@ -264,7 +265,7 @@ brix_tmp_reap_all(ngx_log_t *log)
      * disables (live-owner in-flight writes were always kept anyway). */
     if (s_tmp_reap_mode != BRIX_POSC_PERSIST_AUTO) {
         if (log != NULL) {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                 "brix: posc persist=%s — orphaned upload-temp reaping disabled; "
                 "crash orphans are kept for manual recovery",
                 s_tmp_reap_mode == BRIX_POSC_PERSIST_MANUAL ? "manual" : "off");
@@ -278,7 +279,7 @@ brix_tmp_reap_all(ngx_log_t *log)
         (void) nftw(s_tmp_reap_roots[i], brix_tmp_reap_cb, 16, FTW_PHYS);
     }
     if (s_tmp_reaped > 0 && log != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: reaped %ui orphaned upload temp(s) from interrupted "
             "non-staged write(s)", s_tmp_reaped);
     }

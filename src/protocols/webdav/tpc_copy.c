@@ -20,6 +20,7 @@
  *       proxy) and every metric slot are preserved exactly.
  */
 
+#include "core/compat/log_event.h"
 #include "tpc_internal_split.h"
 
 #include "webdav.h"
@@ -76,7 +77,7 @@ webdav_tpc_apply_credential_delegation(ngx_http_request_t *r,
         credential_hdr->value.len);
 
     if (mode == BRIX_TPC_CRED_UNKNOWN) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                       "brix_webdav: unsupported HTTP-TPC credential "
                       "delegation mode \"%V\"", &credential_hdr->value);
         BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_BAD_REQUEST]);
@@ -150,7 +151,7 @@ webdav_tpc_source_url(ngx_http_request_t *r, ngx_table_elt_t *source_hdr,
         || webdav_tpc_str_has_ctl(source_hdr->value.data,
                                   source_hdr->value.len))
     {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                       "brix_webdav: HTTP-TPC Source must be an https URL");
         BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_BAD_REQUEST]);
         return NGX_HTTP_BAD_REQUEST;
@@ -260,7 +261,7 @@ webdav_tpc_forward_user_bearer(ngx_http_request_t *r,
         return NGX_OK;
     }
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
                   "brix_webdav: TPC pull forwarding requesting user's bearer"
                   " token to source (opportunistic default)");
     return webdav_tpc_add_bearer_header(r, transfer_headers,

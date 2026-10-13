@@ -15,6 +15,7 @@
  *   worker pool, point it at the refresh handler, and re-arm after each fire.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "acc.h"
 #include "core/compat/log_diag.h"
@@ -94,7 +95,7 @@ brix_acc_http_refresh_handler(ngx_event_t *ev)
                 brix_acc_tables_t *old = acc->tables;
                 acc->tables = nt;              /* single-threaded: safe swap */
                 brix_acc_tables_free(old);
-                ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+                BRIX_LOG(NGX_LOG_NOTICE, ev->log, 0,
                               "xrootd authdb reloaded: %s", acc->authdb.data);
             }
         }

@@ -54,6 +54,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from lib_py.util import nologin_shell
+
 import impersonation_gridmap_helpers as H
 import settings
 import x509forge
@@ -140,7 +142,7 @@ def _provision_accounts() -> None:
     for acct, uid, primary_grp, _ in USERS.values():
         subprocess.run(
             ["useradd", "-M", "-N", "-o", "-u", str(uid), "-g", primary_grp,
-             "-s", "/usr/sbin/nologin", acct],
+             "-s", nologin_shell(), acct],
             check=True, capture_output=True)
 
 

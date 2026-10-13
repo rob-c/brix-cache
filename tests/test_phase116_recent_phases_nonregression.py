@@ -61,18 +61,34 @@ GUARDS = [
 # regression.  Pin the canonical base for these two, so a real regression — a
 # band edited above the floor, or an overlap — still reddens them here.
 LADDER_SHAPE_AUDITS = frozenset({"test_port_ladder.py", "test_fleet_ports.py"})
+GIT_CHECKOUT_AUDITS = frozenset({
+    "test_phase111_register_integrity.py",
+    "test_phase112_compatibility_closure.py",
+    "test_release20_surface_pins.py",
+})
 CANONICAL_PORT_START = "10000"
+
+
+def _pin_environment(suite):
+    env = {**__import__("os").environ, "PYTHONPATH": str(TESTS)}
+    if suite in LADDER_SHAPE_AUDITS:
+        env["TEST_PORT_START"] = CANONICAL_PORT_START
+    return env
+
+
+def _pin_result(suite):
+    return subprocess.run(
+        [sys.executable, "-m", "pytest", "--noconftest", "-p", "no:cacheprovider",
+         "-q", "-x", str(TESTS / suite)],
+        cwd=REPO, capture_output=True, text=True, timeout=600,
+        env=_pin_environment(suite))
 
 
 @pytest.mark.parametrize("suite", PIN_SUITES)
 def test_pin_suite_still_passes(suite):
-    env = {**__import__("os").environ, "PYTHONPATH": str(TESTS)}
-    if suite in LADDER_SHAPE_AUDITS:
-        env["TEST_PORT_START"] = CANONICAL_PORT_START
-    r = subprocess.run(
-        [sys.executable, "-m", "pytest", "--noconftest", "-p", "no:cacheprovider",
-         "-q", "-x", str(TESTS / suite)],
-        cwd=REPO, capture_output=True, text=True, timeout=600, env=env)
+    if suite in GIT_CHECKOUT_AUDITS and not (REPO / ".git").exists():
+        pytest.skip(f"{suite} requires a Git checkout")
+    r = _pin_result(suite)
     tail = "\n".join(r.stdout.splitlines()[-15:])
     assert r.returncode == 0, f"{suite} failed:\n{tail}\n{r.stderr[-2000:]}"
     assert " passed" in tail, f"{suite} ran nothing:\n{tail}"

@@ -18,6 +18,7 @@
  *      http_body_internal.h.
 */
 
+#include "core/compat/log_event.h"
 #include "http_body.h"
 #include "http_body_internal.h"
 #include "core/compat/copy_range.h"
@@ -50,7 +51,7 @@ brix_http_body_pwrite_full(ngx_log_t *log, ngx_fd_t fd, const u_char *data,
      * syscall through the storage seam); keep the path-tagged error log and the
      * caller's running offset. */
     if (brix_vfs_pwrite_full(fd, data, len, *off) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
                       "brix_http_body: pwrite failed for %s",
                       path ? path : "-");
         return NGX_ERROR;

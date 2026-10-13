@@ -33,6 +33,7 @@ kXR_query     = 3001
 kXR_chmod     = 3002
 kXR_close     = 3003
 kXR_dirlist   = 3004
+kXR_gpfile    = 3005
 kXR_protocol  = 3006
 kXR_login     = 3007
 kXR_mkdir     = 3008

@@ -25,6 +25,7 @@ import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from fleet_ports import cmdscript_ports
+from log_records import semantic_log_text
 from settings import BIND_HOST, CA_CERT, CA_DIR, CA_KEY, HOST, PROXY_STD, SERVER_CERT, SERVER_KEY
 
 _PORTS = cmdscript_ports("user_backend_cred")
@@ -77,7 +78,8 @@ def _skip(message: str) -> int:
 
 def _read(path: Path | str) -> str:
     path = Path(path)
-    return path.read_text(errors="replace") if path.exists() else ""
+    raw = path.read_text(errors="replace") if path.exists() else ""
+    return semantic_log_text(raw)
 
 
 def _grep(path: Path | str, pattern: str) -> bool:

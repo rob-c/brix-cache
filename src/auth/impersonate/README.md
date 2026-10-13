@@ -116,4 +116,5 @@ validation and an idmap unit test ([`tests/c/idmap_test.c`](../../../tests/c/idm
 | `lifecycle.h` | The configuration directives, config-time validation, master-side broker spawn, worker-side client connect, and per-request principal set/clear that bridge the self-contained impersonation engine (idmap/broker/client) in. |
 | `lifecycle_broker.c` | master-side privileged-broker spawn for map-mode impersonation (phase 40). |
 | `lifecycle_internal.h` | shared state for the impersonation nginx-lifecycle glue. |
-| `lifecycle_worker.c` | worker-side impersonation client glue (phase 40). |
+| `lifecycle_worker.c` | worker privilege hardening and identity-transition policy. |
+| `lifecycle_worker_caps.c` | PAL-backed worker capability-state inspection. |

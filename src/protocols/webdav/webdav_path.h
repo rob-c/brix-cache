@@ -14,6 +14,12 @@
 #include "webdav.h"
 
 /* Path, URI, XML, and logging utilities */
+/* Decode nginx's normalized request URI into the logical path consumed by
+ * BOTH path authorization and VFS resolution. It also collapses repeated URI
+ * separators, matching their filesystem identity. Keeping this transform at
+ * one seam prevents policy and storage from comparing different spellings. */
+ngx_int_t webdav_decode_request_path(ngx_http_request_t *r,
+    char *out, size_t outsz);
 /* Canonical helper (see HELPERS): url-decode r->uri, strip trailing slashes,
  * and resolve+confine under root_canon into out[outsz].  NGX_OK, else an
  * NGX_HTTP_* status (404/403/414/500/400-on-NUL). */

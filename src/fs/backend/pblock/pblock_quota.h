@@ -9,7 +9,7 @@
  *       accepted) at the catalog boundaries — open-create, staged open/commit,
  *       mkdir, server_copy, and the close/fsync size write-back.
  *
- * WHY:  Deterministic ENOSPC/EDQUOT/507/kXR_NoSpace tests without filling a
+ * WHY:  Deterministic EDQUOT/507/kXR_overQuota tests without filling a
  *       disk, per-uid quota tests for the P80 multiuser model, and honest
  *       numbers for the `space` seam slot (kXR_statvfs / SRR).
  *

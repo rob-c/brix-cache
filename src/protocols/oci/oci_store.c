@@ -30,6 +30,7 @@
  * stays here is store bookkeeping and the staging of received uploads.
  */
 
+#include "core/compat/log_event.h"
 #include "oci_registry.h"
 
 #include "core/compat/service_publish.h"
@@ -173,7 +174,7 @@ brix_oci_store_mkparent(const char *path, ngx_log_t *log)
         if (mkdir(buf, OCI_STORE_DIR_MODE) != 0   /* vfs-seam-allow: DOMAIN_REGISTRY — registry store tree, not a VFS export object */
             && ngx_errno != NGX_EEXIST)
         {
-            ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+            BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                           "oci: cannot create store directory \"%s\"", buf);
             return NGX_ERROR;
         }
@@ -182,7 +183,7 @@ brix_oci_store_mkparent(const char *path, ngx_log_t *log)
     if (mkdir(buf, OCI_STORE_DIR_MODE) != 0       /* vfs-seam-allow: DOMAIN_REGISTRY — registry store tree, not a VFS export object */
         && ngx_errno != NGX_EEXIST)
     {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "oci: cannot create store directory \"%s\"", buf);
         return NGX_ERROR;
     }
@@ -238,7 +239,7 @@ brix_oci_store_verify(const char *path, const brix_oci_digest_t *want,
             if (ngx_errno == NGX_EINTR) {
                 continue;
             }
-            ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+            BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                           "oci: unreadable staged upload \"%s\"", path);
             brix_oci_hash_abort(&sha);
             (void) close(fd);
@@ -474,7 +475,7 @@ ngx_int_t
 brix_oci_store_remove(const char *path, ngx_log_t *log)
 {
     if (unlink(path) != 0 && ngx_errno != NGX_ENOENT) {   /* vfs-seam-allow: DOMAIN_REGISTRY — store object removal (DELETE / session abort) */
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "oci: cannot remove \"%s\"", path);
         return NGX_ERROR;
     }
@@ -499,7 +500,7 @@ brix_oci_store_drop_dir(const char *dir, ngx_log_t *log)
         }
     }
     if (rmdir(dir) != 0 && ngx_errno != NGX_ENOENT) {   /* vfs-seam-allow: DOMAIN_REGISTRY — session directory teardown (abort / reap / seal) */
-        ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                       "oci: cannot remove upload session \"%s\"", dir);
     }
 }

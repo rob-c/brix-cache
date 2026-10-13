@@ -51,7 +51,7 @@ data servers in either direction.
 | `recv_forward.c` | Plane-B forwarded-namespace-op executor: applies a manager-forwarded mutation (`kYR_chmod`/`mkdir`/`mkpath`/`mv`/`rm`/`rmdir`/`trunc`) to local storage via the confined `node_ops` planner. |
 | `recv_prepare.c` | Forwarded staging ops (`kYR_prepadd`/`kYR_prepdel`, phase-89 W2/PR-6): admits a manager-forwarded stage-in into the stage-request registry and cancels it on prepdel, correlating manager↔engine request ids via `reqid_map`. |
 | `recv_internal.h` | Private cross-file contract for the client-side receive path (shared between `recv.c`, `recv_frame.c`, `recv_forward.c`, `recv_prepare.c`). |
-| `meter.c` / `meter.h` | Native machine-load meter for the heartbeat (phase-89 W4): pure `/proc` parsers (unit-tested in `meter_unittest.c`) + the sampling driver that fills the `kYR_load` `theLoad` bytes. |
+| `meter.c` / `meter.h` | Native machine-load meter for the heartbeat (phase-89 W4): legacy pure parser kernels plus the platform-free driver consuming `brix_plat_sysload_sample()` and filling the `kYR_load` `theLoad` bytes. |
 | `node_ops.c` / `node_ops.h` | Pure planner for data-node execution of forwarded namespace ops (mode/size parsing, mv-needs-two-paths); unit-tested standalone (`node_ops_unittest.c`); the confined executor lives in `recv_forward.c`. |
 | `space.c` | Filesystem capacity via `statvfs`: `_export_paths` (cms_paths else root) and `_stat_space` (total_gb / free_mb / util_pct) feeding login and load frames. |
 | `wire.c` | Big-endian scalar codecs (`get16`/`get32`/`put16`/`put32`) plus XrdOucPup-style packers: tagged `put_short`/`put_int` and bare length-prefixed `put_string`. |

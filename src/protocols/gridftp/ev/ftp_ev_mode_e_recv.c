@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "ftp_ev.h"
 #include "ftp_ev_mode_e_internal.h"
 
@@ -489,7 +490,7 @@ ev_eb_accept_one(ngx_connection_t *lc, ftp_ev_dc_t *dc)
         if (ngx_socket_errno == NGX_ECONNABORTED) {
             return NGX_OK;
         }
-        ngx_log_error(NGX_LOG_ERR, fc->c->log, ngx_socket_errno,
+        BRIX_LOG(NGX_LOG_ERR, fc->c->log, ngx_socket_errno,
                       "brix: GridFTP(ev) MODE E accept failed");
         return NGX_ERROR;
     }
@@ -540,7 +541,7 @@ brix_ftp_ev_eb_accept(ngx_event_t *rev)
     ftp_ev_t         *fc = dc->fc;
 
     if (rev->timedout) {
-        ngx_log_error(NGX_LOG_INFO, fc->c->log, NGX_ETIMEDOUT,
+        BRIX_LOG(NGX_LOG_INFO, fc->c->log, NGX_ETIMEDOUT,
                       "brix: GridFTP(ev) MODE E passive accept timeout");
         brix_ftp_ev_data_finish(dc, NGX_ERROR);
         return;

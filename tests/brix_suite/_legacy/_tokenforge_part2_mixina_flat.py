@@ -54,7 +54,7 @@ class _TokenForgeMixinA:
         now = int(time.time())
         c = {
             "iss": self.issuer, "sub": "conformance", "aud": self.audience,
-            "exp": now + 3600, "iat": now, "nbf": now,
+            "exp": now + 3600, "iat": now, "nbf": now - 5,
             "scope": "storage.read:/", "wlcg.ver": "1.0",
         }
         c.update(over)

@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "chkpoint_xeq.h"
 #include "chkpoint_xeq_internal.h"
 
@@ -178,7 +179,7 @@ ckp_xeq_dispatch(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     default:
         /* Stock parity: unknown embedded op — error, keep the link (stock's
          * second-pass default does not drop). */
-        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "brix: ckpXeq unsupported sub-reqid=%d",
                        (int) sub_reqid);
         BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);

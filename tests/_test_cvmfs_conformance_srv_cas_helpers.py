@@ -40,10 +40,24 @@ BLOCK = PortBlock("srv_cas")
 
 # ---- fixtures --------------------------------------------------------------
 
+def _quarantine_dir(prefix):
+    """Create a quarantine directory writable by the fail-closed worker.
+
+    The conformance scaffold writes ``user root`` when pytest is privileged;
+    BriX deliberately refuses that identity and drops to BRIX_WORKER_USER.
+    A root-owned 0700 mkdtemp would therefore test an unwritable directory,
+    not quarantine behavior (packaged nginx workers expose this reliably).
+    """
+    path = Path(tempfile.mkdtemp(prefix=prefix))
+    if os.geteuid() == 0:
+        worker = os.environ.get("BRIX_WORKER_USER", "nobody")
+        shutil.chown(path, worker, worker)
+    return path
+
 @pytest.fixture(scope="module")
 def srv():
     """Synthetic-object instance: verify-on-fill + cache-hit + negative tests."""
-    qdir = Path(tempfile.mkdtemp(prefix="cvmfs_cas_quarantine."))
+    qdir = _quarantine_dir("cvmfs_cas_quarantine.")
     with srv_instance(BLOCK, objects=48, seed=84, negative_ttl=NEG_TTL,
                       client_hold=2, quarantine_dir=qdir) as s:
         s.qdir = qdir
@@ -58,7 +72,7 @@ def web():
     compressed corpora, object-appears-later negative tests)."""
     root = Path(tempfile.mkdtemp(prefix="cvmfs_cas_webroot."))
     (root / "cvmfs" / REPO / "data").mkdir(parents=True)
-    qdir = Path(tempfile.mkdtemp(prefix="cvmfs_cas_webq."))
+    qdir = _quarantine_dir("cvmfs_cas_webq.")
     with srv_instance(BLOCK, webroot=root, negative_ttl=NEG_TTL,
                       client_hold=2, quarantine_dir=qdir) as s:
         s.webroot = root

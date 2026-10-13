@@ -34,6 +34,7 @@ Run:
 
 import os
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -48,6 +49,12 @@ XRDGSITEST = os.path.join(REPO, "client", "bin", "xrdgsitest")
 XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
 
 pytestmark = pytest.mark.timeout(120)
+
+
+def _openssl_flags():
+    proc = subprocess.run(["pkg-config", "--cflags", "--libs", "openssl"],
+                          capture_output=True, text=True)
+    return shlex.split(proc.stdout) if proc.returncode == 0 else ["-lcrypto"]
 
 
 # --------------------------------------------------------------------------- #
@@ -67,7 +74,7 @@ def _build_gsi_unit(out_bin):
         os.path.join(REPO, "src/auth/gsi/gsi_buf.c"),
         os.path.join(REPO, "src/auth/gsi/gsi_dh.c"),
         os.path.join(REPO, "src/core/compat/crypto.c"),
-        "-lcrypto",
+        *_openssl_flags(),
     ]
     build = subprocess.run(cmd, capture_output=True, text=True)
     if build.returncode != 0 and "lcrypto" in build.stderr:

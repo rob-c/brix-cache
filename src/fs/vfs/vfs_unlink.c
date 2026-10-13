@@ -21,6 +21,37 @@
 #include "vfs_internal.h"
 #include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_evict: leaf-dispatch bypasses the decorator's own evict */
 #include "core/compat/fs_walk.h"         /* BRIX_FS_TREE_MAX_DEPTH (shared recursion cap) */
+#include "fs/meta/xmeta_path.h"          /* unified metadata sidecar name */
+
+/* A regular file's unified metadata record may live in a reserved .cinfo
+ * sibling when the backing filesystem cannot fit it in an xattr.  The default
+ * POSIX export deletes through this VFS namespace path (not sd_posix_unlink),
+ * so remove the carrier here after the data name commits.  Both names use the
+ * same confinement anchor; an absent carrier is the common success case. */
+static void
+brix_vfs_delete_metadata_sidecar(brix_vfs_ctx_t *ctx,
+    const brix_ns_delete_opts_t *opts)
+{
+    char             sidecar[PATH_MAX];
+    brix_ns_result_t result;
+
+    if (brix_xmeta_sidecar_path(sidecar, sizeof(sidecar),
+                                brix_vfs_ctx_path(ctx)) != 0)
+    {
+        return;
+    }
+    result = ctx->rootfd >= 0
+        ? brix_ns_delete_at(ctx->log, ctx->rootfd, ctx->root_canon,
+                            sidecar, opts)
+        : brix_ns_delete(ctx->log, ctx->root_canon, sidecar, opts);
+    if (result.status != BRIX_NS_OK
+        && result.sys_errno != ENOENT
+        && brix_vfs_ns_status_errno(result.status) != ENOENT)
+    {
+        BRIX_LOG(NGX_LOG_WARN, ctx->log, result.sys_errno,
+                 "metadata sidecar cleanup failed");
+    }
+}
 
 /* brix_vfs_driver_rmtree — depth-first delete of `logical` through the storage
  * driver: a file is unlinked directly; a directory has its children removed
@@ -233,6 +264,9 @@ brix_vfs_delete_via_namespace(brix_vfs_ctx_t *ctx, unsigned recursive,
                                brix_vfs_ctx_path(ctx), &opts);
     }
     if (res.status == BRIX_NS_OK) {
+        if (!recursive && !require_empty_dir) {
+            brix_vfs_delete_metadata_sidecar(ctx, &opts);
+        }
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE, NULL, 0,
                                   NGX_OK, 0, start);
         return NGX_OK;

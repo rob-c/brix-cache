@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "protocols/root/session/registry.h"
 #include "auth/authz/acc/acc.h"          /* brix_acc_resolve_peer (phase-116 cache probe) */
@@ -113,7 +114,7 @@ brix_handle_host_auth(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (!brix_host_allowed(conf, host)) {
         brix_sanitize_log_string(host, safe_host, sizeof(safe_host));
-        ngx_log_error(NGX_LOG_NOTICE, c->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, c->log, 0,
                       "brix: host auth denied for \"%s\" "
                       "(not in brix_host_allow)", safe_host);
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_HOST, 0);
@@ -137,10 +138,10 @@ brix_handle_host_auth(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ctx->login.session_slot_hint =
         brix_session_register(ctx->login.sessid, ctx->login.dn,
-                              ctx->login.vo_list, 0);
+                              ctx->login.vo_list, 0, 0);
 
     brix_sanitize_log_string(host, safe_host, sizeof(safe_host));
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "brix: host auth OK host=\"%s\"", safe_host);
 
     brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_HOST, 1);

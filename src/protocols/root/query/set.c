@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "protocols/root/path/op_path.h"   /* brix_beneath_full_path, auth gate */
 #include "fs/vfs/vfs.h"                    /* VFS ctx + export-relative key */
@@ -64,7 +65,7 @@ brix_set_handle_cms_space(ngx_connection_t *c, const char *payload,
 
     total_bytes = strtoull(p, &end, 10);
     if (end == p || *end != ' ') {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: kXR_set cms.space: malformed payload");
         return;
     }
@@ -74,12 +75,12 @@ brix_set_handle_cms_space(ngx_connection_t *c, const char *payload,
     }
     free_bytes = strtoull(p, &end, 10);
     if (end == p) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: kXR_set cms.space: missing free_bytes");
         return;
     }
 
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "brix: cms.space report: total=%lluB free=%lluB "
                   "used=%lluB",
                   total_bytes, free_bytes,
@@ -195,7 +196,7 @@ brix_set_handle_cache_evict(brix_ctx_t *ctx, ngx_connection_t *c,
                                "cache key translation failed");
     }
     freed_bytes = brix_sd_cache_evict(vctx.sd, physical);
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "brix: cache %s \"%s\": %uL bytes evicted",
                   verb, reqpath, (uint64_t) freed_bytes);
 
@@ -307,7 +308,7 @@ brix_handle_set(brix_ctx_t *ctx, ngx_connection_t *c,
     snprintf(detail, sizeof(detail), "modifier=0x%02x(%s) val=\"%s\"",
              (unsigned) modifier, mod_name, payload_snippet);
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXR_set %s", detail);
 
     BRIX_RETURN_OK(ctx, c, BRIX_OP_SET, "SET", "-", detail, 0);

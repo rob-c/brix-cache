@@ -62,13 +62,10 @@ fattr_set(brix_ctx_t *ctx, ngx_connection_t *c, brix_vfs_ctx_t *vctx,
                                      "fattr set: value invalid");
         }
 
-        if (path != NULL) {
-            rc = brix_vfs_setxattr(vctx, attrs[attr_index].xkey, value_cursor,
-                                     value_len, xattr_flags);
-        } else {
-            rc = brix_vfs_fsetxattr(vctx, fd, attrs[attr_index].xkey,
-                                      value_cursor, value_len, xattr_flags);
-        }
+        rc = fattr_storage_set(c->pool, vctx, path, fd,
+                               attrs[attr_index].name,
+                               attrs[attr_index].nlen, value_cursor,
+                               value_len, xattr_flags);
 
         if (rc != 0) {
             fattr_set_rc(&attrs[attr_index], fattr_errno_to_xrd(errno));

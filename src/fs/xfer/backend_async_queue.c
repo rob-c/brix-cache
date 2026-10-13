@@ -17,6 +17,7 @@
  *       type + reconcile, so the two subsystems never scan each other's records.
  */
 
+#include "core/compat/log_event.h"
 #include "backend_async_queue.h"
 #include <ngx_event.h>               /* ngx_post_event / ngx_posted_events (drain) */
 #include "stage_engine.h"            /* brix_stage_engine_journal_dir() */
@@ -496,7 +497,7 @@ baq_reconcile_one(const char *path, ngx_log_t *log)
         (void) unlink(path);
         return 1;
     }
-    ngx_log_error(NGX_LOG_WARN, log, e,
+    BRIX_LOG(NGX_LOG_WARN, log, e,
         "xrootd backend-async: reconcile of \"%s\" (op %uD root \"%s\") kept "
         "for retry", rec.src_key, rec.op, rec.root_canon);
     return 0;
@@ -571,7 +572,7 @@ brix_baq_reconcile(void)
     baq_replay_names(names, count, log, &replayed, &kept, &dropped);
 
     if (replayed > 0 || kept > 0 || dropped > 0) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "xrootd backend-async: restart reconcile — %ui mutation(s) replayed, "
             "%ui kept for retry, %ui dropped", replayed, kept, dropped);
     }

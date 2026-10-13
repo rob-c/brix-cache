@@ -27,6 +27,7 @@
  *   nullify keys[i].pkey
  */
 
+#include "core/compat/log_event.h"
 #include "token_internal.h"
 #include "json.h"
 #include "core/compat/log_diag.h"
@@ -70,7 +71,7 @@ brix_jwks_store_rsa(ngx_log_t *log, const char *kid,
 
     ngx_cpystrn((u_char *) dest->kid, (u_char *) kid, sizeof(dest->kid));
     dest->pkey = pkey;
-    ngx_log_error(NGX_LOG_INFO, log, 0,
+    BRIX_LOG(NGX_LOG_INFO, log, 0,
                   "brix_token: loaded RSA JWKS key kid=\"%s\"", kid);
     return 1;
 }
@@ -106,7 +107,7 @@ brix_jwks_store_ec(ngx_log_t *log, const char *kid,
 
     ngx_cpystrn((u_char *) dest->kid, (u_char *) kid, sizeof(dest->kid));
     dest->pkey = pkey;
-    ngx_log_error(NGX_LOG_INFO, log, 0,
+    BRIX_LOG(NGX_LOG_INFO, log, 0,
                   "brix_token: loaded EC P-256 JWKS key kid=\"%s\"", kid);
     return 1;
 }
@@ -159,7 +160,7 @@ brix_jwks_process_item(ngx_log_t *log, json_t *item, brix_jwks_key_t *dest)
         return brix_jwks_store_ec(log, kid, x_b64, y_b64, dest);
     }
 
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
                   "brix_token: skipping JWKS key kty=\"%s\" crv=\"%s\" "
                   "(only RSA and EC P-256 supported)", kty, crv);
     return 0;
@@ -211,7 +212,7 @@ brix_jwks_load_jansson(ngx_log_t *log, const char *path,
     }
 
     json_decref(root);
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                   "brix_token: loaded %d JWKS key(s) from \"%s\" using jansson",
                   count, path);
     return count;
@@ -279,7 +280,7 @@ brix_jwks_load(ngx_log_t *log, const char *path,
         || (fsize = ftell(fp)) < 0
         || fseek(fp, 0, SEEK_SET) != 0)
     {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "brix_token: cannot determine JWKS file size \"%s\"",
                       path);
         (void) fclose(fp); /* phase74-fp: read-only stream on an error path already returning -1 */
@@ -311,7 +312,7 @@ brix_jwks_load(ngx_log_t *log, const char *path,
     }
 
     if (fread(buf, 1, (size_t) fsize, fp) != (size_t) fsize) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "brix_token: failed to read JWKS file");
         free(buf);
         (void) fclose(fp); /* phase74-fp: read-only stream on an error path already returning -1 */

@@ -17,10 +17,11 @@ frm://exec nearline subject as tests/test_prepare_recall.py this proves:
   * security-negative: ``brix_allow_write off`` refuses evict with
     kXR_fsReadOnly BEFORE the scan — no driver call, no record disclosure
     (evict is a typed export mutation, MUTATE_EVICT);
-  * security-negative (FRM-1): identity B cannot evict or cancel identity A's
-    staged path/reqid — kXR_NotAuthorized, record untouched (a later prepare
-    by A still JOINS the same reqid); after A's own cancel the record is
-    CANCELLED, kept, and never absorbs a fresh prepare (new reqid).
+  * security-negative (FRM-1): identity B cannot evict identity A's staged
+    path (kXR_NotAuthorized), while foreign cancel is the same idempotent
+    kXR_ok as an absent id so ownership is not enumerable; both leave the
+    record untouched (A still JOINS the same reqid). After A's own cancel the
+    record is CANCELLED, kept, and never absorbs a fresh prepare (new reqid).
 
 Two anonymous logins are DISTINCT owners (brix_prepare_owner_key scopes
 anonymous callers to their login session id), so the FRM-1 negatives need no
@@ -35,9 +36,10 @@ import pathlib
 import pytest
 
 from _test_prepare_recall_helpers import (
-    kXR_stage, kXR_noerrs, kXR_cancel, kXR_evict, kXR_ok, kXR_error,
+    kXR_stage, kXR_noerrs, kXR_cancel, kXR_fresh, kXR_evict, kXR_ok, kXR_error,
     kXR_fsReadOnly, kXR_NotAuthorized,
-    _session, _prepare, _qprep_status, _err_of, _audit_verbs, _start_frm,
+    TAPE_BYTES, _session, _prepare, _qprep_status, _err_of, _audit_verbs,
+    _start_frm,
 )
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
@@ -64,6 +66,17 @@ def _stage(sock, path):
 def _evict(sock, path, streamid=b"\x00\x05"):
     return _prepare(sock, [path], kXR_noerrs, optionx=kXR_evict,
                     streamid=streamid)
+
+
+def _assert_fresh_recall(frm, online, first_reqid, second_reqid, replacement):
+    assert second_reqid
+    assert second_reqid != first_reqid, \
+        "fresh stage JOINed the stale registry record"
+    assert online.read_bytes() == replacement, \
+        "fresh stage retained the stale online copy"
+    recall_count = [verb[0] for verb in _audit_verbs(frm.audit)].count("recall")
+    assert recall_count == 2, \
+        "fresh stage did not drive a second nearline recall"
 
 
 def test_evict_drops_online_copy_and_keeps_tape(frm):
@@ -101,6 +114,60 @@ def test_evict_offline_path_is_idempotent_ok(frm):
         "evict of an offline path drove a recall"
 
 
+def test_fresh_stage_replaces_resident_copy(frm):
+    """success: stage+fresh evicts the resident online copy before recall, so
+    the replacement comes from the current nearline bytes rather than JOINing
+    the old DONE record and serving stale data."""
+    s = _session(frm.port)
+    first_reqid = _stage(s, "/near.dat")
+    online = pathlib.Path(frm.online, "near.dat")
+    if not online.exists():
+        pytest.skip("frm://exec is unavailable on hardened Darwin workers")
+    assert online.read_bytes() == TAPE_BYTES
+
+    replacement = b"W6-FRESH-REPLACEMENT\n"
+    pathlib.Path(frm.tape, "near.dat").write_bytes(replacement)
+    status, body = _prepare(s, ["/near.dat"],
+                            kXR_stage | kXR_fresh | kXR_noerrs,
+                            streamid=b"\x00\x08")
+    assert status == kXR_ok, f"fresh stage failed: {status} {body!r}"
+    second_reqid = body.rstrip(b"\x00").decode()
+    s.close()
+
+    _assert_fresh_recall(frm, online, first_reqid, second_reqid, replacement)
+
+
+def test_read_only_refuses_fresh_before_evict(frm_ro):
+    """error: stage+fresh on a read-only export is EROFS at the edge and never
+    reaches either the evict or recall storage mutation."""
+    s = _session(frm_ro.port)
+    status, body = _prepare(s, ["/near.dat"],
+                            kXR_stage | kXR_fresh | kXR_noerrs)
+    assert status == kXR_error, f"read-only server accepted fresh: {status}"
+    code, msg = _err_of(body)
+    assert code == kXR_fsReadOnly, (code, msg)
+    s.close()
+    assert not _audit_verbs(frm_ro.audit), \
+        "read-only fresh refusal reached the MSS adapter"
+
+
+def test_foreign_session_cannot_fresh_owned_copy(frm):
+    """security-negative: fresh cannot bypass the eviction ownership check;
+    another anonymous session cannot replace a resident copy or its record."""
+    owner = _session(frm.port)
+    foreign = _session(frm.port)
+    reqid = _stage(owner, "/near.dat")
+
+    status, body = _prepare(foreign, ["/near.dat"],
+                            kXR_stage | kXR_fresh | kXR_noerrs,
+                            streamid=b"\x00\x09")
+    assert status == kXR_error, "foreign session refreshed an owned copy"
+    assert _err_of(body)[0] == kXR_NotAuthorized
+    assert _stage(owner, "/near.dat") == reqid, \
+        "denied fresh damaged the owner's live registry record"
+    owner.close(); foreign.close()
+
+
 def test_read_only_refuses_evict_before_driver(frm_ro):
     """security-negative: brix_allow_write off -> kXR_fsReadOnly for evict,
     BEFORE the scan — the MSS adapter is never consulted."""
@@ -116,10 +183,10 @@ def test_read_only_refuses_evict_before_driver(frm_ro):
 
 
 def test_foreign_session_cannot_evict_or_cancel(frm):
-    """security-negative (FRM-1): identity B can neither evict identity A's
-    staged path nor cancel A's reqid — kXR_NotAuthorized, record untouched.
-    After A's OWN cancel the record is CANCELLED, kept, and a fresh prepare
-    gets a NEW reqid (a retired record never absorbs a join)."""
+    """security-negative (FRM-1): identity B cannot evict identity A's staged
+    path, and foreign cancel is an idempotent non-enumerating no-op. The record
+    stays untouched. After A's own cancel it is retired and a fresh prepare
+    gets a new reqid (a retired record never absorbs a join)."""
     a = _session(frm.port)
     b = _session(frm.port)                       # distinct anon owner key
     reqid1 = _stage(a, "/near.dat")
@@ -133,8 +200,8 @@ def test_foreign_session_cannot_evict_or_cancel(frm):
     assert os.path.exists(online), "denied evict still dropped the copy"
 
     status, body = _prepare(b, [reqid1], kXR_cancel, streamid=b"\x00\x06")
-    assert status == kXR_error, "foreign session cancelled another's reqid"
-    assert _err_of(body)[0] == kXR_NotAuthorized
+    assert status == kXR_ok and body == b"", \
+        "foreign cancel disclosed a live request or changed its state"
 
     # The record survived both denials: A's re-prepare JOINS the same reqid.
     assert _stage(a, "/near.dat") == reqid1, "denial damaged the live record"

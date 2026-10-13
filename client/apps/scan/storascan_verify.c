@@ -9,6 +9,7 @@
  * HOW:  thin orchestration over libbrix (connect/open/read/query) + the pure
  *       compare verdict in storascan_core.c. No libXrdCl, no goto.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "storascan_core.h"
 #include "storascan_internal.h"
 #include "brix.h"
@@ -145,12 +146,12 @@ verify_compute_wire_hex(brix_conn *c, const char *path,
     brix_status_clear(&st);
     tmpfd = verify_download_tmp(c, path, &st);
     if (tmpfd < 0) {
-        fprintf(stderr, "xrdstorascan: download %s: %s\n", path, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdstorascan: download %s: %s\n", path, st.msg);
         return brix_shellcode(&st);
     }
     if (lseek(tmpfd, 0, SEEK_SET) < 0 ||
         brix_cksum_fd(tmpfd, algo, hex, hexsz, &st) != 0) {
-        fprintf(stderr, "xrdstorascan: checksum %s: %s\n", path, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdstorascan: checksum %s: %s\n", path, st.msg);
         close(tmpfd);
         return SX_ERROR;
     }
@@ -181,7 +182,7 @@ cmd_verify(int argc, char **argv, const char *prog)
         return rc;
     }
     if (brix_cksum_algo_parse(algo, &algo_enum) != 0) {
-        fprintf(stderr, "xrdstorascan: unsupported algorithm '%s'\n", algo);
+        BRIX_CLIENT_LOG("ERROR",  "xrdstorascan: unsupported algorithm '%s'\n", algo);
         return SX_USAGE;
     }
 
@@ -192,7 +193,7 @@ cmd_verify(int argc, char **argv, const char *prog)
 
     /* Reference value: the server's recorded checksum. */
     if (brix_query_cksum(&c, u.path, algo, server_hex, sizeof(server_hex), &st) != 0) {
-        fprintf(stderr, "xrdstorascan: %s %s: %s\n", "query checksum", u.path, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdstorascan: %s %s: %s\n", "query checksum", u.path, st.msg);
         brix_close(&c);
         return brix_shellcode(&st);
     }
@@ -213,12 +214,12 @@ cmd_verify(int argc, char **argv, const char *prog)
         }
         return SX_OK;
     case STORASCAN_CKS_MISMATCH:
-        fprintf(stderr, "MISMATCH %s %s: wire=%s recorded=%s\n",
+        BRIX_CLIENT_LOG("INFO",  "MISMATCH %s %s: wire=%s recorded=%s\n",
                 u.path, algo, computed_hex, server_hex);
         return SX_MISMATCH;
     case STORASCAN_CKS_MISSING:
     default:
-        fprintf(stderr, "NO-RECORD %s %s: server reported no checksum\n",
+        BRIX_CLIENT_LOG("INFO",  "NO-RECORD %s %s: server reported no checksum\n",
                 u.path, algo);
         return SX_NORECORD;
     }

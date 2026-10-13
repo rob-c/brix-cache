@@ -66,6 +66,7 @@ from pathlib import Path
 import pytest
 
 from config_parse import nginx_t
+from log_records import semantic_log_text
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS, PARSE_PLACEHOLDER_PORT
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
@@ -169,7 +170,8 @@ class _Arms:
     def errlog(self):
         """Instance prefixes are wiped at teardown, so failures quote inline."""
         log = self.logdir() / "error.log"
-        return log.read_text(errors="replace") if log.exists() else ""
+        return semantic_log_text(log.read_text(errors="replace")) \
+            if log.exists() else ""
 
     def await_log(self, name, needle, timeout=5.0):
         """Read one log until `needle` shows up, or the deadline passes.
@@ -185,9 +187,9 @@ class _Arms:
         while time.monotonic() < deadline:
             text = path.read_text(errors="replace") if path.exists() else ""
             if needle in text:
-                return text
+                return semantic_log_text(text)
             time.sleep(0.05)
-        return text
+        return semantic_log_text(text)
 
     def logs(self):
         """Every log line the instance wrote, from every file it wrote one to.
@@ -463,4 +465,3 @@ PROBES = (
 # --------------------------------------------------------------------------- #
 # §A  The written `off` and its omission                                       #
 # --------------------------------------------------------------------------- #
-

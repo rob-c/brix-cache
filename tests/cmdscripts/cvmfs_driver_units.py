@@ -6,11 +6,13 @@ from collections.abc import Iterable
 from pathlib import Path
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 
 from cmdscripts.compile_run import (REPO_ROOT, client_pal_host_sources,
-                                    compile_binary, result, run)
+                                    compile_binary, result, run,
+                                    weak_undefined_flags)
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST
 
@@ -148,6 +150,8 @@ def _fuse3_flags() -> tuple[bool, list[str], list[str], str]:
     ok_libs, libs, lmsg = _pkg_config(["--libs", "fuse3"])
     if not ok_cflags or not ok_libs:
         return False, [], [], cmsg or lmsg or "pkg-config fuse3 failed"
+    if sys.platform == "darwin":
+        cflags.append("-DFUSE_DARWIN_ENABLE_EXTENSIONS=0")
     return True, cflags, libs, ""
 
 
@@ -172,6 +176,10 @@ def _compile_brixcvmfs(binary: Path) -> subprocess.CompletedProcess | str:
             *BRIXCVMFS_DRIVER_SRCS,
             *BRIXCVMFS_CORE_DEPS,
             *libs,
+            *weak_undefined_flags(
+                "brixcvmfs_ingest_main", "brixcvmfs_repo_main",
+                "brixcvmfs_rw_main", "brixcvmfs_rw_ops",
+                "brixcvmfs_setup_rw", "brixcvmfs_teardown_rw"),
             "-pthread",
             "-lcurl",
             "-lsqlite3",

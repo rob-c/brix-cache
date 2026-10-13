@@ -24,6 +24,7 @@
  * ocsp_internal.h.
  */
 
+#include "core/compat/log_event.h"
 #include "ocsp_internal.h"
 #include "observability/metrics/metrics.h"          /* ngx_brix_metrics_t */
 #include "observability/metrics/metrics_macros.h"   /* Phase 51 (E6): ocsp_timeouts_total */
@@ -214,7 +215,7 @@ ocsp_bio_new_ssl(ngx_log_t *log, const char *host, ocsp_conn_t *out)
 
     SSL_CTX_set_verify(out->ssl_ctx, SSL_VERIFY_PEER, NULL);
     if (SSL_CTX_set_default_verify_paths(out->ssl_ctx) != 1) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: cannot load default HTTPS trust paths");
         SSL_CTX_free(out->ssl_ctx);
         out->ssl_ctx = NULL;
@@ -232,7 +233,7 @@ ocsp_bio_new_ssl(ngx_log_t *log, const char *host, ocsp_conn_t *out)
     if (out->ssl != NULL) {
         (void) SSL_set_tlsext_host_name(out->ssl, host);
         if (SSL_set1_host(out->ssl, host) != 1) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_ocsp: cannot set HTTPS hostname "
                           "verification for \"%s\"", host);
             ocsp_conn_free(out);
@@ -303,7 +304,7 @@ ocsp_connect_bio(ngx_log_t *log, ocsp_conn_t *conn, const char *hostport)
     if (crc == OCSP_CONNECT_TIMEOUT) {
         BRIX_RESIL_METRIC_INC(ocsp_timeouts_total);
     }
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
                   "brix_ocsp: connect to \"%s\" %s (%ds)", hostport,
                   crc == OCSP_CONNECT_TIMEOUT ? "timed out" : "failed",
                   BRIX_OCSP_TIMEOUT_SECS);
@@ -324,14 +325,14 @@ ocsp_tls_handshake(ngx_log_t *log, ocsp_conn_t *conn,
     const char *host, const char *hostport)
 {
     if (BIO_do_handshake(conn->cbio) <= 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: TLS handshake with \"%s\" failed", hostport);
         return -1;
     }
     if (conn->ssl == NULL
         || SSL_get_verify_result(conn->ssl) != X509_V_OK)
     {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: TLS verification for \"%s\" failed", host);
         return -1;
     }

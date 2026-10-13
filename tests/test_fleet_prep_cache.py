@@ -67,6 +67,7 @@ def prep_env(tmp_path, monkeypatch):
         (pki / "ca").mkdir(parents=True, exist_ok=True)
         (pki / "user").mkdir(parents=True, exist_ok=True)
         (pki / "ca" / "ca.pem").write_text("cert")
+        (pki / "ca" / "test-user.crl.pem").write_text("crl")
         (pki / "user" / "proxy_std.pem").write_text("proxy")
 
     def fake_make_token(token_dir, subcmd, *args, env):
@@ -217,6 +218,17 @@ def test_snapshot_without_the_registry_is_refused(prep_env):
     prep_env.reset_calls()
     prep_env.prepare()
     assert prep_env.generated(), "registry-less snapshot must regenerate"
+
+
+def test_snapshot_without_the_revocation_list_is_refused(prep_env):
+    """Security-negative: cached PKI without its CRL is incomplete and must
+    regenerate rather than silently weakening revocation enforcement."""
+    prep_env.prepare()
+    (prep_env.cache / "pki" / "ca" / "test-user.crl.pem").unlink()
+    prep_env.wipe_tree()
+    prep_env.reset_calls()
+    prep_env.prepare()
+    assert prep_env.generated(), "CRL-less snapshot must regenerate"
 
 
 def test_cache_disabled_by_env_knob(prep_env, monkeypatch):

@@ -7,6 +7,7 @@
  * socket with different verbs. This TU is now the verbs and nothing else.
  */
 
+#include "core/compat/log_event.h"
 #include "admin_socket.h"
 #include "offload_registry.h"
 #include "registry.h"
@@ -36,7 +37,7 @@ brix_conf_set_admin_socket(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     (void) conf;
 
     if (value[1].len == 0 || value[1].len >= sizeof(s_admin_path)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_admin_socket: path empty or longer than a unix socket "
             "path (%uz max)", sizeof(s_admin_path) - 1);
         return NGX_CONF_ERROR;
@@ -103,7 +104,7 @@ admin_list_cb(void *ud, const unsigned char *sessid, unsigned pathid,
     }
     dn[0] = '\0';
     if (brix_session_lookup(sessid, dn, sizeof(dn), vo, sizeof(vo),
-                              &token_auth)
+                              &token_auth, NULL)
         && dn[0] != '\0')
     {
         p = ngx_snprintf(p, 1 + 128, " %s", dn);

@@ -12,6 +12,7 @@
  *       backend/scheme combination and bounded strings, then replace the
  *       entry's mapping and invalidate its lazily built instance.
  */
+#include "core/compat/log_event.h"
 #include "vfs_backend_config_internal.h"
 
 /* Parse one configured scheme name into the internal mapping vocabulary. */
@@ -45,13 +46,13 @@ vfs_n2n_validate_backend(ngx_conf_t *cf, const brix_vfs_backend_entry_t *entry,
     brix_n2n_scheme_t scheme, const ngx_str_t *pool)
 {
     if (scheme == BRIX_N2N_RAL && ngx_strcmp(entry->backend, "ceph") == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "brix_n2n_scheme ral is invalid "
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0, "brix_n2n_scheme ral is invalid "
             "for the ceph/RADOS backend: its pool is bound at the ioctx and "
             "objects are named \"<prefix><lfn>\" — use cephfs_path");
         return NGX_ERROR;
     }
     if (scheme == BRIX_N2N_RAL && (pool == NULL || pool->len == 0)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_n2n_scheme ral requires brix_n2n_pool");
         return NGX_ERROR;
     }
@@ -65,12 +66,12 @@ vfs_n2n_validate_lengths(ngx_conf_t *cf,
     const ngx_str_t *prefix)
 {
     if (pool != NULL && pool->len >= sizeof(entry->n2n.pool)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "brix_n2n_pool is too long "
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0, "brix_n2n_pool is too long "
             "(%uz bytes; max %uz)", pool->len, sizeof(entry->n2n.pool) - 1);
         return NGX_ERROR;
     }
     if (prefix != NULL && prefix->len >= sizeof(entry->n2n.prefix)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "brix_n2n_prefix is too long "
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0, "brix_n2n_prefix is too long "
             "(%uz bytes; max %uz)", prefix->len,
             sizeof(entry->n2n.prefix) - 1);
         return NGX_ERROR;
@@ -110,13 +111,13 @@ brix_vfs_backend_config_n2n(ngx_conf_t *cf, const char *root_canon,
         return NGX_OK;
     }
     if (vfs_n2n_scheme_parse(scheme, &parsed) != NGX_OK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "brix_n2n_scheme: unknown "
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0, "brix_n2n_scheme: unknown "
             "scheme \"%V\" (want identity | ral | cephfs_path)", scheme);
         return NGX_ERROR;
     }
     entry = brix_vfs_backend_entry_find(root_canon);
     if (entry == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "brix_n2n_scheme: no storage "
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0, "brix_n2n_scheme: no storage "
             "backend is configured for this export to translate names for");
         return NGX_ERROR;
     }

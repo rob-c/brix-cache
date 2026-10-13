@@ -2,6 +2,7 @@
  * registry.c - (kept) routing + shared helpers
  * Phase-38 split of registry.c; behavior-identical.
  */
+#include "core/compat/log_event.h"
 #include "registry_internal.h"
 
 /*
@@ -212,7 +213,7 @@ brix_srv_register(const char *host, uint16_t port,
      * malformed registration attempt.
      */
     if (host == NULL || !brix_net_host_chars_valid(host, ngx_strlen(host))) {
-        ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ngx_cycle->log, 0,
                       "brix: rejected registration with invalid host string");
         return;
     }
@@ -262,7 +263,7 @@ brix_srv_register(const char *host, uint16_t port,
         srv_space_reeval_locked(e);      /* §2.4 (floor arrives with LOGIN) */
     } else if (!found) {
         /* Registry is full: log a warning and increment the Prometheus counter. */
-        ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ngx_cycle->log, 0,
                       "brix: server registry full (%ui slots); "
                       "dropping registration for %s:%ui "
                       "(increase brix_registry_slots)",

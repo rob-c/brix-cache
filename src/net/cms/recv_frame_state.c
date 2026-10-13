@@ -15,6 +15,7 @@
  */
 
 
+#include "core/compat/log_event.h"
 #include "cms_internal.h"
 #include "action_log.h"             /* cmsd-action NOTICE lines */
 #include "recv_internal.h"
@@ -106,7 +107,7 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
         char      host[BRIX_CMS_STATE_SAFE_BUF];
         uint16_t  dport;
         if (brix_srv_select(pathz, 0, host, sizeof(host), &dport)) {
-            ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+            BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                            "brix: CMS state(mgr): registry serves "
                            "\"%s\", replying kYR_have", safe);
             brix_cms_log_action(ctx->cycle->log, "state-probe",
@@ -148,12 +149,12 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
                  * parent degrades to "not here".  Logged unconditionally —
                  * a debug-only counter is invisible in the builds that hit
                  * this, which is every production one. */
-                ngx_log_error(NGX_LOG_INFO, ctx->cycle->log, 0,
+                BRIX_LOG(NGX_LOG_INFO, ctx->cycle->log, 0,
                               "brix: CMS state(mgr): relayed \"%s\" down to no "
                               "eligible node; parent will read silence",
                               safe);
             }
-            ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+            BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                            "brix: CMS state(mgr): relayed \"%s\" down to "
                            "%ui node(s)", safe, sent);
         }
@@ -177,7 +178,7 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
     if (ctx->conf->rootfd >= 0
         && brix_stat_beneath(ctx->conf->rootfd, pathz, &st) == 0)
     {
-        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                        "brix: CMS state: have \"%s\", "
                        "replying kYR_have", safe);
         brix_cms_log_action(ctx->cycle->log, "state-probe",
@@ -186,7 +187,7 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
         return ngx_brix_cms_send_have(ctx, streamid, pathz, pl);
     }
 
-    ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                    "brix: CMS state: do not have \"%s\"", safe);
     return NGX_OK;
 }
@@ -208,7 +209,7 @@ cms_super_fan_down(ngx_brix_cms_ctx_t *ctx, u_char code,
     uint32_t              sid;
 
     if (brix_cms_rrdata_parse(code, payload, plen, &rr) != 0) {
-        ngx_log_error(NGX_LOG_WARN, ctx->cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ctx->cycle->log, 0,
                       "brix: CMS super: malformed forwarded op=%ui — dropped",
                       (ngx_uint_t) code);
         return NGX_OK;
@@ -236,11 +237,11 @@ cms_super_fan_down(ngx_brix_cms_ctx_t *ctx, u_char code,
     if (sent == 0) {
         /* A forwarded op that reached nobody is a silently dropped op — the
          * one outcome of this function worth seeing without a debug build. */
-        ngx_log_error(NGX_LOG_WARN, ctx->cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ctx->cycle->log, 0,
                       "brix: CMS super: forwarded op=%ui reached no node — "
                       "dropped", (ngx_uint_t) code);
     }
-    ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                    "brix: CMS super: forwarded op=%ui down to %ui node(s)",
                    (ngx_uint_t) code, sent);
     return NGX_OK;

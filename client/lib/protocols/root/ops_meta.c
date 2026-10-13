@@ -179,7 +179,8 @@ dirent_push(brix_dirent **ents, size_t *count, size_t *cap, const brix_dirent *e
  */
 static int
 dirlist_accumulate(brix_conn *c, ClientDirlistRequest *req, const char *path,
-                   uint8_t **acc_out, size_t *acclen_out, brix_status *st)
+                   uint8_t **acc_out, size_t *acclen_out,
+                   size_t *continuations, brix_status *st)
 {
     uint16_t      status;
     uint8_t      *acc = NULL;
@@ -189,6 +190,8 @@ dirlist_accumulate(brix_conn *c, ClientDirlistRequest *req, const char *path,
     int           first = 1;
     brix_payload  pl  = { path, (uint32_t) strlen(path) };
     brix_resp_out out = { &status, &body, &blen };
+
+    if (continuations != NULL) *continuations = 0;
 
     for (;;) {
         if (first) {
@@ -214,6 +217,7 @@ dirlist_accumulate(brix_conn *c, ClientDirlistRequest *req, const char *path,
         if (status != kXR_oksofar) {
             break;
         }
+        if (continuations != NULL) (*continuations)++;
     }
 
     *acc_out = acc;
@@ -271,8 +275,9 @@ dirlist_skip_dstat_leadin(const uint8_t *acc, size_t acclen, int want_stat)
  *       4. Push the entry with dirent_push; stop when a '\0' terminator was seen.
  */
 static int
-dirlist_parse_entries(const uint8_t *acc, size_t acclen, size_t i, int want_stat,
-                      brix_dirent **ents_out, size_t *count_out, brix_status *st)
+dirlist_parse_entries(const uint8_t *acc, size_t acclen, size_t i,
+                      int want_stat, int want_cksum, brix_dirent **ents_out,
+                      size_t *count_out, brix_status *st)
 {
     brix_dirent *ents = NULL;
     size_t       count = 0, entcap = 0;
@@ -304,6 +309,23 @@ dirlist_parse_entries(const uint8_t *acc, size_t acclen, size_t i, int want_stat
             if (parse_statinfo(statbuf, &e.st) == 0) {
                 e.have_stat = 1;
             }
+            if (want_cksum) {
+                char *open = strchr(statbuf, '[');
+                char *close = open == NULL ? NULL : strchr(open + 1, ']');
+
+                if (open != NULL && close != NULL) {
+                    size_t begin = (size_t) (open + 1 - statbuf);
+                    size_t end = (size_t) (close - statbuf);
+                    size_t cp;
+
+                    while (begin < end && statbuf[begin] == ' ') begin++;
+                    while (end > begin && statbuf[end - 1] == ' ') end--;
+                    cp = end - begin;
+                    if (cp >= sizeof(e.checksum)) cp = sizeof(e.checksum) - 1;
+                    memcpy(e.checksum, statbuf + begin, cp);
+                    e.checksum[cp] = '\0';
+                }
+            }
         }
 
         if (dirent_push(&ents, &count, &entcap, &e) != 0) {
@@ -325,14 +347,16 @@ dirlist_parse_entries(const uint8_t *acc, size_t acclen, size_t i, int want_stat
  * accumulation) on the current connection. On any failure it leaves *ents_out
  * NULL and frees its working buffers, so a resilient retry starts clean. */
 static int
-dirlist_once(brix_conn *c, const char *path, int want_stat,
-             brix_dirent **ents_out, size_t *count_out, brix_status *st)
+dirlist_once(brix_conn *c, const char *path, uint8_t options,
+             brix_dirent **ents_out, size_t *count_out,
+             size_t *continuations, brix_status *st)
 {
     ClientDirlistRequest req;
     uint8_t             *acc = NULL;
     size_t               acclen = 0;
     size_t               i;
     int                  rc;
+    int                  want_stat = (options & (kXR_dstat | kXR_dcksm)) != 0;
 
     *ents_out = NULL;
     *count_out = 0;
@@ -340,12 +364,13 @@ dirlist_once(brix_conn *c, const char *path, int want_stat,
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_dirlist);
     {
-        xrdw_dirlist_req_t b = { .options = (uint8_t) (want_stat ? kXR_dstat : 0) };
+        xrdw_dirlist_req_t b = { .options = options };
         xrdw_dirlist_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
     /* Drain the whole listing into one buffer (helper frees acc on failure). */
-    if (dirlist_accumulate(c, &req, path, &acc, &acclen, st) != 0) {
+    if (dirlist_accumulate(c, &req, path, &acc, &acclen, continuations,
+            st) != 0) {
         return -1;
     }
 
@@ -353,7 +378,8 @@ dirlist_once(brix_conn *c, const char *path, int want_stat,
      * parse helper frees its partial array; the accumulation buffer we still own
      * is freed once below, on both the success and error paths. */
     i = dirlist_skip_dstat_leadin(acc, acclen, want_stat);
-    rc = dirlist_parse_entries(acc, acclen, i, want_stat, ents_out, count_out, st);
+    rc = dirlist_parse_entries(acc, acclen, i, want_stat,
+        (options & kXR_dcksm) != 0, ents_out, count_out, st);
     free(acc);
     return rc;
 }
@@ -361,16 +387,18 @@ dirlist_once(brix_conn *c, const char *path, int want_stat,
 /* Args for the resilient wrapper below. */
 struct dirlist_args {
     const char   *path;
-    int           want_stat;
+    uint8_t       options;
     brix_dirent **ents_out;
     size_t       *count_out;
+    size_t       *continuations;
 };
 
 static int
 dirlist_op(brix_conn *c, void *arg, brix_status *st)
 {
     struct dirlist_args *a = (struct dirlist_args *) arg;
-    return dirlist_once(c, a->path, a->want_stat, a->ents_out, a->count_out, st);
+    return dirlist_once(c, a->path, a->options, a->ents_out, a->count_out,
+                        a->continuations, st);
 }
 
 /* A directory listing is read-only and idempotent: re-running it on a fresh
@@ -380,7 +408,48 @@ int
 brix_dirlist(brix_conn *c, const char *path, int want_stat,
              brix_dirent **ents_out, size_t *count_out, brix_status *st)
 {
-    struct dirlist_args a = { path, want_stat, ents_out, count_out };
+    return brix_dirlist_observe(c, path, want_stat, ents_out, count_out, NULL,
+                                st);
+}
+
+int
+brix_dirlist_observe(brix_conn *c, const char *path, int want_stat,
+                     brix_dirent **ents_out, size_t *count_out,
+                     size_t *continuations, brix_status *st)
+{
+    struct dirlist_args a = {
+        path, (uint8_t) (want_stat ? kXR_dstat : 0), ents_out, count_out,
+        continuations
+    };
     return brix_with_resilience(c, brix_resilient_window_ms(c), XRDC_OP_READONLY,
                                 0, dirlist_op, &a, st);
+}
+
+int
+brix_dirlist_cksum(brix_conn *c, const char *path, const char *algo,
+                   brix_dirent **ents_out, size_t *count_out, brix_status *st)
+{
+    struct dirlist_args a;
+    char request_path[XRDC_PATH_MAX];
+    int length;
+
+    if (path == NULL || algo == NULL || strchr(path, '?') != NULL) {
+        brix_status_set(st, XRDC_EUSAGE, 0,
+            "dirlist checksum needs a plain path and algorithm");
+        return -1;
+    }
+    length = snprintf(request_path, sizeof(request_path), "%s?cks.type=%s",
+        path, algo);
+    if (length < 0 || (size_t) length >= sizeof(request_path)) {
+        brix_status_set(st, XRDC_EUSAGE, 0,
+            "dirlist checksum path is too long");
+        return -1;
+    }
+    a.path = request_path;
+    a.options = kXR_dcksm;
+    a.ents_out = ents_out;
+    a.count_out = count_out;
+    a.continuations = NULL;
+    return brix_with_resilience(c, brix_resilient_window_ms(c),
+        XRDC_OP_READONLY, 0, dirlist_op, &a, st);
 }

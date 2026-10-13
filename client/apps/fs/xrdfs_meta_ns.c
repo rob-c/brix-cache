@@ -2,6 +2,7 @@
  * xrdfs_meta_ns.c - namespace mutations (mkdir / rm / rmdir / mv / chmod /
  * truncate), split from xrdfs_meta.c at phase-103; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdfs_internal.h"
 
 int
@@ -56,7 +57,7 @@ rm_one_path(brix_conn *c, const char *path, int recursive, int verbose)
     if (recursive) {
         brix_statinfo si;
         if (strcmp(path, "/") == 0) {
-            fprintf(stderr, "xrdfs: rm -r: refusing to delete the export root\n");
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: rm -r: refusing to delete the export root\n");
             return 50;
         }
         if (brix_stat(c, path, &si, &st) != 0) {
@@ -149,7 +150,7 @@ do_mv(brix_conn *c, const char *cwd, int argc, char **argv)
     build_path(cwd, argv[2], dst, sizeof(dst));
     brix_status_clear(&st);
     if (brix_mv(c, src, dst, &st) != 0) {
-        fprintf(stderr, "xrdfs: mv: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: mv: %s\n", st.msg);
         xrdfs_op_hints(&st, 1, c);   /* WS-3/WS-7 */
         return brix_shellcode(&st);
     }
@@ -181,7 +182,7 @@ do_chmod(brix_conn *c, const char *cwd, int argc, char **argv)
     build_path(cwd, patharg, path, sizeof(path));
     mode = parse_chmod_mode(modearg);
     if (mode < 0) {
-        fprintf(stderr, "xrdfs: chmod: invalid mode '%s' "
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: chmod: invalid mode '%s' "
                 "(expected rwxr-xr-x or octal)\n", modearg);
         return 50;
     }

@@ -38,6 +38,8 @@ import time
 
 import pytest
 
+from log_records import semantic_log_text
+
 from settings import (
     HOST,
     REGISTRY_ROOT,
@@ -105,7 +107,7 @@ def _log_tail(offset):
     try:
         with open(_ERROR_LOG, "r", errors="replace") as fh:
             fh.seek(offset)
-            return fh.read()
+            return semantic_log_text(fh.read())
     except OSError:
         return ""
 

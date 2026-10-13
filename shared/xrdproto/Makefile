@@ -13,6 +13,18 @@
 
 CC ?= cc
 AR ?= ar
+HOST_OS ?= $(shell uname -s)
+HOST_ARCH ?= $(shell uname -m)
+
+# Homebrew OpenSSL is keg-only. Standalone builds of this archive need the same
+# automatic metadata discovery as the parent client build.
+ifeq ($(HOST_OS),Darwin)
+HOMEBREW_OPENSSL_PREFIX := $(shell brew --prefix openssl@3 2>/dev/null)
+ifneq ($(strip $(HOMEBREW_OPENSSL_PREFIX)),)
+PKG_CONFIG_PATH := $(HOMEBREW_OPENSSL_PREFIX)/lib/pkgconfig:$(PKG_CONFIG_PATH)
+endif
+export PKG_CONFIG_PATH
+endif
 
 REPO   := ../..
 COMPAT := $(REPO)/src/core/compat
@@ -24,13 +36,35 @@ HARDEN := -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector-strong \
           -Wformat -Werror=format-security
 # BRIX_PLATFORM_HOST names the PAL host directory (src/platform/<host>/);
 # the PAL headers carry no OS conditional and require it.
-ifeq ($(shell uname -s),Darwin)
+ifeq ($(HOST_OS),Darwin)
 HARDEN += -DBRIX_PLATFORM_HOST=darwin
+HARDEN := $(filter-out -fstack-clash-protection -fcf-protection=full,$(HARDEN))
 else
 HARDEN += -DBRIX_PLATFORM_HOST=linux
 endif
 
-# Optimize profile — same knob/default as the module (BRIX_OPTIMIZE, default v2).
+# Intel CET is unavailable on ARM64. Keep the rest of the host hardening set.
+ifneq ($(filter arm64 aarch64 armv8l,$(HOST_ARCH)),)
+HARDEN := $(filter-out -fcf-protection=full,$(HARDEN))
+endif
+
+# Optimize profile — mirror the module's architecture-specific defaults.
+ifneq ($(filter arm64 aarch64 armv8l,$(HOST_ARCH)),)
+BRIX_OPTIMIZE ?= auto
+ARM64_AUTO_MARCH := $(shell printf 'int main(void){return 0;}\n' | \
+	$(CC) -march=armv8-a+crc -x c - -o /dev/null >/dev/null 2>&1 && \
+	echo -march=armv8-a+crc || echo -march=armv8-a)
+OPT_auto          := -O3 $(ARM64_AUTO_MARCH)
+OPT_generic       := -O3 -march=armv8-a
+OPT_graviton      := -O3 -march=armv8.2-a+fp+simd+crypto+crc
+OPT_ampere        := -O3 -march=armv8.2-a+fp+simd+crypto
+OPT_apple_silicon := -O3 -march=armv8.3-a+crypto -mtune=apple-m1
+OPT_native        := -O3 -march=native
+OPT := $(OPT_$(BRIX_OPTIMIZE))
+ifeq ($(OPT),)
+  OPT := $(OPT_auto)
+endif
+else
 BRIX_OPTIMIZE ?= v2
 OPT_v2     := -O3 -march=x86-64-v2 -fno-plt
 OPT_v3     := -O3 -march=x86-64-v3 -fno-plt
@@ -39,25 +73,27 @@ OPT := $(OPT_$(BRIX_OPTIMIZE))
 ifeq ($(OPT),)
   OPT := $(OPT_v2)
 endif
+endif
 
 # Compression codecs (phase-42): compile-gate each backend on its dev lib, like
 # the module's root `config`. Only -D + cflags belong here (a static archive
 # links nothing); the consumer (client/Makefile) adds the matching -l libs.
 CODEC_CFLAGS := -DBRIX_HAVE_ZLIB=1
 ifeq ($(shell pkg-config --exists libzstd 2>/dev/null && echo y),y)
-  CODEC_CFLAGS += -DBRIX_HAVE_ZSTD=1
+  CODEC_CFLAGS += -DBRIX_HAVE_ZSTD=1 $(shell pkg-config --cflags libzstd 2>/dev/null)
 endif
 ifeq ($(shell pkg-config --exists liblzma 2>/dev/null && echo y),y)
-  CODEC_CFLAGS += -DBRIX_HAVE_LZMA=1
+  CODEC_CFLAGS += -DBRIX_HAVE_LZMA=1 $(shell pkg-config --cflags liblzma 2>/dev/null)
 endif
 ifeq ($(shell pkg-config --exists libbrotlienc libbrotlidec 2>/dev/null && echo y),y)
-  CODEC_CFLAGS += -DBRIX_HAVE_BROTLI=1
+  CODEC_CFLAGS += -DBRIX_HAVE_BROTLI=1 \
+                    $(shell pkg-config --cflags libbrotlienc libbrotlidec 2>/dev/null)
 endif
 # \043 = '#': GNU make >= 4.3 passes \# inside a function call through with
 # the backslash kept, so a '\#include' probe preprocesses a stray-backslash
 # line and always exits 0 — force-enabling bzip2 on hosts without bzlib.h.
 ifeq ($(shell pkg-config --exists bzip2 2>/dev/null && echo y),y)
-  CODEC_CFLAGS += -DBRIX_HAVE_BZIP2=1
+  CODEC_CFLAGS += -DBRIX_HAVE_BZIP2=1 $(shell pkg-config --cflags bzip2 2>/dev/null)
 else ifeq ($(shell printf '\043include <bzlib.h>\n' | $(CC) -E - >/dev/null 2>&1 && echo y),y)
   CODEC_CFLAGS += -DBRIX_HAVE_BZIP2=1
 endif
@@ -79,8 +115,10 @@ endif
 # Phase-66: cross-dir includes in src/ are src-rooted (e.g. "compat/crypto.h"),
 # so the src root itself is on the quoted-include path too (-iquote, same
 # time.h-shadowing rationale as $(COMPAT)).
+OPENSSL_CFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --cflags openssl 2>/dev/null)
 ALL_CFLAGS := -std=c11 -Wall -Wextra -fPIC $(HARDEN) $(OPT) \
-              -DXRDPROTO_NO_NGX $(CODEC_CFLAGS) -iquote $(REPO)/src \
+              $(OPENSSL_CFLAGS) -DXRDPROTO_NO_NGX $(CODEC_CFLAGS) \
+              -iquote $(REPO)/src \
               -iquote $(COMPAT) -I$(PROTO) $(CFLAGS)
 
 BUILD := build

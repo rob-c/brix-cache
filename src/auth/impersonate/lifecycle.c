@@ -11,6 +11,7 @@
  * `map`; `off` and `single` add no process, socket, or capability.
  */
 
+#include "core/compat/log_event.h"
 #include "lifecycle.h"
 #include "impersonate.h"
 #include "impersonate_proto.h"
@@ -93,7 +94,7 @@ brix_imp_conf_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     } else if (ngx_strcmp(v[1].data, "map") == 0) {
         imp_settings.mode = BRIX_IMP_MAP;
     } else {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "invalid brix_idmap mode \"%V\" "
                            "(expected off|single|map)", &v[1]);
         return NGX_CONF_ERROR;
@@ -136,7 +137,7 @@ brix_imp_conf_num(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     n = ngx_atoi(v[1].data, v[1].len);
     if (n == NGX_ERROR || n < 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "invalid number \"%V\"", &v[1]);
         return NGX_CONF_ERROR;
     }
@@ -161,13 +162,13 @@ brix_imp_validate(ngx_conf_t *cf, const char *derived_export_root)
 
     if (imp_settings.mode == BRIX_IMP_SINGLE) {
         if (imp_settings.single_user.len == 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_idmap single requires "
                 "brix_idmap_user <name>");
             return NGX_ERROR;
         }
         if (imp_settings.gridmap.len || imp_settings.default_user.len) {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
                 "brix_idmap single ignores gridmap/default_user "
                 "(all identities squash to \"%V\")", &imp_settings.single_user);
         }
@@ -176,7 +177,7 @@ brix_imp_validate(ngx_conf_t *cf, const char *derived_export_root)
 
     /* mode == map */
     if (geteuid() != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_idmap map requires the nginx master to run as root "
             "(needed to spawn the privileged identity broker)");
         return NGX_ERROR;
@@ -189,7 +190,7 @@ brix_imp_validate(ngx_conf_t *cf, const char *derived_export_root)
     }
     if (imp_settings.export_root.len == 0) {
         if (derived_export_root == NULL || derived_export_root[0] == '\0') {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_idmap map needs an export root: set "
                 "brix_idmap_export <path> (no data server with a "
                 "local root was found to derive it from)");

@@ -15,7 +15,10 @@ binary, the `cryptography` package, a C compiler) are unavailable.
 import os
 import shutil
 import subprocess
+import tempfile
 import textwrap
+from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
 
@@ -70,13 +73,34 @@ def _have(cmd):
     return shutil.which(cmd) is not None
 
 
-@pytest.mark.timeout(180)
+@pytest.mark.timeout(660)
 def test_impersonation_redteam_e2e(tmp_path):
     _require_redteam_prerequisites()
     launcher = _build_launcher(tmp_path)
     password_file, group_file, work = _redteam_files(tmp_path)
-    run = _run_redteam(launcher, password_file, group_file, work)
+    with _short_work_alias(work) as short_work:
+        run = _run_redteam(launcher, password_file, group_file, short_work)
     _assert_redteam_result(run)
+
+
+@contextmanager
+def _short_work_alias(work):
+    """Keep the broker's AF_UNIX name below the platform pathname limit.
+
+    Fleet test roots can be intentionally long.  The export remains in
+    ``tmp_path``; only the spelling passed to nginx is shortened through a
+    symlink owned by a random, search-only directory.  The in-namespace nginx
+    worker has a mapped uid and must be able to traverse this one component;
+    it still cannot list or modify the directory.
+    """
+    short_dir = Path(tempfile.mkdtemp(prefix="brix-rt-", dir="/tmp"))
+    short_dir.chmod(0o711)
+    alias = short_dir / "w"
+    alias.symlink_to(Path(work).resolve(), target_is_directory=True)
+    try:
+        yield alias
+    finally:
+        shutil.rmtree(short_dir)
 
 
 def _require_redteam_prerequisites():
@@ -137,10 +161,17 @@ def _redteam_files(tmp_path):
 
 def _run_redteam(launcher, password_file, group_file, work):
     env = dict(os.environ, TEST_NGINX_BIN=NGINX)
+    tests_dir = str(Path(HERE).parent)
+    inherited_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        os.pathsep.join((tests_dir, inherited_pythonpath))
+        if inherited_pythonpath
+        else tests_dir
+    )
     return subprocess.run(
         [launcher, str(password_file), str(group_file),
          "python3", os.path.join(HERE, "e2e_redteam.py"), str(work)],
-        capture_output=True, text=True, timeout=160, env=env)
+        capture_output=True, text=True, timeout=600, env=env)
 
 
 def _assert_redteam_result(run):

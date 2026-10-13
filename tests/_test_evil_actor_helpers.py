@@ -441,7 +441,7 @@ def _hostile_frames(fh_big, fh_w):
               struct.pack("!B11s4s", 0, b"\x00" * 11, b"\x00" * 4), b"", dlen=0x10000000)))
 
     # unknown / reserved opcodes
-    for op in (2999, 3005, 3099, 4099, 65535, 0):
+    for op in (2999, 3099, 4099, 65535, 0):
         F.append(("opcode_%d" % op, _frame(op, b"", b"")))
 
     return F

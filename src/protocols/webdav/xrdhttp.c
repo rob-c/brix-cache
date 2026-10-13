@@ -24,6 +24,7 @@
  * logs pass through brix_sanitize_log_string().
  */
 
+#include "core/compat/log_event.h"
 #include "xrdhttp.h"
 #include "webdav.h"
 #include "protocols/root/protocol/opcodes.h"
@@ -67,24 +68,20 @@ xrdhttp_get_ctx(ngx_http_request_t *r)
 
 /* query string helpers */
 /*
- * Copy the value of query parameter <key> from the raw nginx args string into
- * <dst> (max <dstsz> bytes including NUL terminator).  Performs URL-decoding
- * of %HH sequences in the value.  Silently truncates if the decoded value
- * would overflow dst.  Returns 1 on match, 0 if key not found.
+ * Copy a decoded value from the immutable request query into <dst> (max
+ * <dstsz> bytes including NUL).  Reject values that do not fit; never truncate.
+ * Returns 1 on match, 0 if absent, and a negative value on invalid input.
  */
 static int
-xrdhttp_args_get(const ngx_str_t *args, const char *key, size_t key_len,
+xrdhttp_args_get(const brix_http_query_t *query, const char *key,
                  char *dst, size_t dstsz)
 {
-    (void) key_len;
-
-    return brix_http_query_get(*args, key, dst, dstsz,
-                                 BRIX_HTTP_QUERY_CASE_INSENSITIVE
-                                 | BRIX_HTTP_QUERY_DECODE_VALUE
-                                 | BRIX_HTTP_QUERY_PLUS_TO_SPACE
-                                 | BRIX_HTTP_QUERY_REJECT_NUL
-                                 | BRIX_HTTP_QUERY_ALLOW_EMPTY
-                                 | BRIX_HTTP_QUERY_TRUNCATE) > 0;
+    return brix_http_query_parsed_get(query, key, dst, dstsz,
+                                      BRIX_HTTP_QUERY_CASE_INSENSITIVE |
+                                      BRIX_HTTP_QUERY_DECODE_VALUE |
+                                      BRIX_HTTP_QUERY_PLUS_TO_SPACE |
+                                      BRIX_HTTP_QUERY_REJECT_NUL |
+                                      BRIX_HTTP_QUERY_ALLOW_EMPTY);
 }
 
 /*
@@ -332,7 +329,7 @@ xrdhttp_parse_proto_headers(ngx_http_request_t *r, xrdhttp_req_ctx_t *ctx)
                     ngx_min(h->value.len + 1,
                             (size_t) sizeof(ctx->proto_version)));
 
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "xrdhttp: X-Xrootd-Proto=\"%s\"",
                        ctx->proto_version);
     }
@@ -356,43 +353,35 @@ xrdhttp_parse_proto_headers(ngx_http_request_t *r, xrdhttp_req_ctx_t *ctx)
  * WHAT: Copy the ?xrd.* / ?tpc.* query parameters into their ctx fields.
  * WHY:  XrdHttp clients can signal client identity, checksum wants, opaque
  *       data and TPC endpoints via the query string.
- * HOW:  No-op when there is no query string; otherwise decodes each known key
- *       into its bounded ctx buffer (truncating over-length values).
+ * HOW:  No-op when there is no query string; otherwise copies each known key
+ *       into its bounded ctx buffer and rejects over-length values.
  */
-static void
+static ngx_int_t
 xrdhttp_parse_query_params(ngx_http_request_t *r, xrdhttp_req_ctx_t *ctx)
 {
     if (r->args.len == 0) {
-        return;
+        return NGX_OK;
     }
 
-    xrdhttp_args_get(&r->args, "xrd.clnt.uuid",
-                     sizeof("xrd.clnt.uuid") - 1,
-                     ctx->clnt_uuid, sizeof(ctx->clnt_uuid));
+    if (xrdhttp_args_get(&ctx->query, "xrd.clnt.uuid",
+                         ctx->clnt_uuid, sizeof(ctx->clnt_uuid)) < 0
+        || xrdhttp_args_get(&ctx->query, "xrd.clnt.app",
+                            ctx->clnt_app, sizeof(ctx->clnt_app)) < 0
+        || xrdhttp_args_get(&ctx->query, "xrd.want.cksum",
+                            ctx->want_cksum, sizeof(ctx->want_cksum)) < 0
+        || xrdhttp_args_get(&ctx->query, "xrd.opaque",
+                            ctx->opaque, sizeof(ctx->opaque)) < 0
+        || xrdhttp_args_get(&ctx->query, "tpc.src",
+                            ctx->tpc_src, sizeof(ctx->tpc_src)) < 0
+        || xrdhttp_args_get(&ctx->query, "tpc.dst",
+                            ctx->tpc_dst, sizeof(ctx->tpc_dst)) < 0
+        || xrdhttp_args_get(&ctx->query, "tpc.key",
+                            ctx->tpc_key, sizeof(ctx->tpc_key)) < 0)
+    {
+        return NGX_HTTP_BAD_REQUEST;
+    }
 
-    xrdhttp_args_get(&r->args, "xrd.clnt.app",
-                     sizeof("xrd.clnt.app") - 1,
-                     ctx->clnt_app, sizeof(ctx->clnt_app));
-
-    xrdhttp_args_get(&r->args, "xrd.want.cksum",
-                     sizeof("xrd.want.cksum") - 1,
-                     ctx->want_cksum, sizeof(ctx->want_cksum));
-
-    xrdhttp_args_get(&r->args, "xrd.opaque",
-                     sizeof("xrd.opaque") - 1,
-                     ctx->opaque, sizeof(ctx->opaque));
-
-    xrdhttp_args_get(&r->args, "tpc.src",
-                     sizeof("tpc.src") - 1,
-                     ctx->tpc_src, sizeof(ctx->tpc_src));
-
-    xrdhttp_args_get(&r->args, "tpc.dst",
-                     sizeof("tpc.dst") - 1,
-                     ctx->tpc_dst, sizeof(ctx->tpc_dst));
-
-    xrdhttp_args_get(&r->args, "tpc.key",
-                     sizeof("tpc.key") - 1,
-                     ctx->tpc_key, sizeof(ctx->tpc_key));
+    return NGX_OK;
 }
 
 /*
@@ -412,7 +401,7 @@ xrdhttp_log_client_identity(ngx_http_request_t *r, xrdhttp_req_ctx_t *ctx)
                                    safe_app, sizeof(safe_app));
         brix_sanitize_log_string(ctx->clnt_uuid,
                                    safe_uuid, sizeof(safe_uuid));
-        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "xrdhttp: client app=\"%s\" uuid=\"%s\"",
                        safe_app, safe_uuid);
     }
@@ -421,7 +410,7 @@ xrdhttp_log_client_identity(ngx_http_request_t *r, xrdhttp_req_ctx_t *ctx)
         char safe_alg[sizeof(ctx->want_cksum) * 4];
         brix_sanitize_log_string(ctx->want_cksum,
                                    safe_alg, sizeof(safe_alg));
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "xrdhttp: client requests checksum alg=\"%s\"",
                        safe_alg);
     }
@@ -467,7 +456,7 @@ xrdhttp_apply_header2cgi(ngx_http_request_t *r, xrdhttp_req_ctx_t *ctx)
     }
 }
 
-void
+ngx_int_t
 xrdhttp_parse_request(ngx_http_request_t *r)
 {
     xrdhttp_req_ctx_t *ctx;
@@ -475,7 +464,7 @@ xrdhttp_parse_request(ngx_http_request_t *r)
 
     ctx = xrdhttp_get_ctx(r);
     if (ctx == NULL) {
-        return;
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     xrdhttp_parse_proto_headers(r, ctx);
@@ -490,7 +479,9 @@ xrdhttp_parse_request(ngx_http_request_t *r)
                            sizeof("X-Xrootd-Tpc-Token") - 1,
                            ctx->tpc_token, XRDHTTP_TPC_KEY_MAX);
 
-    xrdhttp_parse_query_params(r, ctx);
+    if (xrdhttp_parse_query_params(r, ctx) != NGX_OK) {
+        return NGX_HTTP_BAD_REQUEST;
+    }
     xrdhttp_apply_header2cgi(r, ctx);
 
     /* Want-Digest (RFC 3230): XrdClHttp sends this on HEAD to request
@@ -507,4 +498,5 @@ xrdhttp_parse_request(ngx_http_request_t *r)
     }
 
     xrdhttp_log_client_identity(r, ctx);
+    return NGX_OK;
 }

@@ -16,6 +16,7 @@
  *   - Log errors with parser's diagnostic string
  */
 
+#include "core/compat/log_event.h"
 #include "tpc_cred_internal.h"
 #include "auth/token/oauth2.h"
 
@@ -39,7 +40,7 @@ tpc_cred_parse_token_response(ngx_http_request_t *r,
     if (brix_oauth2_parse_access_token(json, token, sizeof(token),
                                          err, sizeof(err)) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "tpc_cred: %s", err);
         return NGX_ERROR;
     }
@@ -48,7 +49,7 @@ tpc_cred_parse_token_response(ngx_http_request_t *r,
     token_out->len = tok_len;
     token_out->data = ngx_pnalloc(r->pool, tok_len + 1);
     if (token_out->data == NULL) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "tpc_cred: pnalloc failed for token");
         return NGX_ERROR;
     }

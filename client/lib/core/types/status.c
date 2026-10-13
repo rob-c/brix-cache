@@ -24,6 +24,8 @@ brix_status_clear(brix_status *st)
     if (st != NULL) {
         st->kxr = 0;
         st->sys_errno = 0;
+        st->wire_message_len = 0;
+        st->wire_message_terminated = 0;
         st->msg[0] = '\0';
     }
 }
@@ -38,6 +40,8 @@ brix_status_set(brix_status *st, int kxr, int sys_errno, const char *fmt, ...)
     }
     st->kxr = kxr;
     st->sys_errno = sys_errno;
+    st->wire_message_len = 0;
+    st->wire_message_terminated = 0;
 
     va_start(ap, fmt);
     vsnprintf(st->msg, sizeof(st->msg), fmt, ap);

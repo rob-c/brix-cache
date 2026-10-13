@@ -113,6 +113,18 @@ def test_gridftp_outbound_without_a_door_refuses_rather_than_skips(monkeypatch):
     assert "BRIX_OUTBOUND_DOOR" in str(refusal.value)
 
 
+def test_gridftp_outbound_can_persist_release_junit(monkeypatch):
+    """A caller-selected PVC preserves the report after the Job is removed."""
+    monkeypatch.setenv("XRD_LAB_DRY_RUN", "1")
+    monkeypatch.setenv("BRIX_OUTBOUND_DOOR", "door.example.org")
+    monkeypatch.setenv("BRIX_GRIDFTP_RESULTS_PVC", "release-evidence")
+    from labtools import lab_suite
+    lines = " ".join(lab_suite.run("gridftp-outbound", []))
+    assert all(value in lines for value in (
+        "results.pvc=release-evidence", "testRunner.junit=true",
+        "/results/custom.xml"))
+
+
 def test_gridftp_scenario_takes_an_explicit_selection(monkeypatch):
     """An explicit test selection overrides the gridftp default suite."""
     monkeypatch.setenv("XRD_LAB_DRY_RUN", "1")

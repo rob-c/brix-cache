@@ -84,6 +84,23 @@ def test_map_lists_holder_and_space(anon):
     assert "Total: 1 holder(s)" in p.stdout, p.stdout
 
 
+def test_map_machine_emits_only_holder_authorities(anon):
+    """Machine mode is bounded to one parseable authority per output line."""
+    p = _run(f"root://{HOST}:{anon}//probe.txt", "--machine")
+    assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
+    assert p.stdout.splitlines() == [f"{BIND_HOST}:{anon}"]
+
+
+def test_map_machine_and_verify_are_mutually_exclusive(anon):
+    """Error: machine output cannot be mixed with human verification rows."""
+    p = _run(
+        f"root://{HOST}:{anon}//probe.txt", "--machine", "--verify",
+    )
+    assert p.returncode == 50
+    assert p.stdout == ""
+    assert "mutually exclusive" in p.stderr
+
+
 def test_map_verify_pass(anon):
     p = _run(f"root://{HOST}:{anon}//probe.txt", "--verify")
     assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"

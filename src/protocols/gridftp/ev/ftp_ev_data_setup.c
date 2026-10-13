@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "ftp_ev.h"
 
 #include "core/compat/net_target.h"
@@ -257,7 +258,7 @@ ev_port_screen_target(ftp_ev_t *fc, const struct sockaddr_in *tgt)
     }
     fc->active_offpeer = (peer.sin_addr.s_addr != tgt->sin_addr.s_addr);
     if (fc->active_offpeer && !(fc->sec_active && fc->dcau_a)) {
-        ngx_log_error(NGX_LOG_WARN, fc->c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, fc->c->log, 0,
                       "brix: gsiftp(ev) rejected active-mode target != control "
                       "peer (no DCAU A; possible FTP-bounce)");
         return brix_ftp_ev_reply(fc, "500 Data address must match control peer\r\n");
@@ -269,7 +270,7 @@ ev_port_screen_target(ftp_ev_t *fc, const struct sockaddr_in *tgt)
     if (brix_net_target_check_addr((struct sockaddr *) tgt, &pol,
                                    err, sizeof(err)) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_WARN, fc->c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, fc->c->log, 0,
                       "brix: gsiftp(ev) active-mode target blocked: %s", err);
         return brix_ftp_ev_reply(fc, "500 Data address not permitted\r\n");
     }

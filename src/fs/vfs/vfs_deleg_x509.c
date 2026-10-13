@@ -15,6 +15,7 @@
  *       brix_vfs_deleg_proxy() back. brix_vfs_deleg_deny() is the shared
  *       failure terminal already exported from vfs_internal.h. */
 
+#include "core/compat/log_event.h"
 #include "vfs_internal.h"
 #include "net/proxy/gsi_upstream.h"
 #include "auth/crypto/gsi_verify.h"      /* in-gate chain re-verify (P90-70.4)     */
@@ -126,7 +127,7 @@ brix_vfs_deleg_chain_is_trusted(brix_vfs_ctx_t *ctx)
     sk_X509_pop_free(chain, X509_free);
 
     if (rc != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, ctx->log, 0,
             "brix: PASSTHROUGH proxy chain failed CA re-verify at the "
             "delegation gate - denying");
         return 0;
@@ -191,7 +192,7 @@ brix_vfs_deleg_proxy(brix_vfs_ctx_t *ctx, brix_sd_cred_t *cred,
         if (ctx->identity != NULL) {
             princ = ctx->identity->subject;
         }
-        ngx_log_error(NGX_LOG_ERR, ctx->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, ctx->log, ngx_errno,
             "brix: failed to materialise PASSTHROUGH proxy temp for "
             "principal=\"%V\"", &princ);
         return brix_vfs_deleg_deny(ctx, use_cred, err_out,

@@ -10,6 +10,7 @@
  * points are declared in process_internal.h. Init ordering is unchanged.
  */
 
+#include "core/compat/log_event.h"
 #include <unistd.h>
 #include "config.h"
 #include "auth/protbind/protbind.h"   /* brix_protbind_any_names */
@@ -78,7 +79,7 @@ brix_init_stage_engine_worker(ngx_cycle_t *cycle)
     if (ngx_worker == 0) {
         brix_stage_reconcile(NULL);
         if (brix_init_stage_retry_timer(cycle) != NGX_OK) {
-            ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, cycle->log, 0,
                 "brix: stage retry sweep not armed (out of memory)");
         }
         /* Replay any backend mutation (unlink/rmdir/rename/mkdir) a crash stranded
@@ -138,7 +139,7 @@ static void
 brix_warn_openat2_unavailable(ngx_cycle_t *cycle)
 {
     if (!brix_openat2_runtime_available()) {
-        ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, cycle->log, 0,
                       "brix: openat2(2) is not available on this system "
                       "(requires Linux kernel 5.6+). Path confinement falls "
                       "back to O_NOFOLLOW traversal, which has a TOCTOU race "
@@ -247,7 +248,7 @@ brix_hand_cycle_paths_to_worker(ngx_cycle_t *cycle)
     if (brix_imp_worker_runtime_ids(ccf->user, ccf->group, &uid, &gid)
         != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, cycle->log, 0,
             "brix: cannot resolve the worker identity to own the nginx "
             "temporary paths — a de-escalated worker may not be able to "
             "spill request bodies or cache entries");
@@ -259,7 +260,7 @@ brix_hand_cycle_paths_to_worker(ngx_cycle_t *cycle)
         if (chown((const char *) path[i]->name.data, uid, gid) != 0
             && ngx_errno != NGX_ENOENT)
         {
-            ngx_log_error(NGX_LOG_WARN, cycle->log, ngx_errno,
+            BRIX_LOG(NGX_LOG_WARN, cycle->log, ngx_errno,
                 "brix: chown(\"%V\", %d) to the worker identity failed — a "
                 "de-escalated worker may not be able to write it",
                 &path[i]->name, (int) uid);
@@ -285,9 +286,8 @@ brix_stream_init_module(ngx_cycle_t *cycle)
      * locks belong to the parent, and the worker's own open fails. Workers
      * rebuild their own stacks on first resolve. */
     if (brix_init_module_will_fork(cycle)) {
-        /* Only a FORKED worker de-escalates (single-process doubles as the
-         * master and stays put), so only then do nginx's spools need to
-         * change hands. Same predicate, same pre-fork instant. */
+        /* Serving single-process mode is rejected during init_process; only a
+         * forked worker receives the ownership/backend handoff. */
         brix_hand_cycle_paths_to_worker(cycle);
         brix_vfs_backend_release_prefork();
     }
@@ -309,8 +309,16 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
     /* Permanent per-worker boot-cost breakdown (one NOTICE line at the end). */
     brix_phase_timer_start(&pt);
 
+    /* Establish the worker privilege boundary before crypto, recovery, DNS,
+     * plugins, or any backend state can consume persisted/request-derived data. */
+    if (brix_imp_worker_harden(cycle->log) != NGX_OK
+        || brix_imp_worker_deescalate(cycle->log) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
     if (!brix_crypto_init()) {
-        ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, cycle->log, 0,
                       "brix: failed to initialise OpenSSL crypto primitives");
         return NGX_ERROR;
     }
@@ -333,23 +341,6 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
     /* 2.0 F8: a checksum-plugin registry left by a previous cycle (the new
      * configuration declares none) must not answer in this worker. */
     brix_cks_plugins_init_worker(cycle);
-
-    /* Shed ALL worker capabilities + set NO_NEW_PRIVS in EVERY worker, BEFORE the
-     * stream-config early-return below, so HTTP-only (WebDAV/S3) workers are
-     * hardened too — not just stream/root:// workers or `map` mode. A worker never
-     * needs caps; a root-configured worker must not keep them (D-3 companion). */
-    brix_imp_worker_harden(cycle->log);
-
-    /* De-escalate a root-capable worker (root, or a non-root CAP_SETUID service
-     * account) down to the confined brix_worker_user (default nobody) BEFORE any
-     * backend init, broker connect, or the seccomp install below — so pre-auth
-     * credential parsing never runs as a root-capable identity, in EVERY mode and
-     * for HTTP-only (WebDAV/S3) workers too (they reach this before the early
-     * return below; their seccomp install runs later in the WebDAV init_process).
-     * Fail-closed: a worker that cannot reach a confined account refuses to run. */
-    if (brix_imp_worker_deescalate(cycle->log) != NGX_OK) {
-        return NGX_ERROR;
-    }
 
     cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);
     if (cmcf == NULL) {
@@ -431,7 +422,9 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
 
     /* Phase 40: connect this worker to the identity broker (no-op unless
      * brix_idmap=map; lazily reconnects if the broker isn't up yet). */
-    brix_imp_init_worker(cycle);
+    if (brix_imp_init_worker(cycle) != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     brix_init_stage_reap_timer(cycle);
     brix_init_tpc_registry_reap_timer(cycle);

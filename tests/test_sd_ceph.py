@@ -65,6 +65,7 @@ def ceph_map_bin(tmp_path_factory):
     src_root = os.path.join(REPO, "src")
     r = subprocess.run(
         [cc, "-Wall", "-Wextra", "-Werror",
+         "-DXRDPROTO_NO_NGX",
          "-I", RADOS, "-I", BACKEND, "-I", src_root,
          SRC, COMPAT, META, N2N, TEST, "-o", out],
         capture_output=True, text=True)

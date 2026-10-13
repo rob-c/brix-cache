@@ -3,8 +3,9 @@
 # check_client_flags_doc.py — every command-line flag the docs put after a brix
 # client tool must be a flag that tool actually parses.
 #
-# WHAT: Extracts the ground-truth flag surface from the client C sources (the
-#       "--…" literals the argv walks compare against), then scans the docs,
+# WHAT: Extracts the ground-truth flag surface from client sources (the
+#       "--…" literals the argv walks compare against), including the shipped
+#       standalone migration command, then scans the docs,
 #       the man pages and the phase plans for command lines led by one of the
 #       shipped tools, and fails on a flag none of them parses.
 #
@@ -108,7 +109,11 @@ def tools(root: Path) -> frozenset[str]:
 def flags(root: Path) -> frozenset[str]:
     """Every long option the client sources compare argv against."""
     found: set[str] = set()
-    for path in sorted((root / "client").rglob("*")):
+    sources = list((root / "client").rglob("*"))
+    migration = root / "tools" / "brix_config_migrate.py"
+    if migration.is_file():
+        sources.append(migration)
+    for path in sorted(sources):
         if path.suffix not in (".c", ".h", ".cpp", ".py"):
             continue
         text = path.read_text(errors="ignore")

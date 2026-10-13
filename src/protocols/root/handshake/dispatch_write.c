@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "handshake.h"
 #include "protocols/root/write/chkpoint.h"
 #include "protocols/root/write/ext_ops.h"   /* vendor setattr/symlink/link */
@@ -72,7 +73,7 @@ manager_redirect_mutation(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (brix_srv_select_or_blacklisted(path, 1, host, sizeof(host), &port)) {
-        ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "brix: manager redirect mutation \"%s\" -> %s",
                        path, host);
         return brix_cms_answer_selected(ctx, c, conf, host, port);

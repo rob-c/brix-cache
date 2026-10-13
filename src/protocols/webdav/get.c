@@ -101,12 +101,26 @@ get_zip_member_serve(ngx_http_request_t *r,
 {
     char member[WEBDAV_MAX_PATH];
     int  zr;
+    int  query_rc;
+    xrdhttp_req_ctx_t *xctx;
 
     if (!conf->common.zip_access) {
         return NGX_DECLINED;
     }
 
-    zr = brix_zip_http_member_arg(r, member, sizeof(member));
+    xctx = xrdhttp_get_ctx(r);
+    if (xctx == NULL) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    query_rc = brix_http_query_parsed_get(&xctx->query, "xrdcl.unzip", member,
+        sizeof(member), BRIX_HTTP_QUERY_CASE_INSENSITIVE);
+    if (query_rc < 0) {
+        return NGX_HTTP_BAD_REQUEST;
+    }
+    if (query_rc == 0) {
+        return NGX_DECLINED;
+    }
+    zr = brix_zip_http_member_validate(member);
     if (zr < 0) {
         return NGX_HTTP_BAD_REQUEST;
     }

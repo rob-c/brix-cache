@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "proxy_internal.h"
 #include "protocols/root/connection/handler.h"
 #include "protocols/root/connection/write_helpers.h"   /* brix_queue_response_base */
@@ -354,7 +355,7 @@ brix_proxy_splice_to_buffered(brix_proxy_ctx_t *proxy)
      * splice + buffered-handoff dance (and its rare lost-wakeup stall into the
      * proxy_read_timeout). Once latched, try_splice declines and every later read
      * goes straight to the reliable buffered relay. Log only on the first latch. */
-    ngx_log_error(NGX_LOG_NOTICE, proxy->client_conn->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, proxy->client_conn->log, 0,
         "xrootd proxy: upstream splice under-draining (%uz/%uz body sent) — "
         "relaying the remaining %uz bytes via the buffered path",
         proxy->splice_downstream, proxy->splice_total, remaining);
@@ -453,7 +454,7 @@ brix_proxy_splice_drain_to_buffered(brix_proxy_ctx_t *proxy)
      */
     proxy->client_conn->write->handler = ngx_stream_brix_send;
 
-    ngx_log_error(NGX_LOG_NOTICE, proxy->client_conn->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, proxy->client_conn->log, 0,
         "xrootd proxy: client splice under-draining (%uz/%uz body sent, socket "
         "writable) — relaying the remaining %uz bytes via the buffered path",
         proxy->splice_downstream, proxy->splice_total, remaining);

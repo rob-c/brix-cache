@@ -2,6 +2,7 @@
  * auth_cert.c - GSI/x509 proxy certificate verification and TLS auth cache.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "auth/crypto/gsi_verify.h"
 #include "auth/crypto/store_policy.h"
@@ -74,7 +75,7 @@ webdav_auth_init_ssl_indices(ngx_log_t *log)
         webdav_ssl_auth_cache_index = SSL_get_ex_new_index(0, NULL, NULL,
                                                            NULL, NULL);
         if (webdav_ssl_auth_cache_index < 0) {
-            ngx_log_error(NGX_LOG_EMERG, log, 0,
+            BRIX_LOG(NGX_LOG_EMERG, log, 0,
                           "brix_webdav: SSL_get_ex_new_index() failed");
             return NGX_ERROR;
         }
@@ -85,7 +86,7 @@ webdav_auth_init_ssl_indices(ngx_log_t *log)
             SSL_SESSION_get_ex_new_index(0, NULL, NULL, NULL,
                                          webdav_tls_auth_cache_free);
         if (webdav_ssl_session_auth_cache_index < 0) {
-            ngx_log_error(NGX_LOG_EMERG, log, 0,
+            BRIX_LOG(NGX_LOG_EMERG, log, 0,
                           "brix_webdav: SSL_SESSION_get_ex_new_index() failed");
             return NGX_ERROR;
         }
@@ -200,7 +201,7 @@ webdav_log_auth_cache_reuse(ngx_http_request_t *r,
     }
 
     cache->reuse_logged = 1;
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
                   "brix_webdav: GSI auth reused from TLS %s cache",
                   cache_name);
 }
@@ -343,7 +344,7 @@ webdav_extract_and_set_voms_identity(ngx_http_request_t *r,
     {
         rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
     } else if (primary_vo[0] != '\0') {
-        ngx_log_error(NGX_LOG_DEBUG, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_DEBUG, r->connection->log, 0,
                       "brix_webdav: VOMS primary_vo=\"%s\"", primary_vo);
     }
 
@@ -482,7 +483,7 @@ webdav_finish_verified_cert(ngx_http_request_t *r,
         char dn_log[BRIX_WEBDAV_GSI_LOG_DN_BUF];
 
         brix_sanitize_log_string(ctx->dn, dn_log, sizeof(dn_log));
-        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
                       "brix_webdav: GSI auth OK source=%s dn=\"%s\"",
                       source, dn_log);
     }
@@ -507,15 +508,17 @@ webdav_verify_proxy_cert(ngx_http_request_t *r,
     ngx_int_t         cache_rc;
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
-    if (ctx != NULL) {
-        return ctx->verified ? NGX_OK : NGX_HTTP_FORBIDDEN;
+    if (ctx != NULL && ctx->verified) {
+        return NGX_OK;
+    }
+    if (ctx == NULL) {
+        BRIX_PCALLOC_OR_RETURN(ctx, r->pool, sizeof(*ctx),
+                               NGX_HTTP_INTERNAL_SERVER_ERROR);
+        ngx_http_set_ctx(r, ctx, ngx_http_brix_webdav_module);
     }
 
-    BRIX_PCALLOC_OR_RETURN(ctx, r->pool, sizeof(*ctx), NGX_HTTP_INTERNAL_SERVER_ERROR);
-    ngx_http_set_ctx(r, ctx, ngx_http_brix_webdav_module);
-
     if (r->connection->ssl == NULL) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                       "brix_webdav: non-TLS connection, cannot verify GSI");
         return NGX_HTTP_FORBIDDEN;
     }
@@ -532,7 +535,7 @@ webdav_verify_proxy_cert(ngx_http_request_t *r,
 
     leaf = SSL_get_peer_certificate(ssl);
     if (leaf == NULL) {
-        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "brix_webdav: no client certificate presented");
         return NGX_HTTP_FORBIDDEN;
     }
@@ -553,7 +556,7 @@ webdav_verify_proxy_cert(ngx_http_request_t *r,
 
     if (conf->ca_store == NULL) {
         webdav_free_verify_resources(NULL, leaf);
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "brix_webdav: cached CA store is unavailable");
         return NGX_HTTP_FORBIDDEN;
     }

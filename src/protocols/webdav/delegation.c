@@ -51,6 +51,7 @@
  *         hand-rolled write they excused.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "delegation.h"
 #include "delegation_internal.h"
@@ -223,7 +224,7 @@ delegation_chain_trusted(ngx_http_request_t *r,
     X509                    *leaf;
 
     if (conf->ca_store == NULL) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
             "brix_delegation: no trusted CA store configured — cannot verify"
             " delegated proxy; refusing to store an unverifiable credential"
             " (set brix_webdav_auth required with a CA on this location)");
@@ -270,7 +271,7 @@ delegation_store_pem(ngx_log_t *log, const ngx_str_t *dir, const char *key,
     brix_cred_write_req_t  req;
 
     if (dir->len == 0 || dir->len >= sizeof(dir_c)) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_delegation: credential dir too long");
         return NGX_ERROR;
     }
@@ -279,7 +280,7 @@ delegation_store_pem(ngx_log_t *log, const ngx_str_t *dir, const char *key,
 
     n = snprintf(name, sizeof(name), "%s.pem", key);
     if (n < 0 || (size_t) n >= sizeof(name)) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_delegation: credential key too long");
         return NGX_ERROR;
     }
@@ -294,7 +295,7 @@ delegation_store_pem(ngx_log_t *log, const ngx_str_t *dir, const char *key,
     if (brix_cred_write(&req, pem, pem_len, final_path, sizeof(final_path))
         != 0)
     {
-        ngx_log_error(NGX_LOG_ALERT, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ALERT, log, ngx_errno,
                       "brix_delegation: storing a delegated credential in "
                       "\"%V\" failed — the store is missing, not writable, or "
                       "fails the 0700/owner safety check; delegation will not "
@@ -402,7 +403,7 @@ delegation_validate_and_store(ngx_http_request_t *r,
         char dn_log[BRIX_WEBDAV_DELEG_PATH_BUF];
 
         brix_sanitize_log_string(ctx->dn, dn_log, sizeof(dn_log));
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
             "brix_delegation: DN mismatch — authenticated as \"%s\","
             " uploaded proxy is for a different identity", dn_log);
         sk_X509_pop_free(chain, X509_free);
@@ -429,7 +430,7 @@ delegation_validate_and_store(ngx_http_request_t *r,
         return;
     }
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
         "brix_delegation: stored proxy for key=%s", key);
     delegation_reject(r, NGX_HTTP_CREATED, "OK\n");
 }

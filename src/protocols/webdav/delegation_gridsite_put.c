@@ -8,6 +8,7 @@
  * delegation_gridsite_req.c's doc-block for the full two-step WHAT/WHY/HOW.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "delegation.h"
 #include "delegation_internal.h"
@@ -217,7 +218,7 @@ delegation_put_take_key(ngx_http_request_t *r,
         char dn_log[WEBDAV_DN_BUFFER_SIZE];
 
         brix_sanitize_log_string(ctx->dn, dn_log, sizeof(dn_log));
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
             "brix_delegation: putProxy id=%s DN mismatch — authenticated"
             " as \"%s\" does not own this delegation", id, dn_log);
     }
@@ -253,7 +254,7 @@ delegation_put_assemble(ngx_http_request_t *r, const char *id, EVP_PKEY *reqkey,
         if (brix_gsi_assemble_proxy(&proxy_blob, reqkey, &chain_blob,
                 &cred_out, &err_sink) != 0)
         {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                 "brix_delegation: putProxy id=%s assemble failed: %s", id, err);
             free(proxy_pem);
             free(chain_pem);
@@ -308,7 +309,7 @@ delegation_put_validate_chain(ngx_http_request_t *r,
     }
     if (!delegation_eec_dn_matches(eec, ctx->dn)) {
         sk_X509_pop_free(proxy_chain, X509_free);
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
             "brix_delegation: putProxy id=%s assembled proxy identity"
             " mismatch (should be unreachable — DN was already checked at"
             " getreq/take time)", id);
@@ -413,7 +414,7 @@ webdav_delegation_put_handle(ngx_http_request_t *r)
     }
     free(out_pem);
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
         "brix_delegation: putProxy id=%s completed, stored proxy for key=%s",
         id, key);
     delegation_reject(r, NGX_HTTP_CREATED, "OK\n");

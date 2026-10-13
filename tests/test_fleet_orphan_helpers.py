@@ -73,5 +73,15 @@ def test_operator_entrypoint_is_never_a_helper(monkeypatch, entry):
     assert not orphans._helper_matches(900001, 'python', command)
 
 
+def test_ownership_accepts_raw_and_resolved_root_spellings(monkeypatch):
+    """Darwin spells /tmp paths as /private/tmp after realpath; either spelling
+    still names the same lane, without weakening whole-path boundaries."""
+    monkeypatch.setattr(orphans.os.path, 'realpath',
+                        lambda path: '/private/tmp/lane')
+    assert orphans.owns('/tmp/lane', 'nginx -p /tmp/lane/registry/main')
+    assert orphans.owns('/tmp/lane', 'nginx -p /private/tmp/lane/registry/main')
+    assert not orphans.owns('/tmp/lane', 'nginx -p /tmp/lane-sibling/main')
+
+
 if __name__ == '__main__':
     time.sleep(120)

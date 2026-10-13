@@ -22,6 +22,9 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 NGINX_SRC = os.environ.get("TEST_NGINX_SRC", "/tmp/nginx-1.28.3")
 CC = os.environ.get("CC", "cc")
 IMP = os.path.join(REPO, "src", "auth", "impersonate")
+PLATFORM = os.path.join(
+    REPO, "src", "platform", "darwin" if sys.platform == "darwin" else "linux"
+)
 
 
 #: INVARIANT 14: the impersonation sources reach platform/platform.h, which
@@ -59,7 +62,9 @@ def test_reserved_id_guard_predicate(tmp_path):
            os.path.join(IMP, "impersonate_state.c"),
            os.path.join(IMP, "idmap.c"),
            os.path.join(IMP, "idmap_denylist.c"),
-           os.path.join(IMP, "idmap_gridmap.c")]
+           os.path.join(IMP, "idmap_gridmap.c"),
+           os.path.join(PLATFORM, "process_wrapper.c"),
+           os.path.join(REPO, "tests", "c", "brix_log_link_stubs.c")]
     build = subprocess.run(cmd, capture_output=True, text=True)
     assert build.returncode == 0, f"compile failed:\n{build.stderr}"
 

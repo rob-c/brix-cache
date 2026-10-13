@@ -13,6 +13,7 @@
  *   merge helpers were removed with it.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "auth/crypto/store_policy.h"      /* BRIX_SP_MODE_*, BRIX_CRL_MODE_* defaults */
 #include "core/compat/integrity_info.h"   /* §8.x checksum xattr write format */
@@ -55,7 +56,7 @@ webdav_merge_auth_token_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *pr
                               (const char *) conf->common.token_jwks.data,
                               conf->jwks_keys, BRIX_MAX_JWKS_KEYS);
         if (rc < 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                                "brix_webdav: failed to load JWKS from \"%V\"",
                                &conf->common.token_jwks);
             return NGX_CONF_ERROR;

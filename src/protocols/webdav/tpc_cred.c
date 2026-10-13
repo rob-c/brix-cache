@@ -17,6 +17,8 @@
  * validate, mode dispatch, and metric machinery.
  */
 
+#include "core/compat/log_event.h"
+#include "platform/platform_api.h"  /* BRIX_HAS_WORKER_EXEC */
 #include "tpc_cred_internal.h"
 #include "tpc_config.h"
 #include "webdav.h"
@@ -134,8 +136,17 @@ tpc_cred_finish(ngx_http_request_t *r, ngx_str_t *token_out, ngx_int_t rc)
 static ngx_int_t
 tpc_cred_run_oidc_agent(const tpc_cred_request_t *req)
 {
-    ngx_int_t rc = tpc_cred_oidc_agent_fetch(req->r, req->source_url,
-                                             req->scope, req->token_out);
+    ngx_int_t rc;
+
+    if (!BRIX_HAS_WORKER_EXEC) {
+        BRIX_LOG(NGX_LOG_ERR, req->r->connection->log, 0,
+            "tpc_cred: oidc-agent is unsupported on this host because hardened "
+            "workers cannot execute subprocesses");
+        webdav_tpc_cred_metric_increment(req->r, BRIX_TPC_CRED_NERROR);
+        return NGX_ERROR;
+    }
+    rc = tpc_cred_oidc_agent_fetch(req->r, req->source_url,
+                                   req->scope, req->token_out);
     return tpc_cred_finish(req->r, req->token_out, rc);
 }
 
@@ -154,6 +165,14 @@ tpc_cred_run_token_exchange(const tpc_cred_request_t *req,
     ngx_http_request_t *r = req->r;
     ngx_int_t rc;
 
+    if (!BRIX_HAS_WORKER_EXEC) {
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
+            "tpc_cred: token-exchange is unsupported on this host because "
+            "hardened workers cannot execute subprocesses");
+        webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NERROR);
+        return NGX_ERROR;
+    }
+
     if (wconf->tpc_cred.token_endpoint.len == 0
         || wconf->tpc_cred.token_endpoint.data == NULL) {
         BRIX_DIAG_ERR(r->connection->log, 0,
@@ -167,7 +186,7 @@ tpc_cred_run_token_exchange(const tpc_cred_request_t *req,
         return NGX_ERROR;
     }
     if (req->subject_token == NULL || *req->subject_token == '\0') {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "tpc_cred: no subject token for token-exchange");
         webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NERROR);
         return NGX_ERROR;
@@ -202,7 +221,7 @@ webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
 
     wconf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     if (wconf == NULL) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "tpc_cred: no WebDAV location config");
         return NGX_ERROR;
     }
@@ -218,7 +237,7 @@ webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
         return tpc_cred_run_token_exchange(&req, wconf);
 
     default:
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "tpc_cred: unknown delegation mode %d", (int) mode);
         webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NUNKNOWN_MODE);
         return NGX_ERROR;

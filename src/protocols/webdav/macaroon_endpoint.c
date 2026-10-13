@@ -27,6 +27,7 @@
  *       macaroon_endpoint_internal.h.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "auth/token/macaroon.h"
 #include "auth/token/macaroon_issue.h"
@@ -183,7 +184,7 @@ mac_authorize(ngx_http_request_t *r, const char *activities, const char *path)
     if (scope_ok) {
         return NGX_OK;
     }
-    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                   "macaroon_endpoint: token scope insufficient for"
                   " activities \"%s\" on \"%s\" — issue denied",
                   activities, path);

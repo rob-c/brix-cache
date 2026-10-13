@@ -133,7 +133,8 @@ def _client_run(rt, pubdir, script):
     """Run a mount script inside the official-client container (S9 pattern)."""
     return subprocess.run(
         [rt, "run", "--rm", "--network=host", "--device", "/dev/fuse",
-         "--cap-add", "SYS_ADMIN", "-v", f"{pubdir}:/brix:ro",
+         "-e", "CVMFS_HTTP_PROXY=DIRECT",
+         "--cap-add", "SYS_ADMIN", "-v", f"{pubdir}:/brix:ro,Z",
          "--entrypoint", "/bin/sh", IMAGE, "-c", script],
         capture_output=True, text=True, timeout=300)
 

@@ -13,6 +13,7 @@
  *       the 5-parameter gate), then streams over an open brix_rfile. tail -f
  *       exits cleanly on the SIGINT flag tail_stop (owned by xrdfs.c). No goto.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdfs_internal.h"
 
 /* tail operand set: the target path plus the -c/-n/-f/--interval modes. */
@@ -100,7 +101,7 @@ do_cat(brix_conn *c, const char *cwd, int argc, char **argv)
      * Guard: reject codec strings that could inject opaque key=value pairs. */
     if (codec != NULL) {
         if (codec[0] == '\0' || strlen(codec) > 16 || strpbrk(codec, "&?=") != NULL) {
-            fprintf(stderr, "xrdfs: cat: invalid codec '%s'\n", codec);
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: cat: invalid codec '%s'\n", codec);
             return 50;
         }
         snprintf(opq, sizeof(opq), "xrootd.compress=%s", codec);
@@ -432,7 +433,7 @@ tail_follow(brix_conn *c, const char *path, int64_t from, double interval,
         }
         stall_deadline = 0;   /* a healthy poll resets the patience window */
         if ((int64_t) si.size < fl.off) {
-            fprintf(stderr, "xrdfs: tail: %s truncated, following new end\n", path);
+            BRIX_CLIENT_LOG("INFO",  "xrdfs: tail: %s truncated, following new end\n", path);
             fl.off = (int64_t) si.size;
         }
         rc = tail_follow_drain(&fl, si.size, st);

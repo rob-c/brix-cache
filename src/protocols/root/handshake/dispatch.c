@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "handshake.h"
 #include "net/proxy/proxy.h"
 #include "net/mirror/stream_mirror.h"
@@ -67,7 +68,7 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
     /* Every dispatched request resets the per-request timing origin for logging. */
     ctx->req_start = ngx_current_msec;
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: dispatch reqid=%d", (int) ctx->recv.cur_reqid);
 
     rc = brix_verify_pending_sigver(ctx, c);
@@ -187,7 +188,7 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
         return rc;
     }
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: unsupported request %d",
                    (int) ctx->recv.cur_reqid);
     /* An unrecognized opcode is kXR_InvalidRequest ("Invalid request code"),

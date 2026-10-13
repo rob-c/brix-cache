@@ -9,6 +9,7 @@
  * through the unified xmeta record (fs/meta/xmeta_carrier.h) on the store
  * driver — the mode is picked per store in brix_cstore_init (section 6.3).
  */
+#include "core/compat/log_event.h"
 #include "core/types/tunables.h"
 #include "cstore.h"
 #include "gcas.h"                    /* phase-87 G13: canonical-name evict GC */
@@ -84,7 +85,7 @@ brix_cstore_init(brix_cstore_t *cs, brix_sd_instance_t *store,
     if (meta_mode == BRIX_CMETA_SIDECAR && cs->store->driver->staged_open == NULL
         && log != NULL)
     {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "xrootd cstore: SIDECAR cinfo mode needs a writable store (staged_open) "
             "to persist hit state; this store has none");
     }

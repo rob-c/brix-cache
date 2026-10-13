@@ -17,6 +17,7 @@
  *   these in order and early-returns NGX_CONF_ERROR on the first failure.
  */
 
+#include "core/compat/log_event.h"
 #include "s3.h"
 #include "auth/authz/acc/acc.h"            /* XrdAcc engine directives + enum tables */
 #include "auth/token/token.h"              /* brix_jwks_load, brix_jwks_register_cleanup */
@@ -129,7 +130,7 @@ s3_merge_token(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *prev,
     /* token quartet merges -> shared_merge (W4; unified skew 30). */
 
     if (conf->token_enable && conf->common.token_jwks.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_s3_token: brix_token_jwks is required when "
             "brix_s3_token is on");
         return NGX_CONF_ERROR;
@@ -142,7 +143,7 @@ s3_merge_token(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *prev,
                                   (const char *) conf->common.token_jwks.data,
                                   conf->jwks_keys, BRIX_MAX_JWKS_KEYS);
         if (key_rc <= 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                                "brix_token_jwks: no usable keys in \"%V\"",
                                &conf->common.token_jwks);
             return NGX_CONF_ERROR;
@@ -214,7 +215,7 @@ s3_merge_export(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *conf)
     if (brix_authdb_rules_finalize_copy(cf, &conf->common.root,
             conf->common.authdb_rules, &conf->authdb_final) != NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_authdb: failed to finalize rules for root \"%V\"",
             &conf->common.root);
         return NGX_CONF_ERROR;

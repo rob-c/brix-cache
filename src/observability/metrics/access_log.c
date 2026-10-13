@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/types/tunables.h"
 #include "access_log.h"
 
@@ -138,7 +139,7 @@ brix_access_log_emit(const brix_vfs_ctx_t *ctx, const char *path,
      * appears EXACTLY ONCE per record. A per-op line reports the op's own cache
      * decision: HIT/MISS/- (BYPASS/NEGHIT are request-level decisions the
      * variable can carry, an op line cannot). */
-    ngx_log_error(NGX_LOG_INFO, ctx->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, ctx->log, 0,
                   "brix_access_json: "
                   "{\"ts\":%T.%03M,\"proto\":\"%s\","
                   "\"remote\":\"%s\",\"op\":\"%s\","

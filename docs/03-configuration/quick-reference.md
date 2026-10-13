@@ -138,7 +138,7 @@ The WebDAV module (`ngx_http_brix_webdav_module`) handles `davs://` clients in n
 | `brix_tls_verify_log off\|failure\|all` | `location` | `off` | Chain-verification log, exactly as on the `root://` plane above |
 | `brix_allow_write on\|off` | `location` | `off` | Enable PUT/DELETE/MKCOL and TPC COPY writes |
 | `brix_webdav_tpc on\|off` | `location` | `off` | Enable HTTP-TPC COPY pull support |
-| `brix_webdav_tpc_curl <path>` | `location` | `/usr/bin/curl` | External curl helper for TPC pulls |
+| `brix_webdav_tpc_curl <path>` | `location` | build-resolved absolute `curl` path | External curl helper for TPC token exchange |
 | `brix_webdav_tpc_cert <path>` | `location` | — | X.509 cert/proxy used for outbound TPC source fetches |
 | `brix_webdav_tpc_key <path>` | `location` | `brix_webdav_tpc_cert` | Private key used with the TPC cert |
 | `brix_webdav_tpc_cadir <path>` | `location` | `brix_trusted_ca_dir` | CA directory for outbound source TLS verification |

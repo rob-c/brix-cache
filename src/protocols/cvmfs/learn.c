@@ -29,6 +29,7 @@
  *       property of the WORKLOAD, not the user. No metrics are emitted —
  *       observability is two log lines (DEBUG on post, INFO on completion).
  */
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "classify.h"
 #include "core/aio/aio.h"                  /* brix_task_bind */
@@ -167,7 +168,7 @@ cvmfs_learn_done(ngx_event_t *ev)
     cvmfs_learn_ctx_t *lc = task->ctx;
 
     lc->busy = 0;
-    ngx_log_error(NGX_LOG_INFO, ev->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, ev->log, 0,
         "cvmfs-learn (export %s): prewarmed %ui/%ui predicted object(s)",
         lc->reg->root, lc->filled, lc->n_keys);
 }
@@ -305,7 +306,7 @@ cvmfs_learn_predict(cvmfs_learn_ctx_t *lc, ngx_http_request_t *r,
         lc->busy = 0;
         return;
     }
-    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
         "cvmfs-learn: %ui predicted successor(s) of \"%s\" posted "
         "for prewarm", n, key);
 }

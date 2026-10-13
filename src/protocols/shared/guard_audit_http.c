@@ -7,6 +7,7 @@
  * (r->uri.data is NOT NUL-terminated — sanitizing in place would read past
  * the span and leak adjacent header bytes into the audit line).
  */
+#include "core/compat/log_event.h"
 #include "guard_audit_http.h"
 
 #include "core/http/http_headers.h"
@@ -49,6 +50,6 @@ brix_http_guard_audit(ngx_http_request_t *r, const char *proto,
     ts[ts_len] = '\0';
 
     if (guard_audit_format(&req, reason, ts, line, sizeof(line)) > 0) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "%s", line);
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0, "%s", line);
     }
 }

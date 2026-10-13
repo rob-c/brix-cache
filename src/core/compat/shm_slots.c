@@ -8,6 +8,7 @@
  * FROM the slab pool so the header survives.
  */
 
+#include "core/compat/log_event.h"
 #include "shm_slots.h"
 
 
@@ -162,7 +163,7 @@ brix_shm_zone_warn_on_resize(ngx_conf_t *cf, ngx_shm_zone_t *zn,
         }
 
         if (old[i].shm.size != zn->shm.size) {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
                 "brix: %s changed across reload (shared zone \"%V\" "
                 "%uz -> %uz bytes): nginx allocates a fresh zone, so entries "
                 "live in this table are dropped for new connections "

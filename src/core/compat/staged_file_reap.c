@@ -24,6 +24,7 @@
  *       pre-split code.
  */
 
+#include "core/compat/log_event.h"
 #include "staged_file.h"
 #include "../types/tunables.h"
 
@@ -255,12 +256,12 @@ reap_one_marker(const char *stage_dir, const char *name, ngx_log_t *log)
      * the recovered partial keeps its on-disk mode. */
     if (brix_commit_staged(NGX_INVALID_FILE, partial, final, 0, 0, log) == NGX_OK) {
         (void) unlink(marker);
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: completed pending stage-out \"%s\" -> \"%s\"",
             partial, final);
         return 1;
     }
-    ngx_log_error(NGX_LOG_WARN, log, errno,
+    BRIX_LOG(NGX_LOG_WARN, log, errno,
         "brix: pending stage-out \"%s\" -> \"%s\" failed; will retry",
         partial, final);
     return 0;

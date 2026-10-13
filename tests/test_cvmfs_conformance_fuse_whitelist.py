@@ -74,7 +74,7 @@ def _guard_env_3(spec, repo_dir, ctx):
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from cmdscripts.c_regression_units import _gcov_flags  # noqa: E402
-from cmdscripts.compile_run import PLATFORM_HOST_FLAGS  # noqa: E402
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS, weak_undefined_flags  # noqa: E402
 from cmdscripts.cvmfs_driver_units import (  # noqa: E402
     BRIXCVMFS_CORE_DEPS,
     BRIXCVMFS_DRIVER_SRCS,
@@ -336,6 +336,8 @@ def _archive_flags(root: Path) -> list[str]:
 def _compile_brixcvmfs(dst: Path) -> None:
     cflags = subprocess.run(["pkg-config", "--cflags", "fuse3"], check=True,
                             stdout=subprocess.PIPE, text=True).stdout.split()
+    if sys.platform == "darwin":
+        cflags.append("-DFUSE_DARWIN_ENABLE_EXTENSIONS=0")
     libs = subprocess.run(["pkg-config", "--libs", "fuse3"], check=True,
                           stdout=subprocess.PIPE, text=True).stdout.split()
     root = Path(__file__).resolve().parents[1]
@@ -343,6 +345,8 @@ def _compile_brixcvmfs(dst: Path) -> None:
     # every phase-87 seam brixcvmfs pulls in); the client-lib half comes from
     # the prebuilt archives below, so keep only the shared/ .c entries.
     deps = [*BRIXCVMFS_DRIVER_SRCS,
+            "client/apps/fs/brixcvmfs_rw.c",
+            "client/apps/fs/brixcvmfs_rw_ext.c",
             *[d for d in BRIXCVMFS_CORE_DEPS
               if d.startswith("shared/") and d.endswith(".c")]]
     coverage = _archive_flags(root)
@@ -351,6 +355,8 @@ def _compile_brixcvmfs(dst: Path) -> None:
                     *cflags, *deps, *_ARCHIVES, *libs,
                     "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-lzstd", "-lssl",
                     "-pthread",
+                    *weak_undefined_flags("brixcvmfs_ingest_main",
+                                          "brixcvmfs_repo_main"),
                     "-o", str(dst)],
                    cwd=str(root), check=True)
 

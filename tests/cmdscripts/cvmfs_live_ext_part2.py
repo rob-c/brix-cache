@@ -29,6 +29,7 @@ _PORTS = cmdscript_ports("cvmfs_live_ext")
 
 def _reverse_config(run, cache, access_log, error_log, ports):
     mock_port, cache_port, metrics_port, dashboard_port = ports
+    keepalive = "on" if sys.platform == "darwin" else "60s:10s:6"
     text = f"""daemon on; error_log {error_log} info; pid {run.root}/nginx.pid;
 thread_pool default threads=2;
 events {{ worker_connections 128; }}
@@ -42,7 +43,7 @@ http {{
     send_timeout 300s; client_header_timeout 300s;
     reset_timedout_connection off;
     server {{
-        listen {BIND_HOST}:{cache_port} so_keepalive=60s:10s:6 backlog=2048;
+        listen {BIND_HOST}:{cache_port} so_keepalive={keepalive} backlog=2048;
         location /cvmfs/ {{
             brix_storage_backend http://{HOST}:{mock_port};
             brix_cache_store posix:{cache};

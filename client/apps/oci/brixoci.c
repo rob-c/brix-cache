@@ -10,6 +10,7 @@
  *       (0 ok · 2 usage · 3 auth · 4 not-found · 5 verify · 6 transport).
  *       Auth material: --token-file / --cert+--key / netrc-style
  *       ~/.config/brix/oci-auth, refused outright unless mode 0600. */
+#include "../../../shared/observability/log_stdio.h"
 #include "brixoci_internal.h"
 
 #include "core/version.h"
@@ -511,9 +512,9 @@ oci_parse_args(int argc, char **argv, brixoci_opts_t *o, const char **pos,
             continue;
         }
         if (rc == 0) {
-            fprintf(stderr, "brixoci: unknown option %s\n", a);
+            BRIX_CLIENT_LOG("ERROR",  "brixoci: unknown option %s\n", a);
         } else {
-            fprintf(stderr, "brixoci: %s: missing or invalid value\n", a);
+            BRIX_CLIENT_LOG("ERROR",  "brixoci: %s: missing or invalid value\n", a);
         }
         return -1;
     }
@@ -545,7 +546,7 @@ oci_dispatch(const char *verb, const brixoci_opts_t *o, const char **pos,
         return npos == 1 ? oci_cmd_remote(verb, o, pos[0], pem, err, errlen)
                          : BRIXOCI_EUSAGE;
     }
-    fprintf(stderr, "brixoci: unknown command \"%s\"\n", verb);
+    BRIX_CLIENT_LOG("ERROR",  "brixoci: unknown command \"%s\"\n", verb);
     return BRIXOCI_EUSAGE;
 }
 
@@ -585,7 +586,7 @@ brixoci_main(int argc, char **argv)
     if (rc == BRIXOCI_EUSAGE && err[0] == '\0') {
         oci_usage(stderr);
     } else if (rc != BRIX_OCI_REG_OK && err[0] != '\0') {
-        fprintf(stderr, "brixoci: %s\n", err);
+        BRIX_CLIENT_LOG("ERROR",  "brixoci: %s\n", err);
     }
     return oci_exit(rc);
 }

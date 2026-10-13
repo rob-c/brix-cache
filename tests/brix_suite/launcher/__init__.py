@@ -33,6 +33,7 @@ from brix_suite.nginx_tools import (  # noqa: F401 — re-exported for importers
     _inject_nginx_runtime_paths,
     _nginx_bin,
     env_entry_ok as _env_entry_ok,
+    fleet_nginx_bootstrap_log,
     prepare_fleet_nginx_config,
 )
 
@@ -96,7 +97,8 @@ def launch_fleet_nginx(
     cmd = [_nginx_bin()]
     if prefix is not None:
         cmd += ["-p", prefix]
-    cmd += ["-c", config]
+    cmd += ["-c", config, "-e",
+            fleet_nginx_bootstrap_log(config_path, prefix, cwd)]
     return subprocess.run(
         cmd,
         check=True,

@@ -11,6 +11,7 @@
  * so that nginx -t catches misconfigured roots before traffic is accepted.
  */
 
+#include "core/compat/log_event.h"
 #include "config.h"
 #include "root_prepare.h"
 #include "export_guard.h"   /* brix_assert_dir_outside_export (hard guard) */
@@ -34,7 +35,7 @@ brix_prepare_export_root(ngx_conf_t *cf,
     /* Empty root — either silently skip or hard fail depending on opts. */
     if (root == NULL || root->len == 0) {
         if (opts->required) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                                "%s is required but not set",
                                opts->directive_name);
             return NGX_CONF_ERROR;
@@ -44,7 +45,7 @@ brix_prepare_export_root(ngx_conf_t *cf,
 
     /* Guard against paths that would overflow the canonical buffer. */
     if (root->len >= opts->canon_size || root->len >= sizeof(root_buf)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "%s path is too long", opts->directive_name);
         return NGX_CONF_ERROR;
     }
@@ -66,7 +67,7 @@ brix_prepare_export_root(ngx_conf_t *cf,
 
     /* Resolve symlinks and normalise the path for the confinement boundary. */
     if (realpath(root_buf, root_canon) == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, errno,
                            "%s: cannot resolve canonical path for \"%s\"",
                            opts->directive_name, root_buf);
         return NGX_CONF_ERROR;
@@ -87,7 +88,7 @@ brix_prepare_cache_root(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common)
         return NGX_CONF_OK;
     }
     if (common->cache_store.len > 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_root is shorthand for a POSIX brix_cache_store; "
             "configure only one of them");
         return NGX_CONF_ERROR;
@@ -143,7 +144,7 @@ brix_prepare_spill_path(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common,
     /* realpath() would silently resolve a relative path against the
      * master's cwd — refuse it up front so the boundary is explicit. */
     if (common->vfs_spill_path.data[0] != '/') {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_vfs_spill_path must be absolute (got \"%V\")",
             &common->vfs_spill_path);
         return NGX_CONF_ERROR;
@@ -179,7 +180,7 @@ brix_prepare_spill_scratch(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common,
     max = (common->vfs_spill_max == (size_t) NGX_CONF_UNSET_SIZE)
         ? 0 : common->vfs_spill_max;
     if (max != 0 && max < 1024 * 1024) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_vfs_spill_max must be 0 or at least 1m (got %uz)", max);
         return NGX_CONF_ERROR;
     }

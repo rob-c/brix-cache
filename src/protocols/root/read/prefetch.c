@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "platform/platform_api.h"
 /*
  * prefetch.c — read-ahead hints (POSIX_FADV_WILLNEED) for the read paths.
@@ -27,7 +28,7 @@ brix_prefetch_fd_range(ngx_log_t *log, int fd, off_t offset, size_t length)
         && obj.driver->read_advise(&obj, offset, length, BRIX_SD_ADV_WILLNEED)
            != NGX_OK)
     {
-        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, log, errno,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, log, errno,
                        "brix: WILLNEED read-ahead hint ignored: %s",
                        strerror(errno));
     }
@@ -49,7 +50,7 @@ brix_prefetch_obj_range(ngx_log_t *log, brix_sd_obj_t *obj, off_t offset,
     if (obj->driver->read_advise(obj, offset, length, BRIX_SD_ADV_WILLNEED)
         != NGX_OK)
     {
-        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, log, errno,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, log, errno,
                        "brix: driver WILLNEED hint ignored: %s",
                        strerror(errno));
     }

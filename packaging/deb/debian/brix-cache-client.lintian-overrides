@@ -1,0 +1,4 @@
+# This is an LD_PRELOAD interposer, not a linkable shared library. Giving it a
+# SONAME would misrepresent its ABI and make dependency generators treat it as
+# a normal library.
+sharedobject-in-library-directory-missing-soname [usr/lib/*/libbrixposix_preload.so]

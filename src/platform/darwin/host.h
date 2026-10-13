@@ -50,6 +50,10 @@
 #define BRIX_HAS_COPY_FILE_RANGE 0
 #define BRIX_HAS_IPV6_FLOWLABEL 0
 #define BRIX_HAS_TCP_INFO 0
+#define BRIX_HAS_NO_NEW_PRIVS 1          /* sandbox profile denies process-exec */
+#define BRIX_HAS_WORKER_EXEC 0            /* worker sandbox denies every exec */
+#define BRIX_HAS_CAPABILITIES 0
+#define BRIX_HAS_SAVED_IDS 0              /* libc cannot inspect the saved IDs */
 /* gss_krb5_import_cred is an MIT extension.  Apple's system Kerberos is
  * Heimdal (no import call), but a build against the Homebrew MIT keg has it:
  * the configure script sets BRIX_KRB5_MIT from `krb5-config --vendor`. */
@@ -59,6 +63,7 @@
 #define BRIX_HAS_GSS_KRB5_IMPORT_CRED 0  /* Heimdal lacks the import call */
 #endif
 #define BRIX_PLAT_SHM_DIR "/tmp"         /* no /dev/shm: sticky, disk-backed */
+#define BRIX_XATTR_NAME_MAX 127u          /* Darwin XATTR_MAXNAMELEN */
 
 /* Adapter selection recorded for the host README and the native fixtures. */
 #define BRIX_SENDFILE_MACOS 1

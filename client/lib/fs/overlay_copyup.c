@@ -5,6 +5,7 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE                 /* asprintf (parent overlay.c self-guards it too) */
 #endif
+#include "../../../shared/observability/log_stdio.h"
 #include "fs/overlay.h"
 #include "overlay_internal.h"
 
@@ -164,7 +165,7 @@ static int ov_cli_guard(const char *mountdir, char **upper_out) {
         return 1;
     struct stat st;
     if (lstat(*upper_out, &st) == 0 && S_ISDIR(st.st_mode)) return 0;
-    fprintf(stderr, "brixMount: no " BRIX_OV_DIRNAME
+    BRIX_CLIENT_LOG("INFO",  "brixMount: no " BRIX_OV_DIRNAME
             " overlay under %s (not a cvmfs-rw mountpoint?)\n", mountdir);
     free(*upper_out);
     *upper_out = NULL;

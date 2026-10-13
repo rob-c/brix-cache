@@ -155,7 +155,7 @@ def weak_undefined_flags(*symbols: str) -> list[str]:
 
 def compile_binary(output: Path, args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess:
     return run(["gcc", *PLATFORM_HOST_FLAGS, *args, *sanitizer_link_flags(args),
-                "-o", str(output)], cwd=cwd)
+                "tests/c/brix_log_link_stubs.c", "-o", str(output)], cwd=cwd)
 
 
 def result(ok: bool, message: str) -> tuple[bool, str]:

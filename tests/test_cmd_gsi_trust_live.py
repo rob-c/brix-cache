@@ -5,7 +5,8 @@ import pytest
 
 from cmdscripts import gsi_trust_live
 
-pytestmark = pytest.mark.xdist_group("cmd-gsi_trust_live")
+pytestmark = [pytest.mark.xdist_group("cmd-gsi_trust_live"),
+              pytest.mark.serial]
 
 
 def test_gsi_trust_live_are_importable():

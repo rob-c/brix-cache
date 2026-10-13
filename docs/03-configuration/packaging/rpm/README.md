@@ -4,8 +4,10 @@ The files described here remain in [`packaging/rpm/`](../../../../packaging/rpm/
 Directory listings below refer to that source location; command working
 directories are unchanged by this guide’s relocation.
 
-This directory contains RPM packaging for AlmaLinux 9 / EPEL 9 and
-AlmaLinux 10 / EPEL 10 style nginx dynamic module builds.
+This directory contains native RPM packaging for AlmaLinux 9/10, CentOS
+Stream 9/10, Fedora 43/44 and Fedora Rawhide.  AlmaLinux 8 has a deliberately
+client-only compatibility package; its distribution nginx uses OpenSSL 1.1.1
+and cannot safely load BriX's OpenSSL-3-based module in the same process.
 
 A single spec (`nginx-mod-brix-cache.spec`) builds **seven** packages from one
 source tree:
@@ -13,7 +15,7 @@ source tree:
 | Package | Arch | Contents |
 |---|---|---|
 | `nginx-mod-brix-cache` | arch | The combined BriX nginx dynamic module, the xrdhttp filter module, and the `mod-xrootd.conf` loader |
-| `brix-cache-client` | arch | The clean-room native CLI tools (`xrdcp`, `xrdfs`, `xrd`, `xrdcksum`, `xrdstorascan`, …), the `libbrixposix_preload.so` POSIX shim, completions, and their man pages; `Recommends:` the two FUSE packages below so a default install keeps the full surface |
+| `brix-cache-client` | arch | The clean-room native CLI tools (`xrdcp`, `xrdfs`, `xrd`, `xrdcksum`, `xrdstorascan`, …), offline `brix-config-migrate` assistant, the `libbrixposix_preload.so` POSIX shim, completions, and their man pages; `Recommends:` the two FUSE packages below so a default install keeps the full surface |
 | `brix-xrootdfs-fuse` | arch | The `xrootdfs` FUSE mount (async + `--legacy` drivers in one binary): a `root://` endpoint as a local POSIX filesystem — deployable standalone on mount-only nodes |
 | `brix-cvmfs-fuse` | arch | `brixMount`, the native CVMFS FUSE client (CAS verification, writable `cvmfs-rw` overlay, plus the `brixMount xrootdfs` front-end) — deployable standalone on cache/mount tiers |
 | `brix-cache-tests` | noarch | The full pytest integration/conformance suite under `%{_datadir}/brix`, pulling in the python packages it needs |
@@ -72,8 +74,9 @@ EPEL/WLCG) is a *weak* dependency (`Recommends`) — it is only needed by the
 cross-backend / reference-daemon comparison tests, so the package still installs
 where the WLCG repo is not enabled.
 
-The build additionally needs `fuse3-devel`, `sqlite-devel`, `libcom_err-devel`,
-and `pkgconfig` at build time for the client tools (`pkg-config` gates the
+The build additionally needs `fuse3-devel`, `sqlite-devel`, `libseccomp-devel`,
+`libcom_err-devel`, and `pkgconfig` at build time for the client tools
+(`pkg-config` gates the
 FUSE/krb5 features; `sqlite-devel` backs the CVMFS catalog reader in
 `brixMount`; `libcom_err-devel` resolves the `-lcom_err` pulled in by
 `pkg-config --libs krb5`).  The compiled Ceph migration tools additionally
@@ -98,6 +101,13 @@ dnf install -y epel-release
 # the builder's BRIX_CEPH_RELEASE, default reef):
 dnf install -y centos-release-ceph-reef
 
+dnf install -y ./nginx-mod-brix-cache-*.rpm ./brix-tools-*.rpm
+```
+
+For EL10 use the native Squid line instead:
+
+```bash
+dnf install -y epel-release centos-release-ceph-squid
 dnf install -y ./nginx-mod-brix-cache-*.rpm ./brix-tools-*.rpm
 ```
 
@@ -195,7 +205,7 @@ override it:
 packaging/rpm/build-rpm.sh 1.2.3
 ```
 
-## Container-based build (AlmaLinux 9 or 10)
+## Container-based builds
 
 `build-rpm-container.sh` wraps the Docker/Podman build so the host does not
 need any RPM build toolchain installed.
@@ -207,22 +217,29 @@ packaging/rpm/build-rpm-container.sh
 # AlmaLinux 10, explicit version override, output to /tmp/rpms:
 packaging/rpm/build-rpm-container.sh -d alma10 -v 1.2.3 -o /tmp/rpms
 
+# Current Fedora, Rawhide, and CentOS Stream examples:
+packaging/rpm/build-rpm-container.sh -d fedora44 -o /tmp/fedora44
+packaging/rpm/build-rpm-container.sh -d fedora-rawhide -o /tmp/rawhide
+packaging/rpm/build-rpm-container.sh -d centos-stream10 -o /tmp/cs10
+
 # Options:
 #   -v VERSION   Version embedded in the RPM (default: derived from
 #                BRIX_SERVER_VERSION_BARE in src/core/ident.h)
-#   -d DISTRO    alma9 or alma10 (default: alma9)
+#   -d DISTRO    one of the targets in the table below (default: alma9)
 #   -o OUTDIR    Directory for built RPMs (default: dist/)
 #   -e ENGINE    docker or podman (auto-detected)
 ```
 
 The corresponding Dockerfiles are:
 
-| File | Target |
-|---|---|
-| `Dockerfile.alma8` | AlmaLinux 8 / EPEL 8 |
-| `Dockerfile.alma9` | AlmaLinux 9 / EPEL 9 |
-| `Dockerfile.alma10` | AlmaLinux 10 / EPEL 10 |
-| `Dockerfile.alma11` | AlmaLinux 11 / EPEL 11 (speculative) |
+| File | `-d` target | Result |
+|---|---|---|
+| `Dockerfile.alma8` | `alma8` | Client-only EL8 compatibility RPM |
+| `Dockerfile.alma9` | `alma9` | Full AlmaLinux 9 set |
+| `Dockerfile.alma10` | `alma10` | Full AlmaLinux 10 set |
+| `Dockerfile.alma11` | `alma11` | Speculative; not a release target |
+| `Dockerfile.fedora` | `fedora43`, `fedora44`, `fedora-rawhide` | Full native Fedora set |
+| `Dockerfile.centos-stream` | `centos-stream9`, `centos-stream10` | Full native CentOS Stream set |
 
 These Dockerfiles install the Ceph development packages required by
 `brix-tools`.  If your target Alma image does not expose
@@ -233,15 +250,32 @@ the Dockerfile before the `dnf install` step.
 ### AlmaLinux 8 notes
 
 - Based on RHEL 8 (EL8).  GCC 8 toolchain by default.
-- `nginx-mod-devel` is available via EPEL 8.  If absent, uncomment the nginx
-  stable upstream repo block in `Dockerfile.alma8`.
-- The built RPM carries the `.el8` dist tag.
+- Builds `brix-cache-client-compat` against EPEL's parallel OpenSSL 3 packages
+  and the last immutable Ceph Reef EL8/AArch64 repository.
+- Does not build an nginx module: distro nginx is linked to OpenSSL 1.1.1, and
+  loading the OpenSSL 3 client/module ABI beside it would be unsafe.
+- OpenSSL 1.1.1 is not an alternate build mode. BriX uses OpenSSL 3 provider,
+  parameter-builder, `EVP_MAC`, and modern `EVP_PKEY` APIs; additionally,
+  OpenSSL 1.1.1's legacy licence is GPL-incompatible. Distribution would need
+  a confirmed system-library exception or a project-wide linking exception;
+  the AlmaLinux 8 package does not rely on either route.
+- The client RPM carries the `.el8` dist tag and brix-prefixed command names,
+  so it can coexist with distribution XRootD clients.
+
+### AlmaLinux packages installed on Rocky Linux
+
+AlmaLinux container builds add a small shared platform-notice package. It is
+silent on AlmaLinux. If any of those Alma-built packages are installed on
+Rocky Linux, the RPM transaction prints a prominent warning that Rocky Linux
+is not a supported BriX-Cache target. The warning does not abort installation;
+it prevents an accidental deployment from being mistaken for a supported one.
 
 ### AlmaLinux 10 notes
 
-- Based on RHEL 10 (CS1); uses GCC 14 by default.
-- `nginx-mod-devel` should be available via EPEL 10.  If not yet published,
-  uncomment the nginx stable upstream repo block in `Dockerfile.alma10`.
+- Based on RHEL 10 (CS1); uses GCC 14 by default and the Squid Storage SIG
+  packages (`centos-release-ceph-squid`) for Ceph development/runtime libs.
+- `nginx-mod-devel` is taken from Alma AppStream so the module ABI matches the
+  distribution nginx installed on the target host.
 - The built RPM carries the `.el10` dist tag.
 
 ### AlmaLinux 11 notes

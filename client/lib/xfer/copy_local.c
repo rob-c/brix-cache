@@ -2,6 +2,7 @@
  * copy_local.c - extracted concern
  * Phase-38 split of copy.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "copy_internal.h"
 
 
@@ -252,7 +253,7 @@ download_stream_body(const download_body_ctx *j, pump_sink_fn sink,
                        si->size, o, si->size, st);
 
     if (getenv("BRIX_STREAMS_DEBUG") != NULL) {
-        fprintf(stderr, "brix: download substreams=%d chunks-on-secondaries=%u\n",
+        BRIX_CLIENT_LOG("INFO",  "brix: download substreams=%d chunks-on-secondaries=%u\n",
                 ss->n, src.sec_reads);
     }
 
@@ -272,15 +273,20 @@ download_stream_body(const download_body_ctx *j, pump_sink_fn sink,
  *       one helper keeps that policy in a single place and off copy_download's
  *       two branches.
  * HOW:  Runs cksum_verify(local_path may be NULL for stdout); a MISMATCH returns
- *       -1 (caller drops any committed file), an UNVERIFIED prints the note
- *       (unless silent) and clears st (a query hiccup is not a transfer failure),
- *       and an OK returns 0.  `local_path` NULL ≡ stdout; the note names du->path.
+ *       -1 (caller drops any committed file). In --verify strict mode, stdout
+ *       and UNVERIFIED also fail; explicit --cksum keeps its best-effort
+ *       warn-and-clear policy. An OK returns 0.
  */
 int
 download_reconcile_cksum(const download_job_t *job, const char *local_path,
                          brix_status *st)
 {
     const brix_copy_opts *o = job->o;
+    if (o->verify_strict && local_path == NULL) {
+        brix_status_set(st, XRDC_EUSAGE, 0,
+                        "--verify needs a file destination to checksum");
+        return -1;
+    }
     int ck = cksum_verify(job->c, job->su->path, local_path, o->cksum,
                           o->silent, st);
     if (ck == XRDC_CK_MISMATCH) {
@@ -288,8 +294,11 @@ download_reconcile_cksum(const download_job_t *job, const char *local_path,
     }
     if (ck == XRDC_CK_UNVERIFIED) {
         if (!o->silent) {
-            fprintf(stderr, "xrdcp: %s downloaded but checksum NOT verified: "
+            BRIX_CLIENT_LOG("WARN",  "xrdcp: %s downloaded but checksum NOT verified: "
                             "%s\n", job->du->path, st->msg);
+        }
+        if (o->verify_strict) {
+            return -1;
         }
         brix_status_clear(st);
     }
@@ -466,5 +475,4 @@ copy_download(const brix_url *su, const brix_url *du, const brix_copy_opts *o,
     brix_close(&c);
     return rc;
 }
-
 

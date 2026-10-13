@@ -117,13 +117,13 @@ def _rt67_get_of_alice_s_own_file(is_2xx, st, exists, port, ro):
     # GET of alice's own file: read scope + DAC both permit -> SUCCEEDS. Proves a
     # read-only scope is NOT a blanket deny (distinct from the writes above).
     st, b = http("GET", "/alice/scope_seed.txt", port, ro)
-    ok(all((is_2xx(st), b'seed' in any((b, b'')))),
+    ok(all((is_2xx(st), b'seed' in _rt_default(b, b''))),
        f"read-only scope: GET of own file SUCCEEDS (read granted) (HTTP {st})")
 
     # GET of bob's 0600 private with the SAME scope (':/' covers the path) ->
     # DAC backstops the read though scope would allow it.
     st, b = http("GET", "/bob/private.txt", port, ro)
-    ok(all((not is_2xx(st), b'BOB-PRIVATE-SECRET' not in any((b, b'')))),
+    ok(all((not is_2xx(st), b'BOB-PRIVATE-SECRET' not in _rt_default(b, b''))),
        f"read-only scope ':/' : GET bob 0600 DENIED by DAC backstop, no leak "
        f"(HTTP {st})")
 
@@ -158,7 +158,7 @@ def _rt67_out_of_scope_write_to_world(rm, port, palice, is_2xx, exists):
 
     # In-scope read under /alice -> read:/alice covers it.
     st, b = http("GET", "/alice/path_in.txt", port, palice)
-    ok(all((is_2xx(st), b'in' in any((b, b'')))),
+    ok(all((is_2xx(st), b'in' in _rt_default(b, b''))),
        f"path-scope read:/alice : in-scope GET /alice SUCCEEDS (HTTP {st})")
 
 
@@ -246,10 +246,8 @@ def _rt67_invariant_bob_s_dir_ownership_mode(svc_after, svc_before, owner, bob_b
     ok(all((owner('bob') == bob_before, bob_before[0] in (UID_BOB, None))),
        f"bob/ ownership+mode unchanged by scope-granted alice writes "
        f"(now {owner('bob')})")
-    _scoped_token_dac_matrix_p2(key, rm, port, owner, pub_listing, pub_before, is_2xx, READ_ONLY, UID_ROOT, exists)
 
 
-def _scoped_token_dac_matrix_p2(key, rm, port, owner, pub_listing, pub_before, is_2xx, READ_ONLY, UID_ROOT, exists):
     # ===================================================================
     # (e) aud-ARRAY + multi-scope + wlcg.groups -> identity = SUB's uid only
     # ===================================================================
@@ -293,7 +291,7 @@ def _rt67_same_token_reading_bob_s_0600(is_2xx, st, exists, port, arr_tok, key, 
 
     # Same token reading bob's 0600 private: the groups claim is not bob.
     st, b = http("GET", "/bob/private.txt", port, arr_tok)
-    ok(all((not is_2xx(st), b'BOB-PRIVATE-SECRET' not in any((b, b'')))),
+    ok(all((not is_2xx(st), b'BOB-PRIVATE-SECRET' not in _rt_default(b, b''))),
        f"wlcg.groups claim does NOT grant alice bob's 0600 secret, no leak "
        f"(HTTP {st})")
 

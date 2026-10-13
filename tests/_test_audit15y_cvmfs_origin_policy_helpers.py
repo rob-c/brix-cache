@@ -132,6 +132,7 @@ import pytest
 import requests
 
 from config_parse import nginx_t
+from log_records import semantic_log_text
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS, PARSE_PLACEHOLDER_PORT
 from lib_py.util import pids_on_port
 from server_registry import NginxInstanceSpec
@@ -404,7 +405,7 @@ def _errlog(endpoint):
     """Instance logs are wiped at teardown, so failures quote them inline."""
     try:
         with open(os.path.join(endpoint.prefix, "logs", "error.log")) as handle:
-            return handle.read()
+            return semantic_log_text(handle.read())
     except OSError:
         return "(error log unavailable)"
 
@@ -424,7 +425,7 @@ def _protos(endpoint):
     out = []
     for line in _errlog(endpoint).splitlines():
         if "cvmfs-trace: upstream GET" in line and "proto=" in line:
-            out.append(line.rsplit("proto=", 1)[1].split()[0])
+            out.append(line.rsplit("proto=", 1)[1].split()[0].rstrip('"'))
     return out
 
 
@@ -437,4 +438,3 @@ def _settle(seconds=0.5):
 # --------------------------------------------------------------------------- #
 # A. brix_cvmfs_origin_http_version — DEFECT CANDIDATE #57                     #
 # --------------------------------------------------------------------------- #
-

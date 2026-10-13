@@ -182,7 +182,7 @@ int              brix_store_legacy_proxy(X509_STORE *store);
  * BOTH the policy side and the cert side so escaping can never diverge.
  * Returns buf (NUL-terminated), or an empty string on failure.
  */
-char *brix_x509_oneline(X509_NAME *name, char *buf, size_t buflen);
+char *brix_x509_oneline(const X509_NAME *name, char *buf, size_t buflen);
 
 /*
  * RFC 3820 proxy classification + delegation monotonicity (ngx-free).

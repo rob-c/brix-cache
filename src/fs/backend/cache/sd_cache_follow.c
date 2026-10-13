@@ -37,6 +37,7 @@
  *       brix_sd_fd() returns NGX_INVALID_FILE, so no sendfile span is ever
  *       built over a file that is still growing.
  */
+#include "core/compat/log_event.h"
 #include "sd_cache_follow.h"
 #include "fs/cache/cstore.h"
 
@@ -179,7 +180,7 @@ sd_cache_follow_publish(sd_cache_inst_state *st, const char *key,
         return;
     }
     (void) close(fd);
-    ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_CORE, st->log, 0,
                    "sd_cache: serve-while-filling armed for \"%s\"", key);
 }
 
@@ -402,7 +403,7 @@ sd_cache_follow_open(sd_cache_inst_state *st, const char *key, int *err_out)
      * always sits beside its final object (brix_staged_open), so a marker that
      * points anywhere else is malformed and is refused rather than followed. */
     if (!follow_path_under_root(st, staged)) {
-        ngx_log_error(NGX_LOG_WARN, st->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, st->log, 0,
             "sd_cache: serve-while-filling marker for \"%s\" names a staged "
             "path outside the cache store - ignored", key);
         return NULL;
@@ -433,7 +434,7 @@ sd_cache_follow_open(sd_cache_inst_state *st, const char *key, int *err_out)
     obj->heap_shell = 1;
     (void) sd_cache_follow_fstat(obj, &obj->snap);
 
-    ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_CORE, st->log, 0,
                    "sd_cache: following in-flight fill of \"%s\"", key);
     if (err_out != NULL) { *err_out = 0; }
     return obj;

@@ -103,6 +103,10 @@ uint8_t  *brix_gsi_cipher_apply(const brix_gsi_cipher_t *c,
 /* Cryptographically-strong random bytes into out[0..n). Returns 1/0. */
 int brix_gsi_rand(uint8_t *out, size_t n);
 
+/* XrdSecgsi random challenges are eight serialized-buffer-safe alphanumeric
+ * wire characters, not raw RNG bytes or delimiter punctuation. */
+int brix_gsi_rand_tag(uint8_t out[8]);
+
 /* RSA private-key sign (XrdCryptosslRSA::EncryptPrivate): proof-of-possession
  * (sign the server rtag with the proxy key).  out >= EVP_PKEY_size(key)+inlen;
  * returns sig length or 0. */
@@ -136,7 +140,7 @@ uint8_t *brix_gsi_build_certreq(const char *cryptomod, uint32_t version,
  * server's advertised gsi `parms` ("v:...,c:...,ca:..."), default the crypto
  * module to "ssl", force version 10600 (signed-DH — the round-2 kernel
  * auto-detects the server's actual variant), clnt_opts 0x80 (stock client,
- * delegation off), and mint a fresh 8-byte rtag into rtag_out.  malloc'd
+ * delegation off), and mint a fresh printable 8-byte rtag into rtag_out.  malloc'd
  * certreq (*outlen set) or NULL on RNG/build failure. */
 #define BRIX_GSI_RTAG_LEN  8
 uint8_t *brix_gsi_build_certreq_from_parms(const char *parms,

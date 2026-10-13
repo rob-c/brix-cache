@@ -8,6 +8,7 @@
  * HOW: create_loc_conf allocates with ngx_pcalloc and sets every field to NGX_CONF_UNSET or NGX_CONF_UNSET_UINT; merge_loc_conf applies ngx_conf_merge_* macros for each field, then conditionally validates root path, CA/CRL paths, CORS origins, JWKS load, TPC binary paths, and upstream URL parsing. On validation success builds X509_STORE via webdav_build_ca_store() and attaches a pool cleanup handler for automatic deallocation on worker exit. The base-merge/validation and proxy/mirror/token clusters live in the sibling files config_merge.c and config_proxy.c (see config_internal.h); this file keeps the create/merge entrypoints, the CA-store cleanup, CORS validation, and the endpoint startup summary.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "auth/crypto/store_policy.h"      /* BRIX_SP_MODE_*, BRIX_CRL_MODE_* defaults */
 #include "core/compat/integrity_info.h"   /* §8.x checksum xattr write format */
@@ -76,7 +77,7 @@ webdav_validate_cors_origins(ngx_conf_t *cf,
         if (origins[i].len == 0
             || webdav_tpc_str_has_ctl(origins[i].data, origins[i].len))
         {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                                "brix_webdav: invalid CORS origin \"%V\"",
                                &origins[i]);
             return NGX_ERROR;
@@ -239,25 +240,25 @@ webdav_log_endpoint_summary(ngx_conf_t *cf,
     ngx_uint_t  has_token = (conf->jwks_key_count > 0);
     ngx_uint_t  has_pwd   = (conf->common.pwd_file.len > 0);
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: WebDAV (davs://) endpoint ready — export \"%V\" (%s), auth: %s",
         &conf->common.root,
         conf->common.allow_write ? "read-write" : "read-only",
         webdav_auth_name(conf->auth));
 
     if (has_x509 || has_token || has_pwd) {
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix:   credentials accepted:%s%s%s",
             has_x509 ? " x509/GSI-proxy" : "",
             has_token ? " bearer-token" : "",
             has_pwd ? " basic-password" : "");
     }
     if (conf->common.crl.len > 0) {
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix:   revocation: CRL \"%V\"", &conf->common.crl);
     }
     if (conf->tpc) {
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix:   third-party copy (TPC COPY) enabled");
     }
     webdav_log_endpoint_warnings(cf, conf, has_x509, has_token, has_pwd);
@@ -273,14 +274,14 @@ webdav_log_endpoint_warnings(ngx_conf_t *cf,
     ngx_uint_t has_token, ngx_uint_t has_pwd)
 {
     if (has_pwd) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix:   NOTE: password (Basic) authentication is enabled — do "
             "NOT rely on password auth in production, it is poor practice "
             "(prefer x509/GSI or bearer tokens, and serve Basic only over "
             "TLS: passwords cross the wire base64-encoded, not encrypted)");
     }
     if (has_x509 && conf->common.crl.len == 0) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix:   NOTE: x509/GSI is accepted but no CRL is configured — "
             "REVOKED certificates will be ACCEPTED (set brix_crl)");
     }
@@ -291,7 +292,7 @@ webdav_log_endpoint_warnings(ngx_conf_t *cf,
     if (conf->auth == WEBDAV_AUTH_REQUIRED && !has_x509 && !has_token
         && !has_pwd)
     {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix:   NOTE: auth is required but no x509 CA, token JWKS or "
             "password db is configured — every client will be rejected (set "
             "brix_trusted_ca_dir, brix_token_jwks and/or "

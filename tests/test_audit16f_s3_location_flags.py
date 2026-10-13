@@ -301,6 +301,23 @@ def _wait_for_a_fresh_mtime_second(path):
     raise AssertionError(f"{path} mtime never fell behind the wall clock")
 
 
+def _wait_for_mtime_change(path, previous):
+    current = int(os.stat(path).st_mtime)
+    if current == previous:
+        # Lima's host-shared filesystem can leave a directory timestamp cached
+        # after the guest worker creates a child.  Advance the test directory
+        # explicitly so this remains a cache-key test, not a virtiofs-coherency
+        # test.
+        os.utime(path, (previous + 1, previous + 1))
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        current = int(os.stat(path).st_mtime)
+        if current != previous:
+            return
+        time.sleep(0.05)
+    raise AssertionError(f"{path} mtime remained {previous} after a root write")
+
+
 class TestTheSortedListingCache:
 
     def test_on_serves_a_stale_listing_after_a_write_below_the_root(self,
@@ -338,8 +355,11 @@ class TestTheSortedListingCache:
         hidden = _write_key(s3flags, bucket, f"sub/new-{uuid.uuid4().hex}.txt")
         assert hidden not in _listing(s3flags.port, bucket)
 
-        _wait_for_a_fresh_mtime_second(s3flags.root(bucket))
+        root = s3flags.root(bucket)
+        _wait_for_a_fresh_mtime_second(root)
+        previous = int(os.stat(root).st_mtime)
         surfaced = _write_key(s3flags, bucket, f"root-{uuid.uuid4().hex}.txt")
+        _wait_for_mtime_change(root, previous)
         after = _listing(s3flags.port, bucket)
         assert surfaced in after
         assert hidden in after, \

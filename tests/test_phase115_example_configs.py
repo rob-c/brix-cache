@@ -563,6 +563,18 @@ def test_every_compose_conf_parses(tmp_path, conf):
     assert ok, f"{ex.source}: {err}"
 
 
+@pytest.mark.parametrize("account", ["xrootd", "xrootd-broker"])
+def test_missing_example_service_account_is_a_host_limitation(account):
+    error = f'2026/10/12 12:00:00 [emerg] 1#1: getpwnam("{account}") failed'
+    assert lib.host_limitation(error) == (
+        "the example's service account is not installed on this host")
+
+
+def test_other_identity_configuration_errors_are_not_hidden():
+    error = '2026/10/12 12:00:00 [emerg] 1#1: invalid user directive'
+    assert lib.host_limitation(error) == ""
+
+
 from split_continuation import load as _load_continuations  # noqa: E402
 _load_continuations(globals(), __file__,
                     "_test_phase115_example_configs_live.py")

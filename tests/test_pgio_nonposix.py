@@ -357,7 +357,7 @@ def test_pgwrite_block_extent_confinement(block_srv):
 
     off = 16 * PG_PAGE
     payload = _bytes(2 * PG_PAGE, 55)
-    h = _Handle(HOST, ep.port, "/0", options=kXR_open_read | kXR_open_updt)
+    h = _Handle(HOST, ep.port, "/0", options=kXR_open_updt)
     try:
         status, _info, cse = pgwrite(h.sock, h.fh, off, payload)
     finally:
@@ -371,7 +371,7 @@ def test_pgwrite_block_extent_confinement(block_srv):
         "write scribbled past its length")
 
     # Straddle the extent end: the request starts in range and runs past it.
-    h = _Handle(HOST, ep.port, "/0", options=kXR_open_read | kXR_open_updt)
+    h = _Handle(HOST, ep.port, "/0", options=kXR_open_updt)
     try:
         status, _info, _cse = pgwrite(h.sock, h.fh, DEV_SIZE - 512,
                                       _bytes(2 * PG_PAGE, 99))

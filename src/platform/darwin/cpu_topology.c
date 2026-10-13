@@ -215,8 +215,9 @@ brix_plat_cpu_count_efficiency(void)
  * Usage: Determine chip capabilities for optimization selection
  */
 int
-brix_plat_cpu_info(brix_apple_cpu_info_t *info)
+brix_plat_cpu_info(void *output)
 {
+    brix_apple_cpu_info_t *info = output;
     size_t len;
     char brand_string[256];
     

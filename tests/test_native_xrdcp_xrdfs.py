@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from lib_py.util import linked_libraries
 _reexport(globals(), "_test_native_xrdcp_xrdfs_helpers")
 
 # --------------------------------------------------------------------------
@@ -307,7 +308,7 @@ def test_bad_url_scheme_rejected(native_xrdfs):
 
 def test_no_libbrixl_dependency(native_xrdfs):
     """The whole point of phase-37: zero libXrdCl/libXrdSec* linkage."""
-    out = subprocess.run(["ldd", native_xrdfs], capture_output=True, text=True).stdout
+    out = linked_libraries(native_xrdfs)
     bad = [ln for ln in out.splitlines() if re.search(r"XrdCl|XrdSec|libXrd", ln)]
     assert not bad, f"native client links upstream xrootd libs:\n{out}"
 

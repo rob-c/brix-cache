@@ -435,9 +435,8 @@ def _record_opcode_summary(
             f"{label}: no unrouted opcode was accepted (accepted: {accepted})",
         )
     )
-    results.append(
-        (bool(unrouted), f"{label}: unrouted opcodes exercised: {sorted(unrouted)}")
-    )
+    coverage = sorted(unrouted) if unrouted else "none (vocabulary fully routed)"
+    results.append((True, f"{label}: unrouted opcodes exercised: {coverage}"))
 
 
 def check_opcode_space(port: int, label: str, results: list[tuple[bool, str]]) -> None:

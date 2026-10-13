@@ -385,7 +385,11 @@ def _module_message(line):
     metric label or a dashboard row.  Splitting the two here is what keeps this
     test honest about which half it is reading.
     """
-    body = line.split(NEEDLE, 1)[1]
+    from log_records import semantic_log_text
+
+    body = semantic_log_text(line).split(NEEDLE, 1)[1]
+    if '" truncated=' in body:
+        return body.split('" truncated=', 1)[0]
     return body.split(", client: ", 1)[0]
 
 

@@ -28,6 +28,7 @@
  *          buffer key by longest-prefix group, "*" for the rest.
  */
 
+#include "core/compat/log_event.h"
 #include "config.h"
 #include "process_internal.h"
 #include "fs/vfs/vfs_backend_registry.h"      /* brix_vfs_backend_resolve */
@@ -223,7 +224,7 @@ brix_frm_purge_tick(ngx_event_t *ev)
     }
 
     if (brix_sd_frm_purge(t->frm, &pol, &rep, ev->log) == NGX_DECLINED) {
-        ngx_log_error(NGX_LOG_INFO, ev->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, ev->log, 0,
             "brix: tape purge \"%s\" skipped: another pass holds the lock",
             online);
     }
@@ -252,7 +253,7 @@ brix_init_server_frm_purge_timer(ngx_cycle_t *cycle,
     head = brix_vfs_backend_resolve(xcf->common.root_canon, cycle->log);
     frm  = brix_frm_purge_find_tier(head);
     if (frm == NULL) {
-        ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, cycle->log, 0,
             "brix: brix_frm_purge_* configured but export \"%s\" has no "
             "tape:// tier; purge engine not armed",
             xcf->common.root_canon);
@@ -274,13 +275,13 @@ brix_init_server_frm_purge_timer(ngx_cycle_t *cycle,
     t->ev.cancelable = 1;                      /* don't delay graceful shutdown */
     ngx_add_timer(&t->ev, brix_cache_reap_delay(BRIX_FRM_PURGE_FIRST_MS));
 
-    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
         "brix: tape purge engine armed for export \"%s\" (hi=%ui lo=%ui ppm, "
         "max_bytes=%O, interval=%M ms)",
         xcf->common.root_canon, xcf->frm.purge_hi_ppm, xcf->frm.purge_lo_ppm,
         xcf->frm.purge_max_bytes, xcf->frm.purge_interval_ms);
     if (t->nrules > 0) {
-        ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
             "brix: tape purge policy for export \"%s\": %uz rule(s), "
             "program \"%s\"", xcf->common.root_canon, t->nrules,
             t->polprog ? t->polprog : "(none)");

@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "server.h"
 #include "core/config/config.h"   /* brix_sss_load_keytab */
 #include "core/types/tunables.h"  /* BRIX_CMS_READ_TIMEOUT_MAX_MS */
@@ -93,7 +94,7 @@ brix_cms_srv_merge_conf(ngx_conf_t *cf, void *parent, void *child)
      * re-asserts every poll). */
     ngx_conf_merge_str_value(conf->whitelist_file, prev->whitelist_file, "");
     if (conf->whitelist_file.len > 0 && conf->blacklist_file.len > 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cms_whitelist_file and brix_cms_blacklist_file are "
             "mutually exclusive");
         return NGX_CONF_ERROR;
@@ -145,7 +146,7 @@ brix_cms_srv_set_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
     bcf = ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_brix_module);
     if (bcf != NULL && bcf->manager_mode == NGX_CONF_UNSET) {
         bcf->manager_mode = 1;
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
                            "brix: brix_cms_server on -> auto-enabling manager "
                            "mode for this block (cmsd manager/sub-manager)");
     }
@@ -184,12 +185,12 @@ brix_cms_srv_set_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
         }
         rc = ngx_ptocidr(&value[i], cidr);
         if (rc == NGX_ERROR) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "invalid CIDR \"%V\" in brix_cms_server_allow", &value[i]);
             return NGX_CONF_ERROR;
         }
         if (rc == NGX_DONE) {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
                 "low address bits of \"%V\" in brix_cms_server_allow "
                 "were ignored", &value[i]);
         }
@@ -227,7 +228,7 @@ brix_cms_srv_set_sss_keytab(ngx_conf_t *cf, ngx_command_t *cmd,
         return NGX_CONF_ERROR;
     }
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
                        "brix: CMS server sss auth configured - keytab=%V "
                        "keys=%ui", &conf->sss_keytab, conf->sss_keys->nelts);
     return NGX_CONF_OK;

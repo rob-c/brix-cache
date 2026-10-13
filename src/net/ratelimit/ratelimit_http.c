@@ -8,6 +8,7 @@
  * stashes the matched rule + key on the request ctx so the body filter can
  * charge the actual bytes sent.
  */
+#include "core/compat/log_event.h"
 #include "ratelimit.h"
 #include "protocols/webdav/webdav.h"
 #include "core/config/http_common.h"   /* rules live on the common conf (phase-105 W1) */
@@ -37,7 +38,7 @@ rl_reject(ngx_http_request_t *r, brix_rl_rule_t *rule, uint32_t wait_sec,
         (void) brix_http_set_header(r, "Retry-After", buf, NULL);
     }
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
         "xrootd rate limit: 429 for \"%V\" (key=%s, wait=%uD)",
         &r->uri, key_str, wait_sec);
 

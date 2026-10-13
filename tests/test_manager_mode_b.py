@@ -1,9 +1,11 @@
 from split_continuation import reexport as _reexport
+from lib_py.util import budget_scale
 _reexport(globals(), "_test_manager_mode_helpers")
 
 # Shares cluster-ds/cluster-redir with test_manager_mode.py, whose
 # TestClusterUnregister kills the DS — same group, one worker.
-pytestmark = pytest.mark.xdist_group("manager-mode-cluster")
+pytestmark = [pytest.mark.xdist_group("manager-mode-cluster"),
+              pytest.mark.timeout(300 * budget_scale())]
 
 class TestThreeTierTopology:
     """Two-hop locate chain: client → meta → sub → leaf."""

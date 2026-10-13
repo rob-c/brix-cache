@@ -15,7 +15,9 @@
  *   listing is still O(n) amortised per worker).
  *
  * CONSISTENCY: a cached listing is reused only while the bucket-root directory
- *   mtime is unchanged AND within the configured TTL.  Root mtime catches
+ *   mtime is unchanged AND within the configured TTL.  The full nanosecond
+ *   timestamp is compared so two top-level mutations in one second cannot
+ *   reuse a stale listing.  Root mtime catches
  *   top-level mutations; the TTL bounds staleness from deeper-subtree changes.
  *   This is bounded eventual consistency (S3 ListObjects is historically
  *   eventually-consistent), and the feature is opt-in (default off) so
@@ -34,6 +36,11 @@
  * runs every time for such buckets — logged once so the cap is never silent. */
 #define S3_LIST_CACHE_MAX_ENTRIES  20000
 
+typedef struct {
+    time_t  sec;
+    long    nsec;
+} s3_list_cache_stamp_t;
+
 /*
  * s3_list_cache_get — on a fresh hit, allocate an s3_entry_t array in r->pool
  * (keys duplicated into the pool, stat fields zeroed for lazy fill) and return 1
@@ -41,7 +48,7 @@
  * changed or TTL expired) is evicted and reported as a miss.
  */
 int s3_list_cache_get(ngx_http_request_t *r, const char *root,
-    const char *prefix, const char *delimiter, time_t dir_mtime,
+    const char *prefix, const char *delimiter, s3_list_cache_stamp_t dir_mtime,
     ngx_msec_t ttl_ms, s3_entry_t **out_items, int *out_n);
 
 /*
@@ -50,6 +57,7 @@ int s3_list_cache_get(ngx_http_request_t *r, const char *root,
  * (logged once) when n exceeds S3_LIST_CACHE_MAX_ENTRIES.
  */
 void s3_list_cache_put(ngx_log_t *log, const char *root, const char *prefix,
-    const char *delimiter, time_t dir_mtime, const s3_entry_t *items, int n);
+    const char *delimiter, s3_list_cache_stamp_t dir_mtime,
+    const s3_entry_t *items, int n);
 
 #endif /* NGX_HTTP_S3_LIST_CACHE_H */

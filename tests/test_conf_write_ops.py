@@ -351,9 +351,8 @@ def test_chmod_modes(srv, mode_str, mode_oct):
     with open(disk, "w") as f:
         f.write("c")
     os.chmod(disk, 0o644)
-    # Our worker drops to `nobody` under the root harness and can only chmod a
-    # file it owns — chown the file to `nobody` so the chmod succeeds.
-    L.chown_stock(disk)
+    # chmod is owner-gated; use the active nginx service account.
+    L.chown_brix(disk)
     rc, o, e = fs(srv["our"], "chmod", wire, mode_str)
     assert rc == 0, f"chmod {mode_str}: {o}{e}"
     got = os.stat(disk).st_mode & 0o777
@@ -376,9 +375,10 @@ def test_chmod_existing_succeeds_matches_stock(srv):
         disk = our_disk(srv, w) if url == srv["our"] else off_disk(srv, w)
         with open(disk, "w") as f:
             f.write("c")
-        # BOTH servers' workers drop to `nobody` under the root harness, so each
-        # can only chmod a file it owns — chown both sides, not just the stock one.
-        L.chown_stock(disk)
+        if url == srv["our"]:
+            L.chown_brix(disk)
+        else:
+            L.chown_stock(disk)
     rc_o, o_o, e_o = fs(srv["our"], "chmod", our_w, "rw-r--r--")
     rc_f, o_f, e_f = fs(srv["off"], "chmod", off_w, "rw-r--r--")
     assert (rc_o == 0) == (rc_f == 0), \

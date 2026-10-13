@@ -14,6 +14,16 @@ int brix_stat(brix_conn *c, const char *path, brix_statinfo *out, brix_status *s
 int brix_lstat(brix_conn *c, const char *path, brix_statinfo *out, brix_status *st);
 int brix_dirlist(brix_conn *c, const char *path, int want_stat,
                  brix_dirent **ents, size_t *count, brix_status *st);
+/* As brix_dirlist, and reports the number of kXR_oksofar continuation frames
+ * consumed. The count is reset for each resilient retry and is zero for a
+ * single-frame listing. */
+int brix_dirlist_observe(brix_conn *c, const char *path, int want_stat,
+                         brix_dirent **ents, size_t *count,
+                         size_t *continuations, brix_status *st);
+/* Request kXR_dcksm with cks.type=algo. Each regular-file entry carries its
+ * "algorithm:hex" token in brix_dirent.checksum. */
+int brix_dirlist_cksum(brix_conn *c, const char *path, const char *algo,
+                       brix_dirent **ents, size_t *count, brix_status *st);
 /* ---- fs/dirfanout.c ---- */
 /* Cluster-wide dirlist: the union over every data server a CMS manager names
  * for `path`, deduplicated by name.  A manager REDIRECTS a plain kXR_dirlist to
@@ -74,6 +84,9 @@ uint8_t *brix_deflate_frame(uint8_t codec, const void *in, size_t in_len,
 
 ssize_t brix_file_read(brix_conn *c, brix_file *f, int64_t offset,
                        void *buf, size_t len, brix_status *st);
+ssize_t brix_file_read_profile(brix_conn *c, brix_file *f, int64_t offset,
+                               void *buf, size_t len, unsigned *partial_frames,
+                               brix_status *st);
 int brix_file_write(brix_conn *c, brix_file *f, int64_t offset,
                     const void *buf, size_t len, brix_status *st);
 int brix_file_close(brix_conn *c, brix_file *f, brix_status *st);
@@ -99,6 +112,9 @@ typedef struct {
  * read past EOF). Returns total bytes read across segments, or -1. */
 ssize_t brix_file_readv(brix_conn *c, brix_file *f, brix_readv_seg *segs,
                         size_t nseg, brix_status *st);
+ssize_t brix_file_readv_profile(brix_conn *c, brix_file *f,
+                                brix_readv_seg *segs, size_t nseg,
+                                unsigned *partial_frames, brix_status *st);
 /* §7.15: per-segment fhandle readv — segment i reads from files[i] (which must
  * have nseg entries), so ONE kXR_readv can scatter-gather across multiple open
  * files, matching stock's readahead_list (each carries its own fhandle). */
@@ -126,6 +142,14 @@ int brix_file_sync(brix_conn *c, brix_file *f, brix_status *st);
  * page's checksum. Both are file-offset aligned (short first/last page). */
 ssize_t brix_file_pgread(brix_conn *c, brix_file *f, int64_t offset,
                          void *buf, size_t len, brix_status *st);
+ssize_t brix_file_pgread_profile(brix_conn *c, brix_file *f, int64_t offset,
+                                 void *buf, size_t len,
+                                 unsigned *partial_frames, brix_status *st);
+/* Diagnostic/interoperability form carrying the optional pgread argument
+ * payload verbatim (pathid, reqflags, and calibrated trailing bytes). */
+ssize_t brix_file_pgread_args(brix_conn *c, brix_file *f, int64_t offset,
+                              void *buf, size_t len, const void *args,
+                              uint32_t args_len, brix_status *st);
 int     brix_file_pgwrite(brix_conn *c, brix_file *f, int64_t offset,
                           const void *buf, size_t len, brix_status *st);
 
@@ -427,6 +451,9 @@ int brix_fattr_list(brix_conn *c, const char *path, char *out, size_t bufsz,
 /* Text-reply ops: copy the server's reply into out[outsz] (NUL-terminated). */
 int brix_query(brix_conn *c, int infotype, const char *args, char *out,
                size_t outsz, brix_status *st);
+int brix_query_file(brix_conn *c, const brix_file *file, int infotype,
+                    const void *args, size_t args_len, char *out, size_t outsz,
+                    brix_status *st);
 int brix_statvfs(brix_conn *c, const char *path, char *out, size_t outsz,
                  brix_status *st);
 int brix_locate(brix_conn *c, const char *path, char *out, size_t outsz,
@@ -444,6 +471,11 @@ int brix_set_cmd(brix_conn *c, const char *data, char *out, size_t outsz,
  * (kXR_evict…, uint16); prty = request priority 0-3. */
 int brix_prepare(brix_conn *c, const char *const *paths, int npaths, int options,
                  int optionX, int prty, char *out, size_t outsz, brix_status *st);
+/* As brix_prepare, with the notification callback port encoded on the wire.
+ * A zero port preserves brix_prepare's ordinary no-callback form. */
+int brix_prepare_port(brix_conn *c, const char *const *paths, int npaths,
+                      int options, int optionX, int prty, uint16_t port,
+                      char *out, size_t outsz, brix_status *st);
 
 /* ---- proxy.c (xrdgsiproxy: RFC-3820 X.509 proxy create/info/destroy) ---- */
 typedef struct {

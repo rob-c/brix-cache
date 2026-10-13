@@ -15,6 +15,7 @@
 #define _GNU_SOURCE
 #endif
 
+#include "../../../shared/observability/log_stdio.h"
 #include "brix_fault_proxy_state.h"
 #include "brix_fault_proxy_mods.h"
 #include "brix_fault_priv.h"
@@ -530,7 +531,7 @@ script_thread(void *arg)
 {
     FILE *fp = fopen((const char *) arg, "r");
     if (fp == NULL) {
-        fprintf(stderr, "brix-fault-proxy: cannot open --script '%s'\n",
+        BRIX_CLIENT_LOG("ERROR",  "brix-fault-proxy: cannot open --script '%s'\n",
                 (const char *) arg);
         return NULL;
     }

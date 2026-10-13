@@ -24,7 +24,14 @@ HOW:  run from anywhere; roots are positional:
 
       Exit status: 0 = no live locks, 1 = live locks found, 2 = usage/IO error.
 """
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 import argparse
+import ctypes
+import ctypes.util
 import os
 import sys
 import time
@@ -33,6 +40,32 @@ LOCK_XATTR = "user.nginx_xrootd.lock"
 
 
 EXPIRED = "expired"                   # sentinel: a decoded record already lapsed
+
+
+def _getxattr(path, name):
+    """Read one xattr with the host API Python exposes.
+
+    CPython exposes ``os.getxattr`` on Linux but not Darwin.  Keep this
+    operator tool standalone by using Darwin's libc entry point when needed.
+    """
+    if hasattr(os, "getxattr"):
+        return os.getxattr(path, name, follow_symlinks=False)
+    if sys.platform != "darwin":
+        raise OSError("extended attributes are unavailable")
+    libc = ctypes.CDLL(ctypes.util.find_library("c") or "/usr/lib/libc.dylib",
+                       use_errno=True)
+    libc.getxattr.restype = ctypes.c_ssize_t
+    target, attribute = os.fsencode(path), os.fsencode(name)
+    size = libc.getxattr(target, attribute, None, 0, 0, 1)
+    if size < 0:
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code))
+    value = ctypes.create_string_buffer(size or 1)
+    got = libc.getxattr(target, attribute, value, size, 0, 1)
+    if got < 0:
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code))
+    return value.raw[:got]
 
 
 def _assign(rec, key, val):
@@ -65,7 +98,7 @@ def decode(raw):
 def probe(path, now):
     """One path's lock state: a live record, the EXPIRED sentinel, or None."""
     try:
-        raw = os.getxattr(path, LOCK_XATTR, follow_symlinks=False)
+        raw = _getxattr(path, LOCK_XATTR)
     except OSError:
         return None                   # absent, unsupported, or unreadable
     rec = decode(raw)
@@ -146,7 +179,7 @@ def main(argv=None):
     roots = _parse_args(argv).roots
     bad = _first_non_directory(roots)
     if bad is not None:
-        print(f"error: not a directory: {bad}", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/diag/lock_scan.py', 'main', f"error: not a directory: {bad}", file=sys.stderr)
         return 2
 
     now = int(time.time())

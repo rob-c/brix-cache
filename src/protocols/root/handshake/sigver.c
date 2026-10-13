@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "handshake.h"
 #include "auth/gsi/gsi_core.h"   /* brix_gsi_sigver_required (shared policy) */
 
@@ -50,7 +51,7 @@ brix_verify_sigver_sig(brix_ctx_t *ctx, ngx_connection_t *c)
     brix_gsi_cipher_t cipher;
 
     if (!brix_gsi_cipher_lookup(ctx->sigver.sig_cipher, &cipher)) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                       "brix: sigver session cipher \"%s\" unavailable for reqid=%d",
                       ctx->sigver.sig_cipher, (int) ctx->recv.cur_reqid);
         return brix_send_error(ctx, c, kXR_ServerError,
@@ -67,14 +68,14 @@ brix_verify_sigver_sig(brix_ctx_t *ctx, ngx_connection_t *c)
                                   ctx->recv.payload, ctx->recv.cur_dlen,
                                   ctx->sigver.nodata))
     {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: sigver signature mismatch for reqid=%d",
                       (int) ctx->recv.cur_reqid);
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "signature verification failed");
     }
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: sigver verified reqid=%d",
                    (int) ctx->recv.cur_reqid);
 
@@ -100,7 +101,7 @@ brix_verify_pending_sigver(brix_ctx_t *ctx, ngx_connection_t *c)
 
         if (ctx->sigver.signing_active) {
             if (ctx->sigver.expectrid != ctx->recv.cur_reqid) {
-                ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                               "brix: sigver expectrid=%d but got reqid=%d",
                               (int) ctx->sigver.expectrid,
                               (int) ctx->recv.cur_reqid);
@@ -116,7 +117,7 @@ brix_verify_pending_sigver(brix_ctx_t *ctx, ngx_connection_t *c)
             if (ctx->sigver.sid[0] != ctx->recv.hdr_buf[0]
                 || ctx->sigver.sid[1] != ctx->recv.hdr_buf[1])
             {
-                ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                               "brix: sigver streamid mismatch for reqid=%d",
                               (int) ctx->recv.cur_reqid);
                 return brix_send_error(ctx, c, kXR_InvalidRequest,
@@ -177,17 +178,24 @@ static ngx_int_t
 brix_signing_unsignable_session(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
+    int fail_closed = conf->signing_required
+        || ctx->sigver.inherited_required;
+
     if (!ctx->sigver.unsignable_logged) {
         ctx->sigver.unsignable_logged = 1;
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: brix_security_level=%d requires signed requests but "
                       "this session's auth protocol established no signing key "
-                      "(only GSI does); requests are %s. Set "
-                      "brix_signing_required on to refuse them.",
+                      "(only GSI does); requests are %s%s",
                       (int) conf->security_level,
-                      conf->signing_required ? "REFUSED" : "accepted UNSIGNED");
+                      fail_closed ? "REFUSED" : "accepted UNSIGNED",
+                      ctx->sigver.inherited_required
+                          ? " because the bound stream inherited a signing-active primary."
+                          : conf->signing_required
+                              ? " by brix_signing_required."
+                              : ". Set brix_signing_required on to refuse them.");
     }
-    if (conf->signing_required) {
+    if (fail_closed) {
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "request signing required but this session "
                                  "cannot sign");
@@ -226,16 +234,16 @@ brix_signing_enforce_level(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (brix_sigver_opcode_requires(ctx->recv.cur_reqid, conf->security_level)) {
         if (!ctx->sigver.verified) {
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                           "brix: unsigned request %d rejected by security_level=%d",
                           (int) ctx->recv.cur_reqid, (int) conf->security_level);
-            return brix_send_error(ctx, c, kXR_NotAuthorized,
+            return brix_send_error(ctx, c, kXR_SigVerErr,
                                      "request signing required for this opcode");
         }
 
         /* Pedantic mode: also enforce that the signature covered the payload. */
         if (conf->security_level >= 4 && ctx->sigver.nodata && ctx->recv.cur_dlen > 0) {
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                           "brix: pedantic signing rejection: sigver nodata flag set but payload present");
             return brix_send_error(ctx, c, kXR_NotAuthorized,
                                      "payload signing required in pedantic mode");

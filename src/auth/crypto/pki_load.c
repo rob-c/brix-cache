@@ -6,6 +6,7 @@
  * definition below.
  */
 
+#include "core/compat/log_event.h"
 #include "pki_check.h"
 
 #include <dirent.h>
@@ -110,7 +111,7 @@ brix_pki_load_certs_from_file(STACK_OF(X509) *certs, const char *path,
     fp = fopen(path, "r");
     if (fp == NULL) {
         if (log_open_error) {
-            ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+            BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                           "brix_pki_check: cannot open CA file \"%s\"",
                           path);
         }
@@ -122,7 +123,7 @@ brix_pki_load_certs_from_file(STACK_OF(X509) *certs, const char *path,
     while ((cert = PEM_read_X509(fp, NULL, NULL, NULL)) != NULL) {
         if (sk_X509_push(certs, cert) <= 0) {
             X509_free(cert);
-            ngx_log_error(NGX_LOG_ERR, log, 0,
+            BRIX_LOG(NGX_LOG_ERR, log, 0,
                           "brix_pki_check: failed to append CA cert from \"%s\"",
                           path);
             break;
@@ -149,7 +150,7 @@ brix_pki_load_crls_from_file(STACK_OF(X509_CRL) *crls, const char *path,
     fp = fopen(path, "r");
     if (fp == NULL) {
         if (log_open_error) {
-            ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+            BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                           "brix_pki_check: cannot open CRL file \"%s\"",
                           path);
         }
@@ -161,7 +162,7 @@ brix_pki_load_crls_from_file(STACK_OF(X509_CRL) *crls, const char *path,
     while ((crl = PEM_read_X509_CRL(fp, NULL, NULL, NULL)) != NULL) {
         if (sk_X509_CRL_push(crls, crl) <= 0) {
             X509_CRL_free(crl);
-            ngx_log_error(NGX_LOG_ERR, log, 0,
+            BRIX_LOG(NGX_LOG_ERR, log, 0,
                           "brix_pki_check: failed to append CRL from \"%s\"",
                           path);
             break;
@@ -181,7 +182,7 @@ brix_pki_load_certs_from_path(const char *path, ngx_log_t *log)
     STACK_OF(X509) *stack;
 
     if (stat(path, &st) != 0) {
-        ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                       "brix_pki_check: cannot stat CA path \"%s\"",
                       path);
         return NULL;
@@ -189,7 +190,7 @@ brix_pki_load_certs_from_path(const char *path, ngx_log_t *log)
 
     stack = sk_X509_new_null();
     if (stack == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_pki_check: failed to allocate cert stack");
         return NULL;
     }
@@ -203,7 +204,7 @@ brix_pki_load_certs_from_path(const char *path, ngx_log_t *log)
 
         directory = opendir(path);
         if (directory == NULL) {
-            ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+            BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                           "brix_pki_check: cannot open CA dir \"%s\"",
                           path);
             sk_X509_free(stack);
@@ -253,7 +254,7 @@ brix_pki_load_crls_from_path(const char *path, ngx_log_t *log)
     STACK_OF(X509_CRL) *stack;
 
     if (stat(path, &st) != 0) {
-        ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                       "brix_pki_check: cannot stat CRL path \"%s\"",
                       path);
         return NULL;
@@ -261,7 +262,7 @@ brix_pki_load_crls_from_path(const char *path, ngx_log_t *log)
 
     stack = sk_X509_CRL_new_null();
     if (stack == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_pki_check: failed to allocate CRL stack");
         return NULL;
     }
@@ -275,7 +276,7 @@ brix_pki_load_crls_from_path(const char *path, ngx_log_t *log)
 
         directory = opendir(path);
         if (directory == NULL) {
-            ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+            BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                           "brix_pki_check: cannot open CRL dir \"%s\"",
                           path);
             sk_X509_CRL_free(stack);

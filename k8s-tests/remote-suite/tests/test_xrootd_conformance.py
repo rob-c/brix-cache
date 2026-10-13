@@ -55,7 +55,8 @@ kXR_pgread, kXR_sigver = 3030, 3029
 kXR_ok, kXR_oksofar = 0, 4000
 kXR_error, kXR_redirect, kXR_status = 4003, 4004, 4007
 # error codes (XErrorCode)
-kXR_ArgInvalid, kXR_InvalidRequest, kXR_NotFound = 3000, 3006, 3011
+kXR_ArgInvalid, kXR_ArgTooLong = 3000, 3002
+kXR_InvalidRequest, kXR_NotFound = 3006, 3011
 # flags / options
 kXR_open_read = 0x0010
 kXR_Qconfig = 7
@@ -279,8 +280,8 @@ def test_04_prelogin_rejected(server):
         s.close()
 
 
-# 5. Negative dlen -> kXR_ArgInvalid (the stock server).
-def test_05_negative_dlen_arginvalid(server):
+# 5. A wire dlen of UINT32_MAX exceeds the pre-allocation payload cap.
+def test_05_negative_dlen_argtoolong(server):
     s = _session()
     try:
         s.sendall(struct.pack("!2sH16si", b"\x00\x23", kXR_ping, b"\x00" * 16, -1))
@@ -288,7 +289,7 @@ def test_05_negative_dlen_arginvalid(server):
             _, st, body = _resp(s)
         except EOFError:
             return  # link drop after the error is conformant
-        assert st == kXR_error and _err(body) == kXR_ArgInvalid, \
+        assert st == kXR_error and _err(body) == kXR_ArgTooLong, \
             f"negative dlen: status={st} errnum={_err(body)}"
     finally:
         s.close()

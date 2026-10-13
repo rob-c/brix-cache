@@ -100,7 +100,7 @@ This is an explicit opt-in because the nginx worker starts an external `curl` he
 
 ### `brix_webdav_tpc_curl <path>`
 
-**Context:** `location` · **Default:** `/usr/bin/curl`
+**Context:** `location` · **Default:** the absolute `curl` path resolved at build time
 
 Path to the `curl` executable used for HTTP-TPC pulls. The helper is run without a shell.
 

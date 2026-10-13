@@ -2,6 +2,7 @@
  * api_admin.c - (kept) routing + shared helpers
  * Phase-38 split of api_admin.c; behavior-identical.
  */
+#include "core/compat/log_event.h"
 #include "dashboard_api_admin_internal.h"
 #include "core/compat/crypto.h"   /* brix_sha256 (E1 audit chain, P90-28.2) */
 
@@ -247,7 +248,7 @@ admin_audit(ngx_http_request_t *r, const char *action, const char *target,
     ngx_memcpy(msg + 32, canon, canon_len);
 
     if (brix_sha256(msg, 32 + canon_len, digest) != 1) {
-        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, r->connection->log, 0,
                       "%*s chain=-", canon_len, canon);
         return;
     }
@@ -258,7 +259,7 @@ admin_audit(ngx_http_request_t *r, const char *action, const char *target,
     conf->audit_seq++;
 
     ngx_hex_dump(hex, digest, 16);
-    ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, r->connection->log, 0,
                   "%*s chain=%*s", canon_len, canon,
                   (size_t) sizeof(hex), hex);
 }

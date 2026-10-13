@@ -11,6 +11,12 @@ grammar, and the IGTF authentication profile — and, clause by clause, against 
 behaviour of the official XRootD v6.1.0 GSI stack (`/tmp/xrootd-src`, git tag
 v6.1.0).
 
+The same directory also carries the independent Phase 118 wire-protocol
+`xrd conform` calibration record at
+`docs/10-reference/conformance/protocol-calibration.md`. Its target matrix and
+completion state are stated in that record; it is not part of the X.509 clause
+totals below.
+
 ## The conformance approach
 
 The write-up is **spec-first and clause-indexed**. Every normative requirement is

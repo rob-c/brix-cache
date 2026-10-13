@@ -22,6 +22,7 @@
  *       No allocation, no I/O, no backend call; one crit log line on a
  *       mismatch is the only side effect.
  */
+#include "core/compat/log_event.h"
 #include "vfs_internal.h"
 #include "vfs_policy_domain.h"
 
@@ -66,7 +67,7 @@ brix_vfs_domain_mutation(const brix_sd_instance_t *inst,
 
     if (inst->domain != domain) {
         if (inst->log != NULL) {
-            ngx_log_error(NGX_LOG_CRIT, inst->log, 0,
+            BRIX_LOG(NGX_LOG_CRIT, inst->log, 0,
                 "brix vfs: service mutation \"%s\" claimed domain %d but the "
                 "instance is domain %d — refused (wrong_domain)",
                 brix_vfs_mutation_op_name(op), (int) domain,
@@ -117,7 +118,7 @@ brix_vfs_domain_claim(ngx_log_t *log, brix_vfs_domain_t domain,
 
     if (domain == BRIX_VFS_DOMAIN_EXPORT) {
         if (log != NULL) {
-            ngx_log_error(NGX_LOG_CRIT, log, 0,
+            BRIX_LOG(NGX_LOG_CRIT, log, 0,
                 "brix vfs: service mutation \"%s\" claimed the EXPORT domain "
                 "with no instance — refused (wrong_domain)",
                 brix_vfs_mutation_op_name(op));
@@ -156,7 +157,7 @@ brix_vfs_service_mutation(const brix_sd_instance_t *inst,
 
     if (inst->domain == BRIX_VFS_DOMAIN_EXPORT) {
         if (inst->log != NULL) {
-            ngx_log_error(NGX_LOG_CRIT, inst->log, 0,
+            BRIX_LOG(NGX_LOG_CRIT, inst->log, 0,
                 "brix vfs: service mutation \"%s\" against EXPORT-domain "
                 "storage — refused (wrong_domain)",
                 brix_vfs_mutation_op_name(op));

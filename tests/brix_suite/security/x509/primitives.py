@@ -181,8 +181,14 @@ def _fixture_signing_env(digest_name: str):
     """Permit SHA-1 only in the subprocess minting a rejection fixture."""
     if digest_name != "sha1":
         return None
-    config = Path(__file__).resolve().with_name("fixture-signing.cnf")
-    return dict(os.environ, OPENSSL_CONF=str(config))
+    environment = dict(os.environ)
+    crypto_policy = Path("/etc/crypto-policies/back-ends/opensslcnf.config")
+    if crypto_policy.exists():
+        config = Path(__file__).resolve().with_name("fixture-signing.cnf")
+        environment["OPENSSL_CONF"] = str(config)
+    else:
+        environment["OPENSSL_CONF"] = os.devnull
+    return environment
 
 
 def _write_fixture_key(path: Path, key_type: str, key_bits: int, curve: str):
@@ -219,11 +225,18 @@ def _make_eec_openssl(issuer: Cert, dn: str, *, key_bits: int,
                "-CA", str(td / "ca.pem"), "-CAkey", str(td / "ca.key"),
                "-CAcreateserial", f"-{digest_name}", "-days", "3650",
                "-out", str(td / "leaf.pem")]
+        ext = td / "ext.cnf"
         if ca_true:
-            ext = td / "ext.cnf"
             ext.write_text("basicConstraints=critical,CA:TRUE\n"
                            "keyUsage=critical,keyCertSign,cRLSign\n")
             cmd += ["-extfile", str(ext)]
+        else:
+            # OpenSSL 4 treats the active OPENSSL_CONF default section as an
+            # extension section when x509 receives no -extfile.  Keep the
+            # legacy weak-digest fixture extension-free by selecting an
+            # explicit empty section instead.
+            ext.write_text("[fixture_extensions]\n")
+            cmd += ["-extfile", str(ext), "-extensions", "fixture_extensions"]
         subprocess.run(cmd, check=True, capture_output=True,
                        env=_fixture_signing_env(digest_name))
         cert = x509.load_pem_x509_certificate((td / "leaf.pem").read_bytes())

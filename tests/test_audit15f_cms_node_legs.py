@@ -58,6 +58,7 @@ Run:
 import os
 import re
 import socket
+import sys
 import time
 import urllib.request
 
@@ -80,6 +81,7 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15f-clnode")]
 
 FED_CPU = 77                    # the feed's cpu figure — not a /proc value
+FED_LOAD = [FED_CPU, 1, 2, 3, 4]
 
 
 def _node(lifecycle, reason, manager_port, extra=""):
@@ -202,11 +204,10 @@ def test_a_short_perf_interval_expires_the_external_feed(lifecycle, tmp_path):
               stub.port,
               f'brix_cms_perf_pgm "{_one_shot_pgm(tmp_path, "77 1 2 3 4")}";\n'
               "        brix_cms_perf_interval 1s;")
-        fed = _wait_load(stub, lambda v: v[0] == FED_CPU)
+        fed = _wait_load(stub, lambda v: v[:5] == FED_LOAD)
         assert fed is not None, f"the feed never reached a LOAD: {stub.frames}"
-        assert fed[1:5] == [1, 2, 3, 4], fed      # net xeq mem pag, as fed
         after = len(stub.frames)
-        assert _wait_load(stub, lambda v: v[0] != FED_CPU, start=after) \
+        assert _wait_load(stub, lambda v: v[:5] != FED_LOAD, start=after) \
             is not None, ("the stale override was still being sent: "
                           f"{_all_loads(stub, after)}")
     finally:
@@ -223,12 +224,12 @@ def test_the_default_perf_interval_keeps_the_same_reading_fresh(lifecycle,
         _node(lifecycle, "audit-15f perf feed default freshness window",
               stub.port,
               f'brix_cms_perf_pgm "{_one_shot_pgm(tmp_path, "77 1 2 3 4")}";')
-        assert _wait_load(stub, lambda v: v[0] == FED_CPU) is not None
+        assert _wait_load(stub, lambda v: v[:5] == FED_LOAD) is not None
         after = len(stub.frames)
         time.sleep(6)                             # 3x the expiry above
         loads = _all_loads(stub, after)
         assert len(loads) >= 3, f"too few heartbeats to judge: {loads}"
-        assert {v[0] for v in loads} == {FED_CPU}, loads
+        assert all(v[:5] == FED_LOAD for v in loads), loads
     finally:
         stub.stop()
 
@@ -260,6 +261,8 @@ def test_a_tight_send_timeout_fails_a_dial_into_a_black_hole(lifecycle):
     """success: the connect + first-write window is the knob's, so a dial that
     the peer never answers is torn down in 400ms and counted — repeatedly, as
     the cold-start retry policy re-dials."""
+    if sys.platform != "linux":
+        pytest.skip("SYN-backlog timeout behavior is Linux-specific")
     hole = BlackHole()
     try:
         ep = _node(lifecycle, "audit-15f brix_cms_send_timeout 400ms bound",
@@ -334,6 +337,8 @@ def test_the_kernel_user_timeout_ends_a_dial_the_deadline_has_not_reached(
     ETIMEDOUT; the dial surfaces as a writable-with-error event, is torn down
     before LOGIN and counted.  Two failures inside the observation window are
     two more than the 30s deadline could have produced."""
+    if sys.platform != "linux":
+        pytest.skip("TCP_USER_TIMEOUT is a Linux socket option")
     hole = BlackHole()
     try:
         ep = _node(lifecycle, "audit-15f brix_cms_tcp_user_timeout 2s bound",

@@ -10,6 +10,7 @@
  * the probe to TLS on a kXR_gotoTLS verdict.  Every terminal path reports the
  * verdict through brix_hc_finish() (defined in health_check.c).
  */
+#include "core/compat/log_event.h"
 #include "health_check.h"
 #include "registry.h"
 #include "observability/metrics/metrics_macros.h"
@@ -233,14 +234,14 @@ brix_hc_tls_handshake_done(ngx_connection_t *c)
     ClientLoginRequest  *req;
 
     if (!c->ssl->handshaked) {
-        ngx_log_error(NGX_LOG_WARN, hc->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, hc->log, 0,
                       "brix: health check: %s:%d TLS handshake failed",
                       hc->host, (int) hc->port);
         brix_hc_finish(hc, 0);
         return;
     }
     if (SSL_get_verify_result(c->ssl->connection) != X509_V_OK) {
-        ngx_log_error(NGX_LOG_WARN, hc->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, hc->log, 0,
                       "brix: health check: %s:%d TLS peer verification failed",
                       hc->host, (int) hc->port);
         brix_hc_finish(hc, 0);
@@ -310,7 +311,7 @@ brix_hc_dispatch_protocol(brix_hc_ctx_t *hc)
             if (hc->conf->upstream_tls
                 && hc->conf->upstream_tls_ctx != NULL)
             {
-                ngx_log_debug2(NGX_LOG_DEBUG_STREAM, hc->log, 0,
+                BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, hc->log, 0,
                     "brix: health check: %s:%d wants TLS; upgrading probe",
                     hc->host, (int) hc->port);
                 if (brix_outbound_start_tls(hc->conf->upstream_tls_ctx,
@@ -323,7 +324,7 @@ brix_hc_dispatch_protocol(brix_hc_ctx_t *hc)
                 return NGX_DONE;
             }
 #endif
-            ngx_log_debug2(NGX_LOG_DEBUG_STREAM, hc->log, 0,
+            BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, hc->log, 0,
                 "brix: health check: %s:%d wants TLS; "
                 "treating protocol-OK as alive", hc->host, (int) hc->port);
             brix_hc_finish(hc, 1);

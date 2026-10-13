@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "disconnect.h"
 #include "fd_table.h"
@@ -105,7 +106,7 @@ brix_recv_pre_loop(ngx_stream_session_t *s, ngx_connection_t *c,
             ngx_stream_finalize_session(s, NGX_STREAM_OK);
             return 1;
         }
-        ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
+        BRIX_LOG(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
                       "brix: client connection timed out");
         /* Phase 39: our steady-state read deadline fired — it is the only c->read
          * timer armed outside the WAITING_CMS/FRM states handled above.  Attribute

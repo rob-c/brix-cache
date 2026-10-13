@@ -22,8 +22,9 @@ def run_s3_multipart_adversarial(key, data, port, s3port):
                   _mpa_c1, _mpa_c2, _mpa_c3, _mpa_c4):
         check(state)
     _mpa_d1(state, first_etag, control_key)
-    for check in (_mpa_d2, _mpa_d3, _mpa_d4):
+    for check in (_mpa_d2, _mpa_d3):
         check(state)
+    _mpa_d4(state, control_key)
     _mpa_d5(state, control_key)
     for check in (_mpa_e1, _mpa_e2, _mpa_e3, _mpa_e4):
         check(state)

@@ -30,10 +30,8 @@ def _rt37_part_g_sticky_copy_interaction_two(sfe, has, bfe, TAG, F_dst, port, t_
     ok(not has(bfa, b"CGSV-PROJ-COPY-BODY"),
        f"{TAG}: NO-LEAK proj-copy body absent from alice's denied read "
        f"(HTTP {sfa})")
-    _combo_setgid_via_copymove_p7(s3port, stk_dir, port, t_alice, t_bob, t_carol, sg_dir, sgp_dir, mkfile, STK, TAG, data, mkdir_own, SG, has, base)
 
 
-def _combo_setgid_via_copymove_p7(s3port, stk_dir, port, t_alice, t_bob, t_carol, sg_dir, sgp_dir, mkfile, STK, TAG, data, mkdir_own, SG, has, base):
     # =====================================================================
     # PART G — STICKY + COPY interaction: two tenants COPY their own files INTO
     # the 1777 sticky staging dir (each owned by its real creator), then a
@@ -92,7 +90,9 @@ def _rt37_deny_carol_moves_alice_s_copied(G_a_fp, TAG, G_a_dst, port, t_carol, b
                   hdrs={"Destination": base + f"/carol/{TAG}_steal.txt"})
     ok(all((sgm not in (200, 201, 204), os.path.exists(G_a_fp), not os.path.exists(os.path.join(data, 'carol', f'{TAG}_steal.txt')))),
        f"{TAG}: DENY carol MOVE of alice's copied-in sticky file (HTTP {sgm})")
-    ok(not all((os.path.exists(os.path.join(data, 'carol', f'{TAG}_steal.txt')), b'CGSV-ALICE-STAGE' in open(os.path.join(data, 'carol', f'{TAG}_steal.txt'), 'rb').read())),
+    steal_path = os.path.join(data, "carol", f"{TAG}_steal.txt")
+    steal_body = open(steal_path, "rb").read() if os.path.exists(steal_path) else b""
+    ok(b"CGSV-ALICE-STAGE" not in steal_body,
        f"{TAG}: NO-LEAK alice's stage bytes did not reach carol via denied MOVE")
 
 
@@ -109,7 +109,6 @@ def _rt37_positive_control_a_non_owner_alice(G_a_dst, port, t_alice, G_a_fp, TAG
     an_fp = os.path.join(stk_dir, f"{TAG}_alice_new.txt")
     ok(all((sgc in (200, 201, 204), os.path.exists(an_fp), stat_safe(an_fp).st_uid == UID_ALICE)),
        f"{TAG}: POSITIVE alice creates a fresh name in the sticky dir (HTTP {sgc})")
-    _combo_setgid_via_copymove_p8(s3port, sg_dir, sgp_dir, stk_dir, port, t_carol, t_alice, data, TAG, mkdir_own, mkfile, SG, t_bob, has)
 
 
 def _rt37_segment_01(mkfile, TAG, SG, sg_dir, stat_safe):
@@ -229,60 +228,74 @@ def _rt37_for_each_dirpath_dirnames_filenames_os_walk_d(filenames, dirnames, dir
 
 
 
+def _rt37_check_s3_copy_identity(H_st, TAG, sh):
+    if H_st is None:
+        return
+    ok(H_st.st_gid == GID_STAFF,
+       f"{TAG}: INHERIT S3-copied object group==staff({H_st.st_gid}) not "
+       f"source-research (HTTP {sh})")
+    ok(H_st.st_uid == UID_ALICE,
+       f"{TAG}: S3-copied object owner==alice({H_st.st_uid})")
+    ok(H_st.st_uid not in (UID_SVC, 0),
+       f"{TAG}: S3-copied object NOT svc/root (uid={H_st.st_uid})")
+
+
+def _rt37_s3_copy_into_setgid(s3port, TAG, data, mkdir_own, mkfile,
+                              stat_safe, has):
+    if not s3port:
+        ok(True, f"{TAG}: S3 CopyObject-into-setgid leg SKIPPED (no s3 port)")
+        return
+    SGS = f"{TAG}_s3sgid"
+    sgs_dir = os.path.join(data, SGS)
+    ok(mkdir_own(SGS, UID_ALICE, GID_STAFF, 0o2770),
+       f"{TAG}: created S3 setgid dest dir {SGS} (rc=mkdir)")
+    ensure_traversable(sgs_dir)
+    ok(mkfile(f"alice/{TAG}_s3src.txt", b"CGSV-S3-COPY-SRC", UID_ALICE,
+              GID_RESEARCH, 0o644),
+       f"{TAG}: alice S3 copy-source seeded group=research (rc=mkfile)")
+    dst_key = f"{SGS}/{TAG}_s3copied.txt"
+    sh, _ = s3("PUT", dst_key, s3port,
+               extra_hdrs={"x-amz-copy-source":
+                           f"/{S3_BUCKET}/alice/{TAG}_s3src.txt"})
+    landed = stat_safe(os.path.join(sgs_dir, f"{TAG}_s3copied.txt"))
+    ok(all((sh in (200, 201), landed is not None)),
+       f"{TAG}: S3 CopyObject into setgid dir accepted + landed (HTTP {sh})")
+    _rt37_check_s3_copy_identity(landed, TAG, sh)
+    shg, bhg = s3("GET", dst_key, s3port)
+    ok(all((shg == 200, has(bhg, b"CGSV-S3-COPY-SRC"))),
+       f"{TAG}: S3-copied object body == source (HTTP {shg})")
+    sh2, _ = s3("PUT", f"{SGS}/{TAG}_s3steal.txt", s3port,
+                extra_hdrs={"x-amz-copy-source":
+                            f"/{S3_BUCKET}/bob/private.txt"})
+    steal_fp = os.path.join(sgs_dir, f"{TAG}_s3steal.txt")
+    ok(sh2 not in (200, 201),
+       f"{TAG}: DENY S3 CopyObject of bob's private file into setgid dir "
+       f"(HTTP {sh2})")
+    steal_body = open(steal_fp, "rb").read() if os.path.exists(steal_fp) else b""
+    ok(b"BOB-PRIVATE-SECRET" not in steal_body,
+       f"{TAG}: NO-LEAK bob's private bytes never landed via S3 copy")
+
+
+def _rt37_no_privileged_owner_residue(TAG, sg_dir, sgp_dir, stk_dir):
+    offenders = []
+    for directory in (sg_dir, sgp_dir, stk_dir):
+        try:
+            for dirpath, dirnames, filenames in os.walk(directory):
+                _rt37_for_each_dirpath_dirnames_filenames_os_walk_d(
+                    filenames, dirnames, dirpath, offenders)
+        except OSError:
+            pass
+    ok(not offenders,
+       f"{TAG}: NO copied/moved artefact flipped to svc/root ownership "
+       f"(offenders={offenders[:3]})")
+
+
 def _rt37_part_h_s3_copyobject_into_a(s3port, TAG, data, mkdir_own, mkfile, stat_safe, has, SG, sg_dir, port, t_alice, t_bob, sgp_dir, stk_dir):
 
-    # =====================================================================
-    # PART H — S3 CopyObject INTO a setgid path.  Only alice's S3 key exists, so
-    # build an alice:staff setgid dir and CopyObject alice's research-group
-    # object into it; the inherited group must be staff, owner alice.  This wires
-    # the S3 copy verb to the setgid-create path (never combined).
-    # =====================================================================
-    if s3port:
-        SGS = f"{TAG}_s3sgid"
-        sgs_dir = os.path.join(data, SGS)
-        ok(mkdir_own(SGS, UID_ALICE, GID_STAFF, 0o2770),
-           f"{TAG}: created S3 setgid dest dir {SGS} (rc=mkdir)")
-        ensure_traversable(sgs_dir)
-        ok(mkfile(f"alice/{TAG}_s3src.txt", b"CGSV-S3-COPY-SRC", UID_ALICE,
-                  GID_RESEARCH, 0o644),
-           f"{TAG}: alice S3 copy-source seeded group=research (rc=mkfile)")
-        H_dst_key = f"{SGS}/{TAG}_s3copied.txt"
-        H_fp = os.path.join(sgs_dir, f"{TAG}_s3copied.txt")
-        sh, _ = s3("PUT", H_dst_key, s3port,
-                   extra_hdrs={"x-amz-copy-source":
-                               f"/{S3_BUCKET}/alice/{TAG}_s3src.txt"})
-        H_st = stat_safe(H_fp)
-        ok(all((sh in (200, 201), H_st is not None)),
-           f"{TAG}: S3 CopyObject into setgid dir accepted + landed (HTTP {sh})")
-        if H_st is not None:
-            ok(H_st.st_gid == GID_STAFF,
-               f"{TAG}: INHERIT S3-copied object group==staff({H_st.st_gid}) not "
-               f"source-research (HTTP {sh})")
-            ok(H_st.st_uid == UID_ALICE,
-               f"{TAG}: S3-copied object owner==alice({H_st.st_uid})")
-            ok(H_st.st_uid not in (UID_SVC, 0),
-               f"{TAG}: S3-copied object NOT svc/root (uid={H_st.st_uid})")
-        # body preserved by the S3 copy.
-        shg, bhg = s3("GET", H_dst_key, s3port)
-        ok(all((shg == 200, has(bhg, b'CGSV-S3-COPY-SRC'))),
-           f"{TAG}: S3-copied object body == source (HTTP {shg})")
-        # DENY: S3 CopyObject of bob's PRIVATE 0600 file (alice principal) must
-        # fail closed — copy verb cannot bypass cross-tenant DAC into setgid dir.
-        sh2, bh2 = s3("PUT", f"{SGS}/{TAG}_s3steal.txt", s3port,
-                      extra_hdrs={"x-amz-copy-source":
-                                  f"/{S3_BUCKET}/bob/private.txt"})
-        steal_fp = os.path.join(sgs_dir, f"{TAG}_s3steal.txt")
-        ok(sh2 not in (200, 201),
-           f"{TAG}: DENY S3 CopyObject of bob's private file into setgid dir "
-           f"(HTTP {sh2})")
-        ok(not all((os.path.exists(steal_fp), b'BOB-PRIVATE-SECRET' in open(steal_fp, 'rb').read())),
-           f"{TAG}: NO-LEAK bob's private bytes never landed via S3 copy")
-    else:
-        ok(True, f"{TAG}: S3 CopyObject-into-setgid leg SKIPPED (no s3 port)")
-    _combo_setgid_via_copymove_p9(sg_dir, sgp_dir, stk_dir, port, t_carol, t_alice, mkfile, SG, TAG, t_bob, has)
+    _rt37_s3_copy_into_setgid(s3port, TAG, data, mkdir_own, mkfile,
+                              stat_safe, has)
 
 
-def _combo_setgid_via_copymove_p9(sg_dir, sgp_dir, stk_dir, port, t_carol, t_alice, mkfile, SG, TAG, t_bob, has):
     # =====================================================================
     # PART I — native THIRD-PARTY-COPY (loopback TPC) of carol's research file
     # INTO the staff setgid dir.  The pulled/pushed file lands via the broker as
@@ -300,16 +313,7 @@ def _combo_setgid_via_copymove_p9(sg_dir, sgp_dir, stk_dir, port, t_carol, t_ali
     # And the setgid/sticky dirs must retain their special bits (no broker
     # corruption from the storm of impersonated copies).
     # =====================================================================
-    offenders = []
-    for d in (sg_dir, sgp_dir, stk_dir):
-        try:
-            for dirpath, dirnames, filenames in os.walk(d):
-                _rt37_for_each_dirpath_dirnames_filenames_os_walk_d(filenames, dirnames, dirpath, offenders)
-        except OSError:
-            pass
-    ok(not offenders,
-       f"{TAG}: NO copied/moved artefact flipped to svc/root ownership "
-       f"(offenders={offenders[:3]})")
+    _rt37_no_privileged_owner_residue(TAG, sg_dir, sgp_dir, stk_dir)
 
 
 def _rt37_segment_34(stat_safe, sg_dir, TAG, sgp_dir, stk_dir):

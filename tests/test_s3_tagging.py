@@ -79,6 +79,14 @@ def test_delete_tagging(obj):
     assert _tags(r.text) == {}  # empty tag set
 
 
+def test_empty_value_tagging_flag_cannot_become_object_delete(obj):
+    requests.put(obj, data=b"d", headers={"x-amz-tagging": "a=b"}, timeout=10)
+
+    assert requests.delete(obj + "?tagging=", timeout=10).status_code == 204
+    assert requests.get(obj, timeout=10).status_code == 200
+    assert _tags(requests.get(obj + "?tagging", timeout=10).text) == {}
+
+
 def test_tagging_special_chars_roundtrip(s3_url):
     key = f"{s3_url}/{BUCKET}/tag_{uuid.uuid4().hex}"
     requests.put(key, data=b"d", timeout=10)

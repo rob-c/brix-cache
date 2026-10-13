@@ -14,6 +14,7 @@
  *       alias, URL/path and manifest helpers live in xrdcp.c and are reached
  *       through xrdcp_internal.h. No goto; early-return throughout.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdcp_internal.h"
 #include "xrdcp_parse_internal.h"
 #include "core/version.h"
@@ -121,7 +122,7 @@ xrdcp_parse_rate_option(const char *a, xrdcp_opts_t *o, int argc,
         && *i + 1 < (size_t) argc) {
         o->copt->xrate_bps = xrdcp_parse_rate(argv[++(*i)]);
         if (o->copt->xrate_bps <= 0) {
-            fprintf(stderr, "xrdcp: invalid --xrate value '%s' "
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: invalid --xrate value '%s' "
                             "(bytes/sec, optional k/m/g suffix)\n", argv[*i]);
             return 50;
         }
@@ -130,7 +131,7 @@ xrdcp_parse_rate_option(const char *a, xrdcp_opts_t *o, int argc,
     if (strcmp(a, "--xrate-threshold") == 0 && *i + 1 < (size_t) argc) {
         o->copt->xrate_min_bps = xrdcp_parse_rate(argv[++(*i)]);
         if (o->copt->xrate_min_bps <= 0) {
-            fprintf(stderr, "xrdcp: invalid --xrate-threshold value '%s' "
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: invalid --xrate-threshold value '%s' "
                             "(bytes/sec, optional k/m/g suffix)\n", argv[*i]);
             return 50;
         }
@@ -156,7 +157,7 @@ xrdcp_parse_retry_option(const char *a, xrdcp_opts_t *o, int argc,
         if (strcmp(policy, "continue") == 0) {
             o->copt->cont = 1;
         } else if (strcmp(policy, "force") != 0) {
-            fprintf(stderr, "xrdcp: --retry-policy expects 'force' or "
+            BRIX_CLIENT_LOG("WARN",  "xrdcp: --retry-policy expects 'force' or "
                             "'continue', got '%s'\n", policy);
             return 50;
         }
@@ -224,7 +225,7 @@ xrdcp_parse_sync_check(brix_copy_opts *opts, const char *mode, const char *prog)
                                 ? mode + 6 : "adler32";
         return 1;
     }
-    fprintf(stderr, "xrdcp: --sync-check needs size|mtime|cksum[:algo]\n");
+    BRIX_CLIENT_LOG("ERROR",  "xrdcp: --sync-check needs size|mtime|cksum[:algo]\n");
     usage(prog);
     return 50;
 }
@@ -313,7 +314,7 @@ xrdcp_parse_tpc_mode(brix_copy_opts *opts, const char *mode, const char *prog)
         opts->tpc_mode = XRDC_TPC_DELEGATE;
         return 1;
     }
-    fprintf(stderr, "xrdcp: --tpc needs first|only|delegate\n");
+    BRIX_CLIENT_LOG("ERROR",  "xrdcp: --tpc needs first|only|delegate\n");
     usage(prog);
     return 50;
 }
@@ -417,7 +418,7 @@ xrdcp_parse_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
     }
     if (strcmp(argv[*i], "-h") == 0) { usage(argv[0]); return 2; }
 
-    fprintf(stderr, "xrdcp: unknown option '%s'\n", argv[*i]);
+    BRIX_CLIENT_LOG("ERROR",  "xrdcp: unknown option '%s'\n", argv[*i]);
     usage(argv[0]);
     return 50;
 }
@@ -471,12 +472,12 @@ parse_and_validate_args(int argc, char **argv, xrdcp_opts_t *o, xrdcp_lists_t *l
             if (parsed == 2) { return XRDCP_PARSE_EXIT_OK; }
             if (parsed == 50) { return 50; }
         } else if (str_append(&l->pos.items, &l->pos.n, &l->pos.cap, a) != 0) {
-            fprintf(stderr, "xrdcp: out of memory\n");
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: out of memory\n");
             return 51;
         }
     }
     if (state.oom) {
-        fprintf(stderr, "xrdcp: out of memory\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: out of memory\n");
         return 51;
     }
 

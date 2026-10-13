@@ -22,6 +22,7 @@
  * decodes via the shared rrdata/node_ops planner and routes on plan->action.
  */
 
+#include "core/compat/log_event.h"
 #include "cms_internal.h"
 #include "recv_internal.h"
 #include "node_ops.h"               /* shared forwarded-op planner */
@@ -96,7 +97,7 @@ cms_prep_add(ngx_brix_cms_ctx_t *ctx, uint32_t streamid,
     brix_cms_reqid_map_put(plan->reqid, engine_reqid,
                              plan->notify, plan->prty);
 
-    ngx_log_error(NGX_LOG_INFO, ctx->cycle->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, ctx->cycle->log, 0,
                   "brix: CMS prepadd \"%s\" admitted (cms reqid \"%s\" -> "
                   "engine \"%s\")", plan->path, plan->reqid, engine_reqid);
     return NGX_OK;                               /* silent success */
@@ -116,7 +117,7 @@ cms_prep_del(ngx_brix_cms_ctx_t *ctx, const brix_cms_node_plan_t *plan)
                                      sizeof(engine_reqid)))
     {
         (void) brix_stage_request_delete(reg, engine_reqid, ctx->cycle->log);
-        ngx_log_error(NGX_LOG_INFO, ctx->cycle->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, ctx->cycle->log, 0,
                       "brix: CMS prepdel cms reqid \"%s\" -> engine \"%s\" "
                       "deleted", plan->reqid, engine_reqid);
     }

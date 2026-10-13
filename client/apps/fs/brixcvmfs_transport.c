@@ -13,6 +13,7 @@
  *       leaks between borrowers. TRUST stays with the CAS layer — this file
  *       only moves bytes and can at worst fail a fetch, never forge one.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include <curl/curl.h>
 
 #include "cvmfs/dict/dict.h"
@@ -317,7 +318,7 @@ static int brix_dict_ensure(CURL **slot, const char *proxy, const char *host) {
     pthread_mutex_lock(&g_dict.mu);
     if (g_dict.mode == 1) {
         g_dict.mode = (brix_dict_fetch(slot, proxy, host) == 0) ? 2 : -1;
-        fprintf(stderr, "brixcvmfs: dict %s%s\n",
+        BRIX_CLIENT_LOG("INFO",  "brixcvmfs: dict %s%s\n",
                 g_dict.mode == 2 ? "ready id=" : "disabled (no verified "
                 ".cvmfs-dict/current — serving identity)",
                 g_dict.mode == 2 ? g_dict.id : "");

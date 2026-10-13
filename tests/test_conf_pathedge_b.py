@@ -105,9 +105,7 @@ def test_chmod_special_name_parity(pair):
     off_target = os.path.join(pair["off_data"], "chmod[b].txt")
     with open(off_target, "w") as f:
         f.write("c")
-    # BOTH servers' workers drop to `nobody` under the root harness, so each can
-    # only chmod a file it owns — chown both sides, not just the stock one.
-    L.chown_stock(our_target)
+    L.chown_brix(our_target)
     L.chown_stock(off_target)
     o_rc, _, _ = fs(pair["our"], "chmod", "/chmod[b].txt", "rwxr-xr-x")
     f_rc, _, _ = fs(pair["off"], "chmod", "/chmod[b].txt", "rwxr-xr-x")

@@ -170,7 +170,8 @@ def test_delete_backend_error_returns_500(make_server):
     """A queued DELETE whose backend unlink fails with a non-benign errno (EACCES)
     surfaces as 500 *through the async render* — the generic-error arm of
     s3_delete_respond (and its INTERNAL_ERROR metric), the branch the 204/404/409
-    cases never reach. Revoking write on the *parent* directory (0500 = r-x) denies
+    cases never reach. Revoking write on the *parent* directory (0555 = r-x for
+    the worker) denies
     the queued unlink at drain while path resolution (execute-only) still succeeds,
     so the object survives and the parked client still gets a definite reply."""
     srv = make_server().start()
@@ -178,7 +179,7 @@ def test_delete_backend_error_returns_500(make_server):
     locked.mkdir()
     victim = locked / "obj.txt"
     victim.write_bytes(b"stays\n")
-    os.chmod(locked, 0o500)              # deny unlink of the child, keep traversal
+    os.chmod(locked, 0o555)              # deny unlink of the child, keep traversal
     try:
         r = requests.delete(srv.key("locked/obj.txt"), timeout=15)
         assert r.status_code == 500, r.text

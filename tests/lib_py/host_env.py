@@ -16,6 +16,9 @@ import sys
 #: client with no krb5 protocol at all (Apple's Heimdal ships no .pc file).
 _KRB5_PKGCONFIG_DIRS = ("/usr/local/opt/krb5/lib/pkgconfig",
                         "/opt/homebrew/opt/krb5/lib/pkgconfig")
+_OPENSSL_PREFIXES = ("/usr/local/opt/openssl@3",
+                     "/opt/homebrew/opt/openssl@3")
+_HOMEBREW_PREFIXES = ("/usr/local", "/opt/homebrew")
 
 
 def _installed_kegs() -> list[str]:
@@ -33,10 +36,32 @@ def _with_krb5_pkgconfig(current: str) -> str:
     return os.pathsep.join(missing + parts)
 
 
+def _prepend_existing(current: str, candidates: list[str]) -> str:
+    parts = _path_entries(current)
+    missing = [path for path in candidates
+               if os.path.isdir(path) and path not in parts]
+    return os.pathsep.join(missing + parts)
+
+
 def install() -> None:
     if sys.platform == "darwin":
-        os.environ["PKG_CONFIG_PATH"] = _with_krb5_pkgconfig(
-            os.environ.get("PKG_CONFIG_PATH", ""))
+        pkgconfig = _with_krb5_pkgconfig(os.environ.get("PKG_CONFIG_PATH", ""))
+        pkgconfig = _prepend_existing(
+            pkgconfig,
+            [os.path.join(prefix, "lib", "pkgconfig")
+             for prefix in _OPENSSL_PREFIXES],
+        )
+        os.environ["PKG_CONFIG_PATH"] = pkgconfig
+        os.environ["CPATH"] = _prepend_existing(
+            os.environ.get("CPATH", ""),
+            [os.path.join(prefix, "include")
+             for prefix in (*_OPENSSL_PREFIXES, *_HOMEBREW_PREFIXES)],
+        )
+        os.environ["LIBRARY_PATH"] = _prepend_existing(
+            os.environ.get("LIBRARY_PATH", ""),
+            [os.path.join(prefix, "lib")
+             for prefix in (*_OPENSSL_PREFIXES, *_HOMEBREW_PREFIXES)],
+        )
         # libXrdUtils resolves the host's identity in a static initialiser
         # (XrdNetIdentity: reverse lookup of the primary interface address).
         # A LAN address without a PTR record costs the full 30 s resolver

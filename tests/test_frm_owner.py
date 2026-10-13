@@ -151,7 +151,7 @@ def _token(key, sub):
     now = int(time.time())
     header = {"alg": "ES256", "typ": "JWT", "kid": KID}
     payload = {"iss": ISSUER, "sub": sub, "aud": AUDIENCE,
-               "exp": now + 3600, "iat": now, "nbf": now,
+               "exp": now + 3600, "iat": now, "nbf": now - 5,
                "scope": SCOPE, "wlcg.ver": "1.0"}
     si = (_b64u(json.dumps(header, separators=(",", ":")).encode())
           + "." + _b64u(json.dumps(payload, separators=(",", ":")).encode()))

@@ -1,5 +1,24 @@
 # Release 2.0 readiness register
 
+## Current release-candidate reconciliation — 2026-10-07
+
+The September audit below is retained as an evidence ledger, but its statement
+that “nothing else is open” predates Phases 118 and 119 and the final packaging
+work. The current disposition is:
+
+| Class | Item | Evidence / boundary |
+|---|---|---|
+| **Completed** | Original F1–F22 register, Phase 115 implementation, Phase 116 DNS, Phase 118 `xrd conform`, Darwin ARM64 module/client verification, and native package build targets | owning phase status blocks and their named tests/guards |
+| **Deferred — external dependency** | Phase-115 W5.5 validation against a real, independently operated Globus or dCache door | run `gridftp-outbound` with `BRIX_GRIDFTP_RESULTS_PVC`; `tools/ci/check_gridftp_interop_image.py evidence` must accept the resulting XML with 9/9 passes before release notes claim interoperability validation |
+| **Deferred — unavailable host/service** | Darwin Intel runtime result; optional hardware/performance lanes; credential reaper; seccomp exec broker | ARM64 results do not imply Intel results; no unsupported service is silently counted as tested |
+| **Will not do for v2.0** | in-tree Reed–Solomon/XrdEc, GridFTP-over-SSH, ESTO/SPOR, Alma 8 server/OpenSSL 1.1 module, out-of-tree containerd snapshotter | explicit architectural/product decisions, not release defects |
+
+The GridFTP implementation and its local wiring tests are complete. Independent
+server validation is not: no qualifying evidence JSON is checked in. A release
+may retain that row as deferred, but must not describe external Globus/dCache
+interoperability as certified. If certification is claimed, the 9/9 evidence
+file is a release gate; any skipped PROT-P cell refuses it.
+
 **Status:** IMPLEMENTED — audited 2026-09-05 against `main` @ `6b78de61a`,
 and every recommendation the audit produced was carried out in the working
 tree the same day and re-verified (see "Guard status" and "Remaining before

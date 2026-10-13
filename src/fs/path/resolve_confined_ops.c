@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "path_internal.h"
 #include "beneath.h"
@@ -53,7 +54,7 @@ brix_dirlist_access_ok(ngx_log_t *log, const char *root_canon,
          * the directory rather than list it with the privileged worker's
          * credentials (which leaked entries of dirs the mapped user cannot read).
          */
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "impersonate: dirlist access check with no principal set"
                       " — refusing to enumerate \"%s\" (fail closed)", resolved);
         return NGX_ERROR;

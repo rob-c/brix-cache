@@ -10,6 +10,7 @@
 #ifndef NGX_HTTP_BRIX_SHARED_CONF_CREDDIR_H
 #define NGX_HTTP_BRIX_SHARED_CONF_CREDDIR_H
 
+#include "core/compat/log_event.h"
 #include <ngx_config.h>
 #include <ngx_core.h>
 
@@ -115,7 +116,7 @@ brix_shared_credential_dir_ensure(ngx_conf_t *cf, const ngx_str_t *dir)
 
     if (stat(path, &st) != 0) {
         if (errno != ENOENT) {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, errno,
+            BRIX_CONF_LOG(NGX_LOG_WARN, cf, errno,
                 "brix: credential store \"%s\" is not accessible — "
                 "credential delegation will not work until "
                 "brix_storage_credential_dir is fixed", path);
@@ -123,7 +124,7 @@ brix_shared_credential_dir_ensure(ngx_conf_t *cf, const ngx_str_t *dir)
         }
 
         if (mkdir(path, 0700) != 0 && errno != EEXIST) {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, errno,
+            BRIX_CONF_LOG(NGX_LOG_WARN, cf, errno,
                 "brix: cannot create credential store \"%s\" — "
                 "credential delegation will not work until "
                 "brix_storage_credential_dir is fixed", path);
@@ -131,7 +132,7 @@ brix_shared_credential_dir_ensure(ngx_conf_t *cf, const ngx_str_t *dir)
         }
 
         if (stat(path, &st) != 0) {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, errno,
+            BRIX_CONF_LOG(NGX_LOG_WARN, cf, errno,
                 "brix: credential store \"%s\" vanished after create — "
                 "credential delegation will not work", path);
             return;
@@ -144,7 +145,7 @@ brix_shared_credential_dir_ensure(ngx_conf_t *cf, const ngx_str_t *dir)
         if (geteuid() == 0 && st.st_uid != want_uid
             && chown(path, want_uid, want_gid) != 0)
         {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, errno,
+            BRIX_CONF_LOG(NGX_LOG_WARN, cf, errno,
                 "brix: cannot chown credential store \"%s\" to the worker "
                 "user — credential delegation will not work", path);
         }
@@ -152,7 +153,7 @@ brix_shared_credential_dir_ensure(ngx_conf_t *cf, const ngx_str_t *dir)
     }
 
     if (!S_ISDIR(st.st_mode)) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix: credential store \"%s\" is not a directory — "
             "credential delegation will not work until "
             "brix_storage_credential_dir is fixed", path);
@@ -160,14 +161,14 @@ brix_shared_credential_dir_ensure(ngx_conf_t *cf, const ngx_str_t *dir)
     }
 
     if ((st.st_mode & 0077) != 0) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix: credential store \"%s\" is group/other-accessible "
             "(mode %04uo) — delegated private keys may be exposed; "
             "chmod 0700", path, (ngx_uint_t) (st.st_mode & 07777));
     }
 
     if (st.st_uid != want_uid) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix: credential store \"%s\" is owned by uid %ud but the "
             "workers run as uid %ud — credential delegation will not work "
             "until ownership or brix_storage_credential_dir is fixed",

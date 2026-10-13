@@ -12,6 +12,7 @@
  *   Authorization header; timestamp + append via one ngx_write_fd.
  */
 
+#include "core/compat/log_event.h"
 #include "guard_http.h"
 
 /* ---- HTTP method -> guard op-class ----
@@ -179,7 +180,7 @@ ngx_http_brix_guard_write_audit(ngx_http_request_t *r,
     if (ngx_write_fd(lcf->audit_log->fd, line, line_len)
         != (ssize_t) line_len)
     {
-        ngx_log_error(NGX_LOG_ALERT, r->connection->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ALERT, r->connection->log, ngx_errno,
                       "brix_guard: audit log write failed");
     }
 }

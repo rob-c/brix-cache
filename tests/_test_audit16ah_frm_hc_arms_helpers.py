@@ -98,6 +98,8 @@ from pathlib import Path
 
 import pytest
 
+from log_records import semantic_log_text
+
 from config_parse import nginx_t
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS, PARSE_PLACEHOLDER_PORT
 from server_launcher import LifecycleHarness
@@ -281,7 +283,8 @@ class _Fleet:
         """Instance prefixes are wiped at teardown, so failures quote inline."""
         prefix = self.plain.prefix if which == "plain" else self.registry.prefix
         log = Path(prefix) / "logs" / "error.log"
-        return log.read_text(errors="replace") if log.exists() else ""
+        return semantic_log_text(log.read_text(errors="replace")) \
+            if log.exists() else ""
 
     def hc_notices(self):
         return [line.split("] ", 1)[-1]
@@ -370,4 +373,3 @@ def fleet(tmp_path_factory):
 # --------------------------------------------------------------------------- #
 # §A  The health-check `off` nobody writes, against the absence that stands in  #
 # --------------------------------------------------------------------------- #
-

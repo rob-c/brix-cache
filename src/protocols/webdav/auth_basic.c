@@ -22,6 +22,7 @@
  *       catalog-internal ownership) see one canonical identity object.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "webdav_auth.h"
 #include "auth/pwd/pwd.h"
@@ -174,7 +175,7 @@ webdav_verify_basic_pwd(ngx_http_request_t *r,
     ngx_memzero(hash, sizeof(hash));
 
     if (!verified) {
-        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, r->connection->log, 0,
                       "brix_webdav: Basic pwd auth denied for user \"%s\"",
                       user.data);
         brix_metric_auth(BRIX_PROTO_WEBDAV, BRIX_AUTHN_PWD, 0);
@@ -199,7 +200,7 @@ webdav_verify_basic_pwd(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
                   "brix_webdav: Basic pwd auth OK user=\"%s\"", ctx->dn);
     return NGX_OK;
 }

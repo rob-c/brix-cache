@@ -14,6 +14,7 @@
  *       reviewable unit and the #if (NGX_HTTP_SSL) fencing stays in one place.
  */
 
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "secure_internal.h"
 #include "cvmfs_module_internal.h"
@@ -157,7 +158,7 @@ scvmfs_check_x509(ngx_http_request_t *r,
         return NGX_HTTP_UNAUTHORIZED;         /* every presented cert a proxy */
     }
     if (!scvmfs_dn_allowed(lcf->scvmfs_x509_dn, dn)) {
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
             "scvmfs: client DN \"%s\" not in brix_scvmfs_x509_dn allow-list "
             "- 403", dn);
         return NGX_HTTP_FORBIDDEN;            /* verified, but out of policy */
@@ -226,12 +227,12 @@ scvmfs_check_voms(ngx_http_request_t *r,
         return NGX_HTTP_UNAUTHORIZED;         /* every presented cert a proxy */
     }
     if (vo_list[0] == '\0') {
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
             "scvmfs: client DN \"%s\" carries no VOMS attribute - 403", dn);
         return NGX_HTTP_FORBIDDEN;            /* voms mode requires a VO */
     }
     if (!scvmfs_vo_allowed(lcf->scvmfs_voms, vo_list)) {
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
             "scvmfs: client VO(s) \"%s\" not in brix_scvmfs_voms allow-list "
             "- 403", vo_list);
         return NGX_HTTP_FORBIDDEN;            /* verified, but out of policy */
@@ -246,7 +247,7 @@ scvmfs_check_voms(ngx_http_request_t *r,
                         sizeof(ctx->token_sub));
         }
     }
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "scvmfs: x509+voms admit DN=\"%s\" primary_vo=\"%s\"",
                   dn, primary_vo);
     return NGX_DECLINED;                       /* authenticated + authorised */

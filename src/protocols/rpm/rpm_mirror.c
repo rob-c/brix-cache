@@ -19,6 +19,7 @@
  *       never a raw open/read/sendfile in this directory (INVARIANT #12).
  */
 
+#include "core/compat/log_event.h"
 #include "rpm.h"
 
 #include "core/http/etag.h"                    /* BRIX_ETAG_WEAK */
@@ -199,7 +200,7 @@ rpm_tier_get(ngx_http_request_t *r, ngx_http_brix_rpm_loc_conf_t *lcf,
 
     vctx.sd = brix_vfs_backend_resolve(root, r->connection->log);
     if (vctx.sd == NULL) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
             "rpm: no storage backend registered for \"%s\" — check "
             "brix_rpm_mirror / brix_cache_store", root);
         ctx->disp = BRIX_RPM_OUT_ERROR;

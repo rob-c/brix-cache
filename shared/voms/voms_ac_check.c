@@ -24,6 +24,7 @@
  *      shared/voms/voms_verify.c shared/voms/voms_lsc.c -lcrypto -o voms_ac_check
  */
 
+#include "../observability/log_stdio.h"
 #include "voms/voms_ac.h"
 
 #include <dirent.h>
@@ -137,7 +138,7 @@ load_store(const char *certdir)
     store = X509_STORE_new();
     if (store == NULL || X509_STORE_load_locations(store, NULL, certdir) != 1) {
         X509_STORE_free(store);
-        fprintf(stderr, "voms_ac_check: cannot load CA directory %s\n", certdir);
+        BRIX_TOOL_LOG("ERROR",  "voms_ac_check: cannot load CA directory %s\n", certdir);
         exit(2);
     }
     /* CRLs are consulted where the directory holds any (<hash>.r0), as the
@@ -181,7 +182,7 @@ main(int argc, char **argv)
     }
     leaf = load_chain(a.proxy, &chain);
     if (leaf == NULL) {
-        fprintf(stderr, "voms_ac_check: no certificate in %s: %s\n", a.proxy,
+        BRIX_TOOL_LOG("ERROR",  "voms_ac_check: no certificate in %s: %s\n", a.proxy,
                 strerror(errno));
         return 2;
     }

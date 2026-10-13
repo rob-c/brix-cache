@@ -183,7 +183,7 @@ def _rt42_the_path_itself_is_valid_control(tag, no_create, data, owner_of, paren
         ]
         for p in root_grp:
             rc, out, _e = xrd_fs(["cat", p], "bob")
-            ok(all((rc != 0, 'INSIDE-STAFF-DIR' not in any((out, '')), 'EXECONLY-KNOWN' not in any((out, '')))),
+            ok(all((rc != 0, 'INSIDE-STAFF-DIR' not in _rt_default(out, ''), 'EXECONLY-KNOWN' not in _rt_default(out, ''))),
                f"(F) root:// bob(non-staff) cat {p[:30]!r} group-DAC deny, no "
                f"staff/exec leak (rc={rc})")
 
@@ -196,7 +196,7 @@ def _rt42_the_path_itself_is_valid_control(tag, no_create, data, owner_of, paren
         ]
         for p in root_climb:
             rc, out, _e = xrd_fs(["cat", p], "alice")
-            ok(all((rc != 0, 'bob-only' not in any((out, '')), 'BOB-PRIVATE-SECRET' not in any((out, '')), 'root:x:' not in any((out, '')))),
+            ok(all((rc != 0, 'bob-only' not in _rt_default(out, ''), 'BOB-PRIVATE-SECRET' not in _rt_default(out, ''), 'root:x:' not in _rt_default(out, ''))),
                f"(F) root:// alice climb-out {p[:30]!r} deny, no bob/etc leak "
                f"(rc={rc})")
 
@@ -280,7 +280,7 @@ def _rt42_and_a_group_dac_grant_still(st, sp, owner_of, port, ta, tc, PW, BOB, B
     # child's content -> assert the GRANT (carol still gets 200 + a real body)
     # without pinning the stale canonical marker, and no OTHER-tenant secret leaks.
     st, b = http("GET", "/staffdir/inside.txt", port, tc)
-    ok(all((st == 200, bool(b), PW not in any((b, b'')), BOB not in any((b, b'')), BOBS not in any((b, b'')), SVC not in any((b, b'')))),
+    ok(all((st == 200, bool(b), PW not in _rt_default(b, b''), BOB not in _rt_default(b, b''), BOBS not in _rt_default(b, b''), SVC not in _rt_default(b, b''))),
        f"(G) post-battery group GRANT still works: carol reads staffdir (HTTP {st})")
 
 

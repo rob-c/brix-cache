@@ -11,6 +11,7 @@
  *       many fragment bytes, staged + renamed like every other artifact.
  *       The memo is always rewritten (a non---update run still primes it).
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brixrpm_internal.h"
 
 #include <dirent.h>
@@ -160,12 +161,12 @@ cr_scan_child(const char *root, const char *rel, const char *dirpath,
                  rel[0] != '\0' ? "/" : "", name) >= (int) sizeof(sub) ||
         snprintf(full, sizeof(full), "%s/%s", root, sub) >=
             (int) sizeof(full)) {
-        fprintf(stderr, "brixrpm: warning: path too long under %s "
+        BRIX_CLIENT_LOG("WARN",  "brixrpm: warning: path too long under %s "
                 "(skipped)\n", dirpath);
         return 0;
     }
     if (lstat(full, &st) != 0) {
-        fprintf(stderr, "brixrpm: warning: %s: %s (skipped)\n", full,
+        BRIX_CLIENT_LOG("WARN",  "brixrpm: warning: %s: %s (skipped)\n", full,
                 strerror(errno));
         return 0;
     }
@@ -198,11 +199,11 @@ cr_scan(const char *root, const char *rel, strv_t *out)
     d = opendir(dirpath);
     if (d == NULL) {
         if (rel[0] != '\0') {
-            fprintf(stderr, "brixrpm: warning: %s: %s (skipped)\n", dirpath,
+            BRIX_CLIENT_LOG("WARN",  "brixrpm: warning: %s: %s (skipped)\n", dirpath,
                     strerror(errno));
             return 0;
         }
-        fprintf(stderr, "brixrpm: %s: %s\n", dirpath, strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "brixrpm: %s: %s\n", dirpath, strerror(errno));
         return -1;
     }
     while (rc == 0 && (de = readdir(d)) != NULL) {
@@ -287,7 +288,7 @@ cr_cache_load(const char *dir, entv_t *out)
     }
     fclose(f);
     if (bad) {
-        fprintf(stderr, "brixrpm: warning: %s malformed — ignoring memo\n",
+        BRIX_CLIENT_LOG("WARN",  "brixrpm: warning: %s malformed — ignoring memo\n",
                 path);
         entv_free(out);
         memset(out, 0, sizeof(*out));
@@ -423,13 +424,13 @@ cr_memo_trusts(const brixrpm_cr_opts_t *o, const cr_ent_t *hit,
         return hit->mtime == (long long) fs->st_mtime;
     }
     if (brix_rpm_file_sha256(full, hex, sizeof(hex), err, sizeof(err)) != 0) {
-        fprintf(stderr, "brixrpm: warning: %s (re-parsing)\n", err);
+        BRIX_CLIENT_LOG("WARN",  "brixrpm: warning: %s (re-parsing)\n", err);
         return 0;
     }
     if (strcmp(hex, hit->pkgid) == 0) {
         return 1;
     }
-    fprintf(stderr, "brixrpm: warning: %s changed in place under an "
+    BRIX_CLIENT_LOG("WARN",  "brixrpm: warning: %s changed in place under an "
             "unchanged (size, mtime) — re-parsing\n", hit->href);
     st->drifted++;
     return 0;
@@ -506,7 +507,7 @@ cr_pump(const brixrpm_cr_opts_t *o, brix_repomd_t *w, const strv_t *hrefs,
             return -1;
         }
         if (rc > 0) {
-            fprintf(stderr, "brixrpm: warning: %s (skipped)\n", err);
+            BRIX_CLIENT_LOG("WARN",  "brixrpm: warning: %s (skipped)\n", err);
             st->skipped++;
         }
     }
@@ -552,7 +553,7 @@ brixrpm_createrepo(const brixrpm_cr_opts_t *o)
 
     if (rc == 0) {
         if (cr_cache_save(o->dir, &fresh) != 0) {
-            fprintf(stderr, "brixrpm: warning: could not write %s memo\n",
+            BRIX_CLIENT_LOG("WARN",  "brixrpm: warning: could not write %s memo\n",
                     CR_CACHE_NAME);
         }
         rc = brix_repomd_finish(w, err, sizeof(err));
@@ -565,7 +566,7 @@ brixrpm_createrepo(const brixrpm_cr_opts_t *o)
         }
     }
     if (rc != 0 && err[0] != '\0') {
-        fprintf(stderr, "brixrpm: %s\n", err);
+        BRIX_CLIENT_LOG("ERROR",  "brixrpm: %s\n", err);
     }
     brix_repomd_abort(w);    /* NULL-safe; live only on failure */
     strv_free(&hrefs);

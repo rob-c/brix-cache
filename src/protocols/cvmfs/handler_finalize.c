@@ -14,6 +14,7 @@
  *       cvmfs_module_internal.h; handler.c wires it into the pool cleanup);
  *       everything else is static.
  */
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "cvmfs_module_internal.h"
 #include "fs/path/path.h"                  /* brix_sanitize_log_string */
@@ -96,7 +97,7 @@ cvmfs_finalize_trace(ngx_http_request_t *r,
     ngx_memcpy(raw, r->uri.data, n);
     raw[n] = '\0';
     brix_sanitize_log_string(raw, safe, sizeof(safe));
-    ngx_log_error(level, r->connection->log, 0,
+    BRIX_LOG(level, r->connection->log, 0,
         "cvmfs-trace: client id=%uA class=%s repo=%*s path=%s "
         "cache=%s status=%ui",
         r->connection->number,

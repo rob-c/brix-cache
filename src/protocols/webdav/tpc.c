@@ -21,6 +21,7 @@
  *       reused by those files. No behaviour change from the split.
  */
 
+#include "core/compat/log_event.h"
 #include "tpc_internal_split.h"
 
 #include "webdav.h"
@@ -166,7 +167,7 @@ webdav_tpc_matrix_gate(ngx_http_request_t *r)
 
     v = brix_tpc_matrix_check(&mc, BRIX_TPC_PARTY_CLIENT, &subj, path);
     if (v != BRIX_TPC_MATRIX_OK) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "brix webdav tpc refused: %s",
                       brix_tpc_matrix_verdict_text(v));
         return NGX_HTTP_FORBIDDEN;
@@ -400,7 +401,7 @@ webdav_tpc_source_guard(ngx_http_request_t *r,
         if (guard_audit_format(&req, GUARD_R_TPCEGRESS, ts,
                                line, sizeof(line)) > 0)
         {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "%s", line);
+            BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0, "%s", line);
         }
     }
 

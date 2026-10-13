@@ -21,6 +21,7 @@
  *       brix_sd_staged_t (sd.h) carries our state in ->state.
  */
 
+#include "core/compat/log_event.h"
 #include "sd_xroot_internal.h"    /* inst_state + errno + copy_cred helper */
 
 #include <errno.h>
@@ -96,7 +97,7 @@ sd_xroot_staged_connect_open(sd_xroot_staged_state *ss, const char *final_path,
         /* Surface the ACTUAL origin failure reason (auth/TLS/protocol) — the
          * caller only sees the mapped errno, which hides why the origin session
          * failed (e.g. "requires TLS", "no credential set", gsi handshake). */
-        ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, ngx_cycle->log, 0,
             "brix sd_xroot: origin staged-open \"%s\" failed: %s (kXR %d)",
             final_path,
             (t->err_msg[0] != '\0') ? t->err_msg : "(no detail)",

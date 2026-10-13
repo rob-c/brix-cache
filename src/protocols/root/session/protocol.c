@@ -2,6 +2,7 @@
  * protocol.c — kXR_protocol opcode handler (capability negotiation).
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "core/compat/alloc_guard.h"
 #include "fs/vfs/vfs_secgate.h"   /* BRIX_TLSREQ_* → kXR_tls* advertisement */
@@ -223,7 +224,7 @@ brix_handle_protocol(brix_ctx_t *ctx, ngx_connection_t *c,
                                    buf + XRD_RESPONSE_HDR_LEN + sizeof(body));
     }
 
-    ngx_log_debug4(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXR_protocol ok (client_flags=0x%02xd "
                    "bodylen=%uz auth=%s tls=%d)",
                    (int) want.client_flags, bodylen,

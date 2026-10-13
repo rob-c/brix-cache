@@ -58,6 +58,9 @@
  *       close) so a legitimate concurrent identity beyond the cache bound
  *       still works instead of failing the open.
  */
+#if !defined(XRDPROTO_NO_NGX)
+#include "core/compat/log_event.h"
+#endif
 #include "sd_ceph.h"
 #include "sd_ceph_compat.h"   /* pure striper-layout helpers (catalog enumeration) */
 #include "fs/path/site_n2n.h" /* brix_n2n_canonicalize — the shared canonicalizer */
@@ -300,7 +303,7 @@ sd_ceph_cleanup(brix_sd_instance_t *inst)
              * about is a should-never-happen invariant violation, not
              * something the standalone driver tests need to observe. */
             if (st->cred_conns[i].conn->refs > 0 && inst->log != NULL) {
-                ngx_log_error(NGX_LOG_WARN, inst->log, 0,
+                BRIX_LOG(NGX_LOG_WARN, inst->log, 0,
                     "sd_ceph_cleanup: cred connection for user \"%s\" still "
                     "had %ui open handle(s) pinned at instance teardown "
                     "(destroying anyway)",

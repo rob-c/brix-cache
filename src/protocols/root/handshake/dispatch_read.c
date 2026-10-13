@@ -49,7 +49,10 @@ brix_dispatch_read_opcode(brix_ctx_t *ctx, ngx_connection_t *c,
     switch (ctx->recv.cur_reqid) {
 
     case kXR_stat:    DISPATCH_RD_BOUND("STAT",    brix_handle_stat,    conf);
-    case kXR_open:    DISPATCH_RD_BOUND("OPEN",    brix_handle_open,    conf);
+    case kXR_open:
+        rc = brix_dispatch_require_open_write(ctx, c, conf);
+        if (rc != BRIX_DISPATCH_CONTINUE) { return rc; }
+        DISPATCH_RD_BOUND("OPEN", brix_handle_open, conf);
     case kXR_read:    DISPATCH_RD(brix_handle_read);
     case kXR_close:   DISPATCH_RD_BOUND("CLOSE",   brix_handle_close);
     case kXR_dirlist: DISPATCH_RD_BOUND("DIRLIST", brix_handle_dirlist, conf);

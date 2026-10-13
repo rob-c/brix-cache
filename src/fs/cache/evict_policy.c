@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "evict_internal.h"
 #include "cache_storage.h"
 #include "meta.h"
@@ -186,7 +187,7 @@ brix_cache_evict_one(brix_cache_evict_ctx_t *ec, size_t idx)
                         + ngx_strlen(list->cache_root);
 
         if (brix_sd_cache_demote(ec->decorator, key) == NGX_ERROR) {
-            ngx_log_error(NGX_LOG_WARN, ec->log, errno,
+            BRIX_LOG(NGX_LOG_WARN, ec->log, errno,
                 "brix: cold-tier demote failed for \"%s\" - evicting anyway",
                 key);
         }
@@ -526,7 +527,7 @@ brix_cache_evict_if_needed(brix_cache_fill_t *t, const char *protect_path,
         brix_cache_metric_add(t->ctx, cache_evictions_total, evicted_files);
         brix_cache_metric_add(t->ctx, cache_evicted_bytes_total,
                                 evicted_bytes);
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                       "brix: cache eviction (on-fill) removed %ui files, "
                       "%uL bytes, threshold=0.%06ui",
                       evicted_files, (uint64_t) evicted_bytes, threshold);

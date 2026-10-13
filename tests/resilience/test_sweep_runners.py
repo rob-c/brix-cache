@@ -54,7 +54,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 RUNNERS = ["run_loss_sweep", "run_xrdcp_loss", "run_http_reorder",
            "run_mount_sweep"]
 
-OFFICIAL_XRDCP = "/usr/bin/xrdcp"
+OFFICIAL_XRDCP = shutil.which("xrdcp")
 
 
 def _run(module, *argv, timeout=420):
@@ -125,6 +125,18 @@ def test_http_reorder_sweep_completes_for_every_client_pair(tmp_path):
     assert proc.returncode == 0, proc.stdout[-800:] + proc.stderr[-800:]
     assert "1/1" in proc.stdout, proc.stdout[-1200:]
     assert "no fixed port" not in proc.stderr
+
+
+@pytest.mark.parametrize("euid, expected", [
+    (0, ["-R", "nobody"]),
+    (1000, []),
+])
+def test_http_reorder_xrootd_deescalates_only_from_root(monkeypatch,
+                                                        euid, expected):
+    """The reference daemon requires -R as root and rejects it as a user."""
+    mod = importlib.import_module("run_http_reorder")
+    monkeypatch.setattr(mod.os, "geteuid", lambda: euid)
+    assert mod._xrootd_runas_args() == expected
 
 
 # --------------------------------------------------------------------------- #

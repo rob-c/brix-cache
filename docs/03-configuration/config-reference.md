@@ -20,6 +20,7 @@ operators a precise startup error tied to the directive/path that is invalid.
 
 ## Configuration sub-pages
 
+- [XRootD migration assistant](xrootd-config-migration.md) — generate a reviewable starting point from common XRootD, VOMS, PFC/PSS, and XrdCeph/librados settings
 - [Directive reference](directives.md) — all `brix_*` directives with descriptions, defaults, and examples
 - [Complete examples](examples.md) — annotated full nginx.conf configs for common deployments
 - [Quick reference tables](quick-reference.md) — stream, metrics, WebDAV, and S3 directive summary tables

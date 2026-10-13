@@ -2,6 +2,7 @@
  * diag_bench.c - extracted concern
  * Phase-38 split of xrddiag.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "diag_internal.h"
 
 
@@ -105,7 +106,7 @@ do_bench(const diag_args *a)
         return dial;
     }
     if (resolve_target(&c, &u, target, sizeof(target), &sti, &st) != 0) {
-        fprintf(stderr, "xrddiag: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: %s\n", st.msg);
         brix_close(&c);
         return brix_shellcode(&st);
     }
@@ -119,7 +120,7 @@ do_bench(const diag_args *a)
     }
 
     if (bench_one(&c, target, &st) < 0.0) {
-        fprintf(stderr, "xrddiag: bench: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: bench: %s\n", st.msg);
         brix_close(&c);
         return brix_shellcode(&st);
     }
@@ -146,7 +147,7 @@ do_bench(const diag_args *a)
         }
         t0 = brix_mono_ns();
         if (brix_copy(root_url, tmpl, &co, &a->conn, &cst) != 0) {
-            fprintf(stderr, "xrddiag: bench --streams: %s\n", cst.msg);
+            BRIX_CLIENT_LOG("ERROR",  "xrddiag: bench --streams: %s\n", cst.msg);
         } else {
             t1 = brix_mono_ns();
             double secs = (double) (t1 - t0) / 1e9;

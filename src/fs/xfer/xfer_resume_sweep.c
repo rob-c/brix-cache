@@ -22,6 +22,7 @@
  *       $BRIX_UPLOAD_RESUME_TTL seconds (default 1 day; 0 disables). No goto.
  */
 
+#include "core/compat/log_event.h"
 #include "xfer.h"
 
 #include <ngx_event.h>
@@ -108,7 +109,7 @@ xfer_resume_sweep_run(void)
     closedir(dir);
 
     if (removed > 0) {
-        ngx_log_error(NGX_LOG_NOTICE, xfer_sweep_log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, xfer_sweep_log, 0,
                       "xfer: swept %ui abandoned resume partial(s) (> %T s) "
                       "from \"%s\"", removed, xfer_sweep_ttl, xfer_sweep_dir);
     }

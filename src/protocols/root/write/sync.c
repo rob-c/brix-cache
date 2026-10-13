@@ -2,6 +2,7 @@
  * sync.c — kXR_sync opcode.  See each function's docblock below.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "core/compat/error_mapping.h"   /* brix_kxr_from_errno */
 #include "fs/cache/cache_internal.h"
@@ -69,7 +70,7 @@ brix_handle_sync(brix_ctx_t *ctx, ngx_connection_t *c)
 		return rc;
 	}
 
-	ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+	BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
 				   "brix: kXR_sync handle=%d", idx);
 
 	if ((ctx->files[idx].tpc_destination || ctx->files[idx].tpc_push)

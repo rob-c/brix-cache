@@ -28,6 +28,7 @@
 #include <ngx_core.h>
 
 #include "fs/vfs/vfs_policy.h"  /* brix_vfs_mutation_policy_t */
+#include "platform/platform_api.h"
 
 #include "fs/backend/sd.h"   /* brix_sd_obj_t — the per-handle storage object */
 
@@ -139,23 +140,23 @@ void brix_vfs_report_dangling_obj(const void *obj, const void *driver,
     ngx_fd_t fd);
 
 /* True iff `d` could be a real static driver vtable: non-NULL, pointer-aligned,
- * and canonical. A freed object's `driver` field holds glibc safe-linking-mangled
- * garbage (typically non-canonical, bits >47 set) — reading the VALUE is safe
- * (freed heap stays mapped) but CALLING through it GP-faults and kills the
- * worker, so we screen the value before ever dispatching. */
+ * and canonical for the selected host. AArch64 Linux admits a wider user VA
+ * shape than x86-64, so the PAL owns that decision. A freed object's `driver`
+ * field holds glibc safe-linking-mangled garbage (typically non-canonical) — reading
+ * the VALUE is safe (freed heap stays mapped) but CALLING through it GP-faults
+ * and kills the worker, so we screen the value before ever dispatching. */
 static ngx_inline int
 brix_sd_driver_plausible(const brix_sd_driver_t *d)
 {
     uintptr_t v = (uintptr_t) d;
-
     if (v < 0x1000) {
         return 0;                         /* NULL / near-NULL */
     }
     if (v & (uintptr_t) (sizeof(void *) - 1)) {
         return 0;                         /* misaligned — never a real vtable */
     }
-    if (v >> 47) {
-        return 0;                         /* non-canonical (mangled freelist ptr) */
+    if (!brix_plat_pointer_is_canonical(d)) {
+        return 0;                         /* not a host-canonical user pointer */
     }
     return 1;
 }

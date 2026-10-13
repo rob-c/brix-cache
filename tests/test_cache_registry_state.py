@@ -23,8 +23,9 @@ def _include_flags():
     if not (build / "ngx_auto_config.h").is_file():
         pytest.skip("configured nginx headers unavailable")
     includes = [NGINX_SOURCE / part for part in (
-        "src/core", "src/event", "src/event/modules", "src/os/unix",
-        "src/http", "src/http/modules", "src/stream",
+        "src/core", "src/event", "src/event/modules", "src/event/quic",
+        "src/http/v3", "src/os/unix",
+        "src/http", "src/http/modules", "src/http/v2", "src/stream",
     )]
     includes.extend((build, REPO / "src", REPO / "shared"))
     return [f"-I{path}" for path in includes]

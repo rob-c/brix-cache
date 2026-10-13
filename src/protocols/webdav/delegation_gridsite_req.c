@@ -96,6 +96,7 @@
  *         matching the brief's documented default.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "delegation.h"
 #include "delegation_internal.h"
@@ -351,7 +352,7 @@ webdav_delegation_request_handle(ngx_http_request_t *r)
                 &err_sink) != 0)
         {
             free(parent_pem);
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                 "brix_delegation: build_pxyreq failed: %s", err);
             return delegation_request_reject(r, NGX_HTTP_INTERNAL_SERVER_ERROR,
                               "cannot build proxy request\n");
@@ -379,7 +380,7 @@ webdav_delegation_request_handle(ngx_http_request_t *r)
                           "too many pending delegations, try again later\n");
     }
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
         "brix_delegation: issued getProxyReq id=%s", id);
     rc = delegation_send_csr(r, id, req_pem, req_pem_len);
     free(req_pem);

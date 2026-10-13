@@ -96,15 +96,24 @@ def cfg_dual(root_port, https_port, root, cms_mgr, paths, cert, key, tmpbase):
 # --------------------------------------------------------------------------- #
 
 
+def _timeout_text(value):
+    """Normalize TimeoutExpired output (bytes even when Popen used text=True)."""
+    return value.decode(errors="replace") if isinstance(value, bytes) else value or ""
+
+
 def xrdfs_locate(mgr_port, path, timeout=15, retries=4):
     last = (1, "", "")
     for attempt in range(retries):
-        r = subprocess.run([XRDFS_BIN, f"{HOST}:{mgr_port}", "locate", path],
-                           capture_output=True, text=True, timeout=timeout,
-                           env=_XRD_ENV)
-        last = (r.returncode, r.stdout.strip(), r.stderr.strip())
-        if r.returncode == 0:
-            return last
+        try:
+            r = subprocess.run([XRDFS_BIN, f"{HOST}:{mgr_port}", "locate", path],
+                               capture_output=True, text=True, timeout=timeout,
+                               env=_XRD_ENV)
+            last = (r.returncode, r.stdout.strip(), r.stderr.strip())
+            if r.returncode == 0:
+                return last
+        except subprocess.TimeoutExpired as exc:
+            last = (124, _timeout_text(exc.stdout),
+                    _timeout_text(exc.stderr) + f"\n[timeout after {timeout}s]")
         # Back off only BETWEEN attempts — sleeping after the final failed try
         # just adds dead time before returning failure.  This matters on the
         # readiness hot path: _probe_ready calls with retries=1, so the trailing
@@ -130,8 +139,8 @@ def xrdcp_get(mgr_port, path, dst, timeout=60, retries=3):
                                   env=_XRD_ENV)
         except subprocess.TimeoutExpired as e:
             last = subprocess.CompletedProcess(
-                e.cmd, returncode=124, stdout=e.stdout or "",
-                stderr=(e.stderr or "") + f"\n[timeout after {timeout}s]")
+                e.cmd, returncode=124, stdout=_timeout_text(e.stdout),
+                stderr=_timeout_text(e.stderr) + f"\n[timeout after {timeout}s]")
         if last.returncode == 0:
             return last
         if attempt < retries - 1:

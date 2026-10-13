@@ -19,6 +19,7 @@
  *       space table (it settles AFTER the frm merge, in the auth tail).
  */
 
+#include "core/compat/log_event.h"
 #include "config.h"
 #include "tape_stage_conf.h"
 #include "space_group_conf.h"
@@ -71,27 +72,27 @@ policy_parse_thresholds(ngx_conf_t *cf, ngx_str_t *value,
     int lk = policy_parse_threshold(&value[3], &p->lo, &p->lo_ppm);
 
     if (hk < 0 || lk < 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_purge_policy \"%V\": thresholds are sizes (\"2g\") or "
             "percentages of the group quota (\"90%%\"), got \"%V\" \"%V\"",
             &p->group, &value[2], &value[3]);
         return NGX_CONF_ERROR;
     }
     if (hk != lk) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_purge_policy \"%V\": <hi> and <lo> must both be sizes "
             "or both percentages", &p->group);
         return NGX_CONF_ERROR;
     }
     if (hk == 1 && policy_is_default(&p->group)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_purge_policy \"*\" has no quota to scale percentages "
             "against; use sizes");
         return NGX_CONF_ERROR;
     }
     p->percent = (hk == 1);
     if ((hk == 1 && p->lo_ppm > p->hi_ppm) || (hk == 0 && p->lo > p->hi)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_purge_policy \"%V\": low (%V) must not exceed high (%V)",
             &p->group, &value[3], &value[2]);
         return NGX_CONF_ERROR;
@@ -107,13 +108,13 @@ policy_parse_hold(ngx_conf_t *cf, ngx_array_t *args, ngx_uint_t i,
     ngx_int_t  secs;
 
     if (i + 1 >= args->nelts) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_purge_policy \"%V\": hold needs a time", &p->group);
         return NGX_CONF_ERROR;
     }
     secs = ngx_parse_time(&value[i + 1], 1);
     if (secs == NGX_ERROR) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_purge_policy \"%V\": hold \"%V\" is not a time",
             &p->group, &value[i + 1]);
         return NGX_CONF_ERROR;
@@ -141,7 +142,7 @@ policy_parse_options(ngx_conf_t *cf, ngx_array_t *args,
             i++;
             continue;
         }
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_purge_policy \"%V\": unknown option \"%V\" (expected "
             "hold <time> or polprog)", &p->group, &value[i]);
         return NGX_CONF_ERROR;
@@ -156,7 +157,7 @@ policy_check_group(ngx_conf_t *cf, const ngx_array_t *pols, const ngx_str_t *g)
     ngx_uint_t                     i;
 
     if (!policy_is_default(g) && !brix_oss_space_name_ok(g)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_purge_policy: group name \"%V\" is not a valid "
             "brix_oss_space name (or \"*\")", g);
         return NGX_CONF_ERROR;
@@ -169,7 +170,7 @@ policy_check_group(ngx_conf_t *cf, const ngx_array_t *pols, const ngx_str_t *g)
         if (p[i].group.len == g->len
             && ngx_memcmp(p[i].group.data, g->data, g->len) == 0)
         {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_frm_purge_policy: group \"%V\" already has a policy", g);
             return NGX_CONF_ERROR;
         }
@@ -241,13 +242,13 @@ brix_frm_purge_policy_merge(ngx_conf_t *cf, brix_frm_conf_t *conf,
     }
     n = policy_count_polprog(conf->purge_policies);
     if (n > 0 && conf->purge_polprog.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_purge_policy: %ui rule(s) say polprog but no "
             "brix_frm_purge_polprog is configured", n);
         return NGX_CONF_ERROR;
     }
     if (n == 0 && conf->purge_polprog.len > 0) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix_frm_purge_polprog \"%V\" is set but no brix_frm_purge_policy "
             "line says polprog; the program never runs", &conf->purge_polprog);
     }
@@ -272,13 +273,13 @@ brix_frm_purge_policy_check(ngx_conf_t *cf, const ngx_array_t *spaces,
         }
         sp = brix_oss_space_by_name(spaces, p[i].group.data, p[i].group.len);
         if (sp == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_frm_purge_policy: group \"%V\" is not a brix_oss_space "
                 "of this server", &p[i].group);
             return NGX_CONF_ERROR;
         }
         if (p[i].percent && sp->quota <= 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_frm_purge_policy: group \"%V\" has no positive quota= "
                 "to scale percentage thresholds against", &p[i].group);
             return NGX_CONF_ERROR;

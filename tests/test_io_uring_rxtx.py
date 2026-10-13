@@ -30,7 +30,8 @@ Coverage (success / error / security-negative):
     would fail or hang) — passing proves the encrypted byte stream is never fed
     to a raw socket read.
   * error / fail-safe — an unknown ``XRDC_IO_URING_LOOP`` value must NOT engage
-    the ring (``strace`` shows ``epoll_wait`` and **no** ``io_uring_enter``) yet
+    the ring (``strace`` shows epoll readiness waits and **no**
+    ``io_uring_enter``) yet
     still transfer byte-exact: a malformed/hostile engine selector can never
     silently break I/O or mis-select an unintended transport; it degrades to the
     epoll default.
@@ -44,6 +45,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from brix_suite.client_build import client_make
 
 import pytest
@@ -108,14 +110,21 @@ def _guard_run_smoke_3(line, s, counts):
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-uring-rxtx"),
-              pytest.mark.timeout(180)]
+              pytest.mark.timeout(180),
+              pytest.mark.skipif(sys.platform != "linux",
+                                 reason="io_uring is a Linux kernel API")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 SMOKE = os.path.join(CLIENT_DIR, "bin", "aio_smoke")
 
 # io_uring syscalls whose presence/absence proves which engine actually ran.
-_TRACE_SYSCALLS = "io_uring_enter,io_uring_setup,epoll_wait"
+_TRACE_SYSCALLS = "io_uring_enter,io_uring_setup,epoll_wait,epoll_pwait"
+
+
+def _epoll_wait_count(counts):
+    """Count both Linux epoll wait syscalls (AArch64 uses epoll_pwait)."""
+    return counts["epoll_wait"] + counts["epoll_pwait"]
 
 
 # --------------------------------------------------------------------------- #
@@ -263,7 +272,7 @@ def test_rxtx_cleartext_byte_exact_ring_engaged(lifecycle, tmp_path):
                         "RX/TX io_uring is unsupported in its security context")
         assert counts["io_uring_enter"] > 0, \
             "rxtx did not engage the io_uring engine (no io_uring_enter)"
-        assert counts["epoll_wait"] == 0, \
+        assert _epoll_wait_count(counts) == 0, \
             "rxtx unexpectedly fell back to the epoll loop"
 
 
@@ -292,7 +301,7 @@ def test_unknown_loop_value_fails_safe_to_epoll(lifecycle, tmp_path):
                                 "definitely-not-a-mode", trace=trace)
     assert passed, "an unknown loop selector must still transfer byte-exact"
     if counts is not None:
-        assert counts["epoll_wait"] > 0, \
+        assert _epoll_wait_count(counts) > 0, \
             "the unknown selector did not fall back to the epoll loop"
         assert counts["io_uring_enter"] == 0, \
             "an unknown selector must never engage the io_uring engine"

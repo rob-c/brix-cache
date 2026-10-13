@@ -371,9 +371,8 @@ def test_chmod_mode_parity(srv):
         rel = f"/x_chmod_{side}.txt"
         with open(_ondisk(srv, side, rel), "w") as f:
             f.write("c\n")
-        # BOTH servers' workers drop to `nobody` under the root harness, so each
-        # can only chmod a file it owns — chown both sides, not just the stock one.
-        L.chown_stock(_ondisk(srv, side, rel))
+        target = _ondisk(srv, side, rel)
+        L.chown_brix(target) if side == "our" else L.chown_stock(target)
         rc, o, e = fs(srv[side], "chmod", rel, "rwxr-xr-x")
         assert rc == 0, f"{side} chmod failed: {o}{e}"
         mode = _stat.S_IMODE(os.stat(_ondisk(srv, side, rel)).st_mode)

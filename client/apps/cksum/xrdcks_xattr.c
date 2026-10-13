@@ -19,6 +19,7 @@
  *       the binary digest (first Length bytes). We compute via the shared
  *       brix_cksum engine (hex) and hex-decode into Value.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "core/progname.h"
 
@@ -136,19 +137,19 @@ xrdcks_compute(const char *path, const char *cksname, uint8_t *val,
     int             fd, rc;
 
     if (brix_cksum_algo_parse(cksname, &algo) != 0) {
-        fprintf(stderr, "xrdcks: unknown checksum '%s'\n", cksname);
+        BRIX_CLIENT_LOG("ERROR",  "xrdcks: unknown checksum '%s'\n", cksname);
         return -1;
     }
     fd = open(path, O_RDONLY);
     if (fd < 0) {
-        fprintf(stderr, "xrdcks: open %s: %s\n", path, strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "xrdcks: open %s: %s\n", path, strerror(errno));
         return -1;
     }
     brix_status_clear(&st);
     rc = brix_cksum_fd(fd, algo, hex, sizeof(hex), &st);
     close(fd);
     if (rc != 0) {
-        fprintf(stderr, "xrdcks: %s: %s\n", path, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdcks: %s: %s\n", path, st.msg);
         return -1;
     }
     return xrdcks_hex_to_bin(hex, val, valcap, vlen);
@@ -164,17 +165,17 @@ xrdcks_set(const char *path, const char *cksname, const char *key,
     struct stat sb;
 
     if (xrdcks_hex_to_bin(hexval, val, sizeof(val), &vlen) != 0) {
-        fprintf(stderr, "xrdcks: bad hex value '%s' (even digits, <= %d bytes)\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrdcks: bad hex value '%s' (even digits, <= %d bytes)\n",
                 hexval, XRDCKS_VALSZ);
         return 4;
     }
     if (stat(path, &sb) != 0) {
-        fprintf(stderr, "xrdcks: stat %s: %s\n", path, strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "xrdcks: stat %s: %s\n", path, strerror(errno));
         return 4;
     }
     xrdcks_encode(cksname, (int64_t) sb.st_mtime, val, vlen, rec);
     if (setxattr(path, key, rec, XRDCKS_RECSZ, 0) != 0) {
-        fprintf(stderr, "xrdcks: set %s on %s: %s\n", key, path,
+        BRIX_CLIENT_LOG("ERROR",  "xrdcks: set %s on %s: %s\n", key, path,
                 strerror(errno));
         return 4;
     }
@@ -194,7 +195,7 @@ xrdcks_get(const char *path, const char *cksname, const char *key)
         char           hex[2 * XRDCKS_VALSZ + 1];
 
         if (xrdcks_decode(rec, (size_t) got, &val, &vlen) != 0) {
-            fprintf(stderr, "xrdcks: %s: malformed %s record\n", path, key);
+            BRIX_CLIENT_LOG("ERROR",  "xrdcks: %s: malformed %s record\n", path, key);
             return 4;
         }
         xrdcks_bin_to_hex(val, vlen, hex);
@@ -202,7 +203,7 @@ xrdcks_get(const char *path, const char *cksname, const char *key)
         return 0;
     }
     if (got < 0 && errno != ENODATA && errno != ENOATTR) {
-        fprintf(stderr, "xrdcks: get %s on %s: %s\n", key, path,
+        BRIX_CLIENT_LOG("ERROR",  "xrdcks: get %s on %s: %s\n", key, path,
                 strerror(errno));
         return 4;
     }
@@ -243,7 +244,7 @@ brix_xrdcks_main(int argc, char **argv)
         return 4;
     }
     if (xrdcks_attr_key(argv[2], key, sizeof(key)) != 0) {
-        fprintf(stderr, "xrdcks: checksum name too long\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdcks: checksum name too long\n");
         return 4;
     }
     if (argc == 3) {
@@ -252,7 +253,7 @@ brix_xrdcks_main(int argc, char **argv)
     if (strcmp(argv[3], "delete") == 0) {
         if (removexattr(argv[1], key) != 0
             && errno != ENODATA && errno != ENOATTR) {
-            fprintf(stderr, "xrdcks: delete %s on %s: %s\n", key, argv[1],
+            BRIX_CLIENT_LOG("ERROR",  "xrdcks: delete %s on %s: %s\n", key, argv[1],
                     strerror(errno));
             return 4;
         }

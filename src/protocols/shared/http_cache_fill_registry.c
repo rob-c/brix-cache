@@ -7,6 +7,7 @@
  * that park on a fill: attach/detach, the T20 client-hold timer, the parked
  * client-abort probe, and the keep-alive 504 answer. It is event-loop-only.
  */
+#include "core/compat/log_event.h"
 #include "http_cache_fill.h"
 #include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_* */
 #include "fs/backend/http/sd_http.h"    /* sd_http_n_endpoints (verify budget) */
@@ -172,7 +173,7 @@ brix_http_fill_hold_expire(ngx_event_t *ev)
     if (w->owner != NULL) {
         char kbuf[256];
 
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
             "xrootd-fill: event=hold-expired key=\"%s\" client=%V "
             "held_ms=%M fill_elapsed_ms=%M waiters_left=%d "
             "action=\"504+Retry-After sent on the kept-alive connection; "
@@ -208,7 +209,7 @@ brix_http_fill_waiter_cleanup(void *data)
         ngx_connection_t *c = w->r->connection;
         char              kbuf[256];
 
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
             "xrootd-fill: event=parked-teardown key=\"%s\" client=%V "
             "parked_ms=%M fill_elapsed_ms=%M "
             "cause=\"request finalized while parked (worker shutdown or "
@@ -274,7 +275,7 @@ brix_http_fill_client_read(ngx_http_request_t *r)
     if (w != NULL && w->owner != NULL) {
         char kbuf[256];
 
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
             "xrootd-fill: event=client-gone key=\"%s\" client=%V "
             "parked_ms=%M fill_elapsed_ms=%M waiters_left=%d "
             "hint=\"client broke the connection before the origin answered; "
@@ -343,7 +344,7 @@ brix_http_fill_attach(brix_http_cache_fill_ctx_t *t,
     r->read_event_handler = brix_http_fill_client_read;
     if (ngx_handle_read_event(r->connection->read, 0) != NGX_OK) {
         /* non-fatal: we simply fall back to the hold timer for teardown */
-        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
             "xrootd-fill: could not arm client-abort read event");
     }
 

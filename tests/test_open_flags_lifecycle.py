@@ -276,7 +276,7 @@ class TestHandleLifecycle:
     @pytest.mark.registry_server("open-flags-lifecycle")
     def test_handle_exhaustion_clean_error(self, wr_stack):
         """Opening more than BRIX_MAX_FILES (16) handles on one session must
-        return a clean kXR_ServerError ('too many open files'), not crash; and
+        return a clean kXR_NoMemory ('too many open files'), not crash; and
         after closing one handle a subsequent open must succeed again."""
         rel = "/exhaust.bin"
         _wr_seed(wr_stack, rel, b"EXHAUST")
@@ -295,8 +295,8 @@ class TestHandleLifecycle:
                                     streamid=b"\x0f\xff")
             def _assert_test_handle_exhaustion_clean_error_1():
                 assert status == kXR_error, "over-cap open should be rejected"
-                assert _error_code(body) == kXR_ServerError, (
-                    f"expected kXR_ServerError, got {_error_code(body)}")
+                assert _error_code(body) == kXR_NoMemory, (
+                    f"expected kXR_NoMemory, got {_error_code(body)}")
 
             _assert_test_handle_exhaustion_clean_error_1()
             # Session still alive; the cap is graceful, not fatal.

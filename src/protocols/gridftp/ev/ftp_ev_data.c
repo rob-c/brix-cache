@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "ftp_ev.h"
 
 #include "fs/vfs/vfs.h"
@@ -70,7 +71,7 @@ ev_accept_handler(ngx_event_t *rev)
     int               dfd;
 
     if (rev->timedout) {
-        ngx_log_error(NGX_LOG_INFO, fc->c->log, NGX_ETIMEDOUT,
+        BRIX_LOG(NGX_LOG_INFO, fc->c->log, NGX_ETIMEDOUT,
                       "brix: GridFTP(ev) passive data accept timeout");
         brix_ftp_ev_data_finish(dc, NGX_ERROR);
         return;
@@ -84,7 +85,7 @@ ev_accept_handler(ngx_event_t *rev)
             }
             return;                              /* spurious wakeup — wait    */
         }
-        ngx_log_error(NGX_LOG_ERR, fc->c->log, ngx_socket_errno,
+        BRIX_LOG(NGX_LOG_ERR, fc->c->log, ngx_socket_errno,
                       "brix: GridFTP(ev) passive accept failed");
         brix_ftp_ev_data_finish(dc, NGX_ERROR);
         return;
@@ -128,7 +129,7 @@ ev_connect_handler(ngx_event_t *wev)
     socklen_t         slen  = sizeof(soerr);
 
     if (wev->timedout) {
-        ngx_log_error(NGX_LOG_INFO, fc->c->log, NGX_ETIMEDOUT,
+        BRIX_LOG(NGX_LOG_INFO, fc->c->log, NGX_ETIMEDOUT,
                       "brix: GridFTP(ev) active data connect timeout");
         brix_ftp_ev_data_finish(dc, NGX_ERROR);
         return;
@@ -136,7 +137,7 @@ ev_connect_handler(ngx_event_t *wev)
     if (getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &soerr, &slen) != 0
         || soerr != 0)
     {
-        ngx_log_error(NGX_LOG_ERR, fc->c->log, soerr,
+        BRIX_LOG(NGX_LOG_ERR, fc->c->log, soerr,
                       "brix: GridFTP(ev) active data connect failed");
         brix_ftp_ev_data_finish(dc, NGX_ERROR);
         return;
@@ -217,7 +218,7 @@ ev_data_open_active(ftp_ev_dc_t *dc)
          * the source address itself, which is still a usable data leg —
          * so log it and carry on rather than failing the transfer. */
         if (bind(dfd, (struct sockaddr *) &local, sizeof(local)) != 0) {
-            ngx_log_error(NGX_LOG_INFO, fc->c->log, ngx_errno,
+            BRIX_LOG(NGX_LOG_INFO, fc->c->log, ngx_errno,
                           "brix: gsiftp(ev) data-leg source bind failed; "
                           "letting the kernel choose");
         }
@@ -236,7 +237,7 @@ ev_data_open_active(ftp_ev_dc_t *dc)
     rc = connect(dfd, (struct sockaddr *) &fc->active_sa,
                  sizeof(fc->active_sa));
     if (rc == -1 && ngx_socket_errno != NGX_EINPROGRESS) {
-        ngx_log_error(NGX_LOG_ERR, fc->c->log, ngx_socket_errno,
+        BRIX_LOG(NGX_LOG_ERR, fc->c->log, ngx_socket_errno,
                       "brix: GridFTP(ev) active data connect() failed");
         ngx_close_connection(dc->dconn);
         dc->dconn = NULL;

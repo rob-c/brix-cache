@@ -66,6 +66,7 @@ typedef struct {
     ngx_uint_t         logged_in;
     brix_cms_auth_state_t auth_state;              /* sss handshake state    */
     ngx_event_t        ping_timer;
+    ngx_event_t        read_resume;                 /* fairness continuation */
     ngx_msec_t         interval_ms;                  /* ping interval in ms */
     ngx_msec_t         login_timeout_ms;             /* WS3: LOGIN handshake deadline */
     ngx_msec_t         idle_timeout_ms;              /* WS3: post-login inbound silence */

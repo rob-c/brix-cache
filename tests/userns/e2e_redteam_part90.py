@@ -41,16 +41,14 @@ def _rt70_4_scoped_read_only_token_x(key, GWD, GR, port, GR_BODY, TAG, body_of, 
     #     though DAC alone would allow it.  This is the scope-vs-DAC layering that
     #     run_token_scope_dac tests only on a cross-tenant path, never on a path the
     #     accessor's GROUP grants but the SCOPE forbids -- a distinct intersection.
-    _deep_novel_combos_r8_p3(have_s3, have_root, key, port, body_of, GW, ta, s3port, upid, TAG, mkfile, V_OLD, V_NEW, GR, GR_BODY, SG, etag, uid_of, exists, digest_of, BOB_SECRET, svc_root_residue, GWD, A_BODY, gid_of, complete_xml)
 
 
-def _deep_novel_combos_r8_p3(have_s3, have_root, key, port, body_of, GW, ta, s3port, upid, TAG, mkfile, V_OLD, V_NEW, GR, GR_BODY, SG, etag, uid_of, exists, digest_of, BOB_SECRET, svc_root_residue, GWD, A_BODY, gid_of, complete_xml):
     # =====================================================================
     # Read scope covers BOTH the 0640 read file (/grp) and the staff write-dir, so the
     # write-deny below is unambiguously about the missing write verb, not the path.
     tc_ro = mint(key, "carol", scope=f"storage.read:/grp storage.read:/{GWD}")
     sro, bro = http("GET", f"/grp/{GR}", port, tc_ro)
-    ok(all((sro == 200, GR_BODY in any((bro, b'')))),
+    ok(all((sro == 200, GR_BODY in _rt_default(bro, b''))),
        f"{TAG}(4): read-only-scoped carol(staff) GETs 0640 group file via group DAC "
        f"+ read scope (HTTP {sro})")
     # write with the read-only token: scope must reject it, leaving content unchanged.
@@ -176,20 +174,16 @@ def _rt70_member_bob_initiates_uploads_a_part(swf, uid_of, GW, gid_of, TAG, have
         s3_live = st0 != -1
     else:
         s3_live = False
-    _deep_novel_combos_r8_p4(s3_live, have_root, port, ta, s3port, upid, TAG, mkfile, V_OLD, V_NEW, SG, etag, uid_of, exists, digest_of, BOB_SECRET, svc_root_residue, A_BODY, complete_xml, body_of, gid_of)
 
 
-def _deep_novel_combos_r8_p4(s3_live, have_root, port, ta, s3port, upid, TAG, mkfile, V_OLD, V_NEW, SG, etag, uid_of, exists, digest_of, BOB_SECRET, svc_root_residue, A_BODY, complete_xml, body_of, gid_of):
     if s3_live:
         _rt70_when_s3_live(SG, TAG, s3port, upid, etag, uid_of, exists, complete_xml, gid_of, svc_root_residue)
     else:
         ok(True, f"{TAG}(5): S3 multipart group-complete skipped (S3 not reachable)")
         ok(True, f"{TAG}(5): non-member MPU complete deny skipped (no S3)")
         ok(True, f"{TAG}(5): MPU ownership invariant skipped (no S3)")
-    _deep_novel_combos_r8_p5(have_root, port, ta, TAG, mkfile, V_OLD, V_NEW, SG, digest_of, BOB_SECRET, svc_root_residue, A_BODY, uid_of, exists, body_of)
 
 
-def _deep_novel_combos_r8_p5(have_root, port, ta, TAG, mkfile, V_OLD, V_NEW, SG, digest_of, BOB_SECRET, svc_root_residue, A_BODY, uid_of, exists, body_of):
     # =====================================================================
     # (6) PARTIAL-RST mid-TPC + DIGEST-MID-OVERWRITE race.  Two failure-path
     #     combinations the existing combos never cross:
@@ -305,27 +299,23 @@ def _rt70_when_have_root(race_rel, digest_of, mkfile, V_NEW, V_OLD, port, ta, TA
 def _rt70_capture_the_stable_digest_of_each(mkfile, race_rel, V_OLD, TAG, have_root, digest_of, V_NEW, port, ta, uid_of, body_of, A_BODY, BOB_SECRET):
     ok(mkfile(race_rel, V_OLD, UID_ALICE, UID_ALICE, 0o644),
        f"{TAG}(6b): overwrite-race file seeded with whole V_OLD")
-    _deep_novel_combos_r8_p6(have_root, port, ta, mkfile, race_rel, V_NEW, V_OLD, digest_of, TAG, BOB_SECRET, svc_root_residue, SG, A_BODY, uid_of, body_of)
 
 
-def _deep_novel_combos_r8_p6(have_root, port, ta, mkfile, race_rel, V_NEW, V_OLD, digest_of, TAG, BOB_SECRET, svc_root_residue, SG, A_BODY, uid_of, body_of):
     if have_root:
         # capture the stable digest of each whole version as the only legal answers.
         _rt70_when_have_root(race_rel, digest_of, mkfile, V_NEW, V_OLD, port, ta, TAG, body_of, uid_of)
     else:
         ok(True, f"{TAG}(6b): digest-mid-overwrite race skipped (no native client)")
         ok(True, f"{TAG}(6b): race-file ownership invariant skipped (no native client)")
-    _deep_novel_combos_r8_p7(port, ta, TAG, BOB_SECRET, svc_root_residue, SG, A_BODY, uid_of, body_of)
 
 
-def _deep_novel_combos_r8_p7(port, ta, TAG, BOB_SECRET, svc_root_residue, SG, A_BODY, uid_of, body_of):
     # =====================================================================
     # SURVIVAL + secret integrity: after the whole round-8 combination storm the
     # worker is not wedged, bob's canonical private secret is intact, and no
     # svc/root-owned artifact was smuggled into the setgid dir.
     # =====================================================================
     ssv, bsv = http("GET", f"/alice/{TAG}_ck.bin", port, ta)
-    ok(all((ssv == 200, A_BODY[:16] in any((bsv, b'')))),
+    ok(all((ssv == 200, A_BODY[:16] in _rt_default(bsv, b''))),
        f"{TAG} survival: alice legit GET still works after the storm (HTTP {ssv})")
     ok(all((body_of('bob/private.txt').startswith(BOB_SECRET), uid_of('bob/private.txt') == UID_BOB)),
        f"{TAG} survival: bob/private.txt canonical secret + ownership intact")

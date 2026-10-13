@@ -19,6 +19,7 @@
  * per-request state travels in locate_ctx_t.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "protocols/root/path/op_path.h"
 #include "net/manager/registry.h"
@@ -219,7 +220,7 @@ locate_coalesced(locate_ctx_t *lc, uint32_t streamid)
     }
 
     BRIX_RESIL_METRIC_INC(cms_locate_coalesced_total);
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, lc->c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, lc->c->log, 0,
                    "brix: W3 locate: coalesced onto in-flight wave sid=%uD "
                    "for %s", leader, lc->reqpath);
     return 1;
@@ -321,7 +322,7 @@ locate_try_dynamic(locate_ctx_t *lc, ngx_int_t *out_rc)
     ctx->cms_wait_streamid = streamid;
     ctx->state = XRD_ST_WAITING_CMS;
     ngx_add_timer(c->read, conf->caps.cms_locate_window);
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: W3 locate: kYR_state fan-out to %ui nodes for %s",
                    sent, lc->reqpath);
     *out_rc = NGX_AGAIN;

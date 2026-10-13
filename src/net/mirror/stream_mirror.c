@@ -26,6 +26,7 @@
  * The context struct, phase enum, metric macro, replay-payload bound, and the
  * single cross-file entry point brix_mir_start() live in stream_mirror_internal.h.
  */
+#include "core/compat/log_event.h"
 #include "stream_mirror.h"
 
 #include <sys/socket.h>
@@ -116,7 +117,7 @@ brix_mir_write_handler(ngx_event_t *wev)
         if (getsockopt(c->fd, SOL_SOCKET, SO_ERROR, (char *) &err, &len) == -1
             || err != 0)
         {
-            ngx_log_debug2(NGX_LOG_DEBUG_STREAM, mir->log, 0,
+            BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, mir->log, 0,
                            "xrootd mirror: %s:%d connect failed",
                            mir->host, (int) mir->port);
             brix_mir_unreachable(mir);
@@ -174,7 +175,7 @@ brix_mir_on_response(brix_stream_mirror_t *mir)
     if (!shadow_unsupported && shadow_ok != mir->primary_ok) {
         BRIX_MIR_METRIC_INC(mirror_stream_divergence_total);
         if (mir->log_diverge) {
-            ngx_log_error(NGX_LOG_NOTICE, mir->log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, mir->log, 0,
                 "xrootd mirror divergence: %s:%d op=%d "
                 "primary_ok=%d shadow_kxr_status=%d",
                 mir->host, (int) mir->port, (int) mir->saved_opcode,
@@ -272,7 +273,7 @@ brix_mir_timeout_handler(ngx_event_t *ev)
 {
     brix_stream_mirror_t *mir = ev->data;
 
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, mir->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, mir->log, 0,
                    "xrootd mirror: %s:%d timed out", mir->host, (int) mir->port);
     if (mir->connecting) {
         brix_mir_unreachable(mir);

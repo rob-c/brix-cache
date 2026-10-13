@@ -14,10 +14,11 @@
  * WHY: The XRootD protocol requires specific field ordering and encoding for stat responses — this helper ensures consistent wire format across all stat implementations (read/stat.c, read/statx.c). VFS mode is used when the server operates in virtual filesystem abstraction where real block counts are not meaningful; non-VFS mode uses actual inode+block data from the underlying filesystem. Thread safety: pure function with no shared state — safe for concurrent use on any thread. */
 
 void
-brix_make_stat_body(const struct stat *st, ngx_flag_t is_vfs,
-                      int extra_flags, char *out, size_t outsz)
+brix_make_stat_body_for_export(const struct stat *st, ngx_flag_t is_vfs,
+    int extra_flags, ngx_flag_t allow_write, char *out, size_t outsz)
 {
     int flags;
+    char owner[32], group[32];
 
     /* VFS mode hides the real inode/blocks: id 0, size = block bytes, readable. */
     if (is_vfs) {
@@ -33,6 +34,9 @@ brix_make_stat_body(const struct stat *st, ngx_flag_t is_vfs,
      * the file's permission bits checked against the server's own (effective)
      * uid/gid — whom the confined export is accessed as — plus dir/other type. */
     flags = brix_stat_flags_from_stat(st, geteuid(), getegid(), extra_flags);
+    if (!allow_write) {
+        flags &= ~kXR_writable;
+    }
 
     /* Unique id ("devid", chunks[0] of the stat line) — mirror the reference
      * StatGen exactly so XrdCl/gfal parse an identical value.  StatGen builds it
@@ -43,10 +47,26 @@ brix_make_stat_body(const struct stat *st, ngx_flag_t is_vfs,
      * inode in the high word, device in the low word (verified against stock:
      * `stock_id >> 32 == st_ino`).  uuid is zero only when both are zero, which
      * is the reference's `!Dev.uuid` offline trigger — preserved here. */
-    brix_statline_format(out, outsz,
-                           ((unsigned long long) st->st_ino << 32)
-                               | (unsigned long long) (uint32_t) st->st_dev,
-                           (long long) st->st_size,
-                           flags,
-                           (long) st->st_mtime);
+    snprintf(owner, sizeof(owner), "%u", (unsigned int) st->st_uid);
+    snprintf(group, sizeof(group), "%u", (unsigned int) st->st_gid);
+    brix_statline_format_ext(out, outsz,
+        ((unsigned long long) st->st_ino << 32)
+            | (unsigned long long) (uint32_t) st->st_dev,
+        (long long) st->st_size, flags, (long) st->st_mtime,
+        (long) st->st_ctime, (long) st->st_atime,
+        (unsigned int) (st->st_mode & 07777), owner, group);
+}
+
+/*
+ * WHAT: Format stat metadata for callers that do not carry an export policy.
+ * WHY:  Directory listings, manager replies, and backend-local projections use
+ *       this long-standing API and must retain their existing mode-derived
+ *       writable flag until their own policy authority is available.
+ * HOW:  Delegate to the policy-aware encoder with writes allowed.
+ */
+void
+brix_make_stat_body(const struct stat *st, ngx_flag_t is_vfs,
+    int extra_flags, char *out, size_t outsz)
+{
+    brix_make_stat_body_for_export(st, is_vfs, extra_flags, 1, out, outsz);
 }

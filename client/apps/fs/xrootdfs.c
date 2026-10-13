@@ -2,6 +2,7 @@
  * xrootdfs.c - (kept) routing + shared helpers
  * Phase-38 split of xrootdfs.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrootdfs_internal.h"
 #include "xrootdfs_argsplit.h"
 #include "core/version.h"
@@ -576,11 +577,11 @@ xfs_daemon_setup(int *fuse_argc, char **fuse_argv, size_t fuse_argv_cap)
 
     /* One slot for "-f" plus the NULL terminator. */
     if ((size_t) *fuse_argc + 2 > fuse_argv_cap) {
-        fprintf(stderr, "xrootdfs: too many mount options\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrootdfs: too many mount options\n");
         return 2;
     }
     if (xfs_daemonize() != 0) {
-        fprintf(stderr, "xrootdfs: cannot daemonize: %s\n", strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "xrootdfs: cannot daemonize: %s\n", strerror(errno));
         return 2;
     }
     fuse_argv[(*fuse_argc)++] = (char *) "-f";

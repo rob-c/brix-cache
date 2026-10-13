@@ -53,6 +53,11 @@ def _check_runtime_paths(body, root):
         assert f"{directive} {json.dumps(str(path))}" in body, directive
 
 
+def _configured_path(argv):
+    """Return nginx's explicit -c argument; later flags are order-independent."""
+    return argv[argv.index("-c") + 1]
+
+
 def test_selected_modules_and_runtime_paths_reach_fleet_launch(
         raw_launcher, monkeypatch, tmp_path):
     """A packaged nginx receives all modules and writable per-fleet defaults."""
@@ -91,7 +96,8 @@ def test_failed_nginx_launch_is_reported(raw_launcher, tmp_path):
     with pytest.raises(subprocess.CalledProcessError) as failure:
         launch(str(config), cwd=str(tmp_path))
     assert failure.value.returncode == 1, "daemon failure code was lost"
-    assert failure.value.cmd[-1] == str(config), "failed config was not identified"
+    assert _configured_path(failure.value.cmd) == str(config), \
+        "failed config was not identified"
 
 
 def test_missing_config_cannot_launch_a_daemon(raw_launcher, tmp_path):
@@ -109,7 +115,8 @@ def test_relative_config_uses_prefix_and_child_cwd(raw_launcher, tmp_path):
     config = _config(prefix, "conf/nginx.conf")
     launch("conf/nginx.conf", prefix="member", cwd=str(tmp_path))
     argv, options = calls[0]
-    assert argv[-1] == str(config), "relative config resolved outside its prefix"
+    assert _configured_path(argv) == str(config), \
+        "relative config resolved outside its prefix"
     assert options["cwd"] == str(tmp_path), "child working directory changed"
     _check_runtime_paths(config.read_text(), prefix)
 

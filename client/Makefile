@@ -9,6 +9,23 @@
 
 CC ?= cc
 AR ?= ar
+HOST_OS ?= $(shell uname -s)
+HOST_ARCH ?= $(shell uname -m)
+
+# Homebrew's security libraries are keg-only, so their .pc files are not in
+# pkg-config's default path. Export the discovered locations for this make and
+# the recursive shared/xrdproto build; explicit caller paths remain in place.
+ifeq ($(HOST_OS),Darwin)
+HOMEBREW_OPENSSL_PREFIX := $(shell brew --prefix openssl@3 2>/dev/null)
+HOMEBREW_KRB5_PREFIX := $(shell brew --prefix krb5 2>/dev/null)
+ifneq ($(strip $(HOMEBREW_OPENSSL_PREFIX)),)
+PKG_CONFIG_PATH := $(HOMEBREW_OPENSSL_PREFIX)/lib/pkgconfig:$(PKG_CONFIG_PATH)
+endif
+ifneq ($(strip $(HOMEBREW_KRB5_PREFIX)),)
+PKG_CONFIG_PATH := $(HOMEBREW_KRB5_PREFIX)/lib/pkgconfig:$(PKG_CONFIG_PATH)
+endif
+export PKG_CONFIG_PATH
+endif
 
 REPO      := ..
 SRC       := $(REPO)/src
@@ -21,12 +38,13 @@ HARDEN := -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector-strong \
           -Wformat -Werror=format-security
 # BRIX_PLATFORM_HOST names the PAL host directory (src/platform/<host>/,
 # client/lib/platform/<host>/); the PAL headers carry no OS conditional.
-ifeq ($(shell uname -s),Darwin)
+ifeq ($(HOST_OS),Darwin)
 # -std=c11 hides Darwin's BSD/POSIX-2008 extras (UTIME_NOW, SO_NOSIGPIPE,
 # F_FULLFSYNC, ...) unless the full C level is requested explicitly.
 HARDEN += -D_DARWIN_C_SOURCE -DBRIX_PLATFORM_HOST=darwin
-# Apple clang has no stack-clash probing (the flag only warns on every TU).
-HARDEN := $(filter-out -fstack-clash-protection,$(HARDEN))
+# Apple clang has neither stack-clash probing nor x86 CET on ARM64 (the flags
+# otherwise warn or fail on every TU).
+HARDEN := $(filter-out -fstack-clash-protection -fcf-protection=full,$(HARDEN))
 # ld64 spellings of the GNU link idioms used below: force_load takes the
 # archive as one argument, shared objects are dylibs with an install name,
 # and executables are PIE by default (ld64 warns on an explicit -pie).
@@ -44,7 +62,28 @@ PRELOAD_LD  := -shared
 LDFLAGS_PIE := -pie
 endif
 
-# Optimize profile — same knob/default as the module (BRIX_OPTIMIZE, default v2).
+# Intel CET is unavailable on ARM64. Keep the rest of the host hardening set.
+ifneq ($(filter arm64 aarch64 armv8l,$(HOST_ARCH)),)
+HARDEN := $(filter-out -fcf-protection=full,$(HARDEN))
+endif
+
+# Optimize profile — mirror the module's architecture-specific defaults.
+ifneq ($(filter arm64 aarch64 armv8l,$(HOST_ARCH)),)
+BRIX_OPTIMIZE ?= auto
+ARM64_AUTO_MARCH := $(shell printf 'int main(void){return 0;}\n' | \
+	$(CC) -march=armv8-a+crc -x c - -o /dev/null >/dev/null 2>&1 && \
+	echo -march=armv8-a+crc || echo -march=armv8-a)
+OPT_auto          := -O3 $(ARM64_AUTO_MARCH)
+OPT_generic       := -O3 -march=armv8-a
+OPT_graviton      := -O3 -march=armv8.2-a+fp+simd+crypto+crc
+OPT_ampere        := -O3 -march=armv8.2-a+fp+simd+crypto
+OPT_apple_silicon := -O3 -march=armv8.3-a+crypto -mtune=apple-m1
+OPT_native        := -O3 -march=native
+OPT := $(OPT_$(BRIX_OPTIMIZE))
+ifeq ($(OPT),)
+  OPT := $(OPT_auto)
+endif
+else
 BRIX_OPTIMIZE ?= v2
 OPT_v2     := -O3 -march=x86-64-v2 -fno-plt
 OPT_v3     := -O3 -march=x86-64-v3 -fno-plt
@@ -52,6 +91,7 @@ OPT_native := -O3 -march=native -fno-plt
 OPT := $(OPT_$(BRIX_OPTIMIZE))
 ifeq ($(OPT),)
   OPT := $(OPT_v2)
+endif
 endif
 
 # -MMD -MP: emit a .d per object listing every header it includes, so editing a
@@ -61,10 +101,10 @@ endif
 # krb5 (sec_krb5.c) is compile-gated like fuse3: when libkrb5 dev is present,
 # arm -DBRIX_HAVE_KRB5 + its cflags/libs; otherwise sec_krb5.c is an inert stub
 # and the auth driver simply skips krb5. Kept ngx-free (client-only).
-HAVE_KRB5 := $(shell pkg-config --exists krb5 2>/dev/null && echo yes)
+HAVE_KRB5 := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --exists krb5 2>/dev/null && echo yes)
 ifeq ($(HAVE_KRB5),yes)
-  KRB5_CFLAGS := -DBRIX_HAVE_KRB5 $(shell pkg-config --cflags krb5 2>/dev/null)
-  KRB5_LIBS   := $(shell pkg-config --libs krb5 2>/dev/null)
+  KRB5_CFLAGS := -DBRIX_HAVE_KRB5 $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --cflags krb5 2>/dev/null)
+  KRB5_LIBS   := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --libs krb5 2>/dev/null)
 endif
 
 # io_uring (phase-44): lib/core/aio/uring.c is ALWAYS in LIB_SRCS and stubs out under
@@ -111,9 +151,10 @@ endif
 # pkg-config.  Never propagate a non-system -L (it would pull that prefix's other
 # codec sonames, not on the runtime path) — see config's lz4 block.
 # `-l:liblz4.so.1` is GNU-ld syntax; Apple's ld64 has no soname-by-name form,
-# so on Darwin the plain -llz4 (Homebrew's dylib is on the default path) is used.
-ifeq ($(shell uname -s),Darwin)
-  LZ4_SONAME_LINK := -llz4
+# and Homebrew's keg-only dylib is not on ld64's default path, so retain the
+# package's explicit library directory there.
+ifeq ($(HOST_OS),Darwin)
+  LZ4_SONAME_LINK := $(shell pkg-config --libs liblz4 2>/dev/null)
 else
   LZ4_SONAME_LINK := -l:liblz4.so.1
 endif
@@ -126,7 +167,9 @@ endif
 # -DXRDPROTO_NO_NGX: the native client is an nginx-free consumer of the shared
 # protocol core (libxrdproto), so dual-build headers (e.g. compat/error_mapping.h)
 # resolve to their ngx-free variants exactly as the libxrdproto build does.
-ALL_CFLAGS := -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -pthread -Ilib -I$(SRC) -I../shared -DXRDPROTO_NO_NGX -MMD -MP $(KRB5_CFLAGS) $(URING_CFLAGS) $(ZSTD_CFLAGS) $(CFLAGS)
+OPENSSL_CFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --cflags openssl 2>/dev/null)
+OPENSSL_LIBS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --libs openssl 2>/dev/null)
+ALL_CFLAGS := -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -pthread -Ilib -I$(SRC) -I../shared -DXRDPROTO_NO_NGX -MMD -MP $(OPENSSL_CFLAGS) $(KRB5_CFLAGS) $(URING_CFLAGS) $(ZSTD_CFLAGS) $(CFLAGS)
 # Inject the build-time version tag when set (overrides the "dev" fallback in
 # client/lib/core/version.h).  Quote escaping: the outer \" are consumed by
 # make, leaving the inner \' pair intact for the C preprocessor.
@@ -138,20 +181,20 @@ endif
 # md5). zlib (-lz): adler32 for --cksum (the algorithm xrdcp historically uses).
 # krb5 libs (when present) for the sec_krb5 AP-REQ path. CODEC_LIBS: zstd/lzma/
 # brotli/bzip2 for the shared codec kernels (gzip/deflate already via -lz).
-LDLIBS := -lssl -lcrypto -lz $(KRB5_LIBS) $(CODEC_LIBS) $(URING_LIBS)
+LDLIBS := $(OPENSSL_LIBS) -lz $(KRB5_LIBS) $(CODEC_LIBS) $(URING_LIBS)
 
 # Client PAL (phase-119): the only client sources that may branch on the host.
 # One body set per OS; check_platform_leak.py rejects OS macros anywhere else.
 # The libc-only module PAL bodies are linked here too (one body per host, no
 # copies); posix_wrapper.c is not (it owns symbols shared/cvmfs/platform
 # provides) and priv_wrapper.c is not (crypt/libcrypt, module-only).
-ifeq ($(shell uname -s),Darwin)
-PLATFORM_SRCS := lib/platform/tcp_rtt.c \
+ifeq ($(HOST_OS),Darwin)
+PLATFORM_SRCS := lib/platform/tcp_rtt.c lib/platform/mountinfo.c \
                  lib/platform/darwin/posix.c lib/platform/darwin/mounts.c lib/platform/darwin/epoll.c \
                  ../src/platform/darwin/storage_wrapper.c ../src/platform/darwin/process_wrapper.c
 PRELOAD_HOST_SRCS := lib/platform/darwin/preload_stream.c lib/platform/darwin/preload_interpose.c
 else
-PLATFORM_SRCS := lib/platform/tcp_rtt.c \
+PLATFORM_SRCS := lib/platform/tcp_rtt.c lib/platform/mountinfo.c \
                  lib/platform/linux/posix.c lib/platform/linux/mounts.c \
                  ../src/platform/linux/storage_wrapper.c ../src/platform/linux/process_wrapper.c
 PRELOAD_HOST_SRCS := lib/platform/linux/preload_stream.c lib/platform/linux/preload_lfs.c
@@ -163,6 +206,13 @@ LIB_SRCS   := $(PLATFORM_SRCS) \
   lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_engine_cqe.c lib/core/aio/aio_io.c lib/core/aio/aio_io_dispatch.c lib/core/aio/aio_mfile.c lib/core/aio/aio_mgr.c lib/core/aio/aio_timeouts.c lib/core/aio/uring.c lib/core/aio/uring_stub.c \
   lib/core/config/xrdrc.c lib/core/config/envalias.c \
   lib/core/types/status.c lib/core/types/units.c \
+  lib/conform/prf.c lib/conform/oracle.c lib/conform/axes.c \
+  lib/conform/axes_shapes.c lib/conform/model.c lib/conform/registry.c \
+  lib/conform/scope.c lib/conform/safety.c lib/conform/result.c \
+  lib/conform/baseline.c \
+  lib/conform/report_terminal.c lib/conform/report_json.c \
+  lib/conform/report_markdown.c lib/conform/report_html.c lib/conform/report_bundle.c \
+  lib/conform/capture.c \
   lib/net/conn.c lib/net/conn_bootstrap.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/forksafe.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/tls_io.c lib/net/tls_certinfo.c lib/net/url.c lib/net/redir_registry.c lib/net/resolve.c \
   lib/ops/opdsl.c \
   ../shared/net/proxy_env.c ../shared/net/proxy_connect.c \
@@ -174,7 +224,7 @@ LIB_SRCS   := $(PLATFORM_SRCS) \
   lib/auth/sss/sss_keytab.c lib/auth/sss/sss_id.c \
   lib/fs/dirfanout.c lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/overlay_copyup.c lib/fs/path.c lib/fs/rfile_fast.c lib/fs/rfile_fast_ring.c lib/fs/rfile_stream.c lib/fs/rmtree.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c lib/fs/walk.c \
   lib/fs/backend/s3/vfs_s3.c lib/fs/backend/s3/vfs_s3_http.c lib/fs/backend/s3/vfs_s3_io.c lib/fs/backend/s3/vfs_s3_transport.c \
-  lib/protocols/root/frame.c lib/protocols/root/frame_roundtrip.c lib/protocols/root/ops_ext.c lib/protocols/root/ops_file.c lib/protocols/root/ops_file_pg.c lib/protocols/root/ops_file_rw.c lib/protocols/root/ops_fs.c lib/protocols/root/ops_meta.c \
+  lib/protocols/root/frame.c lib/protocols/root/frame_roundtrip.c lib/protocols/root/ops_ext.c lib/protocols/root/ops_file.c lib/protocols/root/ops_file_pg.c lib/protocols/root/ops_file_pg_status.c lib/protocols/root/ops_file_rw.c lib/protocols/root/ops_file_readv.c lib/protocols/root/ops_fs.c lib/protocols/root/ops_meta.c \
   lib/protocols/http/http.c lib/protocols/http/http_download.c lib/protocols/http/http_req.c lib/protocols/http/http_upload.c lib/protocols/http/web_ka.c lib/protocols/http/webfile.c lib/protocols/http/webfile_io.c lib/protocols/http/weblist.c \
   lib/protocols/s3/s3.c \
   lib/protocols/ssi/ssi_client.c \
@@ -251,12 +301,13 @@ LINK_EXES   := $(addprefix $(BINDIR)/,$(CKSUM_LINKS) $(DIAG_LINKS))
 # pattern link rule. It has its own build rule (below) and its own install line,
 # yet is built by default (`all`), installed, and carries a man page + completion.
 STANDALONE_EXES := $(BINDIR)/brix-fault-proxy
+PYTHON_TOOL_EXES := $(BINDIR)/brix-config-migrate
 
 # §14.4: the FUSE mount + the LD_PRELOAD POSIX shim are built only when libfuse3
 # is present. They are NOT in BINS (they need extra flags / a separate link rule).
 HAVE_FUSE3   := $(shell pkg-config --exists fuse3 2>/dev/null && echo yes)
 FUSE3_CFLAGS := $(shell pkg-config --cflags fuse3 2>/dev/null)
-ifeq ($(shell uname -s),Darwin)
+ifeq ($(HOST_OS),Darwin)
 # macFUSE defaults to its Darwin-extended API (struct fuse_darwin_attr, extra
 # xattr position args); 0 selects the stock libfuse3 signatures we code to.
 FUSE3_CFLAGS += -DFUSE_DARWIN_ENABLE_EXTENSIONS=0
@@ -346,7 +397,39 @@ COMPAT_COMPLETION_NAMES := $(foreach n,xrd xrdfs xrdcp xrdcksum xrdprep xrdgsipr
 # entries). The single link rule below expands these via .SECONDEXPANSION.
 xrdcp_OBJS        := apps/copy/xrdcp.o apps/copy/xrdcp_transfer.o apps/copy/xrdcp_recursive.o apps/copy/xrdcp_dispatch.o apps/copy/xrdcp_parse.o apps/copy/xrdcp_parse_validate.o apps/copy/xrdcp_parse_transport.o
 xrdfs_OBJS        := apps/fs/xrdfs.o apps/fs/xrdfs_data.o apps/fs/xrdfs_data_content.o apps/fs/xrdfs_data_wc.o apps/fs/xrdfs_data_xfer.o apps/fs/xrdfs_data_xfer_vec.o apps/fs/xrdfs_walk.o apps/fs/xrdfs_fmt.o apps/fs/xrdfs_attr.o apps/fs/xrdfs_xattr.o apps/fs/xrdfs_meta.o apps/fs/xrdfs_meta_ls.o apps/fs/xrdfs_meta_ns.o apps/fs/xrdfs_web.o
-xrd_OBJS          := apps/diag/xrd.o apps/diag/xrd_battery.o apps/diag/xrd_battery_web.o apps/diag/xrd_doctor.o apps/diag/xrd_doctor_json.o apps/diag/xrd_clockskew.o apps/diag/xrd_mount.o apps/diag/xrd_usage.o
+xrd_OBJS          := apps/diag/xrd.o apps/diag/xrd_battery.o apps/diag/xrd_battery_web.o apps/diag/xrd_doctor.o apps/diag/xrd_doctor_json.o apps/diag/xrd_clockskew.o apps/diag/xrd_mount.o apps/diag/xrd_usage.o apps/diag/xrd_conform.o apps/diag/xrd_conform_options.o apps/diag/xrd_conform_options_fixtures.o apps/diag/xrd_conform_execute.o apps/diag/xrd_conform_fixture_gates.o apps/diag/xrd_conform_open_fixtures.o apps/diag/xrd_conform_open_refresh.o apps/diag/xrd_conform_root.o apps/diag/xrd_conform_http.o apps/diag/xrd_conform_http_validators.o apps/diag/xrd_conform_http_semantics.o apps/diag/xrd_conform_root_meta.o apps/diag/xrd_conform_root_readv.o apps/diag/xrd_conform_root_readv_limits.o apps/diag/xrd_conform_root_read_raw.o apps/diag/xrd_conform_root_read_grid.o apps/diag/xrd_conform_root_pg.o apps/diag/xrd_conform_root_corpus.o apps/diag/xrd_conform_root_basic.o apps/diag/xrd_conform_root_open.o apps/diag/xrd_conform_root_open_mutate.o apps/diag/xrd_conform_root_checkpoint.o apps/diag/xrd_conform_root_prepare.o apps/diag/xrd_conform_root_control.o apps/diag/xrd_conform_root_claims.o apps/diag/xrd_conform_root_claim_audit.o apps/diag/xrd_conform_root_bind.o apps/diag/xrd_conform_root_locate.o apps/diag/xrd_conform_root_namespace.o apps/diag/xrd_conform_root_move_fixture.o apps/diag/xrd_conform_root_dir_large.o apps/diag/xrd_conform_root_write.o apps/diag/xrd_conform_root_write_capacity.o apps/diag/xrd_conform_root_write_stream.o apps/diag/xrd_conform_root_writev_limits.o apps/diag/xrd_conform_root_pgwrite_cse.o apps/diag/xrd_conform_root_fattr.o apps/diag/xrd_conform_root_readonly.o apps/diag/xrd_conform_root_frame.o apps/diag/xrd_conform_root_framing.o apps/diag/xrd_conform_root_framing_hostile.o apps/diag/xrd_conform_root_flow.o apps/diag/xrd_conform_root_login.o apps/diag/xrd_conform_root_sigver.o apps/diag/xrd_conform_root_tls.o apps/diag/xrd_conform_readonly_matrix.o apps/diag/xrd_conform_token_fixtures.o
+xrd_OBJS          += apps/diag/xrd_conform_root_login_auth.o
+xrd_OBJS          += apps/diag/xrd_conform_cross_plane.o
+xrd_OBJS          += apps/diag/xrd_conform_options_defaults.o
+xrd_OBJS          += apps/diag/xrd_conform_root_basic_query.o
+xrd_OBJS          += apps/diag/xrd_conform_http_errors.o
+xrd_OBJS          += apps/diag/xrd_conform_webdav.o
+xrd_OBJS          += apps/diag/xrd_conform_webdav_multistatus.o
+xrd_OBJS          += apps/diag/xrd_conform_webdav_delete.o
+xrd_OBJS          += apps/diag/xrd_conform_webdav_outside.o
+xrd_OBJS          += apps/diag/xrd_conform_cms_map.o
+xrd_OBJS          += apps/diag/xrd_conform_cache.o
+xrd_OBJS          += apps/diag/xrd_conform_cache_evict.o
+xrd_OBJS          += apps/diag/xrd_conform_cache_fixture.o
+xrd_OBJS          += apps/diag/xrd_conform_tpc.o
+xrd_OBJS          += apps/diag/xrd_conform_tpc_webdav.o
+xrd_OBJS          += apps/diag/xrd_conform_tpc_scoped.o
+xrd_OBJS          += apps/diag/xrd_conform_http_create.o
+xrd_OBJS          += apps/diag/xrd_conform_http_raw.o
+xrd_OBJS          += apps/diag/xrd_conform_s3.o
+xrd_OBJS          += apps/diag/xrd_conform_s3_keys.o
+xrd_OBJS          += apps/diag/xrd_conform_s3_multipart.o
+xrd_OBJS          += apps/diag/xrd_conform_s3_auth.o
+xrd_OBJS          += apps/diag/xrd_conform_cross_plane_checksum.o
+xrd_OBJS          += apps/diag/xrd_conform_cross_plane_path.o
+xrd_OBJS          += apps/diag/xrd_conform_cross_plane_namespace.o
+xrd_OBJS          += apps/diag/xrd_conform_cross_plane_auth.o
+xrd_OBJS          += apps/diag/xrd_conform_cross_plane_mutation.o
+xrd_OBJS          += apps/diag/xrd_conform_root_errors.o
+xrd_OBJS          += apps/diag/xrd_conform_http_error_matrix.o
+xrd_OBJS          += apps/diag/xrd_conform_auth_errors.o
+xrd_OBJS          += apps/diag/xrd_conform_adversarial.o
+xrd_OBJS          += apps/diag/xrd_conform_ftp_oci.o
 xrddiag_OBJS      := apps/diag/xrddiag.o apps/diag/diag_check.o apps/diag/diag_check_probe.o apps/diag/diag_bench.o apps/diag/diag_metabench.o apps/diag/diag_watch.o apps/diag/diag_topology.o apps/diag/diag_compare.o apps/diag/diag_doctor.o apps/diag/diag_doctor_json.o apps/diag/diag_doctor_probe.o apps/diag/diag_doctor_proto.o apps/diag/diag_doctor_audit.o apps/diag/diag_doctor_graph.o apps/diag/diag_doctor_latency.o apps/diag/diag_doctor_recon.o apps/diag/diag_doctor_eos.o apps/diag/diag_doctor_eos_fileinfo.o apps/diag/diag_tpc_egress.o apps/diag/diag_authsuite.o apps/diag/diag_misc.o \
                      apps/diag/xrdqstats.o apps/diag/wait41.o apps/diag/mpxstats.o
 xrdstorascan_OBJS := apps/scan/xrdstorascan.o apps/scan/storascan_core.o apps/scan/storascan_bench.o apps/scan/storascan_scan.o apps/scan/storascan_verify.o
@@ -392,8 +475,8 @@ DEPS      = $(sort $(ALL_OBJS:.o=.d) \
               $(wildcard apps/*/*.d lib/*/*.d lib/*/*/*.d \
                          $(SHARED_DIR)/*/*.d $(SHARED_DIR)/*/*/*.d))
 
-.PHONY: all proto FORCE clean lib install install-bin install-man install-completions install-automount compat install-compat example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount brixcvmfs brixoci brixrpm
-all: $(BIN_EXES) $(LINK_EXES) $(OPT_BINS) $(OPT_EXES) $(OPT_LINKS) $(STANDALONE_EXES)
+.PHONY: all proto FORCE clean lib install install-bin install-config-migrate install-man install-completions install-automount compat install-compat example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount brixcvmfs brixoci brixrpm
+all: $(BIN_EXES) $(LINK_EXES) $(OPT_BINS) $(OPT_EXES) $(OPT_LINKS) $(STANDALONE_EXES) $(PYTHON_TOOL_EXES)
 
 # Keep intermediates (apps/*.o, lib/*.o built via the chained pattern rules). Without
 # this, GNU make auto-deletes them after `make all`, so a later `make <tool>` must
@@ -423,19 +506,20 @@ $(PROTO_LIB): FORCE
 
 FORCE:
 
-# The two archives are mutually dependent, so every executable offers libbrix.a
-# on BOTH sides of libxrdproto.a. $(PROTO_DIR) deliberately ships no PAL: its
+# The two archives are mutually dependent. $(PROTO_DIR) deliberately ships no PAL: its
 # storage backends (sd_posix_io.o, sd_block.o, vfs_core.o) call brix_plat_*
 # entry points whose bodies each consumer supplies for its own host — the nginx
 # module compiles src/platform/<host>/ through ./config, the client through
-# PLATFORM_SRCS into $(CLIENT_LIB). A single-pass linker (GNU ld) pulls members
-# out of an archive only for the undefined symbols it holds when it reaches
-# that archive, so a lone leading $(CLIENT_LIB) is already behind it when
-# libxrdproto.a introduces brix_plat_pwrite_at and friends, and they stay
-# undefined. Repeating the archive is the portable cure: ld64 rescans archives
-# and simply finds nothing new on the second pass, whereas --start-group /
-# --end-group is GNU-only and Mach-O linking would reject it.
-BRIX_LIBS := $(CLIENT_LIB) $(PROTO_LIB) $(CLIENT_LIB)
+# PLATFORM_SRCS into $(CLIENT_LIB). GNU ld pulls archive members only for the
+# undefined symbols known at that point; the dependency graph now crosses the
+# archive boundary more than twice, so a fixed repetition is not a complete
+# closure. Its archive group rescans to a fixed point. Mach-O ld64 already
+# rescans archives and rejects the GNU flags, so Darwin names each archive once.
+ifeq ($(HOST_OS),Darwin)
+BRIX_LIBS := $(CLIENT_LIB) $(PROTO_LIB)
+else
+BRIX_LIBS := -Wl,--start-group $(CLIENT_LIB) $(PROTO_LIB) -Wl,--end-group
+endif
 
 $(BINDIR):
 	@mkdir -p $(BINDIR)
@@ -478,7 +562,7 @@ $(CLIENT_LIB): $(LIB_OBJS)
 # Link hardening defaults. Packagers can override by exporting LDFLAGS.
 # The -z keywords are GNU/LLD-only: Apple's ld64 rejects them ("unknown
 # options: -z"), and Mach-O has no RELRO/executable-stack notion to harden.
-ifeq ($(shell uname -s),Darwin)
+ifeq ($(HOST_OS),Darwin)
 LDFLAGS ?=
 else
 LDFLAGS ?= -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack
@@ -565,7 +649,9 @@ BRIX_CVMFS_OBJS := \
 # shared cvmfs core: pure C, needs -I../shared (no client/lib, no ngx); the
 # phase-90..92 filter (xorf.c) also reaches src/core/fnv.h, so add -I$(SRC) too.
 $(BRIX_CVMFS_OBJS): %.o: %.c
-	$(CC) -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -I$(SHARED_DIR) -I$(SRC) -MMD -MP $(CFLAGS) -c $< -o $@
+	$(CC) -std=c11 -Wall -Wextra $(HARDEN) $(OPT) \
+		$(OPENSSL_CFLAGS) $(ZSTD_CFLAGS) \
+		-I$(SHARED_DIR) -I$(SRC) -MMD -MP $(CFLAGS) -c $< -o $@
 
 # The brixcvmfs driver and its phase-38 split siblings: all compiled with
 # BRIXCVMFS_NO_MAIN because the brixMount umbrella owns main().
@@ -711,7 +797,7 @@ $(BINDIR)/xrdceph_cephfs_to_striper: apps/ceph/xrdceph_cephfs_to_striper.cpp \
 	$(CXX) $(CEPH_CXX_FLAGS) -I$(CEPH_RADOS_DIR) $(LDFLAGS) $(LDFLAGS_PIE) \
 	    apps/ceph/xrdceph_cephfs_to_striper.cpp \
 	    apps/ceph/cephfs_denc.o apps/ceph/cephfs_layout.o \
-	    -lrados -lradosstriper -o $@
+	    -lrados -lradosstriper -pthread -o $@
 	@echo " + built $@ (librados/libradosstriper; C++17)"
 
 # `make -C client ceph-tools` — build exactly this group (used by the RPM spec).
@@ -772,7 +858,7 @@ ssi-client-smoke: ../tests/c/ssi_client_smoke.c $(CLIENT_LIB) | $(BINDIR)
 	@echo " + built $(BINDIR)/ssi_client_smoke (no libXrdCl/libXrdSsi/libXrdSec*)"
 
 # M3 file-handle resumption test — read/write survive a mid-transfer bounce.
-.PHONY: aio-mfile brix-fault-proxy
+.PHONY: aio-mfile brix-fault-proxy brix-config-migrate
 aio-mfile: ../tests/c/aio_mfile.c $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_mfile.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/aio_mfile
 	@echo " + built $(BINDIR)/aio_mfile (no libXrdCl/libXrdSec*)"
@@ -810,6 +896,12 @@ brix-fault-proxy: $(BINDIR)/brix-fault-proxy
 $(BINDIR)/brix-fault-proxy: $(FAULT_PROXY_SRCS) $(FAULT_PROXY_HDRS) lib/core/version.h | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) -Iapps/diag $(FAULT_PROXY_SRCS) -o $@
 	@echo " + built $@ (standalone; no libbrix)"
+
+# Offline XRootD-configuration migration assistant. Keep the build-tree entry
+# as a relative link so edits to the canonical tool are immediately visible.
+brix-config-migrate: $(BINDIR)/brix-config-migrate
+$(BINDIR)/brix-config-migrate: ../tools/brix_config_migrate.py ../tools/brix_config_migrate_core.py ../tools/brix_config_migrate_render.py ../tools/brix_config_migrate_runtime.py ../tools/logging_support.py | $(BINDIR)
+	ln -sf ../../tools/brix_config_migrate.py $@
 
 # IPv6→IPv4 auto-downgrade test (netpref.c) + its getaddrinfo LD_PRELOAD shim.
 # Run: ./bin/netfb_test state ; LD_PRELOAD=./bin/gai_shim.so ./bin/netfb_test connect
@@ -909,7 +1001,7 @@ install: lib
 
 # Install the CLI binaries, optional FUSE/preload artifacts, completions, and
 # all man pages (build them first).
-install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES) $(STANDALONE_EXES) install-completions
+install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES) $(STANDALONE_EXES) install-config-migrate install-completions
 	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/man/man1 \
 	           $(DESTDIR)$(PREFIX)/share/man/man7 $(DESTDIR)$(LIBDIR)
 	install -m755 $(BIN_EXES) $(STANDALONE_EXES) $(DESTDIR)$(PREFIX)/bin/
@@ -933,6 +1025,17 @@ install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES) $(STANDALONE_EXES) install-comp
 	ln -sf ../libexec/brix/xrdceph_striper_migrate.py $(DESTDIR)$(PREFIX)/bin/xrdceph_striper_migrate.py
 	ln -sf ../libexec/brix/xrdceph_cephfs_to_striper.py $(DESTDIR)$(PREFIX)/bin/xrdceph_cephfs_to_striper.py
 
+# Install only the offline configuration assistant and its private modules.
+# Kept separate so packagers can smoke-test the no-compiler tool in isolation.
+install-config-migrate: $(PYTHON_TOOL_EXES)
+	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(LIBEXECDIR)
+	install -m755 ../tools/brix_config_migrate.py $(DESTDIR)$(LIBEXECDIR)/
+	install -m644 ../tools/brix_config_migrate_core.py \
+	              ../tools/brix_config_migrate_render.py \
+	              ../tools/brix_config_migrate_runtime.py \
+	              ../tools/logging_support.py $(DESTDIR)$(LIBEXECDIR)/
+	ln -sf ../libexec/brix/brix_config_migrate.py $(DESTDIR)$(PREFIX)/bin/brix-config-migrate
+
 # ---------------------------------------------------------------------------
 # Install man pages only (DESTDIR-aware; includes the .so link pages).
 # Separate from install-bin so packaging can split docs from binaries.
@@ -948,6 +1051,7 @@ install-completions:
 	           $(DESTDIR)$(PREFIX)/share/zsh/site-functions
 	for n in xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin-brix brixMount xrdstorascan xrootdfs \
 	         brix-fault-proxy \
+	         brix-config-migrate \
 	         xrdceph_striper_migrate xrdceph_cephfs_to_striper xrdrados_rescue xrdcephfs_rescue xrdceph_migrate; do \
 		install -m644 completions/brix-tools.bash \
 			$(DESTDIR)$(PREFIX)/share/bash-completion/completions/$$n; \
@@ -1065,7 +1169,10 @@ install-automount:
 # vfs_s3_smoke is excluded (needs an external S3 endpoint; run it manually).
 # Each test is a standalone main() linking the client lib + libxrdproto, the
 # same recipe as the Build+run comment in each test's header.
-CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit rfile_stream_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit ftp_client_unit web_proxy_pem_unit sigver_kernel_unit metalink_unit kxr_errors_unit
+CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit rfile_stream_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit ftp_client_unit web_proxy_pem_unit sigver_kernel_unit metalink_unit kxr_errors_unit conform_unit pg_status_unit
+ifeq ($(HOST_OS),Darwin)
+CLIENT_UNIT_TESTS += darwin_storage_unit
+endif
 # The tests predate the phase-69 bucket reshuffle and include bucket-local
 # headers bare ("cred.h"); add the bucket dirs rather than churning the tests.
 TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -Ilib/core/config -Ilib/net
@@ -1075,19 +1182,18 @@ TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -
 # those tests link the whole archive (whole_archive above). cred_store_unit instead OVERRIDES a strong
 # lib symbol (brix_cred_s3keys) and must use the plain archive link.
 WHOLEARCH_TESTS := cli_cred_unit cred_unit vfs_posix_unit vfs_block_unit
-# Both link recipes below trail $(CLIENT_LIB) after $(PROTO_LIB) for the same
-# reason $(BRIX_LIBS) exists: libxrdproto calls back into the PAL that libbrix
-# defines, and GNU ld resolves each archive once, in order.  $$lib picks
-# whole-archive per test, so neither can use $(BRIX_LIBS) verbatim.
+# Normal units use the same fixed-point archive closure as shipped binaries.
+# Whole-archive units already load every libbrix member, so one following
+# libxrdproto resolves their remaining protocol references without a duplicate.
 test: $(CLIENT_LIB) proto | $(BINDIR)
 	@set -e; for t in $(CLIENT_UNIT_TESTS); do \
 	  echo "== $$t"; \
 	  case " $(WHOLEARCH_TESTS) " in \
-	  *" $$t "*) lib='$(call whole_archive,$(CLIENT_LIB))' ;; \
-	  *)         lib='$(CLIENT_LIB)' ;; \
+	  *" $$t "*) lib='$(call whole_archive,$(CLIENT_LIB)) $(PROTO_LIB)' ;; \
+	  *)         lib='$(BRIX_LIBS)' ;; \
 	  esac; \
 	  $(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(TEST_INC) tests/c/$$t.c \
-	    $$lib $(PROTO_LIB) $(CLIENT_LIB) $(LDLIBS) -o $(BINDIR)/$$t; \
+	    $$lib $(LDLIBS) -o $(BINDIR)/$$t; \
 	  $(BINDIR)/$$t; \
 	done; echo "client unit tests: ALL PASS"
 	@echo "== man page guard"
@@ -1099,17 +1205,16 @@ test: $(CLIENT_LIB) proto | $(BINDIR)
 # the same recipe the `test` target uses (dashes in the goal map to the source
 # file's underscores).  The pytest fast-tier wrappers drive individual units
 # this way, so a single C unit can run without the full `make test` sweep.
-# Without the trailing $(CLIENT_LIB) (see WHOLEARCH_TESTS above) cred_refresh,
-# relsafe, web_proxy_pem and xrdrc_defaults fail to link on brix_plat_* the
-# moment libxrdproto.a drags in a storage backend.
+# BRIX_LIBS supplies the cyclic archive closure for ordinary units; the
+# whole-archive spelling above is sufficient for registry units.
 %-unit: $(CLIENT_LIB) proto | $(BINDIR)
 	@t=$(subst -,_,$@); \
 	case " $(WHOLEARCH_TESTS) " in \
-	*" $$t "*) lib='$(call whole_archive,$(CLIENT_LIB))' ;; \
-	*)         lib='$(CLIENT_LIB)' ;; \
+	*" $$t "*) lib='$(call whole_archive,$(CLIENT_LIB)) $(PROTO_LIB)' ;; \
+	*)         lib='$(BRIX_LIBS)' ;; \
 	esac; \
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(TEST_INC) tests/c/$$t.c \
-	  $$lib $(PROTO_LIB) $(CLIENT_LIB) $(LDLIBS) -o $(BINDIR)/$$t
+	  $$lib $(LDLIBS) -o $(BINDIR)/$$t
 
 # Build the sample consumer against the INSTALLED library via pkg-config.
 example-test:

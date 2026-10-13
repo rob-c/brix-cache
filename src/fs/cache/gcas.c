@@ -20,6 +20,7 @@
  *       leaves plain, correct per-repo copies.
  */
 
+#include "core/compat/log_event.h"
 #include "gcas.h"
 
 #include "protocols/cvmfs/classify.h"
@@ -75,7 +76,7 @@ brix_gcas_publish(brix_cstore_t *cs, const char *key)
     }
 
     if (cs->store->driver->dedup_publish(cs->store, key, rel) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, cs->log, errno,
+        BRIX_LOG(NGX_LOG_WARN, cs->log, errno,
             "gcas: dedup publish failed for \"%s\"%s", key,
             errno == ENOTSUP
                 ? " — the store is not armed for dedup (pblock: opts dedup=1)"

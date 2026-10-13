@@ -93,6 +93,8 @@ from pathlib import Path
 
 import pytest
 
+from log_records import semantic_log_text
+
 import x509forge
 from x509forge import make_ca, make_crl, make_eec
 from config_parse import nginx_t
@@ -316,7 +318,7 @@ def _since(endpoint, mark):
     try:
         with open(_logpath(endpoint), "rb") as fh:
             fh.seek(mark)
-            return fh.read().decode("utf-8", "replace")
+            return semantic_log_text(fh.read().decode("utf-8", "replace"))
     except OSError:
         return ""
 

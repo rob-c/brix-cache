@@ -304,3 +304,13 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
 LIFECYCLE_SHARED_PORTS_PHASE5.update({
     "lc-policy-rule-scope": {"port": 31347},
 })
+
+# Phase-118 WRT-007 exact wire-error fixture: one policy-quota front and one
+# independently labelled physical-capacity front.  The owning test uses a
+# single xdist group and starts/stops this instance around its three assertions.
+LIFECYCLE_SHARED_PORTS_PHASE5.update({
+    "lc-xrd-conform-capacity": {
+        "port": 31348,
+        "extra": {"CAPACITY_PORT": 31349},
+    },
+})

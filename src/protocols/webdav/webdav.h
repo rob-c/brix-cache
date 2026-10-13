@@ -249,6 +249,10 @@ char *ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
 /* Register the access/content handlers, init SSL ex_data indices, and build the
  * CA store.  Returns NGX_OK or NGX_ERROR (fails `nginx -t`). */
 ngx_int_t ngx_http_brix_webdav_postconfiguration(ngx_conf_t *cf);
+/* ACCESS-phase TLS capability gate, called after rate limiting and before
+ * query parsing/authentication.  NGX_DECLINED permits the request. */
+ngx_int_t webdav_tls_require_gate(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf);
 /* ACCESS-phase gate: CORS, request metrics, rate limit, then the auth gate
  * (cert/token) + write-scope check.  NGX_DECLINED if module disabled, NGX_OK to
  * allow, an NGX_HTTP_* status to reject. */

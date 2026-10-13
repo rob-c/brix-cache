@@ -357,7 +357,8 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
         # _maybe_open_tree_for_deescalated_worker() opens the seeded files along
         # with the prefix.  The control export cannot: _start_gateway() creates
         # it, so the seed can only land afterwards — root-owned 0644 under a
-        # worker that de-escalated to `nobody`.  The directory is already a+rwX;
+        # worker that de-escalated to its configured account. The directory is
+        # already a+rwX;
         # it is the FILES that decide, and every probe that opens one for update
         # (open updt/append/wrto, chmod, truncate-by-path, setattr, link) then
         # comes back "permission denied" — turning the positive control, whose
@@ -370,7 +371,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
         # the export over the way a real deployment would — owned by the user
         # that serves it.  Chown first, because open_tree_for_worker() restores
         # in-tree key modes afterwards.
-        _hand_tree_to_worker(control_export)
+        _hand_tree_to_worker(control_export, nginx_bin)
         open_tree_for_worker(control_export)
         # brix_data_substreams merges to ON, so the documented gateway above
         # already accepts a kXR_bind secondary — the one route by which a bare

@@ -33,7 +33,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
-from ephemeral_port import free_port  # noqa: E402
+from ephemeral_port import bind_port  # noqa: E402
 from settings import BIND_HOST, HOST  # noqa: E402
 
 pytestmark = pytest.mark.timeout(120)
@@ -59,8 +59,12 @@ def origin():
     The port is leased from the lane's mock range rather than kernel-assigned:
     a port 0 bind is invisible to the lane ledger and can land on a managed
     service's port."""
-    port = free_port()
-    srv = socketserver.ThreadingTCPServer((BIND_HOST, port), _BlobHandler)
+    port, srv = bind_port(
+        lambda leased: socketserver.ThreadingTCPServer(
+            (BIND_HOST, leased), _BlobHandler,
+        ),
+        BIND_HOST,
+    )
     srv.daemon_threads = True
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:

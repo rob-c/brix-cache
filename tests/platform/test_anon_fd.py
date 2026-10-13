@@ -283,17 +283,9 @@ def test_anon_fd_creation_performance(anon_fd):
     iterations = 1000
     start = time.perf_counter()
     
-    fds = []
-    try:
-        for _ in range(iterations):
-            fd = anon_fd()
-            fds.append(fd)
-    finally:
-        for fd in fds:
-            try:
-                os.close(fd)
-            except:
-                pass
+    for _ in range(iterations):
+        fd = anon_fd()
+        os.close(fd)
     
     elapsed = time.perf_counter() - start
     per_sec = iterations / elapsed

@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from log_records import semantic_log_text
 def _check_test_subwritten_file_checksum_matches_single_stream_1(r_sub):
     assert r_sub.returncode == 0, f"sub-written upload failed: {r_sub.stderr}"
 
@@ -48,11 +49,14 @@ class TestClientDownloadFanout:
 
         assert dst.read_bytes() == content, "client download not byte-exact"
 
-        dbg = [l for l in res.stderr.splitlines() if "download substreams=" in l]
+        diagnostics = semantic_log_text(res.stderr)
+        dbg = [line for line in diagnostics.splitlines()
+               if "download substreams=" in line]
         assert dbg, f"no download substream diagnostic emitted: {res.stderr}"
         # e.g. "brix: download substreams=3 chunks-on-secondaries=96"
         n_sec = int(dbg[-1].split("substreams=")[1].split()[0])
-        on_sec = int(dbg[-1].split("chunks-on-secondaries=")[1].split()[0])
+        value = dbg[-1].split("chunks-on-secondaries=")[1].split()[0]
+        on_sec = int(value.rstrip('"'))
         assert n_sec >= 1, "client did not establish any bound secondary by default"
         assert on_sec > 0, "no chunks were read on a secondary (silent fallback?)"
 
@@ -104,9 +108,12 @@ class TestClientDownloadFanout:
         assert res.returncode == 0, f"parallel download failed: {res.stderr}"
         assert dst.read_bytes() == content, "parallel striped download not byte-exact"
 
-        dbg = [l for l in res.stderr.splitlines() if "parallel-download stripes=" in l]
+        diagnostics = semantic_log_text(res.stderr)
+        dbg = [line for line in diagnostics.splitlines()
+               if "parallel-download stripes=" in line]
         assert dbg, f"parallel path did not engage: {res.stderr}"
-        stripes = int(dbg[-1].split("stripes=")[1].split()[0])
+        value = dbg[-1].split("stripes=")[1].split()[0]
+        stripes = int(value.rstrip('"'))
         assert stripes >= 2, f"expected >=2 concurrent stripes, got {stripes}"
 
 
@@ -138,9 +145,12 @@ class TestSubwrittenChecksumParity:
             [_XRDCP, "-f", str(src), f"root://{host}:{port}//{sub_name}"],
             capture_output=True, text=True, env=env, timeout=120)
         _check_test_subwritten_file_checksum_matches_single_stream_1(r_sub)
-        dbg = [l for l in r_sub.stderr.splitlines() if "upload substreams=" in l]
+        diagnostics = semantic_log_text(r_sub.stderr)
+        dbg = [line for line in diagnostics.splitlines()
+               if "upload substreams=" in line]
         _check_test_subwritten_file_checksum_matches_single_stream_2(dbg, r_sub)
-        on_sec = int(dbg[-1].split("chunks-on-secondaries=")[1].split()[0])
+        value = dbg[-1].split("chunks-on-secondaries=")[1].split()[0]
+        on_sec = int(value.rstrip('"'))
         _check_test_subwritten_file_checksum_matches_single_stream_3(on_sec)
 
         # (2) single-stream reference: -S 1 forces one connection

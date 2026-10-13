@@ -1,3 +1,5 @@
+import os
+
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_stattypes_helpers")
 
@@ -54,6 +56,25 @@ def test_regfile_owner_bits_derivation(srv, mode):
             f"flags={on}({_decode_flags(on)}) want r/w/x bits 0x{want:02x}")
 
     _assert_test_regfile_owner_bits_derivation_2()
+
+
+@pytest.mark.parametrize("mode", [0o000, 0o644, 0o755])
+def test_regfile_extended_mode_matches_stock_and_disk(srv, mode):
+    """The long-stat tail carries exact permissions for XrdCl/GFAL.
+
+    The three rows cover a permissionless security boundary, an ordinary data
+    file, and the executable/special-access branch.  Flags remain the access
+    oracle; the tail prevents clients from collapsing them to owner-only mode.
+    """
+    rel = f"/types/reg_{mode:04o}.bin"
+    _present(srv, rel)
+    of, ff, ost, fst = _raw_stat(srv, rel)
+    assert ost == kXR_ok and fst == kXR_ok, f"{rel} stat failed"
+    assert len(of) >= 7 and len(ff) >= 7, \
+        f"missing extended mode tail ours={of} stock={ff}"
+    disk_mode = os.stat(srv["our_data"] + rel).st_mode & 0o7777
+    assert int(of[6], 8) == int(ff[6], 8) == disk_mode, \
+        f"mode-tail divergence {rel}: ours={of[6]} stock={ff[6]}"
 
 
 # =========================================================================== #

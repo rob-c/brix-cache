@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
     }
     return 0;
 }
-''', extra=["-luring"])
+''', extra=["-DBRIX_HAVE_LIBURING=1", "-luring"])
 
 
 @pytest.mark.parametrize("case", ["success", "full", "invalid"])

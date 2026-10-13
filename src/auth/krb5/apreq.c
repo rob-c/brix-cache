@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "auth/krb5/apreq.h"
 
 /*
@@ -27,7 +28,7 @@ brix_krb5_apreq_log(krb5_context kctx, krb5_error_code code, const char *what,
 {
     const char *msg = kctx ? krb5_get_error_message(kctx, code) : NULL;
 
-    ngx_log_error(NGX_LOG_WARN, log, 0, "brix: krb5 apreq: %s: %s",
+    BRIX_LOG(NGX_LOG_WARN, log, 0, "brix: krb5 apreq: %s: %s",
                   what, msg ? msg : "(no detail)");
     if (msg) {
         krb5_free_error_message(kctx, msg);
@@ -120,7 +121,7 @@ brix_krb5_apreq_from_ccache(ngx_pool_t *pool, const char *ccache_path,
 
     krc = krb5_init_context(&ctx);
     if (krc != 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: krb5 apreq: cannot init context");
         return NGX_ERROR;
     }
@@ -146,7 +147,7 @@ brix_krb5_apreq_from_ccache(ngx_pool_t *pool, const char *ccache_path,
     const char *origin_spn, ngx_str_t *out_payload, ngx_log_t *log)
 {
     (void) pool; (void) ccache_path; (void) origin_spn; (void) out_payload;
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
                   "brix: krb5 apreq: built without krb5 support");
     return NGX_ERROR;
 }

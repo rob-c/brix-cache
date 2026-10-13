@@ -18,33 +18,32 @@
 
 FROM almalinux:10 AS builder
 
-# Ceph release to pull dev packages from.
-ARG BRIX_CEPH_RELEASE=reef
+# Ceph release to pull dev packages from.  Squid is the native EL10 Storage
+# SIG line (EL9 remains on Reef).
+ARG BRIX_CEPH_RELEASE=squid
 
 # Step 1: bootstrap repo manager, enable CRB (needed for jansson-devel and
 # other build-time packages not in BaseOS/AppStream), then install EPEL.
 RUN dnf install -y 'dnf-command(config-manager)' && \
     dnf config-manager --set-enabled crb && \
-    dnf install -y epel-release
+    dnf install -y epel-release && \
+    dnf config-manager --set-enabled epel
 
-# Step 2: add the nginx.org stable repo for nginx-mod-devel.  If EPEL 10
-# carries nginx-mod-devel without modular filtering issues, this step can be
-# removed and nginx-mod-devel installed directly from EPEL.
-RUN printf '[nginx-stable]\nname=nginx stable repo\nbaseurl=https://nginx.org/packages/rhel/10/$basearch/\ngpgcheck=1\nenabled=1\ngpgkey=https://nginx.org/keys/nginx_signing.key\nmodule_hotfixes=true\n' \
-    > /etc/yum.repos.d/nginx.repo
-
-# Step 3: add the CentOS Stream 10 Storage SIG Ceph repo.  If the SIG is not
+# Step 2: add the CentOS Stream 10 Storage SIG Ceph repo.  If the SIG is not
 # yet published for EL10, switch baseurl to https://download.ceph.com/rpm-${BRIX_CEPH_RELEASE}/el10/$basearch.
 RUN printf '[centos-storage-ceph-%s]\nname=CentOS Stream 10 Storage SIG Ceph %s\nbaseurl=https://mirror.stream.centos.org/SIGs/10-stream/storage/$basearch/ceph-%s/\nenabled=1\ngpgcheck=0\nmodule_hotfixes=1\n' \
     "${BRIX_CEPH_RELEASE}" "${BRIX_CEPH_RELEASE}" "${BRIX_CEPH_RELEASE}" \
     > /etc/yum.repos.d/centos-storage-ceph.repo
 
-# Step 4: install all build dependencies.  EL10 uses GCC 14 by default.
+# Step 3: install all build dependencies.  EL10 uses GCC 14 by default.
+# nginx-mod-devel comes from Alma AppStream and therefore matches the native
+# nginx ABI installed on the target host.
 RUN dnf install -y \
         gcc gcc-c++ make pkgconfig rpm-build rpmdevtools redhat-rpm-config \
         nginx-mod-devel openssl-devel pcre2-devel zlib-devel \
         libxml2-devel jansson-devel libcurl-devel krb5-devel libcom_err-devel \
-        libxcrypt-devel fuse3-devel sqlite-devel liburing-devel libzstd-devel lz4-devel \
+        libxcrypt-devel fuse3-devel sqlite-devel libseccomp-devel \
+        liburing-devel libzstd-devel brotli-devel lz4-devel \
         selinux-policy-devel \
         librados-devel libradospp-devel libradosstriper-devel libcephfs-devel \
     && dnf clean all
@@ -75,6 +74,7 @@ RUN set -euo pipefail && \
         -C /build/src . && \
     rpmbuild -ba \
         --define "version_override ${version}" \
+        --define "brix_vendor_alma 1" \
         /build/src/packaging/rpm/nginx-mod-brix-cache.spec
 
 RUN mkdir -p /artifacts && \

@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "proxy_internal.h"
 #include "core/compat/cstr.h"        /* brix_cbuf_copy: pinned host copy */
 #include "core/types/tunables.h"     /* BRIX_PROXY_AUDIT_LINE_BUF */
@@ -21,7 +22,7 @@ brix_proxy_tap_audit_sink(void *ctx, const brix_tap_frame_t *f,
     (void) payload_len;
 
     if (brix_tap_audit_format(f, dir, line, sizeof(line)) > 0) {
-        ngx_log_error(NGX_LOG_INFO, log, 0, "xrootd tap: %s", line);
+        BRIX_LOG(NGX_LOG_INFO, log, 0, "xrootd tap: %s", line);
     }
 }
 
@@ -327,7 +328,7 @@ proxy_repin_idle(brix_ctx_t *ctx, ngx_connection_t *c,
         return NGX_OK;
     }
     if (proxy->state != XRD_PX_IDLE || proxy_has_open_handles(proxy)) {
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                       "brix: cms select: session pinned to %V:%ud keeps its "
                       "upstream (busy or files open); %s:%ud not adopted",
                       &proxy->pinned_host, (unsigned) proxy->pinned_port,
@@ -339,7 +340,7 @@ proxy_repin_idle(brix_ctx_t *ctx, ngx_connection_t *c,
                                    "proxy: selected host too long");
         return NGX_DECLINED;
     }
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "brix: cms select: re-pinning idle session to %s:%ud",
                   host, (unsigned) port);
     brix_proxy_reset_upstream(proxy);
@@ -375,7 +376,7 @@ proxy_lazy_init(brix_ctx_t *ctx, ngx_connection_t *c,
      * and return a hard error instead of spawning another proxy.
      */
     if (ctx->proxy_fail_count >= BRIX_PROXY_MAX_CONN_FAILS) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                       "xrootd proxy: %ui consecutive upstream failures on "
                       "this connection — failing request, not retrying",
                       ctx->proxy_fail_count);

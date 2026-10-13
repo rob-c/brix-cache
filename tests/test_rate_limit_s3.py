@@ -127,6 +127,19 @@ def test_http_scope_limit_sheds_webdav_too(shared_limit_server):
     assert 429 in statuses, f"expected a 429 on webdav, got {statuses}"
 
 
+def test_malformed_queries_are_rate_limited_on_both_protocols(
+        shared_limit_server):
+    for port, path in (
+        (S3_PORT, "/bucket/key?broken=%ZZ"),
+        (WEBDAV_PORT, "/nonexistent?broken=%ZZ"),
+    ):
+        time.sleep(3)
+        statuses = [_http_get_status(port, path) for _ in range(6)]
+        assert statuses[0] == 400, statuses
+        assert 429 in statuses, (
+            f"malformed query bypassed limiter on port {port}: {statuses}")
+
+
 # --------------------------------------------------------------------------- #
 # security-neg — location scoping holds through the move                       #
 # --------------------------------------------------------------------------- #

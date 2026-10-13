@@ -4,6 +4,7 @@
  * offload path.  Split out of copy.c for the file-size guard.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "copy_internal.h"
 #include "protocols/webdav/fs/copy_engine.h"
@@ -324,7 +325,7 @@ webdav_copy_collection_post_task(ngx_http_request_t *r,
         return NGX_ERROR;
     }
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
                   "brix_webdav: offloaded collection COPY to thread pool");
 
     r->main->count++;

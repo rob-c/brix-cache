@@ -107,7 +107,8 @@ def _serve(repo: Path) -> http.server.ThreadingHTTPServer:
 def _client_run(rt: str, pub: Path, script: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [rt, "run", "--rm", "--network=host", "--device", "/dev/fuse",
-         "--cap-add", "SYS_ADMIN", "-v", f"{pub}:/brix:ro",
+         "-e", "CVMFS_HTTP_PROXY=DIRECT",
+         "--cap-add", "SYS_ADMIN", "-v", f"{pub}:/brix:ro,Z",
          "--entrypoint", "/bin/sh", IMAGE, "-c", script],
         capture_output=True, text=True, timeout=300)
 

@@ -3,7 +3,7 @@
 xrdmapc \- list XRootD data-server holders for a path
 .SH SYNOPSIS
 .B xrdmapc
-[\fIOPTS\fR] \fBroot\fR[\fBs\fR]\fB://\fR\fIhost\fR[\fI:port\fR][\fI//path\fR] [\fB\-\-verify\fR]
+[\fIOPTS\fR] \fBroot\fR[\fBs\fR]\fB://\fR\fIhost\fR[\fI:port\fR][\fI//path\fR] [\fB\-\-verify\fR|\fB\-\-machine\fR]
 .SH DESCRIPTION
 .B xrdmapc
 lists the data servers that hold \fIpath\fR (default \fB/\fR), reporting
@@ -17,6 +17,10 @@ flagged as GHOST.
 .TP
 .B \-\-verify
 Probe each holder; flag GHOST for advertised but non-responding servers.
+.TP
+.B \-\-machine
+Print one bare holder authority per line for machine consumption. This is
+mutually exclusive with \fB\-\-verify\fR.
 .TP
 .B \-\-tls
 Require in-protocol TLS.

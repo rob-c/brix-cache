@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/config/config.h"
 #include "auth/protbind/protbind.h"   /* brix_protbind_any_names */
 #include "core/compat/crypto.h"   /* brix_secret_page_guard (F3) */
@@ -42,7 +43,7 @@ brix_sss_parse_key_line(ngx_conf_t *cf, ngx_array_t *keys,
 
     rc = sss_keytab_parse_line(line, &entry, (int64_t) ngx_time());
     if (rc < 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_sss_keytab: invalid key entry on line %ui",
                            line_no);
         return NGX_ERROR;
@@ -135,7 +136,7 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     }
 
     if (fstat(keytab_fd, &st) != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            "brix: cannot stat SSS keytab \"%V\"", path);
         close(keytab_fd);
         return NGX_ERROR;
@@ -155,7 +156,7 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
 
     fp = fdopen(keytab_fd, "r");
     if (fp == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            "brix: cannot fdopen SSS keytab \"%V\"", path);
         close(keytab_fd);
         return NGX_ERROR;
@@ -178,7 +179,7 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     }
 
     if (ferror(fp)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            "brix: cannot read SSS keytab \"%V\"", path);
         (void) fclose(fp); /* phase74-fp: read-only stream on an error path already returning NGX_ERROR */
         return NGX_ERROR;
@@ -187,7 +188,7 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     (void) fclose(fp); /* phase74-fp: read-only stream fully consumed, ferror checked above */
 
     if (keys->nelts == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix: SSS keytab \"%V\" has no usable keys", path);
         return NGX_ERROR;
     }
@@ -197,7 +198,7 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     if (brix_secret_page_guard(keys->elts,
                                keys->nelts * sizeof(brix_sss_key_t)) != 0)
     {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, ngx_errno,
                            "brix: could not fully page-guard SSS keytab keys "
                            "(madvise/mlock); continuing unguarded");
     }
@@ -248,7 +249,7 @@ brix_configure_sss_auth(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     }
 
     if (xcf->sss_keytab.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             need_client
                 ? "brix_auth sss requires brix_sss_keytab"
                 : "SSS proxy upstream auth requires brix_sss_keytab");
@@ -261,7 +262,7 @@ brix_configure_sss_auth(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         return NGX_ERROR;
     }
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
                        "brix: SSS keytab loaded - keytab=%V keys=%ui (%s)",
                        &xcf->sss_keytab, xcf->sss_keys->nelts,
                        need_client ? (need_upstream ? "client+upstream"

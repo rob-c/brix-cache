@@ -15,6 +15,7 @@
  *       (xrdcp_parse_internal.h) free of the parser's private state struct.
  *       Byte-frozen: same spellings, same order, same exit codes.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdcp_internal.h"
 #include "xrdcp_parse_internal.h"
 
@@ -126,7 +127,7 @@ xrdcp_parse_sources_opt(brix_copy_opts *o, int argc, char **argv, size_t *i)
 
     n = atoi(argv[++(*i)]);
     if (n < 1 || n > 16) {
-        fprintf(stderr, "xrdcp: --sources: expected a count in 1..16, "
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: --sources: expected a count in 1..16, "
                         "got '%s'\n", argv[*i]);
         usage(argv[0]);
         return 50;
@@ -171,7 +172,7 @@ xrdcp_parse_io_uring_opt(brix_copy_opts *o, int argc, char **argv, size_t *i)
 
     v = brix_cli_parse_io_uring(mode);
     if (v < 0) {
-        fprintf(stderr, "xrdcp: --io-uring: invalid mode '%s' (use on|off|auto)\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: --io-uring: invalid mode '%s' (use on|off|auto)\n",
                 mode);
         usage(argv[0]);
         return 50;

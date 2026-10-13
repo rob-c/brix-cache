@@ -7,6 +7,7 @@
  * runtime_server_backend_internal.h.
  */
 
+#include "core/compat/log_event.h"
 #include "config.h"
 #include "root_prepare.h"
 #include "credential_block.h"             /* §14 brix_credential lookup/bearer */
@@ -48,7 +49,7 @@ brix_tier_load_master_key(ngx_conf_t *cf, const ngx_str_t *path,
     ngx_file_info_t  fi;
 
     if (path->len >= sizeof(pathz)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_verify_manifest: key path too long");
         return NGX_ERROR;
     }
@@ -56,14 +57,14 @@ brix_tier_load_master_key(ngx_conf_t *cf, const ngx_str_t *path,
 
     fd = open(pathz, O_RDONLY | O_CLOEXEC);   /* vfs-seam-allow: DOMAIN_CONFIG — config-domain trust-anchor PEM (not export storage) */
     if (fd == -1) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
             "brix_cvmfs_verify_manifest: cannot open \"%s\"", pathz);
         return NGX_ERROR;
     }
     if (ngx_fd_info(fd, &fi) == -1
         || (size = ngx_file_size(&fi)) <= 0 || size > BRIX_JWKS_FILE_MAX)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_verify_manifest: \"%s\" is empty, unreadable "
             "or larger than 64KB", pathz);
         (void) close(fd);
@@ -77,13 +78,13 @@ brix_tier_load_master_key(ngx_conf_t *cf, const ngx_str_t *path,
     n = read(fd, buf, (size_t) size);   /* vfs-seam-allow: DOMAIN_CONFIG — config-domain trust-anchor PEM (not export storage) */
     (void) close(fd);
     if (n != (ssize_t) size) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
             "brix_cvmfs_verify_manifest: short read on \"%s\"", pathz);
         return NGX_ERROR;
     }
     buf[size] = '\0';
     if (ngx_strstr(buf, "BEGIN PUBLIC KEY") == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_verify_manifest: \"%s\" holds no PEM public key",
             pathz);
         return NGX_ERROR;
@@ -110,13 +111,13 @@ brix_tier_register_cache_peers(ngx_conf_t *cf,
     ngx_uint_t  i;
 
     if (common->cache_peers->nelts < 2) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_peers: a mesh needs at least 2 ring members "
             "(self=host:port plus one sibling)");
         return NGX_ERROR;
     }
     if (common->cache_peers->nelts > 16) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_peers: at most 16 ring members supported");
         return NGX_ERROR;
     }
@@ -128,7 +129,7 @@ brix_tier_register_cache_peers(ngx_conf_t *cf,
         long       port;
 
         if (tok[i].len >= sizeof(buf)) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cache_peers: member \"%V\" is too long", &tok[i]);
             return NGX_ERROR;
         }
@@ -137,7 +138,7 @@ brix_tier_register_cache_peers(ngx_conf_t *cf,
 
         if (ngx_strncmp(auth, "self=", sizeof("self=") - 1) == 0) {
             if (self >= 0) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                     "brix_cache_peers: more than one self= member");
                 return NGX_ERROR;
             }
@@ -146,20 +147,20 @@ brix_tier_register_cache_peers(ngx_conf_t *cf,
         }
         colon = strrchr(auth, ':');
         if (colon == NULL || colon == auth || colon[1] == '\0') {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cache_peers: member \"%V\" is not host:port", &tok[i]);
             return NGX_ERROR;
         }
         port = strtol(colon + 1, NULL, 10);
         if (port < 1 || port > BRIX_MAX_PORT) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cache_peers: member \"%V\" has an invalid port",
                 &tok[i]);
             return NGX_ERROR;
         }
         *colon = '\0';
         if (ngx_strlen(auth) >= sizeof(hosts[0])) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cache_peers: member \"%V\" host is too long", &tok[i]);
             return NGX_ERROR;
         }
@@ -168,7 +169,7 @@ brix_tier_register_cache_peers(ngx_conf_t *cf,
     }
 
     if (self < 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_peers: mark this node's own ring slot with "
             "self=host:port");
         return NGX_ERROR;
@@ -270,7 +271,7 @@ brix_tier_check_cache_verify(ngx_conf_t *cf,
     if (brix_cache_verify_is_selfaddr(pol->verify)
         && (sdrv == NULL || sdrv->staged_path == NULL))
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_verify %s requires a cache store whose driver exposes "
             "staged fill paths (posix or pblock; got \"%s\")",
             brix_cache_verify_mode_str(pol->verify), cfg->driver);
@@ -288,7 +289,7 @@ brix_tier_check_cache_verify(ngx_conf_t *cf,
                     ? (int64_t) cfg->block_size : PBLOCK_DEFAULT_BLOCK_SIZE;
 
         if (ebs < (int64_t) CVMFS_OBJECT_MAX_BYTES) {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
                 "brix_cache_verify %s on a pblock store: block_size "
                 "(%L) is below the CVMFS object ceiling (%uz) — an object "
                 "larger than one block cannot be verified and its fill will "
@@ -303,7 +304,7 @@ brix_tier_check_cache_verify(ngx_conf_t *cf,
      * constraint as cvmfs-cas (the verify reads the staged part path). */
     if (common->cache_cvmfs_master_key.len > 0) {
         if (sdrv == NULL || sdrv->staged_path == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cvmfs_verify_manifest requires a cache store whose "
                 "driver exposes staged fill paths (posix or pblock; got "
                 "\"%s\")", cfg->driver);
@@ -328,7 +329,7 @@ brix_tier_check_cache_cas(ngx_conf_t *cf, const brix_tier_cfg_t *cfg,
     const brix_cache_policy_t *pol, const brix_sd_driver_t *sdrv)
 {
     if (pol->global_cas && (sdrv == NULL || sdrv->dedup_publish == NULL)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_global_cas requires a cache store whose driver "
             "supports commit-time dedup (posix or pblock; got \"%s\")",
             cfg->driver);
@@ -339,7 +340,7 @@ brix_tier_check_cache_cas(ngx_conf_t *cf, const brix_tier_cfg_t *cfg,
         pblock_opts_t popts;
 
         if (pblock_opts_load_sidecar(cfg->path, &popts) != 0 || !popts.dedup) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cache_global_cas on a pblock cache store requires its "
                 "refs gate: add \"?dedup=1\" to the store URL "
                 "(brix_cache_store pblock:%s?dedup=1)", cfg->path);
@@ -408,7 +409,7 @@ brix_tier_register_cache_store(ngx_conf_t *cf,
          * store is already checked against its hot tier.  capacity != 0 is
          * the ram driver's signature — no other store sets it. */
         if (ccfg.capacity != 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cache_cold_store: a ram: store is only valid as the hot "
                 "cache store (brix_cache_store) — a memory cold tier is "
                 "costlier and more volatile than the tier demoting into it");

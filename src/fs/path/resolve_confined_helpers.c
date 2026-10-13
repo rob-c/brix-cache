@@ -29,6 +29,7 @@
  *       forbidden ("." / "..") components at each step so no intermediate symlink
  *       can escape.
  */
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 
 #include <errno.h>
@@ -56,7 +57,7 @@ brix_log_path_warning(ngx_log_t *log, const char *prefix, const char *path)
     char safe_path[512];
 
     brix_sanitize_log_string(path, safe_path, sizeof(safe_path));
-    ngx_log_error(NGX_LOG_WARN, log, 0, "%s: %s", prefix, safe_path);
+    BRIX_LOG(NGX_LOG_WARN, log, 0, "%s: %s", prefix, safe_path);
 }
 
 /*
@@ -139,7 +140,7 @@ brix_open_root_fd(ngx_log_t *log, const char *root_canon)
 
     fd = open(root_canon, O_PATH | O_DIRECTORY | O_CLOEXEC);
     if (fd < 0) {
-        ngx_log_error(NGX_LOG_WARN, log, errno,
+        BRIX_LOG(NGX_LOG_WARN, log, errno,
                       "brix: unable to open export root for confined syscall");
     }
 

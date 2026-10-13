@@ -1,5 +1,9 @@
+#include "core/compat/log_event.h"
 #include "handshake.h"
 #include "fs/vfs/vfs_secgate.h"   /* per-capability TLS gate (brix_tls_require) */
+#include "fs/vfs/vfs_policy.h"    /* typed mutation-policy kernel */
+#include "protocols/root/protocol/open_flags.h"
+#include "protocols/root/read/open_internal.h"
 
 /*
  * brix_check_token_scope — enforce WLCG token scopes on a path operation.
@@ -57,7 +61,7 @@ brix_min_sec_enforce(brix_ctx_t *ctx, ngx_connection_t *c,
      * leg so neither side can be downgraded independently.
      */
     if (c->ssl == NULL || c->ssl->connection == NULL) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
             "brix: cleartext session refused by brix_min_sec_level=%ui (opcode=%d)",
             conf->min_sec_level, (int) ctx->recv.cur_reqid);
         return brix_send_error(ctx, c, kXR_TLSRequired,
@@ -72,7 +76,7 @@ brix_min_sec_enforce(brix_ctx_t *ctx, ngx_connection_t *c,
     if (conf->min_sec_level >= BRIX_MIN_SEC_INTENSE
         && conf->auth == BRIX_AUTH_NONE)
     {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
             "brix: anonymous session refused by brix_min_sec_level=intense (opcode=%d)",
             (int) ctx->recv.cur_reqid);
         return brix_send_error(ctx, c, kXR_NotAuthorized,
@@ -134,7 +138,7 @@ brix_tls_require_enforce(brix_ctx_t *ctx, ngx_connection_t *c,
         return BRIX_DISPATCH_CONTINUE;
     }
 
-    ngx_log_error(NGX_LOG_WARN, c->log, 0,
+    BRIX_LOG(NGX_LOG_WARN, c->log, 0,
         "brix: cleartext request refused by brix_tls_require %s "
         "(opcode=%d)",
         brix_tls_cap_name(refused), (int) ctx->recv.cur_reqid);
@@ -162,6 +166,39 @@ brix_dispatch_require_auth(brix_ctx_t *ctx, ngx_connection_t *c)
     }
 
     return BRIX_DISPATCH_CONTINUE;
+}
+
+ngx_int_t
+brix_dispatch_require_open_write(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    xrdw_open_req_t req;
+
+    xrdw_open_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
+    if (!brix_open_options_is_write(req.options) || conf->manager_mode) {
+        return BRIX_DISPATCH_CONTINUE;
+    }
+
+    /* Feature availability is classified before endpoint mutation policy.
+     * Authentication still runs next in dispatch_read, and the TPC handler
+     * then emits kXR_Unsupported without resolving a path or touching VFS. */
+    if (brix_open_tpc_push_target_disabled(ctx, conf, 1)) {
+        return BRIX_DISPATCH_CONTINUE;
+    }
+
+    if (brix_vfs_require_mutation_policy(
+            brix_vfs_policy_from_write_enable(conf->common.allow_write),
+            BRIX_VFS_MUTATE_OPEN) == NGX_OK)
+    {
+        return BRIX_DISPATCH_CONTINUE;
+    }
+
+    brix_log_access(ctx, c, "OPEN", "-", "wr", 0, kXR_fsReadOnly,
+        "read-only server", 0);
+    BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
+    brix_io_monitor_record_err(&ctx->io_monitor, BRIX_ERR_FORBIDDEN);
+    return brix_send_error(ctx, c, kXR_fsReadOnly,
+        "this is a read-only server");
 }
 
 /*
@@ -214,6 +251,20 @@ brix_dispatch_require_write(brix_ctx_t *ctx, ngx_connection_t *c,
 {
     ngx_int_t rc;
 
+    /* The typed endpoint policy precedes identity and token evaluation.  Use
+     * the pure kernel here because this is the protocol-edge tripwire: the VFS
+     * denial counter remains reserved for mutations that actually reach the
+     * authority-of-last-resort. */
+    if (!brix_write_gate_tpc_push_sync(ctx)
+        && brix_vfs_require_mutation_policy(
+               brix_vfs_policy_from_write_enable(conf->common.allow_write),
+               BRIX_VFS_MUTATE_WRITE) != NGX_OK)
+    {
+        brix_io_monitor_record_err(&ctx->io_monitor, BRIX_ERR_FORBIDDEN);
+        return brix_send_error(ctx, c, kXR_fsReadOnly,
+                                 "this is a read-only server");
+    }
+
     rc = brix_dispatch_require_auth(ctx, c);
     if (rc != BRIX_DISPATCH_CONTINUE) {
         return rc;
@@ -227,13 +278,6 @@ brix_dispatch_require_write(brix_ctx_t *ctx, ngx_connection_t *c,
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "bound streams may only read or write primary "
                                  "handles");
-    }
-
-    /* F16: the push source arms and fires on a handle it opened for read, on an
-     * export that stays read-only.  Nothing else is exempted here. */
-    if (!conf->common.allow_write && !brix_write_gate_tpc_push_sync(ctx)) {
-        return brix_send_error(ctx, c, kXR_fsReadOnly,
-                                 "this is a read-only server");
     }
 
     return BRIX_DISPATCH_CONTINUE;

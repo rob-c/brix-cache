@@ -2,6 +2,7 @@
  * runtime_server.c — per-server-block runtime preparation at postconfiguration.
  */
 
+#include "core/compat/log_event.h"
 #include "config.h"
 #include "root_prepare.h"
 #include "credential_block.h"             /* §14 brix_credential lookup/bearer */
@@ -82,7 +83,7 @@ brix_server_guard_remote_authz(ngx_conf_t *cf,
         return NGX_OK;
     }
 
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
         "brix_storage_backend \"%V\" with authorization rules "
         "(brix_authdb/brix_require_vo/brix_inherit_parent_group) requires a "
         "runtime export: this server mode (manager/supervisor/proxy) skips "
@@ -114,7 +115,7 @@ brix_server_set_storage_credential(ngx_conf_t *cf,
                         sizeof(cred_z)));
     cred = brix_credential_lookup(cred_z);
     if (cred == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_credential: no brix_credential \"%V\"",
             &xcf->common.storage_credential);
         return NGX_ERROR;
@@ -124,7 +125,7 @@ brix_server_set_storage_credential(ngx_conf_t *cf,
     {
         return NGX_ERROR;
     }
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: backend credential \"%V\" for \"%s\": gsi=%s key=%s bearer=%s",
         &xcf->common.storage_credential, xcf->common.root_canon,
         bcred.x509_proxy ? bcred.x509_proxy : "(none)",
@@ -149,7 +150,7 @@ brix_server_set_wt_credential(ngx_conf_t *cf,
                 ngx_min(xcf->wt.credential.len + 1, sizeof(cred_z)));
     cred = brix_credential_lookup(cred_z);
     if (cred == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_wt_credential: no brix_credential \"%V\"",
             &xcf->wt.credential);
         return NGX_ERROR;
@@ -286,12 +287,12 @@ brix_server_validate_cache_stage_backend(ngx_conf_t *cf,
         return NGX_OK;
     }
     if (xcf->cache_wt_stage_root.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_wt_stage_backend requires brix_wt_stage_root");
         return NGX_ERROR;
     }
     if (xcf->cache_state_root.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_wt_stage_backend requires a POSIX "
             "brix_cache_state_root for its sidecars");
         return NGX_ERROR;
@@ -309,7 +310,7 @@ brix_server_validate_cache_watermarks(ngx_conf_t *cf,
     if (xcf->cache_eviction_threshold == 0
         || xcf->cache_eviction_threshold >= BRIX_CONFIG_PPM_MAX)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_eviction_threshold must be greater than 0 "
             "and less than 1.0");
         return NGX_ERROR;
@@ -326,7 +327,7 @@ brix_server_validate_cache_watermarks(ngx_conf_t *cf,
                    >= (xcf->common.cache_evict_at == NGX_CONF_UNSET_UINT
                            ? 90 : xcf->common.cache_evict_at))))
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_evict_to must be a percent greater than 0 and "
             "less than brix_cache_evict_at (which must be < 100)");
         return NGX_ERROR;
@@ -336,7 +337,7 @@ brix_server_validate_cache_watermarks(ngx_conf_t *cf,
         || xcf->reaper.low_watermark == 0
         || xcf->reaper.low_watermark >= xcf->reaper.high_watermark)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_low_watermark must be greater than 0 and less "
             "than brix_cache_high_watermark (which must be < 1.0)");
         return NGX_ERROR;
@@ -351,7 +352,7 @@ brix_server_validate_cache(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         return NGX_OK;
     }
     if (xcf->common.allow_write && !xcf->wt.enable) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache is read-only and requires "
             "brix_allow_write off (or enable brix_write_through)");
         return NGX_ERROR;
@@ -362,7 +363,7 @@ brix_server_validate_cache(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     if (xcf->cache_root.len == 0
         || !brix_server_storage_backend_is_remote(&xcf->common.storage_backend))
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache on requires brix_cache_export and a remote "
             "brix_storage_backend (root://host:port); the retired "
             "brix_cache_origin model is the tier grammar now "
@@ -376,7 +377,7 @@ brix_server_validate_cache(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         return NGX_ERROR;
     }
     if (xcf->cache_lock_timeout <= 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_lock_timeout must be greater than zero");
         return NGX_ERROR;
     }
@@ -385,7 +386,7 @@ brix_server_validate_cache(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     }
     /* The origin is the export's storage backend — the retired brix_cache_origin
      * string this line used to print was always empty. */
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: cache enabled root=%V origin=%V "
         "lock_timeout=%ds eviction_threshold=0.%06ui",
         &xcf->cache_root, &xcf->common.storage_backend,
@@ -402,7 +403,7 @@ brix_server_validate_wt_stage(ngx_conf_t *cf,
         return NGX_OK;
     }
     if (xcf->cache_wt_stage_root.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_wt_stage_high_watermark requires brix_wt_stage_root");
         return NGX_ERROR;
     }
@@ -411,7 +412,7 @@ brix_server_validate_wt_stage(ngx_conf_t *cf,
         || xcf->cache_wt_stage_low_watermark
                >= xcf->cache_wt_stage_high_watermark)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_wt_stage_low_watermark must be greater than 0 and "
             "less than brix_wt_stage_high_watermark (which must be < 1.0)");
         return NGX_ERROR;
@@ -427,11 +428,11 @@ brix_server_setup_logging(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     {
         xcf->access_log_file = ngx_conf_open_file(cf->cycle, &xcf->access_log);
         if (xcf->access_log_file == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix: cannot register access log \"%V\"", &xcf->access_log);
             return NGX_ERROR;
         }
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix: access log \"%V\" registered", &xcf->access_log);
     }
     if (xcf->proxy.enable && xcf->proxy.audit_log.len > 0
@@ -440,12 +441,12 @@ brix_server_setup_logging(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         xcf->proxy.audit_log_file = ngx_conf_open_file(cf->cycle,
                                                        &xcf->proxy.audit_log);
         if (xcf->proxy.audit_log_file == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix: cannot register proxy audit log \"%V\"",
                 &xcf->proxy.audit_log);
             return NGX_ERROR;
         }
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix: proxy audit log \"%V\" registered", &xcf->proxy.audit_log);
     }
     return NGX_OK;
@@ -476,7 +477,7 @@ brix_config_prepare_server(ngx_conf_t *cf,
         && !xcf->tpc_delegate)
     {
         xcf->tpc_delegate = 1;
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix_tap_proxy_auth gsi: enabling GSI proxy delegation capture");
     }
 

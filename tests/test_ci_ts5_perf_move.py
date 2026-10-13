@@ -79,6 +79,9 @@ def _has_main_guard(path: pathlib.Path) -> bool:
 
 
 def _assert_archive_annotation_failure(result):
+    if sys.version_info >= (3, 14):
+        assert result.returncode == 0, result.stderr[-400:]
+        return
     assert result.returncode != 0, "the archived body now imports standalone"
     assert "NameError" in result.stderr, result.stderr[-400:]
     assert "RunStats" in result.stderr, result.stderr[-400:]
@@ -461,15 +464,16 @@ def test_the_shim_baseline_carries_every_shim_in_the_cluster():
 def test_the_one_declared_deviation_is_the_future_import(name):
     """Exactly one line differs from verbatim, and here is what it bought.
 
-    The archived pre-move body still raises ``NameError: RunStats`` when
-    imported on its own — the annotation ``-> RunStats`` is evaluated as the
-    class body runs and shard 1 is what defines that name.  So the shard could
+    Before Python 3.14 the archived pre-move body raises ``NameError: RunStats``
+    when imported on its own — the annotation ``-> RunStats`` is evaluated as
+    the class body runs and shard 1 is what defines that name. So the shard could
     not be a shim, could not be baselined, and broke the inventory dumper, all
     for a module nothing imports by name.  The future import makes the
     annotation lazy and the shard ordinary.
 
-    Both halves are asserted: the archive still fails, and the moved copy no
-    longer does.  If someone later removes the future import, the second half
+    Both halves are asserted; on Python 3.14+ the language itself defers the
+    archived annotation, while the moved copy remains portable to older Python.
+    If someone later removes the future import, the second half
     fails here rather than in the guard lane.
     """
     code = ("import sys\n"

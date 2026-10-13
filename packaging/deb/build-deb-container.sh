@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # build-deb-container.sh — build the .deb set inside a container to avoid
-# polluting the host and to support cross-release builds (Ubuntu 22.04 and
-# 24.04).  Mirrors packaging/rpm/build-rpm-container.sh.
+# polluting the host and to support cross-release builds (Ubuntu 22.04,
+# 24.04, and 26.04).  Mirrors packaging/rpm/build-rpm-container.sh.
 #
 # Usage:
 #   packaging/deb/build-deb-container.sh [options]
@@ -9,7 +9,7 @@
 # Options:
 #   -v VERSION   Version string embedded in the packages (default: derived
 #                from BRIX_SERVER_VERSION_BARE in src/core/ident.h)
-#   -d DISTRO    Target release: ubuntu22 or ubuntu24 (default: ubuntu24)
+#   -d DISTRO    Target release: ubuntu22, ubuntu24, or ubuntu26 (default: ubuntu24)
 #   -f FLAVOR    Target nginx flavor: org (nginx.org packages; default) or
 #                distro (Ubuntu-archive nginx + libnginx-mod-stream)
 #   -n NGXVER    nginx version override (default: resolved from apt inside
@@ -84,7 +84,7 @@ fi
 dockerfile="$script_dir/Dockerfile.${distro}"
 if [[ ! -f "$dockerfile" ]]; then
     echo "error: no Dockerfile found for distro '${distro}' (expected: $dockerfile)" >&2
-    echo "Available distros: ubuntu22, ubuntu24" >&2
+    echo "Available distros: ubuntu22, ubuntu24, ubuntu26" >&2
     exit 1
 fi
 

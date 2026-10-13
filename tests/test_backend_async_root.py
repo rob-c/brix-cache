@@ -108,15 +108,26 @@ class _Server:
         self.journal.mkdir(parents=True, exist_ok=True)
         self.port = None
 
+    def _open_data_dirs(self, path):
+        """Make root-created fixture directories writable by the nginx worker."""
+        current = pathlib.Path(path)
+        while current != self.data.parent:
+            current.chmod(0o777)
+            if current == self.data:
+                break
+            current = current.parent
+
     def file(self, relpath, data=b"payload\n"):
         full = self.data / relpath.lstrip("/")
         full.parent.mkdir(parents=True, exist_ok=True)
+        self._open_data_dirs(full.parent)
         full.write_bytes(data)
         return full
 
     def dir(self, relpath):
         full = self.data / relpath.lstrip("/")
         full.mkdir(parents=True, exist_ok=True)
+        self._open_data_dirs(full)
         return full
 
     def start(self):
@@ -244,12 +255,12 @@ def test_mv_fresh_dest_backend_error_surfaces(make_server):
     surfaces the real error to the parked client (kXR_error) via baq_root_done's
     *error* arm — the async failure path, complementing the success/idempotent arms
     (which are the only ones the missing-file/missing-dir tests reach). Revoking
-    write on the *parent* directory (0500 = r-x) denies the queued rename at drain
+    write on the *parent* directory (0555 = r-x for the worker) denies the queued rename at drain
     while path resolution (execute-only) still succeeds, so both endpoints survive."""
     srv = make_server().start()
     locked = srv.dir("locked")
     src = srv.file("locked/mv-src.txt", data=b"stays\n")
-    os.chmod(locked, 0o500)              # deny rename in the dir, keep traversal
+    os.chmod(locked, 0o555)              # deny rename in the dir, keep traversal
     try:
         assert _mv(srv.port, "/locked/mv-src.txt", "/locked/mv-dst.txt") == kXR_error
         assert src.exists(), "a denied backend rename must not remove the source"

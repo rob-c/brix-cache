@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import shutil
+import sys
 import tempfile
 
 from cmdscripts.compile_run import PLATFORM_HOST_FLAGS, REPO_ROOT, result, run
@@ -86,7 +87,10 @@ NGX_SRC = Path(os.environ.get(
     "/tmp/nginx-1.28.3" if Path("/tmp/nginx-1.28.3/src/core/ngx_config.h").exists()
     else "/tmp/nginx-1.24.0",
 ))
-OBJS = NGX_SRC / "objs"
+_configured_nginx = Path(os.environ.get("BRIX_NGINX_BUILD_DIR", ""))
+OBJS = (_configured_nginx / "modules"
+        if (_configured_nginx / "modules/ngx_auto_headers.h").is_file()
+        else NGX_SRC / "objs")
 
 
 def pkg_config(args: list[str], fallback: list[str] | None = None) -> list[str]:
@@ -154,7 +158,8 @@ def compile_and_run(binary: Path, args: list[str], env: dict[str, str] | None = 
     # to compile without the host token (INVARIANT 14). ./config passes it for
     # the module build; a harness line assembled here has to pass it as well.
     args = [*PLATFORM_HOST_FLAGS, *_coverage_link_flags(args),
-            *_sanitizer_link_flags(args), *args]
+            *_sanitizer_link_flags(args), *args,
+            "tests/c/brix_log_link_stubs.c"]
     built = run(["gcc", *args, "-o", str(binary)], cwd=REPO_ROOT, env=child_env)
     if built.returncode != 0:
         return False, f"compile failed: {(built.stderr or built.stdout)[-3000:]}"
@@ -228,7 +233,7 @@ def run_x509_conformance(base: Path) -> list[tuple[bool, str]]:
     fixtures, owned = x509_fixture_dir("x509conf")
     try:
         forged = run(
-            ["python3", "-c", f"import x509forge, pathlib; x509forge.forge_all(pathlib.Path({str(fixtures)!r}))"],
+            [sys.executable, "-c", f"import x509forge, pathlib; x509forge.forge_all(pathlib.Path({str(fixtures)!r}))"],
             cwd=REPO_ROOT,
             env={"PYTHONPATH": "tests", **HERMETIC_ENV},
         )
@@ -250,7 +255,7 @@ def run_x509_oracle(base: Path) -> list[tuple[bool, str]]:
     try:
         forged = run(
             [
-                "python3",
+                sys.executable,
                 "-c",
                 f"import x509forge, clauses, pathlib; x509forge.build_all(pathlib.Path({str(fixtures)!r}), clauses.ALL_CLAUSES)",
             ],
@@ -308,9 +313,9 @@ def run_cred_mint(base: Path) -> list[tuple[bool, str]]:
 def run_ucred(base: Path) -> list[tuple[bool, str]]:
     if shutil.which("openssl") is None:
         return [result(True, "SKIP openssl not on PATH")]
-    cryptography = run(["python3", "-c", "import cryptography"], cwd=REPO_ROOT)
+    cryptography = run([sys.executable, "-c", "import cryptography"], cwd=REPO_ROOT)
     if cryptography.returncode != 0:
-        return [result(True, "SKIP python3 cryptography unavailable")]
+        return [result(True, "SKIP Python cryptography unavailable")]
     obj = find_obj("ucred.o")
     if obj is None:
         return [result(True, "SKIP build ucred.o first")]
@@ -378,7 +383,7 @@ def run_deleg_gate(base: Path) -> list[tuple[bool, str]]:
     fixtures, owned = x509_fixture_dir("deleg_gate")
     try:
         forged = run(
-            ["python3", "-c", DELEG_GATE_FORGE, str(fixtures)],
+            [sys.executable, "-c", DELEG_GATE_FORGE, str(fixtures)],
             cwd=REPO_ROOT,
             env={"PYTHONPATH": "tests", **HERMETIC_ENV},
         )

@@ -58,7 +58,7 @@ brix_pgread_parse_validate(brix_ctx_t *ctx, ngx_connection_t *c,
         run->pathid   = (unsigned) ((u_char *) ctx->recv.payload)[0];
         run->reqflags = (ctx->recv.cur_dlen >= 2)
                         ? (unsigned) ((u_char *) ctx->recv.payload)[1] : 0;
-        if (run->pathid != 0
+        if (run->pathid != 0 && run->pathid != kXR_AnyPath
             && !brix_session_pathid_bound(ctx->is_bound ? ctx->bound_sessid
                                                           : ctx->login.sessid,
                                             run->pathid))
@@ -77,7 +77,7 @@ brix_pgread_parse_validate(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (run->offset < 0) {
         BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
-        *rc = brix_send_error(ctx, c, kXR_IOError,
+        *rc = brix_send_error(ctx, c, kXR_ArgInvalid,
                                 "negative read offset");
         return 0;
     }
@@ -107,6 +107,25 @@ brix_pgread_parse_validate(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (run->rlen > BRIX_READ_REQUEST_MAX) {
         run->rlen = BRIX_READ_REQUEST_MAX;
+    }
+
+    /* A paged read never leaves the kXR_status response family.  Reject an
+     * unrepresentable [offset, offset+rlen) before it reaches pread(2), but
+     * express that terminal empty result with the same integrity envelope as
+     * EOF.  Letting the syscall see INT64_MAX + rlen produces EINVAL and the
+     * generic I/O-error path would incorrectly switch the wire family to
+     * kXR_error, violating the pgread framing invariant. */
+    if ((uint64_t) run->offset > (uint64_t) INT64_MAX - run->rlen) {
+        hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));
+        if (hdr_buf == NULL) {
+            *rc = NGX_ERROR;
+            return 0;
+        }
+        brix_build_pgread_status(ctx, run->offset, 0, hdr_buf);
+        BRIX_OP_OK(ctx, BRIX_OP_PGREAD);
+        *rc = brix_queue_response(ctx, c, (u_char *) hdr_buf,
+                                  sizeof(*hdr_buf));
+        return 0;
     }
 
     run->fd = ctx->files[run->idx].fd;

@@ -103,6 +103,7 @@ from server_registry import NginxInstanceSpec
 from settings import HOST, NGINX_BIN
 from config_parse import nginx_t
 from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
+from log_records import semantic_log_text
 # The trailer parser and the request framing both already exist: reuse them so
 # this file measures the level and never the wire format.
 from test_security_level import (_connect, _login, _protocol, _send_req,
@@ -230,7 +231,7 @@ def _errlog(endpoint):
     """Instance logs are wiped at teardown, so failures quote them inline."""
     try:
         with open(os.path.join(endpoint.prefix, "logs", "error.log")) as fh:
-            return fh.read()
+            return semantic_log_text(fh.read())
     except OSError:
         return "(error log unavailable)"
 
@@ -520,22 +521,16 @@ class TestWhatTheOperatorIsTold:
             f"three covered requests on one session produced {after - before} "
             "WARN lines; the posture is logged once per session")
 
-    def test_the_remediation_advice_contradicts_the_verdict(self, seclevel):
-        """DEFECT CANDIDATE #54.
-
-        The advice clause is unconditional (sigver.c:185-186) while the outcome
-        clause is not, so on a plane that already sets the flag the one line
-        says both "requests are REFUSED" and "Set brix_signing_required on to
-        refuse them."  Pinned rather than tolerated: when the message is fixed
-        this test fails, and the fix is to assert the new text."""
+    def test_the_remediation_advice_matches_the_verdict(self, seclevel):
+        """The refusal warning must not recommend an already-enabled flag."""
         _probe(seclevel, INTENSE)
         text = _await(seclevel, f"brix_security_level={LEVEL[INTENSE]}")
         lines = _level_lines(text, LEVEL[INTENSE])
         assert lines, f"no WARN to inspect\n{text[-2000:]}"
-        assert all("requests are REFUSED" in line and ADVICE in line
+        assert all("requests are REFUSED" in line and ADVICE not in line
                    for line in lines), (
-            "the unsignable-session WARN no longer advises turning on the flag "
-            "it just reported acting on — update this test to the new wording\n"
+            "the unsignable-session WARN contradicts the flag it reports "
+            "acting on\n"
             + "\n".join(lines))
 
 

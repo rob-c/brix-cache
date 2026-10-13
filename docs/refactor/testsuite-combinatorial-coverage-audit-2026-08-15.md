@@ -135,8 +135,8 @@ the section that ranked it:
 > a config line rather than to a run — and 23.4 s under `-n 2 --dist loadgroup`,
 > which is the statement that its seven stream servers, its CMS registration and
 > its dashboard survive being driven from two workers). On a
-> **liburing-enabled** binary those 5 skips run and 1 of them fails; that
-> failure is real and is defect candidate #29 — see tranche 9.
+> **liburing-enabled** binary those 5 skips now pass; the staged-writer failure
+> found as defect candidate #29 was repaired — see tranche 9.
 > **One hundred and forty-four defect candidates** found and pinned
 > along the way (#1–#145, with #78 withdrawn on measurement and re-recorded as an
 > observation — see tranche 16 — so the numbers run to 145 and the count is 144),
@@ -503,9 +503,9 @@ residual, the §B3.15 cms residual and §B3.16 — all of which had been filed a
   build*, not verified. The rest of the template was validated independently
   (`nginx -t` on the rendered config with the two `brix_io_uring` lines
   stripped: rc=0), so the skip hides no config error. New
-  `nginx_audit15e_uring_tiers.conf`. **Tranche 9 built the ring and ran it:
-  4 passed, 1 failed** — the staged-writer arm is defect candidate #29, and the
-  ring is not the cause. Recipe and analysis in tranche 9.
+  `nginx_audit15e_uring_tiers.conf`. **Tranche 9 built the ring and exposed
+  defect candidate #29; the repaired row is now 5 passed**. The ring was not
+  the cause. Recipe and analysis are in tranche 9.
 - **`test_audit15e_passthrough_crosses.py`** (3) — closes §B2.14
   (passthrough × stage, passthrough × read_only). Geometry as
   `test_cache_passthrough_planes.py` (`cache_max_object` 4096 /
@@ -784,7 +784,7 @@ delegation / × TPC, §B1.8 krb5 × TLS, §B1.10 macaroon × VOMS), §B3.17
 (cvmfs×gridftp, listed for completeness only), and §C. **All of these except
 §B2.13 are closed by tranche 8**; §B2.13 was gated on the build, which is an
 environment fact rather than a coverage gap — **tranche 9 lifted the gate**, ran
-the row, and turned it into defect candidates #29–#31. The clock-backwards
+the row, and turned it into defect candidates #29–#31, all now resolved. The clock-backwards
 blocker turned out not to apply — the dashboard cookie is a signed timestamp,
 so age is a parameter, not a wait.
 Two named residuals were documented rather than tested here:
@@ -1082,25 +1082,19 @@ TEST_NGINX_BIN=<scratch>/uring-build/objs/nginx \
 ```
 
 `./config:193-210` double-gates the ring on `BRIX_ENABLE_IO_URING` at configure
-time **and** `pkg-config --atleast-version=2.2 liburing`; this host has 2.12 and
-`kernel.io_uring_disabled=0`. Result: **4 passed, 1 failed** — the cache-spool
-and passthrough arms are green, the staged-writer arm is not. `kXR_writev` on a
-handle the phase-70 whole-object staged writer has just opened for WRITE is
-refused `kXR_FileNotOpen` while a plain `kXR_write` on that same handle
-succeeds. `test_io_uring_runtime.py` + `test_uring_direct.py` under the same
-binary are 5 passed / 1 skipped, so the ring's writev works on a plain export.
+time **and** `pkg-config --atleast-version=2.2 liburing`; the measured host had
+2.12 and `kernel.io_uring_disabled=0`. The original result was **4 passed,
+1 failed** and isolated defect #29; after the staged-writev repair the row is
+**5 passed**.
 
 - **`test_audit15i_staged_writev.py`** (7) + `nginx_audit15i_stagewritev.conf` —
   the isolation arm: the same topology with **no `brix_io_uring` anywhere**,
   plus a bare posix front as the universality control. It reproduces
   identically, so the finding belongs to `kXR_writev`, not to io_uring.
-  - **DEFECT CANDIDATE #29** — `writev_validate_handles`
-    (`write/writev.c:136-169`) admits a handle only when
-    `ctx->files[idx].fd >= 0`. A descriptor-less tier is exactly what the
-    staged writer produces: an `http://` backend advertises no RANDOM_WRITE, so
-    a WRITE open accumulates into `brix_stage_dir` and commits one PUT at
-    close — there is no local fd to hold. `kXR_writev` is therefore
-    unreachable on every such tier, while `kXR_write` works.
+  - **DEFECT CANDIDATE #29 — RESOLVED** — handle admission now uses the
+    canonical write-handle validator, including descriptor-less staged writers.
+    Staged vector segments append through the writer and close or
+    `kXR_wv_doSync` commits the object.
   - **DEFECT CANDIDATE #30** — the refusal is not terminal.
     `brix_send_error()` (`response/basic.c:65-96`) ends
     `return brix_queue_response(...)`, i.e. **NGX_OK**, so the caller treats a
@@ -4111,29 +4105,14 @@ Eighty-one defect candidates, and the first one is why the tranche exists:
   has been told the opposite of what is true. File 2 pins both halves — the
   empty CertificateStatus on the wire and the absent caller at the source — so
   that giving the fetch a caller trips a test rather than landing silently.
-- **DEFECT CANDIDATE #67 (security, the flag that refuses a credential logs it
-  instead) — `brix_http_query_token off` writes the refused URL token to BOTH
-  logs, verbatim.** The redactor exists and works: `brix_http_redact_query_token()`
-  (`core/http/http_headers.c:339-372`) overwrites the value length-preservingly in
-  `r->args`, `r->unparsed_uri` and `r->request_line`, so `$args`,
-  `$request_uri` and `$request` all come out clean. But `wt_parse_header()`
-  reaches its two `wt_redact_query_token(r)` calls (`auth_token.c:299`, `:305`)
-  only *after* the query fallback has been consulted, and with the flag OFF
-  `webdav_bearer_from_query()` declines at `:272-274` and the function returns
-  `NGX_DECLINED` at `:404-406` — above both. The arm an operator selects
-  **because** they do not want tokens in URLs is the one arm that guarantees the
-  token lands in the access log and the error log. File 3 §E pins both sinks.
-- **DEFECT CANDIDATE #68 (security, the redaction is correct and runs too late)
-  — even with the flag ON, any log line written before the token auth phase
-  carries the raw request line.** Redaction happens inside that phase, so it
-  cannot reach a line another phase has already written. The concrete instance
-  is `[warn] brix_webdav: non-TLS connection, cannot verify GSI`
-  (`protocols/webdav/auth_cert.c:481-484`), which fires once per request on a
-  cleartext listener and quotes the request line in full — token included. The
-  same request's access-log entry is clean, because it is written at completion,
-  after the redactor ran: one request, two sinks, two answers. File 3 §E2 asserts
-  the leak and the clean control side by side, so a fix that only moves the
-  redactor earlier for one sink still fails.
+- **DEFECT #67 (security) — RESOLVED.** `brix_http_query_token off` previously
+  wrote a refused URL token to both logs. The request-boundary redactor now
+  scrubs query credentials before transport selection or diagnostics. File 3
+  §E pins both directive arms and both log sinks.
+- **DEFECT #68 (security) — RESOLVED.** Request-boundary redaction now precedes
+  diagnostics such as the cleartext WebDAV certificate warning, so earlier
+  request-context log lines cannot retain the raw query credential. File 3 §E2
+  pins the early diagnostic and verifies that its request suffix is scrubbed.
 - **DEFECT CANDIDATE #69 (correctness/operability, a location-level flag that is
   not per-location — and not even per-feature) — `brix_cvmfs_origin_reuse_conn`
   is decided for the whole worker by whichever cvmfs location merged last.** It

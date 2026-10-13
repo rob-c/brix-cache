@@ -268,7 +268,7 @@ def _run_delegation_case(label, xrdcp, env_extra, out, *tpc_args,
         checks.append((False, f"{label}: delegated TPC failed (rc={proc.returncode})\n{tail}"))
         return
     checks.append((True, f"{label}: nginx source -> nginx dest delegated TPC byte-exact"))
-    src_text = src_log.read_text(errors="replace")
+    src_text = semantic_log_text(src_log.read_text(errors="replace"))
     pattern = r'GSI auth OK dn=".*CN=12345/CN=[0-9]+/CN=[0-9]+"'
     checks.append((re.search(pattern, src_text) is not None,
                    f"{label}: source authenticated the pull as the delegated user"))

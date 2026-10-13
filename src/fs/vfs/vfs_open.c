@@ -27,6 +27,7 @@
  *       server-constructed paths with no export root. The resulting fd is
  *       wrapped by brix_vfs_adopt_fd(), which fstat()s it into the handle.
  */
+#include "core/compat/log_event.h"
 #include "vfs_internal.h"
 #include "vfs_backend_registry.h"
 #include "fs/cache/open.h"
@@ -477,7 +478,7 @@ brix_vfs_fd_reserve(ngx_log_t *log, int fd, off_t declared_size)
     if (errno == ENOSPC || errno == EDQUOT) {
         return NGX_ERROR;
     }
-    ngx_log_error(NGX_LOG_INFO, log, errno,
+    BRIX_LOG(NGX_LOG_INFO, log, errno,
                   "vfs: advisory reserve of %O bytes failed, open proceeds",
                   declared_size);
     return NGX_OK;
@@ -519,7 +520,7 @@ brix_vfs_open_reserve(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
         errno = err;
         return NGX_ERROR;
     }
-    ngx_log_error(NGX_LOG_INFO, ctx->log, errno,
+    BRIX_LOG(NGX_LOG_INFO, ctx->log, errno,
                   "vfs open: advisory reserve of %O bytes failed, "
                   "open proceeds", ctx->declared_size);
     return NGX_OK;

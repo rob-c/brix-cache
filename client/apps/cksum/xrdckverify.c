@@ -13,6 +13,7 @@
  * exit: 0 ok · 1 mismatch (corruption) · 2 no recorded checksum / unsupported
  *       algorithm · 3 I/O or access error.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "core/version.h"
 #include "core/progname.h"
@@ -128,13 +129,13 @@ ckv_parse_args(int argc, char **argv, brix_ckv_mode *mode,
             }
             *algo = argv[i];
         } else if (a[0] == '-') {
-            fprintf(stderr, "%s: unknown option '%s'\n", argv[0], a);
+            BRIX_CLIENT_LOG("ERROR",  "%s: unknown option '%s'\n", argv[0], a);
             *exit_code = usage(argv[0], 2);
             return 1;
         } else if (*file == NULL) {
             *file = a;
         } else {
-            fprintf(stderr, "%s: only one file may be given\n", argv[0]);
+            BRIX_CLIENT_LOG("INFO",  "%s: only one file may be given\n", argv[0]);
             *exit_code = usage(argv[0], 2);
             return 1;
         }
@@ -180,11 +181,11 @@ ckv_report_result(brix_ckv_result r, const char *file,
         return 1;
     case XRDC_CKV_NO_RECORD:
     case XRDC_CKV_UNSUPPORTED:
-        fprintf(stderr, "%s: %s\n", file,
+        BRIX_CLIENT_LOG("ERROR",  "%s: %s\n", file,
                 st->msg[0] ? st->msg : "no recorded checksum");
         return 2;
     default:
-        fprintf(stderr, "%s: %s\n", file, st->msg[0] ? st->msg : "error");
+        BRIX_CLIENT_LOG("ERROR",  "%s: %s\n", file, st->msg[0] ? st->msg : "error");
         return 3;
     }
 }

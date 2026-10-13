@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "auth/krb5/capture.h"
 
 /*
@@ -30,7 +31,7 @@ brix_krb5_cap_log(krb5_context kctx, krb5_error_code code, const char *what,
 {
     const char *msg = krb5_get_error_message(kctx, code);
 
-    ngx_log_error(NGX_LOG_WARN, log, 0, "brix: krb5 capture: %s: %s",
+    BRIX_LOG(NGX_LOG_WARN, log, 0, "brix: krb5 capture: %s: %s",
                   what, msg ? msg : "(no detail)");
     if (msg) {
         krb5_free_error_message(kctx, msg);
@@ -84,7 +85,7 @@ brix_krb5_import_capture(krb5_context kctx, krb5_ccache cc,
     OM_uint32 maj, min;
     maj = gss_krb5_import_cred(&min, cc, NULL, NULL, out);
     if (GSS_ERROR(maj)) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: krb5 capture: gss_krb5_import_cred failed"
                       " (major=0x%xL minor=0x%xL)",
                       (unsigned long) maj, (unsigned long) min);
@@ -133,7 +134,7 @@ brix_krb5_capture_fwd_cred(void *kctx_v, void *auth_ctx_v, void *client_v,
         || krb_cred == NULL || krb_cred_len == 0
         || out_gss_cred == NULL || out_ccache == NULL)
     {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: krb5 capture: invalid arguments");
         return NGX_ERROR;
     }
@@ -156,7 +157,7 @@ brix_krb5_capture_fwd_cred(void *kctx_v, void *auth_ctx_v, void *client_v,
         return NGX_ERROR;
     }
     if (creds == NULL || creds[0] == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: krb5 capture: KRB_CRED carried no credential");
         if (creds) {
             krb5_free_tgt_creds(kctx, creds);
@@ -192,7 +193,7 @@ brix_krb5_capture_fwd_cred(void *kctx, void *auth_ctx, void *client,
     (void) krb_cred; (void) krb_cred_len;
     (void) out_gss_cred; (void) out_ccache;
 
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
                   "brix: krb5 capture: built without krb5/GSSAPI support");
     return NGX_ERROR;
 }

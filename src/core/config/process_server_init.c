@@ -22,6 +22,7 @@
  *       change from the split.
  */
 
+#include "core/compat/log_event.h"
 #include "config.h"
 #include "auth/protbind/protbind.h"   /* brix_protbind_any_names */
 #include "process_internal.h"
@@ -86,7 +87,7 @@ brix_init_server_backend_credential(ngx_cycle_t *cycle,
                         sizeof(credz)));
     cred = brix_credential_lookup(credz);
     if (cred == NULL) {
-        ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, cycle->log, 0,
             "brix: worker credential replay: no brix_credential \"%s\" "
             "for export \"%s\" — backend keeps its (empty) worker-side "
             "credential; upstream auth WILL fail", credz,
@@ -97,7 +98,7 @@ brix_init_server_backend_credential(ngx_cycle_t *cycle,
     if (brix_credential_to_backend_cred(cred, bearer, sizeof(bearer),
                                           &bcred, cycle->log) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, cycle->log, 0,
             "brix: worker credential replay: cannot derive bearer for "
             "brix_credential \"%s\" (export \"%s\") — credential NOT "
             "installed; upstream auth WILL fail", credz,
@@ -180,7 +181,7 @@ brix_init_server_stage_advisor(ngx_cycle_t *cycle,
     }
     chain = brix_vfs_backend_resolve(xcf->common.root_canon, cycle->log);
     if (chain != NULL && brix_vfs_chain_nearline_unstageable(chain)) {
-        ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, cycle->log, 0,
             "brix: export \"%s\" is nearline but no tier of its driver "
             "chain implements recall and no brix_prepare_command is "
             "configured - kXR_prepare(kXR_stage) can never stage and will "
@@ -218,7 +219,7 @@ brix_init_server_rootfd(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
     xcf->rootfd = open(xcf->common.root_canon,
                        O_PATH | O_DIRECTORY | O_CLOEXEC);
     if (xcf->rootfd < 0) {
-        ngx_log_error(NGX_LOG_EMERG, cycle->log, errno,
+        BRIX_LOG(NGX_LOG_EMERG, cycle->log, errno,
                       "brix: cannot open export root \"%s\" for "
                       "kernel-confined path operations",
                       xcf->common.root_canon);
@@ -408,7 +409,7 @@ brix_init_server_crl_jwks(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
 
     ngx_add_timer(xcf->crl_timer, (ngx_msec_t) xcf->crl_reload * BRIX_MSEC_PER_SEC);
 
-    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
                   "brix: CRL reload timer started - interval=%ds "
                   "path=\"%s\"",
                   (int) xcf->crl_reload, xcf->crl.data);

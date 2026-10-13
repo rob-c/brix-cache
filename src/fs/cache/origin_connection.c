@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "cache_internal.h"
 #include "protocols/root/connection/netconnect.h"   /* shared outbound connect/I/O hardening */
 #include "core/compat/af_policy.h"        /* brix_af_policy_t origin family policy */
@@ -144,7 +145,7 @@ brix_cache_origin_tls_upgrade(brix_cache_fill_t *t,
         char ebuf[160];
 
         ERR_error_string_n(ERR_get_error(), ebuf, sizeof(ebuf));
-        ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, ngx_cycle->log, 0,
             "brix: cache origin TLS handshake failed: %s", ebuf);
         brix_cache_set_error(t, kXR_TLSRequired, 0,
                                "cache origin TLS handshake failed");
@@ -198,7 +199,7 @@ brix_cache_origin_connect_addr(brix_cache_fill_t *t,
                               (brix_af_policy_t) fam, SOCK_STREAM, addrs,
                               BRIX_DNS_MAX_ADDRS, reason, sizeof(reason));
     if (n == 0) {
-        ngx_log_error(NGX_LOG_INFO, ngx_cycle->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, ngx_cycle->log, 0,
                       "brix cache origin \"%V\": DNS resolution failed: %s",
                       host, reason);
         brix_cache_set_error(t, kXR_ServerError, 0,

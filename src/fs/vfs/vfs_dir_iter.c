@@ -21,6 +21,7 @@
  *       entry point wraps it with the pooled copy, the borrow entry point
  *       hands the core's pointer straight through.
  */
+#include "core/compat/log_event.h"
 #include "vfs_internal.h"
 #include "auth/impersonate/impersonate.h"
 
@@ -107,7 +108,7 @@ vfs_readdir_stat_child(brix_vfs_dir_t *dh, const char *name,
         if (dfd < 0) {
             /* Only reachable with a torn-down handle; fstatat would answer
              * EBADF and the entry would vanish with a misleading errno. */
-            ngx_log_error(NGX_LOG_ERR, dh->log, errno,
+            BRIX_LOG(NGX_LOG_ERR, dh->log, errno,
                           "xrootd[disk]: dirlist of \"%s\" has no directory "
                           "descriptor; entry \"%s\" omitted from the listing",
                           dh->path, name);
@@ -116,7 +117,7 @@ vfs_readdir_stat_child(brix_vfs_dir_t *dh, const char *name,
         rc = fstatat(dfd, name, &st, AT_SYMLINK_NOFOLLOW);
         if (rc != 0) {
             if (errno != ENOENT) {
-                ngx_log_error(NGX_LOG_ERR, dh->log, errno,
+                BRIX_LOG(NGX_LOG_ERR, dh->log, errno,
                               "xrootd[disk]: dirlist stat of entry \"%s\" "
                               "under \"%s\" failed; entry omitted from the "
                               "listing", name, dh->path);
@@ -130,7 +131,7 @@ vfs_readdir_stat_child(brix_vfs_dir_t *dh, const char *name,
     n = snprintf(child, sizeof(child), "%s/%s", dh->path, name);
     if (n < 0 || (size_t) n >= sizeof(child)) {
         errno = ENAMETOOLONG;
-        ngx_log_error(NGX_LOG_ERR, dh->log, errno,
+        BRIX_LOG(NGX_LOG_ERR, dh->log, errno,
                       "xrootd[disk]: dirlist entry \"%s\" under \"%s\" joins "
                       "to an unrepresentable path; entry omitted",
                       name, dh->path);
@@ -139,7 +140,7 @@ vfs_readdir_stat_child(brix_vfs_dir_t *dh, const char *name,
     if (brix_lstat_confined_canon(dh->log, dh->root_canon, child,
                                     &st, 1) != 0) {
         if (errno != ENOENT) {
-            ngx_log_error(NGX_LOG_ERR, dh->log, errno,
+            BRIX_LOG(NGX_LOG_ERR, dh->log, errno,
                           "xrootd[disk]: dirlist stat of \"%s\" failed; "
                           "entry omitted from the listing", child);
         }
@@ -288,7 +289,7 @@ vfs_readdir_sd(brix_vfs_dir_t *dh, const char **name_out,
         /* Child vanished mid-scan (ENOENT): skip it and keep enumerating.
          * Any other driver stat failure is surfaced before the skip. */
         if (errno != ENOENT) {
-            ngx_log_error(NGX_LOG_ERR, dh->log, errno,
+            BRIX_LOG(NGX_LOG_ERR, dh->log, errno,
                           "xrootd[disk]: dirlist driver stat of entry \"%s\" "
                           "under \"%s\" failed; entry omitted from the "
                           "listing", de_sd->name, dh->sd_logical);

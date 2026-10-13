@@ -2,6 +2,7 @@
  * copy.c - (kept) routing + shared helpers
  * Phase-38 split of copy.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "copy_internal.h"
 
 /* VFS backend link anchors — Phase 38: kept in copy.o (NOT the shared header) so
@@ -346,7 +347,7 @@ brix_copy_dispatch_r2r(const copy_route_t *r, const brix_copy_opts *o,
             return 0;
         }
         if (!o->silent) {
-            fprintf(stderr, "xrdcp: TPC failed (%s); falling back to "
+            BRIX_CLIENT_LOG("WARN",  "xrdcp: TPC failed (%s); falling back to "
                     "client-mediated copy\n", st->msg);
         }
         return copy_remote_to_remote(&r->su, &r->du, o, co, st);

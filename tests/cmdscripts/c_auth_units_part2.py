@@ -72,7 +72,10 @@ NGX_SRC = Path(os.environ.get(
     "/tmp/nginx-1.28.3" if Path("/tmp/nginx-1.28.3/src/core/ngx_config.h").exists()
     else "/tmp/nginx-1.24.0",
 ))
-OBJS = NGX_SRC / "objs"
+_configured_nginx = Path(os.environ.get("BRIX_NGINX_BUILD_DIR", ""))
+OBJS = (_configured_nginx / "modules"
+        if (_configured_nginx / "modules/ngx_auto_headers.h").is_file()
+        else NGX_SRC / "objs")
 
 
 def run_gsi_eec(base: Path) -> list[tuple[bool, str]]:
@@ -84,7 +87,7 @@ def run_gsi_eec(base: Path) -> list[tuple[bool, str]]:
     fixtures, owned = x509_fixture_dir("gsi_eec")
     try:
         forged = run(
-            ["python3", "-c", GSI_EEC_FORGE, str(fixtures)],
+            [sys.executable, "-c", GSI_EEC_FORGE, str(fixtures)],
             cwd=REPO_ROOT,
             env={"PYTHONPATH": "tests", **HERMETIC_ENV},
         )
@@ -174,7 +177,7 @@ def run_gsi_verdepth(base: Path) -> list[tuple[bool, str]]:
     fixtures, owned = x509_fixture_dir("gsi_verdepth")
     try:
         forged = run(
-            ["python3", "-c", GSI_VERDEPTH_FORGE, str(fixtures)],
+            [sys.executable, "-c", GSI_VERDEPTH_FORGE, str(fixtures)],
             cwd=REPO_ROOT,
             env={"PYTHONPATH": "tests", **HERMETIC_ENV},
         )
@@ -246,7 +249,7 @@ def run_deleg_find_eec(base: Path) -> list[tuple[bool, str]]:
     fixtures, owned = x509_fixture_dir("deleg_find_eec")
     try:
         forged = run(
-            ["python3", "-c", DELEG_FIND_EEC_FORGE, str(fixtures)],
+            [sys.executable, "-c", DELEG_FIND_EEC_FORGE, str(fixtures)],
             cwd=REPO_ROOT,
             env={"PYTHONPATH": "tests", **HERMETIC_ENV},
         )
@@ -438,7 +441,7 @@ def run_tpc_proxy_expiry(base: Path) -> list[tuple[bool, str]]:
     fixtures, owned = x509_fixture_dir("tpc_expiry")
     try:
         forged = run(
-            ["python3", "-c", TPC_EXPIRY_FORGE, str(fixtures)],
+            [sys.executable, "-c", TPC_EXPIRY_FORGE, str(fixtures)],
             cwd=REPO_ROOT,
             env={"PYTHONPATH": "tests", **HERMETIC_ENV},
         )
@@ -491,11 +494,12 @@ def run_origin_krb5_dispatch(base: Path) -> list[tuple[bool, str]]:
             "-I", "shared",
             "-I", str(NGX_SRC / "src/core"),
             "-I", str(NGX_SRC / "src/event"),
+            "-I", str(NGX_SRC / "src/event/quic"),
             "-I", str(NGX_SRC / "src/os/unix"),
             "-I", str(NGX_SRC / "src/stream"),
             "-I", str(OBJS),
             "tests/c/origin_krb5_dispatch_test.c",
+            "src/protocols/root/protocol/codec/wire_codec_session.c",
         ],
     )
     return [result(ok, f"origin_krb5_dispatch {message}")]
-

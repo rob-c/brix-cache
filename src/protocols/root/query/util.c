@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "query_internal.h"
 #include "core/compat/checksum.h"
 
@@ -131,7 +132,7 @@ query_u32_cksum_file(const ngx_str_t *root, const char *path,
 
     fd = brix_open_confined(log, root, path, O_RDONLY, 0);
     if (fd < 0) {
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
                       "brix: %s open(\"%s\") failed", label, safe_path);
         return 0xFFFFFFFF;
     }
@@ -171,7 +172,7 @@ brix_query_digest_file(const ngx_str_t *root, const char *path,
     fd = brix_open_confined(log, root, path, O_RDONLY, 0);
     if (fd < 0) {
         brix_sanitize_log_string(path, safe, sizeof(safe));
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
                       "brix: digest open(\"%s\") failed", safe);
         return 0;
     }

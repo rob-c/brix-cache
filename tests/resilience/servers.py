@@ -20,7 +20,6 @@ HOW:  reuse the repo's PKI helpers (own PKI dir under a dedicated prefix), the
 Nothing here touches the main suite's ports, data, or PKI.
 """
 import getpass
-import glob
 import os
 import shutil
 import socket
@@ -31,6 +30,7 @@ import time
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, NGINX_BIN as SELECTED_NGINX_BIN
+from lib_py.util import find_xrd_library
 
 # --- Layout ------------------------------------------------------------------
 
@@ -60,34 +60,16 @@ SERVER_CERT = os.path.join(PKI_DIR, "server", "hostcert.pem")
 SERVER_KEY = os.path.join(PKI_DIR, "server", "hostkey.pem")
 USER_PROXY = os.path.join(PKI_DIR, "user", "proxy_std.pem")
 
-_SEC_LIB_CANDIDATES = (
-    "/usr/lib64/libXrdSec-5.so",
-    "/usr/lib/libXrdSec-5.so",
-    "/usr/lib64/libXrdSec.so",
-    "/usr/lib/libXrdSec.so",
-)
-
-
 # --- Small helpers ------------------------------------------------------------
-
 def find_xrd_lib(*names):
-    """Find an XRootD plugin on Alma/RHEL or Debian/Ubuntu layouts."""
-    candidates = []
-    for name in names:
-        candidates.extend((f"/usr/lib64/{name}", f"/usr/lib/{name}",
-                           f"/lib64/{name}", f"/lib/{name}"))
-        candidates.extend(glob.glob(f"/usr/lib/*-linux-gnu/{name}"))
-        candidates.extend(glob.glob(f"/lib/*-linux-gnu/{name}"))
-    for cand in candidates:
-        if os.path.isfile(cand):
-            return cand
-    return None
+    """Find an XRootD plugin on system and package-manager layouts."""
+    found = find_xrd_library(*names)
+    return str(found) if found else None
 
 
 def find_sec_lib():
     """Path to the official XRootD security plugin loader, or None."""
-    direct = next((p for p in _SEC_LIB_CANDIDATES if os.path.isfile(p)), None)
-    return direct or find_xrd_lib("libXrdSec-5.so", "libXrdSec.so")
+    return find_xrd_lib("libXrdSec-6.so", "libXrdSec-5.so", "libXrdSec.so")
 
 
 def _chmod(argv):

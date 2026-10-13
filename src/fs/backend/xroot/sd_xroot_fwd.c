@@ -6,6 +6,7 @@
  * sd_xroot_fwd_obj.c and the namespace relays in sd_xroot_fwd_ns.c; this file
  * owns the driver table that binds all three.
  */
+#include "core/compat/log_event.h"
 #include "sd_xroot_fwd_internal.h"
 
 #include <errno.h>
@@ -165,7 +166,7 @@ sd_xroot_fwd_child_new(brix_sd_instance_t *inst, sd_xroot_fwd_inst_state *st,
     sd_xroot_fwd_child_t       *c;
 
     if (st->nchildren >= SD_XROOT_FWD_MAX_CHILDREN) {
-        ngx_log_error(NGX_LOG_ERR, inst->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, inst->log, 0,
             "brix: forward: origin table full (%ud distinct origins), "
             "refusing %s:%d", st->nchildren, t->host, t->port);
         errno = EMFILE;
@@ -194,7 +195,7 @@ sd_xroot_fwd_child_new(brix_sd_instance_t *inst, sd_xroot_fwd_inst_state *st,
     c->next = st->children;
     st->children = c;
     st->nchildren++;
-    ngx_log_error(NGX_LOG_INFO, inst->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, inst->log, 0,
         "brix: forward: origin %s://%s:%d admitted (%ud of %d)",
         t->tls ? "roots" : "root", t->host, t->port, st->nchildren,
         SD_XROOT_FWD_MAX_CHILDREN);
@@ -213,7 +214,7 @@ sd_xroot_fwd_admit(brix_sd_instance_t *inst, const sd_xroot_fwd_inst_state *st,
         return ENOTSUP;
     }
     if (!brix_sd_xroot_fwd_host_permitted(st->permit, t->host)) {
-        ngx_log_error(NGX_LOG_NOTICE, inst->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, inst->log, 0,
             "brix: forward: origin \"%s\" is not in the permit list — refused",
             t->host);
         return EACCES;

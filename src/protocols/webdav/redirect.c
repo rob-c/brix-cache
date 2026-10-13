@@ -27,6 +27,7 @@
  * and compare with CRYPTO_memcmp; on success fill the request identity.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "redirect.h"
 #include "net/manager/registry.h"     /* brix_srv_select — mesh selection */
@@ -196,6 +197,8 @@ static int
 rdr_eligible(ngx_http_request_t *r, ngx_http_brix_webdav_loc_conf_t *conf,
     size_t path_cap)
 {
+    xrdhttp_req_ctx_t *xctx;
+
     if (!conf->redirect_dataserver) {
         return 0;
     }
@@ -204,8 +207,12 @@ rdr_eligible(ngx_http_request_t *r, ngx_http_brix_webdav_loc_conf_t *conf,
     {
         return 0;
     }
-    if (brix_http_query_has(r->args, "brixrdr.mac",
-                              BRIX_HTTP_QUERY_HAS_VALUE_OK) == 1)
+    xctx = xrdhttp_get_ctx(r);
+    if (xctx == NULL) {
+        return 0;
+    }
+    if (brix_http_query_parsed_has(&xctx->query, "brixrdr.mac",
+            BRIX_HTTP_QUERY_HAS_VALUE_OK) == 1)
     {
         return 0;
     }
@@ -263,7 +270,7 @@ rdr_build_location(ngx_http_request_t *r,
         if (signed_cursor != NULL) {
             cursor = signed_cursor;
         } else {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                 "brix_webdav: redirect identity CGI overflow — "
                 "redirecting unsigned");
         }
@@ -307,7 +314,7 @@ webdav_redirect_dataserver(ngx_http_request_t *r,
         return webdav_metrics_return(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
     }
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
                   "brix_webdav: redirecting %V %s to %s:%d%s",
                   &r->method_name, path, ds_host, (int) ds_port,
                   conf->http_secretkey.len > 0 ? " (signed)" : "");
@@ -383,11 +390,14 @@ webdav_redirect_signed_auth(ngx_http_request_t *r,
     char       path[WEBDAV_MAX_PATH];
     char       mac_hex[BRIX_RDR_MAC_HEX_LEN + 1];
     ngx_int_t  exp_secs;
+    xrdhttp_req_ctx_t *xctx;
 
-    /* brix_http_query_get returns 1 on a match, 0 for absent, -1 on error —
-     * NOT an NGX_OK code.  Only a real match (1) enters the verify path. */
-    if (brix_http_query_get(r->args, "brixrdr.mac", mac_cgi, sizeof(mac_cgi),
-                              0) != 1)
+    xctx = xrdhttp_get_ctx(r);
+
+    /* The parsed-query accessor returns 1 on a match, 0 for absent, and a
+     * negative value on error.  Only a real match enters the verify path. */
+    if (brix_http_query_parsed_get(&xctx->query, "brixrdr.mac", mac_cgi,
+                                   sizeof(mac_cgi), 0) != 1)
     {
         return NGX_DECLINED;   /* no handoff CGI — normal authentication */
     }
@@ -403,23 +413,26 @@ webdav_redirect_signed_auth(ngx_http_request_t *r,
         return NGX_DECLINED;
     }
 
-    if (brix_http_query_get(r->args, "brixrdr.exp", exp, sizeof(exp), 0)
+    if (brix_http_query_parsed_get(&xctx->query, "brixrdr.exp", exp,
+                                   sizeof(exp), 0)
             != 1
-        || brix_http_query_get(r->args, "brixrdr.usr", usr, sizeof(usr),
+        || brix_http_query_parsed_get(&xctx->query, "brixrdr.usr", usr,
+               sizeof(usr),
                BRIX_HTTP_QUERY_DECODE_VALUE | BRIX_HTTP_QUERY_REJECT_NUL
                | BRIX_HTTP_QUERY_ALLOW_EMPTY) != 1
-        || brix_http_query_get(r->args, "brixrdr.vo", vo, sizeof(vo),
+        || brix_http_query_parsed_get(&xctx->query, "brixrdr.vo", vo,
+               sizeof(vo),
                BRIX_HTTP_QUERY_DECODE_VALUE | BRIX_HTTP_QUERY_REJECT_NUL
                | BRIX_HTTP_QUERY_ALLOW_EMPTY) != 1)
     {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
             "brix_webdav: signed redirect CGI incomplete — refused");
         return NGX_HTTP_FORBIDDEN;
     }
 
     exp_secs = ngx_atoi((u_char *) exp, ngx_strlen(exp));
     if (exp_secs == NGX_ERROR || (time_t) exp_secs < ngx_time()) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
             "brix_webdav: signed redirect expired — refused");
         return NGX_HTTP_FORBIDDEN;
     }
@@ -435,7 +448,7 @@ webdav_redirect_signed_auth(ngx_http_request_t *r,
         || ngx_strlen(mac_cgi) != BRIX_RDR_MAC_HEX_LEN
         || CRYPTO_memcmp(mac_hex, mac_cgi, BRIX_RDR_MAC_HEX_LEN) != 0)
     {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
             "brix_webdav: signed redirect MAC mismatch — refused");
         BRIX_WEBDAV_METRIC_INC(auth_total[BRIX_WEBDAV_AUTH_RESULT_REJECTED]);
         return NGX_HTTP_FORBIDDEN;
@@ -445,7 +458,7 @@ webdav_redirect_signed_auth(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
         "brix_webdav: signed redirect accepted (usr=%s)",
         usr[0] ? usr : "<anonymous>");
     return NGX_OK;

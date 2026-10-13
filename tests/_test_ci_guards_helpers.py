@@ -123,6 +123,10 @@ _FAST = [
     # lifecycle-ledger row and the fleet raised at its first start, 9,133 tests
     # in; guard #14 judges every spec that reaches the harness statically.
     "check_lifecycle_spec_ledger",
+    # Phase 118 assessment artifacts are generated and logged under the same
+    # release gate as the rest of the static guard fleet.
+    "check_conform_scratch",
+    "check_logging_template",
 ]
 
 def _load_check_file_size():
@@ -218,6 +222,10 @@ def _vsync_tree(
         f"%{{!?version_override:{spec_fallback}}}\n"
         "Version:        %{upstream_version}\n\n"
         f"%changelog\n* Mon Aug 03 2026 Rob Currie <r@e> - {spec_changelog}"
+    )
+    (tmp_path / "packaging/nix").mkdir(parents=True)
+    (tmp_path / "packaging/nix/package.nix").write_text(
+        f'{{ }}:\n{{\n  version = "{ident}";\n}}\n'
     )
     changelog_path = tmp_path / "docs/10-reference/CHANGELOG.md"
     changelog_path.parent.mkdir(parents=True)

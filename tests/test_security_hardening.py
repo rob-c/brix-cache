@@ -317,7 +317,7 @@ def test_malicious_path_is_escaped_in_access_and_error_logs():
 
     assert b"/../log\\x0Arm" in access_delta
     assert payload not in access_delta
-    assert b"path traversal attempt: /../log\\x0Arm" in error_delta
+    assert b"path traversal attempt: /../log\\x5cx0Arm" in error_delta
     assert payload not in error_delta
 
 

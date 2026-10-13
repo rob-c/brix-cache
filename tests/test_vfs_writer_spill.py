@@ -41,6 +41,7 @@ from settings import BIND_HOST, HOST, NGINX_BIN
 
 pytestmark = [pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness,
+              pytest.mark.serial,
               pytest.mark.xdist_group("lc-p107-spill"),
               pytest.mark.skipif(
                   not real_bindings_available(),

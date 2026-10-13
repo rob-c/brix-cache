@@ -10,6 +10,7 @@
  * change — functions moved verbatim.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "core/compat/net_target.h"
 #include "core/compat/staged_file.h"
@@ -61,7 +62,7 @@ tpc_marker_thread_func(void *data, ngx_log_t *log)
             || brix_net_target_check_dns(&net_target, &net_policy,
                                            ssrf_err, sizeof(ssrf_err)) != NGX_OK)
         {
-            ngx_log_error(NGX_LOG_WARN, tt->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, tt->log, 0,
                           "brix_webdav: HTTP-TPC SSRF blocked: %s", ssrf_err);
             progress->result = NGX_HTTP_FORBIDDEN;
             ngx_memory_barrier();

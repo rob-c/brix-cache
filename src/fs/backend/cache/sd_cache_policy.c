@@ -7,6 +7,7 @@
  * sd_cache_policy.h.  sd_cache_has_prefix / sd_cache_is_cvmfs stay file-private.
  */
 
+#include "core/compat/log_event.h"
 #include "sd_cache_policy.h"
 #include "sd_cache.h"                           /* brix_sd_cache_source_instance */
 #include "protocols/cvmfs/classify.h"          /* manifest-TTL classification */
@@ -256,14 +257,14 @@ sd_cache_stale_serve_ok(sd_cache_inst_state *st, const char *key)
         /* past where phase-68 would have failed: the offline window alone is
          * keeping this repo alive — one parsable degraded-mode notice per
          * serve until the origin returns or the horizon expires. */
-        ngx_log_error(NGX_LOG_NOTICE, st->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, st->log, 0,
             "sd_cache: event=offline-degraded key=\"%s\" (%uL s past fill, "
             "offline_ttl %T s) - origin down, serving the pinned last-verified "
             "snapshot", key,
             (uint64_t) ((uint64_t) now - ci.filled_at),
             st->policy.cvmfs_offline_ttl);
     }
-    ngx_log_error(NGX_LOG_WARN, st->log, 0,
+    BRIX_LOG(NGX_LOG_WARN, st->log, 0,
         "sd_cache: refill of \"%s\" failed; serving stale copy (%uL s past "
         "expiry)\n"
         "  cause: origin unreachable or fill error\n"

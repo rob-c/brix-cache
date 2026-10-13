@@ -29,6 +29,8 @@ from pathlib import Path
 
 import pytest
 
+from log_records import semantic_log_text
+
 from cmdscripts.live_common import (
     inject_nginx_load_modules,
     inject_nginx_runtime_paths,
@@ -125,7 +127,7 @@ def _open_fetch(request, https):
 
 
 def _exhausted_lines(srv, cls):
-    text = Path(srv.error_log).read_text(errors="replace")
+    text = semantic_log_text(Path(srv.error_log).read_text(errors="replace"))
     return [l for l in text.splitlines()
             if f'qos class "{cls}" fill budget exhausted' in l]
 

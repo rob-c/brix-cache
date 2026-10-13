@@ -65,6 +65,7 @@ int brix_plat_setresuid(uid_t r, uid_t e, uid_t s) { (void) r; (void) e; (void) 
 int brix_plat_setresgid(gid_t r, gid_t e, gid_t s) { (void) r; (void) e; (void) s; return stub_enosys(); }
 int brix_plat_getresuid(uid_t *r, uid_t *e, uid_t *s) { (void) r; (void) e; (void) s; return stub_enosys(); }
 int brix_plat_getresgid(gid_t *r, gid_t *e, gid_t *s) { (void) r; (void) e; (void) s; return stub_enosys(); }
+int brix_plat_process_tainted(void) { return 1; }
 int brix_plat_getgrouplist(const char *user, gid_t base, gid_t *groups, int *ngroups)
 { (void) user; (void) base; (void) groups; *ngroups = 0; return stub_enosys(); }
 int brix_plat_prctl(int option, unsigned long arg) { (void) option; (void) arg; return 0; }

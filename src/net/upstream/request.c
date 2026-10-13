@@ -20,6 +20,7 @@
  *     event setup for response reception.
  */
 
+#include "core/compat/log_event.h"
 #include "upstream_internal.h"
 
 #include <string.h>
@@ -78,7 +79,7 @@ brix_upstream_send_request(brix_upstream_t *up)
     }
 
     default:
-        ngx_log_error(NGX_LOG_ERR, up->client_conn->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, up->client_conn->log, 0,
                       "brix: upstream: unsupported opcode %d",
                       (int) up->req_opcode);
         return NGX_ERROR;

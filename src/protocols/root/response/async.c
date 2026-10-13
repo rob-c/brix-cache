@@ -29,6 +29,7 @@
  *   [payload: variable]
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "async.h"
 #include "core/compat/alloc_guard.h"
@@ -91,7 +92,7 @@ brix_send_attn_asyncms(brix_ctx_t *ctx, ngx_connection_t *c,
 
     brix_build_attn_asyncms_frame(buf, msg, msglen);
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
         "brix: sending kXR_attn asyncms (%uz bytes)", msglen);
 
     return brix_queue_response(ctx, c, buf, total);
@@ -135,7 +136,7 @@ brix_send_attn_asynresp(brix_ctx_t *ctx, ngx_connection_t *c,
         ngx_memcpy(p, body, bodylen);
     }
 
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
         "brix: sending kXR_attn asynresp status=%d bodylen=%ud",
         (int) resp_status, bodylen);
 

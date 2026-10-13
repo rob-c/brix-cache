@@ -11,7 +11,7 @@ import time
 import urllib.request
 
 from cmdscripts import run
-from cmdscripts.c_regression_units import _gcov_flags
+from cmdscripts.c_regression_units import _gcov_flags, _sanitizer_flags
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
 
@@ -93,7 +93,8 @@ int main(int argc, char **argv) {
     if missing:
         return False, "missing link object(s): " + ", ".join(missing), binary
     result = run(["cc", "-O", str(source), *map(str, objects),
-                  *_gcov_flags(objects), "-o", str(binary)])
+                  *_gcov_flags(objects), *_sanitizer_flags(objects),
+                  "-o", str(binary)])
     if result.returncode != 0:
         return False, (result.stderr or result.stdout)[-4000:], binary
     return True, "", binary
@@ -158,7 +159,9 @@ def start_instance(
     planted, plant_error = plant_cache(prefix, dirty_marker)
     if not planted:
         return False, f"{name} dirty marker failed: {plant_error}", prefix
-    result = run([nginx_bin, "-p", str(prefix), "-c", str(conf)])
+    env = dict(os.environ)
+    env["ASAN_OPTIONS"] = "detect_leaks=0"
+    result = run([nginx_bin, "-p", str(prefix), "-c", str(conf)], env=env)
     if result.returncode != 0:
         return False, f"{name} start failed: {(result.stderr or result.stdout)[-4000:]}", prefix
     return True, "", prefix

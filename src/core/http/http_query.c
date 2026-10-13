@@ -93,6 +93,20 @@ brix_http_query_pct(const u_char *src, size_t src_len, size_t si, u_char *out)
     return 1;
 }
 
+static int
+brix_http_query_name_has_bad_escape(const u_char *src, size_t src_len)
+{
+    size_t i;
+    u_char decoded;
+
+    for (i = 0; i < src_len; i++) {
+        if (src[i] == '%' && !brix_http_query_pct(src, src_len, i, &decoded)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /*
  * brix_http_query_emit - append one decoded byte to dst with NUL-reject and bounds.
  *
@@ -359,5 +373,47 @@ brix_http_query_has(ngx_str_t args, const char *key, unsigned flags)
         s.p = s.next;
     }
 
+    return 0;
+}
+
+int
+brix_http_query_has_decoded_name(ngx_str_t args, const char *key,
+    unsigned flags)
+{
+    query_seg_t s;
+    char        decoded[BRIX_HTTP_QUERY_MAX_NAME + 1];
+    size_t      key_len;
+
+    if (args.data == NULL || args.len == 0 || key == NULL) {
+        return 0;
+    }
+    key_len = ngx_strlen(key);
+    s.p = args.data;
+    s.end = args.data + args.len;
+    while (query_seg_next(&s)) {
+        u_char *name_end = s.eq ? s.eq : s.seg_end;
+        size_t raw_len = (size_t) (name_end - s.p);
+        int rc;
+
+        if (raw_len == 0 || raw_len > BRIX_HTTP_QUERY_MAX_NAME
+            || brix_http_query_name_has_bad_escape(s.p, raw_len))
+        {
+            return 1;
+        }
+        rc = brix_http_urldecode(s.p, raw_len, decoded, sizeof(decoded),
+            BRIX_URLDECODE_PLUS_TO_SPACE | BRIX_URLDECODE_REJECT_NUL);
+        /* This helper is used only by pre-parse security policy gates.  A
+         * malformed name is conservatively credential-shaped; the strict
+         * parser will reject it after the gate runs. */
+        if (rc != BRIX_URLDECODE_OK) {
+            return 1;
+        }
+        if (ngx_strlen(decoded) == key_len
+            && brix_http_query_key_eq((u_char *) decoded, key, key_len, flags))
+        {
+            return 1;
+        }
+        s.p = s.next;
+    }
     return 0;
 }

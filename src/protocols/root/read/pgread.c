@@ -2,6 +2,7 @@
  * pgread.c — kXR_pgread opcode.  See each function's docblock below.
  */
 
+#include "core/compat/log_event.h"
 #include "read.h"
 #include "read_internal.h"
 #include "pgread_internal.h"  /* run struct + front-half seam */
@@ -519,7 +520,7 @@ brix_handle_pgread(brix_ctx_t *ctx, ngx_connection_t *c)
          * has gone wrong upstream.  Never fatal: a bare NGX_ERROR here tears
          * down a healthy pipelined connection (silent RST, client re-login
          * storm); defer the request with the standard overload backoff. */
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                       "brix: pgread rd_pool exhausted (depth %ui, "
                       "rd_inflight %ui, aio_inflight %ui) — deferring",
                       ctx->out.pipeline_depth, ctx->rd.inflight,

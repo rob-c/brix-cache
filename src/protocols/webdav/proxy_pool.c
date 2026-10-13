@@ -7,6 +7,7 @@
  * I/O inside the critical section; the per-entry in_flight counter is updated
  * atomically without the lock.
  */
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "proxy_pool.h"
 #include "core/compat/host_format.h"  /* brix_format_host[_port] — IPv6 bracketing */
@@ -154,7 +155,7 @@ proxy_pool_parse(const char *url, ngx_pool_t *pool, ngx_log_t *log,
 
     if (ngx_parse_url(pool, &u) != NGX_OK || u.host.len == 0) {
         if (u.err) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_proxy_pool: \"%s\" in url \"%s\"", u.err, url);
         }
         return NGX_ERROR;
@@ -212,7 +213,7 @@ proxy_pool_resolved(brix_dns_req_t *req)
                                   && req->addrs[0].len <= sizeof(e->sockaddr));
 
     if (!ok) {
-        ngx_log_error(NGX_LOG_WARN, req->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, req->log, 0,
                       "brix_proxy_pool: backend id=%uD \"%s\" cannot be "
                       "resolved: %s — marked dead", d->id, d->name,
                       req->error ? req->error : "unknown");
@@ -275,7 +276,7 @@ proxy_pool_start_resolve(uint32_t id, const char *hostz, in_port_t port,
     d->req.data = d;
 
     if (brix_dns_resolve(&d->req) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_proxy_pool: backend id=%uD \"%s\": cannot start "
                       "resolution: %s — marked dead", id, hostz,
                       d->req.error ? d->req.error : "unknown");

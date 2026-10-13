@@ -39,14 +39,14 @@ def _rt65_establish_the_authenticated_ztn_session_as(key):
 
 def _rt65_3_oob_kxr_read_far_past(sock, fh, ALICE_BODY, BOB_SECRET):
     st, body = _kxr_send_recv(sock, _kxr_read_bytes(fh, 0, len(ALICE_BODY)))
-    ok(all((st in (_KXR_OK, 4000), any((body, b'')).startswith(ALICE_BODY[:16]))),
+    ok(all((st in (_KXR_OK, 4000), _rt_default(body, b'').startswith(ALICE_BODY[:16]))),
        f"raw-deep: authed kXR_read of own file returns own bytes (status={st})")
 
     # (3) OOB kXR_read far past EOF -> error or empty, never another
     # tenant's bytes; worker survives.
     st, body = _kxr_send_recv(sock, _kxr_read_bytes(fh, 1 << 40, 4096,
                                                     streamid=b"\x00\x31"))
-    ok(BOB_SECRET not in any((body, b'')),
+    ok(BOB_SECRET not in _rt_default(body, b''),
        f"raw-deep: OOB kXR_read (offset 2^40) returns no foreign bytes (status={st})")
 
     # (4) kXR_read with overflowing rlen (negative as int32) on a valid
@@ -57,7 +57,7 @@ def _rt65_3_oob_kxr_read_far_past(sock, fh, ALICE_BODY, BOB_SECRET):
 
 
 def _rt65_5_valid_kxr_pgread_of_page(BOB_SECRET, body, st, sock, fh, ALICE_BODY):
-    ok(BOB_SECRET not in any((body, b'')),
+    ok(BOB_SECRET not in _rt_default(body, b''),
        f"raw-deep: kXR_read with -1 rlen handled, no foreign bytes (status={st})")
 
     # (5) VALID kXR_pgread of page 0 -> kXR_status framing + data+CRC.
@@ -65,7 +65,7 @@ def _rt65_5_valid_kxr_pgread_of_page(BOB_SECRET, body, st, sock, fh, ALICE_BODY)
                                                       streamid=b"\x00\x33"))
     ok(st in (4007, _KXR_OK, 4000),
        f"raw-deep: authed kXR_pgread of own file uses status framing (status={st})")
-    ok(BOB_SECRET not in any((body, b'')),
+    ok(BOB_SECRET not in _rt_default(body, b''),
        "raw-deep: pgread of own file carries no foreign secret bytes")
 
     # (6) kXR_pgread with OOB offset -> no leak.
@@ -75,14 +75,14 @@ def _rt65_5_valid_kxr_pgread_of_page(BOB_SECRET, body, st, sock, fh, ALICE_BODY)
 
 
 def _rt65_7_kxr_readv_mixing_a_valid(BOB_SECRET, body, st, fh, sock):
-    ok(BOB_SECRET not in any((body, b'')),
+    ok(BOB_SECRET not in _rt_default(body, b''),
        f"raw-deep: OOB kXR_pgread (offset 2^42) returns no foreign bytes (status={st})")
 
     # (7) kXR_readv mixing a VALID segment with an out-of-range one on the
     # SAME (valid) handle: must not splice another tenant's bytes.
     segs = [(fh, 8, 0), (fh, 4096, 1 << 40)]
     st, body = _kxr_send_recv(sock, _kxr_readv_bytes(segs, streamid=b"\x00\x35"))
-    ok(BOB_SECRET not in any((body, b'')),
+    ok(BOB_SECRET not in _rt_default(body, b''),
        f"raw-deep: readv [valid, OOB] on own handle leaks no foreign bytes (status={st})")
 
     # (8) kXR_statx of own file path -> metadata, no secret.
@@ -91,12 +91,12 @@ def _rt65_7_kxr_readv_mixing_a_valid(BOB_SECRET, body, st, fh, sock):
 
 
 def _rt65_9_kxr_dirlist_of_own_dir(BOB_SECRET, body, st, sock, fh):
-    ok(BOB_SECRET not in any((body, b'')),
+    ok(BOB_SECRET not in _rt_default(body, b''),
        f"raw-deep: authed kXR_statx of own file carries no secret (status={st})")
 
     # (9) kXR_dirlist of own dir -> entries, never bob's secret content.
     st, body = _kxr_send_recv(sock, _kxr_dirlist_bytes(b"/alice"))
-    ok(BOB_SECRET not in any((body, b'')),
+    ok(BOB_SECRET not in _rt_default(body, b''),
        f"raw-deep: authed kXR_dirlist of /alice carries no secret bytes (status={st})")
 
     # close the read handle before opening for write.
@@ -180,7 +180,7 @@ def _rt65_14_kxr_read_on_a_never(st, fhx, sock, BOB_SECRET):
     # ----- (14) kXR_read on a NEVER-OPENED / bogus handle ----------------
     st, body = _kxr_send_recv(sock, _kxr_read_bytes(b"\x7F\x00\x00\x00", 0, 4096,
                                                     streamid=b"\x00\x3D"))
-    ok(all((st != _KXR_OK, BOB_SECRET not in any((body, b'')))),
+    ok(all((st != _KXR_OK, BOB_SECRET not in _rt_default(body, b''))),
        f"raw-deep: authed kXR_read on unopened handle 0x7F rejected, no leak (status={st})")
 
     # ----- (15) kXR_bind to a FOREIGN/garbage sessid on the authed conn --
@@ -235,7 +235,7 @@ def _rt65_identity_is_now_uid_1001_drive(sock, ALICE_BODY, BOB_SECRET, survives,
                f"raw-deep: authed BOB kXR_open of his OWN 0600 succeeds (status={st})")
             if fhb is not None:
                 st, body = _kxr_send_recv(sock_b, _kxr_read_bytes(fhb, 0, 64))
-                ok(BOB_SECRET in any((body, b'')),
+                ok(BOB_SECRET in _rt_default(body, b''),
                    "raw-deep: authed BOB reads his own secret (control: deny was identity-scoped)")
                 _kxr_send_recv(sock_b, _kxr_close_bytes(fhb))
         finally:
@@ -305,7 +305,7 @@ def run_raw_kxr_deep(key, data, port, s3port):
         # run_raw_kxr_wire's single overflow vector: here MANY tiny segments).
         segs = [(b"\xAA\xAA\xAA\xAA", 1, i) for i in range(8)]
         _hs, st, body, _c = _kxr_oneshot(_kxr_readv_bytes(segs, streamid=b"\x00\x41"))
-        ok(all((st != _KXR_OK, BOB_SECRET not in any((body, b'')))),
+        ok(all((st != _KXR_OK, BOB_SECRET not in _rt_default(body, b''))),
            f"raw-deep(degraded): pre-auth multi-seg readv on bogus handle not ok, no leak (status={st})")
         survives("degraded-bad-readv")
 

@@ -130,6 +130,9 @@ _ADDED_SINCE_MOVE = {
         # host, it does not change this one's answers.
         "_all_pids", "_listener_pids_lsof",
         "_ps_parse", "_ps_snapshot", "_ps_split_command", "_ps_table",
+        # One snapshot is shared across an ownership pass and its marker
+        # extraction, avoiding internally inconsistent Darwin ps answers.
+        "_ownership_markers", "_refresh_ps_cache",
     },
 }
 
@@ -155,6 +158,9 @@ _CHANGED_SINCE_MOVE = {
         # procfs body underneath is byte-for-byte the archived one, so Linux
         # still takes exactly the path the move pinned.
         "_candidate_pids", "_environ", "_ppid", "_process_name",
+        # Ownership matching now consumes the shared process snapshot and
+        # recognises the split runner spellings used by packaged test tools.
+        "_daemon_name_matches", "_owned_command", "find_orphans", "owns",
     },
 }
 

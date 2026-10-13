@@ -101,7 +101,9 @@ ngx_int_t s3_sigv4_compare(ngx_http_request_t *r, const sigv4_components_t *comp
 /* ---- Sibling SigV4 entry points consumed by the split files ---- */
 
 /* Canonical query-string builder — defined in auth_sigv4_canonical.c. */
-size_t build_canonical_qs(const u_char *qs, size_t qslen,
+ssize_t build_canonical_qs(const u_char *qs, size_t qslen,
+    ngx_flag_t skip_signature, u_char *out, size_t outsz);
+ssize_t build_canonical_parsed_qs(const brix_http_query_t *query,
     ngx_flag_t skip_signature, u_char *out, size_t outsz);
 
 /* Request header getter (lowercased name) — defined in auth_sigv4_parse.c. */

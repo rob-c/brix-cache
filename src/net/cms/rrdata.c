@@ -33,7 +33,8 @@
  * Read one XrdOucPup string at *p: [2B BE len][bytes][NUL], where len counts the
  * trailing NUL. A zero length is an absent/empty string (out=NULL). The returned
  * span EXCLUDES the NUL, so out[out_len] is the in-place NUL terminator. Advances
- * *p. Returns 0 on success, -1 on a short/overrun buffer.
+ * *p. Rejects a missing final NUL and any embedded NUL so every returned span
+ * is exactly one bounded C string. Returns 0 on success, -1 on malformed input.
  */
 static int
 read_str(const unsigned char **p, const unsigned char *end,
@@ -52,7 +53,15 @@ read_str(const unsigned char **p, const unsigned char *end,
         *out_len = 0;
         return 0;
     }
+    if (len == 1) {
+        return -1;                 /* canonical empty string is bare len=0 */
+    }
     if ((size_t) (end - *p) < len) {
+        return -1;
+    }
+    if ((*p)[len - 1] != '\0'
+        || memchr(*p, '\0', (size_t) len - 1) != NULL)
+    {
         return -1;
     }
     *out = *p;
@@ -182,6 +191,7 @@ brix_cms_rrdata_parse(unsigned char code,
 {
     const unsigned char *p   = payload;
     const unsigned char *end = payload + len;
+    const char          *spec;
 
     memset(out, 0, sizeof(*out));
 
@@ -192,34 +202,44 @@ brix_cms_rrdata_parse(unsigned char code,
     case K_MKPATH:
     case K_TRUNC:
         /* fwdArgA: ident, mode, path, [opaque] */
-        return rr_parse_spec("imp|o", &p, end, out);
+        spec = "imp|o";
+        break;
 
     case K_MV:
         /* fwdArgB: ident, path, path2, [opaque, opaque2] */
-        return rr_parse_spec("ip2|ot", &p, end, out);
+        spec = "ip2|ot";
+        break;
 
     case K_RM:
     case K_RMDIR:
     case K_STATFS:
         /* fwdArgC: ident, path, [opaque] */
-        return rr_parse_spec("ip|o", &p, end, out);
+        spec = "ip|o";
+        break;
 
     case K_PREPADD:
         /* padArgs: ident, reqid, notify, prty, mode, path, [opaque] */
-        return rr_parse_spec("irnymp|o", &p, end, out);
+        spec = "irnymp|o";
+        break;
 
     case K_PREPDEL:
         /* pdlArgs: ident, reqid */
-        return rr_parse_spec("ir", &p, end, out);
+        spec = "ir";
+        break;
 
     case K_LOCATE:
     case K_SELECT:
         /* locArgs: ident, opts(int), path, [opaque, avoid] */
-        return rr_parse_spec("i#p|oa", &p, end, out);
+        spec = "i#p|oa";
+        break;
 
     default:
         return -1;
     }
+    if (rr_parse_spec(spec, &p, end, out) != 0 || p != end) {
+        return -1;
+    }
+    return 0;
 }
 
 /* Encode one Pup string into [*p,end): [2B BE len incl NUL][bytes][NUL]; an empty

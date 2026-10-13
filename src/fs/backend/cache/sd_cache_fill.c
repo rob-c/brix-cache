@@ -23,6 +23,7 @@
  *       sd_cache_fill_verify.c and the eviction-seam hot->cold copy
  *       (brix_sd_cache_demote) into sd_cache_fill_demote.c.
  */
+#include "core/compat/log_event.h"
 #include "sd_cache.h"
 #include "sd_cache_internal.h"    /* sd_cache_inst_state + SD_CACHE_ST/SRC */
 #include "sd_cache_policy.h"      /* admission + repo-metrics (split out) */
@@ -183,7 +184,7 @@ cache_fill_acquire(sd_cache_inst_state *st, const char *key,
     fs->staged = brix_cstore_fill_open(&st->cstore, key, fmode,
                                        fs->so->snap.size);
     if (fs->staged == NULL) {
-        ngx_log_error(NGX_LOG_WARN, st->log, errno,
+        BRIX_LOG(NGX_LOG_WARN, st->log, errno,
             "sd_cache: fill_open on the cache store failed for \"%s\" - not cached",
             key);
         brix_sd_obj_release(fs->so);
@@ -275,7 +276,7 @@ cache_fill_pump(sd_cache_inst_state *st, const char *key,
              * HTTP origin with no Content-Length) has no lower bound to check
              * against, so a clean EOF is the only completion signal available. */
             if (fs->snap.size > 0 && fs->off < fs->snap.size) {
-                ngx_log_error(NGX_LOG_ERR, st->log, 0,
+                BRIX_LOG(NGX_LOG_ERR, st->log, 0,
                     "sd_cache: origin truncated fill for \"%s\" at %O of %O "
                     "bytes - not caching the short object", key,
                     (off_t) fs->off, (off_t) fs->snap.size);
@@ -377,7 +378,7 @@ cache_fill_commit(sd_cache_inst_state *st, const char *key,
 
     if (brix_cstore_cinfo_store(&st->cstore, key, &ci) != NGX_OK) {
         /* The object is cached but unrecorded - a safe miss (refill) next time. */
-        ngx_log_error(NGX_LOG_WARN, st->log, errno,
+        BRIX_LOG(NGX_LOG_WARN, st->log, errno,
             "sd_cache: cinfo store failed for \"%s\" - will refill on next read",
             key);
     }
@@ -532,7 +533,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key,
             if (st->cold->driver->unlink != NULL) {
                 (void) st->cold->driver->unlink(st->cold, key, 0);
             }
-            ngx_log_error(NGX_LOG_INFO, st->log, 0,
+            BRIX_LOG(NGX_LOG_INFO, st->log, 0,
                 "sd_cache: promoted \"%s\" from the cold tier", key);
             return NGX_OK;
         }
@@ -569,7 +570,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key,
                     peers[owner].inst, 0, 1, allow_pt, out_pt);
 
                 if (rc == NGX_OK) {
-                    ngx_log_error(NGX_LOG_INFO, st->log, 0,
+                    BRIX_LOG(NGX_LOG_INFO, st->log, 0,
                         "sd_cache: filled \"%s\" from mesh sibling %s",
                         key, peers[owner].label);
                     return NGX_OK;

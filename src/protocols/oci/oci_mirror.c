@@ -21,6 +21,7 @@
  *       a dimension the upstream does not.
  */
 
+#include "core/compat/log_event.h"
 #include "oci.h"
 #include "oci_module_internal.h"
 #include "oci_registry.h"
@@ -350,7 +351,7 @@ oci_tier_get(ngx_http_request_t *r, ngx_http_brix_oci_loc_conf_t *lcf,
 
     vctx.sd = brix_vfs_backend_resolve(root, r->connection->log);
     if (vctx.sd == NULL) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
             "oci: no storage backend registered for \"%s\" — check "
             "brix_oci_mirror / brix_storage_backend", root);
         return brix_oci_error(r, NGX_HTTP_INTERNAL_SERVER_ERROR,

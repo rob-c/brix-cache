@@ -6,6 +6,7 @@
  *   cc brix_stat_demo.c $(pkg-config --cflags --libs libbrix) -o demo
  * and stats a path over an anonymous root:// connection.
  */
+#include "../../shared/observability/log_stdio.h"
 #include "brix.h"
 
 #include <stdio.h>
@@ -24,15 +25,15 @@ main(int argc, char **argv)
     }
     brix_status_clear(&st);
     if (brix_url_parse(argv[1], &u, &st) != 0) {
-        fprintf(stderr, "url: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "url: %s\n", st.msg);
         return 1;
     }
     if (brix_connect(&c, &u, NULL, &st) != 0) {
-        fprintf(stderr, "connect: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "connect: %s\n", st.msg);
         return 1;
     }
     if (brix_stat(&c, argv[2], &si, &st) != 0) {
-        fprintf(stderr, "stat: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "stat: %s\n", st.msg);
         brix_close(&c);
         return 1;
     }

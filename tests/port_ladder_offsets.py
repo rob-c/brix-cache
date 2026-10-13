@@ -593,6 +593,10 @@ SETTINGS_OFFSET, SETTINGS_WIDTH = 0, 179
 # port bound past nginx's own life), 1113 -> 1115.
 # 2026-09-19: +1 for lc-policy-rule-scope, the remote-backed export that pins a
 # policy rule's path scope when root_canon is "/", 1115 -> 1116.
-LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 179, 1116
+# 2026-10-05: +2 for the Phase-118 WRT-007 policy-quota and finite-capacity
+# fixture listeners, 1116 -> 1118.  The running sum is re-applied below.
+# 2026-10-06: 1118 -> 1120 for the Phase-118 OPN-012 token-authenticated
+# read-only endpoint and its otherwise-identical writable control.
+LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 179, 1120
 
 _load_port_ladder_ext(globals(), __file__, "port_ladder_offsets_tail.py")

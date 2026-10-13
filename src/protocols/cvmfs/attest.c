@@ -31,6 +31,7 @@
  *     truncating an over-long session both NOTICE-log exactly what dropped.
  */
 
+#include "core/compat/log_event.h"
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
@@ -130,7 +131,7 @@ cvmfs_attest_claim(const u_char *label, size_t len, ngx_log_t *log)
     }
     if (victim->used) {
         /* no silent caps: say exactly which record was dropped */
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "cvmfs-attest: event=session-evicted session=%s hashes=%ui "
             "hint=\"per-worker table full (%d sessions) — oldest record "
             "dropped to admit a new session\"",
@@ -168,7 +169,7 @@ cvmfs_attest_record(const ngx_str_t *label, const char *hex, size_t hex_len,
     if (s->nhex >= CVMFS_ATTEST_HASHES) {
         if (!s->truncated) {
             s->truncated = 1;
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                 "cvmfs-attest: event=session-truncated session=%s "
                 "hint=\"more than %d distinct hashes — record marked "
                 "truncated=true, further hashes dropped\"",
@@ -202,7 +203,7 @@ brix_cvmfs_attest_observe(ngx_http_request_t *r,
         return;                    /* only CAS objects carry a content hash */
     }
     if (ctx->url.cas_hex_len > CVMFS_ATTEST_HEX_MAX) {
-        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, r->connection->log, 0,
             "cvmfs-attest: event=hash-dropped session=%V "
             "hint=\"CAS hash longer than %d hex chars — not recorded\"",
             &ctx->attest_label, CVMFS_ATTEST_HEX_MAX);
@@ -261,7 +262,7 @@ cvmfs_attest_sign(ngx_http_request_t *r, EVP_PKEY *pkey,
         || EVP_DigestSign(md, sig, &slen, msg, mlen) != 1)
     {
         EVP_MD_CTX_free(md);
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "cvmfs-attest: EVP_DigestSign failed");
         return NGX_ERROR;
     }
@@ -378,7 +379,7 @@ cvmfs_attest_capture_label(ngx_http_request_t *r,
     }
 
     if (!cvmfs_attest_label_ok(h->value.data, h->value.len)) {
-        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, r->connection->log, 0,
             "cvmfs-attest: event=label-rejected client=%V "
             "hint=\"X-Brix-Attest must be 1..%d chars of "
             "[A-Za-z0-9._-] — request served untagged\"",
@@ -507,7 +508,7 @@ cvmfs_conf_attest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return "is duplicate";
     }
     if (value[1].len >= sizeof(pathz)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_attest: key path too long");
         return NGX_CONF_ERROR;
     }
@@ -515,14 +516,14 @@ cvmfs_conf_attest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     fd = open(pathz, O_RDONLY | O_CLOEXEC);   /* vfs-seam-allow: DOMAIN_CONFIG — config-domain signing-key PEM (not export storage) */
     if (fd == -1) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
             "brix_cvmfs_attest: cannot open \"%s\"", pathz);
         return NGX_CONF_ERROR;
     }
     if (ngx_fd_info(fd, &fi) == -1
         || (size = ngx_file_size(&fi)) <= 0 || size > 65536)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_attest: \"%s\" is empty, unreadable or larger "
             "than 64KB", pathz);
         (void) close(fd);
@@ -536,7 +537,7 @@ cvmfs_conf_attest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     n = read(fd, buf, (size_t) size);   /* vfs-seam-allow: DOMAIN_CONFIG — config-domain signing-key PEM (not export storage) */
     (void) close(fd);
     if (n != (ssize_t) size) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
             "brix_cvmfs_attest: short read on \"%s\"", pathz);
         return NGX_CONF_ERROR;
     }
@@ -548,7 +549,7 @@ cvmfs_conf_attest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
     BIO_free(bio);
     if (pkey == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_attest: \"%s\" holds no usable PEM private key",
             pathz);
         return NGX_CONF_ERROR;

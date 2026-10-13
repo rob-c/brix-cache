@@ -13,6 +13,7 @@
  * A single deadline timer (hc_timeout_ms) bounds the whole probe; a hung server
  * that accepts the TCP connection but never answers is failed on timeout.
  */
+#include "core/compat/log_event.h"
 #include "health_check.h"
 #include "registry.h"
 #include "observability/metrics/metrics_macros.h"
@@ -82,7 +83,7 @@ brix_hc_finish(brix_hc_ctx_t *hc, int passed)
     if (passed) {
         brix_srv_hc_pass(hc->host, hc->port);
         BRIX_HC_METRIC_INC(hc_pass_total);
-        ngx_log_debug2(NGX_LOG_DEBUG_STREAM, hc->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, hc->log, 0,
                        "brix: health check: %s:%d passed",
                        hc->host, (int) hc->port);
     } else {
@@ -90,7 +91,7 @@ brix_hc_finish(brix_hc_ctx_t *hc, int passed)
                                hc->threshold, hc->blacklist_ms))
         {
             BRIX_HC_METRIC_INC(hc_blacklist_total);
-            ngx_log_error(NGX_LOG_WARN, hc->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, hc->log, 0,
                           "brix: health check: %s:%d blacklisted after"
                           " %ui consecutive failures",
                           hc->host, (int) hc->port, (ngx_uint_t) hc->threshold);
@@ -297,7 +298,7 @@ brix_hc_resolved(brix_dns_req_t *req)
     socklen_t               salen;
 
     if (req->rc != NGX_OK || req->naddrs == 0) {
-        ngx_log_error(NGX_LOG_WARN, hc->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, hc->log, 0,
                       "brix: health check: cannot resolve %s:%d: %s",
                       hc->host, (int) hc->port,
                       req->error ? req->error : "unknown");
@@ -355,7 +356,7 @@ brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
     hc->dns.data = hc;
 
     if (brix_dns_resolve(&hc->dns) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, hc->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, hc->log, 0,
                       "brix: health check: cannot resolve %s:%d: %s",
                       host, (int) port,
                       hc->dns.error ? hc->dns.error : "unknown");
@@ -439,7 +440,7 @@ brix_hc_manager_start(ngx_cycle_t *cycle,
 
     ngx_add_timer(&mgr->timer, 2000);  /* let CMS connections settle first */
 
-    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
                   "brix: health check manager started "
                   "(interval=%Ms timeout=%Ms scan=%Ms)",
                   conf->hc.interval_ms, conf->hc.timeout_ms,

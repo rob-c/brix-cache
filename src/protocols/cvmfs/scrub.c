@@ -23,6 +23,7 @@
  *       copy is ALSO bad, the re-fill's own verify gate rejects, quarantines
  *       and raises the tamper signal — the scrub needs no second gate.
  */
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "classify.h"
 #include "core/aio/aio.h"                  /* brix_task_bind */
@@ -182,7 +183,7 @@ cvmfs_scrub_done(ngx_event_t *ev)
             continue;
         }
         corrupt++;
-        ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ev->log, 0,
             "cvmfs scrub: LOCAL corruption in cached object \"%s\" "
             "(stored bytes no longer match their CAS name — disk bitrot "
             "or on-host modification, NOT an origin event); evicting so "
@@ -191,7 +192,7 @@ cvmfs_scrub_done(ngx_event_t *ev)
         brix_cstore_evict(sc->cs, sc->items[i].key);
     }
 
-    ngx_log_error(NGX_LOG_INFO, ev->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, ev->log, 0,
         "cvmfs scrub pass (export %s): checked %ui CAS object(s) "
         "at cursor %ui, corrupt=%ui",
         sc->reg->root, sc->n, sc->cursor, corrupt);

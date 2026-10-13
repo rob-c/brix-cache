@@ -14,6 +14,7 @@
  *       every worker arms its own timers at init_process — the same
  *       lifecycle the cache reaper uses.
  */
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "origin_geo.h"
 #include "core/aio/aio.h"
@@ -225,14 +226,14 @@ cvmfs_probe_log_reachability(cvmfs_probe_ctx_t *pc, ngx_log_t *log)
         }
         pc->probe_down[i] = failed;
         if (failed) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                 "cvmfs rtt probe: origin %s:%d UNREACHABLE (connect probe "
                 "failed/timed out within %dms) - penalised in ranking at "
                 "%.0fus ewma until it answers again",
                 pc->hosts[i], pc->ports[i], CVMFS_PROBE_TIMEOUT_MS,
                 pc->ewma_us[i]);
         } else {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                 "cvmfs rtt probe: origin %s:%d reachable again "
                 "(rtt %ldus, ewma %.0fus - preference recovers as the "
                 "ewma decays)",
@@ -295,18 +296,18 @@ cvmfs_probe_done(ngx_event_t *ev)
     cvmfs_probe_table(pc, metric, ranks, tbl, sizeof(tbl));
 
     if (first_tick) {
-        ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ev->log, 0,
             "cvmfs rtt initial ranking (export %s): preferred %s:%d - %s",
             pc->reg->root, pc->hosts[best], pc->ports[best], tbl);
     } else if (changed) {
         prev_best = cvmfs_rank_zero_index(pc->prev_ranks, pc->n);
-        ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ev->log, 0,
             "cvmfs rtt ranking CHANGED (export %s): preferred %s:%d -> %s:%d "
             "- %s",
             pc->reg->root, pc->hosts[prev_best], pc->ports[prev_best],
             pc->hosts[best], pc->ports[best], tbl);
     } else {
-        ngx_log_error(NGX_LOG_INFO, ev->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, ev->log, 0,
             "cvmfs rtt ranks (export %s): preferred %s:%d - %s",
             pc->reg->root, pc->hosts[best], pc->ports[best], tbl);
     }

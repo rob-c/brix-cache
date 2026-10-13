@@ -2,6 +2,7 @@
  * Site checksum plugin registry — see core/compat/checksum_plugin.h.
  */
 
+#include "core/compat/log_event.h"
 #include "core/compat/checksum_plugin.h"
 
 #include <dlfcn.h>
@@ -92,19 +93,19 @@ cks_plugin_file_ok(ngx_conf_t *cf, ngx_str_t *path)
     struct stat  st;
 
     if (path->len == 0 || path->data[0] != '/') {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_checksum_plugin: path \"%V\" must be absolute", path);
         return NGX_ERROR;
     }
 
     if (stat((const char *) path->data, &st) != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
             "brix_checksum_plugin: stat(\"%V\") failed", path);
         return NGX_ERROR;
     }
 
     if (!S_ISREG(st.st_mode)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_checksum_plugin: \"%V\" is not a regular file", path);
         return NGX_ERROR;
     }
@@ -113,7 +114,7 @@ cks_plugin_file_ok(ngx_conf_t *cf, ngx_str_t *path)
      * is arbitrary code injection, so refuse it the way sshd refuses a
      * group/world-writable key. */
     if ((st.st_mode & (S_IWGRP | S_IWOTH)) != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_checksum_plugin: \"%V\" is group- or world-writable", path);
         return NGX_ERROR;
     }
@@ -184,14 +185,14 @@ cks_plugin_load(ngx_conf_t *cf, cks_plugin_ent_t *ent, ngx_str_t *path)
 
     ent->handle = dlopen((const char *) path->data, RTLD_NOW | RTLD_LOCAL);
     if (ent->handle == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_checksum_plugin: dlopen(\"%V\") failed: %s", path, dlerror());
         return NGX_ERROR;
     }
 
     sym = dlsym(ent->handle, BRIX_CKS_PLUGIN_SYMBOL);
     if (sym == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_checksum_plugin: \"%V\" exports no %s symbol",
             path, BRIX_CKS_PLUGIN_SYMBOL);
         return NGX_ERROR;
@@ -201,13 +202,13 @@ cks_plugin_load(ngx_conf_t *cf, cks_plugin_ent_t *ent, ngx_str_t *path)
 
     why = cks_api_check(ent->api, ent->name);
     if (why != NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_checksum_plugin: \"%V\": %s", path, why);
         return NGX_ERROR;
     }
 
     if (cks_self_test(ent->api, ent->parms) != NGX_OK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_checksum_plugin: \"%V\" failed its self-test with parms \"%s\"",
             path, ent->parms);
         return NGX_ERROR;
@@ -233,7 +234,7 @@ brix_cks_plugin_register(ngx_conf_t *cf, ngx_str_t *name, ngx_str_t *path,
     cks_registry_reset(cf->cycle);
 
     if (cks_plugins.n >= BRIX_CKS_PLUGINS_MAX) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_checksum_plugin: at most %ui plugins per server",
             (ngx_uint_t) BRIX_CKS_PLUGINS_MAX);
         return NGX_ERROR;
@@ -243,7 +244,7 @@ brix_cks_plugin_register(ngx_conf_t *cf, ngx_str_t *name, ngx_str_t *path,
     ngx_memzero(ent, sizeof(*ent));
 
     if (cks_normalize_name(name->data, name->len, ent->name) != NGX_OK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_checksum_plugin: name \"%V\" must be 1..%d letters or digits",
             name, BRIX_CKS_PLUGIN_NAME_MAX);
         return NGX_ERROR;
@@ -254,14 +255,14 @@ brix_cks_plugin_register(ngx_conf_t *cf, ngx_str_t *name, ngx_str_t *path,
     if (brix_checksum_parse(ent->name, ngx_strlen(ent->name), &taken,
                             NULL, 0) == NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_checksum_plugin: name \"%s\" collides with a built-in "
             "algorithm or an earlier plugin", ent->name);
         return NGX_ERROR;
     }
 
     if (parms->len > CKS_PLUGIN_PARMS_MAX) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_checksum_plugin: parms longer than %d bytes",
             CKS_PLUGIN_PARMS_MAX);
         return NGX_ERROR;
@@ -287,7 +288,7 @@ brix_cks_plugin_register(ngx_conf_t *cf, ngx_str_t *name, ngx_str_t *path,
 
     cks_plugins.n++;
 
-    ngx_log_error(NGX_LOG_NOTICE, cf->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cf->log, 0,
         "brix_checksum_plugin: registered \"%s\" from \"%V\" (%uz-byte digest)",
         ent->name, path, ent->api->digest_len);
 

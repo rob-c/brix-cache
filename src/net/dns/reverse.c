@@ -26,6 +26,7 @@
  *       PTR zone is asked once per TTL, not once per connection; positive
  *       answers keep the record TTL clamped to the policy window.
  */
+#include "core/compat/log_event.h"
 #include "net/dns/dns.h"
 #include "core/aio/aio.h"
 
@@ -256,7 +257,7 @@ static void
 dns_rev_prefetch_done(brix_dns_rev_req_t *req)
 {
     if (req->rc == NGX_ERROR) {
-        ngx_log_error(NGX_LOG_INFO, req->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, req->log, 0,
                       "brix dns: reverse lookup failed: %s",
                       req->error ? req->error : "unknown");
     }

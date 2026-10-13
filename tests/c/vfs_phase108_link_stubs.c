@@ -6,6 +6,15 @@
 #include <errno.h>
 #include <string.h>
 
+int
+brix_xmeta_sidecar_path(char *dst, size_t cap, const char *path)
+{
+    (void) dst;
+    (void) cap;
+    (void) path;
+    return -1;
+}
+
 /* The production evaluator receives this by pointer. Its layout is irrelevant
  * to these gate-ordering units, so keep the link stub free of stream headers. */
 typedef struct brix_authz_identity_query_stub_s brix_authz_identity_query_t;

@@ -174,6 +174,7 @@ import urllib3
 
 from _test_audit15g_helpers import serve_paced, wait_until
 from config_parse import nginx_t
+from log_records import semantic_log_text
 from fleet_lifecycle_ports import (
     LIFECYCLE_SHARED_PORTS,
     PARSE_PLACEHOLDER_PORT,
@@ -336,7 +337,8 @@ class _Flags:
     def errlog(self):
         """Instance prefixes are wiped at teardown, so failures quote inline."""
         try:
-            return (self.logs / "error.log").read_text(errors="replace")
+            return semantic_log_text(
+                (self.logs / "error.log").read_text(errors="replace"))
         except OSError:                          # pragma: no cover - diagnostic
             return "(error log unavailable)"
 

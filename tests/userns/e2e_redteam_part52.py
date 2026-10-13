@@ -122,7 +122,7 @@ def _rt52_3_set_a_protected_live_dav(want_len, bn, bp, port, ta, XML):
 
 
 def _rt52_the_real_etag_size_are_still(st_p, bpb, bp, pre_cnt, pre_body, port, ta, D0):
-    ok(all((st_p in (207, 403), b'403' in any((bpb, b'')))),
+    ok(all((st_p in (207, 403), b'403' in _rt_default(bpb, b''))),
        f"PROPPATCH SET of protected DAV: props reports a 403 propstat (HTTP {st_p})")
     ok(all((_dead_xattr_count(bp) == pre_cnt, not _dead_xattr_has_value(bp, b'forged-etag'))),
        "protected-prop SET stored NO dead-prop xattr (no live-prop spoof)")

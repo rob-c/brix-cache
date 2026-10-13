@@ -22,8 +22,9 @@ import time
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, random_file, sha256
 from lib_py.pki import regenerate_pki
 from server_registry import NginxInstanceSpec
-from settings import BIND_HOST, HOST, TEST_ROOT
+from settings import BIND_HOST, HOST, NGINX_BIN, TEST_ROOT
 from fleet_ports import cmdscript_ports
+from brix_suite.worker_identity import nginx_default_worker_user
 
 def _expression_1(checks, small_got, small):
     return (
@@ -430,18 +431,20 @@ def pblock_worker_own(catalog: Path) -> None:
     """Hand a test-written catalog.db (and its WAL/SHM sidecars) to the pblock
     worker's account so the worker can open it read-write.
 
-    Under the root harness the pblock nginx worker runs as ``nobody`` and OWNS
-    catalog.db (pblock refuses to touch root-owned on-disk state). Test helpers
-    that poke the catalog over an sqlite3 side-channel run as the root pytest
-    process, so if the worker has not yet lazily created catalog.db their
-    ``sqlite3.connect()`` creates it root-owned — after which the nobody worker
-    cannot open it read-write, the ``objects`` table is never created, and
-    pblock-fsck fails "no such table: objects". Call this after any such
-    side-channel write. Best-effort; a no-op when unprivileged.
+    Packaged nginx builds may use a platform account such as ``nginx`` instead
+    of the source-build default ``nobody``. Test helpers that poke the catalog
+    over an sqlite3 side-channel run as the root pytest process, so if the
+    worker has not yet lazily created catalog.db their ``sqlite3.connect()``
+    creates it root-owned. The worker then cannot open it read-write, the
+    ``objects`` table is never created, and pblock-fsck fails "no such table:
+    objects". Call this after any such side-channel write. Best-effort; a no-op
+    when unprivileged.
     """
     if os.geteuid() != 0:
         return
-    runas = os.environ.get("REF_RUNAS_USER", "nobody")
+    runas = os.environ.get("REF_RUNAS_USER")
+    if not runas:
+        runas = nginx_default_worker_user(str(NGINX_BIN))
     for p in (catalog, Path(str(catalog) + "-wal"), Path(str(catalog) + "-shm")):
         if p.exists():
             try:

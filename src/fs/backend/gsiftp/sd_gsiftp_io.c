@@ -1,5 +1,6 @@
 /* Object and metadata operations for the outbound GridFTP driver. */
 
+#include "core/compat/log_event.h"
 #include "sd_gsiftp_internal.h"
 #include "gftp_mlsx.h"
 
@@ -33,7 +34,7 @@ sd_gsiftp_log_session_error(const brix_sd_instance_t *inst,
     if (inst == NULL || inst->log == NULL || session->error[0] == '\0') {
         return;
     }
-    ngx_log_error(NGX_LOG_ERR, inst->log, 0,
+    BRIX_LOG(NGX_LOG_ERR, inst->log, 0,
                   "gsiftp %s failed: %s", what, session->error);
 }
 

@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "proxy_internal.h"
 #include "protocols/root/connection/handler.h"
 #include "core/compat/log_diag.h"
@@ -53,7 +54,7 @@ brix_proxy_check_connect(ngx_connection_t *uconn, brix_proxy_ctx_t *proxy,
         return PW_DONE;
     }
 
-    ngx_log_debug0(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
                    "xrootd proxy: upstream TCP connected");
 
     /* Remove the connect-timeout timer — it must not fire during normal use. */
@@ -220,7 +221,7 @@ brix_proxy_write_complete(ngx_connection_t *uconn, brix_proxy_ctx_t *proxy)
     brix_proxy_wbuf_release(proxy);
 
     /* Write complete — arm upstream read */
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
                   "xrootd proxy: write done, arming read (state=%d)",
                   (int) proxy->state);
     if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {

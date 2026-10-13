@@ -245,14 +245,14 @@ def test_delete_backend_error_forbidden(make_server):
     """A queued DELETE whose backend unlink is denied at drain (EACCES) surfaces as
     403 Forbidden *through the async render* — the EACCES arm of
     webdav_delete_respond, distinct from the 204/404/409 branches. Revoking write on
-    the *parent* directory (0500 = r-x) denies the queued unlink while path
+    the *parent* directory (0555 = r-x for the worker) denies the queued unlink while path
     resolution (execute-only) still succeeds, so the file survives."""
     srv = make_server().start()
     locked = srv.data / "locked"
     locked.mkdir()
     victim = locked / "obj.txt"
     victim.write_bytes(b"stays\n")
-    os.chmod(locked, 0o500)             # deny unlink of the child, keep traversal
+    os.chmod(locked, 0o555)             # deny unlink of the child, keep traversal
     try:
         r = requests.delete(f"{srv.base}/locked/obj.txt", timeout=15)
         assert r.status_code == 403, r.text
@@ -272,7 +272,7 @@ def test_move_backend_error_forbidden(make_server):
     locked.mkdir()
     src = locked / "mv-src.txt"
     src.write_bytes(b"stays\n")
-    os.chmod(locked, 0o500)
+    os.chmod(locked, 0o555)
     try:
         r = requests.request(
             "MOVE", f"{srv.base}/locked/mv-src.txt", timeout=15,

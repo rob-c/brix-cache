@@ -24,6 +24,7 @@
 #include "list_cache.h"
 #include "core/http/http_query.h"
 #include "core/types/tunables.h"  /* BRIX_S3_LIST_MAX_KEYS */
+#include "platform/platform_api.h"
 
 #include <errno.h>
 #include <stdlib.h>
@@ -41,9 +42,9 @@ s3_list_parse_max_keys(ngx_http_request_t *r, int default_max)
     u_char max_keys_buf[32] = { 0 };
     int    max_keys = default_max;
 
-    if (brix_http_query_get(r->args, "max-keys",
-                              (char *) max_keys_buf, sizeof(max_keys_buf),
-                              S3_LIST_QUERY_FLAGS) > 0)
+    if (s3_get_query_param_flags(r, "max-keys",
+                                (char *) max_keys_buf, sizeof(max_keys_buf),
+                                S3_LIST_QUERY_FLAGS))
     {
         char *endp;
         long  mk;
@@ -75,18 +76,19 @@ s3_list_collect_sorted(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                        const char *prefix, const char *delimiter,
                        s3_entry_t **items, int *total)
 {
-    ngx_array_t *entries;
-    int          cached = 0;
-    time_t       dir_mtime = 0;
+    const char             *root = cf->common.root_canon;
+    ngx_array_t            *entries;
+    s3_list_cache_stamp_t   dir_mtime = { 0, 0 };
+    int                     cached = 0;
 
     if (cf->list_cache) {
         struct stat rst;
 
-        if (stat((const char *) cf->common.root.data, &rst) == 0) {  /* vfs-seam-allow: SEAM_CORRECT — export-root mtime for the list cache (the root itself, not a path beneath it) */
-            dir_mtime = rst.st_mtime;
+        if (stat(root, &rst) == 0) {  /* vfs-seam-allow: SEAM_CORRECT — export-root mtime for the list cache (the root itself, not a path beneath it) */
+            dir_mtime.sec = rst.st_mtim.tv_sec;
+            dir_mtime.nsec = rst.st_mtim.tv_nsec;
         }
-        cached = s3_list_cache_get(r, (const char *) cf->common.root.data,
-                                   prefix, delimiter,
+        cached = s3_list_cache_get(r, root, prefix, delimiter,
                                    dir_mtime, cf->list_cache_ttl,
                                    items, total);
     }
@@ -99,10 +101,8 @@ s3_list_collect_sorted(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
             return NGX_ERROR;
         }
 
-        s3_build_vfs_ctx(r, (const char *) cf->common.root.data,
-                         cf, &list_scope);
-        s3_walk(&list_scope,
-                (const char *) cf->common.root.data,
+        s3_build_vfs_ctx(r, root, cf, &list_scope);
+        s3_walk(&list_scope, root,
                 "", prefix, delimiter, entries, S3_LIST_MAX_ENTRIES);
 
         *total = (int) entries->nelts;
@@ -112,8 +112,8 @@ s3_list_collect_sorted(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 
         if (cf->list_cache) {
             s3_list_cache_put(r->connection->log,
-                              (const char *) cf->common.root.data,
-                              prefix, delimiter, dir_mtime, *items, *total);
+                              root, prefix, delimiter, dir_mtime,
+                              *items, *total);
         }
     }
     return NGX_OK;
@@ -173,7 +173,7 @@ s3_list_emit_entries(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     int    prefixes  = 0;
     char   iso_buf[32];
 
-    s3_build_vfs_ctx(r, (const char *) cf->common.root.data, cf, &list_scope);
+    s3_build_vfs_ctx(r, cf->common.root_canon, cf, &list_scope);
 
     for (int entry_index = start_idx; entry_index < end_idx; entry_index++) {
         s3_entry_t *entry = &items[entry_index];

@@ -2,6 +2,7 @@
  * xrdckcheck.c - xrdcksum "check" subcommand: verify a checksum manifest against a tree.
  * Phase-38 split of xrdcktree.c; behavior-identical. See cktree_internal.h.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "brix_ops.h"
 #include "cktree_internal.h"
@@ -78,7 +79,7 @@ ckcheck_parse_args(int argc, char **argv, const char **algo_str,
             }
             *algo_str = argv[i];
             if (brix_cksum_algo_parse(*algo_str, algo) != 0) {
-                fprintf(stderr, "%s: unknown algorithm '%s'\n",
+                BRIX_CLIENT_LOG("ERROR",  "%s: unknown algorithm '%s'\n",
                         argv[0], *algo_str);
                 *rc = XRDC_EXIT_USAGE;
                 return -1;
@@ -87,7 +88,7 @@ ckcheck_parse_args(int argc, char **argv, const char **algo_str,
             *rc = usage_check(argv[0], 0);
             return -1;
         } else {
-            fprintf(stderr, "%s: unexpected argument '%s'\n", argv[0], argv[i]);
+            BRIX_CLIENT_LOG("ERROR",  "%s: unexpected argument '%s'\n", argv[0], argv[i]);
             *rc = usage_check(argv[0], XRDC_EXIT_USAGE);
             return -1;
         }
@@ -112,12 +113,12 @@ ckcheck_connect(const char *prog, const char *root, brix_url *u, brix_conn *c)
     if (brix_url_parse(root, u, &st) != 0
         || (u->scheme != XRDC_SCHEME_ROOT
             && u->scheme != XRDC_SCHEME_ROOTS)) {
-        fprintf(stderr, "%s: bad root URL: %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "%s: bad root URL: %s\n",
                 prog, st.msg[0] ? st.msg : "parse error");
         return -1;
     }
     if (brix_connect(c, u, NULL, &st) != 0) {
-        fprintf(stderr, "%s: connect: %s\n", prog, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "%s: connect: %s\n", prog, st.msg);
         return -1;
     }
     return 0;
@@ -137,7 +138,7 @@ ckcheck_report_malformed(const char *prog, char *line)
     while (ll > 0 && (line[ll - 1] == '\n' || line[ll - 1] == '\r')) {
         line[--ll] = '\0';
     }
-    fprintf(stderr, "%s: malformed manifest line: %s\n", prog, line);
+    BRIX_CLIENT_LOG("ERROR",  "%s: malformed manifest line: %s\n", prog, line);
 }
 
 /* ckcheck_line_algo — resolve the digest algorithm for one manifest line.
@@ -170,7 +171,7 @@ ckcheck_line_algo(const ckcheck_ctx *cx, const char *hex, const char *rel,
     case 16: *out_algo = XRDC_CK_CRC64;   *out_name = "crc64";   return 0;
     case 32: *out_algo = XRDC_CK_MD5;     *out_name = "md5";     return 0;
     default:
-        fprintf(stderr, "%s: unrecognised hex length %zu for '%s'\n",
+        BRIX_CLIENT_LOG("ERROR",  "%s: unrecognised hex length %zu for '%s'\n",
                 cx->prog, hexlen, rel);
         return -1;
     }
@@ -192,19 +193,19 @@ ckcheck_digest_local(const ckcheck_ctx *cx, const char *rel,
     int         fd;
 
     if (ckt_path_join(cx->root, rel, lpath, sizeof(lpath)) != 0) {
-        fprintf(stderr, "%s: path too long: %s/%s\n",
+        BRIX_CLIENT_LOG("ERROR",  "%s: path too long: %s/%s\n",
                 cx->prog, cx->root, rel);
         return -1;
     }
     fd = open(lpath, O_RDONLY);
     if (fd < 0) {
-        fprintf(stderr, "%s: open %s: %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "%s: open %s: %s\n",
                 cx->prog, lpath, strerror(errno));
         return -1;
     }
     brix_status_clear(&st);
     if (brix_cksum_fd(fd, algo, got, TREE_HEX_MAX, &st) != 0) {
-        fprintf(stderr, "%s: %s: %s\n", cx->prog, lpath,
+        BRIX_CLIENT_LOG("ERROR",  "%s: %s: %s\n", cx->prog, lpath,
                 st.msg[0] ? st.msg : "checksum error");
         close(fd);
         return -1;
@@ -232,14 +233,14 @@ ckcheck_digest_remote(const ckcheck_ctx *cx, const char *rel,
 
     n = snprintf(rpath, sizeof(rpath), "%s/%s", cx->root_path, rel);
     if (n <= 0 || (size_t) n >= sizeof(rpath)) {
-        fprintf(stderr, "%s: path too long: %s/%s\n",
+        BRIX_CLIENT_LOG("ERROR",  "%s: path too long: %s/%s\n",
                 cx->prog, cx->root_path, rel);
         return -1;
     }
     brix_status_clear(&st);
     if (brix_query_cksum(cx->c, rpath, algo_name,
                          got, TREE_HEX_MAX, &st) != 0) {
-        fprintf(stderr, "%s: query_cksum %s: %s\n", cx->prog, rpath,
+        BRIX_CLIENT_LOG("ERROR",  "%s: query_cksum %s: %s\n", cx->prog, rpath,
                 st.msg[0] ? st.msg : "query error");
         return -1;
     }
@@ -329,7 +330,7 @@ brix_xrdckcheck_main(int argc, char **argv)
 
     mf = fopen(argv[1], "r");
     if (mf == NULL) {
-        fprintf(stderr, "%s: cannot open manifest '%s': %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "%s: cannot open manifest '%s': %s\n",
                 argv[0], argv[1], strerror(errno));
         return 2;
     }

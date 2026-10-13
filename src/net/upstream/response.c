@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "upstream_internal.h"
 #include "protocols/root/protocol/frame_hdr.h"   /* shared kXR_wait seconds parse (libxrdproto) */
 
@@ -54,7 +55,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
             uint32_t port_be;
 
             ngx_memcpy(&port_be, body, sizeof(port_be));
-            ngx_log_error(NGX_LOG_INFO, c->log, 0,
+            BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                           "brix: upstream redirect to %.*s:%ud",
                           (int) (dlen - 4), body + 4, ntohl(port_be));
         }
@@ -71,7 +72,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
         uint32_t secs = xrd_wait_secs_parse((const uint8_t *) body, dlen, 5,
                                             BRIX_UP_WAIT_MAX);
 
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                       "brix: upstream kXR_wait %u s; scheduling retry",
                       secs);
 
@@ -102,7 +103,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
     }
 
     case kXR_waitresp:
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                       "brix: upstream kXR_waitresp; forwarding to client");
 
         up->state = XRD_UP_ASYNC;
@@ -139,7 +140,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
             ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, body, dlen);
         }
 
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                       "brix: upstream ok (dlen=%u)", dlen);
 
         ctx->state = XRD_ST_REQ_HEADER;
@@ -171,7 +172,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
             msg = msgbuf;
         }
 
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                       "brix: upstream error %d: %s", (int) errcode, msg);
 
         ctx->state = XRD_ST_REQ_HEADER;
@@ -182,7 +183,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
     }
 
     default:
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: upstream unexpected status %d", (int) status);
         brix_upstream_abort(up, "unexpected status from upstream");
         return;

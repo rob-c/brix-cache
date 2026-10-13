@@ -30,6 +30,7 @@
  *       the handle, and send an empty kXR_ok.
  */
 
+#include "core/compat/log_event.h"
 #include "close.h"
 #include "core/ngx_brix_module.h"
 #include "net/ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
@@ -253,7 +254,7 @@ brix_close_posc_commit(brix_ctx_t *ctx, ngx_connection_t *c,
                                  ? 0 : BRIX_COMMIT_RELAXED,
                              c->log) != NGX_OK) {
         int err = errno;
-        ngx_log_error(NGX_LOG_ERR, c->log, err,
+        BRIX_LOG(NGX_LOG_ERR, c->log, err,
                       "brix: staged commit \"%s\" -> \"%s\" failed",
                       temp_path, final_path);
         /* Keep the staged partial (resume) — only the publish failed; the
@@ -280,7 +281,7 @@ brix_close_posc_commit(brix_ctx_t *ctx, ngx_connection_t *c,
         brix_vfs_neg_stat_forget(conf->common.root_canon, final_path);
     }
 
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: staged commit \"%s\" -> \"%s\" ok",
                    temp_path, final_path);
 
@@ -373,7 +374,7 @@ ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
         return rc;
     }
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXR_close handle=%d", idx);
 
     if (brix_close_pgw_gate(ctx, c, idx, &rc) == NGX_DONE) {

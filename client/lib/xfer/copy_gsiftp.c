@@ -13,6 +13,7 @@
  *       sink/source adapters over brix_vfs. Remote→remote and recursive copies are
  *       refused explicitly rather than half-supported.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "copy_internal.h"
 
 #include "protocols/ftp/ftp_client.h"
@@ -131,7 +132,7 @@ gftp_download(const brix_ftpurl *su, const char *dst, const brix_copy_opts *o,
     gftp_join_basename(su->path, dst, target, sizeof(target));
     if (o != NULL && o->dry_run) {
         if (!o->silent) {
-            fprintf(stderr, "xrdcp: (dry run) would copy %s -> %s\n", su->path,
+            BRIX_CLIENT_LOG("INFO",  "xrdcp: (dry run) would copy %s -> %s\n", su->path,
                     target);
         }
         gftp_session_free(s);
@@ -200,7 +201,7 @@ gftp_upload(const char *src, const brix_ftpurl *du, const brix_copy_opts *o,
 
     if (o != NULL && o->dry_run) {
         if (!o->silent) {
-            fprintf(stderr, "xrdcp: (dry run) would copy %s -> %s\n", src,
+            BRIX_CLIENT_LOG("INFO",  "xrdcp: (dry run) would copy %s -> %s\n", src,
                     target);
         }
         brix_vfs_close(vf);

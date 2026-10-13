@@ -17,6 +17,7 @@
  *   NGX_DECLINED (not an error — only a problem if mappings reference names).
  */
 
+#include "core/compat/log_event.h"
 #include "pmark.h"
 
 #include <jansson.h>
@@ -67,7 +68,7 @@ brix_pmark_defsfile_load(const char *path, ngx_pool_t *pool,
 
     root = json_load_file(path, 0, &jerr);
     if (root == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "pmark: cannot parse defsfile \"%s\": %s (line %d)",
             path, jerr.text, jerr.line);
         return NGX_ERROR;
@@ -76,7 +77,7 @@ brix_pmark_defsfile_load(const char *path, ngx_pool_t *pool,
     exps = json_object_get(root, "experiments");
     if (!json_is_array(exps)) {
         json_decref(root);
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "pmark: defsfile \"%s\" has no \"experiments\" array", path);
         return NGX_ERROR;
     }

@@ -1,5 +1,12 @@
 # --- matrix (port of tests/cvmfs/run_matrix.sh) ------------------------------
 
+_NO_PROXY_ENV = {
+    "http_proxy": "", "https_proxy": "", "HTTP_PROXY": "",
+    "HTTPS_PROXY": "", "ALL_PROXY": "", "all_proxy": "",
+    "NO_PROXY": f"{HOST},{HOST_IP},{NS_IP}",
+    "no_proxy": f"{HOST},{HOST_IP},{NS_IP}",
+}
+
 
 def _module_conf_body(listen_port: int, location: str, directives: str, work: Path) -> str:
     return f"""daemon on; error_log {work}/e.log warn; pid {work}/nginx.pid;
@@ -38,6 +45,10 @@ def matrix(nginx: Path | None = None) -> int:
     with LiveRun("cvmfs_matrix", nginx) as run:
         if not run.nginx.exists():
             raise LiveSkip(f"nginx binary not found: {run.nginx}")
+        # A root-run nginx master drops workers to the configured unprivileged
+        # account.  tempfile creates LiveRun.root as 0700, so without opening
+        # this ephemeral test tree no worker can traverse to its cache store.
+        run.root.chmod(0o755)
         mock_port, cache_port, proxy_port = _PORTS[3:6]  # was free_ports(3)
         netns = ["ip", "netns", "exec", NS]
         try:
@@ -67,9 +78,10 @@ def _module_reverse_runtime(run, work, origin, cache_port):
         brix_cvmfs on;
         brix_cvmfs_client_hold 25;""", work))
     (work / "cache").mkdir(exist_ok=True)
+    (work / "cache").chmod(0o777)
     (work / "logs").mkdir(exist_ok=True)
     run.call([run.nginx, "-c", config, "-p", work])
-    return f"http://{HOST}:{cache_port}", {}
+    return f"http://{HOST}:{cache_port}", dict(_NO_PROXY_ENV)
 
 
 def _module_proxy_runtime(run, work, origin, proxy_port):
@@ -79,9 +91,17 @@ def _module_proxy_runtime(run, work, origin, proxy_port):
         brix_cvmfs_client_hold 25;
         brix_cvmfs_upstream_allow {NS_IP};""", work))
     (work / "cache").mkdir(exist_ok=True)
+    (work / "cache").chmod(0o777)
     (work / "logs").mkdir(exist_ok=True)
     run.call([run.nginx, "-c", config, "-p", work])
-    return f"http://{origin}", {"http_proxy": f"http://{HOST}:{proxy_port}"}
+    env = dict(_NO_PROXY_ENV)
+    # The data URL names the origin, so do not exempt NS_IP in this one cell:
+    # urllib must route data through the cache proxy.  Mock control requests
+    # use the explicit proxy-free opener in cvmfs/harness.py.
+    env["NO_PROXY"] = f"{HOST},{HOST_IP}"
+    env["no_proxy"] = env["NO_PROXY"]
+    env["http_proxy"] = f"http://{HOST}:{proxy_port}"
+    return f"http://{origin}", env
 
 
 def _stock_runtime(run, work, origin, mock_port, cache_port, proxy_port):
@@ -96,9 +116,10 @@ def _stock_runtime(run, work, origin, mock_port, cache_port, proxy_port):
         .replace("@ORIGINPORT@", str(mock_port)),
     )
     (work / "store").mkdir(exist_ok=True)
+    (work / "store").chmod(0o777)
     (work / "logs").mkdir(exist_ok=True)
     run.call([run.nginx, "-c", config, "-p", work])
-    return f"http://{HOST}:{cache_port}", {}
+    return f"http://{HOST}:{cache_port}", dict(_NO_PROXY_ENV)
 
 
 def _module_runtime(run, cache, work, origin, mock_port, cache_port, proxy_port):

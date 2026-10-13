@@ -7,6 +7,7 @@
  * deliberately non-refusing; ENFORCE maps every undecidable/denied result to
  * EACCES. Metrics use only the bounded protocol/result axes.
  */
+#include "core/compat/log_event.h"
 #include "vfs_internal.h"
 #include "vfs_authz.h"
 
@@ -163,7 +164,7 @@ brix_vfs_authz_outcome(const brix_vfs_ctx_t *ctx,
     }
 
     if (ctx->log != NULL) {
-        ngx_log_error(NGX_LOG_WARN, ctx->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ctx->log, 0,
                       "brix: VFS authorization backstop result=%s op=%s",
                       brix_metric_vfs_authz_backstop_result_name(result),
                       operation != NULL ? operation : "read");

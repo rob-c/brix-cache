@@ -48,6 +48,7 @@ def test_user_backend_cred_scenarios_are_importable():
 
 
 @pytest.mark.optin
+@pytest.mark.serial
 @pytest.mark.timeout(600)
 @pytest.mark.parametrize("scenario", sorted(user_backend_cred.SCENARIOS))
 def test_user_backend_cred_scenario(scenario: str):

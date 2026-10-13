@@ -43,6 +43,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import socket
 import subprocess
 import sys
@@ -113,7 +114,9 @@ FLEET_ADDR = f"{_HOST}:{_ANON_PORT}"
 # Format: {binary_name: "reason for exclusion"}
 # ---------------------------------------------------------------------------
 NON_DETERMINISTIC_BINS: Dict[str, str] = {
-    # (none identified so far — all no-arg outputs are stable)
+    "brix-fault-proxy": (
+        "no-argument validation emits the structured-log event timestamp"
+    ),
 }
 
 
@@ -139,8 +142,9 @@ def _sha256(data: bytes) -> str:
 def _list_binaries() -> List[str]:
     """Return a sorted list of user-facing CLI binary names in client/bin/.
 
-    Excludes ``*.d`` dependency files, non-executables, AND compiled unit-test
-    binaries (``*_unit`` / ``*_unittest`` / ``*_test``).  ``make -C client test``
+    Excludes dependency files, shared objects, non-executables, AND compiled
+    unit-test binaries (``*_unit`` / ``*_unittest`` / ``*_test``).
+    ``make -C client test``
     builds those into client/bin/, but they are unit-test harnesses, not user
     CLI tools — their output changes whenever a unit test is edited, which would
     spuriously break this golden CLI matrix (a real occurrence: editing
@@ -157,9 +161,34 @@ def _list_binaries() -> List[str]:
     return sorted(
         p.name
         for p in BIN_DIR.iterdir()
-        if p.is_file() and not p.name.endswith(".d") and os.access(p, os.X_OK)
+        if p.is_file() and not p.name.endswith((".d", ".so"))
+        and os.access(p, os.X_OK)
         and not _is_unit_test_bin(p.name)
     )
+
+
+def test_cli_inventory_includes_an_executable_command(monkeypatch, tmp_path):
+    command = tmp_path / "xrdcp"
+    command.write_text("#!/bin/sh\nexit 0\n")
+    command.chmod(0o755)
+    monkeypatch.setattr(sys.modules[__name__], "BIN_DIR", tmp_path)
+    assert _list_binaries() == ["xrdcp"]
+
+
+def test_cli_inventory_excludes_an_executable_shared_object(monkeypatch, tmp_path):
+    shared = tmp_path / "gai_shim.so"
+    shared.write_bytes(b"\x7fELF")
+    shared.chmod(0o755)
+    monkeypatch.setattr(sys.modules[__name__], "BIN_DIR", tmp_path)
+    assert _list_binaries() == []
+
+
+def test_cli_inventory_excludes_compiled_unit_harness(monkeypatch, tmp_path):
+    harness = tmp_path / "parser_unit"
+    harness.write_text("#!/bin/sh\nexit 0\n")
+    harness.chmod(0o755)
+    monkeypatch.setattr(sys.modules[__name__], "BIN_DIR", tmp_path)
+    assert _list_binaries() == []
 
 
 def _normalize_argv0(output: bytes, argv0: str) -> bytes:
@@ -178,6 +207,12 @@ def _normalize_argv0(output: bytes, argv0: str) -> bytes:
     """
     basename = os.path.basename(argv0)
     return output.replace(argv0.encode(), basename.encode())
+
+
+def _normalize_volatile_log_fields(output: bytes) -> bytes:
+    """Normalize only the structured logger's leading wall-clock field."""
+    return re.sub(rb"(?m)^timestamp=[^ ]+ ",
+                  b"timestamp=<normalized> ", output)
 
 
 def _run_entry(argv: List[str], env_extra: Optional[Dict[str, str]] = None):
@@ -199,7 +234,26 @@ def _run_entry(argv: List[str], env_extra: Optional[Dict[str, str]] = None):
     exit_code, stdout, stderr = run_pipe(argv, env=env, timeout=TIMEOUT_S)
     stdout = _normalize_argv0(stdout, argv[0])
     stderr = _normalize_argv0(stderr, argv[0])
+    stdout = _normalize_volatile_log_fields(stdout)
+    stderr = _normalize_volatile_log_fields(stderr)
     return exit_code, _sha256(stdout), _sha256(stderr)
+
+
+def test_integer_log_timestamp_is_normalized():
+    assert _normalize_volatile_log_fields(
+        b"timestamp=1791417709 level=ERROR message=bad\n") == \
+        b"timestamp=<normalized> level=ERROR message=bad\n"
+
+
+def test_iso_log_timestamp_is_normalized():
+    assert _normalize_volatile_log_fields(
+        b"timestamp=2026-10-08T00:05:24.965Z level=ERROR\n") == \
+        b"timestamp=<normalized> level=ERROR\n"
+
+
+def test_message_timestamp_text_is_not_normalized():
+    line = b'level=INFO message="timestamp=secret must remain"\n'
+    assert _normalize_volatile_log_fields(line) == line
 
 
 # ---------------------------------------------------------------------------

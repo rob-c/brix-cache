@@ -17,6 +17,7 @@
  *       caller returns unchanged (the core paints the body).
  */
 
+#include "core/compat/log_event.h"
 #include "rpm.h"
 
 #include "core/http/http_headers.h"
@@ -71,7 +72,7 @@ brix_rpm_gate(ngx_http_request_t *r, ngx_http_brix_rpm_ctx_t *ctx)
     if (brix_rpm_classify(ctx->key, ctx->key_len, &ctx->req) != 0) {
         ctx->classified = 1;               /* BAD is a class, and it counts  */
         ctx->disp       = BRIX_RPM_OUT_REFUSED;
-        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
             "rpm: refusing \"%V\" - not a legal repository path", &r->uri);
         return (ngx_int_t) rpm_bad_status(ctx->req.err);
     }

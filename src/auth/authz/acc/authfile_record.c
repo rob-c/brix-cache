@@ -19,6 +19,7 @@
  *   All storage comes from the generation's own pool.
  */
 
+#include "core/compat/log_event.h"
 #include "authfile_internal.h"
 
 #include <limits.h>
@@ -149,7 +150,7 @@ acc_build_caps(acc_parse_ctx_t *pc, char **words, ngx_uint_t start,
 
         if (path[0] == '\\') {
             if (path[1] == '\0') {
-                ngx_log_error(NGX_LOG_EMERG, log, 0,
+                BRIX_LOG(NGX_LOG_EMERG, log, 0,
                               "xrootd authdb: object id missing after '\\'");
                 return NGX_ERROR;
             }
@@ -163,7 +164,7 @@ acc_build_caps(acc_parse_ctx_t *pc, char **words, ngx_uint_t start,
             /* Template indirection: reference a previously-defined `t` list. */
             brix_acc_cap_t *tcaps = brix_acc_named_find(tabs->t_list, path);
             if (tcaps == NULL) {
-                ngx_log_error(NGX_LOG_EMERG, log, 0,
+                BRIX_LOG(NGX_LOG_EMERG, log, 0,
                               "xrootd authdb: missing template \"%s\"", path);
                 return NGX_ERROR;
             }
@@ -171,7 +172,7 @@ acc_build_caps(acc_parse_ctx_t *pc, char **words, ngx_uint_t start,
             cap->tmpl = tcaps;
         } else {
             if (i >= n) {
-                ngx_log_error(NGX_LOG_EMERG, log, 0,
+                BRIX_LOG(NGX_LOG_EMERG, log, 0,
                               "xrootd authdb: missing privs for path \"%s\"",
                               path);
                 return NGX_ERROR;
@@ -220,7 +221,7 @@ acc_iddef_set(acc_parse_ctx_t *pc, char **slot, char *val, char sel,
               const char *defname)
 {
     if (*slot != NULL) {
-        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: id selector '%c' twice for %s",
                       sel, defname);
         return NGX_ERROR;
@@ -246,7 +247,7 @@ acc_iddef_bind_selector(acc_parse_ctx_t *pc, brix_acc_idrule_t *id,
     char *val = w[1];
 
     if (w[0][1] != '\0' || !acc_selector_ok(sel)) {
-        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: invalid id selector \"%s\" for %s",
                       w[0], defname);
         return NGX_ERROR;
@@ -273,14 +274,14 @@ acc_record_iddef(acc_parse_ctx_t *pc, char **w, ngx_uint_t n)
     ngx_uint_t           i;
 
     if ((n - 2) % 2 != 0 || n < 4) {
-        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: `= %s` needs <selector value> pairs",
                       w[1]);
         return NGX_ERROR;
     }
     for (id = tabs->id_defs; id != NULL; id = id->next) {
         if (ngx_strcmp(id->name, w[1]) == 0) {
-            ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
+            BRIX_LOG(NGX_LOG_EMERG, pc->log, 0,
                           "xrootd authdb: duplicate id definition \"%s\"", w[1]);
             return NGX_ERROR;
         }
@@ -318,12 +319,12 @@ acc_record_rule(acc_parse_ctx_t *pc, char **w, ngx_uint_t n, int exclusive)
         }
     }
     if (id == NULL) {
-        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: missing id definition \"%s\"", w[1]);
         return NGX_ERROR;
     }
     if (id->caps != NULL) {
-        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: duplicate rule for id \"%s\"", w[1]);
         return NGX_ERROR;
     }
@@ -439,13 +440,13 @@ acc_record_named(acc_parse_ctx_t *pc, char rtype, char **w, ngx_uint_t n)
     }
 
     if (acc_named_is_dup(tabs, &nc, name)) {
-        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: duplicate rule for id \"%s\"", name);
         return NGX_ERROR;
     }
 
     if (acc_build_caps(pc, w, 2, n, &caps) != NGX_OK) {
-        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: no capabilities for \"%s\"", name);
         return NGX_ERROR;
     }

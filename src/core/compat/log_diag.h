@@ -4,16 +4,11 @@
  * WHAT: turn a terse one-line error into a self-explanatory, three-part
  * diagnostic that an operator who has never seen this module before can act on:
  *
- *     xrootd[pki]: no CRLs found in "/etc/grid-security/certificates"
- *       cause: CRL directory is empty or the path is wrong
- *       fix:   run fetch-crl (or set brix_crl_path); until then revoked
- *              certificates are ACCEPTED
+ *     summary; cause: reason; fix: actionable operator next step
  *
- * The macros wrap ngx_log_error() with a fixed message shape:
+ * The macros wrap BRIX_LOG() with a single-line message shape:
  *
- *     <summary>            — what happened, in plain language, with context
- *       cause: <cause>     — the most likely reason, named explicitly
- *       fix:   <fix>       — the concrete next step the admin should take
+ *     <summary>; cause: <cause>; fix: <fix>
  *
  * WHY: this module fronts grid storage (GSI/x509, CRLs, tokens, SSS keytabs,
  * CMS clustering, tape/FRM, disk I/O). When something breaks at 3am the error
@@ -24,8 +19,8 @@
  * (`grep 'fix:'` surfaces every actionable line).
  *
  * HOW: `summary`, `cause`, and `fix` are string literals, concatenated at
- * compile time with the indented "cause:/fix:" scaffolding — zero runtime cost,
- * nothing built on the stack. Dynamic context (paths, addresses, sizes) goes in
+ * compile time with the single-line "cause:/fix:" scaffolding. The shared
+ * adapter bounds and escapes the final record. Dynamic context goes in
  * the trailing varargs and is consumed by printf-style specifiers in `summary`
  * (nginx's %V/%s/%d/%ui/etc). `err` is an errno (or 0) exactly as ngx_log_error
  * expects; when non-zero nginx appends the OS string, so disk/network failures
@@ -43,22 +38,23 @@
  *     (brix_sanitize_log_string) before passing as a vararg.
  *
  * For failures with no operator action (internal invariant violations) keep a
- * plain ngx_log_error — a "fix:" line you can't honour is worse than none.
+ * plain BRIX_LOG — a "fix:" line you can't honour is worse than none.
  */
 #ifndef BRIX_COMPAT_LOG_DIAG_H
 #define BRIX_COMPAT_LOG_DIAG_H
 
+#include "core/compat/log_event.h"
 #include <ngx_core.h>
 
 /*
  * BRIX_DIAG — emit a three-part diagnostic at an explicit level.
  *
- * Expands to a single ngx_log_error() call; the message body is the
- * compile-time concatenation of the summary and the indented cause/fix lines.
+ * Expands to a single structured BRIX_LOG() record; the message body is the
+ * compile-time concatenation of summary and same-line cause/fix clauses.
  */
 #define BRIX_DIAG(level, log, err, summary, cause, fix, ...)                  \
-    ngx_log_error((level), (log), (err),                                       \
-        summary "\n  cause: " cause "\n  fix:   " fix, ##__VA_ARGS__)
+    BRIX_LOG((level), (log), (err),                                       \
+        summary "; cause: " cause "; fix: " fix, ##__VA_ARGS__)
 
 /* Level-specific shorthands — pick by operator impact (see header comment). */
 #define BRIX_DIAG_EMERG(log, err, summary, cause, fix, ...)                  \
@@ -81,7 +77,7 @@
  * to make `nginx -t` fail.
  */
 #define BRIX_DIAG_CONF(level, cf, err, summary, cause, fix, ...)             \
-    ngx_conf_log_error((level), (cf), (err),                                  \
-        summary "\n  cause: " cause "\n  fix:   " fix, ##__VA_ARGS__)
+    BRIX_CONF_LOG((level), (cf), (err),                                  \
+        summary "; cause: " cause "; fix: " fix, ##__VA_ARGS__)
 
 #endif /* BRIX_COMPAT_LOG_DIAG_H */

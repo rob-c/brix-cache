@@ -7,6 +7,7 @@
  * HOW:  behavior-identical extraction; the do_* handlers are declared in
  *       xrdfs_internal.h and dispatched from xrdfs.c exactly as before.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdfs_internal.h"
 
 /* ---- Parse touch's argument vector ----
@@ -40,7 +41,7 @@ touch_parse_argv(int argc, char **argv, int *no_create, int *do_atime,
         else if ((strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--timestamp") == 0)
                  && i + 1 < argc) {
             if (touch_parse_time(argv[++i], tspec) != 0) {
-                fprintf(stderr, "xrdfs: touch: bad -t/--timestamp value '%s' "
+                BRIX_CLIENT_LOG("ERROR",  "xrdfs: touch: bad -t/--timestamp value '%s' "
                                 "(want [[CC]YY]MMDDhhmm[.ss])\n", argv[i]);
                 return 50;
             }
@@ -193,7 +194,7 @@ do_ln(brix_conn *c, const char *cwd, int argc, char **argv)
     }
     if (symbolic) {
         if (brix_symlink(c, target, linkpath, &st) != 0) {   /* target verbatim */
-            fprintf(stderr, "xrdfs: ln -s %s %s: %s\n", target, linkpath, st.msg);
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: ln -s %s %s: %s\n", target, linkpath, st.msg);
             xrdfs_op_hints(&st, 1, c);   /* WS-3/WS-7 */
             return brix_shellcode(&st);
         }
@@ -201,7 +202,7 @@ do_ln(brix_conn *c, const char *cwd, int argc, char **argv)
     }
     build_path(cwd, target, oldpath, sizeof(oldpath));   /* hard link: both confined */
     if (brix_link(c, oldpath, linkpath, &st) != 0) {
-        fprintf(stderr, "xrdfs: ln %s %s: %s\n", oldpath, linkpath, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: ln %s %s: %s\n", oldpath, linkpath, st.msg);
         xrdfs_op_hints(&st, 1, c);   /* WS-3/WS-7 */
         return brix_shellcode(&st);
     }
@@ -226,7 +227,7 @@ do_readlink(brix_conn *c, const char *cwd, int argc, char **argv)
         return xrdfs_report_err("readlink", path, &st, 0, c);
     }
     if ((size_t) n >= sizeof(target)) {
-        fprintf(stderr, "xrdfs: readlink %s: target too long (%lld bytes)\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: readlink %s: target too long (%lld bytes)\n",
                 path, (long long) n);
         return 1;
     }
@@ -307,7 +308,7 @@ query_build_args(const char *cwd, int infotype, int argc, char **argv,
         build_path(cwd, argv[2], resolved, sizeof(resolved));
         if ((size_t) snprintf(pathbuf, buflen, "cancel %s", resolved)
                 >= buflen) {
-            fprintf(stderr, "xrdfs: query checksumcancel: path too long\n");
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: query checksumcancel: path too long\n");
             return 50;
         }
         *args = pathbuf;
@@ -332,7 +333,7 @@ do_query(brix_conn *c, const char *cwd, int argc, char **argv)
     }
     infotype = query_subtype_code(argv[1]);
     if (infotype < 0) {
-        fprintf(stderr, "xrdfs: unknown query subtype '%s'\n", argv[1]);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: unknown query subtype '%s'\n", argv[1]);
         return 50;
     }
     if (query_build_args(cwd, infotype, argc, argv, pathbuf, sizeof(pathbuf),
@@ -358,7 +359,7 @@ prepare_parse_priority(const char *s, int *prty)
     long  parsed = strtol(s, &endp, 10);
 
     if (endp == s || *endp != '\0' || parsed < 0 || parsed > 3) {
-        fprintf(stderr,
+        BRIX_CLIENT_LOG("INFO",
                 "xrdfs: prepare: -p takes a priority 0-3, got '%s'\n", s);
         return 50;
     }
@@ -419,7 +420,7 @@ do_prepare(brix_conn *c, const char *cwd, int argc, char **argv)
     brix_status_clear(&st);
     if (brix_prepare(c, paths, np, options, optionX, prty, reply,
                      sizeof(reply), &st) != 0) {
-        fprintf(stderr, "xrdfs: prepare: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: prepare: %s\n", st.msg);
         return brix_shellcode(&st);
     }
     if (reply[0] != '\0') {
@@ -453,7 +454,7 @@ do_stage(brix_conn *c, const char *cwd, int argc, char **argv)
 
     brix_status_clear(&st);
     if (brix_prepare(c, paths, np, kXR_stage, 0, 0, reply, sizeof(reply), &st) != 0) {
-        fprintf(stderr, "xrdfs: stage: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: stage: %s\n", st.msg);
         return brix_shellcode(&st);
     }
     if (reply[0] != '\0') { printf("%s\n", reply); }
@@ -463,7 +464,7 @@ do_stage(brix_conn *c, const char *cwd, int argc, char **argv)
             if (w < 0) {
                 rc = xrdfs_report_err("stage --wait", paths[i], &st, 1, c);
             } else if (w == 1) {
-                fprintf(stderr, "xrdfs: stage --wait %s: still offline after %ds\n",
+                BRIX_CLIENT_LOG("INFO",  "xrdfs: stage --wait %s: still offline after %ds\n",
                         paths[i], timeout);
                 rc = 1;
             } else {
@@ -494,7 +495,7 @@ do_evict(brix_conn *c, const char *cwd, int argc, char **argv)
 
     brix_status_clear(&st);
     if (brix_prepare(c, paths, np, 0, kXR_evict, 0, reply, sizeof(reply), &st) != 0) {
-        fprintf(stderr, "xrdfs: evict: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: evict: %s\n", st.msg);
         return brix_shellcode(&st);
     }
     if (reply[0] != '\0') { printf("%s\n", reply); }

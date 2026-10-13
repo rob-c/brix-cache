@@ -19,6 +19,7 @@
  *       server never starts.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "protbind.h"
 
@@ -189,6 +190,6 @@ brix_protbind_conf(ngx_conf_t *cf, ngx_command_t *cmd, ngx_array_t **rules)
         return rc;
     }
 
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "%V: %s", &cmd->name, rc);
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0, "%V: %s", &cmd->name, rc);
     return NGX_CONF_ERROR;
 }

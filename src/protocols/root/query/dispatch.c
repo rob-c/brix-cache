@@ -7,7 +7,7 @@
  *   - Extended attribute listing (Qxattr)
  *   - File info retrieval (QFinfo, QFSinfo)
  *   - Opaque/visa extension hooks (Qopaqug, Qvisa, etc.)
- *   - Returns kXR_Unsupported for unrecognized infotypes
+ *   - Returns kXR_ArgInvalid for unrecognized infotypes
  */
 
 /* WHY: XRootD query protocol consolidates diverse operations into single opcode.
@@ -31,10 +31,11 @@
  *     - Handlers return NGX_OK/NGX_ERROR or send error directly
  *   - kXR_Qvisa case: additional precondition check
  *     - ctx->recv.cur_dlen must be zero (no pending data)
- *   - After comparisons: debug log unsupported infotype
- *     - Call brix_send_error() with kXR_Unsupported status
+ *   - After comparisons: debug log invalid infotype
+ *     - Call brix_send_error() with kXR_ArgInvalid status
  */
 
+#include "core/compat/log_event.h"
 #include "query_internal.h"
 #include "protocols/ssi/ssi.h"   /* §7 XrdSsi response-wait via kXR_query(Qopaqug) */
 
@@ -215,7 +216,7 @@ brix_query_is_server_introspection(uint16_t infotype)
 /* ---- Top-level kXR_query dispatcher ----
  *
  * WHAT: Unpack the kXR_query request header, select the query sub-protocol by
- * infotype, and return the chosen handler's status. Replies kXR_Unsupported for
+ * infotype, and return the chosen handler's status. Replies kXR_ArgInvalid for
  * unrecognized infotypes after a debug log line.
  *
  * WHY: kXR_query multiplexes many server operations onto one opcode; this
@@ -227,7 +228,7 @@ brix_query_is_server_introspection(uint16_t infotype)
  *   1. Unpack the request body into req and read its infotype.
  *   2. Try the common group; return its status unless it declines.
  *   3. Try the extended group; return its status unless it declines.
- *   4. If both decline, debug-log the infotype and send kXR_Unsupported.
+ *   4. If both decline, debug-log the infotype and send kXR_ArgInvalid.
  */
 ngx_int_t
 brix_handle_query(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -245,7 +246,7 @@ brix_handle_query(brix_ctx_t *ctx, ngx_connection_t *c,
     if (conf->common.read_only_public
         && brix_query_is_server_introspection(infotype))
     {
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                       "brix: read_only_public refused kXR_query infotype=%d "
                       "(server introspection) from %V",
                       (int) infotype, &c->addr_text);
@@ -264,9 +265,9 @@ brix_handle_query(brix_ctx_t *ctx, ngx_connection_t *c,
         return rc;
     }
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "brix: kXR_query unsupported infotype=%d",
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                   "brix: kXR_query invalid infotype=%d",
                    (int) infotype);
-    return brix_send_error(ctx, c, kXR_Unsupported,
-                             "query type not supported");
+    return brix_send_error(ctx, c, kXR_ArgInvalid,
+                             "Invalid information query type code");
 }

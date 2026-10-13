@@ -51,6 +51,7 @@ import pytest
 from settings import BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
+from log_records import semantic_log_text
 
 import _test_session_bind_helpers as H
 
@@ -121,7 +122,7 @@ def _wait_log(elog, pattern, timeout=20.0):
         try:
             with open(elog) as fh:
                 for line in fh:
-                    m = rx.search(line)
+                    m = rx.search(semantic_log_text(line))
                     if m:
                         return m
         except FileNotFoundError:
@@ -135,7 +136,7 @@ def _summaries(elog):
     try:
         with open(elog) as fh:
             for line in fh:
-                m = SUMMARY_RX.search(line)
+                m = SUMMARY_RX.search(semantic_log_text(line))
                 if m:
                     out.append(dict(zip(SUMMARY_KEYS, map(int, m.groups()))))
     except FileNotFoundError:
@@ -387,7 +388,7 @@ stream {{ server {{ listen unix:s.sock;
     inject_nginx_runtime_paths(conf, root)
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
-    return p.returncode, p.stderr + p.stdout
+    return p.returncode, semantic_log_text(p.stderr + p.stdout)
 
 
 @pytest.mark.parametrize("query", ["arc=0", "arc=9", "arc=abc", "arc=", "arc=1x", "bogus=1"])

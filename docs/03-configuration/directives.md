@@ -291,7 +291,9 @@ This table is generated from the live `ngx_command_t` registrations, including d
 | `brix_health_check_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_health_check_type` | stream | `<value>` | `src/protocols/root/stream/directives_net.h` |
 | `brix_host_allow` | stream | `<value>...` | `src/protocols/root/stream/directives_auth.h` |
-| `brix_http_handoff` | stream | `<value>` | `src/protocols/root/stream/directives_cms.h` |
+| `brix_http_handoff` | stream | `<value>` | `src/protocols/root/stream/directives_handoff.h` |
+| `brix_http_handoff_connect_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_handoff.h` |
+| `brix_http_handoff_idle_timeout` | stream | `<value>` | `src/protocols/root/stream/directives_handoff.h` |
 | `brix_idmap` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
 | `brix_idmap_broker_user` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |
 | `brix_idmap_cache_ttl` | stream | `<value>` | `src/protocols/root/stream/directives_tier.h` |

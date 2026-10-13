@@ -21,6 +21,7 @@
  * ctx->c NULL, which every step re-checks.
  */
 
+#include "core/compat/log_event.h"
 #include "server.h"
 #include "server_recv_internal.h"
 #include "observability/metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
@@ -109,7 +110,7 @@ cms_srv_read_accumulate(brix_cms_srv_ctx_t *ctx, ngx_connection_t *c)
         if ((size_t) dlen + NGX_BRIX_CMS_HDR_LEN
             > NGX_BRIX_CMS_MAX_FRAME)
         {
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                           "brix: CMS server: frame too large (%ui) "
                           "from %s", (ngx_uint_t) dlen, ctx->host);
             cms_srv_fail_close(ctx, BRIX_SESS_END_ERROR);
@@ -162,10 +163,21 @@ cms_srv_dispatch_frame(brix_cms_srv_ctx_t *ctx)
 
 /*
  * cms_srv_read_yield — A2 fairness: after a bounded number of frames, re-arm
- * the read event and resume via a posted read event, so a flooding data node
- * cannot monopolise the event loop.  Closes the connection if the event
- * cannot be re-armed; either way the caller returns.
+ * the read event and schedule a zero-delay continuation, so a flooding data
+ * node cannot monopolise a posted-event drain.  A separate timer event avoids
+ * both current-queue starvation and reusing the socket event while kqueue owns
+ * its readiness state.  Closes the connection if re-arming fails.
  */
+static void
+cms_srv_read_resume(ngx_event_t *ev)
+{
+    brix_cms_srv_ctx_t  *ctx = ev->data;
+
+    if (ctx->c != NULL) {
+        brix_cms_srv_read(ctx->c->read);
+    }
+}
+
 static void
 cms_srv_read_yield(brix_cms_srv_ctx_t *ctx, ngx_connection_t *c)
 {
@@ -174,7 +186,10 @@ cms_srv_read_yield(brix_cms_srv_ctx_t *ctx, ngx_connection_t *c)
         return;
     }
     BRIX_RESIL_METRIC_INC(cms_frame_yields_total);
-    ngx_post_event(c->read, &ngx_posted_events);
+    ctx->read_resume.handler = cms_srv_read_resume;
+    ctx->read_resume.data = ctx;
+    ctx->read_resume.log = c->log;
+    ngx_add_timer(&ctx->read_resume, 0);
 }
 
 void

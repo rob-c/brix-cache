@@ -63,6 +63,10 @@ def nginx():
         servers.seed_file(n.data, DATA, DATA_SIZE, src=src)
         servers.seed_file(n.data, "/t/d/a.bin", 4096)
         servers.seed_file(n.data, "/t/d/b.bin", 4096)
+        # The packaged nginx worker runs as its service account.  This fixture
+        # deliberately exercises mkdir, so make the mutation parent writable;
+        # seeded read-only fixtures should not globally weaken export modes.
+        os.chmod(os.path.join(n.data, "t"), 0o777)
         with open(src, "rb") as fh:
             md5 = hashlib.md5(fh.read()).hexdigest()
         yield types.SimpleNamespace(port=n.port, data=n.data, data_md5=md5)

@@ -6,10 +6,12 @@ import base64
 import datetime as dt
 import hashlib
 import hmac
+import http.client
 import json
 import os
 from pathlib import Path
-from urllib.parse import quote, urlencode, urlparse
+import time
+from urllib.parse import parse_qsl, quote, urlencode, urlparse
 
 import pytest
 import requests
@@ -62,6 +64,26 @@ def _put_object_file(instance, key: str, data: bytes) -> None:
     path = Path(instance["data_dir"]) / key
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
+
+
+def _access_log(instance_name: str) -> Path:
+    return Path(TEST_ROOT) / "registry" / instance_name / "logs" / "s3_access.log"
+
+
+def _log_offset(path: Path) -> int:
+    return path.stat().st_size if path.exists() else 0
+
+
+def _assert_log_redacted(path: Path, offset: int, name: str,
+                         secret: str) -> None:
+    logged = ""
+    for _ in range(100):
+        logged = path.read_text(errors="replace")[offset:]
+        if name in logged:
+            break
+        time.sleep(0.02)
+    assert secret not in logged
+    assert name + "x" * len(secret) in logged
 
 
 def _signing_key(secret: str, date: str, region: str) -> bytes:
@@ -131,7 +153,8 @@ def _presigned_get_url(base: str, key: str, *, request_time: dt.datetime,
 
 
 def _header_auth(base: str, key: str, request_time: dt.datetime,
-                 session_token: str | None = None) -> dict[str, str]:
+                 session_token: str | None = None,
+                 canonical_query: str = "") -> dict[str, str]:
     parsed = urlparse(base)
     host = parsed.netloc
     path = f"/{BUCKET}/{key}"
@@ -145,7 +168,7 @@ def _header_auth(base: str, key: str, request_time: dt.datetime,
     canonical_request = (
         "GET\n"
         f"{_canonical_uri(path)}\n"
-        "\n"
+        f"{canonical_query}\n"
         f"host:{host}\n"
         f"x-amz-date:{amz_date}\n"
         f"{token_header}"
@@ -247,6 +270,127 @@ def test_presigned_url_get_succeeds(s3_auth_instance):
 
 
 @pytest.mark.registry_server("s3-presigned")
+def test_presigned_signature_is_redacted_from_access_log(s3_auth_instance):
+    key = "presigned/redacted-signature.txt"
+    content = b"presigned-log-redaction-ok"
+    _put_object_file(s3_auth_instance, key, content)
+    access_log = _access_log("s3-presigned")
+    offset = _log_offset(access_log)
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    url = _presigned_get_url(s3_auth_instance["base"], key, request_time=now)
+    signature = dict(parse_qsl(urlparse(url).query))["X-Amz-Signature"]
+
+    response = requests.get(url, timeout=10)
+
+    assert response.status_code == 200
+    _assert_log_redacted(access_log, offset, "X-Amz-Signature=", signature)
+
+
+@pytest.mark.registry_server("s3-presigned")
+def test_malformed_signature_name_value_is_redacted(s3_auth_instance):
+    access_log = _access_log("s3-presigned")
+    offset = _log_offset(access_log)
+    marker = f"malformed-signature-secret-{time.time_ns()}"
+    parsed = urlparse(s3_auth_instance["base"])
+    connection = http.client.HTTPConnection(parsed.hostname, parsed.port,
+                                            timeout=10)
+    connection.request(
+        "GET", f"/{BUCKET}/malformed-signature?X-Amz-Signature%ZZ={marker}")
+    response = connection.getresponse()
+    response.read()
+    connection.close()
+
+    assert response.status == 400
+    _assert_log_redacted(access_log, offset, "X-Amz-Signature%ZZ=", marker)
+
+
+@pytest.mark.registry_server("s3-presigned")
+def test_presigned_url_rejects_unsigned_overlong_route_parameter(
+        s3_auth_instance):
+    """An omitted canonical value must not become a truncated operation id."""
+    key = "presigned/query-boundary.txt"
+    _put_object_file(s3_auth_instance, key, b"query-boundary")
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    url = _presigned_get_url(s3_auth_instance["base"], key, request_time=now)
+    attack = f"{url}&uploadId={'b' * 24}{'x' * 1100}"
+
+    response = requests.get(attack, timeout=10)
+
+    assert response.status_code == 400
+    assert "InvalidArgument" in response.text
+
+
+@pytest.mark.registry_server("s3-presigned")
+@pytest.mark.parametrize("name,size", [
+    ("max-uploads", 16),
+    ("max-parts", 16),
+    ("part-number-marker", 16),
+    ("key-marker", 256),
+])
+def test_presigned_url_rejects_values_that_do_not_fit_route_buffers(
+        s3_auth_instance, name, size):
+    key = "presigned/query-field-limit.txt"
+    _put_object_file(s3_auth_instance, key, b"query-field-limit")
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    url = _presigned_get_url(s3_auth_instance["base"], key, request_time=now)
+
+    response = requests.get(f"{url}&{name}={'x' * size}", timeout=10)
+
+    assert response.status_code == 400
+
+
+@pytest.mark.registry_server("s3-presigned")
+def test_presigned_url_rejects_duplicate_decoded_names(s3_auth_instance):
+    key = "presigned/query-duplicate.txt"
+    _put_object_file(s3_auth_instance, key, b"query-duplicate")
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    url = _presigned_get_url(s3_auth_instance["base"], key, request_time=now)
+    attack = f"{url}&uploadId={'a' * 24}&upload%49d={'b' * 24}"
+
+    response = requests.get(attack, timeout=10)
+
+    assert response.status_code == 400
+
+
+@pytest.mark.registry_server("s3-presigned")
+def test_presigned_url_rejects_malformed_percent_escape(s3_auth_instance):
+    key = "presigned/query-percent.txt"
+    _put_object_file(s3_auth_instance, key, b"query-percent")
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    url = _presigned_get_url(s3_auth_instance["base"], key, request_time=now)
+
+    parsed = urlparse(url)
+    connection = http.client.HTTPConnection(parsed.hostname, parsed.port,
+                                            timeout=10)
+    connection.request("GET", f"{parsed.path}?{parsed.query}&prefix=%ZZ")
+    response = connection.getresponse()
+    response.read()
+    connection.close()
+
+    assert response.status == 400
+
+
+@pytest.mark.registry_server("s3-presigned")
+def test_presigned_url_rejects_query_that_expands_past_canonical_limit(
+        s3_auth_instance):
+    key = "presigned/query-expansion.txt"
+    _put_object_file(s3_auth_instance, key, b"query-expansion")
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    url = _presigned_get_url(s3_auth_instance["base"], key, request_time=now)
+    parsed = urlparse(url)
+    expansion = "&".join(f"extra{index}=" + "!" * 1000
+                         for index in range(5))
+    connection = http.client.HTTPConnection(parsed.hostname, parsed.port,
+                                            timeout=10)
+    connection.request("GET", f"{parsed.path}?{parsed.query}&{expansion}")
+    response = connection.getresponse()
+    response.read()
+    connection.close()
+
+    assert response.status == 400
+
+
+@pytest.mark.registry_server("s3-presigned")
 def test_presigned_url_expired_returns_403(s3_auth_instance):
     key = "presigned/expired.txt"
     _put_object_file(s3_auth_instance, key, b"expired")
@@ -302,6 +446,23 @@ def test_sigv4_header_auth_still_works(s3_auth_instance):
 
     assert r.status_code == 200
     assert r.content == content
+
+
+@pytest.mark.registry_server("s3-presigned")
+def test_empty_presigned_signature_cannot_fall_back_to_header_auth(
+        s3_auth_instance):
+    key = "presigned/empty-query-signature.txt"
+    _put_object_file(s3_auth_instance, key, b"must-not-be-served")
+
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    query = "X-Amz-Signature="
+    url = f"{s3_auth_instance['base']}/{BUCKET}/{key}?{query}"
+    headers = _header_auth(s3_auth_instance["base"], key, now,
+                           canonical_query=query)
+    r = requests.get(url, headers=headers, timeout=10)
+
+    assert r.status_code == 403
+    assert "Malformed presigned URL" in r.text
 
 
 @pytest.mark.registry_server("s3-presigned")
@@ -468,7 +629,11 @@ def test_session_token_presigned_allowed_with_static_secret(s3_auth_sts_instance
         request_time=now,
         session_token="static-session-token",
     )
+    access_log = _access_log("s3-presigned-sts")
+    offset = _log_offset(access_log)
     r = requests.get(url, timeout=10)
 
     assert r.status_code == 200
     assert r.content == content
+    _assert_log_redacted(access_log, offset, "X-Amz-Security-Token=",
+                         "static-session-token")

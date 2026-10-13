@@ -121,6 +121,8 @@ typedef struct {
     int          sig_keylen;       /* valid bytes in sig_key (0 = unset) */
     int          sig_use_iv;       /* 1 = IV-prepended blobs (signed-DH peer) */
     int          signing_active;   /* 1 = cipher/key are valid and in use */
+    int          inherited_required; /* bound stream inherited a signing-active
+                                      * primary; fail closed without copying its key */
     uint64_t     last_seqno;       /* highest seqno accepted so far */
     int          pending;          /* 1 = next dispatch must verify the signature */
     int          verified;         /* 1 = current request passed sigver verification */
@@ -290,6 +292,7 @@ typedef struct {
     ngx_uint_t         wr_inflight;        /* plain-write pwrites posted, not yet acked */
     unsigned           resp_async:1;       /* ack drains without disturbing recv */
     unsigned           finalize_pending:1; /* deferred teardown while wr_inflight > 0 */
+    unsigned           close_after_flush:1;/* fatal frame error queued; close after response */
     ngx_int_t          finalize_status;    /* ngx_stream status to finalize with */
 
     /* §1.2 pool-send (offload-AIO): a worker thread that finished a large

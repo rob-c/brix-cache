@@ -30,6 +30,7 @@
  *   imports cvmfs_merge_cache from cvmfs_module_build.c through the same header.
  */
 
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "cvmfs_module_internal.h"
 #include "core/config/config.h"           /* brix_metrics_ensure_zone */
@@ -238,7 +239,7 @@ cvmfs_merge_resilience(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
             || ngx_strncasecmp(conf->common.storage_backend.data,
                                (u_char *) "http", 4) != 0))
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_unified_origin on requires brix_storage_backend "
             "to name an http(s) origin set, e.g. "
             "\"http://s1a:8000|http://s1b:8000|http://s1c:8000\" (the '|'-list "
@@ -254,7 +255,7 @@ cvmfs_merge_resilience(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
         && !brix_s3_origin_http_version_supported(
                (int) conf->cvmfs.origin_http_version))
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_origin_http_version: the linked libcurl lacks "
             "support for the requested HTTP version (HTTP/3 needs a "
             "libcurl built with an HTTP/3 backend)");
@@ -289,13 +290,13 @@ cvmfs_merge_scvmfs_checks(ngx_conf_t *cf,
         return NGX_CONF_OK;
     }
     if (!conf->cvmfs.enable) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_scvmfs requires brix_cvmfs on");
         return NGX_CONF_ERROR;
     }
     if (conf->scvmfs_authz == BRIX_SCVMFS_AUTHZ_BEARER) {
         if (conf->scvmfs_token_issuers.len == 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_scvmfs_authz bearer requires "
                 "brix_scvmfs_token_issuers <scitokens.cfg>");
             return NGX_CONF_ERROR;
@@ -316,7 +317,7 @@ cvmfs_merge_scvmfs_checks(ngx_conf_t *cf,
         if (conf->scvmfs_vomsdir.len == 0
             || conf->scvmfs_voms_cert_dir.len == 0)
         {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_scvmfs_authz voms requires brix_scvmfs_vomsdir "
                 "<dir> and brix_scvmfs_voms_cert_dir <dir>");
             return NGX_CONF_ERROR;
@@ -324,7 +325,7 @@ cvmfs_merge_scvmfs_checks(ngx_conf_t *cf,
         /* Native verifier: load the VOMS trust store now so a bad CA
          * directory fails at configuration time, not on the first proxy. */
         if (brix_voms_warm(cf->log, &conf->scvmfs_voms_cert_dir) != NGX_OK) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_scvmfs_voms_cert_dir \"%V\": cannot load the CA directory",
                 &conf->scvmfs_voms_cert_dir);
             return NGX_CONF_ERROR;

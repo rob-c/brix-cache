@@ -49,9 +49,21 @@ jobs:
       - name: dns seam — one resolver path, no bypasses (phase-116)
         if: '!cancelled()'
         run: tools/ci/check_dns_seam.py
+      - name: diagnostic logging — shared record template
+        if: '!cancelled()'
+        run: python3 tools/ci/check_logging_template.py
       - name: vfs mutation gate — no ungated export mutation (phase-105)
         if: '!cancelled()'
         run: tools/ci/check_vfs_mutation_gate.py
+      - name: conform scratch gate — mutation probes stay prefix-bound (phase-118)
+        if: '!cancelled()'
+        run: python3 tools/ci/check_conform_scratch.py
+      - name: conform ledger — generated 527-row registry is current (phase-118)
+        if: '!cancelled()'
+        run: >-
+          python3 tools/ci/generate_conform_ledger.py
+          --source docs/refactor/phase-118-security-assessment-toolkit.md
+          --output client/lib/conform/ledger_rows.inc --check
       - name: vfs authorization backstop — fused ordered gates and bound contexts
         if: '!cancelled()'
         run: tools/ci/check_authz_backstop.py

@@ -182,16 +182,7 @@ class TestClusterUnregister:
     @pytest.mark.registry_servers("cluster-ds", "cluster-redir")
     def test_no_redirect_after_dataserver_stops(self, cluster):
         cluster["ds"]["stop"]()
-        time.sleep(2.0)   # let nginx detect the dropped CMS connection
-
-        sock = _cluster_handshake_login(HOST, cluster["redir_port"])
-        _cluster_send_locate(sock, "/test.txt")
-        status, _body = _cluster_read_response(sock)
-        sock.close()
-
-        assert status != kXR_redirect, (
-            "redirector still returned kXR_redirect after data server disconnected"
-        )
+        _wait_for_no_redirect(cluster["redir_port"], "/test.txt")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -25,6 +25,7 @@
  *   through the same header.
  */
 
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "cvmfs_module_internal.h"
 #include "core/config/config.h"           /* brix_metrics_ensure_zone */
@@ -74,7 +75,7 @@ brix_cvmfs_reject_unsupported(ngx_conf_t *cf,
     /* Staging (brix_stage on / brix_stage_store) implies mutability: a cvmfs
      * cache is a read-through CAS store; write-back staging makes no sense. */
     if (conf->common.stage_enable == 1 || conf->common.stage_store.len > 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_stage/brix_stage_store: cvmfs is a read-only protocol; "
             "staging is not supported");
         return NGX_CONF_ERROR;
@@ -83,7 +84,7 @@ brix_cvmfs_reject_unsupported(ngx_conf_t *cf,
     /* CAS object slicing: cvmfs objects are immutable and must be filled and
      * verified as whole units; per-slice CAS verification is undefined. */
     if (conf->common.cache_slice_size > 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_slice_size: cvmfs CAS objects are immutable whole "
             "objects; slicing is not supported");
         return NGX_CONF_ERROR;
@@ -93,7 +94,7 @@ brix_cvmfs_reject_unsupported(ngx_conf_t *cf,
      * below already prevents accidental writes, but an explicit on is a
      * config mistake that deserves a loud rejection rather than silent no-op. */
     if (conf->common.allow_write == 1) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_allow_write on: cvmfs is a read-only protocol; "
             "write permission cannot be granted");
         return NGX_CONF_ERROR;
@@ -127,7 +128,7 @@ cvmfs_stratum0_apply(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
     }
 
     if (conf->common.root.len > 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_stratum0_root and brix_export both name an export "
             "root - the alias replaces brix_export; configure exactly one");
         return NGX_CONF_ERROR;
@@ -137,14 +138,14 @@ cvmfs_stratum0_apply(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
         && ngx_strncasecmp(conf->common.storage_backend.data,
                            (u_char *) "http", 4) == 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_stratum0_root: a Stratum-0 has no upstream - remove "
             "the http(s) brix_storage_backend from this block");
         return NGX_CONF_ERROR;
     }
 
     if (conf->common.cache_store.len > 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_stratum0_root: a Stratum-0 serves its published "
             "tree directly - remove brix_cache_store (cache-fill) from "
             "this block");
@@ -152,7 +153,7 @@ cvmfs_stratum0_apply(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
     }
 
     if (conf->cvmfs.upstream_allow != NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_stratum0_root: a Stratum-0 has no upstream - remove "
             "brix_cvmfs_upstream_allow (proxy mode) from this block");
         return NGX_CONF_ERROR;
@@ -274,7 +275,7 @@ cvmfs_merge_services(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
      * config time instead of gossiping into the void. */
     if (conf->cvmfs.swarm) {
         if (conf->common.cache_peers == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cvmfs_swarm requires brix_cache_peers (the seed "
                 "ring naming this node's own \"self=\" slot)");
             return NGX_CONF_ERROR;
@@ -292,7 +293,7 @@ cvmfs_merge_services(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
     if (conf->cvmfs.origin_select != BRIX_CVMFS_SELECT_GEO
         && conf->cvmfs.origin_coords != NULL)
     {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix_cvmfs_origin_coords set but brix_cvmfs_origin_select "
             "is not geo — coordinates are ignored");
     }

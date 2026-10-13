@@ -12,6 +12,7 @@
  * wire: ClientRequestHdr — streamid[2] reqid[2] body[16] dlen[4];
  * wire: ServerResponseHdr — streamid[2] status[2] dlen[4].
  */
+#include "../../../../shared/observability/log_stdio.h"
 #include "brix.h"
 
 #include <arpa/inet.h>
@@ -177,11 +178,15 @@ set_kxr_error_status(const uint8_t *data, uint32_t dlen, brix_status *st)
 {
     int errnum = (dlen >= 4) ? (int) xrd_get_u32_be(data) : 0;
     int mlen   = (dlen > 4) ? (int) (dlen - 4) : 0;
+    int terminated = mlen > 0 && data[4 + mlen - 1] == '\0';
+    int text_len = terminated ? mlen - 1 : mlen;
 
     /* The wire message is NOT NUL-terminated; bound %s with %.*s so a
      * hostile server can't drive a heap over-read past the frame. */
-    brix_status_set(st, errnum, 0, "%.*s (%s)", mlen,
+    brix_status_set(st, errnum, 0, "%.*s (%s)", text_len,
                     (const char *) (data + 4), brix_kxr_name(errnum));
+    st->wire_message_len = (uint32_t) text_len;
+    st->wire_message_terminated = terminated;
 }
 
 /* Read one full server frame (header + body) with the standard size cap; fills
@@ -434,7 +439,7 @@ recv_handle_attn(rx_frame_t *f)
         }
         msg[n] = '\0';
         if (n > 0) {
-            fprintf(stderr, "xrootd server message: %s\n", msg);
+            BRIX_CLIENT_LOG("INFO",  "xrootd server message: %s\n", msg);
         }
     }
     free(f->buf);

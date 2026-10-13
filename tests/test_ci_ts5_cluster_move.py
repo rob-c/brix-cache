@@ -118,9 +118,19 @@ POST_MOVE = {
         # account it becomes (open the throwaway tree, re-tighten the keytab and
         # key the daemons themselves refuse when they are loose, a+rx the
         # ancestors down to TEST_ROOT).
-        "changed": {"_ensure_sssadmin", "Mesh", "Mesh.brix_node", "gen_cert"},
+        "changed": {"_ensure_sssadmin", "_find_sssadmin", "Mesh",
+                    "Mesh.brix_node", "gen_cert"},
         "added": {"_reference_ip_args", "_open_ancestors",
-                  "_retighten_credentials", "runas_args"},
+                  "_retighten_credentials", "_sssadmin_launchable",
+                  "runas_args",
+                  "stock_cms_interop_supported"},
+    },
+    "cms_mesh_lib_part2": {
+        # Reference-client timeouts differ across distro releases.  Preserve
+        # their diagnostic text and classify the timeout centrally so Alma 10
+        # does not turn an unavailable oracle into a product failure.
+        "changed": {"xrdcp_get", "xrdfs_locate"},
+        "added": {"_timeout_text"},
     },
     "cms_mesh_lib_part3": {
         # The macOS port replaced a bare `ss -tlnp` with the portable listener

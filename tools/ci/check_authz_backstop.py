@@ -2,6 +2,11 @@
 """Enforce the Phase-108 VFS authorization-backstop construction rules."""
 
 from __future__ import annotations
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import os
 import re
@@ -187,9 +192,9 @@ def current_violations() -> list[str]:
 def main() -> int:
     errors = current_violations()
     if errors:
-        print("ERROR: VFS authorization backstop coverage is incomplete:", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_authz_backstop.py', 'main', "ERROR: VFS authorization backstop coverage is incomplete:", file=sys.stderr)
         for error in errors:
-            print(f"  {error}", file=sys.stderr)
+            _brix_diagnostic('ERROR', 'tools/ci/check_authz_backstop.py', 'main', f"  {error}", file=sys.stderr)
         return 1
     print("check_authz_backstop: OK — VFS gates are fused, ordered, and all contexts are bound")
     return 0

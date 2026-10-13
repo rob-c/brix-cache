@@ -19,11 +19,8 @@ fattr_del(brix_ctx_t *ctx, ngx_connection_t *c, brix_vfs_ctx_t *vctx,
     for (attr_index = 0; attr_index < numattr; attr_index++) {
         int rc;
 
-        if (path != NULL) {
-            rc = brix_vfs_removexattr(vctx, attrs[attr_index].xkey);
-        } else {
-            rc = brix_vfs_fremovexattr(vctx, fd, attrs[attr_index].xkey);
-        }
+        rc = fattr_storage_remove(vctx, path, fd, attrs[attr_index].name,
+                                  attrs[attr_index].nlen);
 
         if (rc != 0) {
             fattr_set_rc(&attrs[attr_index], fattr_errno_to_xrd(errno));

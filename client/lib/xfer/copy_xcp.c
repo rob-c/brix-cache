@@ -21,6 +21,7 @@
  *       phase-94 thread-safety pattern). Fail-closed: losing every worker
  *       aborts the temp; losing some is survived by claim-return + stealing.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "copy_internal.h"
 #include "copy_xcp_internal.h"
 
@@ -377,15 +378,15 @@ xcp_debug_line(const xcp_shared_t *sh, const xcp_worker_t *w, size_t n)
     if (getenv("BRIX_XCP_DEBUG") == NULL) {
         return;
     }
-    fprintf(stderr, "brix: xcp sources=%zu blocks=%zu per-source=[", n,
-            sh->nblocks);
+    BRIX_CLIENT_LOG("DEBUG", "xcp sources=%zu blocks=%zu steals=%u", n,
+                    sh->nblocks, atomic_load(&sh->steals));
     for (k = 0; k < n; k++) {
-        fprintf(stderr, "%s%u", k ? "," : "", w[k].blocks_done);
+        BRIX_CLIENT_LOG("DEBUG", "xcp worker=%zu blocks=%u", k,
+                        w[k].blocks_done);
     }
-    fprintf(stderr, "] steals=%u\n", atomic_load(&sh->steals));
     for (k = 0; k < n; k++) {
         if (w[k].rc != 0) {
-            fprintf(stderr, "brix: xcp worker %zu (%s): %s\n",
+            BRIX_CLIENT_LOG("ERROR",  "brix: xcp worker %zu (%s): %s\n",
                     k, w[k].url, w[k].st.msg);
         }
     }

@@ -21,6 +21,7 @@
 
 #include "http_headers.h"
 #include "core/compat/cstr.h"
+#include "core/compat/uri.h"
 
 #include <string.h>
 
@@ -335,39 +336,114 @@ brix_http_arg(ngx_http_request_t *r, const char *name, size_t name_len,
     return NGX_OK;
 }
 
-void
-brix_http_redact_query_token(ngx_str_t *query)
+static int
+brix_http_query_name_has_bad_escape(const u_char *data, size_t len)
 {
-    static const char *const keys[] = { "authz=", "access_token=" };
-    size_t                    k;
+    size_t i;
 
-    if (query == NULL || query->data == NULL || query->len == 0) {
-        return;
+    for (i = 0; i < len; i++) {
+        if (data[i] == '%'
+            && (i + 2 >= len || brix_hex_nibble(data[i + 1]) < 0
+                || brix_hex_nibble(data[i + 2]) < 0))
+        {
+            return 1;
+        }
     }
+    return 0;
+}
 
+static int
+brix_http_query_token_name(const u_char *data, size_t len)
+{
+    char decoded[sizeof("X-Amz-Security-Token")];
+    int  rc;
+
+    if (len == 0 || len > 3 * (sizeof(decoded) - 1)
+        || brix_http_query_name_has_bad_escape(data, len))
+    {
+        return 1;
+    }
+    rc = brix_http_urldecode(data, len, decoded, sizeof(decoded),
+        BRIX_URLDECODE_PLUS_TO_SPACE | BRIX_URLDECODE_REJECT_NUL);
+    if (rc != BRIX_URLDECODE_OK) {
+        /* Strict parsing will reject this request.  Until then, treat an
+         * undecodable name as sensitive so its value cannot reach logs. */
+        return 1;
+    }
+    return ngx_strcasecmp((u_char *) decoded, (u_char *) "authz") == 0
+           || ngx_strcasecmp((u_char *) decoded,
+                             (u_char *) "access_token") == 0
+           || ngx_strcasecmp((u_char *) decoded,
+                             (u_char *) "X-Amz-Signature") == 0
+           || ngx_strcasecmp((u_char *) decoded,
+                             (u_char *) "X-Amz-Security-Token") == 0;
+}
+
+static u_char *
+brix_http_query_segment_end(u_char *p, u_char *end)
+{
+    while (p < end && *p != '&' && *p != ' ' && *p != '\t'
+           && *p != '\r' && *p != '\n')
+    {
+        p++;
+    }
+    return p;
+}
+
+static void
+brix_http_redact_query_range(u_char *p, u_char *end)
+{
     /* Length-preserving: overwrite each token value with 'x' in place. The log
      * sources (r->args / r->unparsed_uri / r->request_line) alias overlapping
      * regions of the same request buffer, so we must NOT memmove/shrink — that
      * would desync their independent ->len fields. Overwriting same-length is
      * idempotent and safe to apply to all three. */
-    for (k = 0; k < sizeof(keys) / sizeof(keys[0]); k++) {
-        u_char *p    = query->data;
-        u_char *end  = query->data + query->len;
-        size_t  klen = ngx_strlen(keys[k]);
+    while (p < end) {
+        u_char *segment_end = brix_http_query_segment_end(p, end);
+        u_char *equals = ngx_strlchr(p, segment_end, '=');
 
-        while (p < end
-               && (p = ngx_strlcasestrn(p, end, (u_char *) keys[k], klen - 1))
-                  != NULL)
+        if (equals != NULL
+            && brix_http_query_token_name(p, (size_t) (equals - p)))
         {
-            u_char *v = p + klen;
-            /* A query arg value ends at '&'; in r->request_line it also ends at the
-             * SP before the HTTP version (and CR/LF/HTAB) — stop there so we never
-             * clobber " HTTP/1.1". */
-            while (v < end && *v != '&' && *v != ' ' && *v != '\t'
-                   && *v != '\r' && *v != '\n') {
-                *v++ = 'x';
-            }
-            p = v;
+            ngx_memset(equals + 1, 'x', (size_t) (segment_end - equals - 1));
         }
+        p = segment_end < end ? segment_end + 1 : end;
     }
+}
+
+void
+brix_http_redact_query_token(ngx_str_t *query)
+{
+    if (query == NULL || query->data == NULL || query->len == 0) {
+        return;
+    }
+
+    brix_http_redact_query_range(query->data, query->data + query->len);
+}
+
+static void
+brix_http_redact_uri_query_token(ngx_str_t *source)
+{
+    u_char *end;
+    u_char *question;
+
+    if (source == NULL || source->data == NULL || source->len == 0) {
+        return;
+    }
+    end = source->data + source->len;
+    question = ngx_strlchr(source->data, end, '?');
+    if (question != NULL) {
+        brix_http_redact_query_range(question + 1, end);
+    }
+}
+
+void
+brix_http_redact_request_query_tokens(ngx_http_request_t *r)
+{
+    if (r == NULL || r->args.len == 0) {
+        return;
+    }
+    brix_http_redact_query_token(&r->args);
+    brix_http_redact_uri_query_token(&r->unparsed_uri);
+    brix_http_redact_uri_query_token(&r->request_line);
 }

@@ -5,7 +5,7 @@
  * session/registry.h — shared-memory registries for kXR_bind.
  *
  * When a primary connection completes authentication the server inserts an
- * entry mapping sessid → {dn, vo_list, token_auth}.  A secondary connection
+ * entry mapping sessid → {dn, vo_list, token_auth, request_signing}.  A secondary connection
  * presenting kXR_bind can then look up the sessid and inherit the same
  * identity without re-authenticating.
  *
@@ -58,11 +58,13 @@
 /* ---- Struct: brix_session_entry_t ----
  *
  * WHAT: Single entry in the shared-memory session registry mapping
- * sessid → {dn, vo_list, token_auth}.
+ * sessid → {dn, vo_list, token_auth, request_signing}.
  *   - sessid[16]: uniquely identifies an XRootD session
  *   - dn: distinguished name from GSI certificate
  *   - vo_list: virtual organization authorization list
  *   - token_auth: JWT bearer token flag (vs GSI certificate)
+ *   - request_signing: the primary established a signing-active GSI session;
+ *     this policy bit is inherited by bound streams, never the signing key
  *   - in_use: slot occupancy (0=free, 1=registered)
  *
  * Capacity: BRIX_SESSION_REGISTRY_SLOTS entries (default 1024).
@@ -92,6 +94,7 @@ typedef struct {
     char       dn[512];                       /* distinguished name from GSI certificate */
     char       vo_list[512];                  /* virtual organization authorization list */
     ngx_uint_t token_auth;                    /* 1 if JWT bearer token used, 0 for GSI */
+    ngx_uint_t request_signing;                /* primary had an active GSI signing key */
     ngx_uint_t in_use;                        /* slot occupancy: 0=free, 1=registered */
     ngx_msec_t last_seen;                     /* Phase 27 F4: register/lookup time (ms);
                                                  LRU key for reap-on-full anti-exhaustion */
@@ -100,6 +103,9 @@ typedef struct {
                                                  session (set at kXR_bind, cleared on the
                                                  secondary's disconnect) — the validation
                                                  source for pathid-tagged requests */
+    u_char     next_pathid;                    /* next round-robin claim candidate;
+                                                 prevents a closed secondary from making
+                                                 pathid 1 recur immediately */
     ngx_int_t  owner_worker;                  /* §1.4: ngx_worker slot of the worker that
                                                  registered the session (owns the primary
                                                  connection); -1 = unknown. A kXR_bind
@@ -256,7 +262,8 @@ ngx_int_t brix_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots);
  * brix_session_unregister_hinted().
  */
 int brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
-    const char *dn, const char *vo_list, ngx_uint_t token_auth);
+    const char *dn, const char *vo_list, ngx_uint_t token_auth,
+    ngx_uint_t request_signing);
 
 /* ---- Function: brix_session_lookup() ----
  * WHAT: Retrieves session metadata for bound stream secondary connections or
@@ -270,7 +277,7 @@ int brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
 int brix_session_lookup(const u_char sessid[BRIX_SESSION_ID_LEN],
     char *dn_out, size_t dn_size,
     char *vo_out, size_t vo_size,
-    ngx_uint_t *token_auth_out);
+    ngx_uint_t *token_auth_out, ngx_uint_t *request_signing_out);
 
 /* ---- Function: brix_session_pathid_bind() ----
  * WHAT: Marks `pathid` (1-253) as a bound data path of session `sessid` in the
@@ -280,6 +287,12 @@ int brix_session_lookup(const u_char sessid[BRIX_SESSION_ID_LEN],
  */
 void brix_session_pathid_bind(const u_char sessid[BRIX_SESSION_ID_LEN],
     unsigned pathid);
+
+/* Atomically claim one unused pathid for a session. Returns 1 and writes a
+ * value in 1..253 on success, 0 when the session is already at `limit`, and
+ * -1 when the registry/session is unavailable. */
+int brix_session_pathid_claim(const u_char sessid[BRIX_SESSION_ID_LEN],
+    unsigned limit, unsigned *pathid_out);
 
 /* ---- Function: brix_session_owner_worker() ----
  * WHAT: Returns the ngx_worker slot of the worker that registered session

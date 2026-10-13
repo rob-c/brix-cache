@@ -166,6 +166,17 @@ def inject_nginx_runtime_paths(
     tmp = prefix / "tmp"
     logs.mkdir(parents=True, exist_ok=True)
     tmp.mkdir(parents=True, exist_ok=True)
+    # Do not inherit a caller's permissive umask for diagnostic files.  The
+    # nginx master creates and opens the logs before worker de-escalation, so
+    # only traversal is needed outside the owner/group boundary.
+    logs.chmod(0o750)
+    # Packaged nginx workers drop to the configured service account before
+    # module init_process hooks create worker-owned unix sockets.  Keep this
+    # test-owned scratch directory usable across that privilege boundary.  The
+    # sticky bit prevents one worker/account from removing another's entries,
+    # matching the security model of the system /tmp directory; the socket
+    # itself still enforces its requested owner-only mode.
+    tmp.chmod(0o1777)
     body = target.read_text(encoding="utf-8")
     main = _main_runtime_directives(body, logs, pid_path)
     if main:
@@ -198,11 +209,13 @@ SUITE_OWNS_FROZEN_NGINX = "TEST_SUITE_OWNS_FROZEN_NGINX"
 def _session_freeze_dir() -> Path:
     """The one freeze directory shared by every process of a test session.
 
-    Keyed off ``TEST_ROOT`` so all xdist workers (and every ``LiveRun``) of a
-    single session resolve to the SAME frozen binary — one shared copy, never a
-    per-process private one — while sessions that run under a distinct private
-    ``TEST_ROOT`` stay isolated and cannot clobber each other's binary.  Lives
-    under ``_FREEZE_ROOT`` (literal ``/tmp`` — deliberately NOT under the lane's
+    Keyed off ``TEST_ROOT`` and the effective uid so all xdist workers (and
+    every ``LiveRun``) of a single user/session resolve to the SAME frozen
+    binary — one shared copy, never a per-process private one — while a prior
+    root run cannot leave an unwritable directory that makes an unprivileged
+    run spend every server launch retrying failed copies.  Sessions that use a
+    distinct private ``TEST_ROOT`` are isolated too.  Lives under
+    ``_FREEZE_ROOT`` (literal ``/tmp`` — deliberately NOT under the lane's
     ``TMPDIR``, which pytest's basetemp rotation rm -rf's mid-session).
     """
     try:
@@ -210,7 +223,8 @@ def _session_freeze_dir() -> Path:
         key = str(TEST_ROOT)
     except Exception:
         key = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
-    tag = hashlib.sha1(key.encode()).hexdigest()[:12]
+    uid = os.geteuid() if hasattr(os, "geteuid") else 0
+    tag = hashlib.sha1(f"{key}\0uid={uid}".encode()).hexdigest()[:12]
     return _FREEZE_ROOT / f"brix-nginx-session-{tag}"
 
 

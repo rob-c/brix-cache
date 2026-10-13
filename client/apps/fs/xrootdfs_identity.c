@@ -27,6 +27,7 @@
  * (src/auth/sss/auth_request.c, sss_map_identity).  A mount therefore cannot
  * name its way into an identity the operator did not issue.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include <unistd.h>   /* geteuid */
 #include "xrootdfs_internal.h"
 
@@ -136,7 +137,7 @@ ident_build(xfs_ident *e)
     brix_status_clear(&st);
     e->pool = brix_pool_create(&g_url, &e->opts, g_ident_conns, &st);
     if (e->pool == NULL) {
-        fprintf(stderr, "xrootdfs: identity %s (uid %lu): meta pool: %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrootdfs: identity %s (uid %lu): meta pool: %s\n",
                 e->name, (unsigned long) e->uid, st.msg);
         e->failed = 1;
         return;
@@ -146,7 +147,7 @@ ident_build(xfs_ident *e)
     e->mgr = brix_mgr_create(&g_url, &e->opts, g_ident_streams, g_ident_streams,
                              g_max_stall, g_keepalive, g_max_retries, &st);
     if (e->mgr == NULL) {
-        fprintf(stderr, "xrootdfs: identity %s (uid %lu): data manager: %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrootdfs: identity %s (uid %lu): data manager: %s\n",
                 e->name, (unsigned long) e->uid, st.msg);
         brix_pool_destroy(e->pool);
         e->pool   = NULL;
@@ -238,7 +239,7 @@ xfs_ident_init(void)
     }
     g_ident_tab = calloc((size_t) g_ident_max, sizeof(*g_ident_tab));
     if (g_ident_tab == NULL) {
-        fprintf(stderr, "xrootdfs: identity table: out of memory\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrootdfs: identity table: out of memory\n");
         return -1;
     }
     return 0;

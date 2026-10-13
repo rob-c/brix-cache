@@ -7,6 +7,7 @@
  * T20 retry schedule) and, back on the event loop, resolves every coalesced
  * waiter with the single outcome and releases the heap-owned fill block.
  */
+#include "core/compat/log_event.h"
 #include "http_cache_fill.h"
 #include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_* */
 #include "fs/backend/http/sd_http.h"    /* sd_http_n_endpoints (verify budget) */
@@ -59,7 +60,7 @@ brix_http_cache_fill_thread(void *data, ngx_log_t *log)
         switch (brix_fill_classify(t->result, t->err, &rs)) {
         case BRIX_FILL_OK:
             if (t->attempts > 1) {
-                ngx_log_error(NGX_LOG_WARN, log, 0,
+                BRIX_LOG(NGX_LOG_WARN, log, 0,
                     "xrootd-fill: event=recovered key=\"%s\" attempts=%ud "
                     "elapsed_ms=%M — origin answered after transient failures",
                     brix_http_fill_log_key(t->key, kbuf, sizeof(kbuf)),
@@ -75,7 +76,7 @@ brix_http_cache_fill_thread(void *data, ngx_log_t *log)
         /* One line per failed attempt: WHICH object, WHICH attempt, WHY —
          * the trail that locates a flapping origin or a lossy WAN window.
          * Bounded by the backoff schedule (a handful per fill, worst case). */
-        ngx_log_error(NGX_LOG_WARN, log, t->err,
+        BRIX_LOG(NGX_LOG_WARN, log, t->err,
             "xrootd-fill: event=retry key=\"%s\" attempt=%ud rc=%i "
             "elapsed_ms=%M endpoints=%ud waiters=%d next_backoff_ms=%M",
             brix_http_fill_log_key(t->key, kbuf, sizeof(kbuf)),
@@ -107,7 +108,7 @@ brix_http_fill_reenter_from_source(const brix_http_cache_fill_ctx_t *t,
     brix_io_monitor_t *m = brix_http_monitor_get(w->r);
 
     if (m == NULL) {
-        ngx_log_error(NGX_LOG_ERR, w->r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, w->r->connection->log, 0,
             "xrootd-fill: key=\"%s\" cannot mark the store-refused re-entry "
             "(no memory) - 502", t->key);
         return NGX_HTTP_BAD_GATEWAY;
@@ -127,7 +128,7 @@ brix_http_fill_resolve_waiter(brix_http_cache_fill_ctx_t *t,
     if (t->result == NGX_OK) {
         rc = w->reenter(r, w->reenter_data);    /* hit -> serve (zero-copy) */
     } else if (t->result == NGX_DECLINED) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
             "brix: cache fill declined for \"%s\" (object not cacheable — "
             "path-filtered, over the caching cap and the passthrough spool cap, "
             "or a size-unknown origin) - returning 502",
@@ -155,7 +156,7 @@ brix_http_fill_resolve_waiter(brix_http_cache_fill_ctx_t *t,
     } else {
         /* per-waiter detail at debug; the fill-level ERR line in done()
          * carries the full story once, not once per parked client */
-        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, c->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_HTTP, c->log, 0,
             "xrootd-fill: resolving waiter with 502 (key \"%s\", err %d)",
             t->key, t->err);
         rc = NGX_HTTP_BAD_GATEWAY;
@@ -192,7 +193,7 @@ brix_http_fill_log_outcome(const brix_http_cache_fill_ctx_t *t,
     if (t->result == NGX_OK) {
         ngx_uint_t lvl = (waiters > 0) ? NGX_LOG_INFO : NGX_LOG_NOTICE;
 
-        ngx_log_error(lvl, ev->log, 0,
+        BRIX_LOG(lvl, ev->log, 0,
             "xrootd-fill: event=%s key=\"%s\" attempts=%ud "
             "elapsed_ms=%M waiters=%d",
             (waiters > 0) ? "done" : "done-detached", k,
@@ -200,14 +201,14 @@ brix_http_fill_log_outcome(const brix_http_cache_fill_ctx_t *t,
         return;
     }
     if (t->err == ENOENT || t->err == ENOTDIR) {
-        ngx_log_error(NGX_LOG_INFO, ev->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, ev->log, 0,
             "xrootd-fill: event=not-found key=\"%s\" attempts=%ud "
             "elapsed_ms=%M waiters=%d — the origin's definitive 404",
             k, t->attempts, elapsed, waiters);
         return;
     }
     if (brix_fill_store_refused(t->err)) {
-        ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ev->log, 0,
             "xrootd-fill: event=store-refused key=\"%s\" attempts=%ud "
             "elapsed_ms=%M waiters=%d verdict=\"the cache store cannot hold "
             "this object; every waiter re-entered to read it from the source, "
@@ -216,14 +217,14 @@ brix_http_fill_log_outcome(const brix_http_cache_fill_ctx_t *t,
         return;
     }
     if (t->err == ETIMEDOUT) {
-        ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ev->log, 0,
             "xrootd-fill: event=exhausted key=\"%s\" attempts=%ud "
             "elapsed_ms=%M waiters=%d verdict=\"504 retry-later to every "
             "waiter; no origin answered within the deadline\"",
             k, t->attempts, elapsed, waiters);
         return;
     }
-    ngx_log_error(NGX_LOG_ERR, ev->log, t->err,
+    BRIX_LOG(NGX_LOG_ERR, ev->log, t->err,
         "xrootd-fill: event=failed key=\"%s\" attempts=%ud "
         "elapsed_ms=%M waiters=%d verdict=%s",
         k, t->attempts, elapsed, waiters,
@@ -279,7 +280,7 @@ brix_http_cache_fill_done(ngx_event_t *ev)
          * only to serve these waiters, never retained, so accounting it would
          * inflate cache_bytes_evicted with bytes that were never "cached". */
         (void) brix_sd_cache_evict(t->inst, t->key);
-        ngx_log_error(NGX_LOG_INFO, ev->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, ev->log, 0,
             "xrootd-fill: event=passthrough-evict key=\"%s\" — served an "
             "un-admissible object then dropped it from the cache", t->key);
     }

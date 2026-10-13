@@ -29,6 +29,7 @@
  *   brix_fs_remove_tree_confined) to prevent path traversal.
  */
 
+#include "core/compat/log_event.h"
 #include "s3.h"
 #include "multipart_internal.h"
 #include "core/compat/fs_walk.h"
@@ -49,13 +50,21 @@
  * */
 
 /*
- * s3_has_query_flag — return 1 if <key> appears as a bare flag (no '=') in
- * the request query string, 0 otherwise.
+ * s3_has_query_flag — return 1 if <key> appears as a bare or empty-valued
+ * flag in the request query string, 0 otherwise.  SigV4 canonicalizes those
+ * two spellings identically, so operation routing must do the same.
  */
 int
 s3_has_query_flag(ngx_http_request_t *r, const char *key)
 {
-    return brix_http_query_has(r->args, key, 0);
+    ngx_http_s3_req_ctx_t *ctx;
+
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
+    if (ctx == NULL) {
+        return 0;
+    }
+    return brix_http_query_parsed_has(&ctx->query, key,
+               BRIX_HTTP_QUERY_HAS_EMPTY_OK) == 1;
 }
 
 /*
@@ -63,11 +72,27 @@ s3_has_query_flag(ngx_http_request_t *r, const char *key)
  * Returns 1 on success, 0 if the key is absent or the value is empty.
  */
 int
+s3_get_query_param_flags(ngx_http_request_t *r, const char *key,
+                         char *out, size_t outsz, unsigned flags)
+{
+    ngx_http_s3_req_ctx_t *ctx;
+
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
+    if (ctx == NULL) {
+        return 0;
+    }
+    return brix_http_query_parsed_get(&ctx->query, key, out, outsz,
+                                      flags) == 1;
+}
+
+int
 s3_get_query_param(ngx_http_request_t *r, const char *key,
                    char *out, size_t outsz)
 {
-    return brix_http_query_get(r->args, key, out, outsz,
-                                 BRIX_HTTP_QUERY_TRUNCATE) > 0;
+    return s3_get_query_param_flags(r, key, out, outsz,
+               BRIX_HTTP_QUERY_DECODE_VALUE |
+               BRIX_HTTP_QUERY_PLUS_TO_SPACE |
+               BRIX_HTTP_QUERY_REJECT_NUL);
 }
 
 /*
@@ -265,7 +290,7 @@ s3_mpu_reap_stale(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     brix_vfs_closedir(d, log);
 
     if (reaped > 0 && log != NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "s3: reaped %d abandoned multipart staging dir(s) "
                       "(idle >%T s) under \"%s\"",
                       reaped, max_age_secs, dir);

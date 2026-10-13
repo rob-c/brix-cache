@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "cms_internal.h"
 #include "state_relay.h"   /* Phase-61 W7: flush parked kYR_state relays */
 #include "action_log.h"                          /* cmsd-action NOTICE lines */
@@ -173,7 +174,7 @@ ngx_brix_cms_schedule_retry(ngx_brix_cms_ctx_t *ctx)
      * manager — a dead supervisor must not orphan the node. */
     if (ctx->retargeted && !ctx->logged_in) {
         if (++ctx->retarget_fails >= 3) {
-            ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                 "brix: CMS retarget %V unreachable — reverting to "
                 "configured manager %V", &ctx->mgr_name, &ctx->orig_name);
             ctx->mgr_addr = ctx->orig_addr;
@@ -194,7 +195,7 @@ ngx_brix_cms_schedule_retry(ngx_brix_cms_ctx_t *ctx)
         }
 
         if ((ngx_msec_int_t) (ctx->fast_deadline - now) > 0) {
-            ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+            BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                            "brix: CMS fast-retry to %V (attempt %ui)",
                            &ctx->mgr_name, ctx->connect_attempts);
             ngx_brix_cms_schedule(ctx, ctx->fast_retry);
@@ -263,6 +264,10 @@ ngx_brix_cms_disconnect(ngx_brix_cms_ctx_t *ctx)
         ngx_del_timer(c->write);
     }
 
+    if (ctx->read_resume.timer_set) {
+        ngx_del_timer(&ctx->read_resume);
+    }
+
     brix_sess_end(ctx->sess, ngx_brix_cms_end_reason(ctx, c));
     ctx->sess = NULL;
     ctx->sess_attempt_logged = 0;
@@ -319,7 +324,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
     c = ev->data;
     ctx = c->data;
 
-    ngx_log_debug3(NGX_LOG_DEBUG_EVENT, c->write->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, c->write->log, 0,
                    "brix: CMS write handler called timedout=%d "
                    "logged_in=%d c=%p",
                    (int) ev->timedout,
@@ -329,7 +334,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
         /* A connect/first-write that never completed.  Route through the connect
          * retry policy: pre-first-login it may fast-retry (bounded window), else it
          * backs off — never the multi-second backoff for a same-host cold start. */
-        ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                        "brix: CMS connect/write timed out");
         ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_TIMEOUT);
         ngx_brix_cms_disconnect(ctx);
@@ -360,7 +365,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
         ctx->backoff = ngx_min((ngx_msec_t) ctx->conf->cms.interval * NGX_BRIX_CMS_MS_PER_SEC,
                                (ngx_msec_t) NGX_BRIX_CMS_BACKOFF_INITIAL);
 
-        ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ev->log, 0,
                       "brix: CMS login sent to %V",
                       &ctx->mgr_name);
         brix_cms_log_action(ev->log, "login",
@@ -375,7 +380,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
         if (!ctx->ever_logged_in) {
             ctx->ever_logged_in = 1;
             ctx->fast_deadline  = 0;
-            ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, ev->log, 0,
                           "brix: CMS registered with %V after %uL ms "
                           "(%ui connect attempt(s), %s)",
                           &ctx->mgr_name,
@@ -410,7 +415,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
     }
 
     if (ngx_brix_cms_send_load(ctx) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ev->log, 0,
                       "brix: CMS write handler: send_load failed");
         brix_cms_log_action(ev->log, "load",
                             (const char *) ctx->mgr_name.data,
@@ -430,7 +435,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
 
     ngx_brix_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms.interval * NGX_BRIX_CMS_MS_PER_SEC);
 
-    ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                    "brix: CMS write handler: heartbeat sent");
 }
 
@@ -448,7 +453,7 @@ ngx_brix_cms_connect(ngx_brix_cms_ctx_t *ctx)
     ctx->connect_attempts++;
 
     if (ctx->mgr_addr->socklen == 0) {          /* phase-116: not resolved yet */
-        ngx_log_error(NGX_LOG_INFO, ctx->cycle->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, ctx->cycle->log, 0,
             "xrootd[cms]: cluster manager %V not yet resolved; retrying",
             &ctx->mgr_name);
         ngx_brix_cms_schedule_retry(ctx);
@@ -526,7 +531,7 @@ ngx_brix_cms_timer(ngx_event_t *ev)
 
     ctx = ev->data;
 
-    ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                    "brix: CMS timer fired connection=%p logged_in=%d",
                    ctx->connection,
                    ctx->connection ? (int) ctx->logged_in : -1);
@@ -544,7 +549,7 @@ ngx_brix_cms_timer(ngx_event_t *ev)
     }
 
     if (ngx_brix_cms_send_load(ctx) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ev->log, 0,
                       "brix: CMS load heartbeat failed");
         brix_cms_log_action(ev->log, "load",
                             (const char *) ctx->mgr_name.data,
@@ -563,4 +568,3 @@ ngx_brix_cms_timer(ngx_event_t *ev)
 
     ngx_brix_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms.interval * NGX_BRIX_CMS_MS_PER_SEC);
 }
-

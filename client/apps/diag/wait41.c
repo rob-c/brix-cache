@@ -8,6 +8,7 @@
  * HOW:  Loop brix_tcp_connect (or brix_connect with --full) until a deadline,
  *       sleeping 1s between attempts.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "core/compat/crypto.h"
 #include "core/version.h"
@@ -117,7 +118,7 @@ brix_wait41_main(int argc, char **argv)
     brix_crypto_init();
     brix_status_clear(&st);
     if (brix_endpoint_parse(endpoint, &u, &st) != 0) {
-        fprintf(stderr, "%s: %s\n", argv[0], st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "%s: %s\n", argv[0], st.msg);
         return 50;
     }
 
@@ -129,7 +130,7 @@ brix_wait41_main(int argc, char **argv)
             return 0;
         }
         if (time(NULL) >= deadline) {
-            fprintf(stderr, "%s: %s:%d not ready after %ds\n",
+            BRIX_CLIENT_LOG("INFO",  "%s: %s:%d not ready after %ds\n",
                     argv[0], u.host, u.port, timeout_s);
             return 1;
         }

@@ -8,6 +8,7 @@
  * tables, and delegate value parsing to the rl_parse_* primitives declared in
  * ratelimit_keys_internal.h.
  */
+#include "core/compat/log_event.h"
 #include "ratelimit.h"
 #include "protocols/webdav/webdav.h"      /* ngx_http_brix_webdav_req_ctx_t */
 #include "ratelimit_keys_internal.h"
@@ -102,7 +103,7 @@ rl_rule_bind_zone(ngx_conf_t *cf, brix_rl_rule_t *rule,
 {
     rule->zone = brix_rl_zone_get(zone_name);
     if (rule->zone == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "%s: unknown zone \"%V\" (declare it with"
             " brix_rate_limit_zone first)", who, zone_name);
         return NGX_CONF_ERROR;
@@ -128,7 +129,7 @@ rl_rule_set_rate(ngx_conf_t *cf, ngx_str_t *r, int is_bw, brix_rl_rule_t *rule)
     if (is_bw) {
         ssize_t bps = rl_parse_bw_rate(r);
         if (bps == NGX_ERROR) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_bandwidth_limit: bad rate \"%V\""
                 " (expected <N>[k|m|g]/s)", r);
             return NGX_CONF_ERROR;
@@ -139,7 +140,7 @@ rl_rule_set_rate(ngx_conf_t *cf, ngx_str_t *r, int is_bw, brix_rl_rule_t *rule)
     {
         ngx_int_t rps = rl_parse_req_rate(r);
         if (rps == NGX_ERROR || rps <= 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_rate_limit_rule: bad rate \"%V\""
                 " (expected <N>r/s)", r);
             return NGX_CONF_ERROR;
@@ -169,7 +170,7 @@ rl_rule_set_burst(ngx_conf_t *cf, ngx_str_t *b, int is_bw, brix_rl_rule_t *rule)
     if (is_bw) {
         ssize_t sz = rl_parse_size(b);
         if (sz == NGX_ERROR) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_bandwidth_limit: bad burst \"%V\"", b);
             return NGX_CONF_ERROR;
         }
@@ -179,7 +180,7 @@ rl_rule_set_burst(ngx_conf_t *cf, ngx_str_t *b, int is_bw, brix_rl_rule_t *rule)
     {
         ngx_int_t n = ngx_atoi(b->data, b->len);
         if (n == NGX_ERROR) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_rate_limit_rule: bad burst \"%V\"", b);
             return NGX_CONF_ERROR;
         }
@@ -228,7 +229,7 @@ rl_rule_parse_token(ngx_conf_t *cf, ngx_str_t *a, int is_bw,
         st->rule->nodelay = 1;
         return NGX_CONF_OK;
     }
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
         "xrootd rate limit: unknown parameter \"%V\"", a);
     return NGX_CONF_ERROR;
 }
@@ -271,7 +272,7 @@ rl_collect_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int mode,
     }
 
     if (!st->have_key || !st->have_extra || st->zone_name.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "%s", missing_msg);
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0, "%s", missing_msg);
         return NGX_CONF_ERROR;
     }
     return NGX_CONF_OK;
@@ -344,7 +345,7 @@ rl_conc_parse_token(ngx_conf_t *cf, ngx_str_t *a, rl_rule_parse_t *st)
     if (a->len > 6 && ngx_strncmp(a->data, "limit=", 6) == 0) {
         ngx_int_t n = ngx_atoi(a->data + 6, a->len - 6);
         if (n == NGX_ERROR || n <= 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_concurrency_limit: bad limit \"%V\"", a);
             return NGX_CONF_ERROR;
         }
@@ -352,7 +353,7 @@ rl_conc_parse_token(ngx_conf_t *cf, ngx_str_t *a, rl_rule_parse_t *st)
         st->have_extra = 1;
         return NGX_CONF_OK;
     }
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
         "brix_concurrency_limit: unknown parameter \"%V\"", a);
     return NGX_CONF_ERROR;
 }

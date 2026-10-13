@@ -18,6 +18,7 @@
  * moved verbatim.
  */
 
+#include "core/compat/log_event.h"
 #include "xrdhttp.h"
 #include "webdav.h"
 #include "core/http/http_variables.h"   /* brix_http_monitor_record_checksum */
@@ -70,10 +71,10 @@ xrdhttp_inject_tpc_headers(ngx_http_request_t *r)
         if (brix_net_target_parse(NULL, &url, &target, err, sizeof(err))
             != NGX_OK)
         {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                           "xrdhttp: invalid tpc.src URL: %s; ignored", err);
         } else if (ngx_strncasecmp(url.data, (u_char *) "https://", 8) != 0) {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                           "xrdhttp: tpc.src must be https://; ignored");
         } else {
             if (brix_http_request_header_add(r, "Source", ctx->tpc_src,
@@ -101,10 +102,10 @@ xrdhttp_inject_tpc_headers(ngx_http_request_t *r)
         if (brix_net_target_parse(NULL, &url, &target, err, sizeof(err))
             != NGX_OK)
         {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                           "xrdhttp: invalid tpc.dst URL: %s; ignored", err);
         } else if (ngx_strncasecmp(url.data, (u_char *) "https://", 8) != 0) {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                           "xrdhttp: tpc.dst must be https://; ignored");
         } else {
             if (brix_http_request_header_add(r, "Destination",
@@ -158,7 +159,7 @@ xrdhttp_add_checksum_header(ngx_http_request_t *r,
 
     if (sb->st_size > (off_t) BRIX_WEBDAV_TPC_2GB_LIMIT) {
         /* Skip checksum computation for files > 2 GiB to bound latency. */
-        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "xrdhttp: skipping checksum for large file (> 2 GiB)");
         return NGX_OK;
     }
@@ -194,7 +195,7 @@ xrdhttp_add_checksum_header(ngx_http_request_t *r,
         char safe_alg[sizeof(ctx->want_cksum) * 4];
         brix_sanitize_log_string(ctx->want_cksum,
                                    safe_alg, sizeof(safe_alg));
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "xrdhttp: unsupported checksum algorithm \"%s\"",
                        safe_alg);
         return NGX_OK;

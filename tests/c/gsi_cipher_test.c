@@ -114,6 +114,21 @@ test_certreq(void)
     free(buf);
 }
 
+static void
+test_random_tag(void)
+{
+    uint8_t tag[8];
+    size_t  i;
+
+    CHECK(brix_gsi_rand_tag(tag) == 1, "generate printable random tag");
+    for (i = 0; i < sizeof(tag); i++) {
+        CHECK((tag[i] >= 'A' && tag[i] <= 'Z')
+              || (tag[i] >= 'a' && tag[i] <= 'z')
+              || (tag[i] >= '0' && tag[i] <= '9'),
+              "random tag uses the XrdSecgsi-safe alphanumeric alphabet");
+    }
+}
+
 /* parms parsing for "v:...,c:...,ca:..." */
 static void
 test_parms(void)
@@ -158,6 +173,7 @@ main(void)
 {
     test_parms();
     test_certreq();
+    test_random_tag();
     test_dh_agreement();
     test_encrypt_roundtrip();
     test_rsa_sign_recover();

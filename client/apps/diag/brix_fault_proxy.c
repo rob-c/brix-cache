@@ -82,6 +82,7 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#include "../../../shared/observability/log_stdio.h"
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
@@ -415,7 +416,7 @@ fp_arm_privileged(const fp_config *cfg)
 {
     if (!cfg->privileged) {
         if (cfg->priv_iface != NULL) {
-            fprintf(stderr, "brix-fault-proxy: --priv-iface requires "
+            BRIX_CLIENT_LOG("ERROR",  "brix-fault-proxy: --priv-iface requires "
                             "--privileged\n");
             return FP_USAGE;
         }
@@ -428,14 +429,14 @@ fp_arm_privileged(const fp_config *cfg)
     const char *err = NULL;
     if (fp_priv_enable(cfg->priv_iface, cfg->listen_port, ports, g_ntargets,
                        &err) != 0) {
-        fprintf(stderr, "brix-fault-proxy: --privileged: %s\n", err);
+        BRIX_CLIENT_LOG("ERROR",  "brix-fault-proxy: --privileged: %s\n", err);
         return FP_USAGE;
     }
     atexit(fp_priv_teardown);
     signal(SIGINT, fp_on_signal);
     signal(SIGTERM, fp_on_signal);
     if (!cfg->quiet) {
-        fprintf(stderr, "brix-fault-proxy: privileged levers ARMED (iface=%s) — "
+        BRIX_CLIENT_LOG("INFO",  "brix-fault-proxy: privileged levers ARMED (iface=%s) — "
                         "host network state will be restored on exit\n",
                 cfg->priv_iface ? cfg->priv_iface : "(none)");
     }
@@ -477,7 +478,7 @@ fp_spawn_udp(const char *spec)
         return;
     }
     free(uc);
-    fprintf(stderr, "brix-fault-proxy: --udp needs \"<listen> <host:port>\"\n");
+    BRIX_CLIENT_LOG("ERROR",  "brix-fault-proxy: --udp needs \"<listen> <host:port>\"\n");
 }
 
 int
@@ -502,7 +503,7 @@ main(int argc, char **argv)
         return rc;
     }
     if (cfg.event_log != NULL && fp_event_open(cfg.event_log) != 0) {
-        fprintf(stderr,
+        BRIX_CLIENT_LOG("ERROR",
                 "brix-fault-proxy: cannot open event-log '%s' (event log)\n",
                 cfg.event_log);
         return FP_RUN;   /* unwritable log path is a runtime failure (exit 1) */
@@ -531,7 +532,7 @@ main(int argc, char **argv)
     int lfd   = listen_sa(&g_bind_ss, g_bind_len, cfg.listen_port);
     int ctlfd = listen_sa(&g_bind_ss, g_bind_len, cfg.control_port);
     if (lfd < 0 || ctlfd < 0) {
-        fprintf(stderr, "brix-fault-proxy: bind failed (listen=%d control=%d)\n",
+        BRIX_CLIENT_LOG("ERROR",  "brix-fault-proxy: bind failed (listen=%d control=%d)\n",
                 cfg.listen_port, cfg.control_port);
         return FP_RUN;
     }

@@ -41,6 +41,7 @@
  *       (unified.h, pulled in transitively via vfs_internal.h → access_log.h
  *       → unified.h).
  */
+#include "core/compat/log_event.h"
 #include "vfs_internal.h"
 #include "fs/backend/cache/sd_cache.h"
 #include "fs/backend/stage/sd_stage.h"
@@ -190,7 +191,7 @@ static ngx_int_t
 vfs_cred_no_cap(brix_vfs_ctx_t *ctx, brix_sd_ucred_t *store, int *err_out)
 {
     if (ctx->storage_cred_deny) {
-        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, ctx->log, 0,
             "brix: backend \"%s\" cannot scope a session to a user "
             "credential (fallback=deny) - refusing principal=\"%s\"",
             brix_sd_backend_name(ctx->sd), store->principal);
@@ -203,7 +204,7 @@ vfs_cred_no_cap(brix_vfs_ctx_t *ctx, brix_sd_ucred_t *store, int *err_out)
         return NGX_ERROR;
     }
 
-    ngx_log_error(NGX_LOG_WARN, ctx->log, 0,
+    BRIX_LOG(NGX_LOG_WARN, ctx->log, 0,
         "brix: backend \"%s\" cannot scope a session to a user "
         "credential - using the service credential for \"%s\"",
         brix_sd_backend_name(ctx->sd), store->principal);
@@ -248,7 +249,7 @@ vfs_cred_fill_user(brix_vfs_ctx_t *ctx, brix_sd_ucred_t *store,
      * are "a per-user backend credential was used"); the tier lives in the log
      * so an operator can see a member riding the group credential.  ("static"
      * is the service-credential fallback, logged separately by the miss path.) */
-    ngx_log_error(NGX_LOG_DEBUG, ctx->log, 0,
+    BRIX_LOG(NGX_LOG_DEBUG, ctx->log, 0,
         "brix: backend credential selected principal=\"%s\" key=%s tier=%s",
         store->principal, store->key, store->is_vo_tier ? "vo" : "user");
     brix_metric_cred_result(brix_vfs_metrics_proto(ctx),
@@ -272,7 +273,7 @@ vfs_cred_deny_or_fallback(brix_vfs_ctx_t *ctx, brix_sd_ucred_t *store,
     int *err_out)
 {
     if (ctx->storage_cred_deny) {
-        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, ctx->log, 0,
             "brix: per-user backend credential %s for principal=\"%s\" "
             "key=%s dir=\"%s\" (fallback=deny) - refusing",
             store->expired ? "EXPIRED" : "missing", store->principal,
@@ -286,7 +287,7 @@ vfs_cred_deny_or_fallback(brix_vfs_ctx_t *ctx, brix_sd_ucred_t *store,
         return NGX_ERROR;
     }
 
-    ngx_log_error(NGX_LOG_INFO, ctx->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, ctx->log, 0,
         "brix: no per-user backend credential for principal=\"%s\" key=%s - "
         "falling back to the service credential",
         store->principal, store->key);

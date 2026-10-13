@@ -27,6 +27,7 @@
  *
  * Clean-room: depends on the C library and <stdatomic.h> only.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 
 #include <stdatomic.h>
@@ -93,7 +94,7 @@ do_demote(const char *cause)
 {
     atomic_store_explicit(&g_demoted, 1, memory_order_relaxed);
     if (atomic_exchange_explicit(&g_logged, 1, memory_order_relaxed) == 0) {
-        fprintf(stderr,
+        BRIX_CLIENT_LOG("WARN",
                 "xrootd: %s; downgrading this session to IPv4-only for all "
                 "further connections (set XRDC_NO_IPV6_FALLBACK=1 to keep "
                 "trying IPv6)\n",
@@ -138,7 +139,7 @@ brix_netpref_undo_demote(const char *why)
     }
     atomic_store_explicit(&g_demoted, 0, memory_order_relaxed);
     if (atomic_exchange_explicit(&g_revert_logged, 1, memory_order_relaxed) == 0) {
-        fprintf(stderr,
+        BRIX_CLIENT_LOG("WARN",
                 "xrootd: %s; reverting to dual-stack (IPv4+IPv6) connection "
                 "attempts\n",
                 (why != NULL && why[0] != '\0') ? why

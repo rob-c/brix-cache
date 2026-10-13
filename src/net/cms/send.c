@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "cms_internal.h"
 #include "frame_io.h"
 #include "perf_pgm.h"               /* §2.11: external load-feed override */
@@ -295,14 +296,14 @@ ngx_brix_cms_send_load(ngx_brix_cms_ctx_t *ctx)
     uint32_t  util_pct;
     uint8_t   load5[5];
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->cycle->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, ctx->cycle->log, 0,
                    "brix: send_load: conn=%p", ctx->connection);
 
     free_mb = 0;
     util_pct = 0;
     (void) ngx_brix_cms_stat_space(ctx->conf, NULL, &free_mb, &util_pct);
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->cycle->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, ctx->cycle->log, 0,
                    "brix: send_load: free_mb=%uD", free_mb);
 
     if (ctx->conf->manager_mode) {

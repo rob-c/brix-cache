@@ -8,6 +8,7 @@
  * one exercised by tests/c/test_seccomp.c.
  */
 
+#include "core/compat/log_event.h"
 #include "core/seccomp/seccomp.h"
 #include "core/seccomp/seccomp_core.h"
 #include "core/types/tunables.h"   /* BRIX_SECCOMP_* */
@@ -153,14 +154,14 @@ brix_seccomp_log_err(void *ud, const char *name, int rc)
     ngx_cycle_t *cycle = ud;
 
     if (name != NULL) {
-        ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, cycle->log, 0,
                       "brix_seccomp: rule add for \"%s\" failed: %s",
                       name, strerror(-rc));
     } else if (rc != 0) {
-        ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, cycle->log, 0,
                       "brix_seccomp: filter load failed: %s", strerror(-rc));
     } else {
-        ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, cycle->log, 0,
                       "brix_seccomp: filter init failed");
     }
 }
@@ -185,7 +186,7 @@ brix_seccomp_install(ngx_cycle_t *cycle, ngx_uint_t mode, ngx_uint_t allow_exec)
          * worker is the honest outcome — serving while the operator believes a
          * filter is active would be a silent security downgrade. Rebuild with
          * libseccomp-devel or set "brix_seccomp off". */
-        ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, cycle->log, 0,
                       "brix_seccomp: mode=%ui requested but this binary was "
                       "built without libseccomp (install libseccomp-devel and "
                       "rebuild, or set \"brix_seccomp off\")", mode);
@@ -197,7 +198,7 @@ brix_seccomp_install(ngx_cycle_t *cycle, ngx_uint_t mode, ngx_uint_t allow_exec)
         return NGX_ERROR;
     }
 
-    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
                   "brix_seccomp: worker syscall filter active (mode=%s, exec=%s, "
                   "%ui allowed, %ui denied)",
                   (mode == BRIX_SECCOMP_ENFORCE) ? "enforce" : "audit",

@@ -126,6 +126,10 @@ brix_cms_srv_close(brix_cms_srv_ctx_t *ctx)
         ngx_del_timer(&ctx->ping_timer);
     }
 
+    if (ctx->read_resume.timer_set) {
+        ngx_del_timer(&ctx->read_resume);
+    }
+
     /* WS3: cancel the login/idle read deadline before tearing the socket down. */
     if (c->read->timer_set) {
         ngx_del_timer(c->read);

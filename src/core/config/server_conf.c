@@ -195,6 +195,8 @@ brix_create_srv_cluster(ngx_stream_brix_srv_conf_t *conf)
     brix_mirror_conf_init(&conf->mirror);
     brix_cms_conf_init(&conf->cms);
     conf->http_handoff_addr = NULL;
+    conf->http_handoff_connect_timeout = NGX_CONF_UNSET_MSEC;
+    conf->http_handoff_idle_timeout = NGX_CONF_UNSET_MSEC;
     conf->relay_addr = NULL;
     conf->relay_guard_enable = NGX_CONF_UNSET;
     conf->listen_port  = NGX_CONF_UNSET;

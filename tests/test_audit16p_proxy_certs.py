@@ -2,6 +2,7 @@
 _test_audit16p_proxy_certs_helpers.py; reexported below so pytest resolves fixtures in
 this module's namespace (split for the 600 logical-line file cap)."""
 from split_continuation import reexport as _reexport
+from log_records import semantic_log_text
 _reexport(globals(), "_test_audit16p_proxy_certs_helpers")
 
 
@@ -412,7 +413,8 @@ def _parse(tmp_path, **slots):
               "EXTRA_LOC": ""}
     values.update(slots)
     result = nginx_t("nginx_audit16nparse.conf", str(tmp_path), **values)
-    return result.returncode, (result.stdout or "") + (result.stderr or "")
+    return result.returncode, semantic_log_text(
+        (result.stdout or "") + (result.stderr or ""))
 
 
 # The two scopes this declaration names — one fewer than file 15's subjects, and

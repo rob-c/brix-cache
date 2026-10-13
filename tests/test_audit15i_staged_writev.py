@@ -17,20 +17,15 @@ To run §B2.13 itself, point the harness at a liburing-enabled binary:
     TEST_NGINX_BIN=<that objs/nginx> \\
         PYTHONPATH=tests pytest tests/test_audit15e_uring_tiers.py -v
 
-What the guard promises (writev.c:136-146): "all-or-nothing handle admission
+What the guard promises (writev.c): "all-or-nothing handle admission
 for the vector … INVARIANT — a bad handle in a later segment must never leave
 earlier segments already written; admitting the whole vector up front makes
 the write all-or-nothing."  Neither half holds.
 
-DEFECT CANDIDATE #29 — kXR_writev is unusable on the phase-70 whole-object
-staged writer.  An http:// backend advertises no RANDOM_WRITE, so a WRITE open
-mints a handle with no local descriptor (`ctx->files[idx].fd < 0`); the bytes
-accumulate in brix_stage_dir and the close commits one PUT.
-writev_validate_handles() (src/protocols/root/write/writev.c:147-169) admits a
-segment only when `ctx->files[idx].fd >= 0`, so it refuses every segment of a
-perfectly good staged handle with kXR_FileNotOpen — while a plain kXR_write on
-that same handle, in the same session, succeeds and commits.  Vector writes are
-silently unavailable on every descriptor-less tier.
+DEFECT CANDIDATE #29 [RESOLVED] — kXR_writev used to reject the phase-70
+whole-object staged writer because its handle has no local descriptor.  Handle
+admission now uses the canonical write-handle validator, staged vectors append
+through the staged writer, and close (or `kXR_wv_doSync`) commits one PUT.
 
 DEFECT CANDIDATE #30 [RESOLVED — the pins below now assert the single answer] —
 the refusal was not terminal: one kXR_writev was answered TWICE.
@@ -68,13 +63,12 @@ terminal, so the OOB read is unreachable and the wire behaviour after the
 refusal is fully defined — no second frame at all.
 
 Cases:
-  * success       — a plain kXR_write through the staged writer commits the
-    whole object to the origin byte-exact and drains the spool, so #29 is
-    about writev and not about staging;
-  * defect pin    — kXR_writev on that same staged handle is refused
-    kXR_FileNotOpen (#29);
-  * regression    — that refusal is answered exactly once and no second frame
-    follows, and the same connection keeps serving (#30, staged front);
+  * success       — plain kXR_write through the staged writer commits the
+    whole object to the origin byte-exact and drains the spool;
+  * regression    — plain write plus kXR_writev compose on one staged handle
+    and commit byte-exact (#29);
+  * regression    — consecutive staged vectors each receive exactly one
+    success response and commit in order (#29/#30);
   * regression    — a bare posix export, a handle that was never opened, and the
     same single refusal: neither the ring nor staging is involved (#30);
   * regression    — an out-of-range handle is refused kXR_FileNotOpen, answered
@@ -121,10 +115,6 @@ kXR_NotAuthorized = 3010
 
 WRITEV_SID = b"\x00\x05"          # the streamid every vector below carries
 
-
-DEFECT29 = ("DEFECT CANDIDATE #29 has been FIXED: kXR_writev now works on a "
-            "descriptor-less staged handle.  Flip this expectation to a "
-            "kXR_ok + a committed object and strike #29 from the audit.")
 
 DEFECT30 = ("REGRESSION #30: a refused kXR_writev must be answered exactly once "
             "and send no second frame — writev_validate_handles() returns "
@@ -217,7 +207,7 @@ def _open_staged(sock, path):
     return body[:4]
 
 
-# ── the staged writer works; only its vector writes do not ────────────────
+# ── staged scalar and vector writes compose ───────────────────────────────
 
 def test_a_plain_write_through_the_staged_writer_commits_whole(planes):
     """success: the phase-70 path itself is healthy — open, one kXR_write,
@@ -243,13 +233,11 @@ def test_a_plain_write_through_the_staged_writer_commits_whole(planes):
         "the staged writer left its spool copy behind after the commit"
 
 
-def test_writev_is_refused_on_the_handle_a_plain_write_accepts(planes):
-    """DEFECT CANDIDATE #29: one session, one handle, two write opcodes — the
-    plain kXR_write is accepted and the kXR_writev is refused kXR_FileNotOpen,
-    because writev_validate_handles() admits on `fd >= 0` and a whole-object
-    staged handle has no local descriptor at all."""
-    ep, _origin, _posix, _spool = planes
+def test_writev_and_plain_write_commit_on_one_staged_handle(planes):
+    """Regression #29: descriptor-less staged handles accept both opcodes."""
+    ep, origin, _posix, spool = planes
     payload = os.urandom(4096)
+    tail = os.urandom(3072)
 
     sock = _session(HOST, ep.port)
     try:
@@ -259,38 +247,41 @@ def test_writev_is_refused_on_the_handle_a_plain_write_accepts(planes):
         assert status == kXR_ok, \
             f"the control write must succeed for the cross to mean anything: {body!r}"
 
-        sid, status, body = _writev(sock, fh, [(len(payload), payload)])
-        assert status == kXR_error, DEFECT29
-        assert _errcode(body) == kXR_FileNotOpen, (DEFECT29, body)
+        sid, status, body = _writev(sock, fh, [(len(payload), tail)])
+        assert status == kXR_ok, f"vector write on staged handle: {body!r}"
         assert sid == WRITEV_SID, (sid, body)
+        _sid, status, body = _close(sock, fh)
+        assert status == kXR_ok, f"staged close failed: {body!r}"
     finally:
         sock.close()
 
+    assert (origin / "both.bin").read_bytes() == payload + tail
+    assert not [p for p in spool.rglob("*") if p.is_file()]
 
-def test_the_refused_staged_vector_is_answered_exactly_once(planes):
-    """DEFECT CANDIDATE #30 on the staged front, now fixed: after the
-    kXR_FileNotOpen the server sends nothing more.  writev_validate_handles()
-    returns NGX_DONE, so the caller stops instead of reading brix_send_error()'s
-    NGX_OK as "handles admitted" and running the write against the refused
-    descriptor.  Unlike the framing guard, the handle guard keeps the link — a
-    second refused vector on the same socket is answered the same single way."""
-    ep, _origin, _posix, _spool = planes
+
+def test_consecutive_staged_vectors_are_answered_once_and_commit(planes):
+    """Regression #29/#30: each valid vector gets one reply and the link stays usable."""
+    ep, origin, _posix, _spool = planes
+    first = os.urandom(1024)
+    second = os.urandom(512)
 
     sock = _session(HOST, ep.port)
     try:
         fh = _open_staged(sock, "/twice.bin")
-        sid, status, body = _writev(sock, fh, [(0, os.urandom(1024))])
-        assert status == kXR_error and _errcode(body) == kXR_FileNotOpen, body
+        sid, status, body = _writev(sock, fh, [(0, first)])
+        assert status == kXR_ok, body
         assert sid == WRITEV_SID, (sid, status, body)
         assert _next_frame(sock) is None, DEFECT30
 
-        # the handle guard keeps the connection (the framing guard drops it): a
-        # second refused vector on the same socket is answered the same one way.
-        sid, status, body = _writev(sock, fh, [(0, os.urandom(512))])
-        assert status == kXR_error and _errcode(body) == kXR_FileNotOpen, body
+        sid, status, body = _writev(sock, fh, [(len(first), second)])
+        assert status == kXR_ok, body
         assert _next_frame(sock) is None, DEFECT30
+        _sid, status, body = _close(sock, fh)
+        assert status == kXR_ok, body
     finally:
         sock.close()
+
+    assert (origin / "twice.bin").read_bytes() == first + second
 
 
 # ── the same fall-through on a bare posix export ──────────────────────────

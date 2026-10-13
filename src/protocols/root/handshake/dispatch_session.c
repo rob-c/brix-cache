@@ -4,7 +4,8 @@
  * brix_dispatch_session_opcode — phase 2 of request routing (from
  * handshake/dispatch.c): a switch on ctx->recv.cur_reqid over the seven session
  * lifecycle opcodes — kXR_protocol, kXR_login, kXR_auth, kXR_ping, kXR_set
- * (login-gated), kXR_endsess, kXR_bind — each delegating to its handler (defined
+ * (login-gated), kXR_endsess, kXR_bind, plus the retired kXR_gpfile's explicit
+ * unsupported answer — each delegating to its handler (defined
  * in its own module, documented there). These establish the session (protocol
  * version, identity, auth, sessid) before any file I/O. kXR_bind is special: it
  * arrives on a secondary connection before login and must be handled first so the
@@ -40,6 +41,13 @@ brix_dispatch_session_opcode(brix_ctx_t *ctx, ngx_connection_t *c,
         ngx_int_t rc = brix_dispatch_require_login(ctx, c);
         if (rc != BRIX_DISPATCH_CONTINUE) { return rc; }
         return brix_handle_set(ctx, c, conf);
+    }
+
+    case kXR_gpfile: {
+        ngx_int_t rc = brix_dispatch_require_login(ctx, c);
+        if (rc != BRIX_DISPATCH_CONTINUE) { return rc; }
+        return brix_send_error(ctx, c, kXR_Unsupported,
+                               "gpfile is retired and unsupported");
     }
 
     case kXR_endsess:

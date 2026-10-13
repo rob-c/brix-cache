@@ -110,15 +110,31 @@ brix_web_proxy_pem(char *buf, size_t buflen)
 static int
 brix_bringup_ex(brix_conn *c, int want_login, brix_status *st)
 {
+    if (c->opts.diagnostic_no_tls_upgrade
+        && (!c->opts.force_anon || c->opts.auth_force != NULL)) {
+        brix_status_set(st, XRDC_EUSAGE, 0,
+            "cleartext TLS diagnostic requires anonymous credentials");
+        return -1;
+    }
     c->io.fd = -1;
     c->io.ssl = NULL;
     c->ssl_ctx = NULL;
     c->next_sid = 1;
     c->server_flags = 0;
+    c->server_protocol = 0;
+    c->handshake_body_len = 0;
+    c->protocol_body_len = 0;
     c->sec_level = 0;
     c->sec_odata = 0;
     c->signing_active = 0;
+    c->tls_session_reused = 0;
     c->sig_seqno = 0;
+    c->gsi_login_challenge_text = 0;
+    c->gsi_server_dh_plain = 0;
+    c->gsi_server_dh_signed = 0;
+    c->gsi_unpadded_secret = 0;
+    c->gsi_round2_response_built = 0;
+    c->gsi_server_key_persisted = 0;
 
     /* §15: arm trace/timing from opts (the per-opcode RTT table on c persists
      * across a redirect's reconnect, so the final summary aggregates all hops). */
@@ -151,7 +167,10 @@ brix_bringup_ex(brix_conn *c, int want_login, brix_status *st)
     {
         int have_tls = (c->server_flags & kXR_haveTLS) != 0;
         int goto_tls = (c->server_flags & kXR_gotoTLS) != 0;
-        if (goto_tls || (c->want_tls && have_tls)) {
+        if (c->opts.diagnostic_no_tls_upgrade) {
+            /* Explicit conformance fixture: stay incapable of upgrading.  The
+             * entry gate above guarantees no credential can be selected. */
+        } else if (goto_tls || (c->want_tls && have_tls)) {
             const char *ca = brix_resolve_ca_dir(c->opts.ca_dir);
             if (brix_tls_upgrade(c, !c->opts.insecure_tls, c->opts.verify_host, ca, st) != 0) {
                 brix_close(c);
@@ -234,7 +253,16 @@ brix_bind(brix_conn *sec, const brix_conn *primary, brix_status *st)
             return -1;
         }
     }
-    free(body);   /* reply body = 1-byte pathid (server bookkeeping) */
+    if (blen != 1 || body == NULL || body[0] == 0 || body[0] > 253) {
+        free(body);
+        brix_status_set(st, XRDC_EPROTO, 0,
+                        "bind: expected one-byte path ID in range 1..253");
+        brix_tls_free(sec);
+        if (sec->io.fd >= 0) { close(sec->io.fd); sec->io.fd = -1; }
+        return -1;
+    }
+    sec->bound_pathid = body[0];
+    free(body);
     /* §7.7: a bound substream is a SECOND live socket to the same server, and
      * the high-throughput read path is made of them.  Unregistered, a forked
      * child would inherit each one un-neutered and its first brix_send would
@@ -449,4 +477,3 @@ brix_close(brix_conn *c)
     c->gsi_deleg_ready = 0;
     c->signing_active = 0;
 }
-

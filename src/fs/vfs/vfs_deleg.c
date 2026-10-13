@@ -32,6 +32,7 @@
  *       is materialised (§5.1 / P90-70.4); the DN-match half of the gate is
  *       enforced at capture (deleg_capture.c / gsi_promote_fullproxy).
  */
+#include "core/compat/log_event.h"
 #include "vfs_internal.h"
 #include "net/proxy/gsi_upstream.h"
 #include "auth/crypto/gsi_verify.h"      /* in-gate chain re-verify (P90-70.4)     */
@@ -249,7 +250,7 @@ brix_vfs_deleg_exchange(brix_vfs_ctx_t *ctx, brix_sd_cred_t *cred,
     if (minted.len == 0) {
         if (brix_token_exchange(ctx->pool, &live->bearer, aud, NULL,
                 &live->tx, &minted, ctx->log) != NGX_OK) {
-            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, ctx->log, 0,
                 "brix: backend token-exchange failed - denying (no service-cred "
                 "fallback for EXCHANGE)");
             return brix_vfs_deleg_deny(ctx, use_cred, err_out,

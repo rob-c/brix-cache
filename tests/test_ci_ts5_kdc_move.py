@@ -84,6 +84,10 @@ _ADDED_SINCE_MOVE = {
     # public form the client-side tests call so they cannot re-derive a
     # different answer.  Linux keeps PATH-first order.
     "_tool_in_search_dirs", "krb5_tool",
+    # A fleet-owned KDC outlives the short helper process that started it.
+    # Test-local realm fixtures attach to that complete live realm instead of
+    # wiping its database and trying to bind a second daemon to the same port.
+    "_reusable_realm_is_live",
 }
 
 #: Archived definitions since EDITED, with what changed.  Held to a stricter
@@ -93,6 +97,9 @@ _CHANGED_SINCE_MOVE = {
     # (MIT keg first on Darwin, PATH first elsewhere) instead of calling
     # shutil.which() alone.  Its Linux answer is unchanged.
     "_find_tool",
+    # These now distinguish an attached fleet realm from a standalone realm:
+    # attached tests refresh credentials but never stop the fleet daemon.
+    "up", "down",
 }
 
 

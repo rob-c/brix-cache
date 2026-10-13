@@ -12,6 +12,7 @@
  * vfs_backend_config_internal.h. Building and resolving driver instances stays
  * in vfs_backend_registry.c (phase-38 split of the former single file).
  */
+#include "core/compat/log_event.h"
 #include "vfs_backend_config_internal.h"
 
 #include <string.h>
@@ -205,7 +206,7 @@ vfs_parse_mirage_origin(ngx_conf_t *cf, const char *root_canon,
 
     size = ngx_parse_offset(&szs);
     if (size == NGX_ERROR || size < 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend: mirage size \"%V\" is not a valid "
             "non-negative size", &szs);
         return NGX_ERROR;

@@ -9,26 +9,12 @@ from pathlib import Path
 from cmdscripts.compile_run import (REPO_ROOT, compile_binary, pal_host_addon,
                                     result, run)
 from cmdscripts.command_results import print_results
+from cmdscripts.c_object_unit_results import (compile_failure, missing_objects,
+                                              run_result)
 
 # Honour NGX_SRC (mirroring c_regression_units.py) so the unit runners link
 # against whichever configured build tree the caller points at — the shared
 # /tmp/nginx-1.28.3 by default, or a private tree during concurrent-session work.
-def _expression_1(spec):
-    return (
-        [str(path) for path in spec.required if not path.is_file()]
-    )
-
-def _expression_2(name, built):
-    return (
-        [result(False, f"compile {name} failed: {(built.stderr or built.stdout)[-3000:]}")]
-    )
-
-def _expression_3(ran, name):
-    return (
-        [result(ran.returncode == 0, f"{name} exited {ran.returncode}: {(ran.stderr or ran.stdout)[-3000:]}")]
-    )
-
-
 NGX_SRC = Path(os.environ.get("NGX_SRC", "/tmp/nginx-1.28.3"))
 OBJS = NGX_SRC / "objs"
 
@@ -231,12 +217,17 @@ SPECS: dict[str, ObjectUnitSpec] = {
     "vfs_authz_backstop": ObjectUnitSpec(
         "vfs_authz_backstop",
         "test_vfs_authz_backstop",
-        (addon("vfs/vfs_authz.o"),),
+        (addon("vfs/vfs_authz.o"),
+         NGX_SRC / "objs/src/core/ngx_string.o",
+         NGX_SRC / "objs/src/core/ngx_palloc.o",
+         NGX_SRC / "objs/src/os/unix/ngx_alloc.o"),
         ("-O", "-Wall", "-Wextra", "-Werror",
          *_inc("src", REPO_ROOT / "shared", OBJS,
                *_NGX_CORE_INC, *_NGX_HTTP_INC),
          "tests/c/test_vfs_authz_backstop.c",
-         str(addon("vfs/vfs_authz.o"))),
+         str(addon("vfs/vfs_authz.o")),
+         "tests/c/ngx_link_stubs.c",
+         *_NGX_LIB_OBJS),
     ),
     # The phase-107 W2/W3 verbs (recall/evict/delete_many) over the real policy
     # kernel, with the §3.4 ordering assertion (vfs_order_spy.h) wired in:
@@ -408,7 +399,8 @@ SPECS: dict[str, ObjectUnitSpec] = {
     "publish_dirsync": ObjectUnitSpec(
         "publish_dirsync",
         "test_publish_dirsync",
-        (addon("compat/staged_file.o"), addon("path/beneath.o"),
+        (addon("compat/staged_file.o"),
+         addon("path/resolve_confined_ops_xattr.o"), addon("path/beneath.o"),
          addon(pal_host_addon("path_wrapper"))),
         ("-O", "-Wall",
          *_inc("src", OBJS, *_NGX_CORE_INC),
@@ -416,6 +408,7 @@ SPECS: dict[str, ObjectUnitSpec] = {
          "tests/c/test_publish_dirsync.c",
          "tests/c/ngx_link_stubs.c",
          str(addon("compat/staged_file.o")),
+         str(addon("path/resolve_confined_ops_xattr.o")),
          str(addon("path/beneath.o")),
          str(addon(pal_host_addon("path_wrapper")))),
     ),
@@ -589,19 +582,19 @@ def coverage_flags(required: tuple[Path, ...]) -> list[str]:
 
 def run_one(name: str, base: Path) -> list[tuple[bool, str]]:
     spec = SPECS[name]
-    missing = _expression_1(spec)
+    missing = missing_objects(spec)
     if missing:
         return [result(True, f"SKIP {name}: build required object(s) first: {', '.join(missing)}")]
     binary = base / spec.binary
     built = compile_binary(binary, list(spec.args) + coverage_flags(spec.required),
                            cwd=REPO_ROOT)
     if built.returncode != 0:
-        return _expression_2(name, built)
+        return compile_failure(name, built)
     # detect_leaks=0: an object-linked unit that inherits -fsanitize=address from
     # a contaminated tree must not fail on LeakSanitizer's exit report; real heap
     # errors still abort.
     ran = run([str(binary)], cwd=REPO_ROOT, env={"ASAN_OPTIONS": "detect_leaks=0"})
-    return _expression_3(ran, name)
+    return run_result(ran, name)
 
 
 def run_checks(base: Path, names: list[str] | None = None) -> list[tuple[bool, str]]:

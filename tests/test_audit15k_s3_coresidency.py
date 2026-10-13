@@ -104,6 +104,7 @@ import requests
 from server_registry import NginxInstanceSpec
 from settings import HOST, NGINX_BIN
 from utils.make_token import TokenIssuer
+from log_records import semantic_log_text
 
 def _check_test_no_s3_translation_unit_can_reach_a_webdav_loc_conf_1(hits):
     assert hits == [], f"{DEFECT36} S3 now references the WebDAV conf at {hits}"
@@ -256,7 +257,7 @@ def _errlog(endpoint):
     """Instance logs are wiped at teardown, so failures quote them inline."""
     try:
         with open(os.path.join(endpoint.prefix, "logs", "error.log")) as fh:
-            return fh.read()
+            return semantic_log_text(fh.read())
     except FileNotFoundError:
         return ""
 
@@ -532,9 +533,7 @@ class TestTheS3TokenGate:
 
     def test_presigned_credentials_are_ignored_when_a_bearer_is_present(
             self, s3cores):
-        """DEFECT #38.  X-Amz-Signature is the presigned presence test, and
-        this one is nonsense — yet the request is served on the bearer without
-        the signature material being examined or the conflict reported."""
+        """A bearer and presigned SigV4 credentials are an invalid conflict."""
         endpoint, issuer, _ = s3cores
         token = issuer.generate(scope="storage.read:/")
         resp = requests.get(
@@ -546,20 +545,21 @@ class TestTheS3TokenGate:
                     "X-Amz-SignedHeaders": "host",
                     "X-Amz-Signature": "00" * 32},
             headers={"Authorization": f"Bearer {token}"}, timeout=30)
-        assert resp.status_code == 200, f"{DEFECT38} ({resp.status_code})"
-        assert resp.content == SEED, f"{DEFECT38} ({resp.text[:200]})"
+        assert resp.status_code == 400, f"{DEFECT38} ({resp.status_code})"
+        assert "both Bearer and SigV4 credentials present" in resp.text, (
+            f"{DEFECT38} ({resp.text[:200]})")
 
-    def test_the_both_credentials_branch_reads_a_single_header(self):
-        """DEFECT #38, structurally: both predicates come from one
-        `get_header(r, "authorization")` value, so their conjunction is
-        unsatisfiable and the 400 below it is unreachable."""
+    def test_the_both_credentials_branch_reads_both_credential_sources(self):
+        """The conflict guard must inspect headers and the parsed query."""
         text = (S3_SRC / "auth_sigv4_verify.c").read_text(encoding="utf-8")
         body = text.split("s3_sigv4_bearer_intercept(", 1)[1].split("\n}", 1)[0]
         assert 'get_header(r, "authorization")' in body, body[:400]
-        assert "has_bearer && has_sigv4" in body, \
+        assert "has_bearer && sigv4_present" in body, \
             f"{DEFECT38} the conjunction is gone from the intercept"
-        assert body.count('get_header(r, "authorization")') == 1, \
-            f"{DEFECT38} the intercept now reads more than one header source"
+        assert "brix_http_query_parsed_has(&ctx->query" in body, \
+            f"{DEFECT38} the intercept does not inspect presigned credentials"
+        assert '"X-Amz-Signature"' in body, \
+            f"{DEFECT38} the intercept does not identify the SigV4 query"
         bearer = (S3_SRC / "auth_bearer.c").read_text(encoding="utf-8")
         assert 'get_header(r, "authorization")' in bearer, \
             f"{DEFECT38} s3_bearer_present no longer reads the same header"

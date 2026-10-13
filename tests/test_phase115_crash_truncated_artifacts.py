@@ -139,6 +139,7 @@ def _sentinels(tmp_path: Path) -> tuple:
     (pki / "user").mkdir(parents=True)
     tokens.mkdir(parents=True)
     (pki / "ca" / "ca.pem").write_bytes(GOOD_PEM)
+    (pki / "ca" / "test-user.crl.pem").write_bytes(GOOD_PEM)
     (pki / "user" / "proxy_std.pem").write_bytes(GOOD_PEM)
     _signing_authority(tokens)
     (tokens / "upstream.jwt").write_bytes(b"a.b.c")
@@ -153,7 +154,7 @@ def test_a_complete_tree_reports_nothing_missing(tmp_path):
 
 
 @pytest.mark.parametrize("victim", [
-    "pki/ca/ca.pem", "pki/user/proxy_std.pem",
+    "pki/ca/ca.pem", "pki/ca/test-user.crl.pem", "pki/user/proxy_std.pem",
     "tokens/signing_key.pem", "tokens/jwks.json", "tokens/upstream.jwt", "tokens/scitokens.cfg",
 ])
 def test_a_zero_length_sentinel_counts_as_missing(tmp_path, victim):

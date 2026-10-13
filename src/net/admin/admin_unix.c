@@ -3,6 +3,7 @@
  * for the model, the per-worker path rule and the security boundary.
  */
 
+#include "core/compat/log_event.h"
 #include "admin_unix.h"
 
 #include <sys/un.h>
@@ -251,7 +252,7 @@ admin_unix_bind(const char *path, size_t plen, ngx_log_t *log)
 
     fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd == (ngx_socket_t) -1) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "brix admin: socket(%s) failed", path);
         return (ngx_socket_t) -1;
     }
@@ -265,7 +266,7 @@ admin_unix_bind(const char *path, size_t plen, ngx_log_t *log)
         || listen(fd, 8) == -1
         || ngx_nonblocking(fd) == -1)
     {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "brix admin: bind/listen(%s) failed", path);
         (void) close(fd);
         return (ngx_socket_t) -1;
@@ -288,7 +289,7 @@ brix_admin_unix_listen(ngx_cycle_t *cycle, const char *path,
 
     n = admin_unix_worker_path(wpath, sizeof(wpath), path);
     if (n < 0) {
-        ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, cycle->log, 0,
                       "brix %s: per-worker path for \"%s\" exceeds unix "
                       "socket path limit — socket disabled on worker %ui",
                       srv->label, path, ngx_worker);
@@ -317,7 +318,7 @@ brix_admin_unix_listen(ngx_cycle_t *cycle, const char *path,
         return;
     }
 
-    ngx_log_error(NGX_LOG_INFO, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, cycle->log, 0,
                   "brix %s: listening on \"%s\" (worker %ui)", srv->label,
                   wpath, ngx_worker);
 }

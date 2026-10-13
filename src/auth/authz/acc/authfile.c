@@ -19,6 +19,7 @@
  *   the generation's own pool for a one-shot atomic free.
  */
 
+#include "core/compat/log_event.h"
 #include "authfile_internal.h"
 
 #include "core/compat/log_diag.h"
@@ -43,7 +44,7 @@ acc_finalize_rules(brix_acc_tables_t *tabs, ngx_log_t *log)
         id->next = NULL;
 
         if (id->caps == NULL) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "xrootd authdb: id \"%s\" defined but never used "
                           "(no x/s rule) — ignored", id->name);
             continue;
@@ -89,7 +90,7 @@ acc_dispatch_record(acc_parse_ctx_t *pc, char **w, ngx_uint_t n)
     rtype = w[0][0];
 
     if (n < 2) {
-        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: record name missing after '%c'", rtype);
         return NGX_ERROR;
     }
@@ -104,7 +105,7 @@ acc_dispatch_record(acc_parse_ctx_t *pc, char **w, ngx_uint_t n)
     case 'r': case 't': case 'u':
         return acc_record_named(pc, rtype, w, n);
     default:
-        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: invalid id type \"%c\"", rtype);
         return NGX_ERROR;
     }

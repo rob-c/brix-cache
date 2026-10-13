@@ -63,10 +63,8 @@ def _rt36_a_multi_prop_proppatch(port, ta, adir, owned_alice):
     NS_PROPNAME = (b'<?xml version="1.0"?><D:propfind xmlns:D="DAV:">'
                    b'<D:propname/></D:propfind>')
 
-    _protocol_features_webdav_p1(port, ta, adir, propfind, NS_ALLPROP, tb, NS_PROPNAME, fetch_etag, data, owned_alice, XML, not_worker_root, base)
 
 
-def _protocol_features_webdav_p1(port, ta, adir, propfind, NS_ALLPROP, tb, NS_PROPNAME, fetch_etag, data, owned_alice, XML, not_worker_root, base):
     # ===================================================== (a) MULTI-PROP PROPPATCH
     http("PUT", "/alice/pfw_multi.txt", port, ta, b"multi-prop target\n")
     pm = adir("pfw_multi.txt")
@@ -120,16 +118,14 @@ def _rt36_the_property_must_never_persist_positive(st_pp, persisted, st_pf, owne
 
 def _rt36_b_proppatch_remove(propfind, ta, NS_ALLPROP, st_b, owned_alice, pm, port):
     _, body_after = propfind("/alice/pfw_multi.txt", ta, NS_ALLPROP)
-    ok(any((st_b not in (200, 207), b'PFW-BOB-PWNED' not in any((body_after, b'')))),
+    ok(any((st_b not in (200, 207), b'PFW-BOB-PWNED' not in _rt_default(body_after, b''))),
        f"bob PROPPATCH on alice's file denied/no-op (HTTP {st_b})")
-    ok(b'PFW-BOB-PWNED' not in any((body_after, b'')),
+    ok(b'PFW-BOB-PWNED' not in _rt_default(body_after, b''),
        "bob's dead-property did NOT persist on alice's file (broker xattr DAC)")
     ok(owned_alice(pm),
        "alice's file unchanged-owner after bob's PROPPATCH attempt")
-    _protocol_features_webdav_p2(port, ta, adir, propfind, NS_ALLPROP, NS_PROPNAME, fetch_etag, data, XML, owned_alice, pm, not_worker_root, base)
 
 
-def _protocol_features_webdav_p2(port, ta, adir, propfind, NS_ALLPROP, NS_PROPNAME, fetch_etag, data, XML, owned_alice, pm, not_worker_root, base):
     # ===================================================== (b) PROPPATCH REMOVE
     http("PUT", "/alice/pfw_rm.txt", port, ta, b"remove-prop target\n")
 
@@ -157,15 +153,14 @@ def _rt36_segment_12(port, ta, XML, propfind, NS_ALLPROP, set_ok, st_s1, owned_a
                     hdrs=XML)
     _, body_rm = propfind("/alice/pfw_rm.txt", ta, NS_ALLPROP)
     if set_ok:
-        ok(all((st_rm in (200, 207), b'PFW-EPHEMERAL' not in any((body_rm, b'')))),
+        ok(all((st_rm in (200, 207), b'PFW-EPHEMERAL' not in _rt_default(body_rm, b''))),
            f"PROPPATCH REMOVE drops the dead property (set {st_s1}, remove {st_rm})")
     else:
-        ok(b'PFW-EPHEMERAL' not in any((body_rm, b'')),
+        ok(b'PFW-EPHEMERAL' not in _rt_default(body_rm, b''),
            f"dead-property set/remove unsupported but no stale prop leaks "
            f"(set {st_s1}, remove {st_rm})")
     ok(owned_alice(prm),
        "PROPPATCH set+remove cycle left the file owned by alice")
-    _protocol_features_webdav_p3(port, ta, adir, propfind, NS_ALLPROP, NS_PROPNAME, fetch_etag, data, XML, owned_alice, pm, not_worker_root, base)
 
 
 def _rt36_c_namespaced_round_trip(port, ta, adir, XML, propfind, NS_ALLPROP):
@@ -189,7 +184,7 @@ def _rt36_c_namespaced_round_trip(port, ta, adir, XML, propfind, NS_ALLPROP):
 def _rt36_d_three_propfind_bodies(st_ns, body_ns, st_nf, owned_alice, pns, propfind, ta):
     if st_ns in (200, 207) and (b"PFW-NS-CUSTOM" in (body_ns or b"")
                                 or b"PFW-NS-OTHER" in (body_ns or b"")):
-        ok(all((b'PFW-NS-CUSTOM' in any((body_ns, b'')), b'PFW-NS-OTHER' in any((body_ns, b'')))),
+        ok(all((b'PFW-NS-CUSTOM' in _rt_default(body_ns, b''), b'PFW-NS-OTHER' in _rt_default(body_ns, b''))),
            f"namespaced (xmlns) custom props round-trip both namespaces "
            f"(PROPPATCH {st_ns}, PROPFIND {st_nf})")
     else:
@@ -197,10 +192,8 @@ def _rt36_d_three_propfind_bodies(st_ns, body_ns, st_nf, owned_alice, pns, propf
                  f"(PROPPATCH {st_ns})")
     ok(owned_alice(pns),
        "namespaced-prop file owned by alice (broker xattr as owner)")
-    _protocol_features_webdav_p4(propfind, ta, NS_ALLPROP, NS_PROPNAME, port, adir, fetch_etag, data, owned_alice, pm, not_worker_root, base)
 
 
-def _protocol_features_webdav_p4(propfind, ta, NS_ALLPROP, NS_PROPNAME, port, adir, fetch_etag, data, owned_alice, pm, not_worker_root, base):
     # ===================================================== (d) THREE PROPFIND BODIES
     # On the OWNER's file: named-prop, allprop, propname must each respond cleanly.
     named_body = (b'<?xml version="1.0"?>'
@@ -215,13 +208,13 @@ def _protocol_features_webdav_p4(propfind, ta, NS_ALLPROP, NS_PROPNAME, port, ad
 
 def _rt36_propname_must_return_names_not_values(propfind, ta, NS_ALLPROP, NS_PROPNAME):
     st_a, body_a = propfind("/alice/pfw_multi.txt", ta, NS_ALLPROP)
-    ok(any((all((st_a in (200, 207), b'getcontentlength' in any((body_a, b'')).lower())), st_a in (200, 207))),
+    ok(any((all((st_a in (200, 207), b'getcontentlength' in _rt_default(body_a, b'').lower())), st_a in (200, 207))),
        f"PROPFIND allprop on own file (HTTP {st_a})")
     st_pn, body_pn = propfind("/alice/pfw_multi.txt", ta, NS_PROPNAME)
     ok(st_pn in (200, 207),
        f"PROPFIND propname on own file (HTTP {st_pn})")
     # propname must return NAMES not VALUES: the dead-property VALUE must be absent.
-    ok(b'cerulean-pfw' not in any((body_pn, b'')),
+    ok(b'cerulean-pfw' not in _rt_default(body_pn, b''),
        "PROPFIND propname returns names only, not the dead-property VALUE")
 
 
@@ -233,17 +226,15 @@ def _rt36_positive_control_propfind_allprop_on_bob(named_body, NS_ALLPROP, NS_PR
                            ("allprop", NS_ALLPROP),
                            ("propname", NS_PROPNAME)):
         st_o, body_o = propfind("/bob/private.txt", ta, pf_body)
-        ok(b'BOB-PRIVATE-SECRET' not in any((body_o, b'')),
+        ok(b'BOB-PRIVATE-SECRET' not in _rt_default(body_o, b''),
            f"PROPFIND {label} on bob's 0600 leaks NO secret bytes (HTTP {st_o})")
     # positive control: PROPFIND allprop on bob's WORLD-READABLE file is fine and
     # exposes only metadata (alice may stat it; that is correct DAC, not a leak).
     st_ctrl, body_ctrl = propfind("/bob/readable.txt", ta, NS_ALLPROP)
     ok(st_ctrl in (200, 207, 403, 404),
        f"PROPFIND allprop on bob's 0644 control handled (HTTP {st_ctrl})")
-    _protocol_features_webdav_p5(port, ta, adir, fetch_etag, data, owned_alice, pm, not_worker_root, base)
 
 
-def _protocol_features_webdav_p5(port, ta, adir, fetch_etag, data, owned_alice, pm, not_worker_root, base):
     # ===================================================== (e) CONDITIONAL COPY/MOVE
     http("PUT", "/alice/pfw_csrc.txt", port, ta, b"conditional-copy source\n")
     psrc = adir("pfw_csrc.txt")
@@ -311,7 +302,6 @@ def _rt36_segment_19(port, ta, base, powd):
        f"Overwrite:F COPY over existing target refused / not clobbered (HTTP {st_of})")
     ok(b"conditional-copy source" not in dst_body,
        "Overwrite:F left the pre-existing destination content intact (no clobber)")
-    _protocol_features_webdav_p6(port, ta, adir, data, fetch_etag, owned_alice, pm, not_worker_root, base)
 
 
 def _rt36_move_with_depth_infinity_of_an(port, ta, base, adir):
@@ -330,9 +320,9 @@ def _rt36_move_with_depth_infinity_of_an(port, ta, base, adir):
 def _rt36_bob_s_secret_never_appears_in(st_mv, not_worker_root, mvdst, mvleaf, port, ta, data):
     ok(all((st_mv in (201, 204, 200), not_worker_root(mvdst))),
        f"MOVE Depth:infinity of owned collection (HTTP {st_mv})")
-    ok(any((not os.path.isdir(mvdst), os.stat(mvdst).st_uid == UID_ALICE)),
+    ok(_rt_missing_or_stat(mvdst, lambda meta: meta.st_uid == UID_ALICE),
        "MOVEd collection directory owned by alice (never svc/root)")
-    ok(any((not os.path.exists(mvleaf), os.stat(mvleaf).st_uid == UID_ALICE)),
+    ok(_rt_missing_or_stat(mvleaf, lambda meta: meta.st_uid == UID_ALICE),
        "MOVEd collection leaf owned by alice")
 
     # cross-tenant conditional MOVE: alice MOVE INTO bob's 0700 dir -> denied, and
@@ -348,14 +338,13 @@ def _rt36_positive_control_the_same_source_moves(port, ta, base, bsecret, owned_
                                 "Overwrite": "T"})
     ok(all((st_xm not in (201, 204, 200), not os.path.exists(bsecret))),
        f"cross-tenant MOVE into bob's 0700 dir DENIED, no file planted (HTTP {st_xm})")
-    ok(all((b'svc-only-secret' not in any((body_xm, b'')), b'BOB-PRIVATE-SECRET' not in any((body_xm, b'')))),
+    ok(all((b'svc-only-secret' not in _rt_default(body_xm, b''), b'BOB-PRIVATE-SECRET' not in _rt_default(body_xm, b''))),
        "cross-tenant MOVE error response leaks no foreign secret bytes")
     # positive control: the same source MOVEs fine WITHIN alice's own space.
     st_pc, _ = http("MOVE", "/alice/pfw_xmove.txt", port, ta,
                     hdrs={"Destination": f"{base}/alice/pfw_xmove2.txt"})
     ok(all((st_pc in (201, 204, 200), owned_alice(adir('pfw_xmove2.txt')))),
        f"control: same MOVE within alice's space succeeds, owned alice (HTTP {st_pc})")
-    _protocol_features_webdav_p7(port, ta, adir, fetch_etag, owned_alice, pm)
 
 
 def _rt36_f_options_coll_vs_file(port, ta, adir):
@@ -375,12 +364,10 @@ def _rt36_f_options_coll_vs_file(port, ta, adir):
 def _rt36_options_on_bob_s_0700_dir(port, ta, adir, fetch_etag):
     # OPTIONS on bob's 0700 dir must not enumerate or leak its private contents.
     st_ob, body_ob = http("OPTIONS", "/bobsecret/", port, ta)
-    ok(all((b'svc-only-secret' not in any((body_ob, b'')), b'BOB-PRIVATE-SECRET' not in any((body_ob, b'')))),
+    ok(all((b'svc-only-secret' not in _rt_default(body_ob, b''), b'BOB-PRIVATE-SECRET' not in _rt_default(body_ob, b''))),
        f"OPTIONS on bob's private dir leaks no contents (HTTP {st_ob})")
-    _protocol_features_webdav_p8(port, ta, adir, fetch_etag, owned_alice, pm)
 
 
-def _protocol_features_webdav_p8(port, ta, adir, fetch_etag, owned_alice, pm):
     # ===================================================== (g) If-Range GET own file
     http("PUT", "/alice/pfw_ir.txt", port, ta, b"0123456789ABCDEF")
     pir = adir("pfw_ir.txt")
@@ -412,17 +399,15 @@ def _rt36_if_range_as_a_confidentiality_oracle(port, ta, owned_alice, pm):
     # If-Range as a confidentiality oracle on bob's 0600 -> still no secret bytes.
     st_irb, body_irb = http("GET", "/bob/private.txt", port, ta,
                             hdrs={"If-Range": '"x"', "Range": "bytes=0-4"})
-    ok(b'BOB-PRIVATE-SECRET' not in any((body_irb, b'')),
+    ok(b'BOB-PRIVATE-SECRET' not in _rt_default(body_irb, b''),
        f"If-Range GET on bob's 0600 leaks no secret (HTTP {st_irb})")
-    _protocol_features_webdav_p9(port, ta, owned_alice, pm)
 
 
-def _protocol_features_webdav_p9(port, ta, owned_alice, pm):
     # ===================================================== worker-survival follow-up
     # After all the property/conditional churn the worker must still serve a plain
     # legit op for the mapped user (proves no broker desync / principal wedge).
     st_f, body_f = http("GET", "/alice/pfw_multi.txt", port, ta)
-    ok(all((st_f == 200, b'multi-prop target' in any((body_f, b'')))),
+    ok(all((st_f == 200, b'multi-prop target' in _rt_default(body_f, b''))),
        f"worker survived the property/conditional battery (follow-up GET OK, HTTP {st_f})")
     ok(owned_alice(pm),
        "post-battery: alice's property-bearing file still owned by alice")

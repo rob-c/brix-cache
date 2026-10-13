@@ -27,6 +27,8 @@ def pal_sources():
     sources += sorted(f'src/platform/{host}/{p.name}'
                       for p in host_dir.glob('*.c')
                       if not p.name.endswith('_unittest.c'))
+    sources += ['src/core/compat/crc32c.c',
+                'src/core/compat/crc32c_hw.c']
     if host == 'linux':
         sources.append('shared/cvmfs/platform/platform.c')
     return sources

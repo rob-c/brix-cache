@@ -82,6 +82,8 @@ import threading
 from pathlib import Path
 
 import pytest
+
+from log_records import semantic_log_text
 import requests
 
 import kdc_helpers
@@ -324,7 +326,7 @@ class _Planes:
 
     def errlog(self):
         """Instance logs are wiped at teardown, so failures quote them inline."""
-        return _read(os.path.join(self.logs, "error.log"))
+        return semantic_log_text(_read(os.path.join(self.logs, "error.log")))
 
     def accesslog(self, plane):
         return _read(os.path.join(self.logs, f"access-{plane}.log"))

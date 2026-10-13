@@ -25,6 +25,7 @@
  *       malloc'd (fill threads carry small stacks). The staged part is read
  *       from its posix staged_path — enforced at config time.
  */
+#include "core/compat/log_event.h"
 #include "sd_cache.h"
 #include "sd_cache_internal.h"
 #include "protocols/cvmfs/classify.h"
@@ -172,20 +173,20 @@ meta_check_whitelist(sd_cache_inst_state *st, const unsigned char *buf,
     size_t len, const char *key, cvmfs_whitelist_t *out)
 {
     if (cvmfs_whitelist_parse(buf, len, out) != 0) {
-        ngx_log_error(NGX_LOG_WARN, st->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, st->log, 0,
             "sd_cache: cvmfs whitelist for \"%s\" is malformed", key);
         return -1;
     }
     if (cvmfs_verify_whitelist(out, st->policy.cvmfs_master_pub,
                                st->policy.cvmfs_master_pub_len) != 0)
     {
-        ngx_log_error(NGX_LOG_WARN, st->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, st->log, 0,
             "sd_cache: cvmfs whitelist for \"%s\" FAILED master-key "
             "signature verification", key);
         return -1;
     }
     if (cvmfs_whitelist_expired(out, (long) time(NULL))) {
-        ngx_log_error(NGX_LOG_WARN, st->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, st->log, 0,
             "sd_cache: cvmfs whitelist for \"%s\" is EXPIRED", key);
         return -1;
     }
@@ -242,14 +243,14 @@ meta_check_manifest(sd_cache_inst_state *st, const char *key,
     int                n, rc = -1;
 
     if (cvmfs_manifest_parse(buf, len, &m) != 0) {
-        ngx_log_error(NGX_LOG_WARN, st->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, st->log, 0,
             "sd_cache: cvmfs manifest \"%s\" is malformed", key);
         return -1;
     }
     /* The signed 'N' must name the repo the key claims — a valid manifest for
      * repo A must not publish under repo B's namespace (cross-repo splice). */
     if (!meta_manifest_repo_matches(&m, info)) {
-        ngx_log_error(NGX_LOG_WARN, st->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, st->log, 0,
             "sd_cache: cvmfs manifest \"%s\" names repo \"%s\" — "
             "cross-repo splice rejected", key, m.repo_name);
         return -1;
@@ -264,7 +265,7 @@ meta_check_manifest(sd_cache_inst_state *st, const char *key,
     }
     wln = meta_fetch_source(st, sib, &wlbuf);
     if (wln < 0) {
-        ngx_log_error(NGX_LOG_WARN, st->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, st->log, 0,
             "sd_cache: cannot fetch \"%s\" to verify \"%s\"", sib, key);
         return -2;                           /* origin fault, not tamper */
     }
@@ -288,7 +289,7 @@ meta_check_manifest(sd_cache_inst_state *st, const char *key,
     }
     certn = meta_fetch_source(st, sib, &cert);
     if (certn < 0) {
-        ngx_log_error(NGX_LOG_WARN, st->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, st->log, 0,
             "sd_cache: cannot fetch cert \"%s\" to verify \"%s\"", sib, key);
         free(wlbuf);
         return -2;                           /* origin fault, not tamper */
@@ -308,11 +309,11 @@ meta_check_manifest(sd_cache_inst_state *st, const char *key,
 
     if (!meta_certificate_allowed(&wl, pem, pemn, fp, sizeof(fp)))
     {
-        ngx_log_error(NGX_LOG_WARN, st->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, st->log, 0,
             "sd_cache: cvmfs manifest \"%s\" signing cert is NOT in the "
             "whitelist — rejected", key);
     } else if (cvmfs_verify_manifest(&m, pem, pemn) != 0) {
-        ngx_log_error(NGX_LOG_WARN, st->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, st->log, 0,
             "sd_cache: cvmfs manifest \"%s\" FAILED certificate signature "
             "verification", key);
     } else {
@@ -355,14 +356,14 @@ sd_cache_verify_manifest(sd_cache_inst_state *st, const char *key,
     }
 
     if (pp == NULL) {
-        ngx_log_error(NGX_LOG_ERR, st->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, st->log, 0,
             "sd_cache: cvmfs manifest verify has no staged path for \"%s\" "
             "- failing the fill closed", key);
         return NGX_DECLINED;
     }
     len = meta_read_part(pp, &buf);
     if (len < 0) {
-        ngx_log_error(NGX_LOG_ERR, st->log, errno,
+        BRIX_LOG(NGX_LOG_ERR, st->log, errno,
             "sd_cache: cvmfs manifest verify cannot read the staged part "
             "for \"%s\" - failing the fill closed", key);
         return NGX_DECLINED;

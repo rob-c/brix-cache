@@ -2,6 +2,11 @@
 """
 Smoke-test an nginx-xrootd endpoint with the XRootD Python client.
 """
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[1]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import argparse
 import sys
@@ -12,7 +17,7 @@ from XRootD.client.flags import OpenFlags
 
 def require_ok(status, action):
     if not status.ok:
-        print(f"{action} failed: {status}", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'utils/xrd_python_smoke.py', 'require_ok', f"{action} failed: {status}", file=sys.stderr)
         sys.exit(1)
 
 

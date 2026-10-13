@@ -18,6 +18,7 @@
  *       proxy's own fail budget (BRIX_PROXY_MAX_CONN_FAILS) bounds a dead
  *       selection: the client gets kXR_error, never a hang.
  */
+#include "core/compat/log_event.h"
 #include "protocols/root/response/response.h"
 #include "protocols/root/read/locate.h"
 #include "proxy.h"
@@ -34,13 +35,13 @@ brix_cms_answer_selected(brix_ctx_t *ctx, ngx_connection_t *c,
      * the gateway itself.  Forwarding it would leak the selected node's
      * address and the client's next open would bypass the gateway. */
     if (ctx->recv.cur_reqid == kXR_locate) {
-        ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "brix: cms select: locate answered as self "
                        "(selected %s:%ud)", host, (unsigned) port);
         return brix_locate_answer_self(ctx, c, conf);
     }
 
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: cms select: proxying session to %s:%ud",
                    host, (unsigned) port);
     return brix_proxy_dispatch_to(ctx, c, conf, host, port);

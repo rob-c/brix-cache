@@ -22,6 +22,7 @@
  *       detaches conn from proxy ctx, sets keepalive timer, inserts head of queue.
  */
 
+#include "core/compat/log_event.h"
 #include "proxy_internal.h"
 #include "core/compat/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
 #include <openssl/md5.h>
@@ -96,7 +97,7 @@ brix_proxy_up_mark_failed(brix_proxy_ctx_t *proxy)
 
     if (proxy_up_state.status[idx].fails >= BRIX_PROXY_MAX_FAILS) {
         proxy_up_state.status[idx].down = 1;
-        ngx_log_error(NGX_LOG_ERR, proxy->client_conn->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, proxy->client_conn->log, 0,
                       "xrootd proxy: upstream #%d marked DOWN after %ui failures",
                       idx, proxy_up_state.status[idx].fails);
     }
@@ -116,7 +117,7 @@ brix_proxy_up_mark_ok(brix_proxy_ctx_t *proxy)
     }
 
     if (proxy_up_state.status[idx].down) {
-        ngx_log_error(NGX_LOG_NOTICE, proxy->client_conn->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, proxy->client_conn->log, 0,
                       "xrootd proxy: upstream #%d is UP again", idx);
     }
 
@@ -155,7 +156,7 @@ brix_proxy_pool_read_handler(ngx_event_t *rev)
     ngx_connection_t         *c  = rev->data;
     brix_proxy_pooled_conn_t *pc = c->data;
 
-    ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd proxy: upstream closed while pooled — evicting");
 
     brix_proxy_pool_evict(pc, c);
@@ -181,7 +182,7 @@ brix_proxy_pool_write_handler(ngx_event_t *wev)
     ngx_connection_t         *c  = wev->data;
     brix_proxy_pooled_conn_t *pc = c->data;
 
-    ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd proxy: write event on pooled connection — evicting");
 
     brix_proxy_pool_evict(pc, c);
@@ -202,7 +203,7 @@ brix_proxy_pool_ping_handler(ngx_event_t *ev)
 
     /* Check for idle timeout. */
     if (ngx_time() - pc->idle_since > BRIX_PROXY_POOL_KEEPALIVE) {
-        ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "xrootd proxy: pooled connection timed out");
         ngx_queue_remove(&pc->queue);
         proxy_pool_count--;
@@ -425,7 +426,7 @@ brix_proxy_pool_get(brix_proxy_ctx_t *proxy,
                     ngx_free(pc);
                     *idx_out = (int) idx;
 
-                    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+                    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
                                    "xrootd proxy: reused connection from pool for upstream #%ui",
                                    idx);
                     return c;
@@ -529,7 +530,7 @@ brix_proxy_pool_put(brix_proxy_ctx_t *proxy)
     ngx_queue_insert_head(&proxy_pool, &pc->queue);
     proxy_pool_count++;
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, pc->conn->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, pc->conn->log, 0,
                    "xrootd proxy: connection returned to pool (pool size=%ui)",
                    proxy_pool_count);
 }

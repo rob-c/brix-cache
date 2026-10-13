@@ -1,12 +1,393 @@
 # Phase 118 — `xrd conform`: the deployment-time protocol-conformance oracle
 
-**Status:** PLAN — no code proposed as landed by this document.
+**Status:** M1–M5 COMPLETE (2026-10-07). The shipped command has a 527-row
+generated registry (523 executable clauses and four explicit retractions),
+explicit skipped/inconclusive verdicts, bounded
+ROOT framing/login/read/pgread/readv/stat probes, HTTP/S3 range probes, signed S3 requests,
+a tampered-signature negative, S3/HTTP range-grid agreement, cross-plane
+size/digest checks, watch duty-cycle,
+baseline comparison, scrubbed captures, and terminal/Markdown/JSON/SARIF/ECS
+reports, including a standalone escaped HTML report. It has zero divergences on
+the implemented BriX-Cache, stock-v5, stock-v6.1.1 and cross-plane calibration
+slices. URL/ROOT-role discovery drives safe profile scope, and strict/ecosystem
+reference modes retain both verdicts. Selected rows that need an external
+topology name their exact `fixture-required:*` contract instead of saying
+`probe-not-executed`. The published calibration record defines and fills the
+stock-v5, stock-v6 and BriX release cells, and the exact-fixture §40 audit proves
+523/523 executable clauses with zero missing rows or integrity errors. These are
+release evidence, not hidden green rows. The ROOT query slice now covers ordered
+multi-key/unknown-key Qconfig replies, checksum scan, xattr and stats grammar,
+all four optional query forms with their required handle/payload shapes, unknown
+infotype rejection, and unknown `kXR_set` advice.
+The ERR family is now 48/48. The canonical server mapper covers every native
+errno arm, deliberate many-to-one collapse, the `kXR_FSError` default and the
+3036 fence. Repeatable `--error-fixture` endpoints exercise each mapping twice,
+message shape/disclosure, determinism, cross-verb agreement, namespace-oracle
+resistance, and the complete six-pair ROOT/HTTP matrix. Dedicated read-only
+fixtures require the exact WebDAV, S3, OCI and GridFTP spellings, while raw
+post-login authentication fixtures send malformed credentials for every
+advertised mechanism and accept only `kXR_AuthFailed`/`kXR_NotAuthorized`.
+Omitting an advertised mechanism is itself divergent. Controlled fixtures prove
+wrong codes, incomplete matrices, cosmetic 403s, filesystem-path leakage,
+generic authentication `kXR_FSError`, false protocol labels and omitted offered
+protocols all turn their owning rows red.
+Request-signing scope is now derived from the complete protocol security
+trailer rather than merely the presence of an authentication mechanism. An
+endpoint with no global level and only ignore entries claim-skips all SIG rows.
+When a GSI session retains a signing key, SIG-001/002 exercise a normally signed
+request and the same request with the client-side signature prefix suppressed;
+the latter requires the specific `kXR_SigVerErr` classification. Isolated raw
+envelopes then cover a wrong `expectrid`, replayed and forward-skipped sequence
+numbers, `kXR_nodata`, an unknown hash, and a non-zero envelope version. A bound
+secondary now inherits the primary's signing-required posture by value through
+the shared session registry (never its cryptographic key), and an unsigned read
+on that stream must fail closed. `kXR_secOFrce` is interpreted according to the
+in-repository wire definition: endpoints that do not advertise the option are
+claim-skipped; an endpoint that does advertise it receives both a correct plain
+SHA-256 envelope and a one-byte-corrupted envelope, proving acceptance and
+verification rather than mere parsing.
+The HTTP read slice also validates current `If-None-Match` as an empty `304`
+and stale `If-Range` as the complete adopted object, plus byte-exact identity
+and gzip content encoding. Server-provided ETags are syntax-checked before they
+can be reflected into a request header, and controlled origins prove both
+ignored-validator paths and malformed gzip turn the corresponding row red.
+An excessive 257-part Range request additionally accepts only a byte-exact
+whole response or `416` and rejects every `206` truncation. HTR is now 21/21:
+the assessor parses bounded quoted or token multipart boundaries, requires a
+valid `Content-Range` on every part, verifies each part against its absolute
+adopted-object bytes, permits valid overlap coalescing, and detects a missing
+terminal zero chunk instead of accepting EOF as successful chunk framing.
+It also recomputes canonical `sha256` `Want-Digest` replies and uses a
+scratch-confined PUT/GET/PUT/GET/DELETE lifecycle to prove ETags are stable
+between reads and change when content changes.
+The S3 slice executes S3 14/14. S3-002 reuses every HTR-003–HTR-014 observation
+and requires the complete HTTP range grid to be conformant on the S3 target;
+its zero-object arm creates and deletes an empty scratch key so HTR-009 is
+measured rather than assumed. Any dependent divergence propagates to S3-002,
+while an unobserved dependency keeps the agreement row inconclusive. Controlled
+origins prove clean agreement, multipart corruption propagation and transport-
+error propagation. S3-003/004 plant three scratch-confined keys, require an
+ordinary ListObjectsV2 result and a `max-keys=1` paginated result to contain the
+same exact set, and replay the first continuation token byte-for-byte. Canonical
+query strings are signed through the shared SigV4 query signer. Controlled
+origins inject an extra key, ignore the page limit, and make token replay
+stateful; every case turns the corresponding row red. S3-010 additionally
+generates a missing sibling key and a
+missing path-style bucket and requires exact `NoSuchKey` and `NoSuchBucket` XML,
+rejecting a generic `InternalError`; targets without separable bucket and key
+components are explicitly fixture-skipped. S3-001 remains conservative where
+adopted bytes are not PRF-proven, S3-005 exercises the tampered-SigV4 negative,
+and the shared deterministic presigner drives S3-006/007: a current URL must
+succeed while an expired URL and the same signature replayed on a sibling path
+must both fail with an authorization status. S3-008 requires paired HTTP and S3
+targets plus both discovered credential kinds; it establishes the ordinary
+authenticated baselines, then requires the discovered bearer token to fail on
+S3 and an exact-path SigV4 header to fail on HTTP. A missing credential or plane
+remains explicitly inconclusive. Controlled origins independently accept
+expiry, path replay, bearer-on-S3 and SigV4-on-HTTP to prove every negative
+turns its row red. S3-014 proves that `+`, `%`, space and UTF-8 key bytes
+survive signed PUT,
+GET, exact ListObjectsV2 comparison and DELETE without URI normalization. Its
+wire path is RFC-3986 encoded separately from the already-canonical signed
+query, and controlled origins corrupt both a GET body and a listed name to prove
+the row turns red. S3-011/012/013 use isolated multipart uploads to put part 2
+before part 1, complete in manifest order, verify the assembled bytes, require a
+referenced missing part and a sub-5-MiB non-final part to fail at completion,
+and require the successful two-part ETag to carry its `-2` suffix. Controlled
+origins independently reverse assembly order, accept the missing part, accept
+the undersized part and remove the ETag suffix; each fault turns its owning row
+red. S3-009 uses paired S3 and ROOT read-only endpoints, requires exact
+`403 AccessDenied` XML and `kXR_fsReadOnly`, and follows the refused PUT with a
+GET to prove that a cosmetic denial did not create the object. Controlled
+fixtures independently substitute a generic XML error, commit beneath the 403,
+and return `kXR_NotAuthorized`; every fault turns the row red.
+The HTTP error slice executes HTE 8/8: it scans live error bodies for filesystem
+and credential disclosure, rejects encoded CRLF response splitting, exercises
+both duplicate `Content-Length` and `Content-Length` plus
+`Transfer-Encoding` request-smuggling forms, compares absolute-form and
+origin-form bytes, requires literal and encoded traversal spellings to fail
+identically, and checks request lines exactly at and one byte above an explicit
+`--http-request-line-limit`. Controlled origins prove that a leaked `/etc/`
+path, an accepted ambiguous request and an accepted over-limit request line turn
+the report red. Without a supplied line limit HTE-005 is explicitly skipped;
+HTE-001 reuses the controlled six-pair ROOT/HTTP errno fixtures from ERR-043;
+it requires every pair, exact native status mappings, and repeat-stable HTTP
+evidence before passing.
+The HTTP create slice executes HTC 5/5: a mutation-authorized zero-length PUT
+uses the prefix-bound scratch builder, is verified by a bounded GET, and is
+deleted on both conformant and divergent paths. It also sends a deliberately
+short `Content-Length` body and a malformed terminal chunk through the shared
+DNS/TCP/TLS transport, then proves neither request left a partial object.
+Controlled origins prove that a phantom success, silent substitution of
+non-empty content and either form of partial commit turn the report red.
+HTC-001 uses paired mutation fixtures to PUT deterministic bytes beneath the
+authorized scratch prefix, compare an HTTP GET byte-for-byte, require the exact
+ROOT stat size, and verify cleanup. HTC-002 pairs an exact ROOT EROFS fixture
+with two repeat-stable denied HTTP PUTs and requires native
+`kXR_fsReadOnly`/`403` spellings.
+The WebDAV slice executes DAV 11/11. It checks Depth 0 cardinality and
+`getcontentlength`, accepts only an explicit `403` or a one-resource,
+status-complete Depth-infinity multistatus, requires `MKCOL` on an existing
+collection to return `405`, requires `MOVE` with `Overwrite: F` to return `412`,
+and compares every unique bounded Depth-1 `href` and status with an independent
+Depth-0 answer. A paired ROOT/WebDAV topology hashes bounded, duplicate-free
+direct-child sets from `kXR_dirlist` and `PROPFIND Depth: 1`; missing-plane
+evidence stays inconclusive and any asymmetric child is divergent. A
+scratch-confined nested collection is deleted on a separate connection while
+bounded Depth-1 snapshots require either the complete pre-delete tree or an
+absent tree, never a partial tree; independent descendant probes reject hidden
+orphans. It also exercises a
+complete scratch-confined LOCK / unconditioned-PUT=`423` / UNLOCK lifecycle.
+A separately supplied, initially absent sacrificial URL outside the scratch
+prefix proves that both `COPY` and `MOVE` crossing the export boundary receive
+4xx responses while their sources and the destination remain unchanged. The
+fixture must use the target's exact scheme, authority and port, and is never
+derived from server-controlled content.
+A disruption-authorized external-entity document must be rejected with no
+passwd expansion reflected in the response. Every response-derived Lock-Token
+is bounded and control-free before reuse. Controlled origins cover malformed
+multistatus statuses, wrong lengths/cardinality, accepted duplicate MKCOL,
+forbidden overwrite, three incomplete lock contracts, and accepted XXE. The
+Depth-1 ROOT-directory comparison, concurrent recursive delete, outside-export
+destination and paired per-resource multistatus fixtures are explicit gates.
+The CMS slice executes CMS 7/7. In addition to direct holder validation,
+missing-path, partial/all-outage, redundant-manager, and manager-only-role
+checks, CMS-007 runs the exact co-installed `xrdmapc` through a bounded
+machine-readable interface and compares its independently queried holder set
+with the assessor's raw `kXR_locate` set. The sibling is resolved beside the
+running executable and invoked without a shell; malformed, excessive, failed,
+or split-view output cannot pass.
+The cache slice executes CAC 10/10. With `--profile cache`, the primary ROOT URL
+is the cache and the first explicit `--also` ROOT URL is its origin. Before the
+ordinary endpoint probes can warm the cache, the assessor performs two bounded
+cache reads, compares every selected non-negative fractional-grid extent with
+an independently opened origin handle, and reconciles stat size and server-side
+SHA-256. Missing or unreachable pairs remain inconclusive; changed population
+bytes, split-view extents, checksum disagreement and size disagreement are
+divergent. With mutation authority, CAC-006 writes deterministic bytes beneath
+the capability-bound scratch prefix at the origin, populates them through the
+cache, issues `kXR_prepare` with `kXR_evict`, replaces the origin with distinct
+equal-length bytes, and requires the next cache read to return that replacement;
+an eviction refusal, failed refetch, or retained stale block is divergent.
+CAC-010 reuses the exact read-only policy fixture and accepts only
+`kXR_fsReadOnly`, never authorization, absence, or cache-local success.
+CAC-003/004/005/009 require `--cache-fixture partial|filling|capacity|corrupt`
+respectively, making the externally prepared cache state explicit instead of
+pretending the public ROOT protocol can create it. Each fixture uses the same
+primary-cache/first-`--also`-origin pair. Partial and in-flight reads must be
+byte-exact; capacity may serve correct origin bytes or return only a defined
+capacity refusal; a corrupt block must fail explicitly or refetch exact origin
+bytes, never return different content. Capacity and corruption retain the
+ordinary disruption-authority gate.
+The native TPC slice executes all nine TPC rows. With `--profile tpc`, the
+primary ROOT URL is the source and the first explicit `--also` ROOT URL is the
+destination. The assessor plants deterministic bytes beneath the authorized
+scratch prefix, performs a hard-fail native TPC-only pull (never a
+client-mediated fallback), rereads the destination independently, and requires
+byte-exact content. It also requires both endpoints' `kXR_Qconfig tpc` replies
+to be strict unsigned numbers and reconciles their joint non-zero claim with
+the observed exact transfer. A non-zero claim followed by refusal or wrong
+bytes is divergent; paired zero claims plus terminal refusal are conformant for
+TPC-008, but do not satisfy TPC-001. Dedicated fixtures prove terminal source
+authorization refusal without a partial object (TPC-003), POSC cleanup after a
+destination abort (TPC-004), path-confined delegated bearer use against a real
+token-authenticated ROOT pair (TPC-005), bearer-authenticated WebDAV/native
+byte equivalence (TPC-006), and egress refusal before any source contact
+(TPC-009). Independently, the source-side rendezvous
+probe registers one scratch object's key, consumes it while verifying a planted
+byte, and requires the same `tpc.org` consume to return
+`kXR_NotAuthorized`; an unknown `tpc.phase118_unknown` field is present on both
+valid opens and may change neither the selected path nor the observed byte.
+The response-control slice now observes redirect, wait, waitresp and attention
+frames on an isolated connection. It validates and follows redirect targets,
+bounds wait delays and retries, binds deferred `kXR_asynresp` envelopes to the
+original stream, and checks the active `kXR_asyncms` envelope and text bounds.
+Conditional responses that a target does not emit are reported as explicit
+`response-not-observed` skips. Controlled origins prove the valid paths and the
+malformed redirect, repeated wait, forged deferred stream and unterminated
+message negatives, including a three-endpoint redirect cycle. Controlled
+manager fixtures also distinguish a defined no-server error from an empty
+redirect, and observed load shedding grades both the wait shape and the fact
+that the connection was not dropped. Flow-only runs no longer require a target
+object after the isolated response-control probes complete.
+The cross-plane/response-control/status/scratch/HTTP/TLS/WebDAV/S3 regression slice passes 105 tests
+on both Darwin ARM64 and an artifact-free AlmaLinux 9 ARM64 build. The ERR
+extension adds 15 controlled socket tests on Darwin ARM64; the combined focused
+ERR/read-only/pgread regression is 34 tests on AlmaLinux 9 ARM64. The exhaustive
+native errno table unit passes on both hosts.
+XPR now executes 11/11. XPR-003 retains only checksum evidence validated against
+the adopted bytes: ROOT `kXR_Qcksum` and HTTP `Digest` use canonical SHA-256
+hex, while S3 `ChecksumSHA256` is strictly decoded from canonical base64. Two or
+more server claims must agree; false metadata diverges and absent optional
+metadata remains inconclusive. In addition to size and byte agreement, XPR-007 requests
+the same generated missing sibling through paired HTTP and S3 targets: two 404
+observations prove agreement, a successful exposure on either plane is a
+divergence, and transport failures or a single plane remain inconclusive.
+Controlled paired origins cover agreement and both mismatch directions.
+XPR-006 reuses the strict paired ROOT/S3 read-only observation from S3-009,
+including the no-hidden-mutation check.
+XPR-008 submits both literal and percent-encoded parent segments through every
+selected plane and requires defined refusal everywhere; accepting either form
+on one plane is divergent. XPR-010 toggles one ASCII letter in the adopted
+basename and requires the alternate object's definite presence or absence to
+agree across at least two planes. Transport failures and ambiguous policy
+answers do not become false passes.
+XPR-004 compares bounded, duplicate-free direct-child sets from ROOT directory
+listing, WebDAV `PROPFIND Depth: 1`, and S3 `ListObjectsV2`; malformed or
+truncated XML remains inconclusive. XPR-011 probes UTF-8, Latin-1 and raw-byte
+filename classes. Every enabled plane must either explicitly refuse each class
+or return bytes matching the adopted object; `404`, transport failure, a
+one-plane observation, asymmetric policy, and wrong bytes cannot pass.
+XPR-005 requires an explicit three-plane denied-identity fixture contract. It
+accepts only `kXR_NotAuthorized` from ROOT stat, HTTP 403, and S3 403 carrying
+`AccessDenied`; missing planes remain inconclusive and a cosmetic 403 diverges.
+XPR-009 uses an explicit three-plane topology and one typed scratch child. An
+HTTP PUT must appear with the exact size through ROOT stat, as the exact key in
+an untruncated S3 listing, and with identical S3 bytes. Cleanup must then make
+the object absent through ROOT and S3; an ineffective DELETE is divergent.
+The bootstrap slice executes all seven HSK and all fourteen PROT rows. It uses
+isolated raw connections for malformed, short, repeated and pre-handshake
+cases; validates security-trailer shape and domains; and compares capability
+flags across login, TPC and unknown `expect` values. Family filtering occurs
+before object access, so an HSK/PROT-only run neither requires nor reads the
+named object. Auxiliary connections do not share the primary capture sink.
+The adversarial safety gate treats every ADV row as both disruptive and
+mutating: scope requires exact target confirmation, `--allow-disrupt`,
+`--allow-mutate`, and a scratch prefix before any corpus row becomes active.
+The bounded deterministic runner executes reserved-byte, unknown/gap/keyed
+opcode, duplicated-CGI, encoded-path, truncated-header, short-body and extreme-
+length cases on isolated sessions. Every case must terminate with a defined
+reply or prompt close and is followed by a fresh login; the adopted object is
+statted before and after the corpus. Internal/unclassified errors turn ADV-006
+red. The generator exhaustively walks the finite 16-bit opcode and 8-bit option
+domains offline, while the wire budget selects representative cases, and a
+changed run key is proven to change generated bytes. ADV-010 is graded directly
+from the enforced authority contract. An explicit `--adv-observer` HTTP(S)
+sidecar supplies strict `rss_bytes` and `open_fds` snapshots before and after
+the corpus; RSS must return within the larger of ten percent or 16 MiB and the
+descriptor count may not increase. Every finding is deterministically reduced
+by deletion while preserving its failure class, then emitted as an exact,
+credential-free `ADV-008.xrdcap`; the ordinary `xrddiag replay --playback`
+path re-issues even a minimized short malformed frame.
+The FRM family executes all twenty-three rows: exact request/response headers,
+stream-id echo and reuse, multiple in-flight identities, single-write
+pipelining, path-NUL shapes, truncated/surplus payload recovery, extreme-length
+refusal before allocation, every standard opcode, bytewise TCP reassembly,
+slow payload completion, ignored reserved bytes, and both sides of the valid
+opcode boundary. A controlled origin proves a wrong post-login response stream
+id turns the oracle red.
+The login/session slice executes nine anonymous LOG rows: exact session-ID
+shape, independence and a 64-session quality sample; short and full-width
+usernames; pre-login auth and repeated-login refusal; and current, foreign and
+unknown `kXR_endsess` lifecycle semantics. Auth-mechanism and request-signing
+rows are explicitly claim-skipped on an anonymous endpoint. On an authenticated
+endpoint LOG-004 validates that the `sec` continuation names a mechanism and
+LOG-005 uses labelled `--auth-fixture` endpoints to force every advertised
+mechanism through a successful handshake; absent fixtures stay inconclusive and
+partial or false claim sets diverge. LOG-006 and LOG-015–017 use isolated raw
+sessions to reject an unadvertised mechanism, bound hostile continuations,
+require `kXR_AuthFailed` for garbage, and prove failed authentication retains no
+privilege. Mechanism-specific GSI transcript, identity-leak, token-claim and
+redirect-ability rows remain inconclusive without dedicated fixtures.
+The ROOT TLS slice now follows and proves `kXR_gotoTLS`, independently forces
+certificate-chain and hostname verification even when the outer diagnostic run
+relaxes hostname checking, validates byte-exact object framing over TLS, and
+uses paired clear/TLS `--also` endpoints to compare SHA-256 content. TLS 1.3 is
+correctly classified as non-renegotiable. Every other TLS row now has an exact
+claim-absent or fixture-required result instead of `probe-not-executed`;
+LOG-008 sends an all-NUL username on an authentication-required endpoint and
+requires the resulting session to retain no default identity. LOG-025 sends an
+ability-zero login, inspects the unfollowed first response,
+and rejects IPv6-only or malformed redirects.
+LOG-022–024 consume labelled audience, expired, not-yet-valid and issuer ztn
+fixtures; each must advertise `ztn` and return exact `kXR_AuthFailed`, while a
+missing local bearer credential or unavailable fixture remains inconclusive.
+An explicit repeatable `--tls-cleartext-fixture` supplies anonymous endpoints
+for login, session, data, GPF and TPC. The diagnostic transport may suppress an
+upgrade only while `force_anon` is active and no auth mechanism is forced; each
+advertised class must return exact `kXR_TLSRequired`, and one accepted class
+makes TLS-002 divergent. Legacy ClientHello refusal, TLS 1.2 renegotiation, and
+authorization isolation across confirmed resumption are also live controlled
+probes.
+The mutation-enabled ROOT slice now also exercises scratch-confined namespace
+and write semantics: DIR 10/10, MKD 6/6, MV 6/7, RM 8/8, CHM 4/4, WRT 11/11,
+WVC 5/5, SYN 2/2, TRN 7/7, PGW 14/14 and FAT 9/9. The exact-clause read-only
+harness covers every implemented export-policy row, including PRP-007, against
+a pre-existing scratch-derived object and distinguishes `kXR_fsReadOnly` from a
+writable export and a missing object. This work found and fixed three server defects:
+negative write offsets now fail as `kXR_ArgInvalid`, and a zero-length pgwrite
+is a successful status no-op. The pre-allocation frame gate now admits the
+authoritative fattr maxima instead of disconnecting legal 65,536-byte values
+before the opcode validator. Every mutation request is charged to the run
+ceilings and every path is produced by the scratch capability builder.
+The metadata/open slice additionally covers STA 17/18 and has executable
+runners for OPN 33/33, including
+policy-honest writable flags, online residency, exact append placement, POSC
+abort/commit semantics, replica refusal, bounded handle exhaustion and recovery,
+write-only handle authority, close-reserved-byte immutability, and the
+`kXR_poscpend` transition while the owning session has a staged file open. A
+second authenticated session now replaces a primed object before
+`refresh|retstat`, and an asserted idle fixture exercises an already-open handle
+after two seconds. The read-only identity pair is validated against a real
+BriX token/TLS topology: anonymous and authenticated write opens must both
+receive `kXR_fsReadOnly`, while a writable control must not masquerade as that
+policy. The staged-out `nowait` runner is validated with controlled prompt-wait,
+blocking, and generic-error fixtures; a deployment still has to supply its own
+offline object to grade that property on its storage stack.
+The BND family is complete, including an advertised `bind_max`, atomic
+per-session path-id allocation, exact-cap admission and stale-path refusal.
+The CLM assessor now audits unknown protocol bits, role/attribute consistency,
+direct-read behavior, TLS claims, gpfile claims in both directions, protocol
+version floors, and the `claim-absent` skip ledger. Its gpfile observation is
+kept independently of ENV report scope, so a CLM-only run cannot silently lose
+wire evidence. Controlled origins prove healthy claims and the unknown-bit,
+invalid-role-attribute, and falsely-advertised-gpfile negatives. CLM-009 now
+composes independently observed `Qconfig chksum`/`Qcksum` behavior with numeric
+TPC claims and a byte-exact paired transfer; a clause-only run activates both
+observations, missing topology stays inconclusive, and either known false claim
+is divergent. CLM-007 directly exercises every clear feature verb represented
+by the protocol word: gpfile, POSC open, pgread and pgwrite must all return
+`kXR_Unsupported` when their corresponding bit is clear; controlled origins
+prove a quietly served verb diverges and unclassifiable evidence stays skipped.
+Prepare cancellation is owner-safe, idempotent, and makes a foreign live id
+wire-indistinguishable from an absent id. PRP 7/7 also proves that an unreachable
+TCP notification target neither holds the request nor poisons the existing
+session. The BriX target implementation now gives `kXR_stage|kXR_fresh` real
+fail-closed semantics: it runs the existing ownership-checked VFS eviction
+before recall, retires the stale stage record, and returns a new request id.
+The dedicated nearline/cache fixture proves byte replacement and a second
+recall on AlmaLinux 9 ARM64; Darwin intentionally skips that success arm because
+hardened workers do not execute the `frm://exec` adapter, while its read-only
+and foreign-owner negatives run there. PRP-003/004 use the explicit paired
+cache/origin contract: eviction and fresh staging must both replace resident
+bytes with the independently changed origin bytes.
+DIR-004 uses a separate capability constructor
+that permits exactly one C0/DEL byte in the final scratch basename; the ordinary
+scratch constructor remains control-byte rejecting.
+The ROOT read slice additionally executes exact unknown/closed-handle,
+pathid-zero/unbound-pathid, malformed `read_args`, negative signed fields,
+`INT64_MAX` range overflow, `INT32_MAX` requested length, and appended-readahead
+cases. That live work found and fixed three BriX server gaps: partial read args
+were accepted, negative `rlen` was widened unsigned, and an overflowing
+`offset+rlen` leaked a kernel `EINVAL` as `kXR_IOError`; all now fail closed as
+`kXR_ArgInvalid` and retain connection framing.
+Mutation-enabled `accept` now plants the exact `Z`, `P0`, `Q`, `C+`, and sparse
+`L` members needed by the RD/PGR ledger. It validates `kXR_oksofar` and paged
+partial-frame sequences above 16 MiB, page-unit frame boundaries, offsets above
+2 GiB, concurrent reads on two bound streams, and refusal of ordinary and paged
+reads through a true write-only handle. The only healthy-run inconclusive in
+RD/PGR is `PGR-021`, which intentionally requires a corrupting fault fixture and
+is exercised by the controlled hostile origin. `PGR-027` is retracted because
+the authoritative `kXR_pgMaxEpr` limit is defined for pgwrite CSE errors, not
+pgread. The complete per-clause §40 fault matrix is now proven by explicit
+`--verify-negative` reports for all 523 executable clauses.
 **One-sentence goal:** make `xrd` the tool an operator runs at the end of a
 deployment to learn, with evidence, whether their XRootD or BriX-Cache endpoint
 is *configured correctly and behaving according to the spec* — by asking it
 thousands of detailed, fractional, boundary and deliberately off-spec questions
 and checking every answer against an oracle.
-**Scope:** `client/` only (apps + libbrix) plus new docs/tests. No `src/` edits:
+**Toolkit scope:** `client/` only (apps + libbrix) plus new docs/tests. A live
+conformance finding may still require a separately tested `src/` correction:
 the target of a conformance run is *someone else's* server — stock XRootD v5/v6,
 EOS, dCache, StoRM, or a BriX-Cache — so every capability here must be a
 composition of the public client API against a remote endpoint.
@@ -55,12 +436,13 @@ supports them.
 > three weeks with an unusual read pattern get the right bytes, or a plausible
 > lie?"*
 
-Nothing in the ecosystem answers that today. `xrdcp` proves the happy path.
-Monitoring proves liveness. A site's own tests prove the operations that site
-happens to use. What is missing is a **conformance oracle**: a portable program
-that interrogates a deployed endpoint across the whole legal input space —
-especially its unglamorous corners — and reports, clause by clause, where the
-answers diverge from what the protocol requires.
+Before Phase 118, nothing in the ecosystem answered that question. `xrdcp`
+proved the happy path, monitoring proved liveness, and a site's own tests proved
+only the operations that site happened to use. The missing component was a
+**conformance oracle**: `xrd conform` is now the portable program that
+interrogates a deployed endpoint across the whole legal input space — especially
+its unglamorous corners — and reports, clause by clause, where the answers
+diverge from what the protocol requires.
 
 The two failure directions matter equally, and the second is why this is also a
 security tool:
@@ -79,7 +461,7 @@ security tool:
 A conformance tool is complete when a competent adversarial reviewer cannot name
 a legal request shape it never sends. This document therefore commits to:
 
-1. **Every request code** in `XRequestTypes` (3000–3031) has a family, including
+1. **Every request code** in the in-repo wire registry (3000–3032) has a family, including
    the ones nobody tests — `kXR_chkpoint` (3012), `kXR_gpfile` (3005),
    `kXR_writev` (3031), `kXR_sigver` (3029), `kXR_endsess` (3023).
 2. **Every option bit** of every option enum is exercised set and clear, and the
@@ -219,7 +601,7 @@ cite them:
 ```
 request hdr        24 bytes   (ALIGN_CHECK: sizeof(ClientRequest) == 24)
 response hdr        8 bytes   (ALIGN_CHECK: sizeof(ServerResponseHeader) == 8)
-kXR_1stRequest   3000        kXR_REQFENCE 3032   (last valid code + 1)
+kXR_1stRequest   3000        kXR_REQFENCE 3033   (last valid code + 1)
 kXR_ArgInvalid   3000        kXR_ERRFENCE 3036
 kXR_ok              0   kXR_oksofar 4000  kXR_attn 4001  kXR_authmore 4002
 kXR_error        4003   kXR_redirect 4004  kXR_wait 4005  kXR_waitresp 4006
@@ -439,7 +821,7 @@ brix_clause {
     oracle;        /* O1 | O2 | O3 | O4                                    */
     text;          /* the normative sentence being asserted                */
     src;           /* "XP:kXR_pgUnitSZ" | "PN§26" | "RFC9110 §14.4" | ...  */
-    profile_mask;  /* data|cache|manager|tape|s3|tls|ec|proxy              */
+    profile_mask;  /* data|cache|manager|tape|s3|tls|tpc|proxy             */
     claim_mask;    /* required kXR_protocol flag bits, if any              */
     probe_class;   /* read | mutate | adversarial | dos                    */
     negative;      /* the fault-proxy fixture this clause must FAIL (§40)  */
@@ -525,19 +907,19 @@ The 24-byte request header and the 8-byte response header, asserted by
 | FRM-004 † | With N requests in flight on distinct streamids, each response carries its own request's streamid — responses may interleave, identities may not | spec | O1 | XP |
 | FRM-005 † | A streamid of `\0\0` is legal and is echoed as `\0\0` | spec | O3 | XP |
 | FRM-006 † | A streamid reused after its response completes is legal | spec | O3 | XP |
-| FRM-007 | A streamid reused while its first response is still outstanding is a protocol error, not a silently-dropped response | spec | O3 | XP |
+| FRM-007 | A client-chosen streamid reused while its first response is outstanding produces two response frames (or a defined protocol error), never a silently-dropped response | spec | O3 | in-repo `wire_core_requests.h` |
 | FRM-008 | Exactly one trailing NUL inside a path `dlen` is accepted; the path is `dlen−1` bytes | client | O3 | PN§19 |
 | FRM-009 | A NUL **embedded** before `dlen−1` in a path is rejected | spec | O3 | PN§19 |
 | FRM-010 † | Two trailing NULs are rejected — the allowance is exactly one | client | O3 | PN§19 |
 | FRM-011 | `dlen` = 0 where a path is required yields `kXR_ArgMissing` | spec | O3 | XP |
 | FRM-012 | `dlen` larger than the bytes actually sent does not wedge the connection: the server times out or errors, and the next request on a fresh connection is served | spec | O3 | XP |
 | FRM-013 | `dlen` smaller than the bytes sent leaves the surplus interpreted as the next request header, or the connection is dropped — never a silent partial-apply | spec | O3 | XP |
-| FRM-014 | `dlen` < 0 is rejected with `kXR_ArgInvalid` | spec | O3 | XP |
+| FRM-014 | The unsigned `dlen` bit pattern 0xFFFFFFFF is rejected before allocation, by a protocol error or connection close | spec | O3 | in-repo `recv_frame_bounds.c` |
 | FRM-015 | `dlen` = 0x7FFFFFFF is refused without allocating it | spec | O3 | XP |
 | FRM-016 | Reserved/pad bytes in a request header are **ignored**, not validated — a request with 0xFF padding is served identically to one with 0x00 | xrootd | O4 | XP |
 | FRM-017 | A request code in the reserved range `[kXR_REQFENCE, 65535]` yields `kXR_InvalidRequest`, not a disconnect | spec | O3 | XP |
 | FRM-018 | A request code below `kXR_1stRequest` (3000) yields `kXR_InvalidRequest` | spec | O3 | XP |
-| FRM-019 † | Every code in `[3000, 3031]` is either served or answered `kXR_Unsupported` — none is answered `kXR_ServerError` and none disconnects | spec | O3 | XP |
+| FRM-019 † | Every code in `[3000, 3032]` receives a defined protocol response (including request-class errors for an intentionally empty body) — none is answered `kXR_ServerError`/`kXR_FSError` and none disconnects | spec | O3 | in-repo `opcodes.h` |
 | FRM-020 | A request split across TCP segments at every byte boundary (24 splits) is reassembled identically | spec | O1 | XP |
 | FRM-021 † | A request whose payload arrives one byte per second for `dlen` seconds either completes or is refused by a documented timeout — never a permanent slot leak | spec | O3 | — |
 | FRM-022 | Pipelined requests sent in a single TCP write are all served | spec | O1 | XP |
@@ -596,8 +978,8 @@ The 24-byte request header and the 8-byte response header, asserted by
 | LOG-016 | An `authmore` continuation carrying garbage yields `kXR_AuthFailed` (3030), not `kXR_ServerError` | spec | O3 | XP |
 | LOG-017 † | After a failed auth, the connection either closes or serves only unauthenticated verbs — it never retains partial identity | spec | O1 | CL |
 | LOG-018 † | `kXR_endsess` with the current `sessid` ends the session; a subsequent file op fails | spec | O3 | XP |
-| LOG-019 † | `kXR_endsess` with **another connection's** `sessid` is refused — this is a session-hijack clause | spec | O3 | XP |
-| LOG-020 † | `kXR_endsess` with an all-zero or random `sessid` yields an error, never a wildcard teardown | spec | O3 | XP |
+| LOG-019 † | `kXR_endsess` with another connection's `sessid` is an idempotent recovery cleanup and does not de-authenticate the connection carrying it | client | O1 | in-repo `session/lifecycle.c` |
+| LOG-020 † | `kXR_endsess` with an all-zero or unknown `sessid` is an idempotent no-op and never tears down the current session as a wildcard | client | O3 | in-repo `session/lifecycle.c` |
 | LOG-021 | Bearer-token auth is offered as the `ztn` credential type | xrootd | O3 | PN§23 |
 | LOG-022 | A token whose audience does not match the endpoint is refused | spec | O3 | — |
 | LOG-023 | A token past `exp`, and one before `nbf`, are both refused | spec | O3 | — |
@@ -620,7 +1002,7 @@ Skipped wholesale unless `PROT` reported a `seclvl` above `kXR_secNone` or any
 | SIG-007 | `crypto` with an unknown hash in `kXR_HashMask` is refused, not defaulted to SHA-256 | spec | O3 | XP |
 | SIG-008 | `version` != `kXR_Ver_00` is refused | spec | O3 | XP |
 | SIG-009 † | Signing requirements are enforced identically on a bound substream as on the primary | cons | O1 | XP |
-| SIG-010 † | `kXR_secOFrce` set means signing is enforced even on a TLS connection | spec | O3 | XP |
+| SIG-010 † | When `kXR_secOFrce` is advertised, an unencrypted hash signature is accepted and verified; absent advertisement is claim-skipped | spec | O3 | XP, in-repo `flags.h` |
 
 ## 14. `OPN` — `kXR_open` (3010) and `kXR_close` (3003)
 
@@ -636,7 +1018,7 @@ documented pair, and the illegal combinations named below.
 | OPN-004 † | An `fhandle` from **another connection** is refused — cross-session handle theft | spec | O3 | XP |
 | OPN-005 | `kXR_retstat` set makes the response carry the stat info after the handle; clear makes it not | spec | O3 | XP |
 | OPN-006 | The `kXR_retstat` stat info is byte-identical to a `kXR_stat` on the same path | cons | O1 | XP |
-| OPN-007 | `kXR_compress` set returns `cpsize`/`cptype`; an uncompressed file returns `cpsize` = 0 | spec | O3 | XP |
+| OPN-007 | `kXR_compress` set returns a valid `cpsize`/`cptype` tuple: plaintext has `cpsize` = 0; a negotiated BriX inline codec carries `BRIX_INLINE_CMP_MAGIC` and an available codec id | spec | O3 | XP, in-repo codec_core.h |
 | OPN-008 | `kXR_new` **without** `kXR_delete` behaves as `O_EXCL`: creating over an existing file yields `kXR_ItExists` (3018) | spec | O3 | PN§14 |
 | OPN-009 | `kXR_new` **with** `kXR_delete` truncates instead of failing | spec | O3 | PN§14 |
 | OPN-010 | `kXR_mkpath` creates missing parents; without it, a missing parent yields `kXR_NotFound` | spec | O3 | XP |
@@ -660,7 +1042,7 @@ documented pair, and the illegal combinations named below.
 | OPN-028 | An empty path (`dlen` = 0) yields `kXR_ArgMissing` (3001) | spec | O3 | XP |
 | OPN-029 | Path traversal (`../`, encoded, doubled, overlong-UTF-8, backslash, NUL-truncated) never escapes the export root, on **open and every other path-taking verb** | spec | O3 | CL-4 |
 | OPN-030 | `kXR_close` on a valid handle succeeds; a second close of the same handle yields `kXR_FileNotOpen` | spec | O3 | XP |
-| OPN-031 † | `kXR_close` carrying a non-zero size argument that disagrees with the bytes written is refused | spec | O3 | XP |
+| OPN-031 † | `kXR_close` has no size field: its 12 reserved body bytes are either ignored without changing durable bytes or refused with `kXR_ArgInvalid` | spec | O1 | WC |
 | OPN-032 † | Handle exhaustion (open until refusal) yields `kXR_NoMemory` or a documented limit error, and the server recovers fully when the handles are closed | spec | O1 | — |
 | OPN-033 † | An open handle survives an idle period exceeding the connection's keepalive, or is closed with a defined error — never silently invalidated | spec | O3 | — |
 
@@ -729,11 +1111,11 @@ did not advertise it — and that skip is itself asserted by CLM-008.
 | PGR-020 | Every returned CRC32C matches a client-side recompute of the bytes actually delivered | cons | O1 | CL-1 |
 | PGR-021 † | A deliberately corrupted page (injected by the fault proxy) is **detected** by the CRC — the negative fixture for this whole family | spec | O3 | §40 |
 | PGR-022 † | `reqflags` = `kXR_pgRetry` (0x01) re-requests a page and returns the same bytes | spec | O1 | XP |
-| PGR-023 † | `dlen` on the request must be 0 with no args, 1 with `pathid`, 2 with `pathid`+`reqflags`; any other value yields `kXR_ArgInvalid` | spec | O3 | XP |
-| PGR-024 † | `pathid` = `kXR_AnyPath` (0xff) is accepted and the response arrives on some valid stream | spec | O3 | XP |
+| PGR-023 † | `dlen` 0 (no args), 1 (`pathid`), 2 (`pathid`+`reqflags`), and longer payloads with trailing bytes are tolerated; unknown flag bits do not alter the returned bytes (stock 5.6.9 calibrated) | xrootd | O3 | XP |
+| PGR-024 † | `pathid` = `kXR_AnyPath` (0xff) is accepted and the response arrives on some valid stream (strict wire requirement; stock 5.6.9 calibration returns `kXR_ArgInvalid`) | spec | O3 | XP |
 | PGR-025 | A pgread crossing the 16 MiB threshold splits into `kXR_PartialResult` frames whose reassembly is byte- and CRC-exact | spec | O3+O1 | PN§26, XP |
 | PGR-026 † | Unit boundaries in a chunked pgread do not straddle frames — each frame contains whole units | spec | O3 | XP |
-| PGR-027 † | At most `kXR_pgMaxEpr` (128) checksum errors are reported per request | spec | O3 | XP |
+| PGR-027 † | **Retracted:** `kXR_pgMaxEpr` bounds corrupt pages reported by one **pgwrite** request; pgread returns data plus CRCs and has no checksum-error-list response to cap | — | — | in-repo `flags.h`, pgread wire grammar |
 | PGR-028 † | Reads at `offset` ≥ 2³¹ on object `L` produce correct per-page CRCs (the 32-bit page-index truncation detector) | spec | O2 | XP |
 | PGR-029 | pgread on a handle opened write-only is refused | spec | O3 | XP |
 | PGR-030 | `offset` or `rlen` < 0 yields `kXR_ArgInvalid` | spec | O3 | XP |
@@ -750,8 +1132,8 @@ did not advertise it — and that skip is itself asserted by CLM-008.
 | PGW-002 | The request payload is CRC-first per page, not data-first | xrootd | O3 | PN§11 |
 | PGW-003 | `ServerResponseBody_pgWrite::offset` equals the offset written | spec | O3 | XP |
 | PGW-004 | A correct pgwrite is read back byte-identically by `read` and by `pgread` | cons | O1 | — |
-| PGW-005 | **A page with a deliberately wrong CRC is rejected** | spec | O3 | XP |
-| PGW-006 | **A rejected page is not committed** — the prior bytes are still there on read-back | spec | O1 | — |
+| PGW-005 | **A page with a deliberately wrong CRC is reported in the pgwrite checksum-error (CSE) trailer** | spec | O3 | XP |
+| PGW-006 | **An uncorrected CSE page cannot be finalized** — close remains gated with `kXR_ChkSumErr` until correction | spec | O1 | CAL-BRIX-PGWRITE-CSE |
 | PGW-007 | The rejection carries `ServerResponseBody_pgWrCSE` with `dlFirst`, `dlLast`, and the offset list | spec | O3 | XP |
 | PGW-008 | `cseCRC` in that struct validates over the bits that follow it | spec | O3 | XP |
 | PGW-009 † | A retry of only the rejected pages succeeds and yields a correct whole object | cons | O1 | XP |
@@ -777,7 +1159,7 @@ did not advertise it — and that skip is itself asserted by CLM-008.
 | WRT-010 † | A write whose `dlen` disagrees with the bytes sent does not partially apply | spec | O1 | XP |
 | WRT-011 † | Concurrent writes to disjoint extents of one handle both land | cons | O1 | — |
 | WVC-001 † | `kXR_writev` (3031) with a valid `write_list` lands every element; read-back is byte-exact | spec | O1 | XP |
-| WVC-002 † | Element count at `maxWvecsz` (1024) is accepted; 1025 is refused | spec | O3 | XP |
+| WVC-002 † | Element count at `maxWvecsz` (1024) is accepted; 1025 is refused | spec | O3 | CAL-BRIX-WRITEV-LIMITS |
 | WVC-003 † | `options` = `doSync` (0x01) makes the data durable before the response | spec | O3 | XP |
 | WVC-004 † | A `writev` with a zero-length element is a defined no-op for that element only | spec | O1 | XP |
 | WVC-005 † | `kXR_writev` when unsupported yields `kXR_Unsupported` (3013), never a silent partial write | spec | O3 | XP |
@@ -809,8 +1191,8 @@ did not advertise it — and that skip is itself asserted by CLM-008.
 | STA-008 | Stat by open `fhandle` (`dlen` = 0 with a handle) returns the same info as stat by path | cons | O1 | CL-7 |
 | STA-009 | The `mtime` is a plausible UNIX time (not 0, not negative, not > now + skew) | spec | O3 | XP |
 | STA-010 † | `kXR_offline` (0x01) is set only for objects that a read would have to stage | cons | O1 | XP |
-| STA-011 † | `kXR_poscpend` (0x10) is set for a file left open under `kXR_posc` and clear afterwards | cons | O1 | XP |
-| STA-012 † | `kXR_bkpexist` (0x20) is reported consistently between `stat` and `query` | cons | O1 | XP |
+| STA-011 † | `kXR_poscpend` (0x40) is set for a file left open under `kXR_posc` and clear afterwards | cons | O1 | XP |
+| STA-012 † | **Retracted:** `kXR_bkpexist` is a stat flag and the authoritative query infotype vocabulary defines no query response carrying that bit | — | — | in-repo `opcodes.h`, stat grammar |
 | STA-013 | `kXR_vfs` (0x01 in `options`) returns the filesystem-space form, not the file form | spec | O3 | XP |
 | STA-014 | The `id` field is stable across two stats of the same object and differs between two distinct objects | cons | O1 | XP |
 | STA-015 † | `kXR_statx` (3022) returns one flag byte per path, in request order, for a multi-path request | spec | O3 | XP |
@@ -850,7 +1232,7 @@ did not advertise it — and that skip is itself asserted by CLM-008.
 | RM-001 | `kXR_rm` (3014) removes a file; a following `stat` yields `kXR_NotFound` | spec | O1 | XP |
 | RM-002 | `kXR_rmdir` (3015) on an empty directory succeeds | spec | O1 | XP |
 | RM-003 | **`kXR_rmdir` on a non-empty directory yields `kXR_ItExists` (3018), not `kXR_isDirectory`** — the acknowledged `ENOTEMPTY` wart | xrootd | O3 | XP |
-| RM-004 | `kXR_rm` on a directory yields `kXR_isDirectory` (3016) | spec | O3 | XP |
+| RM-004 | `kXR_rm` on an empty directory follows the deployed filesystem policy: it removes the empty directory or yields `kXR_isDirectory` (3016); a non-empty directory remains covered by RM-003 | xrootd | O3 | CAL-BRIX-RM |
 | RM-005 | `kXR_rmdir` on a file yields a defined error, not a successful unlink | spec | O3 | XP |
 | RM-006 | rm of a nonexistent path yields `kXR_NotFound` | spec | O3 | XP |
 | RM-007 | rm on a read-only export yields `kXR_fsReadOnly` | spec | O3 | AG, CL-12 |
@@ -872,8 +1254,8 @@ did not advertise it — and that skip is itself asserted by CLM-008.
 | LOC-006 | `kXR_nowait` returns promptly even when a subset of the cluster is slow | spec | O3 | XP |
 | LOC-007 | `kXR_prefname` returns hostnames; without it, addresses | spec | O3 | XP |
 | LOC-008 | Locate of a nonexistent path yields `kXR_NotFound`, not an empty success | spec | O3 | XP |
-| LOC-009 † | `kXR_addrboth` / `kXR_addrIPv4` / `kXR_addrIPv6` each return the requested family only | spec | O3 | XP |
-| LOC-010 † | `kXR_compress` on locate returns the compact form and the same endpoint set | cons | O1 | XP |
+| LOC-009 † | **Retracted:** the named address-family selector flags are absent from the authoritative in-repo wire vocabulary; the assessor skips this row rather than inventing option values | — | — | in-repo `flags.h` |
+| LOC-010 † | **Retracted:** the repository defines no compact locate response grammar and documents `kXR_compress` as an unimplemented open option; the assessor skips this row | — | — | in-repo `flags.h`, `wire_write_extended_requests.h` |
 | FAT-001 † | `kXR_fattr` (3020) `kXR_fattrSet` then `kXR_fattrGet` round-trips the exact value bytes | cons | O1 | XP |
 | FAT-002 † | `kXR_fattrList` includes every name previously set and no others | cons | O1 | XP |
 | FAT-003 † | `kXR_fattrDel` removes the name; a following get yields the defined not-found error | cons | O1 | XP |
@@ -884,12 +1266,12 @@ did not advertise it — and that skip is itself asserted by CLM-008.
 | FAT-008 † | `kXR_fattr` when unimplemented yields `kXR_Unsupported`, never `kXR_ServerError` | spec | O3 | XP |
 | FAT-009 † | fattr set on a read-only export yields `kXR_fsReadOnly` | spec | O3 | AG, CL-12 |
 | PRP-001 | `kXR_prepare` (3021) with `kXR_stage` returns a request id | spec | O3 | XP |
-| PRP-002 | `kXR_cancel` with that id is accepted; a second cancel is a defined error, not a crash | spec | O3 | XP |
-| PRP-003 † | `kXR_evict` (0x04) on a cached object makes a following read re-stage rather than serve stale bytes | cons | O1 | XP |
+| PRP-002 | `kXR_cancel` with that id is accepted; a repeated cancel is idempotent and does not disclose whether another session owns the id | cons | O3 | CL-3 |
+| PRP-003 † | `kXR_prepare` with `optionX = kXR_evict` (0x0001) on a cached object makes a following read re-stage rather than serve stale bytes | cons | O1 | XP |
 | PRP-004 † | `kXR_fresh` forces a re-stage even when a copy is resident | cons | O1 | XP |
 | PRP-005 | `kXR_prepare` of a nonexistent path yields an error at request time or a failed status at query time — never silent success forever | spec | O3 | XP |
 | PRP-006 | `kXR_notify` with an unreachable notification target does not wedge the request | spec | O3 | XP |
-| PRP-007 | prepare on a read-only export: staging is a read-side operation and is **not** refused with `kXR_fsReadOnly` | spec | O3 | CL-12 |
+| PRP-007 | prepare staging on a read-only export is refused with `kXR_fsReadOnly` before recall or cache mutation | cons | O3 | AG, CL-12 |
 | QRY-001 | `kXR_query` (3001) `kXR_Qconfig` returns one line per requested keyword, in request order | spec | O3 | XP |
 | QRY-002 | `kXR_Qconfig tpc` returns a **raw numeric** value, not a yes/no word | xrootd | O3 | PN§28 |
 | QRY-003 | Every `kXR_Qconfig` value the server reports is consistent with observed behaviour — `readv_ior_max` bounds the largest accepted readv element, `chksum` names the algorithms `kXR_Qcksum` actually serves | cons | O1 | — |
@@ -921,16 +1303,16 @@ exactly. Generated from the §6.2 length axis crossed with element counts.
 | RDV-006 | Overlapping elements each return their own full extent | spec | O2 | XP |
 | RDV-007 | Elements given out of ascending offset order are **not** silently reordered | spec | O3 | XP |
 | RDV-008 | A zero-length element returns a zero-length element, not an omission | spec | O2 | XP |
-| RDV-009 | An element wholly past EOF returns zero bytes for that element and does not fail the request | spec | O2 | XP |
-| RDV-010 | An element straddling EOF returns exactly `S − offset` bytes for that element | spec | O2 | XP |
+| RDV-009 | An element wholly past EOF fails the whole request with a defined I/O error (`kXR_IOError` or the stock-v5 `kXR_FSError` spelling); no segment bytes are returned | xrootd | O4 | CAL-RDV-EOF |
+| RDV-010 | An element straddling EOF fails the whole request with a defined I/O error (`kXR_IOError` or the stock-v5 `kXR_FSError` spelling); readv does not use plain-read short-read semantics | xrootd | O4 | CAL-RDV-EOF |
 | RDV-011 | `maxRvecsz` (1024) elements are accepted; 1025 is refused with a defined error | spec | O3 | XP |
-| RDV-012 | Total data at `maxRVdsz` (2097136) is accepted; one byte more is refused | spec | O3 | XP |
-| RDV-013 | A single element at `maxTransferSize` is accepted; larger is refused | spec | O3 | XP |
+| RDV-012 | Total data at `maxRVdsz` (2097136) and one byte more are accepted when split into individually legal elements; the per-element cap is not misapplied to the whole vector | cons | O1 | — |
+| RDV-013 | A single element at the advertised `readv_ior_max` is accepted; a larger element is refused or explicitly shortened to that cap, never served beyond it | cons | O1 | — |
 | RDV-014 † | Elements naming **different `fhandle`s** in one readv are served correctly or refused wholesale — never mixed up | spec | O2 | XP |
 | RDV-015 † | An element naming a closed handle fails that element or the request with `kXR_FileNotOpen`, never returns another handle's bytes | spec | O3 | XP |
 | RDV-016 | An element with negative `offset` or `rlen` yields `kXR_ArgInvalid` for the request | spec | O3 | XP |
 | RDV-017 | A `dlen` that is not a whole multiple of the element size yields `kXR_ArgInvalid` | spec | O3 | XP |
-| RDV-018 | A readv whose total exceeds one response is chunked with `kXR_oksofar`; reassembly preserves element boundaries | spec | O1 | PN§26 |
+| RDV-018 | A large readv is delivered as one length-delimited logical response while bounded server-side streaming preserves every element boundary; `kXR_oksofar` is not used because official XrdCl does not reassemble it for readv | client | O1 | CAL-RDV-FRAMING |
 | RDV-019 | `readv_ior_max` and `readv_iov_max` reported by `kXR_Qconfig` bound what readv actually accepts | cons | O1 | — |
 | RDV-020 † | 1024 one-byte elements at 1024 scattered offsets each return the right byte (the scatter-correctness detector) | spec | O2 | — |
 
@@ -948,22 +1330,22 @@ exactly. Generated from the §6.2 length axis crossed with element counts.
 | WAI-002 | Retrying after the stated wait succeeds or yields a **different** answer — an endless identical wait is a divergence | cons | O1 | — |
 | WAI-003 | `kXR_waitresp` (4006) is followed by the real response on the same streamid | spec | O3 | XP |
 | WAI-004 † | Under a load spike the server sheds with `kXR_wait` rather than dropping connections | cons | O1 | — |
-| ATN-001 † | `kXR_attn` (4001) `kXR_asyncdi` / `kXR_asyncrd` / `kXR_asyncwt` bodies parse per their structs | spec | O3 | XP |
+| ATN-001 † | `kXR_attn(kXR_asynresp)` carries a valid action/reserved/inner-response envelope | spec | O3 | XP |
 | ATN-002 † | `kXR_asyncms` message text is NUL-terminated and within `dlen` | spec | O3 | XP |
-| ATN-003 † | An `attn` arrives only on a stream that requested async notification | spec | O3 | XP |
+| ATN-003 † | `kXR_asynresp` follows `kXR_waitresp` and its outer and inner streamids match the deferred request | spec | O3 | XP |
 | CHU-001 | `kXR_oksofar` (4000) frames are followed by exactly one terminal frame | spec | O3 | XP |
 | CHU-002 | Every `oksofar` frame carries the same streamid as the request | spec | O3 | XP |
-| CHU-003 | The 16 MiB boundary is the split point; a response one byte under it is unsplit | xrootd | O3 | PN§26 |
+| CHU-003 | Chunking is size-bounded: a small response is unsplit, while a large split response preserves frame boundaries and reassembles byte-exactly | cons | O1 | CAL-BRIX-CHUNKING |
 | CHU-004 | Concurrent chunked responses on two streamids interleave without cross-contamination | cons | O1 | — |
 | BND-001 † | `kXR_bind` (3024) returns a `pathid` that a following read can use | spec | O3 | PN§25 |
 | BND-002 † | Data requested on a bound substream arrives on that substream | spec | O3 | PN§25 |
 | BND-003 † | Bytes read over a substream are byte-identical to the primary-stream read | cons | O1 | — |
-| BND-004 † | Binding more substreams than the server supports is refused with a defined error | spec | O3 | XP |
+| BND-004 † | Exactly `bind_max` live substreams are admitted and the next bind is refused with `kXR_ArgTooLong` | spec | O3 | XP |
 | BND-005 † | A `pathid` from a closed substream is refused, not reused | spec | O3 | XP |
 | ENV-001 | `kXR_set` (3018) always answers `kXR_ok` — even for an unknown key | xrootd | O3 | PN§24 |
 | ENV-002 † | `kXR_ping` (3011) answers `kXR_ok` and does not disturb an in-flight read on another stream | spec | O1 | XP |
 | ENV-003 † | `kXR_endsess` (3023) with a valid session id ends that session; a following request on it is refused | spec | O3 | XP |
-| ENV-004 † | `kXR_endsess` with a **foreign** session id is refused — cross-session teardown | spec | O3 | XP |
+| ENV-004 † | `kXR_endsess` with a **foreign** session id is an idempotent recovery cleanup: it must not tear down either the foreign session or the connection carrying the request | client | O1 | CAL-BRIX-LOG-ANON |
 | ENV-005 † | `kXR_gpfile` (3005) is implemented or answers `kXR_Unsupported` | spec | O3 | XP |
 
 ## 24. `ERR` — the error-mapping ledger
@@ -1185,10 +1567,10 @@ reported separately from clause verdicts.
 | ADV-004 | Open file descriptors after the corpus return to the pre-corpus count | cons | O1 | — |
 | ADV-005 | **A clause that passed before the corpus still passes after it** — the corpus does not leave the server in a degraded state | cons | O1 | — |
 | ADV-006 | No case produces `kXR_ServerError` (3012) or an unclassified `kXR_FSError` (3005); every case that does is reported with its exact bytes as a reproducer | spec | O1 | ERR-037, ERR-038 |
-| ADV-007 | Corpus classes: truncated frames · `dlen` disagreeing with the body (both directions) · reserved bytes non-zero · every request code 0–65535 including the 3032–65535 gap · every option bit combination on the smallest verbs · nested/duplicated CGI · every path-encoding trick · oversized and undersized every length field · streamid reuse and streamid storms · out-of-order and interleaved frames | — | — | — |
-| ADV-008 | Every corpus case that produces a finding is minimized to the smallest reproducing byte sequence and emitted as a replayable `.xrdcap` | — | — | — |
-| ADV-009 | The corpus is seeded deterministically from `--run-key`; the same key reproduces the same cases exactly | — | — | — |
-| ADV-010 | Corpus runs are `mutate`-classed and refused under `--accept` on a production target unless `--allow-mutate` is given | — | — | §35 |
+| ADV-007 | Corpus classes: truncated frames · `dlen` disagreeing with the body (both directions) · reserved bytes non-zero · every request code 0–65535 including the 3032–65535 gap · every option bit combination on the smallest verbs · nested/duplicated CGI · every path-encoding trick · oversized and undersized every length field · streamid reuse and streamid storms · out-of-order and interleaved frames | spec | O1 | §30 |
+| ADV-008 | Every corpus case that produces a finding is minimized to the smallest reproducing byte sequence and emitted as a replayable `.xrdcap` | spec | O1 | §30 |
+| ADV-009 | The corpus is seeded deterministically from `--run-key`; the same key reproduces the same cases exactly | spec | O1 | §30 |
+| ADV-010 | Corpus runs are `mutate`-classed and refused under `--accept` on a production target unless `--allow-mutate` is given | spec | O1 | §35 |
 
 ---
 
@@ -1225,15 +1607,15 @@ Scope is decided by three inputs, in this order:
 | `s3` | an S3-fronted export | HTR HTC HTE S3 XPR ERR TLS | SigV4 is enforced and is not interchangeable with a token |
 | `http` | a WebDAV/HTTP endpoint | HTR HTC HTE DAV XPR ERR TLS | the Range grid is RFC-exact |
 | `tls` | any of the above, TLS-focused | TLS ∪ HSK ∪ PROT ∪ SIG | claimed TLS classes are enforced and unclaimed ones are not |
-| `ec` | an erasure-coded backend | `data` ∪ a stripe-boundary axis added to §6.1 | reads across stripe boundaries are byte-exact |
 | `tpc` | a TPC-participating endpoint | TPC ∪ LOC ∪ ERR ∪ TLS | delegated credentials are scope-limited and single-use |
 | `full` | everything discovery permits | every family | — |
 
-`ec` deserves a note: erasure coding introduces a **second** alignment quantum
-underneath the page quantum, and a stripe-boundary read is the classic place for
-a wrong-bytes-right-length defect. When the profile is `ec` (or discovery
-reports a stripe size), §6.1's offset axis gains `k·stripe ± {1, 0}` and
-`k·stripe ± page` for the first, middle and last stripe of each object.
+The former `ec` profile is intentionally retired. Phase 117 closed the in-tree
+erasure-coding design **NO-GO** and established that internal storage EC is
+protocol-invisible; such an endpoint is assessed with `data`. A future client
+that consumes an advertised external shard layout must first define an
+authoritative stripe-size discovery contract, then may introduce a distinct
+profile. Accepting `--profile ec` today would pretend that contract exists.
 
 ### 31.2 Reference selection: `strict` versus `ecosystem`
 
@@ -1255,9 +1637,9 @@ report trustworthy.
 ## 32. The three run shapes
 
 ```
-xrd conform accept   <url>   # <!-- client-flags-allow: proposed C7 run shape; xrd conform is not built yet -->
-xrd conform full     <url>   # <!-- client-flags-allow: proposed C7 run shape; xrd conform is not built yet -->
-xrd conform watch    <url>   # <!-- client-flags-allow: proposed C7 run shape; xrd conform is not built yet -->
+xrd conform accept   <url>
+xrd conform full     <url>
+xrd conform watch    <url>
 ```
 
 | shape | budget | probe classes | when |
@@ -1273,7 +1655,21 @@ Every shape takes the same flags, and all three write the same artefacts:
 | `--profile <role>` | §31.1; repeatable; default = discovery |
 | `--reference strict\|ecosystem\|both` | §31.2 |
 | `--run-key <hex>` | seeds the PRF and the corpus; the reproducibility handle (§5.1) |
+| `--verify-negative <clause-id>` | repeatable controlled-lab assertion for §40. The ID must be live (not retracted), and the completed run must emit that exact row as `divergent`; otherwise the command fails with exit 3. Every report records the requested IDs and whether the declaration passed, so an accidental red cannot masquerade as hostile-fixture evidence |
 | `--scratch <path>` | where planted objects live; **the only path any `mutate` clause may touch** |
+| `--quota-target <root-url>` / `--capacity-target <root-url>` | paired, operator-labelled WRT-007 fixtures; the first must refuse a bounded write as `kXR_overQuota`, while the second must refuse an unsatisfiable `oss.asize` reserve as `kXR_NoSpace`; supplying only one is a usage error |
+| `--error-fixture <ERRNO>[@http]=<url>` | repeatable controlled errno endpoint; `@http` supplies the paired HTTP half of ERR-043; all six documented pairs are required |
+| `--readonly-fixture <webdav\|s3\|oci\|gridftp>=<url>` | four explicit mutation-authorized ERR-044 endpoints; all planes and exact native denial bodies/codes are required |
+| `--auth-fixture <protocol>=<root-url>` | repeatable ERR-047 endpoint; sends malformed raw `kXR_auth` only after the endpoint advertises that mechanism, and requires every advertised mechanism to be labelled |
+| `--tls-cleartext-fixture <login\|data\|gpf\|session\|tpc>=<root-url>` | repeatable TLS-002 incapable-client endpoint. The runner forces anonymous login, suppresses only the in-protocol upgrade, verifies the named class is advertised, sends its representative request, and accepts only exact `kXR_TLSRequired`; one endpoint per advertised class is required |
+| `--token-fixture <audience\|expired\|not-yet-valid\|issuer>=<root-url>` | controlled LOG-022–024 ztn negatives. Each endpoint must advertise `ztn`; audience and issuer require one fixture, while LOG-023 requires both time-bound fixtures, and all must reject the locally supplied bearer as exact `kXR_AuthFailed` |
+| `--denied-fixture <root\|http\|s3>=<url>` | one endpoint per plane for XPR-005; the operator asserts all three represent the same denied object and identity, and the tool requires the exact native denial spelling on every plane |
+| `--mutation-fixture <root\|http\|s3>=<url>` | one endpoint per plane for XPR-009; performs a deterministic scratch-only HTTP PUT, verifies ROOT stat plus S3 list/GET, deletes it, and verifies cross-plane absence |
+| `--open-fixture <readonly\|staged-nowait\|idle>=<root-url>` | repeatable controlled OPEN topology: paired anonymous/authenticated read-only precedence, a staged-out object whose first `nowait` answer is timed without retry, or an endpoint asserted to have an idle threshold below the runner's two-second dwell |
+| `--move-fixture <destination-root-scratch-url>` | MV-005 two-export topology; the primary endpoint is export A and this same-authority URL names the scratch root on export B. The runner plants a run-keyed source, requires a defined refusal, proves the source remains and no destination copy appeared, then cleans both exact paths |
+| `--cache-fixture <partial\|filling\|capacity\|corrupt>` | declares the externally prepared state of the primary cache URL; the first `--also` ROOT URL is the independent origin oracle, and capacity/corrupt retain disruption confirmation |
+| `--tpc-fixture <source-denied\|destination-abort\|scoped-delegation\|native-and-webdav\|egress-blocked>` | declares the controlled TPC topology. The primary/first `--also` pair are native ROOT source/destination; `native-and-webdav` additionally uses the second/third `--also` WebDAV endpoints and requires a discovered bearer |
+| `--adv-observer <http[s]://url>` | operator-controlled server-process observer for ADV-003/004. It must return exactly `rss_bytes=N` and `open_fds=N` on separate newline-terminated lines; malformed, unreachable, S3, or non-200 observers stay inconclusive rather than green |
 | `--allow-mutate` / `--allow-disrupt` | §35; both default off, and `disrupt` additionally requires a written target confirmation |
 | `--families A,B,…` / `--exclude` | narrow the ledger by family or by id glob |
 | `--budget exhaustive\|pairwise\|boundary` | §6.6 |
@@ -1307,7 +1703,7 @@ HSK    7/7   ok
 PROT  13/14  1 divergent
   PROT-009  divergent  kXR_suppgrw claimed but kXR_pgread answered kXR_Unsupported (3013)
             ref: spec (XProtocol.hh kXR_PROTPGRWVERSION 0x511)   oracle: O1 self-consistency
-            repro: xrd conform full root://ds1.example:1094 --families PROT --only PROT-009   # <!-- client-flags-allow: proposed C7 run shape; xrd conform is not built yet -->
+            repro: xrd conform full root://ds1.example:1094 --families PROT --only PROT-009
 ```
 
 **Markdown / HTML** — the site report, and the thing that gets attached to a
@@ -1375,6 +1771,13 @@ findings ambiguous about what it touched.
 | `mutate` | create, write, rename, delete — **only under `--scratch`** | on for `full`, off for `watch`, on for `accept` only when `--scratch` is given |
 | `disrupt` | provoke load, exhaust handles, hold connections, force `kXR_wait` | off; requires `--allow-disrupt` **and** a typed confirmation naming the target |
 
+Probe class is assigned per clause, not merely per family. Mixed families such
+as `OPN`, `DAV`, `S3`, `CAC` and `XPR` retain read-only coverage while their
+write attempts require scratch-bound mutation authority; slow-frame, idle-hold,
+resource-exhaustion, fault-injection and topology-outage rows require disrupt
+authority. The generated registry rejects unknown override ids so a stale or
+misspelled safety classification cannot silently disappear.
+
 **The scratch invariant.** A `mutate` clause receives a path prefix and may not
 construct a path outside it. This is enforced structurally: the clause is handed
 a prefix-bound path builder, not a string, and a static guard
@@ -1404,34 +1807,68 @@ verdict is `inconclusive` and the reason is machine-readable. It never reports
 
 ## 36. Honest inventory: what exists today
 
-Nothing in this plan starts from zero. The client already has the transport, the
-discovery, a happy-path battery, and a fault injector. What it does not have is
-the **ledger**, the **generator**, and the **oracle** — Parts II and III. Stating
-the boundary precisely is what keeps the C/S/A/D register (§38) honest.
+**Implementation update (2026-10-06).** `client/lib/conform/` contains the M1
+PRF/catalogue/oracle/axis engine and the complete generated 527-row registry,
+scope and safety gates, verdict algebra, baseline diff, capture scrubber and
+report bundle. `xrd conform accept|full|watch` performs bounded live probes for
+the implemented ROOT framing, session, data, metadata, namespace, control-flow,
+error, HTTP, WebDAV, S3, CMS, cache, TPC and cross-plane families recorded in
+the register below. A live
+BriX ROOT+HTTP run established byte and size agreement; a dedicated SigV4 S3
+endpoint established the implemented range rows and rejection of a deliberately
+modified signature. Stock XRootD 5.9.7 calibrated the RDV EOF rows. The output
+remains intentionally honest: evidence unavailable on the selected target is
+inconclusive or explicitly skipped, never green.
+The live RD runner grades the complete healthy-endpoint RD set, including
+RD-009/011/016/017, plus RD-012/013, RD-018–23 and RD-030–33 with raw requests
+where the typed client cannot express the hostile wire shape. The PGR runner
+uses a strict typed `kXR_status` parser, exact page geometry, request-argument
+calibration, 16 MiB partial framing, sparse large offsets, and write-only
+authority negatives.
 
-| capability | today | file | gap for `conform` |
+All HSK, PROT and FRM rows, all 48 ERR rows, and all 25 LOG rows are live, with
+controlled malformed security-trailer, response-stream-id, duplicate-session-ID
+and legacy-GSI transcript negatives. TLS incapable-client enforcement and ADV
+finding minimization/replay are implemented. Capability/profile reconciliation
+is complete for the supported profiles; the misleading `ec` alias is retired
+under Phase 117's NO-GO rather than pretending stripe discovery exists. The
+GridFTP and OCI manifest objects now participate in the same bounded size and
+byte-digest oracle as ROOT, HTTP and S3; namespace comparison remains scoped to
+the protocols with equivalent direct-child listing semantics. M5 does not infer
+universal feature parity: its release matrix is the explicit target/applicability
+record in §34. That record and the complete per-clause fault-proxy negative
+matrix are now closed. Strict/ecosystem dual grading and
+escaped HTML are implemented. Stock XRootD 6.1.1 calibration is published for
+the implemented slices. `full` is an operational runner and M5 is a
+release-complete claim.
+
+The transport, discovery, ledger, generators and live oracles now exist. The
+C/S/A/D register below is the authoritative boundary between executable
+assessment and the closed release-calibration record.
+
+| capability | today | file | Phase-118 integration |
 |---|---|---|---|
 | `root://` transport, framing, TLS, auth | complete | `client/lib/net/`, `client/lib/protocols/root/frame.c` | none — this is the substrate |
-| raw frame send/recv with an arbitrary 24-byte header | present | `brix_send()`, `brix_recv()`, `brix_roundtrip()` (`brix_net_frame.h`) | **this is the key enabler**: off-spec clauses need a header the typed ops layer would never build, and this API already allows one |
+| raw frame send/recv with an arbitrary 24-byte header | integrated | `brix_send()`, `brix_recv()`, `brix_roundtrip()` (`brix_net_frame.h`) | used by the complete FRM/HSK/PROT and hostile-wire probes |
 | typed ops: open/read/readv/pgread/pgwrite/write/stat/dirlist/query/locate/prepare | complete | `brix_ops.h` (`brix_file_pgread`, `brix_file_readv`, `brix_query`, `brix_locate_opts`, …) | none for the on-spec half of the ledger |
-| substream bind | present | `brix_bind()`, `brix_streams_open()` | BND family can be written against it |
-| capability discovery | present | `xrd caps` — server role from `c.server_flags` + the `kXR_Qconfig` matrix via `xrd_probe_caps()` (`xrd_mount.c:169`) | it *prints* claims; §31 needs it to *return* them as a scope decision, and §25 needs it to grade them |
-| identity discovery | present | `xrd whoami` — chosen auth, offered `sec_list`, token and proxy explanation | reusable verbatim for the report header |
-| a functional battery | present, happy-path | `xrd_battery.c` + `xrd_battery_web.c`, ~24 named checks (`read-verify`, `readv`, `write-suite`, `path-confinement`, `PROPFIND`, `list-objects`, …) across the root/WebDAV/S3 faces | **the seed of the ledger, and the honest measure of the gap**: it answers "does readv work", the ledger asks the 20 questions of §22 |
-| fault injection | complete | `brix-fault-proxy` — toxics `corrupt`, `truncate`, `drop`, `dup`, `reorder`, `chunk`, `latency`, `jitter`, `lossy`, `drip_bytes`, `rate`, `down` | **this is the §40 negative-fixture engine, already built** |
-| a gated external oracle | present | `brix_fault_oracle.h` — `fp_oracle_run()`, double-gated behind `--enable-exec` | the pattern to copy for "did the clause fail as it should" |
-| session capture and replay | present | `xrddiag replay <file.xrdcap>`, `--playback <url>` | the `.xrdcap` divergence artefact of §33 needs no new format |
-| latency/throughput probing | present | `xrddiag bench`, `xrdstorascan bench` | out of scope here; `conform` grades correctness, not speed |
+| substream bind | integrated | `brix_bind()`, `brix_streams_open()` | BND 5/5 uses the typed bind path and hostile secondary-stream peers |
+| capability discovery | integrated | `xrd caps` substrate plus `xrd_conform_root_claim*.c` | observed role, attribute and Qconfig claims drive profile scope and CLM grading |
+| identity discovery | integrated | `xrd whoami` substrate plus `xrd_conform_root_login*.c` | chosen and advertised mechanisms drive LOG, SIG and CLM observations |
+| a functional battery | retained and superseded for assessment | `xrd_battery.c`, `xrd_battery_web.c`, `xrd_conform*.c` | the battery remains the quick diagnostic; `conform` owns the generated ledger and reference-derived verdicts |
+| fault injection | integrated | `brix-fault-proxy` plus controlled protocol peers | the §40 matrix proves one exact hostile fixture for every executable clause |
+| a gated external oracle | integrated where applicable | `brix_fault_oracle.h`, controlled peer fixtures | external execution remains explicitly gated; in-process peers provide deterministic wire negatives |
+| session capture and replay | integrated | `xrddiag replay <file.xrdcap>`, `--playback <url>`, conform capture/report code | divergent hostile cases emit scrubbed `.xrdcap` artifacts; ADV-008 emits minimized reproducers |
+| latency/throughput probing | intentionally separate | `xrddiag bench`, `xrdstorascan bench` | out of scope: `conform` grades correctness, not performance |
 
 Two conclusions follow, and both are load-bearing for the estimate:
 
-1. **No new protocol code is required.** Every clause in Parts III is a
-   composition of `brix_send`/`brix_recv` or an existing typed op. The work is
-   the ledger, the generator, the oracle and the report — not the wire.
-2. **The battery is the precedent, not the competitor.** `xrd doctor --rw`
-   already walks three protocol faces and records pass/fail per named check. The
-   ledger is that shape, two orders of magnitude wider, with a verdict derived
-   from a reference instead of from a boolean.
+1. **The assessor reuses the clean-room protocol layer.** Every clause in Parts
+   III is implemented as a bounded composition of raw framing or an existing
+   typed operation; no second wire implementation was introduced.
+2. **The battery and assessor have distinct contracts.** `xrd doctor --rw`
+   remains the compact operational diagnostic. `xrd conform` walks the generated
+   ledger, derives reference-aware verdicts and preserves explicit missing
+   evidence instead of collapsing it into a boolean.
 
 ## 37. The three spines
 
@@ -1462,44 +1899,47 @@ capture and its credential scrub, the probe-class enforcement and the
 prefix-bound path builder (§35), the baseline diff. C3/C4 compliance lives here
 and is pinned by `tests/test_cli_golden.py` the same way every other tool is.
 
-The dependency order is A → B → C, but B's clause tables can be written in
-parallel with A because they consume the generator only through its interface.
+Implementation followed the A → B → C dependency order. The generated clause
+tables remain independently maintainable because they consume the generator
+only through its interface.
 
 ## 38. The C/S/A/D register
 
 Each row is **C**omplete, **S**ubstantial, **A**dditive, or **D**eferred, against
-the inventory in §36. Nothing here is claimed as landed; this is a plan.
+the inventory in §36. The register records the completed implementation and the
+one explicitly retired, non-applicable axis.
 
 | # | item | spine | state | note |
 |---|---|---|---|---|
-| 1 | planted-object PRF + plant/adopt/verify | A | **S** | new; ~1 file, no network |
-| 2 | standard object set + read-only adoption | A | A | §5.2, §32.1 |
-| 3 | offset/length/option/limit axis generators | A | **S** | §6.1–§6.5, the heart of "fractional" |
-| 4 | page-algebra expected-answer engine | A | **S** | §6.3; the PGR family is worthless without it |
-| 5 | budget reductions (`exhaustive`/`pairwise`/`boundary`) | A | A | §6.6 |
-| 6 | `brix_clause` struct + registry | B | A | §7 |
-| 7 | verdict algebra + skip ledger | B | A | §8.1, §8.3 |
-| 8 | the 14 O1 comparators | B | **S** | §8.2; these are the rows no other tool can produce |
-| 9 | scope resolver + profiles | B | A | §31; consumes `xrd_probe_caps()` |
-| 10 | FRM/HSK/PROT/LOG/SIG families (§9–§13) | B | A | 79 rows; mostly raw-frame work over `brix_send` |
-| 11 | OPN/RD/PGR/PGW/write-plane families (§14–§18) | B | **S** | 130 rows; the marquee fractional surface |
-| 12 | STA/DIR/namespace/QRY families (§19–§21) | B | A | 90 rows over existing typed ops |
-| 13 | RDV/control-flow families (§22–§23) | B | A | 51 rows |
-| 14 | ERR family (§24) | B | **S** | 27 rows; needs a provocation harness per errno |
-| 15 | TLS/CLM families (§25) | B | **S** | claims-vs-behaviour in both directions |
-| 16 | HTTP/WebDAV/S3 families (§26–§27) | B | A | 60 rows; `xrd_battery_web.c` is the precedent |
-| 17 | CMS/CAC/TPC families (§28) | B | A | 30 rows; needs a multi-node fixture |
-| 18 | XPR cross-plane agreement (§29) | B | **S** | 11 rows, and the reason the tool is one binary |
-| 19 | ADV corpus arm (§30) | B | A | subordinate; reuses the phase-27 corpus shape |
-| 20 | terminal / Markdown / SARIF+ECS renderings | C | A | §33 |
-| 21 | `.xrdcap` divergence capture + credential scrub | C | A | format exists; the scrub is new |
-| 22 | probe classes + prefix-bound path builder + `check_conform_scratch.py` | C | **S** | §35; the safety invariant |
-| 23 | baseline diff | C | A | §32 |
-| 24 | calibration matrix + published differential record | — | **S** | §34; needs the stock-XRootD fixtures the repo already runs |
-| 25 | `ec` stripe axis | A | **D** | §31.1; needs a stripe-size discovery path |
-| 26 | `watch` duty-cycle mode | C | **D** | after `accept` and `full` prove out |
-| 27 | GridFTP and OCI planes in XPR | B | **D** | the errno table already names their spellings (§24 ERR-044) |
-| 28 | fuzz-corpus minimization to a reproducer | B | **D** | §30 ADV-008; valuable, not on the critical path |
+| 1 | planted-object PRF + plant/adopt/verify | A | **C** | landed; offline and no network |
+| 2 | standard object set + read-only adoption | A | **C** | landed for the standard catalogue |
+| 3 | offset/length/option/limit axis generators | A | **C** | §6 read/page/vector/HTTP axes plus reusable option and limit walkers landed |
+| 4 | page-algebra expected-answer engine | A | **C** | arithmetic and alignment-shape generation landed |
+| 5 | budget reductions (`exhaustive`/`pairwise`/`boundary`) | A | **C** | exhaustive, focused boundary and all-pairs multi-axis selectors landed |
+| 6 | `brix_clause` struct + registry | B | **C** | all 527 generated rows, with ledger parity gate and a deterministic §40 negative-fixture identity on every executable clause (`not-applicable/retracted/...` only on withdrawn rows); the identity is emitted by every report format |
+| 7 | verdict algebra + skip ledger | B | **C** | implemented with explicit inconclusive and skipped reasons |
+| 8 | the 14 O1 comparators | B | **C** | §8.2 comparators are exercised through their owning family rows; cross-plane, listing, stat, checksum, read/readv/pgread/pgwrite, locate/open and capacity consistency all retain explicit missing-evidence verdicts |
+| 9 | scope resolver + profiles | B | **C** | automatic target profile plus repeatable composed role profiles |
+| 10 | FRM/HSK/PROT/LOG/SIG families (§9–§13) | B | **C** | FRM 23/23, HSK 7/7, PROT 14/14 and LOG 25/25 are implemented with controlled success, missing-evidence and hostile fixtures. LOG-008 proves an all-NUL username cannot inherit a default identity; LOG-009–012 run an isolated legacy-GSI exchange and grade captured plain-challenge, DH-public, unpadded-secret and terminal key-continuity evidence; LOG-022–024 require labelled ztn claim-negative endpoints and exact `kXR_AuthFailed`; LOG-025 rejects invented IPv6-only redirect capability. SIG 10/10 are active on a signing-capable GSI endpoint: signed success, unsigned-`kXR_SigVerErr`, wrong-`expectrid`, replay, sequence-gap, `nodata`, unknown-hash/version, a bound-secondary bypass negative, and option-scoped unencrypted-hash acceptance plus corruption refusal. SIG-010 skips honestly when `kXR_secOFrce` is absent. |
+| 11 | OPN/RD/PGR/PGW/write-plane families (§14–§18) | B | **C** | M2 RD/PGR healthy-endpoint battery plus executable runners for OPN 33/33, PGW 14/14, WRT 11/11, WVC 5/5, SYN 2/2 and TRN 7/7. OPN-012 is live-verified against a real BriX token/TLS read-only endpoint plus a writable control; OPN-020 has controlled prompt-wait, blocking and generic-error fixtures and grades a deployment when given its staged-out object; OPN-021 is live-verified through a second-session replacement and OPN-033 through an asserted two-second idle fixture. WRT-007 uses paired quota/capacity fixture endpoints. |
+| 12 | STA/DIR/namespace/QRY families (§19–§21) | B | **C** | typed STA/DIR/LOC/QRY read-side probes plus every executable STA row (17/18; STA-012 is explicitly retracted), DIR 10/10, MKD 6/6, MV 7/7, RM 8/8, CHM 4/4, FAT 9/9 and PRP 7/7 scratch-confined or exact read-only probes; MV-005 uses a same-authority two-export fixture and rejects both successful moves and covert copies, RM-008 reuses the WebDAV concurrent recursive-delete snapshot/orphan oracle, PRP-003/004 use independently replaced origin bytes through the paired cache contract, and DIR-010 uses an externally planted fixed-name fixture |
+| 13 | RDV/control-flow families (§22–§23) | B | **C** | RDV 20/20, RDR 6/6, WAI 4/4, ATN 3/3, CHU 4/4, BND 5/5 and ENV 5/5 have controlled positive/negative or explicit response-not-observed paths, including redirect cycles, empty-manager refusal and load shedding |
+| 14 | ERR family (§24) | B | **C** | 48/48: exhaustive native mapper/default/fence, repeatable ROOT errno fixtures, six-pair ROOT/HTTP matrix, cross-verb and namespace-oracle checks, four-plane read-only spellings, and fail-closed per-advertised-protocol auth negatives; controlled success/error/security-negative coverage on Darwin and AlmaLinux 9 ARM64 |
+| 15 | TLS/CLM families (§25) | B | **C** | CLM 10/10 audits role/attribute, gpfile, TLS, version, skip-ledger, checksum and TPC claims against observed behavior. TLS proves gotoTLS, strict certificate/hostname verification, encrypted byte framing, a TLS-1.2 control followed by on-wire TLS-1.1 refusal, explicit TLS-1.2 renegotiation refusal and paired clear/TLS byte identity. A confirmed resumed session is reconnected with application auth suppressed and must receive an exact authorization refusal. TLS-002 uses five explicit anonymous incapable-client fixtures and requires exact `kXR_TLSRequired` for every advertised class. |
+| 16 | HTTP/WebDAV/S3 families (§26–§27) | B | **C** | HTR 21/21, HTE 8/8, HTC 5/5, DAV 11/11 and S3 14/14 have controlled multipart, chunk-framing, validator, digest, gzip, range-limit, disclosure, request-smuggling, target-form, traversal, request-line-limit, complete paired ROOT/HTTP errno mapping, cross-plane HTTP creation/readback, exact paired read-only creation, zero-PUT, short-body, malformed-chunk, paired ROOT/WebDAV direct-child reconciliation, concurrent recursive-delete snapshot/orphan checks, independently reconciled multistatus, mutation, locking, outside-export refusal and XXE negatives; signed-S3, tampered-signature, presigned expiry/path binding, paired bearer/SigV4 confusion, range agreement, exact paginated listing/token replay, exact missing-key/bucket errors, special-key round trips, multipart assembly/size/ETag, paired read-only policy and unknown-method subsets are implemented |
+| 17 | CMS/CAC/TPC families (§28) | B | **C** | 26/26 rows: CMS 7/7, CAC 10/10 and TPC 9/9. CMS verifies holder discovery, partial/all-down behavior, redundant-manager agreement, manager-only refusal and independent `xrdmapc` reconciliation. CAC covers ordinary warming plus externally prepared partial, filling, capacity and corruption states, eviction/refetch, checksum/size agreement and exact read-only refusal. TPC performs byte-exact native pull, one-shot rendezvous replay refusal, terminal source denial, destination-abort POSC cleanup, path-scoped delegated-token confinement, bearer-authenticated WebDAV/native byte agreement, unknown-CGI isolation, numeric claim/behavior agreement and zero-contact egress refusal. Each controlled error/security fixture has success, error and security-negative coverage. |
+| 18 | XPR cross-plane agreement (§29) | B | **C** | XPR 11/11: size, byte, server-validated SHA-256 checksum, bounded direct-child namespace, explicit three-plane authorization denial, read-only policy, missing-object existence, literal/encoded traversal refusal, scratch-confined mutation visibility and cleanup, case-policy and strict filename-encoding agreement are implemented |
+| 19 | ADV corpus arm (§30) | B | **C** | ADV-001–010 are live: a keyed bounded hostile corpus requires prompt termination, reconnect liveness, pre/post baseline health, classified errors, exhaustive offline opcode/option generation and deterministic replay under the combined mutation/disruption authority gate. ADV-003/004 use an explicit strict HTTP(S) sidecar. ADV-008 deletion-minimizes every finding by failure class and emits a standalone scrubbed replay capture. |
+| 20 | terminal / JSON / Markdown / HTML / SARIF+ECS renderings | C | **C** | bounded reports include version, usage and ceilings |
+| 21 | `.xrdcap` divergence capture + credential scrub | C | **C** | capture writer is fail-closed and scrubbed before persistence |
+| 22 | probe classes + prefix-bound path builder + `check_conform_scratch.py` | C | **C** | §35 safety invariant: clause-level read/mutate/disrupt classes, exact target confirmation, scratch-prefix construction, unknown-override rejection, credential scrub and a negative guard fixture are executable and gated |
+| 23 | baseline diff | C | **C** | implemented for repeatable CI comparisons |
+| 24 | calibration matrix + published differential record | — | **C** | §34's explicit applicability matrix and differential record cover stock 5.9.7, stock 6.1.1 and BriX controlled slices; unsupported BriX-only topology fixtures are recorded as not applicable rather than silently green |
+| 25 | `ec` stripe axis | A | **C / N/A** | retired consistently with the Phase 117 NO-GO: internal EC is protocol-invisible and uses `data`; `--profile ec` is rejected rather than silently running a stripe-free alias |
+| 26 | `watch` duty-cycle mode | C | **C** | bounded duty-cycle runner uses the same safety and reporting envelope |
+| 27 | GridFTP and OCI planes in XPR | B | **C** | ERR-044 drives the native FTP client and OCI HTTP error vocabulary; XPR-001/002 adopt native FTP `SIZE`/bounded `RETR` bytes and bounded OCI manifest bytes into the common size/SHA-256 oracle. Controlled matching, byte-mismatch and dishonest-`SIZE` fixtures cover success, error and security-negative paths. XPR-004 remains intentionally ROOT/WebDAV/S3-only because an OCI tag set is not a storage-directory child set. |
+| 28 | fuzz-corpus minimization to a reproducer | B | **C** | §30 ADV-008; deterministic deletion minimization preserves half-open versus internal-error class, securely emits all minimized requests in `ADV-008.xrdcap`, and the normal playback path re-issues short malformed frames |
+| 29 | executable §40 negative-evidence contract | B+C | **C** | `--verify-negative` rejects unknown, retracted and duplicate IDs before network work, requires every declared row to finish `divergent`, fails closed with exit 3 otherwise, and records the declaration in JSON, Markdown, HTML and terminal reports. `tools/diag/conform_negative_coverage.py` aggregates only passing declarations with exact fixture identity; ordinary historical divergences never count |
 
 ## 39. Sequencing
 
@@ -1508,7 +1948,7 @@ honest definition of a milestone for a tool.
 
 | M | delivers | register rows | the demo |
 |---|---|---|---|
-| **M1** | the engine, no ledger | 1–5 | plant the standard object set against a scratch prefix, generate the full §6 case list, print it; verify every expected answer offline against a local file |
+| **M1** | the engine, no ledger (**complete**) | 1–5 | `xrd conform plan` prints the full §6 shape catalogue under each budget; plant/adopt/verify exercise the deterministic standard corpus offline |
 | **M2** | `accept` on the read plane | 6–9, 11 (RD+PGR only), 20 | `xrd conform accept root://…` returns 0 or names a divergent row, in under two minutes |
 | **M3** | the ledger complete on `root://` | 10, 12–15, 19 | `xrd conform full` over every root-plane family, with the skip ledger and the `.xrdcap` artefacts |
 | **M4** | cross-plane | 16–18, 21–23 | one run grades `root://`, HTTPS/WebDAV and S3 on the same objects and reports XPR disagreements |
@@ -1529,6 +1969,57 @@ The meta-rule, and the gate on every milestone:
 This is affordable only because the negative-fixture engine already exists
 (§36): `brix-fault-proxy` sits between the tool and a healthy reference server
 and makes it misbehave in exactly the way a clause claims to detect.
+
+The generated ledger currently contains 523 executable clauses and four
+explicitly retracted rows (`PGR-027`, `STA-012`, `LOC-009`, `LOC-010`). A
+controlled test invokes `--verify-negative ID` before it can count as evidence.
+Retain a fresh suite run's reports with an explicit pytest base directory, then
+aggregate that directory before removing it:
+
+```
+PYTHONPATH=tests python3 -m pytest --basetemp=REPORT_ROOT \
+  tests/test_phase118*.py tests/test_xrd_conform*.py \
+  tests/test_tpc_token_auth.py tests/test_gsi_handshake.py
+python3 tools/diag/conform_negative_coverage.py REPORT_ROOT --require-complete
+```
+
+The producer marks a declaration passed only when its row is divergent and the
+entire assessment remains complete; an unrelated runner or baseline failure
+invalidates the evidence. Before rendering, the bundle writer removes any old
+completion record and commits a generation-bound `report.complete.json` only
+after all six report formats are durable. The gate validates that marker, all
+six canonical regular-file members, the report schema, unique request and result
+identities, emitted divergent verdict and registered fixture identity for every
+declaration. It exits 1 while any executable row is uncovered and 2 for partial,
+stale, malformed or forged evidence. This deliberately replaces the unsafe
+practice of counting every historical divergence, including unexpected failures
+on nominally healthy targets.
+
+The completed controlled Darwin ARM64 evidence run produced 722 independently
+auditable reports and proves all 523 executable clauses, with zero missing rows
+and zero integrity errors. It includes real GSI transcript/signing peers,
+TLS-floor, renegotiation and resumption peers, redirect-downgrade, locate
+refresh/latency, TPC rendezvous/abort/scope/egress, and the earlier
+HTTP/S3/WebDAV/ROOT, cache, claim, errno, authentication and mutation matrices.
+The four retracted rows (`PGR-027`, `STA-012`, `LOC-009`, `LOC-010`) remain
+outside the executable denominator. Coverage is accepted only from an explicit
+passing `--verify-negative ID` declaration whose emitted row is divergent and
+whose fixture identity exactly matches the generated ledger; ordinary historical
+divergences and nominal negative-behaviour successes still count as nothing.
+
+A fresh isolated-lane Darwin ARM64 release run on 2026-10-07 relocated the
+complete fleet with `TEST_PORT_START=33000` and its state with a private
+`TEST_ROOT`, leaving the externally owned default lane untouched. The complete
+Phase-118/conformance selection passed **887/887** tests, including both live
+modules, the fixed 10,000-entry directory fixture, stock/native GSI
+interoperability and all hostile peers. The Phase-118 Python surface, including
+the shared raw-ROOT origin fixture, also passes the repository's cyclomatic,
+cognitive, NPath, Halstead-difficulty and nesting limits with zero violations.
+The same five-metric guard passes repository-wide across 264,291 function
+scores, and the structured-logging, documentation-link/path, generated-ledger,
+scratch-safety, build-coverage and monotonic-ratchet gates are green. A native
+ownership gate proves all 523 executable IDs occur in runner code while the
+four retracted IDs remain catalogue-only and have no active runner path.
 
 | clause class | fixture | toxic |
 |---|---|---|

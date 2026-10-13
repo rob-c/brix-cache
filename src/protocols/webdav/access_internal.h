@@ -18,4 +18,8 @@
 ngx_int_t access_authenticate(ngx_http_request_t *r,
                               ngx_http_brix_webdav_loc_conf_t *conf);
 
+/* access_query.c - the single parsed query and XrdHttp preparation boundary. */
+ngx_int_t access_parse_query_boundary(ngx_http_request_t *r);
+ngx_int_t access_prepare_xrdhttp(ngx_http_request_t *r);
+
 #endif /* BRIX_WEBDAV_ACCESS_INTERNAL_H */

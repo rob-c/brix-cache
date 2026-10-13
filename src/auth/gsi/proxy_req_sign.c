@@ -120,8 +120,8 @@ sgn_copy_signer_exts(X509 *signer, X509 *proxy, int *indepth, int *haskeyusage)
     *indepth = -1;
     *haskeyusage = 0;
     for (i = 0; i < n; i++) {
-        X509_EXTENSION *e = X509_get_ext(signer, i);
-        char            oid[128];
+        brix_x509_extension_view_t *e = X509_get_ext(signer, i);
+        char                        oid[128];
 
         OBJ_obj2txt(oid, sizeof(oid), X509_EXTENSION_get_object(e), 1);
         if (strcmp(oid, GSI_PROXYCERTINFO_OID) == 0

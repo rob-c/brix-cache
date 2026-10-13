@@ -22,6 +22,7 @@
  *       pre-split single-file implementation.
  */
 
+#include "core/compat/log_event.h"
 #include "s3.h"
 #include "s3_auth_internal.h"
 #include "auth_sigv4_verify_internal.h"
@@ -213,14 +214,24 @@ s3_sigv4_compute_signature(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     u_char cr_hash[32];
     u_char computed[32];
     size_t n;
+    ssize_t query_len;
+    ngx_http_s3_req_ctx_t *ctx;
 
     /* 1. Canonical URI */
     brix_http_urlencode(r->uri.data, r->uri.len,
                         (char *) canon_uri, sizeof(canon_uri), "/");
 
     /* 2. Canonical query string */
-    build_canonical_qs(r->args.data, r->args.len, comp->presigned,
-                       canon_qs, sizeof(canon_qs));
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
+    query_len = ctx == NULL ? -1
+                            : build_canonical_parsed_qs(&ctx->query,
+                                  comp->presigned, canon_qs,
+                                  sizeof(canon_qs));
+    if (query_len < 0) {
+        s3_record_auth_result(BRIX_S3_AUTH_MALFORMED);
+        return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "InvalidRequest",
+                                 "Query string cannot be canonicalized");
+    }
 
     /* 3. Canonical headers */
     build_canonical_headers(r, comp->signed_hdrs,
@@ -308,7 +319,7 @@ s3_sigv4_compare(ngx_http_request_t *r, const sigv4_components_t *comp,
      * them.  CRYPTO_memcmp prevents a timing oracle on the HMAC value itself.
      */
     if (!key_ok || CRYPTO_memcmp(computed_hex, comp->signature, 64) != 0) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                       "brix_s3: SigV4 auth failed for key=%s (key_ok=%d)",
                       comp->akid, key_ok);
         s3_record_auth_result(key_ok ? BRIX_S3_AUTH_SIG_MISMATCH

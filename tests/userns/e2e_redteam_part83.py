@@ -21,10 +21,8 @@ def _rt38_control_dave_is_in_research_reading(grp_src, hardfs, lexists, rc, alia
         ok(True, "hardlink member-control skipped (handled)")
         ok(True, "hardlink inode-owner invariant skipped (handled)")
     rm_quiet(hardfs)
-    _combo_symlink_crossproto_toctou_p5(have_root, have_s3, rel_fs, rm_quiet, root_ln_s, lexists, follow_wd, ta, mk_file, mk_dir, port, TAG, tb, relname, follow_s3, follow_root, s3port, leaked, BOB_SECRET, PASSWD_MARK, luid_of, body_of)
 
 
-def _combo_symlink_crossproto_toctou_p5(have_root, have_s3, rel_fs, rm_quiet, root_ln_s, lexists, follow_wd, ta, mk_file, mk_dir, port, TAG, tb, relname, follow_s3, follow_root, s3port, leaked, BOB_SECRET, PASSWD_MARK, luid_of, body_of):
     # =====================================================================
     # SECTION 4 — readlink CROSS-TENANT combined with a cross-protocol follow.  bob
     # tries to readlink a link sitting in ALICE's 0755 dir (he can traverse) whose
@@ -88,7 +86,7 @@ def _rt38_control_bob_owner_can_readlink_his(rm_quiet, bsec_link, lexists, have_
         # control: bob (owner) CAN readlink his own link in his 0700 dir.
         if have_root:
             rc2, out, _e = xrd_fs(["readlink", "/bobsecret/%s_blink" % TAG], "bob")
-            ok(any((rc2 == 0, 'passwd' in any((out, '')))),
+            ok(any((rc2 == 0, 'passwd' in _rt_default(out, ''))),
                "control: bob readlinks his own link in his 0700 dir (rc=%s)" % rc2)
         else:
             ok(True, "readlink-in-0700 control skipped (native absent)")

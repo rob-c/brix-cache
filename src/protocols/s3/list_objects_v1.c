@@ -50,10 +50,10 @@ s3_handle_list_v1(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     size_t       xml_len = 0;
     ngx_int_t    rc;
 
-    brix_http_query_get(r->args, "prefix",        (char *) prefix_buf,        sizeof(prefix_buf),        S3_LIST_QUERY_FLAGS);
-    brix_http_query_get(r->args, "delimiter",     (char *) delimiter_buf,     sizeof(delimiter_buf),     S3_LIST_QUERY_FLAGS);
-    brix_http_query_get(r->args, "marker",        (char *) marker_buf,        sizeof(marker_buf),        S3_LIST_QUERY_FLAGS);
-    brix_http_query_get(r->args, "encoding-type", (char *) encoding_type_buf, sizeof(encoding_type_buf), S3_LIST_QUERY_FLAGS);
+    s3_get_query_param_flags(r, "prefix",        (char *) prefix_buf,        sizeof(prefix_buf),        S3_LIST_QUERY_FLAGS);
+    s3_get_query_param_flags(r, "delimiter",     (char *) delimiter_buf,     sizeof(delimiter_buf),     S3_LIST_QUERY_FLAGS);
+    s3_get_query_param_flags(r, "marker",        (char *) marker_buf,        sizeof(marker_buf),        S3_LIST_QUERY_FLAGS);
+    s3_get_query_param_flags(r, "encoding-type", (char *) encoding_type_buf, sizeof(encoding_type_buf), S3_LIST_QUERY_FLAGS);
 
     if (ngx_strcasecmp(encoding_type_buf, (u_char *) "url") == 0) {
         url_encode = 1;

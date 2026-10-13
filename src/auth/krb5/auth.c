@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "observability/metrics/unified.h"
 #include "protocols/root/session/registry.h"
@@ -239,7 +240,7 @@ brix_krb5_bind_peer(brix_krb5_req_t *rq, krb5_auth_context auth_ctx,
     rc = krb5_auth_con_setaddrs(conf->krb5.context, auth_ctx, NULL, &peer_addr);
     if (rc != 0) {
         kmsg = brix_krb5_error(conf, rc);
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: krb5 peer address check setup failed: %s",
                       kmsg ? kmsg : "unknown");
         brix_krb5_free_error(conf, kmsg);
@@ -296,7 +297,7 @@ brix_krb5_verify_req(brix_krb5_req_t *rq, krb5_auth_context *auth_ctx,
                      NULL, ticket);
     if (rc != 0) {
         kmsg = brix_krb5_error(conf, rc);
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: krb5 credential verification failed: %s",
                       kmsg ? kmsg : "unknown");
         brix_krb5_free_error(conf, kmsg);
@@ -364,11 +365,11 @@ brix_krb5_session_grant(brix_krb5_req_t *rq, const char *cname)
 
     ctx->login.session_slot_hint =
         brix_session_register(ctx->login.sessid, ctx->login.dn,
-                                ctx->login.vo_list, 0);
+                                ctx->login.vo_list, 0, 0);
     brix_krb5_track_identity(ctx);
 
     brix_sanitize_log_string((char *) cname, safe_cname, sizeof(safe_cname));
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "brix: krb5 auth OK principal=\"%s\"", safe_cname);
 
     brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_KRB5, 1);
@@ -540,7 +541,7 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     rc = krb5_auth_con_init(conf->krb5.context, &auth_ctx);
     if (rc != 0) {
         kmsg = brix_krb5_error(conf, rc);
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: krb5 auth context init failed: %s",
                       kmsg ? kmsg : "unknown");
         brix_krb5_free_error(conf, kmsg);

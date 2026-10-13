@@ -32,6 +32,7 @@ kXR_error    = 4003
 kXR_cancel   = 0x01     # ClientPrepareRequest.options
 kXR_noerrs   = 0x04
 kXR_stage    = 0x08
+kXR_fresh    = 0x40
 kXR_evict    = 0x0001   # ClientPrepareRequest.optionX
 
 kXR_NotAuthorized = 3010
@@ -142,6 +143,7 @@ def _start_frm(lifecycle, tmp_path, *, name, allow_write="on", failkey=None):
     base = tmp_path / "base"
     cache = tmp_path / "cache"
     control = tmp_path / "control"
+    tape = tmp_path / "tape"
     audit = tmp_path / "audit.log"
 
     try:
@@ -163,4 +165,4 @@ def _start_frm(lifecycle, tmp_path, *, name, allow_write="on", failkey=None):
         pytest.skip("nginx build lacks the frm://+registry directive surface")
     return types.SimpleNamespace(port=endpoint.port, prefix=endpoint.prefix,
                                  audit=str(audit), base=str(base),
-                                 online=str(base / ".online"))
+                                 online=str(base / ".online"), tape=str(tape))

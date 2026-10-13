@@ -20,7 +20,7 @@ def _rt46_check_when_have_xrd_2(have_xrd, mk_fixture, key, SECRET, TAG, uid_of, 
         # the rider must not alter ownership or inject foreign bytes.
         rc, out, _e = xrd_fs(["query", "checksum",
                               f"/alice/{TAG}_qck.bin?oss.asize=25"], "alice")
-        ok(all((uid_of(f'alice/{TAG}_qck.bin') == UID_ALICE, SECRET not in any((out, '')))),
+        ok(all((uid_of(f'alice/{TAG}_qck.bin') == UID_ALICE, SECRET not in _rt_default(out, ''))),
            f"query checksum own file + opaque cgi: still alice-owned, no leak (rc={rc})")
 
         # cross-tenant checksum of bob's 0600 WITH an ?authz= rider that forges a
@@ -28,7 +28,7 @@ def _rt46_check_when_have_xrd_2(have_xrd, mk_fixture, key, SECRET, TAG, uid_of, 
         forged = mint(key, "bob")          # a *real* bob token smuggled as cgi authz
         rc, out, _e = xrd_fs(["query", "checksum",
                               f"/bob/private.txt?authz=Bearer%20{forged}"], "alice")
-        ok(SECRET not in any((out, '')),
+        ok(SECRET not in _rt_default(out, ''),
            f"query checksum of bob 0600 with ?authz= rider: no derived secret "
            f"(cgi authz does not override the connection identity, rc={rc})")
         # the ?authz= rider must also not silently re-identify alice AS bob: bob's
@@ -41,14 +41,14 @@ def _rt46_check_when_have_xrd_2(have_xrd, mk_fixture, key, SECRET, TAG, uid_of, 
         # close flag must not turn a metadata query into a readable-handle bypass.
         rc, out, _e = xrd_fs(["query", "xattr", "/bob/private.txt?ofs.posc=1"],
                              "alice")
-        ok(SECRET not in any((out, '')),
+        ok(SECRET not in _rt_default(out, ''),
            f"query xattr of bob 0600 + ?ofs.posc cgi leaks no secret (rc={rc})")
 
         # query space of the svc-only path with a junk cgi — no svc-secret echoed.
         rc, out, _e = xrd_fs(["query", "space",
                               "/svconly/secret-name.txt?cgi=injection&x=../../etc"],
                              "alice")
-        ok(all((SVCMARK not in any((out, '')), 'root:x:0' not in any((out, '')))),
+        ok(all((SVCMARK not in _rt_default(out, ''), 'root:x:0' not in _rt_default(out, ''))),
            f"query space + path-traversal cgi leaks no svc/host content (rc={rc})")
 
         # POSITIVE CONTROL: alice query checksum of her OWN file WITHOUT cgi works,
@@ -56,7 +56,7 @@ def _rt46_check_when_have_xrd_2(have_xrd, mk_fixture, key, SECRET, TAG, uid_of, 
         rc, out, _e = xrd_fs(["query", "checksum", f"/alice/{TAG}_qck.bin"], "alice")
         ok(any((rc == 0, rc != 0)),
            f"control: alice query checksum of own file handled (rc={rc})")
-        ok(SECRET not in any((out, '')),
+        ok(SECRET not in _rt_default(out, ''),
            f"control: own checksum carries no foreign secret (rc={rc})")
         # POSITIVE CONTROL: bob query checksum of HIS OWN private.txt is allowed
         # (the cross-tenant denial is per-identity, bob himself can checksum it).
@@ -78,7 +78,6 @@ def _rt46_section_4_query_checksum_xattr_space(have_xrd, mk_fixture, TAG, uid_of
     rc = _rt46_check_when_have_xrd_2(have_xrd, mk_fixture, key, SECRET, TAG, uid_of, SVCMARK)
 
 
-def _combo_rare_opcodes_p5(have_xrd, key, port, uid_of, rm_quiet, mk_fixture, exists, mtime_of, gid_of, SECRET, TAG, size_of, body_of):
     # ===================================================================
     # SECTION 5 — READV / WRITEV vectored I/O combined with cross-tenant + group +
     # setgid/sticky directories.  The combination the single batches never ran:
@@ -95,7 +94,6 @@ def _combo_rare_opcodes_p5(have_xrd, key, port, uid_of, rm_quiet, mk_fixture, ex
         rc, landed = _rt46_when_have_xrd_2(rm_quiet, TAG, exists, uid_of, gid_of, size_of, SECRET, mk_fixture)
 
 
-def _combo_rare_opcodes_p6(have_xrd, key, port, uid_of, mk_fixture, mtime_of, rm_quiet, exists, gid_of, SECRET, TAG, body_of):
     # ===================================================================
     # SECTION 6 — TOUCH/UTIME with FUTURE/PAST times combined with cross-tenant and
     # group DAC.  touch sets timestamps; the combination: (a) alice utime her own
@@ -137,10 +135,8 @@ def _combo_rare_opcodes_p6(have_xrd, key, port, uid_of, mk_fixture, mtime_of, rm
         ok(any((rc == 0, uid_of('bob/private.txt') == UID_BOB)),
            f"control: owner bob touches his own private.txt (rc={rc})")
         rm_quiet(f"alice/{TAG}_ut.txt")
-    _combo_rare_opcodes_p7(have_xrd, key, port, uid_of, mk_fixture, rm_quiet, exists, SECRET, TAG, body_of)
 
 
-def _combo_rare_opcodes_p7(have_xrd, key, port, uid_of, mk_fixture, rm_quiet, exists, SECRET, TAG, body_of):
     # ===================================================================
     # SECTION 7 — LN CHAINS combined with query/prepare: build a hard-link, then run
     # a RARE op (query checksum / prepare) THROUGH the link, and attempt a
@@ -151,7 +147,6 @@ def _combo_rare_opcodes_p7(have_xrd, key, port, uid_of, mk_fixture, rm_quiet, ex
         _rt46_when_have_xrd_3(mk_fixture, TAG, rm_quiet, exists, SECRET, uid_of, body_of)
 
 
-def _combo_rare_opcodes_p8(have_xrd, key, port, uid_of, rm_quiet, TAG, SECRET):
     # ===================================================================
     # SECTION 8 — WebDAV GET with WEIRD-BUT-VALID headers combined with cross-tenant
     # identity.  These header riders (TE, Expect: 100-continue, Accept-Ranges probe,
@@ -180,20 +175,20 @@ def _rt46_build_an_alice_owned_file_via(key, TAG, port, tok_alice, uid_of):
 
 
 def _rt46_b_cross_tenant_get_of_bob(st, body, port, tok_alice, weird_hdrs):
-    ok(all((st in (200, 206), b'ALICE-DAV-BODY' in any((body, b'')))),
+    ok(all((st in (200, 206), b'ALICE-DAV-BODY' in _rt_default(body, b''))),
        f"GET own file with TE/Expect/Accept-Ranges/If-Range still served (HTTP {st})")
 
     # (b) cross-tenant GET of bob's 0600 private.txt by alice WITH the weird headers
     # -> denied + the secret bytes must be absent from the body.
     st, body = http("GET", "/bob/private.txt", port, tok_alice, hdrs=weird_hdrs)
-    ok(all((st in (403, 404, 401), b'BOB-PRIVATE-SECRET' not in any((body, b'')))),
+    ok(all((st in (403, 404, 401), b'BOB-PRIVATE-SECRET' not in _rt_default(body, b''))),
        f"cross-tenant GET of bob 0600 + weird headers denied, no secret (HTTP {st})")
 
     # (c) cross-tenant RANGE GET (a valid odd range) of bob's 0600 by alice -> a
     # range request must not bypass DAC and dribble out the secret bytes.
     st, body = http("GET", "/bob/private.txt", port, tok_alice,
                     hdrs={"Range": "bytes=0-7", "If-Range": '"x"'})
-    ok(all((st in (403, 404, 401, 416), b'BOB-PRIV' not in any((body, b'')))),
+    ok(all((st in (403, 404, 401, 416), b'BOB-PRIV' not in _rt_default(body, b''))),
        f"cross-tenant RANGE GET of bob 0600 by alice denied, no secret prefix "
        f"(HTTP {st})")
 
@@ -204,7 +199,7 @@ def _rt46_d_positive_control_a_range_get(TAG, port, tok_alice, tok_bob):
     # range (proves Range works; the cross-tenant denial above is real DAC).
     st, body = http("GET", f"/alice/{TAG}_dav.txt", port, tok_alice,
                     hdrs={"Range": "bytes=0-4"})
-    ok(all((st in (200, 206), any((body, b''))[:5] in (b'ALICE', b'ALICE-DAV-BODY-12345\n'[:5]))),
+    ok(all((st in (200, 206), _rt_default(body, b'')[:5] in (b'ALICE', b'ALICE-DAV-BODY-12345\n'[:5]))),
        f"control: RANGE GET of own file returns the requested prefix (HTTP {st})")
 
     # (e) cross-tenant GET with a forged-but-VALID bob token's *scope* trimmed: send
@@ -212,12 +207,10 @@ def _rt46_d_positive_control_a_range_get(TAG, port, tok_alice, tok_bob):
     # svc-only 0750 file -> no svc secret leaks.
     st, body = http("GET", "/svconly/secret-name.txt", port, tok_alice,
                     hdrs={"TE": "chunked", "Accept-Encoding": "identity"})
-    ok(all((st in (403, 404, 401), b'svc-only-secret' not in any((body, b'')))),
+    ok(all((st in (403, 404, 401), b'svc-only-secret' not in _rt_default(body, b''))),
        f"GET of svc-only 0750 by alice + TE rider denied, no svc secret (HTTP {st})")
-    _combo_rare_opcodes_p9(have_xrd, port, tok_bob, tok_alice, uid_of, key, rm_quiet, TAG, SECRET)
 
 
-def _combo_rare_opcodes_p9(have_xrd, port, tok_bob, tok_alice, uid_of, key, rm_quiet, TAG, SECRET):
     # ===================================================================
     # SECTION 9 — KEEPALIVE PIPELINE mixing a RARE-result GET (PROPFIND/Range) with a
     # cross-tenant attempt on ONE connection: the per-request principal must not bleed
@@ -240,9 +233,9 @@ def _rt46_section_10_rare_op_group_dac(results, port, tok_bob, key, st):
         st1, b1 = results[1]
         # a Range request returns 206 with a PARTIAL body (the requested slice may
         # not include the "ALICE" marker), so require the marker only for a full 200.
-        ok(any((all((st0 == 200, b'ALICE' in any((b0, b'')))), all((st0 == 206, bool(b0))))),
+        ok(any((all((st0 == 200, b'ALICE' in _rt_default(b0, b''))), all((st0 == 206, bool(b0))))),
            f"keepalive req-1 (alice own, Range) served (HTTP {st0})")
-        ok(all((st1 in (403, 404, 401), b'BOB-PRIVATE-SECRET' not in any((b1, b'')))),
+        ok(all((st1 in (403, 404, 401), b'BOB-PRIVATE-SECRET' not in _rt_default(b1, b''))),
            f"keepalive req-2 cross-tenant on same conn denied, no leaked principal "
            f"(HTTP {st1})")
     else:
@@ -250,7 +243,7 @@ def _rt46_section_10_rare_op_group_dac(results, port, tok_bob, key, st):
         ok(True, "keepalive cross-tenant non-leak skipped (short response)")
     if len(results) >= 3:
         st2, b2 = results[2]
-        ok(all((st2 in (200, 206), b'BOB-PRIVATE-SECRET' in any((b2, b'')))),
+        ok(all((st2 in (200, 206), b'BOB-PRIVATE-SECRET' in _rt_default(b2, b''))),
            f"control: keepalive req-3 (bob's own token) reads bob's secret (HTTP {st2})")
     else:
         ok(True, "keepalive owner-control skipped (short response)")
@@ -265,7 +258,7 @@ def _rt46_section_10_rare_op_group_dac(results, port, tok_bob, key, st):
     # (non-staff) must not enumerate the protected child name.
     st, body = http("PROPFIND", "/staffdir/", port, tok_bob,
                     hdrs={"Depth": "1"})
-    ok(all((b'INSIDE-STAFF-DIR' not in any((body, b'')), b'inside.txt' not in any((body, b'')))),
+    ok(all((b'INSIDE-STAFF-DIR' not in _rt_default(body, b''), b'inside.txt' not in _rt_default(body, b''))),
        f"PROPFIND of 0770 staff dir by non-member bob leaks no child (HTTP {st})")
     # POSITIVE CONTROL: staff member carol PROPFIND DOES see the child (proves the
     # deny is membership-based, not a blanket block).
@@ -324,7 +317,7 @@ def _rt46_and_a_member_can_cross_plane(st, have_xrd, SECRET, TAG, port, tok_alic
     if have_xrd:
         # root:// plane must agree: non-member bob ls of the same dir leaks nothing.
         rc, out, _e = xrd_fs(["ls", "/staffdir/"], "bob")
-        ok(all(('inside.txt' not in any((out, '')), 'INSIDE-STAFF-DIR' not in any((out, '')))),
+        ok(all(('inside.txt' not in _rt_default(out, ''), 'INSIDE-STAFF-DIR' not in _rt_default(out, ''))),
            f"root:// ls of 0770 staff dir by non-member bob leaks no child (rc={rc})")
         # and a member CAN (cross-plane agreement, positive control).
         rc, out, _e = xrd_fs(["ls", "/staffdir/"], "carol")

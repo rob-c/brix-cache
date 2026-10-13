@@ -65,6 +65,14 @@ test_root_frame(void)
           "pgwrite cap");
     CHECK(brix_max_payload_for_request(kXR_ping) == BRIX_MAX_PATH + 64,
           "default cap");
+    CHECK(brix_max_payload_for_request(kXR_readv)
+              == (BRIX_READV_MAXSEGS + 1U) * BRIX_READV_SEGSIZE,
+          "readv cap admits one-over for a defined error");
+    CHECK(brix_max_payload_for_request(kXR_fattr)
+              == BRIX_MAX_PATH + 1U
+                 + kXR_faMaxVars * (2U + kXR_faMaxNlen + 1U
+                                    + 4U + kXR_faMaxVlen),
+          "fattr cap admits the complete legal name/value vectors");
 
     /* success: a zero-length ping is within cap */
     make_hdr(hdr, kXR_ping, 0);
@@ -78,6 +86,24 @@ test_root_frame(void)
     /* security-neg: one byte over the write cap must be rejected BEFORE alloc */
     make_hdr(hdr, kXR_write, BRIX_MAX_WRITE_STREAM + 1);
     CHECK(brix_root_frame_dlen_ok(hdr, 24, NULL, NULL) == 0, "write over-cap reject");
+
+    make_hdr(hdr, kXR_fattr, brix_max_payload_for_request(kXR_fattr));
+    CHECK(brix_root_frame_dlen_ok(hdr, 24, NULL, NULL) == 1,
+          "fattr at-cap reaches protocol validator");
+    make_hdr(hdr, kXR_fattr, brix_max_payload_for_request(kXR_fattr) + 1U);
+    CHECK(brix_root_frame_dlen_ok(hdr, 24, NULL, NULL) == 0,
+          "fattr over-cap rejected before allocation");
+
+    /* protocol error: exactly 1025 descriptors reaches the readv handler;
+     * larger frames still fail before allocation. */
+    make_hdr(hdr, kXR_readv,
+             (BRIX_READV_MAXSEGS + 1U) * BRIX_READV_SEGSIZE);
+    CHECK(brix_root_frame_dlen_ok(hdr, 24, NULL, NULL) == 1,
+          "readv one-over reaches protocol error path");
+    make_hdr(hdr, kXR_readv,
+             (BRIX_READV_MAXSEGS + 2U) * BRIX_READV_SEGSIZE);
+    CHECK(brix_root_frame_dlen_ok(hdr, 24, NULL, NULL) == 0,
+          "readv beyond one-over rejected before allocation");
 
     /* error: a short (<24-byte) frame is rejected without reading the tail */
     make_hdr(hdr, kXR_write, 0);

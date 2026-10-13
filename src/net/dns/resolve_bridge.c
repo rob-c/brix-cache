@@ -30,6 +30,7 @@
  *       finds `abandoned` releases it itself.  Items always carry a usable
  *       resolver so the loop never takes the thread-pool path for them.
  */
+#include "core/compat/log_event.h"
 #include "core/types/tunables.h"
 #include "net/dns/dns.h"
 #include "platform/platform_api.h"
@@ -199,7 +200,7 @@ brix_dns_bridge_init_worker(ngx_cycle_t *cycle)
     ngx_queue_init(&dns_bridge.inflight);
     if (brix_plat_wakefd_open(&dns_bridge.efd, &dns_bridge.efd_write,
                               BRIX_EVENTFD_NONBLOCK | BRIX_EVENTFD_CLOEXEC) != 0) {
-        ngx_log_error(NGX_LOG_ALERT, cycle->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ALERT, cycle->log, ngx_errno,
                       "brix dns: eventfd() failed, thread resolves use libc");
         return NGX_OK;                        /* degraded, not fatal */
     }
@@ -261,7 +262,7 @@ dns_bridge_enqueue(dns_bridge_item_t *item)
     if (brix_plat_wakefd_signal(dns_bridge.efd_write) != 0) {
         /* only a saturated eventfd counter refuses a +1: the item is queued
          * and the next wakeup drains it, so log rather than fail */
-        ngx_log_error(NGX_LOG_ALERT, ngx_cycle->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ALERT, ngx_cycle->log, ngx_errno,
                       "brix dns bridge: eventfd wakeup write failed");
     }
 }

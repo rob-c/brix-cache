@@ -96,7 +96,7 @@ def _rt56_check_when_have_xrd(have_xrd, uid_of, mk_fixture, SECRET, SVCMARK, TAG
         # status, never bob's file content, and bob's inode is untouched.
         b644_uid = uid_of("bob/readable.txt")
         rc, out, _e = xrd_fs(["prepare", "-s", "/bob/readable.txt"], "alice")
-        ok(SECRET not in any((out, '')),
+        ok(SECRET not in _rt_default(out, ''),
            f"prepare of bob's 0644 readable by alice returns no private content "
            f"(read-perm prepare is a status, not bytes, rc={rc})")
         ok(uid_of("bob/readable.txt") == b644_uid == UID_BOB,
@@ -108,7 +108,7 @@ def _rt56_check_when_have_xrd(have_xrd, uid_of, mk_fixture, SECRET, SVCMARK, TAG
         # secret prefix/suffix (distinct: this asserts the DENY *response* carries
         # no secret, where run_combo only checked the cat-after-stage).
         rc, out, _e = xrd_fs(["prepare", "-s", "/bob/private.txt"], "alice")
-        ok(all((SECRET not in any((out, '')), SECRET_PFX not in any((out, '')))),
+        ok(all((SECRET not in _rt_default(out, ''), SECRET_PFX not in _rt_default(out, ''))),
            f"prepare-stage of bob's 0600 by alice: deny response leaks no secret "
            f"prefix (rc={rc})")
 
@@ -116,14 +116,14 @@ def _rt56_check_when_have_xrd(have_xrd, uid_of, mk_fixture, SECRET, SVCMARK, TAG
         # s.txt): denied at the DIRECTORY-traverse level, no s.txt content leaks
         # (a directory-DAC variant prepare never had).
         rc, out, _e = xrd_fs(["prepare", "-s", "/bobsecret/s.txt"], "alice")
-        ok(all(('bob-only' not in any((out, '')), SECRET not in any((out, '')))),
+        ok(all(('bob-only' not in _rt_default(out, ''), SECRET not in _rt_default(out, ''))),
            f"prepare under bob's 0700 dir by alice denied, no shadowed content "
            f"(dir-traverse DAC, rc={rc})")
 
         # (1d) alice prepares the svc-only 0750 file (alice is 'other', no read):
         # denied, no svc secret echoed.
         rc, out, _e = xrd_fs(["prepare", "-s", "/svconly/secret-name.txt"], "alice")
-        ok(SVCMARK not in any((out, '')),
+        ok(SVCMARK not in _rt_default(out, ''),
            f"prepare of svc-only 0750 file by alice leaks no svc content (rc={rc})")
 
         # (1e) POSITIVE READ-DAC CONTROL: a STAFF member (carol, staff={alice,carol})
@@ -132,13 +132,13 @@ def _rt56_check_when_have_xrd(have_xrd, uid_of, mk_fixture, SECRET, SVCMARK, TAG
         mk_fixture(f"grp_{TAG}_r.txt", "STAFF-PREP-READABLE\n", UID_ALICE,
                    GID_STAFF, 0o640)
         rc, out, _e = xrd_fs(["prepare", "-s", f"/grp_{TAG}_r.txt"], "carol")
-        ok(all((SECRET not in any((out, '')), SVCMARK not in any((out, '')))),
+        ok(all((SECRET not in _rt_default(out, ''), SVCMARK not in _rt_default(out, ''))),
            f"control: staff member carol prepares a 0640 group file (group-read "
            f"authz, no foreign secret, rc={rc})")
         # non-member bob (research, not staff) prepares the SAME 0640 file: OTHER=0,
         # no read -> denied, no STAFF marker.
         rc, out, _e = xrd_fs(["prepare", "-s", f"/grp_{TAG}_r.txt"], "bob")
-        ok('STAFF-PREP-READABLE' not in any((out, '')),
+        ok('STAFF-PREP-READABLE' not in _rt_default(out, ''),
            f"non-staff bob's prepare of a 0640 staff file leaks no content (rc={rc})")
     return rc, out
 
@@ -149,10 +149,8 @@ def _rt56_section_1_prepare_read_dac_gradient(uid_of, SECRET, SECRET_PFX, SVCMAR
     if not have_xrd:
         ok(True, "frm_prepare_stage: native xrdfs unavailable — root:// probes skipped (handled)")
 
-    _frm_prepare_stage_p1(have_xrd, key, mk_fixture, port, size_of, uid_of, rm_quiet, body_of, SVCMARK, SECRET, TAG, SECRET_PFX, exists)
 
 
-def _frm_prepare_stage_p1(have_xrd, key, mk_fixture, port, size_of, uid_of, rm_quiet, body_of, SVCMARK, SECRET, TAG, SECRET_PFX, exists):
     # ===================================================================
     # SECTION 1 — PREPARE READ-DAC GRADIENT.  prepare authorises BRIX_AUTH_READ
     # on the target, so it is a *read*-permission oracle distinct from the
@@ -181,12 +179,10 @@ def _frm_prepare_stage_p1(have_xrd, key, mk_fixture, port, size_of, uid_of, rm_q
         # prepare of a non-existent CROSS-TENANT path must not become an existence
         # oracle that distinguishes it from the 0600 deny by leaking a secret.
         rc, out, _e = xrd_fs(["prepare", "-s", "/bob/no_such_bob_file.bin"], "alice")
-        ok(SECRET not in any((out, '')),
+        ok(SECRET not in _rt_default(out, ''),
            f"prepare of a missing bob path leaks nothing (rc={rc})")
-    _frm_prepare_stage_p2(have_xrd, key, mk_fixture, port, size_of, body_of, SVCMARK, SECRET, rm_quiet, TAG, SECRET_PFX, exists, uid_of)
 
 
-def _frm_prepare_stage_p2(have_xrd, key, mk_fixture, port, size_of, body_of, SVCMARK, SECRET, rm_quiet, TAG, SECRET_PFX, exists, uid_of):
     # ===================================================================
     # SECTION 3 — ATOMIC MULTI-PATH prepare.  The handler resolves+authorises each
     # newline-separated path; a single forbidden path must fail the WHOLE request
@@ -200,7 +196,7 @@ def _frm_prepare_stage_p2(have_xrd, key, mk_fixture, port, size_of, body_of, SVC
         pre_body = body_of(f"alice/{TAG}_multi.bin")
         rc, out, _e = xrd_fs(["prepare", "-s", f"/alice/{TAG}_multi.bin",
                               "/bob/private.txt"], "alice")
-        ok(SECRET not in any((out, '')),
+        ok(SECRET not in _rt_default(out, ''),
            f"multi-path prepare (own + bob 0600) leaks no secret in the batch "
            f"response (rc={rc})")
         ok(body_of(f"alice/{TAG}_multi.bin") == pre_body,
@@ -220,13 +216,13 @@ def _rt56_check_when_have_xrd_2(have_xrd, size_of, uid_of, SECRET, TAG):
         ok(all((uid_of('bobsecret/s.txt') == UID_BOB, size_of('bobsecret/s.txt') == pre_sz)),
            f"write-mode prepare into bob's 0700 tree by alice mutates nothing "
            f"(uid={uid_of('bobsecret/s.txt')}, sz={size_of('bobsecret/s.txt')})")
-        ok(all((SECRET not in any((out, '')), 'bob-only' not in any((out, '')))),
+        ok(all((SECRET not in _rt_default(out, ''), 'bob-only' not in _rt_default(out, ''))),
            f"write-mode prepare of bob's secret by alice leaks no content (rc={rc})")
         # POSITIVE CONTROL: alice -w prepares her OWN file (write-mode on a path she
         # owns is handled, no foreign secret) -> the deny above is real DAC.
         rc, out, _e = xrd_fs(["prepare", "-w", "-s", f"/alice/{TAG}_multi.bin"],
                              "alice")
-        ok(all((uid_of(f'alice/{TAG}_multi.bin') == UID_ALICE, SECRET not in any((out, '')))),
+        ok(all((uid_of(f'alice/{TAG}_multi.bin') == UID_ALICE, SECRET not in _rt_default(out, ''))),
            f"control: alice write-mode prepare of own file stays alice-owned "
            f"(rc={rc})")
     return rc, out
@@ -243,7 +239,6 @@ def _rt56_section_4_write_mode_prepare_w(have_xrd, size_of, uid_of, SECRET, TAG,
     rc, out = _rt56_check_when_have_xrd_2(have_xrd, size_of, uid_of, SECRET, TAG)
 
 
-def _frm_prepare_stage_p3(have_xrd, key, mk_fixture, port, size_of, SVCMARK, SECRET, rm_quiet, TAG, SECRET_PFX, exists, uid_of):
     # ===================================================================
     # SECTION 5 — PREPARE CANCEL (-c) + the FRM-1 cross-tenant owner boundary.
     # NOVEL: no prior batch exercises kXR_cancel at all.  A cancel of an UNKNOWN
@@ -258,7 +253,7 @@ def _frm_prepare_stage_p3(have_xrd, key, mk_fixture, port, size_of, SVCMARK, SEC
         # (-a = stock abort/cancel spelling; -c became co-locate in the stock
         # flag-parity fix)
         rc, out, _e = xrd_fs(["prepare", "-a", f"{TAG}_no_such_reqid_42"], "alice")
-        ok(SECRET not in any((out, '')),
+        ok(SECRET not in _rt_default(out, ''),
            f"cancel of an unknown reqid by alice is a clean no-op, no leak (rc={rc})")
         # (5b) a cancel must NOT be a path-delete: alice 'cancels' using bob's path
         # string as a reqid — bob's private.txt must still exist, owned by bob.
@@ -278,7 +273,7 @@ def _frm_prepare_stage_p3(have_xrd, key, mk_fixture, port, size_of, SVCMARK, SEC
     # ===================================================================
     if have_xrd:
         rc, out, _e = xrd_fs(["stage", "/bob/private.txt"], "alice")
-        ok(all((SECRET not in any((out, '')), SECRET_PFX not in any((out, '')))),
+        ok(all((SECRET not in _rt_default(out, ''), SECRET_PFX not in _rt_default(out, ''))),
            f"`stage` subcommand of bob's 0600 by alice leaks no secret (rc={rc})")
         sz_before = size_of("bob/private.txt")
         rc, _o, _e = xrd_fs(["evict", "/bob/private.txt"], "alice")
@@ -288,12 +283,10 @@ def _frm_prepare_stage_p3(have_xrd, key, mk_fixture, port, size_of, SVCMARK, SEC
         # POSITIVE CONTROL: bob stages HIS OWN file (per-identity handling,
         # proving the cross-tenant denies are DAC and not a blanket block).
         rc, out, _e = xrd_fs(["stage", "/bob/readable.txt"], "bob")
-        ok(SECRET not in any((out, '')),
+        ok(SECRET not in _rt_default(out, ''),
            f"control: bob stages his own file — handled per-identity (rc={rc})")
-    _frm_prepare_stage_p4(have_xrd, key, mk_fixture, port, size_of, SVCMARK, SECRET, rm_quiet, TAG, SECRET_PFX, exists, uid_of)
 
 
-def _frm_prepare_stage_p4(have_xrd, key, mk_fixture, port, size_of, SVCMARK, SECRET, rm_quiet, TAG, SECRET_PFX, exists, uid_of):
     # ===================================================================
     # SECTION 7 — `query stats` (kXR_QStats) — never exercised by any batch.  It
     # returns server-wide statistics, NOT per-file data: it must not embed any
@@ -302,12 +295,12 @@ def _frm_prepare_stage_p4(have_xrd, key, mk_fixture, port, size_of, SVCMARK, SEC
     # ===================================================================
     if have_xrd:
         rc, out, _e = xrd_fs(["query", "stats", "a"], "alice")
-        ok(all((SECRET not in any((out, '')), SVCMARK not in any((out, '')))),
+        ok(all((SECRET not in _rt_default(out, ''), SVCMARK not in _rt_default(out, ''))),
            f"query stats by alice embeds no tenant secret bytes (rc={rc})")
         # a SECOND identity (bob) gets the same server-wide stats, never alice's or
         # svc's secret -> stats are identity-independent server metadata.
         rc, out, _e = xrd_fs(["query", "stats", "a"], "bob")
-        ok(all(('ALICE-MULTI-PREP-BODY' not in any((out, '')), SVCMARK not in any((out, '')))),
+        ok(all(('ALICE-MULTI-PREP-BODY' not in _rt_default(out, ''), SVCMARK not in _rt_default(out, ''))),
            f"query stats by bob leaks no other-tenant secret (rc={rc})")
 
     # ===================================================================
@@ -379,10 +372,8 @@ def _rt56_8c_the_svc_only_secret_a(port, ta, LOC_BODY, SVCMARK, tb, st, btxt):
 def _rt56_section_9_wlcg_tape_rest_api(st, btxt, port):
     ok(all((st in (200, 207, 403, 404, 400, 501, 405), 'ALICE-LOCALITY-BODY' not in btxt)),
        f"bob's own-file ownership PROPFIND reports no other-tenant data (HTTP {st})")
-    _frm_prepare_stage_p5(have_xrd, port, ta, size_of, SECRET, rm_quiet, SECRET_PFX, SVCMARK, exists, TAG, uid_of)
 
 
-def _frm_prepare_stage_p5(have_xrd, port, ta, size_of, SECRET, rm_quiet, SECRET_PFX, SVCMARK, exists, TAG, uid_of):
     # ===================================================================
     # SECTION 9 — WLCG Tape REST /api/v1 face.  FRM may be UN-configured here, so a
     # 503/404/501 is accepted as 'handled'.  What MUST hold regardless: the
@@ -457,10 +448,8 @@ def _rt56_section_10_worker_broker_survival_across(st, have_xrd, uid_of, size_of
     ok(st in (204, 403, 404, 501, 503, 401, 400),
        f"Tape-REST DELETE of an unowned/fabricated reqid by alice is rejected or "
        f"no-op (HTTP {st})")
-    _frm_prepare_stage_p6(have_xrd, port, ta, rm_quiet, uid_of, TAG, size_of)
 
 
-def _frm_prepare_stage_p6(have_xrd, port, ta, rm_quiet, uid_of, TAG, size_of):
     # ===================================================================
     # SECTION 10 — WORKER / BROKER SURVIVAL across planes after the whole battery.
     # ===================================================================

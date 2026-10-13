@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
@@ -45,7 +46,7 @@ brix_http_open_rootfd(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common)
 
     common->rootfd = open(common->root_canon, O_PATH | O_DIRECTORY | O_CLOEXEC);
     if (common->rootfd < 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            "brix: cannot open export root \"%s\" for "
                            "kernel-confined path operations",
                            common->root_canon);

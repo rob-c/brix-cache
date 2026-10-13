@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "cache_internal.h"
 #include "cache_storage.h"   /* driver-aware readiness for a backend-backed cache */
 #include "fs/vfs/vfs_backend_registry.h"   /* C-1: resolve the source backend */
@@ -291,7 +292,7 @@ brix_cache_open_fill_offload(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_cache_fill_t *t;
 
     if (pool == NULL) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
             "brix: cache miss on \"%s\" needs an async thread pool to fill a "
             "remote tier; none configured - serving inline (may stall)",
             clean_path);

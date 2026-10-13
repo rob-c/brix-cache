@@ -35,6 +35,7 @@
  * (invariant 12), operating on the backend's own private buffer directory.
  */
 
+#include "core/compat/log_event.h"
 #include "sd_frm.h"
 #include "sd_frm_internal.h"
 #include "sd_frm_purge_internal.h"
@@ -284,7 +285,7 @@ frm_purge_lock(const char *online, char *lockpath, size_t cap, ngx_log_t *log)
     }
     fd = open(lockpath, O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
     if (fd < 0) {
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
             "brix: tape purge cannot open lock \"%s\"", lockpath);
         return -1;
     }
@@ -311,7 +312,7 @@ frm_purge_log(ngx_log_t *log, const char *online,
         occ_before = (ngx_uint_t) ((pol->fs_used * 1000000.0) / pol->fs_total);
         occ_after  = (ngx_uint_t) ((used_after * 1000000.0) / pol->fs_total);
     }
-    ngx_log_error(level, log, 0,
+    BRIX_LOG(level, log, 0,
         "brix: tape purge \"%s\": released %ui file(s), %uL bytes "
         "(occupancy %ui -> %ui ppm, owned %uL -> %uL bytes; skipped young=%ui "
         "pinned=%ui unmigrated=%ui symlink=%ui failed=%ui)",
@@ -352,7 +353,7 @@ brix_sd_frm_purge(brix_sd_instance_t *inst,
     rc = nftw(online, frm_purge_visit, FRM_PURGE_NFTW_FDS, FTW_PHYS | FTW_MOUNT);
     frm_purge_active_scan = NULL;
     if (rc != 0 || scan.oom) {
-        ngx_log_error(NGX_LOG_ERR, log, scan.oom ? ENOMEM : errno,
+        BRIX_LOG(NGX_LOG_ERR, log, scan.oom ? ENOMEM : errno,
             "brix: tape purge walk of \"%s\" failed", online);
         frm_purge_scan_free(&scan);
         close(lockfd);
@@ -362,7 +363,7 @@ brix_sd_frm_purge(brix_sd_instance_t *inst,
     rep->symlinks     = scan.symlinks;
     rep->owned_before = scan.owned;
     if (frm_purge_policy_init(&pp, pol, &scan) != 0) {
-        ngx_log_error(NGX_LOG_ERR, log, ENOMEM,
+        BRIX_LOG(NGX_LOG_ERR, log, ENOMEM,
             "brix: tape purge of \"%s\": cannot size the policy table", online);
         frm_purge_scan_free(&scan);
         close(lockfd);

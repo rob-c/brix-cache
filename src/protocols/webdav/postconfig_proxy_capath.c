@@ -21,6 +21,7 @@
  * of the finalised static-location trees / regex + named location arrays.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "postconfig_internal.h"
 
@@ -73,7 +74,7 @@ webdav_postconf_proxy_capath_apply(ngx_conf_t *cf, void **loc_conf,
     ucf = loc_conf[ngx_http_proxy_module.ctx_index];
 
     if (ucf == NULL || ucf->ssl == NULL || ucf->ssl->ctx == NULL) {
-        ngx_log_error(NGX_LOG_EMERG, cf->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, cf->log, 0,
                       "brix_backend_ca_dir in location \"%V\" requires "
                       "\"proxy_pass https://...\" in the same location",
                       name);
@@ -85,14 +86,14 @@ webdav_postconf_proxy_capath_apply(ngx_conf_t *cf, void **loc_conf,
         || X509_STORE_load_locations(store, NULL,
                         (const char *) wlcf->proxy_ssl_capath.data) != 1)
     {
-        ngx_log_error(NGX_LOG_EMERG, cf->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, cf->log, 0,
                       "brix_backend_ca_dir \"%V\": cannot add hashed "
                       "CA-directory lookup to the upstream trust store",
                       &wlcf->proxy_ssl_capath);
         return NGX_ERROR;
     }
 
-    ngx_log_error(NGX_LOG_INFO, cf->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, cf->log, 0,
                   "brix_webdav: added hashed CA dir \"%V\" to the upstream "
                   "(proxy_ssl) trust store for location %V",
                   &wlcf->proxy_ssl_capath, name);

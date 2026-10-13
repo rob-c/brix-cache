@@ -30,7 +30,6 @@
       "brix-xrdstorascan",
       "brixMount",
       "brixcvmfs",
-      "gai_shim.so",
       "mpxstats-brix",
       "sd_s3_meta_smoke",
       "wait41-brix",
@@ -89,7 +88,7 @@
   "noarg:brix-xrd": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "519665323954bcd61f4fb4001fa2a53fe0a45f4fc672dbe352c440697d3a5f56"
+    "stderr_sha": "c6897a0fc16f5718cb70ac610e19eb5a258b0db5ed3da5cc2e702d36af93793d"
   },
   "noarg:brix-xrdadler32": {
     "exit": 50,
@@ -169,7 +168,7 @@
   "noarg:brix-xrdmapc": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "19f52618e930e8933cb199f3f2a774abd03f78a8f0580cd473c45bf45996e9c4"
+    "stderr_sha": "2b972af4cff6308cc814bc094798d37542383f8d43a9af14a095e1b0101e8d48"
   },
   "noarg:brix-xrdprep": {
     "exit": 50,
@@ -206,11 +205,6 @@
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "stderr_sha": "d1b8b10ed1b4531302c6a3a529e5228fb189d483e1db13fc74a9d89f6d58071a"
   },
-  "noarg:gai_shim.so": {
-    "exit": -11,
-    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
   "noarg:mpxstats-brix": {
     "exit": 0,
     "stdout_sha": "aec7a7709d0bf545d2d939aaacde85e9e44506f1b40271164dc2fff662016f64",
@@ -229,7 +223,7 @@
   "noarg:xrd": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "6b31b5a282696d66903125c75ce3ec68292704f75de99e75e9b1f6ebba7a2e62"
+    "stderr_sha": "50c0d990a9d886f8c7d7ec32bea6295c3fccd5eea553a81880d90cce5457456d"
   },
   "noarg:xrdadler32": {
     "exit": 50,
@@ -314,7 +308,7 @@
   "noarg:xrdmapc": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "c807766171a5e4a5d380dfeea0d2dff44abf4215d336c928c208645d71fb977b"
+    "stderr_sha": "c72651b630c618e2de3a81ef27631528d95e79c8f1879e48ee82bf721b6047f7"
   },
   "noarg:xrdprep": {
     "exit": 50,
@@ -349,11 +343,11 @@
   "fleet:xrdcp_missing": {
     "exit": 54,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "9b539652410874ed5bed803c89f0f880dfffe41bb85235542c0be9f752667a7f"
+    "stderr_sha": "932727c81e75d2d7bee29106da675daff021d1bc5d12d9d54ce60b19c9a45e34"
   },
   "fleet:xrdfs_staat": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "4ee2e6c7a62ea87649cdd26e2e47dd25824bb0b0b31c89873ed89e7ea3aa7fbc"
+    "stderr_sha": "ae756085b7489bbbac31abca6d73a657dcc402fb0603cd91edd603ed83962651"
   }
 }

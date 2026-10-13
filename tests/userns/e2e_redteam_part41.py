@@ -155,7 +155,7 @@ def _rt41_segment_07():
     return alice_owner_bad, fifo_times
 
 
-def _rt41_segment_01_4(DENIED, T, port, DENIED_TOK, pubdir, breaches):
+def _rt41_segment_01_4(DENIED, T, port, DENIED_TOK, pubdir, breaches, i):
     sub = DENIED[i % len(DENIED)]
     rel = f"{T}storm_{sub}_{i}.txt"
     st, _ = http("PUT", f"/pub/{rel}", port, DENIED_TOK[sub],
@@ -166,15 +166,20 @@ def _rt41_segment_01_4(DENIED, T, port, DENIED_TOK, pubdir, breaches):
     return rel, st, fp
 
 
-def _rt41_when_kind_0(DENIED, T, port, DENIED_TOK, pubdir, breaches):
-    rel, st, fp = _rt41_segment_01_4(DENIED, T, port, DENIED_TOK, pubdir, breaches)
+def _rt41_when_kind_0(DENIED, T, port, DENIED_TOK, pubdir, breaches, i):
+    rel, st, fp = _rt41_segment_01_4(
+        DENIED, T, port, DENIED_TOK, pubdir, breaches, i)
 
     return rel, st, fp
 
 
-def _rt41_segment_01_3(DENIED, T, port, DENIED_TOK, pubdir, breaches, GR, tc, carol_results, _has, BOB_SECRET, SR, ta, adir, alice_owner_bad, fifo_ok, fifo_times):
+def _rt41_segment_01_3(
+        DENIED, T, port, DENIED_TOK, pubdir, breaches, GR, tc,
+        carol_results, _has, BOB_SECRET, SR, ta, adir, alice_owner_bad,
+        fifo_ok, fifo_times, i, kind):
     if kind == 0:                              # (i) DENIED flood -> /pub
-        rel, st, fp = _rt41_when_kind_0(DENIED, T, port, DENIED_TOK, pubdir, breaches)
+        rel, st, fp = _rt41_when_kind_0(
+            DENIED, T, port, DENIED_TOK, pubdir, breaches, i)
     elif kind == 1:                            # (ii) carol group-DAC read
         st, b = http("GET", f"{GR}/staff_r.txt", port, tc)
         carol_results.append(
@@ -193,8 +198,14 @@ def _rt41_segment_01_3(DENIED, T, port, DENIED_TOK, pubdir, breaches, GR, tc, ca
             fifo_times.append(time.time() - t0)
 
 
-def _rt41_try_body(DENIED, port, pubdir, T, DENIED_TOK, tc, fifo_ok, breaches, carol_results, ta, adir, GR, _has, BOB_SECRET, SR, alice_owner_bad, fifo_times):
-    _rt41_segment_01_3(DENIED, T, port, DENIED_TOK, pubdir, breaches, GR, tc, carol_results, _has, BOB_SECRET, SR, ta, adir, alice_owner_bad, fifo_ok, fifo_times)
+def _rt41_try_body(
+        DENIED, port, pubdir, T, DENIED_TOK, tc, fifo_ok, breaches,
+        carol_results, ta, adir, GR, _has, BOB_SECRET, SR,
+        alice_owner_bad, fifo_times, i, kind):
+    _rt41_segment_01_3(
+        DENIED, T, port, DENIED_TOK, pubdir, breaches, GR, tc,
+        carol_results, _has, BOB_SECRET, SR, ta, adir, alice_owner_bad,
+        fifo_ok, fifo_times, i, kind)
 
 
 
@@ -203,7 +214,10 @@ def _rt41_segment_08(DENIED, T, port, DENIED_TOK, pubdir, breaches, GR, tc, caro
     def job(i):
         kind = i % 4
         try:
-            _rt41_try_body(DENIED, port, pubdir, T, DENIED_TOK, tc, fifo_ok, breaches, carol_results, ta, adir, GR, _has, BOB_SECRET, SR, alice_owner_bad, fifo_times)
+            _rt41_try_body(
+                DENIED, port, pubdir, T, DENIED_TOK, tc, fifo_ok,
+                breaches, carol_results, ta, adir, GR, _has, BOB_SECRET,
+                SR, alice_owner_bad, fifo_times, i, kind)
         except Exception as e:  # noqa: BLE001
             breaches.append(("exc", i, repr(e)))
     return job
@@ -292,7 +306,7 @@ def _rt41_check_for_each_sub_mallory_lowu_badprim(pubdir, T, GR, SR, BOB_SECRET)
            f"root:// denied '{sub}' left no reserved residue (uid={cuid})")
         # immediately after the refused stream op, a legit carol group read.
         rc2, out, _e = xrd_fs(["cat", f"{GR}/staff_r.txt"], "carol")
-        ok(all((rc2 == 0, SR.decode() in any((out, '')), BOB_SECRET.decode() not in any((out, '')))),
+        ok(all((rc2 == 0, SR.decode() in _rt_default(out, ''), BOB_SECRET.decode() not in _rt_default(out, ''))),
            f"root:// carol group read OK right after denied '{sub}' — no "
            f"stream-plane principal leak (rc={rc2})")
     return lf, fh, rc

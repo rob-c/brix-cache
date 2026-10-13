@@ -21,6 +21,7 @@
  *       merge having allocated nothing.
  */
 
+#include "core/compat/log_event.h"
 #include "rpm.h"
 
 #include "core/compat/alloc_guard.h"
@@ -68,7 +69,7 @@ rpm_reject(ngx_conf_t *cf, ngx_http_brix_rpm_loc_conf_t *conf,
     const brix_oci_url_t *url)
 {
     if (conf->common.allow_write == 1) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_allow_write on: an RPM pull-through mirror is read-only by "
             "construction; publish a repository with brixrpm createrepo "
             "instead");
@@ -76,14 +77,14 @@ rpm_reject(ngx_conf_t *cf, ngx_http_brix_rpm_loc_conf_t *conf,
     }
 
     if (conf->common.stage_store.len > 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_stage_store: an RPM pull-through mirror never stages "
             "writes; remove it from this block");
         return NGX_CONF_ERROR;
     }
 
     if (!url->tls && !conf->insecure) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_rpm_mirror \"%V\": a cleartext upstream lets anyone on the "
             "path replace a package before this mirror ever hashes it; use "
             "https, or brix_rpm_mirror_insecure on for a test fixture",
@@ -98,7 +99,7 @@ rpm_reject(ngx_conf_t *cf, ngx_http_brix_rpm_loc_conf_t *conf,
      * grammar and stamp the wrong freshness window on them. An operator who
      * wants no verification at all wants nginx's own proxy_cache, not this. */
     if (conf->common.cache_verify_mode != BRIX_CACHE_VERIFY_RPM_REPODATA) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_verify %s: a brix_rpm_mirror location must run the "
             "rpm-repodata verification - it is what checks each metadata file "
             "against the checksum its own name carries",
@@ -107,7 +108,7 @@ rpm_reject(ngx_conf_t *cf, ngx_http_brix_rpm_loc_conf_t *conf,
     }
 
     if (conf->common.storage_backend.len > 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend and brix_rpm_mirror both name the upstream "
             "for this location; brix_rpm_mirror is the RPM spelling - "
             "configure exactly one");
@@ -132,7 +133,7 @@ rpm_build_upstream(ngx_conf_t *cf, ngx_http_brix_rpm_loc_conf_t *conf)
     size_t           len;
 
     if (conf->mirror_url.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_rpm_mirror requires an upstream base URL");
         return NGX_CONF_ERROR;
     }
@@ -140,7 +141,7 @@ rpm_build_upstream(ngx_conf_t *cf, ngx_http_brix_rpm_loc_conf_t *conf)
     if (brix_oci_url_parse((const char *) conf->mirror_url.data,
                            conf->mirror_url.len, &url) != 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_rpm_mirror \"%V\" is not an absolute http(s) URL with a "
             "plain host and path", &conf->mirror_url);
         return NGX_CONF_ERROR;
@@ -157,7 +158,7 @@ rpm_build_upstream(ngx_conf_t *cf, ngx_http_brix_rpm_loc_conf_t *conf)
                             strchr(url.host, ':') ? "]" : "",
                             url.port, url.path);
     if (len >= sizeof(base)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_rpm_mirror \"%V\" is too long", &conf->mirror_url);
         return NGX_CONF_ERROR;
     }

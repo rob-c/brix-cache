@@ -6,6 +6,7 @@
  * with the rule builders in ratelimit_keys_rules.c and are declared in
  * ratelimit_keys_internal.h.
  */
+#include "core/compat/log_event.h"
 #include "ratelimit.h"
 #include "protocols/webdav/webdav.h"      /* ngx_http_brix_webdav_req_ctx_t */
 #include "ratelimit_keys_internal.h"
@@ -59,7 +60,7 @@ rl_parse_key(ngx_conf_t *cf, ngx_str_t *v, brix_rl_rule_t *rule)
         rule->key_match = prefix;        /* points into cf->args memory (persists) */
         return NGX_OK;
     }
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
         "xrootd rate limit: unknown key \"%V\" (expected"
         " vo|issuer|ip|dn|subject|volume[:<prefix>])", &type);
     return NGX_ERROR;
@@ -148,7 +149,7 @@ brix_rl_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             spec.len  = value[i].len - 5;
             colon = ngx_strlchr(spec.data, spec.data + spec.len, ':');
             if (colon == NULL) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                     "brix_rate_limit_zone: expected zone=NAME:SIZE");
                 return NGX_CONF_ERROR;
             }
@@ -160,13 +161,13 @@ brix_rl_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     if (name.len == 0 || sizestr.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_rate_limit_zone: missing zone=NAME:SIZE");
         return NGX_CONF_ERROR;
     }
     size = rl_parse_size(&sizestr);
     if (size == NGX_ERROR || size <= 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_rate_limit_zone: bad size \"%V\"", &sizestr);
         return NGX_CONF_ERROR;
     }

@@ -57,7 +57,9 @@ def test_sssadmin_binary_is_brix_suffixed_not_stock():
     assert lib.XRDSSSADMIN_BIN.endswith("xrdsssadmin-brix")
     if not _have_sssadmin():
         pytest.skip("xrdsssadmin-brix unavailable/unbuildable on this box")
-    assert os.path.basename(lib._ensure_sssadmin()) == "xrdsssadmin-brix"
+    assert os.path.basename(lib._ensure_sssadmin()) in {
+        "xrdsssadmin-brix", "brix-xrdsssadmin",
+    }
 
 
 def test_gen_sss_keytab_emits_the_nginx_sss_format(tmp_path):
@@ -108,4 +110,36 @@ def test_sssadmin_resolution_precedence(monkeypatch, tmp_path):
     assert lib._find_sssadmin() == stub
 
     monkeypatch.setenv("TEST_XRDSSSADMIN_BIN", str(tmp_path / "nope"))
+    assert lib._find_sssadmin() is None
+
+
+def test_sssadmin_resolution_skips_foreign_in_tree_binary(monkeypatch, tmp_path):
+    """A copied binary for another OS must not mask the packaged host tool."""
+    foreign = tmp_path / "foreign-xrdsssadmin-brix"
+    foreign.write_bytes(b"not a host executable\n")
+    foreign.chmod(0o755)
+    installed_dir = tmp_path / "installed"
+    installed_dir.mkdir()
+    installed = fake_exec.install(installed_dir, "xrdsssadmin-brix")
+
+    monkeypatch.delenv("TEST_XRDSSSADMIN_BIN", raising=False)
+    monkeypatch.setattr(lib, "XRDSSSADMIN_BIN", str(foreign))
+    monkeypatch.setattr(lib.shutil, "which", lambda name: installed)
+
+    assert lib._find_sssadmin() == installed
+
+
+def test_sssadmin_unlaunchable_explicit_override_fails_closed(monkeypatch,
+                                                              tmp_path):
+    """An explicit foreign override is a hard miss, with no PATH fallback."""
+    foreign = tmp_path / "foreign-xrdsssadmin-brix"
+    foreign.write_bytes(b"not a host executable\n")
+    foreign.chmod(0o755)
+
+    monkeypatch.setenv("TEST_XRDSSSADMIN_BIN", str(foreign))
+    monkeypatch.setattr(
+        lib.shutil, "which",
+        lambda name: pytest.fail("explicit override must not fall through"),
+    )
+
     assert lib._find_sssadmin() is None

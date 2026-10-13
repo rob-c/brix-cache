@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "ftp_gateway.h"
 #include "ftp_module_internal.h"           /* brix_ftp_build_gsi (ftp_module_gsi.c) */
 
@@ -106,13 +107,13 @@ brix_ftp_set_pasv_range(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
     if (lo == NGX_ERROR || hi == NGX_ERROR
         || lo < 1 || lo > BRIX_FTP_PORT_MAX || hi < 1 || hi > BRIX_FTP_PORT_MAX)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_gridftp_pasv_port_range: each bound must be a TCP port "
             "1..%d (got \"%V\" \"%V\")", BRIX_FTP_PORT_MAX, &value[1], &value[2]);
         return NGX_CONF_ERROR;
     }
     if (lo > hi) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_gridftp_pasv_port_range: low bound %i exceeds high bound %i",
             lo, hi);
         return NGX_CONF_ERROR;
@@ -237,7 +238,7 @@ brix_ftp_init_process(ngx_cycle_t *cycle)
                             sizeof(name)));
         cred = brix_credential_lookup(name);
         if (cred == NULL) {
-            ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, cycle->log, 0,
                 "brix_gridftp: worker credential replay: no brix_credential "
                 "\"%s\" for export \"%s\" — upstream auth WILL fail",
                 name, conf->common.root_canon);
@@ -246,7 +247,7 @@ brix_ftp_init_process(ngx_cycle_t *cycle)
         if (brix_credential_to_backend_cred(cred, bearer, sizeof(bearer),
                                             &bcred, cycle->log) != NGX_OK)
         {
-            ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, cycle->log, 0,
                 "brix_gridftp: worker credential replay: cannot derive "
                 "credential \"%s\" for export \"%s\" — upstream auth WILL fail",
                 name, conf->common.root_canon);

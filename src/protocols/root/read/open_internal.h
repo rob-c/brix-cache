@@ -31,6 +31,10 @@ ngx_int_t brix_open_handle_tpc(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, int is_write, uint16_t options,
     uint16_t mode_bits);
 
+/* True only for a write-open that names the disabled native-push target role. */
+int brix_open_tpc_push_target_disabled(brix_ctx_t *ctx,
+    ngx_stream_brix_srv_conf_t *conf, int is_write);
+
 /*
  * Manager-mode redirect: dynamic CMS/registry selection (with the tried-
  * exhausted and collapse-redir caches) and the static manager_map prefix

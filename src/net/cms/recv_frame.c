@@ -23,6 +23,7 @@
  * through the table, silently ignoring unknown opcodes.
  */
 
+#include "core/compat/log_event.h"
 #include "cms_internal.h"
 #include "action_log.h"             /* cmsd-action NOTICE lines */
 #include "recv_internal.h"
@@ -97,7 +98,7 @@ brix_cms_wake_pending_session(ngx_log_t *log, uint32_t streamid,
 
     pending = brix_pending_lookup(streamid, ngx_pid);
     if (pending == NULL) {
-        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, log, 0,
                        "brix: CMS wake: streamid=%uD not found in pending table",
                        streamid);
         return NGX_OK;  /* session timed out and was already removed */
@@ -140,7 +141,7 @@ brix_cms_wake_pending_session(ngx_log_t *log, uint32_t streamid,
     {
         char  safe[256];
         brix_sanitize_log_string(host, safe, sizeof(safe));
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: CMS select: rejected redirect to invalid host "
                       "\"%s\" for fd=%d", safe, conn_fd);
         return NGX_OK;
@@ -150,7 +151,7 @@ brix_cms_wake_pending_session(ngx_log_t *log, uint32_t streamid,
      * kXR_redirect (stock) or proxy the parked request to the selected node. */
     conf = ngx_stream_get_module_srv_conf(session, ngx_stream_brix_module);
 
-    ngx_log_error(NGX_LOG_INFO, log, 0,
+    BRIX_LOG(NGX_LOG_INFO, log, 0,
                   "brix: CMS select: %s client fd=%d to %s:%ud",
                   conf->cms.response == BRIX_CMS_RESPONSE_PROXY
                       ? "proxying" : "redirecting",
@@ -163,7 +164,7 @@ brix_cms_wake_pending_session(ngx_log_t *log, uint32_t streamid,
     if (brix_cms_answer_selected(xrd_ctx, client_conn, conf, host, port)
         == NGX_ERROR)
     {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix: CMS select: failed to answer fd=%d",
                       conn_fd);
         return NGX_ERROR;
@@ -206,20 +207,20 @@ cms_frame_status(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
     u_char mod = ctx->inbuf[5];
     if (mod & CMS_ST_SUSPEND) {
         ctx->conf->cms.suspended = 1;
-        ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                       "brix: CMS suspend received — new logins paused");
         brix_cms_log_action(ctx->cycle->log, "status",
                             (const char *) ctx->mgr_name.data,
                             "in", NULL, 1, "manager suspended this node");
     } else if (mod & CMS_ST_RESUME) {
         ctx->conf->cms.suspended = 0;
-        ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                       "brix: CMS resume received — accepting logins");
         brix_cms_log_action(ctx->cycle->log, "status",
                             (const char *) ctx->mgr_name.data,
                             "in", NULL, 1, "manager resumed this node");
     } else {
-        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                        "brix: CMS status modifier=0x%02xi (no action)",
                        (ngx_uint_t) mod);
     }
@@ -253,7 +254,7 @@ cms_frame_login_retarget(ngx_brix_cms_ctx_t *ctx, const char *host,
     size_t       name_len;
 
     if (ctx->retarget_depth >= 4) {
-        ngx_log_error(NGX_LOG_WARN, ctx->cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ctx->cycle->log, 0,
             "brix: CMS login retarget chain too deep — staying on %V",
             &ctx->mgr_name);
         return NGX_OK;
@@ -269,7 +270,7 @@ cms_frame_login_retarget(ngx_brix_cms_ctx_t *ctx, const char *host,
     if (ngx_parse_addr_port(ctx->cycle->pool, addr, (u_char *) host,
                             ngx_strlen(host)) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_WARN, ctx->cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ctx->cycle->log, 0,
             "brix: CMS login retarget to non-literal host \"%s\" refused "
             "(IP literals only)", host);
         return NGX_OK;
@@ -293,7 +294,7 @@ cms_frame_login_retarget(ngx_brix_cms_ctx_t *ctx, const char *host,
     ctx->mgr_name.data = name;
     ctx->mgr_name.len  = name_len;
 
-    ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, ctx->cycle->log, 0,
         "brix: CMS login redirected — re-dialing %V (was %V)",
         &ctx->mgr_name, &ctx->orig_name);
     brix_cms_log_action(ctx->cycle->log, "login-retarget",
@@ -344,7 +345,7 @@ cms_frame_redirect(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
         if (!brix_net_host_chars_valid(host, host_len)) {
             char  safe[256];
             brix_sanitize_log_string(host, safe, sizeof(safe));
-            ngx_log_error(NGX_LOG_WARN, ctx->cycle->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, ctx->cycle->log, 0,
                 "brix: CMS login retarget to invalid host \"%s\" refused",
                 safe);
             return NGX_OK;
@@ -413,7 +414,7 @@ cms_frame_prepare(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
 static ngx_int_t
 cms_frame_update(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
 {
-    ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                    "brix: CMS node: update -> status");
     return ngx_brix_cms_send_status(ctx);
 }
@@ -423,7 +424,7 @@ cms_frame_update(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
 static ngx_int_t
 cms_frame_disc(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
 {
-    ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                   "brix: CMS node: manager requested disconnect");
     brix_cms_log_action(ctx->cycle->log, "disconnect",
                         (const char *) ctx->mgr_name.data,
@@ -506,7 +507,7 @@ cms_frame_role_ok(ngx_brix_cms_ctx_t *ctx, u_char code)
         return 1;
     }
 
-    ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                   "brix: CMS %s: manager sent an invalid request "
                   "(op=%ui) — dropped",
                   role == XRDCMS_ROLE_SUBMAN ? "subman" : "super",
@@ -533,7 +534,7 @@ ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx)
     streamid = ngx_brix_cms_get32(ctx->inbuf);
     code = ctx->inbuf[4];
 
-    ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                    "brix: CMS process frame code=%ui streamid=%uD",
                    (ngx_uint_t) code, streamid);
 
@@ -549,10 +550,10 @@ ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx)
 
     r = brix_cms_route_lookup(XRDCMS_ROLE_NODE, code);
     if (r != NULL) {
-        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                        "brix: CMS node: unhandled opcode '%s'", r->name);
     } else {
-        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                        "brix: ignoring CMS rrCode=%ui", (ngx_uint_t) code);
     }
     return NGX_OK;

@@ -208,8 +208,9 @@ def test_the_audit_line_names_arm_kind_dir_outcome_and_nothing_secret():
             f"cred_write_audit is handed `{secret}`; the audit helper must not "
             f"receive secret-bearing arguments it could log:\n{params}")
 
-    fmt = re.search(r'ngx_log_error\([^,]+,[^,]+,[^,]+,\s*"((?:[^"\\]|\\.)*)"',
-                    body)
+    fmt = re.search(
+        r'(?:ngx_log_error|BRIX_LOG)\([^,]+,[^,]+,[^,]+,\s*'
+        r'"((?:[^"\\]|\\.)*)"', body)
     assert fmt, f"{GATE} audit line is not a plain literal format string"
     tokens = set(re.findall(r"(\w+)=", fmt.group(1)))
     assert tokens == {"arm", "kind", "dir", "outcome"}, (

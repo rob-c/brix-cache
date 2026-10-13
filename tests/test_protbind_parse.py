@@ -23,6 +23,7 @@ from cmdscripts.live_common import (
     inject_nginx_runtime_paths,
 )
 from settings import BIND_HOST, NGINX_BIN
+from log_records import semantic_log_text
 
 STREAM_PORT = 13401
 HTTP_PORT = 13402
@@ -60,7 +61,7 @@ http {{ server {{ listen {BIND_HOST}:{HTTP_PORT};
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30,
                        env=dict(os.environ, ASAN_OPTIONS="detect_leaks=0"))
-    return p.returncode, p.stderr + p.stdout
+    return p.returncode, semantic_log_text(p.stderr + p.stdout)
 
 
 # Directive tails accepted by the shared grammar on BOTH frontends.  Only

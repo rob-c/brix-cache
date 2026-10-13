@@ -26,19 +26,19 @@ DEFECT CANDIDATE #8 — a WebDAV PUT over the s3:// backend intermittently
 (src/protocols/webdav/prop_xattr.c:238-258) walks the parent chain and
 tolerates every "this backend has no xattrs" errno (ENODATA/ENOATTR/ENOENT/
 ENOTSUP/EOPNOTSUPP/ENOSYS/EACCES/EPERM) by declining and letting the write
-proceed — but NOT EIO, which is what the remote driver reports here
-("brix_webdav: getxattr lock on \"/\" failed (5: Input/output error)").  A
-second, equivalent refusal point is opening the driver-backed staged writer
-("brix_webdav: staged open for write failed … (5: Input/output error)").  In
-both cases the write is refused with a 500 before it can publish an object.
-A run can therefore see a mix of 201s and these known EIO-backed 500s.  A
+proceed — but NOT EIO or EAGAIN, either of which the remote driver can report
+here depending on the host/runtime.  A
+second, equivalent refusal point is opening or committing the driver-backed
+staged writer ("brix_webdav: staged {open,commit} … failed").  In all cases
+the write is refused with a 500 before it can publish an object.
+A run can therefore see a mix of 201s and these known fail-closed 500s.  A
 second face of the same instability: with an nginx `thread_pool` configured
 (the PUT aio path) the request can instead commit the object and never
 answer at all — which is why this template declares no pool.
 
 Cases:
   * characterisation + fail-closed invariant — twelve sequential PUTs: every
-    non-2xx is a 500 carrying a known remote-driver EIO signature in error.log,
+    non-2xx is a 500 carrying a known remote-driver refusal in error.log,
     and every failed PUT leaves NO object in the store (defect #8 is
     fail-closed, not a partial write)
   * success + defect pin #7 — a PUT that lands round-trips through the front,
@@ -61,6 +61,7 @@ import requests
 
 from server_registry import NginxInstanceSpec
 from settings import HOST
+from log_records import semantic_log_text
 
 def _check_test_defect8_put_refusals_are_500_and_fail_closed_2(codes):
     assert any(c in (201, 204) for c in codes), (codes, DEFECT8)
@@ -79,15 +80,15 @@ def _serious_log_lines(ep):
                    for level in ("error", "crit", "alert", "emerg"))]
 
 
-def _known_defect8_eio(log):
-    return ("(5: Input/output error)" in log
-            and any(needle in log for needle in EIO_NEEDLES))
+def _known_defect8_refusal(log):
+    return (any(errno_text in log for errno_text in REFUSAL_ERRNOS)
+            and any(needle in log for needle in REFUSAL_NEEDLES))
 
 
 def _check_test_defect8_put_refusals_are_500_and_fail_closed_1(codes, ep, bodies):
-    assert _known_defect8_eio(_errlog(ep)), (
+    assert _known_defect8_refusal(_errlog(ep)), (
         "the front 500ed a PUT over the s3:// backend for a reason other than "
-        "a known remote-driver EIO refusal — re-diagnose defect #8\n"
+        "a known remote-driver refusal — re-diagnose defect #8\n"
         f"  codes:     {codes}\n"
         f"  500 bodies:{bodies}\n"
         "  error-level log lines:\n    "
@@ -97,12 +98,16 @@ def _check_test_defect8_put_refusals_are_500_and_fail_closed_1(codes, ep, bodies
 
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.serial,
               pytest.mark.xdist_group("lc-audit15e-cks3")]
 
 PAYLOAD = b"audit15e-checksum-s3-payload " * 32
 WANT = format(zlib.adler32(PAYLOAD) & 0xFFFFFFFF, "08x")
 
-EIO_NEEDLES = ("getxattr lock on", "staged open for write failed")
+REFUSAL_ERRNOS = ("(5: Input/output error)",
+                  "(11: Resource temporarily unavailable)")
+REFUSAL_NEEDLES = ("getxattr lock on", "staged open for write failed",
+                   "staged commit failed")
 
 DEFECT7 = ("DEFECT CANDIDATE #7 has been FIXED: checksum-on-write now "
            "persists over a driver-backed backend (put_body.c:65 no longer "
@@ -110,7 +115,7 @@ DEFECT7 = ("DEFECT CANDIDATE #7 has been FIXED: checksum-on-write now "
            f"the object carries user.XrdCks.adler32 == {WANT}.")
 
 DEFECT8 = ("DEFECT CANDIDATE #8: the PUT was refused because the advisory "
-           "lock-xattr probe hit EIO from the remote driver "
+           "lock-xattr probe hit EIO/EAGAIN from the remote driver "
            "(prop_xattr.c:250 tolerates every other 'no xattrs here' errno). "
            "If that is fixed, this helper's retries become unnecessary.")
 
@@ -149,7 +154,8 @@ def _xattr(path, alg="adler32"):
 
 
 def _errlog(ep):
-    return (Path(ep.prefix) / "logs" / "error.log").read_text(errors="replace")
+    return semantic_log_text(
+        (Path(ep.prefix) / "logs" / "error.log").read_text(errors="replace"))
 
 
 def _put_landing(ep, path, attempts=10):

@@ -31,6 +31,7 @@
  *       the *at() op on the final component name only (which those syscalls do
  *       not dereference as a symlink for delete/rename/create).
  */
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "beneath.h"
 #include "auth/impersonate/impersonate.h"
@@ -353,7 +354,7 @@ brix_renameat_noreplace_fallback(ngx_log_t *log, int sfd, const char *sbase,
         noreplace_degraded = 1;
         if (!noreplace_warned) {
             noreplace_warned = 1;
-            ngx_log_error(NGX_LOG_WARN, log, errno,
+            BRIX_LOG(NGX_LOG_WARN, log, errno,
                           "brix: renameat2(RENAME_NOREPLACE) unsupported; "
                           "create-if-absent falls back to non-atomic rename");
         }

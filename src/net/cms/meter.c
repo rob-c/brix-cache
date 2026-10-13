@@ -1,7 +1,7 @@
 /*
  * cms/meter.c — native machine-load meter for the CMS heartbeat (Phase-89 W4).
  *
- * WHAT: /proc-backed load figures for the kYR_load theLoad bytes — pure
+ * WHAT: PAL-backed load figures for the kYR_load theLoad bytes — pure
  * parsers (unit-tested standalone) plus the sampling driver that owns the
  * file I/O and delta bookkeeping.
  *
@@ -9,20 +9,18 @@
  * behavioural decision (percentage mapping, delta priming, malformed input)
  * out of the I/O path so meter_unittest.c covers it byte-for-byte.
  *
- * HOW: Each parser walks one text buffer with strtoul/strtod-style scanning
- * and rejects buffers missing the expected fields.  sample() slurps each
- * /proc file into a stack buffer (they are all small), runs the parser, and
- * degrades any failure to a 0 byte.  Deltas (net, pag) need two samples:
- * the first call only primes the counters.
+ * HOW: Each legacy parser walks one text buffer with strtoul/strtod-style
+ * scanning and rejects buffers missing the expected fields. sample() uses the
+ * host PAL exclusively. Deltas (net, pag)
+ * need two samples: the first call only primes the counters.
  */
 
 #include "core/types/tunables.h"
 #include "meter.h"
+#include "platform/platform_api.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 /* Clamp a computed percentage into the wire byte's 0-100 range. */
 static uint8_t
@@ -99,6 +97,20 @@ brix_cms_meter_parse_meminfo(const char *buf, uint8_t *pct)
     }
 
     *pct = meter_clamp_pct((unsigned long) ((total - avail) * 100 / total));
+    return 0;
+}
+
+
+int
+brix_cms_meter_memory_pct(uint64_t total, uint64_t available, uint8_t *pct)
+{
+    uint64_t  used;
+
+    if (total == 0 || pct == NULL) {
+        return -1;
+    }
+    used = available < total ? total - available : 0;
+    *pct = meter_clamp_pct((unsigned long) ((used * 100) / total));
     return 0;
 }
 
@@ -220,50 +232,23 @@ brix_cms_meter_rate_pct(uint64_t delta, uint64_t elapsed_ms,
 }
 
 
-/* Slurp a small /proc file into buf (NUL-terminated).  Returns 0 on success.
- * stdio (not raw syscalls) keeps this out of the VFS seam — /proc is host
- * introspection, not storage. */
-static int
-meter_slurp(const char *path, char *buf, size_t bufsz)
-{
-    FILE    *f;
-    size_t   n;
-
-    f = fopen(path, "r");
-    if (f == NULL) {
-        return -1;
-    }
-    n = fread(buf, 1, bufsz - 1, f);
-    fclose(f);
-    if (n == 0) {
-        return -1;
-    }
-    buf[n] = '\0';
-    return 0;
-}
-
-
-/* Sample the point-in-time gauges (cpu, mem) straight into out5; any slurp
- * or parse failure leaves that byte 0. */
+/* Sample the point-in-time gauges straight into out5. */
 static void
-meter_sample_gauges(uint8_t out5[5])
+meter_sample_gauges(const brix_plat_sysload_t *sample, uint8_t out5[5])
 {
-    char     buf[BRIX_METER_BUF_SIZE];
     uint8_t  pct;
+    int      cpus = brix_plat_cpu_count();
 
-    if (meter_slurp("/proc/loadavg", buf, sizeof(buf)) == 0
-        && brix_cms_meter_parse_loadavg(buf, sysconf(_SC_NPROCESSORS_ONLN),
-                                        &pct) == 0)
-    {
-        out5[0] = pct;                                  /* cpu */
+    if ((sample->have & BRIX_SYSLOAD_HAVE_LOAD) != 0 && cpus > 0) {
+        double scaled = sample->load1 * 100.0 / (double) cpus;
+
+        out5[0] = meter_clamp_pct((unsigned long) scaled);
     }
-
-    /* out5[2] (xeq) stays 0 — no request queue to report. */
-
-    if (meter_slurp("/proc/meminfo", buf, sizeof(buf)) == 0
-        && brix_cms_meter_parse_meminfo(buf, &pct) == 0)
+    if ((sample->have & BRIX_SYSLOAD_HAVE_MEMORY) != 0
+        && brix_cms_meter_memory_pct(sample->total_memory,
+            sample->available_memory, &pct) == 0)
     {
-        out5[3] = pct;                                  /* mem */
+        out5[3] = pct;
     }
 }
 
@@ -306,18 +291,15 @@ meter_fold_deltas(brix_cms_meter_t *m, uint64_t now_ms,
 void
 brix_cms_meter_sample(brix_cms_meter_t *m, uint64_t now_ms, uint8_t out5[5])
 {
-    char      buf[BRIX_METER_BUF_SIZE];
-    uint64_t  net_bytes = 0, pgmaj = 0;
-    int       have_net, have_pag;
+    brix_plat_sysload_t sample;
+    int                 have_net;
+    int                 have_pag;
 
     memset(out5, 0, 5);
-
-    meter_sample_gauges(out5);
-
-    have_net = (meter_slurp("/proc/net/dev", buf, sizeof(buf)) == 0
-                && brix_cms_meter_parse_netdev(buf, &net_bytes) == 0);
-    have_pag = (meter_slurp("/proc/vmstat", buf, sizeof(buf)) == 0
-                && brix_cms_meter_parse_vmstat(buf, &pgmaj) == 0);
-
-    meter_fold_deltas(m, now_ms, have_net, net_bytes, have_pag, pgmaj, out5);
+    if (brix_plat_sysload_sample(&sample) != 0) return;
+    meter_sample_gauges(&sample, out5);
+    have_net = (sample.have & BRIX_SYSLOAD_HAVE_NET) != 0;
+    have_pag = (sample.have & BRIX_SYSLOAD_HAVE_PAGING) != 0;
+    meter_fold_deltas(m, now_ms, have_net, sample.net_bytes, have_pag,
+        sample.paging_events, out5);
 }

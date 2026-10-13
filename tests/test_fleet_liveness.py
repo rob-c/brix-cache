@@ -37,7 +37,13 @@ import time
 import pytest
 
 import fleet_specs
-from lib_py.util import pids_on_port, process_age
+from lib_py.util import (
+    _darwin_netstat_row,
+    _elapsed_time_seconds,
+    listening_port_pids,
+    pids_on_port,
+    process_age,
+)
 from server_registry import endpoint_for, registered_specs
 
 pytestmark = [pytest.mark.serial, pytest.mark.slow, pytest.mark.timeout(120)]
@@ -80,27 +86,36 @@ def _classify(name, start_pids, listeners):
     return None
 
 
-def _listeners_with_age(port: int) -> dict[int, float | None]:
+def _port_pids(port: int, snapshot=None) -> set[int]:
+    """Listener PIDs from a fleet-wide snapshot, with a portable fallback."""
+    if snapshot is not None:
+        return set(snapshot.get(port, ()))
+    return set(pids_on_port(port))
+
+
+def _listeners_with_age(port: int, snapshot=None) -> dict[int, float | None]:
     """Map each PID holding ``port`` to its process age in seconds."""
-    return {pid: process_age(pid) for pid in pids_on_port(port)}
+    return {pid: process_age(pid) for pid in _port_pids(port, snapshot)}
 
 
 def _live_fleet_ports() -> list[tuple[str, int]]:
     """(name, port) for every registry server currently listening."""
     fleet_specs.register_full_fleet()  # idempotent
+    snapshot = listening_port_pids()
     live = []
     for spec in registered_specs():
         port = endpoint_for(spec).port
-        if port and pids_on_port(int(port)):
+        if port and _port_pids(int(port), snapshot):
             live.append((spec.name, int(port)))
     return live
 
 
 def _sample_failures(servers, start, failures):
+    snapshot = listening_port_pids()
     for name, port in servers:
         if name in failures:
             continue
-        reason = _classify(name, start[name], _listeners_with_age(port))
+        reason = _classify(name, start[name], _listeners_with_age(port, snapshot))
         if reason:
             failures[name] = reason
 
@@ -136,7 +151,8 @@ def test_no_server_is_crash_looping():
 
     # Snapshot the listener PIDs up front so a server that flaps *during* the
     # window is caught by the PID moving out from under it, not just by age.
-    start = {name: set(pids_on_port(port)) for name, port in servers}
+    snapshot = listening_port_pids()
+    start = {name: _port_pids(port, snapshot) for name, port in servers}
 
     time.sleep(SETTLE)
 
@@ -169,3 +185,36 @@ def test_classify_flags_full_pid_rotation_even_when_aged():
     # the age floor alone would miss it; PID-set disjointness catches it.
     reason = _classify("churn", {100, 101}, {200: 5.0, 201: 5.0})
     assert reason and "replaced" in reason
+
+
+@pytest.mark.parametrize(("value", "expected"), [
+    ("00:09", 9.0),
+    ("05:04:03", 18_243.0),
+    ("2-05:04:03", 191_043.0),
+])
+def test_elapsed_time_parser_accepts_ps_shapes(value, expected):
+    assert _elapsed_time_seconds(value) == expected
+
+
+@pytest.mark.parametrize("value", ["", "garbage", "1:60", "1:2:60", "1:2:3:4"])
+def test_elapsed_time_parser_rejects_malformed_shapes(value):
+    assert _elapsed_time_seconds(value) is None
+
+
+def test_darwin_netstat_parser_accepts_process_name_with_spaces():
+    line = ("tcp4 0 0 127.0.0.1.10005 *.* LISTEN 0 0 131072 131072 "  # net-literal-allow: synthetic Darwin netstat row
+            "Code Helper (Plugin):4242 00100 00000006 trailing")
+    assert _darwin_netstat_row(line, "LISTEN") == (
+        "127.0.0.1.10005", "*.*", 4242,  # net-literal-allow: expected parsed fixture address
+    )
+
+
+def test_darwin_netstat_parser_rejects_other_state():
+    line = ("tcp4 0 0 127.0.0.1.10005 *.* ESTABLISHED 0 0 131072 131072 "  # net-literal-allow: synthetic Darwin netstat row
+            "nginx:4242 00102 00000008 trailing")
+    assert _darwin_netstat_row(line, "LISTEN") is None
+
+
+def test_darwin_netstat_parser_rejects_missing_owner():
+    line = "tcp4 0 0 127.0.0.1.10005 *.* LISTEN 0 0 131072 131072 -"  # net-literal-allow: synthetic Darwin netstat row
+    assert _darwin_netstat_row(line, "LISTEN") is None

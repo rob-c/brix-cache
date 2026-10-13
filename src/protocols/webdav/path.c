@@ -2,12 +2,42 @@
  * path.c - WebDAV URI-to-filesystem path confinement.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "core/compat/path.h"
 
 #include <limits.h>
 #include <string.h>
 #include <unistd.h>
+
+/* WHAT: Produce the single logical WebDAV path used by authorization and VFS.
+ * WHY: nginx has already normalized the wire URI once; comparing r->uri in an
+ * authorization gate and decoding it again for storage lets double-encoded
+ * bytes name different policy and storage paths.
+ * HOW: Apply the module's NUL-rejecting decoder, then collapse repeated URI
+ * separators because the VFS treats them as the same filesystem path. */
+ngx_int_t
+webdav_decode_request_path(ngx_http_request_t *r, char *out, size_t outsz)
+{
+    char     *src, *dst;
+    ngx_int_t rc;
+
+    rc = webdav_urldecode(r->uri.data, r->uri.len, out, outsz);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    src = out;
+    dst = out;
+    while (*src != '\0') {
+        if (*src == '/' && dst > out && dst[-1] == '/') {
+            src++;
+            continue;
+        }
+        *dst++ = *src++;
+    }
+    *dst = '\0';
+    return NGX_OK;
+}
 
 /* Wrapper: maps brix_http_resolve_path() return codes to NGX_HTTP_*,
  * using 409 Conflict when the destination parent cannot be resolved
@@ -67,11 +97,11 @@ ngx_http_brix_webdav_resolve_path(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf =
         ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
-    decode_rc = webdav_urldecode(r->uri.data, r->uri.len,
-                                 uri_decoded, sizeof(uri_decoded));
+    decode_rc = webdav_decode_request_path(r, uri_decoded,
+                                           sizeof(uri_decoded));
     if (decode_rc != NGX_OK) {
         if (decode_rc == NGX_HTTP_BAD_REQUEST) {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                           "brix_webdav: rejecting URI with decoded NUL");
         }
         return decode_rc;

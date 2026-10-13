@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/config/config.h"
 
 #include <stdlib.h>
@@ -51,7 +52,7 @@ brix_upstream_parse_host_port(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf,
         /* IPv6 literal [addr]:port */
         char *rb = strchr(addr_copy, ']');
         if (rb == NULL || *(rb + 1) != ':') {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_upstream: invalid address \"%V\"", raw);
             return NGX_ERROR;
         }
@@ -65,7 +66,7 @@ brix_upstream_parse_host_port(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf,
         /* hostname:port or IPv4:port - split on last colon */
         char *colon = strrchr(addr_copy, ':');
         if (colon == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_upstream: missing port in \"%V\"", raw);
             return NGX_ERROR;
         }
@@ -78,7 +79,7 @@ brix_upstream_parse_host_port(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf,
     }
 
     if (*endp != '\0' || pnum <= 0 || pnum > BRIX_MAX_PORT) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_upstream: invalid port in \"%V\"", raw);
         return NGX_ERROR;
     }
@@ -169,7 +170,7 @@ brix_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: upstream redirector: %s:%d",
         (char *) xcf->upstream_host.data, (int) xcf->upstream_port);
 

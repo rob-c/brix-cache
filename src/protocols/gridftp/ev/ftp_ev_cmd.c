@@ -28,24 +28,27 @@
  */
 
 
+static void
+ev_fmt_timestamp(char out[32], time_t value)
+{
+    struct tm tm;
+    const char *limit;
+
+    limit = value < 0 ? "19700101000000" : "99991231235959";
+    if (gmtime_r(&value, &tm) == NULL || tm.tm_year < 70 || tm.tm_year > 8099
+        || strftime(out, 32, "%Y%m%d%H%M%S", &tm) != 14)
+        (void) snprintf(out, 32, "%s", limit);
+}
+
+
 /* Format a VFS entry's RFC 3659 facts into `out`; returns the byte count. */
 static size_t
 ev_fmt_facts(char *out, size_t outsz, const brix_vfs_stat_t *st)
 {
-    struct tm tm;
     char      mtime[32];
     time_t    t = st->mtime;
 
-    mtime[0] = '\0';
-    if (gmtime_r(&t, &tm) == NULL
-        || strftime(mtime, sizeof(mtime), "%Y%m%d%H%M%S", &tm) == 0)
-    {
-        /* strftime leaves the buffer contents indeterminate when it returns 0,
-         * so a year gmtime_r accepts but the format cannot render would put
-         * uninitialised bytes straight into an MLST fact line.  Re-clamp to
-         * empty and emit "modify=" with no value rather than garbage. */
-        mtime[0] = '\0';
-    }
+    ev_fmt_timestamp(mtime, t);
     return (size_t) snprintf(out, outsz,
         "type=%s;size=%lld;modify=%s;perm=%s;",
         st->is_directory ? "dir" : "file",
@@ -262,7 +265,6 @@ brix_ftp_ev_cmd_mdtm(ftp_ev_t *fc, const char *arg)
     char            abs[PATH_MAX];
     brix_vfs_ctx_t  vctx;
     brix_vfs_stat_t st;
-    struct tm       tm;
     char            ts[32];
     time_t          t;
 
@@ -274,11 +276,7 @@ brix_ftp_ev_cmd_mdtm(ftp_ev_t *fc, const char *arg)
         return brix_ftp_ev_reply(fc, "550 Not a regular file\r\n");
     }
     t = st.mtime;
-    if (gmtime_r(&t, &tm) == NULL
-        || strftime(ts, sizeof(ts), "%Y%m%d%H%M%S", &tm) == 0)
-    {
-        return brix_ftp_ev_reply(fc, "550 Cannot format mtime\r\n");
-    }
+    ev_fmt_timestamp(ts, t);
     return brix_ftp_ev_reply(fc, "213 %s\r\n", ts);
 }
 

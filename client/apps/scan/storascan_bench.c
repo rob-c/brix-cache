@@ -9,6 +9,7 @@
  * HOW:  one pthread per worker per cell, each on its own libbrix connection;
  *       the pure percentile/throughput math lives in storascan_core.c. No goto.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "storascan_core.h"
 #include "storascan_internal.h"
 #include "brix.h"
@@ -399,7 +400,7 @@ bench_parse_args(int argc, char **argv, bench_args_t *ba, const char *prog)
         const char *a = argv[i];
         if (opt_take("--op", argc, argv, &i, &v)) {
             if (strcmp(v, "read") != 0) {
-                fprintf(stderr, "xrdstorascan: bench phase 1 supports --op read only\n");
+                BRIX_CLIENT_LOG("INFO",  "xrdstorascan: bench phase 1 supports --op read only\n");
                 return SX_USAGE;
             }
         } else if (opt_take("--block", argc, argv, &i, &ba->block_s)) {
@@ -437,13 +438,13 @@ bench_validate_args(bench_args_t *ba, const char *prog)
         return usage(prog, SX_USAGE);
     }
     if (strcmp(ba->pattern, "seq") != 0 && strcmp(ba->pattern, "random") != 0) {
-        fprintf(stderr, "xrdstorascan: --pattern must be seq or random\n");
+        BRIX_CLIENT_LOG("INFO",  "xrdstorascan: --pattern must be seq or random\n");
         return SX_USAGE;
     }
     ba->nblocks = parse_list(ba->block_s, 1, ba->blocks, STORASCAN_MAX_SWEEP);
     ba->npars = parse_list(ba->par_s, 0, ba->pars, STORASCAN_MAX_SWEEP);
     if (ba->nblocks <= 0 || ba->npars <= 0) {
-        fprintf(stderr, "xrdstorascan: bad --block/--parallel list\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdstorascan: bad --block/--parallel list\n");
         return SX_USAGE;
     }
     return SX_OK;
@@ -505,7 +506,7 @@ bench_run_matrix(const bench_args_t *ba, const brix_url *u, int64_t fsize)
             cfg.total_ops = ba->count > 0 ? (uint64_t) ba->count : 0;
 
             if (bench_cell(&cfg, &r, errmsg, sizeof(errmsg)) != 0) {
-                fprintf(stderr, "xrdstorascan: bench %ldx%ld: %s\n",
+                BRIX_CLIENT_LOG("ERROR",  "xrdstorascan: bench %ldx%ld: %s\n",
                         ba->blocks[bi], ba->pars[pi], errmsg);
                 rc = SX_ERROR;
                 continue;
@@ -552,7 +553,7 @@ cmd_bench(int argc, char **argv, const char *prog)
         return rc;
     }
     if (brix_stat(&c, u.path, &sti, &st) != 0) {
-        fprintf(stderr, "xrdstorascan: stat %s: %s\n", u.path, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdstorascan: stat %s: %s\n", u.path, st.msg);
         brix_close(&c);
         return brix_shellcode(&st);
     }

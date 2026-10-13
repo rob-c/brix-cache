@@ -14,6 +14,7 @@
  *
  * names: src/protocols/root/protocol/opcodes.h request opcodes (3000–3032) + response statuses.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 
 #include "core/compat/kxr_names.h"   /* shared kXR opcode/status name tables (libxrdproto) */
@@ -69,7 +70,11 @@ brix_jitter_ms(unsigned span_ms)
     return (unsigned) (state % span_ms);
 }
 
-/* Bounded hexdump (cap 256 bytes) of buf[0..n) to stderr, 16 bytes per row. */
+/*
+ * WHAT: Emit a bounded hexdump (256 bytes, 16 per event).
+ * WHY: Fragmented stderr writes interleave with other threads' diagnostics.
+ * HOW: Format each row locally, then emit one complete DEBUG record.
+ */
 static void
 hexdump(const uint8_t *buf, uint32_t n)
 {
@@ -77,14 +82,16 @@ hexdump(const uint8_t *buf, uint32_t n)
     uint32_t i;
     for (i = 0; i < cap; i += 16) {
         uint32_t j;
-        fprintf(stderr, "      %04x: ", i);
+        char row[49];
+        size_t used = 0;
         for (j = i; j < i + 16 && j < cap; j++) {
-            fprintf(stderr, "%02x ", buf[j]);
+            used += (size_t) snprintf(row + used, sizeof(row) - used,
+                                     "%02x ", buf[j]);
         }
-        fprintf(stderr, "\n");
+        BRIX_CLIENT_LOG("DEBUG", "offset=%04x bytes=%s", i, row);
     }
     if (n > cap) {
-        fprintf(stderr, "      … (%u more bytes)\n", n - cap);
+        BRIX_CLIENT_LOG("DEBUG",  "      … (%u more bytes)\n", n - cap);
     }
 }
 
@@ -107,7 +114,7 @@ static void
 brix_trace_error(int dir, uint16_t sid, const uint8_t *b, uint32_t blen)
 {
     int errnum = (int) xrd_get_u32_be(b);
-    fprintf(stderr, "%c sid=%u error errnum=%d (%s) \"%.*s\"\n",
+    BRIX_CLIENT_LOG("DEBUG",  "%c sid=%u error errnum=%d (%s) \"%.*s\"\n",
             dir, sid, errnum, brix_kxr_name(errnum),
             (int) (blen > 4 ? blen - 4 : 0),
             blen > 4 ? (const char *) (b + 4) : "");
@@ -131,7 +138,7 @@ static void
 brix_trace_redirect(int dir, uint16_t sid, const uint8_t *b, uint32_t blen)
 {
     int port = (int) xrd_get_u32_be(b);
-    fprintf(stderr, "%c sid=%u redirect → %.*s:%d\n",
+    BRIX_CLIENT_LOG("DEBUG",  "%c sid=%u redirect → %.*s:%d\n",
             dir, sid, (int) (blen > 4 ? blen - 4 : 0),
             blen > 4 ? (const char *) (b + 4) : "", port);
 }
@@ -151,7 +158,7 @@ brix_trace_redirect(int dir, uint16_t sid, const uint8_t *b, uint32_t blen)
 static void
 brix_trace_wait(int dir, uint16_t sid, const uint8_t *b)
 {
-    fprintf(stderr, "%c sid=%u wait %us\n",
+    BRIX_CLIENT_LOG("DEBUG",  "%c sid=%u wait %us\n",
             dir, sid, xrd_get_u32_be(b));
 }
 
@@ -185,7 +192,7 @@ brix_trace_response(int dir, uint16_t sid, int code, uint32_t dlen,
     } else if (code == kXR_wait && b != NULL && blen >= 4) {
         brix_trace_wait(dir, sid, b);
     } else {
-        fprintf(stderr, "%c sid=%u %s dlen=%u\n",
+        BRIX_CLIENT_LOG("DEBUG",  "%c sid=%u %s dlen=%u\n",
                 dir, sid, brix_status_name(code), dlen);
     }
 }
@@ -197,13 +204,19 @@ brix_trace_frame(brix_conn *c, int dir, uint16_t sid, int code,
     const uint8_t *b = (const uint8_t *) body;
 
     if (is_request) {
-        fprintf(stderr, "%c sid=%u %s dlen=%u\n",
+        BRIX_CLIENT_LOG("DEBUG",  "%c sid=%u %s dlen=%u\n",
                 dir, sid, brix_reqid_name(code), dlen);
     } else {
         brix_trace_response(dir, sid, code, dlen, b, blen);
     }
 
-    if (c->diag.wire_trace >= 2 && b != NULL && blen > 0) {
+    /* Handshake bodies contain credentials/session material, never dump them.
+     * Later signing and authentication requests remain sensitive as well. */
+    if (c->diag.wire_trace >= 2 && b != NULL && blen > 0
+        && c->diag.phase_ns[3] != 0
+        && (!is_request || (code != kXR_auth && code != kXR_login
+                            && code != kXR_sigver))
+        && (is_request || code != kXR_authmore)) {
         hexdump(b, blen);
     }
 }
@@ -224,7 +237,7 @@ brix_timing_report(const brix_conn *c)
         }
         tot = (double) c->diag.rtt[i].tot_ns / 1e6;
         avg = tot / (double) n;
-        fprintf(stderr, "  %-12s n=%-4llu tot=%.3f min=%.3f avg=%.3f max=%.3f\n",
+        BRIX_CLIENT_LOG("DEBUG",  "  %-12s n=%-4llu tot=%.3f min=%.3f avg=%.3f max=%.3f\n",
                 brix_reqid_name(i + kXR_1stRequest),
                 (unsigned long long) n, tot,
                 (double) c->diag.rtt[i].min_ns / 1e6, avg,

@@ -2,6 +2,7 @@
  * copy_upload.c - PUT upload path (root:// + web/S3) + copy_web dispatcher.
  * Phase-38 split of copy_local.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "copy_internal.h"
 
 
@@ -103,23 +104,31 @@ upload_close_commit_resilient(pump_remote_t *sink, int64_t total,
  *       compared against the local source digest; confining that policy here
  *       keeps upload_stream_body's tail a single call.
  * HOW:  For stdin (XRDC_SCHEME_STDIO) there is no on-disk file, so passes NULL
- *       as the local path (cksum_verify skips gracefully).  MISMATCH returns -1;
- *       UNVERIFIED prints the note (unless silent) and clears st (a could-not-
- *       verify is not a transfer failure); OK returns 0.
+ *       as the local path. MISMATCH returns -1; --verify also makes stdin and
+ *       UNVERIFIED fail, while explicit --cksum retains warn-and-clear. OK
+ *       returns 0.
  */
 static int
 upload_reconcile_cksum(brix_conn *c, const brix_url *su, const brix_url *du,
                        const brix_copy_opts *o, brix_status *st)
 {
     const char *ck_local = (su->scheme == XRDC_SCHEME_STDIO) ? NULL : su->path;
+    if (o->verify_strict && ck_local == NULL) {
+        brix_status_set(st, XRDC_EUSAGE, 0,
+                        "--verify needs a file source to checksum");
+        return -1;
+    }
     int ck = cksum_verify(c, du->path, ck_local, o->cksum, o->silent, st);
     if (ck == XRDC_CK_MISMATCH) {
         return -1;
     }
     if (ck == XRDC_CK_UNVERIFIED) {
         if (!o->silent) {
-            fprintf(stderr, "xrdcp: uploaded but checksum NOT verified: %s\n",
+            BRIX_CLIENT_LOG("WARN",  "xrdcp: uploaded but checksum NOT verified: %s\n",
                     st->msg);
+        }
+        if (o->verify_strict) {
+            return -1;
         }
         brix_status_clear(st);   /* could-not-verify is not a transfer failure */
     }
@@ -222,7 +231,7 @@ upload_stream_body(const upload_body_ctx *j, pump_src_fn src, void *srcctx,
      * (0 = single-stream or full fallback to the primary).  Opt-in so normal output
      * is unchanged. */
     if (getenv("BRIX_STREAMS_DEBUG") != NULL) {
-        fprintf(stderr, "brix: upload substreams=%d chunks-on-secondaries=%u\n",
+        BRIX_CLIENT_LOG("INFO",  "brix: upload substreams=%d chunks-on-secondaries=%u\n",
                 ss.n, sink.sec_writes);
     }
 
@@ -359,7 +368,7 @@ copy_web_upload(const brix_url *su, const brix_weburl *du, const brix_copy_opts 
     }
     brix_vfs_close(vf);
     if (rc == 0 && o && !o->silent) {
-        fprintf(stderr, "xrdcp: uploaded %lld bytes (HTTP %d)\n",
+        BRIX_CLIENT_LOG("INFO",  "xrdcp: uploaded %lld bytes (HTTP %d)\n",
                 (long long) vst.size, status);
     }
     return rc;

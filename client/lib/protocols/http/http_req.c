@@ -280,6 +280,13 @@ httpx_read_response(brix_io *io, const httpx_exchange_t *ex,
             httpx_read_frame_headers(buf, total, &fr);
         }
     }
+    if (strcmp(ex->method, "HEAD") != 0 && fr.have_hdrs && fr.clen >= 0
+        && (uint64_t) fr.clen != (uint64_t) (total - fr.body_off)) {
+        free(buf);
+        brix_status_set(st, XRDC_EPROTO, 0,
+            "http_req: Content-Length body truncated");
+        return -1;
+    }
     buf[total] = '\0';
     httpx_parse(buf, total, resp);
     free(buf);
@@ -346,5 +353,46 @@ brix_http_req(const char *host, int port, int tls, const char *method,
     if (rc != 0) {
         brix_http_resp_free(resp);
     }
+    return rc;
+}
+
+/* WHAT: Send exact caller-framed HTTP bytes through the shared transport.
+ * WHY: Conformance probes need truncated and malformed requests without
+ *      duplicating DNS, TCP, TLS, timeout or response-decoding machinery.
+ * HOW: Connect normally, write the bounded byte string, optionally half-close
+ *      cleartext TCP, read one response, then use the standard teardown. */
+int
+brix_http_raw_req(const char *host, int port, int tls,
+                  const void *request, size_t request_len,
+                  int finish_write, int timeout_ms, int verify,
+                  const char *ca_dir, const char *client_cert,
+                  brix_http_resp *resp, brix_status *st)
+{
+    httpx_exchange_t read_spec = {
+        host, port, "RAW", "/", NULL, NULL, 0, timeout_ms
+    };
+    brix_io io;
+    void *tls_ctx = NULL;
+    int rc;
+
+    memset(resp, 0, sizeof(*resp));
+    if (request == NULL || request_len == 0) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "http raw request is empty");
+        return -1;
+    }
+    if (httpx_connect(&io, host, port, tls, verify, ca_dir, client_cert,
+            timeout_ms, &tls_ctx, st) != 0) return -1;
+    resp->tls = tls;
+    rc = brix_write_full(&io, request, request_len, st);
+    if (rc == 0 && finish_write && !tls
+        && shutdown(io.fd, SHUT_WR) != 0) {
+        brix_status_set(st, XRDC_ESOCK, errno,
+            "http request half-close: %s", strerror(errno));
+        rc = -1;
+    }
+    if (rc == 0) rc = httpx_read_response(&io, &read_spec, resp, st);
+    if (tls) brix_tls_client_free(&io, tls_ctx);
+    close(io.fd);
+    if (rc != 0) brix_http_resp_free(resp);
     return rc;
 }

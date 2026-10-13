@@ -20,6 +20,7 @@
  * admitted.
  */
 
+#include "core/compat/log_event.h"
 #include "server.h"
 #include "server_recv_internal.h"
 #include "rrdata.h"                       /* Pup decode + statfs reply encode */
@@ -50,7 +51,7 @@ cms_srv_frame_login(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     const u_char *payload, size_t payload_len)
 {
     if (!cms_srv_parse_login(ctx, payload, payload_len)) {
-        ngx_log_error(NGX_LOG_WARN, ctx->c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ctx->c->log, 0,
                       "brix: CMS server: malformed LOGIN from %s",
                       ctx->host);
         brix_cms_log_action_hp(ctx->c->log, "login", ctx->host,
@@ -86,7 +87,7 @@ cms_srv_frame_xauth(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     const u_char *payload, size_t payload_len)
 {
     if (ctx->auth_state != CMS_AUTH_CHALLENGED) {
-        ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ctx->c->log, 0,
                       "brix: CMS server: unexpected kYR_xauth from %s",
                       ctx->host);
         cms_srv_log_auth_fail(ctx, "invalid");
@@ -177,7 +178,7 @@ void
 cms_srv_frame_pong(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     const u_char *payload, size_t payload_len)
 {
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
                    "brix: CMS server: pong from %s", ctx->host);
 }
 
@@ -189,7 +190,7 @@ void
 cms_srv_frame_ping(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     const u_char *payload, size_t payload_len)
 {
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
                    "brix: CMS server: ping from %s -> pong", ctx->host);
     if (brix_cms_srv_send_pong(ctx) != NGX_OK) {
         cms_srv_fail_close(ctx, BRIX_SESS_END_ERROR);
@@ -204,7 +205,7 @@ void
 cms_srv_frame_disc(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     const u_char *payload, size_t payload_len)
 {
-    ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, ctx->c->log, 0,
                   "brix: CMS server: %s requested disconnect", ctx->host);
     brix_cms_log_action_hp(ctx->c->log, "disconnect", ctx->host,
                            (int) ctx->port, "in", NULL, 1,
@@ -221,7 +222,7 @@ void
 cms_srv_frame_update(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     const u_char *payload, size_t payload_len)
 {
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
                    "brix: CMS server: update from %s -> status", ctx->host);
     if (brix_cms_srv_send_status(ctx, CMS_ST_RESUME | CMS_ST_NOSTAGE)
         != NGX_OK)
@@ -289,7 +290,7 @@ cms_srv_frame_status(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
 
     if (mod & CMS_ST_SUSPEND) {
         brix_srv_blacklist(ctx->host, ctx->port, BRIX_CMS_BLACKLIST_DURATION_MS);
-        ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ctx->c->log, 0,
                       "brix: CMS server: %s:%d suspended",
                       ctx->host, (int) ctx->port);
         brix_cms_log_action_hp(ctx->c->log, "status", ctx->host,
@@ -297,7 +298,7 @@ cms_srv_frame_status(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
                                "suspend -> node drained (not selectable)");
     } else if (mod & CMS_ST_RESUME) {
         (void) brix_srv_undrain(ctx->host, ctx->port);
-        ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ctx->c->log, 0,
                       "brix: CMS server: %s:%d resumed",
                       ctx->host, (int) ctx->port);
         brix_cms_log_action_hp(ctx->c->log, "status", ctx->host,
@@ -307,7 +308,7 @@ cms_srv_frame_status(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
 
     if (mod & CMS_ST_RESET) {
         (void) brix_srv_reset(ctx->host, ctx->port);
-        ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ctx->c->log, 0,
                       "brix: CMS server: %s:%d state reset",
                       ctx->host, (int) ctx->port);
         brix_cms_log_action_hp(ctx->c->log, "status", ctx->host,
@@ -402,7 +403,7 @@ cms_srv_frame_gone(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     ngx_memcpy(path, payload, copy);
     path[copy] = '\0';
     brix_srv_unregister_path(ctx->host, ctx->port, path);
-    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
                    "brix: CMS server: kYR_gone path=%s from %s:%d",
                    path, ctx->host, (int) ctx->port);
     brix_cms_log_action_hp(ctx->c->log, "path-gone", ctx->host,
@@ -449,7 +450,7 @@ cms_srv_frame_have(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     }
 
     if (brix_srv_is_blacklisted(ctx->host, ctx->port)) {
-        ngx_log_error(NGX_LOG_INFO, ctx->c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, ctx->c->log, 0,
                       "brix: CMS server: ignoring have for \"%s\" from "
                       "drained node %s:%d", path, ctx->host, (int) ctx->port);
         return;
@@ -478,7 +479,7 @@ cms_srv_frame_have(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     }
 
     if (!brix_srv_paths_cover(ctx->paths, path)) {
-        ngx_log_error(NGX_LOG_WARN, ctx->c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ctx->c->log, 0,
                       "brix: CMS server: %s:%d asserted have for \"%s\" "
                       "outside its exported paths [%s] — dropped",
                       ctx->host, (int) ctx->port, path, ctx->paths);
@@ -556,7 +557,7 @@ cms_srv_frame_cns(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     if (brix_cns_event_decode(payload, payload_len, &op, &size, &mtime,
                                 path, sizeof(path)) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_WARN, ctx->c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ctx->c->log, 0,
                       "brix: CMS server: malformed CNS event from %s",
                       ctx->host);
         return;
@@ -577,19 +578,19 @@ cms_srv_frame_cns(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
         if (brix_cns_event_decode_mv(payload, payload_len, &is_dir,
                                        newpath, sizeof(newpath)) != NGX_OK)
         {
-            ngx_log_error(NGX_LOG_WARN, ctx->c->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, ctx->c->log, 0,
                           "brix: CMS server: malformed CNS rename from %s",
                           ctx->host);
             return;
         }
         (void) brix_cns_rename(path, newpath, size, mtime, is_dir, server_id);
-        ngx_log_debug2(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
                        "brix: CNS rename %s -> %s", path, newpath);
         return;
     }
 
     (void) brix_cns_apply(op, path, size, mtime, server_id);
-    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
                    "brix: CNS event op=%ud path=%s from %s",
                    (unsigned) op, path, ctx->host);
 }

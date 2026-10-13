@@ -20,6 +20,7 @@
  *       gate on top of x509 via the shared brix_extract_voms_info engine
  *       (per-VO LSC vomsdir + VOMS signing-CA trust); still POLICY GLUE.
  */
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "cvmfs_module_internal.h"
 #include "core/ngx_brix_module.h"           /* brix_extract_voms_info (voms) */
@@ -162,7 +163,7 @@ cvmfs_conf_repo_authz(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     (void) cmd;
 
     if (value[1].len == 0 || value[2].len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_repo_authz needs <repo-fqrn|*> <scitokens.cfg>");
         return NGX_CONF_ERROR;
     }
@@ -405,7 +406,7 @@ brix_scvmfs_postconf_proxy_certs(ngx_conf_t *cf, void *cscf)
     param = SSL_CTX_get0_param(sslcf->ssl.ctx);
     if (param != NULL) {
         X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_ALLOW_PROXY_CERTS);
-        ngx_log_error(NGX_LOG_INFO, cf->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, cf->log, 0,
             "scvmfs: enabled X509_V_FLAG_ALLOW_PROXY_CERTS on server %V",
             &core_srv->server_name);
     }
@@ -437,14 +438,14 @@ cvmfs_conf_qos(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (value[3].len <= sizeof("fills=") - 1
         || ngx_strncmp(value[3].data, "fills=", sizeof("fills=") - 1) != 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_qos needs <class> sub=<subject>|default fills=<n>");
         return NGX_CONF_ERROR;
     }
     fills = ngx_atoi(value[3].data + sizeof("fills=") - 1,
                      value[3].len - (sizeof("fills=") - 1));
     if (fills == NGX_ERROR) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_qos: \"%V\" is not a fill rate", &value[3]);
         return NGX_CONF_ERROR;
     }
@@ -472,7 +473,7 @@ cvmfs_conf_qos(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (value[2].len <= sizeof("sub=") - 1
         || ngx_strncmp(value[2].data, "sub=", sizeof("sub=") - 1) != 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_qos: match must be sub=<subject> or default");
         return NGX_CONF_ERROR;
     }
@@ -541,7 +542,7 @@ brix_cvmfs_qos_check(ngx_http_request_t *r,
     cls->last = now;
 
     if (cls->tokens < 1000) {
-        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, r->connection->log, 0,
             "cvmfs: qos class \"%V\" fill budget exhausted "
             "(sub \"%s\", %ui fills/s) - 429", &cls->name,
             ctx->token_sub[0] != '\0' ? ctx->token_sub : "anonymous",

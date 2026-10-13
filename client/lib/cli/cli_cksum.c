@@ -17,6 +17,7 @@
  *       xrdcrc32c → 3, xrdcrc64 → 1) rather than the XrdCl-style shellcode, which
  *       diverged from stock (54=NotFound) and tripped scripts that branch on $?.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "core/compat/crypto.h"
 #include "core/version.h"
@@ -61,15 +62,15 @@ brix_cli_cksum_main(const char *prog, const char *algo_name,
 
         if (brix_url_parse(arg, &u, &st) != 0
             || (u.scheme != XRDC_SCHEME_ROOT && u.scheme != XRDC_SCHEME_ROOTS)) {
-            fprintf(stderr, "%s: %s\n", prog, st.msg);
+            BRIX_CLIENT_LOG("ERROR",  "%s: %s\n", prog, st.msg);
             return XRDC_EXIT_USAGE;
         }
         if (brix_connect(&c, &u, NULL, &st) != 0) {
-            fprintf(stderr, "%s: connect: %s\n", prog, st.msg);
+            BRIX_CLIENT_LOG("ERROR",  "%s: connect: %s\n", prog, st.msg);
             return err_exit;
         }
         if (brix_query_cksum(&c, u.path, algo_name, hex, sizeof(hex), &st) != 0) {
-            fprintf(stderr, "%s: %s\n", prog, st.msg);
+            BRIX_CLIENT_LOG("ERROR",  "%s: %s\n", prog, st.msg);
             brix_close(&c);
             return err_exit;
         }
@@ -81,11 +82,11 @@ brix_cli_cksum_main(const char *prog, const char *algo_name,
     {
         int fd = open(arg, O_RDONLY);
         if (fd < 0) {
-            fprintf(stderr, "%s: open %s failed\n", prog, arg);
+            BRIX_CLIENT_LOG("ERROR",  "%s: open %s failed\n", prog, arg);
             return err_exit;
         }
         if (brix_cksum_fd(fd, algo, hex, sizeof(hex), &st) != 0) {
-            fprintf(stderr, "%s: %s\n", prog, st.msg);
+            BRIX_CLIENT_LOG("ERROR",  "%s: %s\n", prog, st.msg);
             close(fd);
             return err_exit;
         }

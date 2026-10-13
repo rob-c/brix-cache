@@ -24,6 +24,22 @@
 #include <stdio.h>
 #include <sys/param.h>
 #include <sys/stat.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define BRIX_DARWIN_COPY_BUFFER (256U * 1024U)
+
+static ssize_t
+darwin_copy_read(int fd, void *buf, size_t len, off_t *off)
+{
+    return off == NULL ? read(fd, buf, len) : pread(fd, buf, len, *off); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
+}
+
+static ssize_t
+darwin_copy_write(int fd, const void *buf, size_t len, off_t *off)
+{
+    return off == NULL ? write(fd, buf, len) : pwrite(fd, buf, len, *off); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
+}
 
 int
 brix_plat_pipe2(int pipefd[2], int flags)
@@ -54,11 +70,53 @@ brix_plat_copy_range(int in_fd, off_t *in_off,
                      int out_fd, off_t *out_off,
                      size_t len, unsigned int flags)
 {
-    /* macOS lacks copy_file_range - use buffered copy */
-    (void)in_fd; (void)in_off; (void)out_fd; (void)out_off;
-    (void)len; (void)flags;
-    errno = ENOSYS;
-    return -1;
+    unsigned char *buffer;
+    size_t         copied = 0;
+
+    if (flags != 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (len == 0) return 0;
+    buffer = malloc(len < BRIX_DARWIN_COPY_BUFFER
+        ? len : BRIX_DARWIN_COPY_BUFFER);
+    if (buffer == NULL) return -1;
+    while (copied < len) {
+        size_t  wanted = len - copied;
+        ssize_t nr;
+        size_t  written = 0;
+
+        if (wanted > BRIX_DARWIN_COPY_BUFFER) wanted = BRIX_DARWIN_COPY_BUFFER;
+        nr = darwin_copy_read(in_fd, buffer, wanted, in_off);
+        if (nr < 0 && errno == EINTR) continue;
+        if (nr <= 0) {
+            if (nr < 0 && copied == 0) copied = (size_t) -1;
+            break;
+        }
+        while (written < (size_t) nr) {
+            ssize_t nw = darwin_copy_write(out_fd, buffer + written,
+                (size_t) nr - written, out_off);
+
+            if (nw < 0 && errno == EINTR) continue;
+            if (nw <= 0) {
+                if (written != 0) {
+                    copied += written;
+                    if (in_off != NULL) *in_off += (off_t) written;
+                } else if (copied == 0) {
+                    copied = (size_t) -1;
+                }
+                free(buffer);
+                return copied == (size_t) -1 ? -1 : (ssize_t) copied;
+            }
+            written += (size_t) nw;
+            if (out_off != NULL) *out_off += nw;
+        }
+        copied += (size_t) nr;
+        if (in_off != NULL) *in_off += nr;
+        if ((size_t) nr < wanted) break;
+    }
+    free(buffer);
+    return copied == (size_t) -1 ? -1 : (ssize_t) copied;
 }
 
 int
@@ -86,9 +144,19 @@ brix_plat_fd_seal(int fd)
 int
 brix_plat_reserve(int fd, off_t size)
 {
-    (void) fd; (void) size;
-    errno = EOPNOTSUPP;
-    return -1;
+    fstore_t store;
+
+    if (size < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    memset(&store, 0, sizeof(store));
+    store.fst_flags = F_ALLOCATECONTIG;
+    store.fst_posmode = F_PEOFPOSMODE;
+    store.fst_length = size;
+    if (fcntl(fd, F_PREALLOCATE, &store) == 0) return 0;
+    store.fst_flags = F_ALLOCATEALL;
+    return fcntl(fd, F_PREALLOCATE, &store);
 }
 
 ssize_t

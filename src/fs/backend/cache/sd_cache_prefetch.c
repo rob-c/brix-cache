@@ -32,6 +32,7 @@
  *       block are idempotent (same bytes, same offsets) — the pre-existing
  *       two-workers-one-object scenario, not a new concurrency class.
  */
+#include "core/compat/log_event.h"
 #include "sd_cache.h"
 #include "sd_cache_internal.h"    /* sd_cache_inst_state + sd_cache_partial_t */
 #include "core/aio/aio.h"         /* brix_task_bind */
@@ -147,7 +148,7 @@ sd_cache_prefetch_done(ngx_event_t *ev)
             BRIX_ATOMIC_INC(&shm->unified.cache_prefetch_failures_total);
         }
     }
-    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, j->st->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, j->st->log, 0,
                    "brix: cache prefetch done: %ui blocks, failed=%d, "
                    "in-flight=%ui", (ngx_uint_t) j->filled, (int) j->failed,
                    j->st->prefetch_active);
@@ -273,7 +274,7 @@ sd_cache_prefetch_post(brix_sd_obj_t *obj, sd_cache_partial_t *p,
     if (shm != NULL) {
         BRIX_ATOMIC_INC(&shm->unified.cache_prefetch_jobs_total);
     }
-    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, st->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, st->log, 0,
                    "brix: cache prefetch posted: blocks %uL..%uL, in-flight=%ui",
                    b0, b1, st->prefetch_active);
 }

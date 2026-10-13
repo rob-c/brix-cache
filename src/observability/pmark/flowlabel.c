@@ -22,6 +22,7 @@
  *   net.ipv6 sysctls / CAP_NET_ADMIN for some ranges).
  */
 
+#include "core/compat/log_event.h"
 #include "pmark.h"
 #include "observability/metrics/metrics.h"
 #include "observability/metrics/metrics_macros.h"
@@ -90,7 +91,7 @@ brix_pmark_flowlabel_usable(ngx_log_t *log)
     if (setsockopt(fd, IPPROTO_IPV6, BRIX_IPV6_FLOWLABEL_MGR, &fl, sizeof(fl)) == 0) {
         pmark_fl_usable = 1;
     } else {
-        ngx_log_error(NGX_LOG_NOTICE, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_NOTICE, log, ngx_errno,
             "pmark: IPv6 flow-label marking unavailable "
             "(check net.ipv6.flowlabel_state_ranges / CAP_NET_ADMIN); "
             "firefly-only");
@@ -126,14 +127,14 @@ pmark_flowlabel_lease(int fd, const struct in6_addr *dst6, ngx_uint_t exp,
 
     if (setsockopt(fd, IPPROTO_IPV6, BRIX_IPV6_FLOWLABEL_MGR, &fl, sizeof(fl)) != 0) {
         BRIX_PMARK_METRIC_INC(pmark_flowlabel_failed_total);
-        ngx_log_debug1(NGX_LOG_DEBUG_CORE, log, ngx_errno,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_CORE, log, ngx_errno,
             "pmark: flow-label lease failed (label=0x%05xui)", label);
         return NGX_DECLINED;
     }
     (void) setsockopt(fd, IPPROTO_IPV6, BRIX_IPV6_FLOWINFO_SEND, &on, sizeof(on));
 
     BRIX_PMARK_METRIC_INC(pmark_flowlabel_set_total);
-    ngx_log_debug1(NGX_LOG_DEBUG_CORE, log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_CORE, log, 0,
         "pmark: stamped IPv6 flow label 0x%05xui", label);
     return NGX_OK;
 }
@@ -201,7 +202,7 @@ brix_pmark_flowlabel_usable(ngx_log_t *log)
 {
     if (!pmark_fl_reported) {
         pmark_fl_reported = 1;
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "pmark: IPv6 flow-label marking unavailable "
             "(no IPV6_FLOWLABEL_MGR on this platform); firefly-only");
     }

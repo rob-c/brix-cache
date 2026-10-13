@@ -287,6 +287,19 @@ brix_dashboard_history_sample(int64_t now_ms)
     ngx_shmtx_unlock(&brix_dashboard_history_mutex);
 }
 
+/* ---- Copy the available recent history window in chronological order ----
+ *
+ * WHAT: Copies at most max_buckets valid history buckets into out and returns
+ *       the number copied; returns zero for invalid inputs or unavailable data.
+ *
+ * WHY: API builders need a bounded, consistent snapshot without exposing the
+ *      shared ring or indexing before server monotonic time began.
+ *
+ * HOW: 1. Validate the output and shared table, then lock the history zone.
+ *      2. Bound the requested window to the ring and clamp its oldest timestamp
+ *         to zero so a young server never produces a negative ring index.
+ *      3. Copy slots whose stored timestamps match and release the mutex.
+ */
 ngx_uint_t
 brix_dashboard_history_snapshot(brix_dashboard_history_bucket_t *out,
     ngx_uint_t max_buckets)
@@ -320,6 +333,9 @@ brix_dashboard_history_snapshot(brix_dashboard_history_bucket_t *out,
 
     oldest = newest - ((int64_t) max_buckets - 1)
                       * BRIX_DASHBOARD_HISTORY_INTERVAL_MS;
+    if (oldest < 0) {
+        oldest = 0;
+    }
     n = 0;
 
     for (ts = oldest; ts <= newest && n < max_buckets;

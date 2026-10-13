@@ -4,6 +4,7 @@
  * Split verbatim from directives.c; the read-cache directives stay there.
  */
 
+#include "core/compat/log_event.h"
 #include "core/config/config.h"
 
 #include <errno.h>
@@ -46,13 +47,13 @@ brix_conf_set_wt_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     } else if (ngx_strcmp(value[1].data, "async") == 0) {
         xcf->wt.mode = BRIX_WT_MODE_ASYNC;
     } else {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_wt_mode: invalid value \"%V\", must be sync or async",
             &value[1]);
         return NGX_CONF_ERROR;
     }
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: write-through mode: %s", (xcf->wt.mode == BRIX_WT_MODE_SYNC) ? "sync" : "async");
     return NGX_CONF_OK;
 }
@@ -97,7 +98,7 @@ brix_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (addr_copy[0] == '[') {
         char *rb = strchr(addr_copy, ']');
         if (rb == NULL || *(rb + 1) != ':') {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_wt_origin: invalid address \"%V\"", &value[1]);
             return NGX_CONF_ERROR;
         }
@@ -110,7 +111,7 @@ brix_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     } else {
         colon = strrchr(addr_copy, ':');
         if (colon == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_wt_origin: missing port in \"%V\"", &value[1]);
             return NGX_CONF_ERROR;
         }
@@ -123,13 +124,13 @@ brix_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     if (*endp != '\0' || pnum < BRIX_VFS_PORT_MIN || pnum > BRIX_VFS_PORT_MAX) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_wt_origin: invalid port in \"%V\" (1-65535)", &value[1]);
         return NGX_CONF_ERROR;
     }
     xcf->wt.origin_port = (uint16_t) pnum;
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: write-through origin: %s:%d",
         (char *) xcf->wt.origin_host.data, (int) xcf->wt.origin_port);
 

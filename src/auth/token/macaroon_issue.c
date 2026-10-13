@@ -18,6 +18,7 @@
  *      is informational only and does not enter the HMAC chain.
  */
 
+#include "core/compat/log_event.h"
 #include "core/types/tunables.h"
 #include "macaroon_issue.h"
 #include "b64url.h"
@@ -119,7 +120,7 @@ emit_cid_caveat(issue_buf_t *buf, u_char sig[32],
                 const char *cav, size_t cav_len, ngx_log_t *log)
 {
     if (write_packet(buf, "cid", 3, (const u_char *) cav, cav_len) < 0) {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "macaroon_issue: buffer overflow");
+        BRIX_LOG(NGX_LOG_ERR, log, 0, "macaroon_issue: buffer overflow");
         return NGX_ERROR;
     }
     chain_hmac(sig, (const u_char *) cav, cav_len);
@@ -144,7 +145,7 @@ emit_location(issue_buf_t *buf, const char *location, ngx_log_t *log)
     if (write_packet(buf, "location", 8,
                      (const u_char *) location, strlen(location)) < 0)
     {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "macaroon_issue: buffer overflow");
+        BRIX_LOG(NGX_LOG_ERR, log, 0, "macaroon_issue: buffer overflow");
         return NGX_ERROR;
     }
     return NGX_OK;
@@ -170,7 +171,7 @@ emit_identifier(issue_buf_t *buf, u_char sig[32],
     if (write_packet(buf, "identifier", 10,
                      (const u_char *) identifier, idlen) < 0)
     {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "macaroon_issue: buffer overflow");
+        BRIX_LOG(NGX_LOG_ERR, log, 0, "macaroon_issue: buffer overflow");
         return NGX_ERROR;
     }
     /* sig = HMAC(root_key, identifier_value) */
@@ -200,7 +201,7 @@ emit_activity_caveat(issue_buf_t *buf, u_char sig[32],
     act_len = (size_t) snprintf(act_cav, sizeof(act_cav),
                                 "activity:%s", activities);
     if (act_len >= sizeof(act_cav)) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "macaroon_issue: activity caveat too long");
         return NGX_ERROR;
     }
@@ -228,7 +229,7 @@ emit_path_caveat(issue_buf_t *buf, u_char sig[32],
     path_cav_len = (size_t) snprintf(path_cav, sizeof(path_cav),
                                      "path:%s", path);
     if (path_cav_len >= sizeof(path_cav)) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "macaroon_issue: path caveat too long");
         return NGX_ERROR;
     }
@@ -259,7 +260,7 @@ emit_expiry_caveat(issue_buf_t *buf, u_char sig[32],
         tm_val.tm_year + 1900, tm_val.tm_mon + 1, tm_val.tm_mday,
         tm_val.tm_hour, tm_val.tm_min, tm_val.tm_sec);
     if (exp_cav_len >= sizeof(exp_cav)) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "macaroon_issue: expiry caveat overflow");
         return NGX_ERROR;
     }
@@ -284,7 +285,7 @@ emit_signature(issue_buf_t *buf, const u_char sig[32], ngx_log_t *log)
     char   hexlen[5];
 
     if (plen > buf->rem) {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "macaroon_issue: buffer overflow");
+        BRIX_LOG(NGX_LOG_ERR, log, 0, "macaroon_issue: buffer overflow");
         return NGX_ERROR;
     }
     snprintf(hexlen, sizeof(hexlen), "%04x", (unsigned int) plen);
@@ -312,12 +313,12 @@ brix_macaroon_issue(ngx_log_t *log,
     issue_buf_t buf;
 
     if (!identifier || !identifier[0] || !root_key || root_key_len == 0) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "macaroon_issue: missing identifier or root key");
         return NGX_ERROR;
     }
     if (out_b64sz < BRIX_MACAROON_ISSUE_OUT_MAX) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "macaroon_issue: output buffer too small");
         return NGX_ERROR;
     }

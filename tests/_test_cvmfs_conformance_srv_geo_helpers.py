@@ -41,6 +41,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 
 from conformance_common import (NGINX_BIN, PortBlock, request, srv_instance,
                                 _xdist_worker_slot)
+from lib_py.util import loopback_alias_usable
 from settings import BIND_HOST, HOST
 
 REPO = "test.cern.ch"
@@ -71,11 +72,21 @@ _ip_seq = itertools.count(1)
 # fallback keeps concurrent standalone runs apart.
 _ip_net = (_xdist_worker_slot()[0] if os.environ.get("PYTEST_XDIST_WORKER")
            else os.getpid()) % (64 * 256)
+_LOOPBACK_ALIASES = loopback_alias_usable("127.0.0.2")
 
 
 def fresh_ip() -> str:
-    """A never-before-used loopback IP: unique EWMA-cache key + refused-fast."""
+    """A fresh refused-fast probe target with a unique EWMA-cache key.
+
+    Linux routes all of 127/8, so an unassigned address fails immediately.
+    Darwin only assigns 127.0.0.1 unless an administrator adds aliases; a
+    synthetic 127/8 address then stalls until the connect timeout.  Guaranteed
+    NXDOMAIN names preserve the unreachable bucket and unique-key contract on
+    such hosts without turning every corpus request into a multi-second wait.
+    """
     n = next(_ip_seq)
+    if not _LOOPBACK_ALIASES:
+        return f"geo-unreachable-{_ip_net}-{n}.invalid"
     return f"127.{64 + _ip_net // 256}.{_ip_net % 256}.{n % 250 + 1}"
 
 
@@ -174,6 +185,8 @@ def listener():
     made = []
 
     def _make(ip=None, port=8000):
+        if ip is None and not _LOOPBACK_ALIASES:
+            pytest.skip("RTT listener corpus requires assignable 127/8 aliases")
         l = ConnCounter(ip or fresh_ip(), port)
         made.append(l)
         return l

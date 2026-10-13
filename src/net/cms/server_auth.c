@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "server.h"
 #include "core/compat/net_target.h"
 #include "auth/sss/sss_internal.h"
@@ -41,7 +42,7 @@ brix_cms_srv_check_peer(ngx_connection_t *c,
          */
         if (!warned && conf->sss_keytab.len == 0) {
             warned = 1;
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                           "brix: CMS server has no brix_cms_server_allow "
                           "and no brix_cms_server_sss_keytab — any host may "
                           "register; set an allowlist or sss keytab to harden");
@@ -73,7 +74,7 @@ brix_cms_srv_verify_xauth(brix_cms_srv_ctx_t *ctx,
                                 payload, payload_len, &id, &key,
                                 err, sizeof(err));
     if (rc != NGX_OK) {
-        ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ctx->c->log, 0,
                       "brix: CMS server: sss auth rejected for %s: %s",
                       ctx->host, err);
         return NGX_ERROR;
@@ -83,7 +84,7 @@ brix_cms_srv_verify_xauth(brix_cms_srv_ctx_t *ctx,
         char safe_user[BRIX_IP_STR_LEN];
         brix_sanitize_log_string(id.name[0] ? id.name : "-",
                                    safe_user, sizeof(safe_user));
-        ngx_log_error(NGX_LOG_INFO, ctx->c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, ctx->c->log, 0,
                       "brix: CMS server: sss auth OK for %s (id=\"%s\")",
                       ctx->host, safe_user);
     }

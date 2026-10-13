@@ -34,9 +34,9 @@ typedef int (*brix_plat_mount_cb)(const char *mountpoint, const char *fstype,
     const char *source, void *arg);
 
 /**
- * Walk the mount table (Linux: /proc/self/mountinfo, or `table_path` when
- * non-NULL; Darwin: getmntinfo(3), table_path ignored) calling `cb` per
- * entry until it returns non-zero.
+ * Walk the mount table (Linux: /proc/self/mountinfo; Darwin: getmntinfo(3)).
+ * On either host, a non-NULL `table_path` selects a mountinfo-format snapshot.
+ * Calls `cb` per entry until it returns non-zero.
  * @return 0, the callback's non-zero value, or -1 with errno
  */
 int brix_plat_mounts_walk(const char *table_path, brix_plat_mount_cb cb,

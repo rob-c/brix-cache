@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "query_internal.h"
 #include "platform/platform_api.h"
 
@@ -144,7 +145,7 @@ brix_prepare_invoke_command(ngx_log_t *log,
     pid = fork();
     if (pid < 0) {
         ngx_free(argv);
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "brix: prepare_command fork() failed");
         return NGX_ERROR;
     }
@@ -173,7 +174,7 @@ brix_prepare_invoke_command(ngx_log_t *log,
     int wstatus;
     waitpid(pid, &wstatus, 0);
     ngx_free(argv);
-    ngx_log_error(NGX_LOG_INFO, log, 0,
+    BRIX_LOG(NGX_LOG_INFO, log, 0,
                   "brix: prepare_command spawned pid %P for %ui path(s)%s",
                   pid, count, coloc ? " (coloc)" : "");
     return NGX_OK;

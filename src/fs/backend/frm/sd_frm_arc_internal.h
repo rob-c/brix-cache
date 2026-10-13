@@ -7,6 +7,7 @@
 #ifndef BRIX_FS_BACKEND_FRM_SD_FRM_ARC_INTERNAL_H
 #define BRIX_FS_BACKEND_FRM_SD_FRM_ARC_INTERNAL_H
 
+#include "core/compat/log_event.h"
 #include "sd_frm_arc.h"
 #include "sd_frm_mss.h"
 #include "frm_zip.h"
@@ -38,7 +39,7 @@ typedef struct {
 #define ARC_LOG(c, level, err, ...)                                          \
     do {                                                                     \
         if ((c)->log != NULL) {                                              \
-            ngx_log_error(level, (c)->log, err, __VA_ARGS__);                \
+            BRIX_LOG(level, (c)->log, err, __VA_ARGS__);                \
         }                                                                    \
     } while (0)
 

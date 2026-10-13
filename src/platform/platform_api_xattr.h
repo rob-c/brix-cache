@@ -9,6 +9,8 @@
  *
  * Cross-platform xattr operations.
  * Note: Windows uses NTFS Alternate Data Streams (ADS).
+ * BRIX_XATTR_NAME_MAX is supplied by the selected host description and is the
+ * maximum portable attribute-name length accepted by that host adapter.
  * ========================================================================== */
 
 /**

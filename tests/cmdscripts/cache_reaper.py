@@ -9,7 +9,7 @@ import time
 
 from cmdscripts import run
 from cmdscripts.command_results import print_results
-from cmdscripts.c_regression_units import _gcov_flags
+from cmdscripts.c_regression_units import _gcov_flags, _sanitizer_flags
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, NGINX_BIN
 
@@ -104,7 +104,8 @@ int main(int argc, char **argv) {
     if missing:
         return False, "missing link object(s): " + ", ".join(missing), binary
     result = run(["cc", "-O", str(source), *map(str, objects),
-                  *_gcov_flags(objects), "-o", str(binary)])
+                  *_gcov_flags(objects), *_sanitizer_flags(objects),
+                  "-o", str(binary)])
     if result.returncode != 0:
         return False, (result.stderr or result.stdout)[-4000:], binary
     return True, "", binary
@@ -162,7 +163,9 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, objs_dir: Path | None = N
     sidecar = dirty.with_name(dirty.name + ".cinfo")
     results: list[tuple[bool, str]] = _expression_3(sidecar, dirty)
 
-    start = run([nginx_bin, "-p", str(base), "-c", str(conf)])
+    env = dict(os.environ)
+    env["ASAN_OPTIONS"] = "detect_leaks=0"
+    start = run([nginx_bin, "-p", str(base), "-c", str(conf)], env=env)
     if start.returncode != 0:
         return _expression_4(start)
 

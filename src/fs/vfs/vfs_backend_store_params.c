@@ -24,6 +24,7 @@
  * the URL is even looked at, so every configuration that works today is
  * bit-identical through here.
  */
+#include "core/compat/log_event.h"
 #include "vfs_backend_registry.h"
 #include "vfs_backend_internal.h"
 #include "vfs_backend_config_internal.h" /* VFS_BE_STR */
@@ -49,7 +50,7 @@ vfs_store_params_check_forward(ngx_conf_t *cf,
         return NGX_OK;
     }
     if (e->origin_fwd_permit[0] == '\0') {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend forward:// needs at least one "
             "permit=<host|.suffix> (an empty permit list would relay to any "
             "origin a client names)");

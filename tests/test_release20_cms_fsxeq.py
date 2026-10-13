@@ -55,13 +55,17 @@ from test_cms_state_have_select import (
 )
 from test_cms_prepadd import _pstr, _expect_error, _expect_silence
 from test_release20_frm_knobs import _inherited_fds
+from log_records import semantic_log_text
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-r20-fsxeq")]
 
 _DIR = os.path.join(os.environ["TMPDIR"], "xrd_r20_fsxeq")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+NGINX_BIN = os.environ.get(
+    "TEST_NGINX_BIN",
+    os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"),
+)
 
 CMS_RR_CHMOD  = 1
 CMS_RR_MKDIR  = 3
@@ -124,6 +128,7 @@ def _fd_recorder(tmp, name, report, fds, env):
     with open(p, "w") as f:
         f.write(f'''#!/usr/bin/python3
 import os
+import stat
 import sys
 
 with open({report!r}, "a", encoding="utf-8") as recorded:
@@ -131,13 +136,23 @@ with open({report!r}, "a", encoding="utf-8") as recorded:
                    "".join(" [" + arg + "]" for arg in sys.argv[1:]) + "\\n")
 
 entries = []
-for name in os.listdir("/proc/self/fd"):
+fd_root = "/proc/self/fd" if os.path.isdir("/proc/self/fd") else "/dev/fd"
+for name in os.listdir(fd_root):
     if not name.isdigit():
         continue
     try:
-        entries.append((int(name), os.readlink("/proc/self/fd/" + name)))
-    except FileNotFoundError:
-        pass
+        entries.append((int(name), os.readlink(fd_root + "/" + name)))
+    except OSError:
+        # Darwin's fdesc filesystem exposes descriptors as device nodes rather
+        # than symlinks.  File type is enough for the leak assertions: sockets
+        # and pipes are the dangerous inherited worker objects.
+        try:
+            mode = os.fstat(int(name)).st_mode
+        except OSError:
+            continue
+        kind = ("socket:" if stat.S_ISSOCK(mode) else
+                "pipe:" if stat.S_ISFIFO(mode) else "file:")
+        entries.append((int(name), kind))
 with open({fds!r}, "w", encoding="utf-8") as listing:
     for number, target in sorted(entries):
         listing.write(f"{{number}} -> {{target}}\\n")
@@ -347,7 +362,7 @@ stream {{ server {{ listen unix:s.sock;
     inject_nginx_runtime_paths(conf, root)
     p = subprocess.run([NGINX_BIN, "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
-    return p.returncode, p.stderr + p.stdout
+    return p.returncode, semantic_log_text(p.stderr + p.stdout)
 
 
 # ===========================================================================

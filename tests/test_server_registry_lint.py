@@ -111,6 +111,10 @@ LAUNCH_BACKLOG = frozenset({
     "userns/e2e_redteam_part4.py",
     "cmdscripts/system_live_ports.py",
     "_perf_netem_helpers.py",
+    # Runs nginx under setpriv/file capabilities as a deliberately different
+    # uid.  The shared registry cannot own that process identity; the probe
+    # has a bounded local prefix and always reaps its child in _stop_probe.
+    "test_privilege_hardening_root.py",
     # Both entries below surfaced only when the guard learned to read a binary
     # reference spelled with a leading underscore or a call; each was an
     # unflagged direct launcher for as long as it has existed.

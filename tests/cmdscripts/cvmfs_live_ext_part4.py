@@ -375,7 +375,13 @@ def selectlog(nginx: Path | None = None) -> int:
         forged_at_bol = any(line.startswith("FORGED-ORIGIN-SWITCH") for line in log_text.splitlines())
         checks.append((not forged_at_bol, "CRLF in path did not forge a log record (key sanitised)"))
         if "FORGED-ORIGIN-SWITCH" in log_text:
-            checks.append((bool(re.search(r"\\x0[dD]\\x0[aA].*FORGED-ORIGIN-SWITCH", log_text)),
+            # The structured logger escapes the sanitiser's literal backslash
+            # as \x5c; legacy plain logs carry the inner \x0d directly.  Both
+            # spellings prove the control bytes stayed data, never line breaks.
+            escaped_crlf = (r"(?:\\x0[dD]|\\x5[cC]x0[dD])"
+                            r"(?:\\x0[aA]|\\x5[cC]x0[aA])")
+            checks.append((bool(re.search(
+                escaped_crlf + r".*FORGED-ORIGIN-SWITCH", log_text)),
                            "wire path logged with CRLF hex-escaped"))
         else:
             checks.append((True, "wire path never logged (rejected before any origin log line)"))

@@ -4,6 +4,8 @@
 # squid/varnish/stock-nginx/module runs.
 import argparse, concurrent.futures, hashlib, json, time, urllib.error, urllib.request
 
+_DIRECT_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
 def _expression_1(samples):
     return (
         [s for s in samples if s["ok"]]
@@ -56,7 +58,10 @@ def _expect(url):
     return hexd.rstrip("C")
 
 def _origin_fetches(mock, path):
-    log = json.load(urllib.request.urlopen(mock + "/ctl/log"))
+    # The mock lives in a private network namespace.  Cache traffic may
+    # deliberately use http_proxy (the module-proxy matrix cell), but control
+    # traffic must always address the mock directly.
+    log = json.load(_DIRECT_OPENER.open(mock + "/ctl/log"))
     return sum(1 for e in log if e["path"] == path)
 
 def run_scenarios(cache, mock, objects, stampede_n=50):
@@ -86,7 +91,7 @@ def main():
     ap.add_argument("--mock", required=True)
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
-    objects = json.load(urllib.request.urlopen(args.mock + "/ctl/objects"))
+    objects = json.load(_DIRECT_OPENER.open(args.mock + "/ctl/objects"))
     results = run_scenarios(args.cache, args.mock, objects)
     with open(args.out, "w") as f:
         json.dump(results, f, indent=2)

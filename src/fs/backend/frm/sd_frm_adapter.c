@@ -13,11 +13,13 @@
  *       frm_select_* per family returning 0 = bound, 1 = not mine, -1 = hard
  *       failure. brix_sd_frm_create() in sd_frm.c drives them in order. */
 
+#include "core/compat/log_event.h"
 #include "sd_frm.h"
 #include "sd_frm_mss.h"     /* MSS adapters (stub/exec) split out */
 #include "sd_frm_internal.h" /* sd_frm_state + the frm_select_* contract */
 #include "sd_frm_arc.h"      /* phase-115 W3.1 dataset archiver decorator */
 #include "fs/xfer/xfer.h"
+#include "platform/platform_api.h"  /* BRIX_HAS_WORKER_EXEC */
 
 #include <dlfcn.h>
 #include <errno.h>
@@ -214,7 +216,7 @@ frm_select_lib_adapter(sd_frm_state *st, const char *adapter,
     }
     path = frm_lib_path(adapter);
     if (path == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "xrootd frm: the \"%s\" MSS adapter needs an HSM library path "
             "($BRIX_FRM_LIB, or the per-dialect override); "
             "falling back to the built-in stub", adapter);
@@ -226,7 +228,7 @@ frm_select_lib_adapter(sd_frm_state *st, const char *adapter,
         return 0;                            /* graceful fallback to exec/stub */
     }
     st->mss = &brix_mss_lib_adapter;
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
         "xrootd frm: \"%s\" library-native MSS adapter (lib=%s, online buffer=%s)",
         adapter, path, location);
     return 0;
@@ -260,9 +262,16 @@ frm_select_exec_adapter(sd_frm_state *st, const char *adapter,
     if (!frm_adapter_is_exec_family(adapter)) {
         return 0;
     }
+    if (!BRIX_HAS_WORKER_EXEC) {
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
+            "xrootd frm: the \"%s\" MSS adapter is unsupported on this host "
+            "because hardened workers cannot execute subprocesses", adapter);
+        errno = ENOTSUP;
+        return -1;
+    }
     cmd = frm_exec_stagecmd(adapter);
     if (cmd == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "xrootd frm: the \"%s\" MSS adapter needs a stage command "
             "(brix_frm_stagecmd, $BRIX_FRM_STAGECMD, or the per-dialect "
             "override); falling back to the built-in stub", adapter);
@@ -275,7 +284,7 @@ frm_select_exec_adapter(sd_frm_state *st, const char *adapter,
         return -1;
     }
     st->mss = &brix_mss_exec_adapter;
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
         "xrootd frm: \"%s\" MSS adapter (stagecmd=%s, copy_timeout=%M ms, "
         "online buffer=%s)", adapter, cmd, frm_conf_copy_timeout_ms, location);
     return 0;
@@ -308,7 +317,7 @@ frm_select_stub_adapter(sd_frm_state *st, const char *adapter,
         && !frm_adapter_is_exec_family(adapter)
         && !frm_adapter_is_lib_family(adapter))
     {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "xrootd frm: MSS adapter \"%s\" is not recognized (known: stub, "
             "exec, hpss, cta, lib, libhpss, libcta); using the built-in stub",
             adapter);
@@ -353,7 +362,7 @@ frm_select_arc_decorator(sd_frm_state *st, const brix_sd_frm_opts_t *opts,
         return -1;
     }
     if (log != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "xrootd frm: dataset archiver armed over the %s adapter "
             "(depth=%ud, base=%s)", st->mss->name, opts->arc_depth, st->location);
     }

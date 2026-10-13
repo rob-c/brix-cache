@@ -9,6 +9,8 @@ import os
 import pwd
 import subprocess
 
+from lib_py.util import nologin_shell
+
 PREFIX = "brixtest_"
 
 
@@ -47,6 +49,41 @@ def sweep_leftover() -> None:
     reap()
 
 
+def _remove_mismatched_user(uname: str, uid: int) -> bool:
+    """Return true when the requested account already has the requested uid."""
+    try:
+        if pwd.getpwnam(uname).pw_uid == uid:
+            return True
+        subprocess.run(["userdel", "-r", uname], capture_output=True)
+    except KeyError:
+        pass
+    return False
+
+
+def _create_group(uname: str, uid: int) -> None:
+    subprocess.run(["groupdel", uname], capture_output=True)
+    created = subprocess.run(
+        ["groupadd", "-o", "-g", str(uid), uname], capture_output=True,
+    )
+    if created.returncode == 0:
+        return
+    detail = created.stderr.decode("utf-8", "replace")
+    raise RuntimeError(
+        f"cannot provision group {uname} at gid {uid}: {detail.strip()}")
+
+
+def _create_user(uname: str, uid: int) -> None:
+    created = subprocess.run(
+        ["useradd", "-r", "-M", "-o", "-u", str(uid),
+         "-g", uname, "-s", nologin_shell(), uname], capture_output=True,
+    )
+    if created.returncode == 0:
+        return
+    detail = created.stderr.decode("utf-8", "replace")
+    raise RuntimeError(
+        f"cannot provision {uname} at uid {uid}: {detail.strip()}")
+
+
 def provision(cast) -> None:
     """Create brixtest_<name> system users at each principal's uid. Distinct principals that
     share a uid (collide/alice) collapse onto one account by design."""
@@ -58,12 +95,14 @@ def provision(cast) -> None:
             # Two principals mapping to one uid share the FIRST account created for it.
             continue
         seen_uids.setdefault(p.uid, uname)
-        try:
-            if pwd.getpwnam(uname).pw_uid == p.uid:
-                continue
-            subprocess.run(["userdel", "-r", uname], capture_output=True)
-        except KeyError:
-            pass
+        if _remove_mismatched_user(uname, p.uid):
+            continue
+        # A killed run can leave the user absent but its private group behind.
+        # shadow-utils then rejects useradd with exit 16 while trying to create
+        # that same group.  The session-wide sweep normally removes it, but do
+        # this again immediately before creation so cleanup is idempotent even
+        # after a partially successful userdel.
+        _create_group(uname, p.uid)
         # Each principal gets its OWN group, which is why -N (share the system
         # `users` group) is gone.  `users` is gid 100, and the impersonation
         # floor refuses any target whose primary gid is below brix_idmap_min_uid
@@ -75,5 +114,4 @@ def provision(cast) -> None:
         # plane's whole attribution property (F6/F9) was unreachable because of
         # one useradd flag.  Without -N, useradd creates brixtest_<name> at the
         # first free gid >= GID_MIN, which clears the floor by construction.
-        subprocess.run(["useradd", "-M", "-o", "-u", str(p.uid),
-                        "-s", "/usr/sbin/nologin", uname], check=True, capture_output=True)
+        _create_user(uname, p.uid)

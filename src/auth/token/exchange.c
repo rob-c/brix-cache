@@ -19,6 +19,7 @@
  *       keyed on (sub,aud,scope)/exp; this helper returns a fresh pool copy.
  */
 
+#include "core/compat/log_event.h"
 #include <ngx_core.h>
 
 #include "auth/token/exchange.h"
@@ -220,14 +221,14 @@ brix_tx_parse_response(ngx_pool_t *pool, const u_char *doc, size_t len,
 
     root = json_loadb((const char *) doc, len, JSON_REJECT_DUPLICATES, &jerr);
     if (root == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "token-exchange: malformed JSON response: %s", jerr.text);
         return NGX_ERROR;
     }
 
     tok = json_object_get(root, "access_token");
     if (!json_is_string(tok)) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "token-exchange: response has no access_token");
         json_decref(root);
         return NGX_ERROR;
@@ -236,7 +237,7 @@ brix_tx_parse_response(ngx_pool_t *pool, const u_char *doc, size_t len,
     val = json_string_value(tok);
     vlen = json_string_length(tok);
     if (val == NULL || vlen == 0) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "token-exchange: empty access_token in response");
         json_decref(root);
         return NGX_ERROR;
@@ -257,7 +258,7 @@ brix_tx_parse_response(ngx_pool_t *pool, const u_char *doc, size_t len,
     return NGX_OK;
 #else
     (void) pool; (void) doc; (void) len; (void) out_token;
-    ngx_log_error(NGX_LOG_ERR, log, 0,
+    BRIX_LOG(NGX_LOG_ERR, log, 0,
         "token-exchange: built without jansson (BRIX_HAVE_JANSSON=0)");
     return NGX_ERROR;
 #endif
@@ -285,7 +286,7 @@ brix_tx_http_post(ngx_pool_t *pool, const char *endpoint, const ngx_str_t *body,
 
     curl = curl_easy_init();
     if (curl == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "token-exchange: curl_easy_init() failed");
         return NGX_ERROR;
     }
@@ -330,7 +331,7 @@ brix_tx_http_post(ngx_pool_t *pool, const char *endpoint, const ngx_str_t *body,
     if (brix_dns_curl_pin(curl, cf->dns, endpoint, &resolve, reason,
                           sizeof(reason)) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "token-exchange: cannot resolve endpoint: %s", reason);
         curl_slist_free_all(hdrs);
         curl_easy_cleanup(curl);
@@ -342,7 +343,7 @@ brix_tx_http_post(ngx_pool_t *pool, const char *endpoint, const ngx_str_t *body,
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
         rc = NGX_OK;
     } else {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "token-exchange: request to endpoint failed: %s (http %ld)",
             curl_easy_strerror(res), code);
     }
@@ -369,7 +370,7 @@ brix_token_exchange(ngx_pool_t *pool, const ngx_str_t *subject_token,
         || subject_token == NULL || subject_token->len == 0
         || cf->endpoint.len == 0 || cf->endpoint.data == NULL)
     {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "token-exchange: missing endpoint or subject token");
         return NGX_ERROR;
     }
@@ -382,7 +383,7 @@ brix_token_exchange(ngx_pool_t *pool, const ngx_str_t *subject_token,
     /* A short-lived easy handle drives curl_easy_escape() for body building. */
     curl = curl_easy_init();
     if (curl == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "token-exchange: curl_easy_init() failed (encode)");
         return NGX_ERROR;
     }
@@ -390,7 +391,7 @@ brix_token_exchange(ngx_pool_t *pool, const ngx_str_t *subject_token,
     rc = brix_tx_build_body(curl, pool, subject_token, audience, scope, &body);
     curl_easy_cleanup(curl);
     if (rc != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "token-exchange: failed to build request body");
         return NGX_ERROR;
     }

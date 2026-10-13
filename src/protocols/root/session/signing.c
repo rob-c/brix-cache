@@ -2,6 +2,7 @@
  * signing.c — kXR_sigver opcode handler (request-signature verification).
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 
 /*
@@ -38,9 +39,13 @@ brix_handle_sigver(brix_ctx_t *ctx, ngx_connection_t *c)
     seqno     = req.seqno;
 
     if (ctx->sigver.signing_active) {
+        if (req.version != 0) {
+            return brix_send_error(ctx, c, kXR_SigVerErr,
+                                     "unsupported sigver version");
+        }
         /* Reject replays: seqno must strictly increase across the session. */
         if (seqno <= ctx->sigver.last_seqno) {
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                           "brix: sigver replay (seqno=%llu <= last=%llu)",
                           (unsigned long long) seqno,
                           (unsigned long long) ctx->sigver.last_seqno);
@@ -70,16 +75,15 @@ brix_handle_sigver(brix_ctx_t *ctx, ngx_connection_t *c)
             ctx->sigver.sig_len = (int) ctx->recv.cur_dlen;
             ngx_memcpy(ctx->sigver.sig, ctx->recv.payload, ctx->recv.cur_dlen);
 
-            ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+            BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                            "brix: sigver pending expectrid=%d seqno=%llu",
                            (int) expectrid, (unsigned long long) seqno);
         } else {
-            ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                           "brix: sigver crypto=0x%02xd not verified (RSA path)",
-                           (unsigned) req.crypto);
+            return brix_send_error(ctx, c, kXR_SigVerErr,
+                                     "unsupported sigver crypto");
         }
     } else {
-        ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "brix: sigver accepted without verification (no GSI key)");
     }
 

@@ -155,6 +155,12 @@ def _read_pathid(sock, streamid, fhandle, length, pathid, offset=0):
     return _send_req(sock, streamid, kXR_read, body=read_body, payload=payload)
 
 
+def _read_payload(sock, streamid, fhandle, length, payload, offset=0):
+    """Send kXR_read with an exact caller-selected optional payload shape."""
+    read_body = fhandle + struct.pack(">q", offset) + struct.pack(">i", length)
+    return _send_req(sock, streamid, kXR_read, body=read_body, payload=payload)
+
+
 def _send_read_only(sock, streamid, fhandle, length, pathid=0, offset=0):
     """Send a kXR_read (optionally carrying a read_args pathid) WITHOUT reading
     the response — used by the §1.1 offload test, where a pathid-tagged read's

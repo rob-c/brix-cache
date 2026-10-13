@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "query_internal.h"
 #include "prepare_internal.h"
 #include "fs/path/beneath.h"
@@ -127,10 +128,13 @@ brix_prepare_handle_cancel(brix_ctx_t *ctx, ngx_connection_t *c,
                                                          sizeof(owner_key)),
                                 c->log) != NGX_OK)
     {
+        /* A foreign live id and an absent id must be wire-indistinguishable.
+         * Treat both as an idempotent no-op while retaining the audit event;
+         * returning NotAuthorized here would turn cancel into an ownership
+         * and request-existence oracle. */
         brix_log_access(ctx, c, "PREPARE", reqid, "cancel-denied", 0,
-                          kXR_NotAuthorized, NULL, 0);
-        return brix_prepare_send_fail(ctx, c, reqid, kXR_NotAuthorized,
-                                        "not the owner of this request");
+                          kXR_NotAuthorized, "foreign request hidden", 0);
+        return brix_send_ok(ctx, c, NULL, 0);
     }
 
     /* Mark CANCELLED rather than deleting (phase-107 C2): the record survives
@@ -162,26 +166,6 @@ prepare_alloc_stage_arrays(ngx_connection_t *c, prepare_scan_t *sc, size_t dlen)
     sc->stage_bufs  = ngx_palloc(c->pool, (size_t) sc->stage_max * PATH_MAX);
     if (sc->stage_paths == NULL || sc->stage_bufs == NULL) {
         return NGX_ERROR;
-    }
-    return NGX_OK;
-}
-
-/*
- * Accept one authorized, resolved path.  W6 (phase-107 C2): the stage and evict
- * arms live in prepare_recall.c and own the whole per-path lifecycle — registry
- * record-before-driver-call, brix_vfs_recall/evict, the prepare_command
- * fallback collection (ENOTSUP), FRM-1 ownership on evict.  Both return NGX_OK
- * to continue the scan or NGX_DONE after sending a terminal response.
- */
-static ngx_int_t
-prepare_accept_resolved(brix_ctx_t *ctx, ngx_connection_t *c,
-    prepare_scan_t *sc, char *out_resolved)
-{
-    if (sc->do_evict) {
-        return brix_prepare_evict_one(ctx, c, sc, out_resolved);
-    }
-    if (sc->do_stage) {
-        return brix_prepare_recall_one(ctx, c, sc, out_resolved);
     }
     return NGX_OK;
 }
@@ -256,7 +240,7 @@ prepare_scan_paths(brix_ctx_t *ctx, ngx_connection_t *c, prepare_scan_t *sc)
         }
 
         if (out_resolved != NULL && out_resolved[0] != '\0') {
-            rc = prepare_accept_resolved(ctx, c, sc, out_resolved);
+            rc = brix_prepare_accept_resolved(ctx, c, sc, out_resolved);
             if (rc != NGX_OK) {
                 return rc;   /* NGX_DONE (response sent) or a hard error */
             }
@@ -313,12 +297,12 @@ prepare_emit_stage(brix_ctx_t *ctx, ngx_connection_t *c, prepare_scan_t *sc)
                                           (sc->options & kXR_coloc) != 0)
             != NGX_OK)
         {
-            ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno,
+            BRIX_LOG(NGX_LOG_ERR, c->log, ngx_errno,
                           "brix: prepare_command launch failed");
             /* Best-effort: continue and return ok to the client. */
         }
     } else if (sc->collect_stage && sc->stage_count == 0) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: kXR_stage set but no resolvable paths"
                       " for prepare_command");
     }
@@ -354,13 +338,13 @@ prepare_emit_stage(brix_ctx_t *ctx, ngx_connection_t *c, prepare_scan_t *sc)
             ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, resp_reqid, resp_reqid_len);
             brix_build_attn_asyncms_frame(buf + ok_len, notify_msg, notify_len);
 
-            ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+            BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                 "brix: sending kXR_prepare ok + kXR_attn asyncms notify");
 
             return brix_queue_response(ctx, c, buf, total);
 
         } else {
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                 "brix: kXR_notify requested but %ui path(s) still being "
                 "staged; async completion notification not supported",
                 sc->missing);
@@ -413,7 +397,9 @@ prepare_dispatch_special(brix_ctx_t *ctx, ngx_connection_t *c,
 /*
  * Arm the per-request scan flags from the decoded request.  Split from
  * brix_handle_prepare purely for the CCN cap — the flag arms are the densest
- * branch cluster in the handler.  do_evict excludes kXR_cancel because
+ * branch cluster in the handler.  kXR_fresh has storage meaning only together
+ * with kXR_stage: it arms an eviction before that stage's recall.  do_evict
+ * excludes kXR_cancel because
  * cancel+evict means "cancel the evict request", which the cancel arm already
  * absorbed in prepare_dispatch_special.
  */
@@ -426,6 +412,8 @@ prepare_scan_init(prepare_scan_t *sc, ngx_stream_brix_srv_conf_t *conf,
     sc->options       = req->options;
     sc->collect_stage = (req->options & kXR_stage) && conf->prepare_command.len > 0;
     sc->do_stage      = (req->options & kXR_stage) != 0;
+    sc->do_fresh      = (req->options & (kXR_stage | kXR_fresh))
+                        == (kXR_stage | kXR_fresh);
     sc->do_evict      = (optionx & kXR_evict) != 0 && !(req->options & kXR_cancel);
     sc->do_enqueue    = (req->options & kXR_stage) && conf->frm.enable
                         && brix_stage_registry_singleton() != NULL;

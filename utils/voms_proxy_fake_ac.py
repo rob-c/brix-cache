@@ -18,8 +18,13 @@ Requires: cryptography (listed in requirements.txt).
 
 import dataclasses
 import datetime
+import os
+from pathlib import Path
+import subprocess
+import tempfile
 
 from cryptography import x509
+from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519, padding, rsa
 from cryptography.x509 import ObjectIdentifier
@@ -255,7 +260,44 @@ def sign_tbs(key, name: str, tbs: bytes) -> bytes:
     if kind == 'pss':
         return key.sign(tbs, padding.PSS(mgf=padding.MGF1(digest()), salt_length=32),
                         digest())
-    return key.sign(tbs, padding.PKCS1v15(), digest())
+    try:
+        return key.sign(tbs, padding.PKCS1v15(), digest())
+    except UnsupportedAlgorithm:
+        if name != 'sha1':
+            raise
+        return _sign_rsa_sha1_fixture(key, tbs)
+
+
+def _sign_rsa_sha1_fixture(key, tbs: bytes) -> bytes:
+    """Mint a legacy SHA-1 rejection fixture in one policy-relaxed child.
+
+    Fedora's system-backed cryptography refuses SHA-1 signing before the
+    verifier can exercise its fail-closed path.  The override is private to
+    the openssl child and the temporary key is never exposed in argv or logs.
+    """
+    with tempfile.TemporaryDirectory(prefix='brix-voms-sha1.') as directory:
+        root = Path(directory)
+        key_path = root / 'key.pem'
+        config = root / 'openssl.cnf'
+        key_path.write_bytes(key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        ))
+        key_path.chmod(0o600)
+        config.write_text(
+            'openssl_conf = fixture_init\n\n'
+            '[fixture_init]\n'
+            'alg_section = fixture_algorithms\n\n'
+            '[fixture_algorithms]\n'
+            'rh-allow-sha1-signatures = yes\n'
+        )
+        environment = dict(os.environ, OPENSSL_CONF=str(config))
+        return subprocess.run(
+            ['openssl', 'dgst', '-sha1', '-sign', str(key_path)],
+            input=tbs, check=True, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, env=environment,
+        ).stdout
 
 
 # ---------------------------------------------------------------------------

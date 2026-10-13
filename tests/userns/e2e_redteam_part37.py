@@ -214,10 +214,8 @@ def _rt37_part_b_non_member_copy_into(A_dst, port, t_bob, TAG, has, SRC_BODY, mk
     ok(not has(bba, SRC_BODY),
        f"{TAG}: NO-LEAK copied-in body bytes absent from bob's denied read "
        f"(HTTP {sba})")
-    _combo_setgid_via_copymove_p2(s3port, sg_dir, port, t_bob, t_carol, data, sgp_dir, t_erin, t_alice, stk_dir, mkfile, SG, TAG, TREE_REL, SGP, STK, has, mkdir_own, base)
 
 
-def _combo_setgid_via_copymove_p2(s3port, sg_dir, port, t_bob, t_carol, data, sgp_dir, t_erin, t_alice, stk_dir, mkfile, SG, TAG, TREE_REL, SGP, STK, has, mkdir_own, base):
     # =====================================================================
     # PART B — non-member COPY INTO the staff setgid dir must be DENIED by DAC
     # (bob is research, sgid dir is 2770 staff -> no 'other' bits).  Combination
@@ -239,10 +237,8 @@ def _rt37_control_already_proven_in_part_a(sg_dir, TAG, port, t_bob, base, B_dst
     ok(stat_safe(B_fp) is None,
        f"{TAG}: bob's denied COPY left NO file in the setgid dir")
     # control already proven in PART A that a MEMBER (carol) can copy here.
-    _combo_setgid_via_copymove_p3(s3port, sg_dir, port, t_carol, t_bob, data, sgp_dir, t_erin, t_alice, stk_dir, SG, TAG, TREE_REL, mkfile, SGP, STK, has, mkdir_own, base)
 
 
-def _combo_setgid_via_copymove_p3(s3port, sg_dir, port, t_carol, t_bob, data, sgp_dir, t_erin, t_alice, stk_dir, SG, TAG, TREE_REL, mkfile, SGP, STK, has, mkdir_own, base):
     # =====================================================================
     # PART C — WebDAV tree COPY (Depth: infinity) of carol's research tree into
     # the staff setgid dir.  EVERY child file + nested subdir must inherit staff,
@@ -297,10 +293,8 @@ def _rt37_part_d_webdav_move_into_the(stat_safe, C_dst_dir, TAG, mkfile, SG, sg_
         ok(all((C_sub.st_mode & 1024 != 0, C_sub.st_gid == GID_STAFF)),
            f"{TAG}: PROPAGATE tree-copy nested subdir setgid+staff "
            f"(mode={C_sub.st_mode:o} gid={C_sub.st_gid})")
-    _combo_setgid_via_copymove_p4(s3port, sg_dir, port, t_carol, t_bob, data, sgp_dir, t_erin, t_alice, stk_dir, mkfile, SG, TAG, SGP, STK, has, mkdir_own, base)
 
 
-def _combo_setgid_via_copymove_p4(s3port, sg_dir, port, t_carol, t_bob, data, sgp_dir, t_erin, t_alice, stk_dir, mkfile, SG, TAG, SGP, STK, has, mkdir_own, base):
     # =====================================================================
     # PART D — WebDAV MOVE INTO the setgid dir.  MOVE = rename across dirs; a
     # cross-directory rename that crosses filesystems falls back to copy+unlink
@@ -361,10 +355,8 @@ def _rt37_part_e_move_out_of_the(TAG, port, t_bob, base, SG, stat_safe, D2_fp, d
        f"{TAG}: bob's denied MOVE left no file in the setgid dir")
     ok(os.path.exists(os.path.join(data, "bob", f"{TAG}_bobmv.txt")),
        f"{TAG}: bob's source preserved after his denied MOVE (no data loss)")
-    _combo_setgid_via_copymove_p5(D_dst, s3port, data, port, t_carol, sgp_dir, t_erin, t_alice, stk_dir, t_bob, sg_dir, TAG, mkfile, SGP, STK, has, D_fp, mkdir_own, SG, base)
 
 
-def _combo_setgid_via_copymove_p5(D_dst, s3port, data, port, t_carol, sgp_dir, t_erin, t_alice, stk_dir, t_bob, sg_dir, TAG, mkfile, SGP, STK, has, D_fp, mkdir_own, SG, base):
     # =====================================================================
     # PART E — MOVE OUT of the setgid dir into carol's plain home: the file must
     # KEEP its content; on an in-fs rename it keeps the inherited staff group,
@@ -397,7 +389,6 @@ def _rt37_segment_24(E_st, TAG, E_dst_rel, port, t_carol, has, D_fp):
        f"{TAG}: moved-out file content intact (HTTP {ser})")
     ok(not os.path.exists(D_fp),
        f"{TAG}: setgid-dir source gone after move-out (rename, no stray copy)")
-    _combo_setgid_via_copymove_p6(s3port, sgp_dir, port, t_carol, t_erin, t_alice, stk_dir, t_bob, sg_dir, mkfile, SGP, TAG, STK, data, has, mkdir_own, SG, base)
 
 
 def _rt37_part_f_the_proj_setgid_dir(mkfile, TAG, SGP, sgp_dir, port, t_carol, base):

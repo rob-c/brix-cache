@@ -100,7 +100,7 @@ class TestWhereTheCapturedTicketLands:
             # The WORKER's uid, which under a root lane is not the
             # harness's: the always-on de-escalation drops workers to
             # `nobody`, and it is that account the file has to be private to.
-            assert info.st_uid == worker_runtime_uid()
+            assert info.st_uid == DEFAULT_WORKER_UID
         finally:
             session.close()
 
@@ -166,7 +166,7 @@ class TestWhereTheCapturedTicketLands:
             parent = path.parent
             assert parent == DEFAULT_CAPTURE_DIR
             info = parent.stat()
-            assert info.st_uid == worker_runtime_uid()
+            assert info.st_uid == DEFAULT_WORKER_UID
             assert oct(info.st_mode & 0o777) == "0o700", oct(info.st_mode)
             assert set(Path("/tmp").glob(CAPTURE_GLOB)) - tmp_before == set(), (
                 "a capture appeared under world-writable /tmp — CWE-377 is back")

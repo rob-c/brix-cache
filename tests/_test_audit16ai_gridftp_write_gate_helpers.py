@@ -138,6 +138,7 @@ from pathlib import Path
 import pytest
 
 from config_parse import nginx_t
+from log_records import semantic_log_text
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS, PARSE_PLACEHOLDER_PORT
 from metrics_helpers import value as metric_value
 from server_launcher import LifecycleHarness
@@ -194,7 +195,8 @@ class _Gateways:
     def errlog(self):
         """Instance prefixes are wiped at teardown, so failures quote inline."""
         log = self.errlog_path()
-        return log.read_text(errors="replace") if log.exists() else ""
+        return semantic_log_text(log.read_text(errors="replace")) \
+            if log.exists() else ""
 
     def errlog_size(self):
         log = self.errlog_path()
@@ -208,7 +210,7 @@ class _Gateways:
             return ""
         with log.open(errors="replace") as fh:
             fh.seek(offset)
-            return fh.read()
+            return semantic_log_text(fh.read())
 
     def scrape(self):
         """Raw /metrics text.
@@ -448,4 +450,3 @@ def _seed_for(gw, face, kind, name):
 # --------------------------------------------------------------------------- #
 # A. The written `off` against its omission                                    #
 # --------------------------------------------------------------------------- #
-

@@ -15,6 +15,7 @@
  *       (all four dropped/invalid) yields NULL and the caller falls back to
  *       the thread-pool libc path — never a start failure.
  */
+#include "core/compat/log_event.h"
 #include "core/types/tunables.h"
 #include "net/dns/dns.h"
 
@@ -92,7 +93,7 @@ brix_dns_resolver_build(ngx_conf_t *cf, brix_dns_policy_t *pol)
         n++;
     }
     if (n == 0) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix_resolver: no nameserver in \"%V\" — hostnames fall back "
             "to the libc resolver on the thread pool", &pol->path);
         return NULL;

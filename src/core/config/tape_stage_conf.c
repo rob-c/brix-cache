@@ -6,7 +6,9 @@
  * ngx_conf_set_*_slot setters; only the watermark pair needs a custom setter.
  */
 
+#include "core/compat/log_event.h"
 #include "core/types/tunables.h"
+#include "platform/platform_api.h"  /* BRIX_HAS_WORKER_EXEC */
 #include "tape_stage_conf.h"
 #include "fs/backend/frm/sd_frm.h"   /* brix_sd_frm_set_exec_defaults */
 
@@ -80,7 +82,7 @@ frm_publish_str(ngx_conf_t *cf, const char *name, char *slot, size_t size,
         return NGX_CONF_OK;
     }
     if (value->len >= size) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "%s \"%V\" is too long",
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0, "%s \"%V\" is too long",
                            name, value);
         return NGX_CONF_ERROR;
     }
@@ -88,7 +90,7 @@ frm_publish_str(ngx_conf_t *cf, const char *name, char *slot, size_t size,
         && (ngx_strlen(slot) != value->len
             || ngx_strncmp(slot, value->data, value->len) != 0))
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "%s \"%V\" differs from the value another brix_frm server "
             "published (\"%s\"): the stage engine is process-wide",
             name, value, slot);
@@ -110,7 +112,7 @@ frm_publish_num(ngx_conf_t *cf, const char *name, ngx_uint_t *slot,
         return NGX_CONF_OK;
     }
     if ((e->explicit_mask & bit) && *slot != value) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "%s %ui differs from the value another brix_frm server "
             "published (%ui): the stage engine is process-wide",
             name, value, *slot);
@@ -137,20 +139,20 @@ brix_frm_check_program(ngx_conf_t *cf, const char *directive,
         return NGX_CONF_OK;
     }
     if (cmd->data[0] != '/') {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "%s \"%V\" must be an absolute program path (%s)",
             directive, cmd, usage);
         return NGX_CONF_ERROR;
     }
     if (cmd->len >= sizeof(path)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "%s \"%V\" is too long",
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0, "%s \"%V\" is too long",
                            directive, cmd);
         return NGX_CONF_ERROR;
     }
     ngx_memcpy(path, cmd->data, cmd->len);
     path[cmd->len] = '\0';
     if (stat(path, &st) == 0 && (st.st_mode & (S_IWGRP | S_IWOTH))) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "%s \"%V\" is group- or world-writable; refusing to run a "
             "program anyone else can rewrite", directive, cmd);
         return NGX_CONF_ERROR;
@@ -179,12 +181,12 @@ frm_check_stagemsg(ngx_conf_t *cf, const ngx_str_t *file)
         return NGX_CONF_OK;
     }
     if (file->data[0] != '/') {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_stagemsg \"%V\" must be an absolute path", file);
         return NGX_CONF_ERROR;
     }
     if (file->len >= sizeof(path)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_stagemsg \"%V\" is too long", file);
         return NGX_CONF_ERROR;
     }
@@ -194,12 +196,12 @@ frm_check_stagemsg(ngx_conf_t *cf, const ngx_str_t *file)
         return NGX_CONF_OK;             /* created 0600 by the worker */
     }
     if (!S_ISREG(sb.st_mode)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_stagemsg \"%V\" is not a regular file", file);
         return NGX_CONF_ERROR;
     }
     if (sb.st_mode & (S_IWGRP | S_IWOTH)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_stagemsg \"%V\" is group- or world-writable; "
             "refusing to feed a file anyone else can append to", file);
         return NGX_CONF_ERROR;
@@ -270,7 +272,7 @@ frm_warn_inert_knobs(ngx_conf_t *cf, const brix_frm_conf_t *raw)
     set[6] = raw->stagemsg.len != 0;
     for (i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
         if (set[i]) {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
                 "%s is ignored: brix_frm is off in this server", names[i]);
         }
     }
@@ -280,23 +282,23 @@ static char *
 frm_check_enabled(ngx_conf_t *cf, const brix_frm_conf_t *conf)
 {
     if (conf->queue_path.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm on requires brix_frm_queue_path");
         return NGX_CONF_ERROR;
     }
     if (conf->queue_path.data[0] != '/') {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_queue_path \"%V\" must be an absolute path",
             &conf->queue_path);
         return NGX_CONF_ERROR;
     }
     if (conf->copymax == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_copymax must be at least 1");
         return NGX_CONF_ERROR;
     }
     if (conf->fail_retries == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_fail_retries must be at least 1");
         return NGX_CONF_ERROR;
     }
@@ -338,6 +340,14 @@ brix_frm_conf_merge(ngx_conf_t *cf, brix_frm_conf_t *conf,
     if (brix_frm_purge_policy_merge(cf, conf, prev) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;             /* 2.0 F4: independent of enable */
     }
+#if !BRIX_HAS_WORKER_EXEC
+    if (conf->stagecmd.len > 0 || conf->purge_polprog.len > 0) {
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
+            "brix_frm_stagecmd and brix_frm_purge_polprog are unsupported "
+            "on this host because hardened workers cannot execute subprocesses");
+        return NGX_CONF_ERROR;
+    }
+#endif
 
     if (!conf->enable) {
         frm_warn_inert_knobs(cf, &raw);
@@ -382,7 +392,7 @@ brix_frm_set_purge_watermark(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     frm->purge_lo_ppm = frm_ratio_to_ppm(&value[2]);
 
     if (frm->purge_lo_ppm > frm->purge_hi_ppm) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_frm_purge_watermark: low (%ui) must not exceed high (%ui)",
             frm->purge_lo_ppm, frm->purge_hi_ppm);
         return NGX_CONF_ERROR;

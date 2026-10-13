@@ -2,6 +2,7 @@
  * module_init.c - extracted concern
  * Phase-38 split of module.c; behavior-identical.
  */
+#include "core/compat/log_event.h"
 #include "webdav_module_internal.h"
 #include "delegation_internal.h"      /* delegation_find_eec (shared EEC scan) */
 #include "core/seccomp/seccomp.h"    /* brix_seccomp_install_once */
@@ -182,7 +183,7 @@ delegated_cred_peer_dn(ngx_connection_t *c, char *dn, size_t dnsz)
         /* Never de-privilege in silence: with resumption disabled on the
          * gateway this branch is unreachable; when it is hit, name the fix. */
         if (SSL_session_reused(c->ssl->connection)) {
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                 "brix_delegated_cred: no end-entity certificate available on a "
                 "RESUMED TLS session; the delegated credential cannot be "
                 "resolved and the request will proceed WITHOUT it. Disable TLS "
@@ -245,7 +246,7 @@ brix_http_delegated_cred_variable(ngx_http_request_t *r,
 
     if (rc != NGX_OK || cred.is_bearer || cred.is_s3 || cred.is_ceph) {
         if (rc == NGX_DECLINED && cred.expired) {
-            ngx_log_error(NGX_LOG_INFO, c->log, 0,
+            BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                           "brix_delegated_cred: stored credential for "
                           "\"%s\" has expired — re-delegation required", dn);
         }

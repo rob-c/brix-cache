@@ -18,6 +18,7 @@
  *       resolver is left alone with a notice.  (The core-conf pokes are the
  *       R4-allowlisted seam of this file.)
  */
+#include "core/compat/log_event.h"
 #include <ngx_http.h>
 #include <ngx_stream.h>
 #include <ngx_thread_pool.h>
@@ -37,7 +38,7 @@ dns_parse_time_arg(ngx_conf_t *cf, ngx_str_t *arg, size_t plen,
     v.len = arg->len - plen;
     t = ngx_parse_time(&v, 1);
     if (t == (time_t) NGX_ERROR) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_resolver: invalid time in \"%V\"", arg);
         return NGX_CONF_ERROR;
     }
@@ -62,7 +63,7 @@ dns_parse_flag_arg(ngx_conf_t *cf, ngx_str_t *arg, size_t plen,
         *out = 0;
         return NGX_CONF_OK;
     }
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                        "brix_resolver: expected on|off in \"%V\"", arg);
     return NGX_CONF_ERROR;
 }
@@ -81,7 +82,7 @@ dns_parse_option(ngx_conf_t *cf, brix_dns_policy_t *pol, ngx_str_t *arg)
         /* absolute only: a relative name would be read against the
          * process cwd, which differs between `nginx -t` and the master */
         if (pol->path.len == 0 || pol->path.data[0] != '/') {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                                "brix_resolver: path must be absolute in \"%V\"",
                                arg);
             return NGX_CONF_ERROR;
@@ -111,7 +112,7 @@ dns_parse_option(ngx_conf_t *cf, brix_dns_policy_t *pol, ngx_str_t *arg)
     if (ngx_strncmp(arg->data, "search=", 7) == 0) {
         return dns_parse_flag_arg(cf, arg, 7, &pol->search);
     }
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                        "brix_resolver: unknown parameter \"%V\"", arg);
     return NGX_CONF_ERROR;
 }
@@ -159,13 +160,13 @@ dns_seed_core_slot(ngx_conf_t *cf, brix_dns_policy_t *pol)
         return;
     }
     if (*slot != NULL) {
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix_resolver: %s scope already has an explicit resolver; "
             "keeping it (brix targets still use resolv.conf)", plane);
         return;
     }
     *slot = pol->resolver;
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix_resolver: %s resolver seeded from %V (%ui nameserver%s, "
         "%ui search domain%s, ndots %ui)", plane, &pol->path,
         (ngx_uint_t) pol->rc.nnameservers,
@@ -183,12 +184,12 @@ dns_policy_activate(ngx_conf_t *cf, brix_dns_policy_t *pol)
     ngx_cpystrn(path, pol->path.data,
                 ngx_min(pol->path.len + 1, sizeof(path)));
     if (brix_resolv_conf_load(&pol->rc, (const char *) path) != 0) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix_resolver: cannot read \"%V\" — using the libc defaults "
             "(nameserver 127.0.0.1); the server still starts", &pol->path);
     }
     if (pol->max_ttl < pol->min_ttl) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_resolver: max_ttl is below min_ttl");
         return NGX_CONF_ERROR;
     }

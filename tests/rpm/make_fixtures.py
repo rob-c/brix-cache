@@ -14,11 +14,19 @@
 #       repeat pytest runs pay the ~3 s build once.
 #
 # Standalone: `python3 tests/rpm/make_fixtures.py [outdir]`.
+import platform
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+
+def _native_rpm_arch() -> str:
+    """Return the RPM architecture name for the current build host."""
+    machine = platform.machine().lower()
+    return {"arm64": "aarch64", "amd64": "x86_64"}.get(machine, machine)
+
 
 def _phase_spec_text_1(s, out):
     for p in s["provides"]:
@@ -68,7 +76,39 @@ def _guard_build_3(missing):
         raise RuntimeError(f"rpmbuild did not produce: {missing}")
 
 
+def _selected_specs(want, force):
+    if force:
+        return SPECS
+    return {name: spec for name, spec in SPECS.items()
+            if not want[name].exists()}
+
+
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+NATIVE_RPM_ARCH = _native_rpm_arch()
+
+
+def installed_nevras(root: Path) -> set[str]:
+    """Return stable name/epoch/version/release identities from an installroot.
+
+    DNF's transaction table is presentation output and changed to separate
+    columns in DNF 5.  Querying the resulting RPM database keeps every RPM
+    integration lane independent of that UI while still checking epochs.
+    """
+    query = subprocess.run(
+        ["rpm", "--root", str(root), "-qa", "--qf",
+         "%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n"],
+        capture_output=True, text=True)
+    if query.returncode != 0:
+        raise RuntimeError(query.stderr or "could not query installroot RPM DB")
+    return set(query.stdout.splitlines())
+
+
+def expected_nevras() -> set[str]:
+    """Return the canonical corpus identities in RPM query format."""
+    return {
+        f"{name}-{spec['epoch'] or 0}:{spec['version']}-{spec['release']}"
+        for name, spec in SPECS.items()
+    }
 
 # name -> (spec body, produced file name). Kept deliberately tiny; every byte
 # here shows up in someone's XML diff.
@@ -103,7 +143,7 @@ SPECS = {
     ),
     # arch'd, epoch 2, provides a versioned soname and requires the noarch one.
     "brixtest-lib": dict(
-        version="2.0", release="1", arch="x86_64", epoch=2,
+        version="2.0", release="1", arch=NATIVE_RPM_ARCH, epoch=2,
         summary="BriX test corpus: library",
         desc="Arch'd library carrying an epoch and a versioned Provides.",
         provides=["libbrixtest.so.1()(64bit)"],
@@ -163,11 +203,12 @@ def build(out_dir: Path = FIXTURES, force: bool = False) -> list[Path]:
     want = _expression_1(out_dir)
     if not force and all(p.exists() for p in want.values()):
         return sorted(want.values())
+    selected = _selected_specs(want, force)
 
     with tempfile.TemporaryDirectory(prefix="brixrpm-fixtures-") as td:
         top = Path(td)
         _phase_build_3(top)
-        for name, s in SPECS.items():
+        for name, s in selected.items():
             spec = top / "SPECS" / f"{name}.spec"
             spec.write_text(_spec_text(name, s))
             subprocess.run(

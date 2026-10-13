@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "auth/krb5/deleg_capture.h"
 #include "auth/krb5/capture.h"
 #include "auth/krb5/carry.h"
@@ -85,7 +86,7 @@ brix_krb5_send_fwdtgt(brix_ctx_t *ctx, ngx_connection_t *c)
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, g.p, g.len);
     brix_gbuf_free(&g);
 
-    ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: krb5 round 1 -> fwdtgt (delegation requested)");
     return brix_queue_response(ctx, c, buf, total);
 }
@@ -226,7 +227,7 @@ brix_krb5_deleg_mkccache(ngx_connection_t *c, char *path, size_t pathlen)
     req.prefix = "brix-krb5-fwd-";
 
     if (brix_cred_write(&req, NULL, 0, path, pathlen) != 0) {
-        ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, c->log, ngx_errno,
                       "brix: krb5 fwdtgt: cannot create temp ccache");
         return NGX_ERROR;
     }
@@ -263,7 +264,7 @@ brix_krb5_capture_do(brix_ctx_t *ctx, ngx_connection_t *c, krb5_context kctx,
     if (brix_krb5_deleg_credbytes(ctx->recv.payload, ctx->recv.cur_dlen,
                                   &cred, &credlen) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: krb5 fwdtgt round 2: malformed forwarded credential");
         return NGX_ERROR;
     }
@@ -319,7 +320,7 @@ brix_krb5_deleg_capture(brix_ctx_t *ctx, ngx_connection_t *c,
 
     /* Operator-visible confirmation the inbound leg completed: the mapped identity
      * only (cname is already logged by the session grant), never the TGT bytes. */
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "brix: krb5 delegation captured forwarded TGT for \"%s\"",
                   ctx->krb5.cname);
     return NGX_OK;

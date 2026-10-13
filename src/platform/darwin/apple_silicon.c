@@ -135,134 +135,8 @@ brix_apple_get_eff_cores(void)
  * Note: brix_checksum_accelerate() is implemented in checksum_accelerate.c
  * with full validation, alignment checks, and scalar fallback.
  * 
- * This file provides:
- * - brix_memset_accelerate() - vDSP vector fill
- * - brix_memcpy_accelerate() - vDSP vector move
- * - brix_apple_*() - Chip detection and APFS clonefile
+ * This file provides brix_apple_*() chip detection and APFS clone support.
  */
-
-#if defined(__has_include) && __has_include(<Accelerate/Accelerate.h>)
-
-#include <Accelerate/Accelerate.h>
-
-/*
- * Accelerated memory operations
- * 
- * Uses Apple's vecLib for SIMD optimization
- * Available on all Apple Silicon and Intel Macs with SSE
- * 
- * Performance: 4-8x faster than scalar operations
- */
-
-void
-brix_memset_accelerate(void *buf, int c, size_t len)
-{
-    /* vDSP_vfill: Fill vector with constant */
-    float value = (float)c;
-    vDSP_vfill(&value, (float *)buf, 1, len / sizeof(float));
-}
-
-void
-brix_memcpy_accelerate(void *dst, const void *src, size_t len)
-{
-    /* vDSP_vmov: Vector move */
-    vDSP_vmov((const float *)src, 1, (float *)dst, 1, len / sizeof(float));
-}
-
-#endif /* Accelerate framework */
-
-/* ==========================================================================
- * APFS CLONEFILE OPTIMIZATION
- * ========================================================================== */
-
-#include <sys/syscall.h>
-#include <unistd.h>
-#include <errno.h>
-
-/*
- * APFS clonefile syscall
- * 
- * Creates a copy-on-write clone of a file
- * Extremely fast on APFS (metadata operation only)
- * 
- * Performance: ~100x faster than copy for large files
- * 
- * Availability: macOS 10.12+ (Sierra)
- */
-
-int
-brix_apple_clonefile(const char *src, const char *dst, int flags)
-{
-    /*
-     * clonefile() syscall number on macOS
-     * Note: No public header, use syscall directly
-     */
-    #ifndef SYS_clonefile
-    #define SYS_clonefile 356
-    #endif
-    
-    int result = syscall(SYS_clonefile, src, dst, flags);
-    
-    if (result < 0) {
-        /* clonefile not available or failed */
-        return -1;
-    }
-    
-    return 0;
-}
-
-int
-brix_apple_clonefileat(int src_dirfd, const char *src,
-                       int dst_dirfd, const char *dst, int flags)
-{
-    /*
-     * clonefileat() - relative path version
-     * Syscall number: 357
-     */
-    #ifndef SYS_clonefileat
-    #define SYS_clonefileat 357
-    #endif
-    
-    int result = syscall(SYS_clonefileat, src_dirfd, src, dst_dirfd, dst, flags);
-    
-    if (result < 0) {
-        return -1;
-    }
-    
-    return 0;
-}
-
-/*
- * Enhanced copy_range using clonefile
- * 
- * For full-file copies, uses clonefile for COW efficiency
- * For range copies, falls back to buffered copy
- */
-
-ssize_t
-brix_plat_copy_range_apple(int in_fd, off_t *in_off,
-                           int out_fd, off_t *out_off,
-                           size_t len, unsigned int flags)
-{
-    char src_path[1024], dst_path[1024];
-    
-    /* Check if this is a full-file copy */
-    if (in_off == NULL || out_off == NULL) {
-        /* Get file paths from fds */
-        if (fcntl(in_fd, F_GETPATH, src_path) == 0 &&
-            fcntl(out_fd, F_GETPATH, dst_path) == 0) {
-            
-            /* Try clonefile */
-            if (brix_apple_clonefile(src_path, dst_path, flags) == 0) {
-                return (ssize_t)len;
-            }
-        }
-    }
-    
-    /* Fallback to buffered copy */
-    errno = ENOSYS;
-    return -1;
-}
 
 /* ==========================================================================
  * CACHE LINE OPTIMIZATION
@@ -301,13 +175,6 @@ brix_apple_aligned_alloc(size_t size)
  * Note: Limited access compared to Linux perf_events
  */
 
-typedef struct {
-    uint64_t cycles;
-    uint64_t instructions;
-    uint64_t cache_misses;
-    uint64_t branch_misses;
-} brix_apple_perf_stats_t;
-
 int
 brix_apple_perf_start(void)
 {
@@ -339,10 +206,11 @@ brix_apple_perf_read(brix_apple_perf_stats_t *stats)
     return 0;
 }
 
-void
+int
 brix_apple_perf_stop(void)
 {
     /* Stop performance monitoring */
+    return 0;
 }
 
 /* ==========================================================================

@@ -378,6 +378,11 @@ def pytest_sessionstart(session):
             _start_sentinel_watchdog(session)
         return
     _setup_session(chdir=not _xdist_requested(session.config))
+    # Fleet preparation can spend minutes reaping an interrupted prior run.
+    # Reassert the confined temp parent at the last controller-only point before
+    # xdist's next sessionstart hook creates pytest-of-*/popen-gw* beneath it.
+    # A non-directory at TMP_DIR still raises here and fails closed.
+    os.makedirs(TMP_DIR, exist_ok=True)
     # The session setup has now cleared stale registry state.  The watchdog can
     # safely wait for the fresh post-collection baseline without mistaking the
     # intentional pre-launch gap for a crashed fleet.

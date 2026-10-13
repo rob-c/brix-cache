@@ -26,6 +26,8 @@
  *       "which program runs my rm" must have exactly one answer.
  */
 
+#include "core/compat/log_event.h"
+#include "platform/platform_api.h"  /* BRIX_HAS_WORKER_EXEC */
 #include "config.h"
 #include "tape_stage_conf.h"      /* brix_frm_check_program */
 
@@ -141,23 +143,30 @@ brix_conf_set_cms_fsxeq(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     (void) cmd;
 
+    if (!BRIX_HAS_WORKER_EXEC) {
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
+            "brix_cms_fsxeq is unsupported on this host because hardened "
+            "workers cannot execute subprocesses");
+        return NGX_CONF_ERROR;
+    }
+
     first = fsxeq_take_ops(value, cf->args->nelts, &mask);
 
     if (mask == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cms_fsxeq: the line must begin with one or more of "
             "chmod mkdir mkpath mv rm rmdir trunc");
         return NGX_CONF_ERROR;
     }
     if (first >= cf->args->nelts) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cms_fsxeq: no program named after the op list");
         return NGX_CONF_ERROR;
     }
 
     n = cf->args->nelts - first;
     if (n + 2 >= BRIX_CMS_FSXEQ_ARGV_MAX) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cms_fsxeq: command line has %ui tokens, at most %ui fit "
             "beside the op's own arguments",
             n, (ngx_uint_t) BRIX_CMS_FSXEQ_ARGV_MAX - 3);
@@ -180,7 +189,7 @@ brix_conf_set_cms_fsxeq(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             continue;
         }
         if (scf->cms.fsxeq[i] != NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cms_fsxeq: \"%s\" already has a program (\"%V\"); one op "
                 "may name exactly one program",
                 brix_cms_fsxeq_names[i], &scf->cms.fsxeq[i]->display);

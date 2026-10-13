@@ -49,6 +49,11 @@
 #   tools/ci/check_platform_leak.py --list          # print every hit
 
 from __future__ import annotations
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import argparse
 import re
@@ -195,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         current = scan(Path(args.root).resolve())
     except (OSError, ValueError) as error:
-        print(f"check_platform_leak: {error}", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_platform_leak.py', 'main', f"check_platform_leak: {error}", file=sys.stderr)
         return 1
     return _report(current, args.list)
 

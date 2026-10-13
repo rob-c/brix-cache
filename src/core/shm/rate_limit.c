@@ -1,6 +1,7 @@
 /*
  * rate_limit.c — token-bucket rate limiter over the KV store (see header).
  */
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "rate_limit.h"
 
@@ -161,7 +162,7 @@ brix_rl_parse_rate(ngx_conf_t *cf, ngx_str_t *arg, ngx_uint_t *rate)
     }
     n = ngx_atoi(p, len);
     if (n == NGX_ERROR || n <= 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "invalid brix_rate_limit rate \"%V\"", arg);
         return NGX_ERROR;
     }
@@ -186,7 +187,7 @@ brix_rl_parse_burst(ngx_conf_t *cf, ngx_str_t *arg, ngx_uint_t *burst)
     ngx_int_t n = ngx_atoi(arg->data + 6, arg->len - 6);
 
     if (n == NGX_ERROR || n <= 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "invalid brix_rate_limit burst \"%V\"", arg);
         return NGX_ERROR;
     }
@@ -219,7 +220,7 @@ brix_rl_parse_key(ngx_conf_t *cf, ngx_str_t *arg, ngx_uint_t *key_ip)
         *key_ip = 0;
         return NGX_OK;
     }
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
         "brix_rate_limit key must be dn or ip, got \"%V\"", arg);
     return NGX_ERROR;
 }
@@ -255,7 +256,7 @@ brix_rl_parse_arg(ngx_conf_t *cf, ngx_str_t *arg, ngx_str_t *zone,
     if (ngx_strncmp(arg->data, "key=", 4) == 0) {
         return brix_rl_parse_key(cf, arg, key_ip);
     }
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
         "invalid brix_rate_limit parameter \"%V\"", arg);
     return NGX_ERROR;
 }
@@ -280,7 +281,7 @@ brix_rl_resolve_zone(ngx_conf_t *cf, ngx_str_t *zone, brix_kv_t **out)
     brix_kv_t *kv = brix_kv_find(zone);
 
     if (kv == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_rate_limit: unknown zone \"%V\" "
             "(declare it with brix_kv_zone first)", zone);
         return NGX_ERROR;
@@ -289,7 +290,7 @@ brix_rl_resolve_zone(ngx_conf_t *cf, ngx_str_t *zone, brix_kv_t **out)
      * otherwise brix_kv_set would truncate/reject the value at runtime and
      * the limiter would silently malfunction. */
     if (kv->val_max < sizeof(brix_rl_val_t)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_rate_limit zone \"%V\" too small: need val>=%uz",
             zone, sizeof(brix_rl_val_t));
         return NGX_ERROR;
@@ -335,7 +336,7 @@ brix_rate_limit_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     if (zone.len == 0 || rate == 0 || burst == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_rate_limit requires zone=<name> rate=<N>r/s burst=<N>");
         return NGX_CONF_ERROR;
     }

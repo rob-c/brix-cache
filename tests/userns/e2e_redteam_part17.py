@@ -146,10 +146,8 @@ def _rt17_segment_13():
 
 def _rt17_section_1_cross_protocol_header_confusion(port, is_2xx, no_marker, BOB_SECRET):
 
-    _auth_scheme_confusion_p1(port, key, s3port, data, safe_exists, now, manual_token, file_owner, no_marker, BOB_SECRET, SVC_SECRET, is_2xx, UID_ROOT)
 
 
-def _auth_scheme_confusion_p1(port, key, s3port, data, safe_exists, now, manual_token, file_owner, no_marker, BOB_SECRET, SVC_SECRET, is_2xx, UID_ROOT):
     # ===================================================================
     # SECTION 1: cross-protocol header confusion (S3 sig on WebDAV port)
     # ===================================================================
@@ -233,17 +231,15 @@ def _rt17_section_3_token_smuggled_via_query(safe_exists, data, alice_tok, port,
             os.remove(os.path.join(data, "alice", "dual_hdr.txt"))
     except OSError:
         pass
-    _auth_scheme_confusion_p2(port, data, safe_exists, key, now, manual_token, s3port, file_owner, no_marker, BOB_SECRET, SVC_SECRET, is_2xx, alice_tok, bob_forged, UID_ROOT)
 
 
-def _auth_scheme_confusion_p2(port, data, safe_exists, key, now, manual_token, s3port, file_owner, no_marker, BOB_SECRET, SVC_SECRET, is_2xx, alice_tok, bob_forged, UID_ROOT):
     # ===================================================================
     # SECTION 3: token smuggled via query params (?authz= / ?access_token=)
     # ===================================================================
     # A bearer in the query string must not be honored for cross-identity read.
     st, body = http("GET", f"/bob/private.txt?authz=Bearer%20{alice_tok}", port)
     ok(no_marker(body, BOB_SECRET), f"?authz= query token leaks no bob secret bytes (HTTP {st})")
-    ok(not all((is_2xx(st), BOB_SECRET in any((body, b'')))),
+    ok(not all((is_2xx(st), BOB_SECRET in _rt_default(body, b''))),
        f"?authz= query token did not authenticate cross-identity (HTTP {st})")
 
     st, body = http("GET", f"/bob/private.txt?access_token={alice_tok}", port)
@@ -252,7 +248,7 @@ def _auth_scheme_confusion_p2(port, data, safe_exists, key, now, manual_token, s
 
 def _rt17_a_forged_bob_token_in_the(no_marker, body, BOB_SECRET, st, is_2xx, bob_forged, port, data, safe_exists, file_owner, UID_SVC, UID_ROOT):
     ok(no_marker(body, BOB_SECRET), f"?access_token= query token leaks no bob secret bytes (HTTP {st})")
-    ok(not all((is_2xx(st), BOB_SECRET in any((body, b'')))),
+    ok(not all((is_2xx(st), BOB_SECRET in _rt_default(body, b''))),
        f"?access_token= query token did not authenticate cross-identity (HTTP {st})")
 
     # A forged-bob token in the query must not create a file owned by anyone.
@@ -359,7 +355,6 @@ def _rt17_section_5_kid_that_does_not(no_marker, body, SVC_SECRET, st, key, port
         _rt17_for_each_numsub_1500_0_1001_1002_1(key, numsub, port, is_2xx, no_marker, SVC_SECRET, BOB_SECRET, data, safe_exists, file_owner, UID_SVC, UID_ROOT)
 
 
-def _auth_scheme_confusion_p3(now, port, data, safe_exists, manual_token, key, s3port, file_owner, no_marker, BOB_SECRET, SVC_SECRET, is_2xx, UID_ROOT):
     # ===================================================================
     # SECTION 5: kid that does not exist in the JWKS
     # ===================================================================

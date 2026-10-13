@@ -25,6 +25,7 @@
  *       libc answers carry no TTL, so they are cached for BRIX_DNS_THREAD_TTL
  *       seconds; only a definitive "no such name" is negative-cached.
  */
+#include "core/compat/log_event.h"
 #include "net/dns/dns.h"
 #include "core/aio/aio.h"
 
@@ -274,7 +275,7 @@ dns_thread_done(ngx_event_t *ev)
         req->rc = NGX_ERROR;
         req->error = "getaddrinfo failed";
         req->naddrs = 0;
-        ngx_log_error(NGX_LOG_INFO, req->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, req->log, 0,
                       "brix dns: \"%V\" via libc: %s", &req->name, tc->err);
         req->ttl = 0;
         if (tc->definitive) {

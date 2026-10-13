@@ -1,6 +1,7 @@
 /* Kerberos credential carry: keep the complete implementation on non-Darwin hosts.
  * The Darwin fallback is selected only when compiling for macOS. */
 
+#include "core/compat/log_event.h"
 #include "auth/krb5/carry.h"
 
 /*
@@ -38,7 +39,7 @@ brix_krb5_carry_log(krb5_context kctx, krb5_error_code code, const char *what,
 {
     const char *msg = kctx ? krb5_get_error_message(kctx, code) : NULL;
 
-    ngx_log_error(NGX_LOG_WARN, log, 0, "brix: krb5 carry: %s: %s",
+    BRIX_LOG(NGX_LOG_WARN, log, 0, "brix: krb5 carry: %s: %s",
                   what, msg ? msg : "(no detail)");
     if (msg) {
         krb5_free_error_message(kctx, msg);
@@ -74,13 +75,13 @@ brix_krb5_cred_to_ccache(void *deleg_gss_cred, const char *path, ngx_log_t *log)
     gss_key_value_set_desc      store;
 
     if (deleg_gss_cred == NULL || path == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: krb5 carry: export missing cred/path");
         return NGX_ERROR;
     }
 
     if (brix_krb5_file_ccname(path, ccname, sizeof(ccname)) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: krb5 carry: export ccache path too long");
         return NGX_ERROR;
     }
@@ -101,7 +102,7 @@ brix_krb5_cred_to_ccache(void *deleg_gss_cred, const char *path, ngx_log_t *log)
                               1 /* overwrite */, 0 /* not default */,
                               &store, NULL, NULL);
     if (GSS_ERROR(maj)) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: krb5 carry: gss_store_cred_into failed"
                       " (maj=0x%08xui min=0x%08xui)",
                       (ngx_uint_t) maj, (ngx_uint_t) min);
@@ -124,7 +125,7 @@ brix_krb5_cred_from_ccache(const char *path, void **out_gss_cred,
     char                    ccname[NGX_MAX_PATH + sizeof("FILE:")];
 
     if (path == NULL || out_gss_cred == NULL || out_hold == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: krb5 carry: import missing args");
         return NGX_ERROR;
     }
@@ -132,14 +133,14 @@ brix_krb5_cred_from_ccache(const char *path, void **out_gss_cred,
     *out_hold = NULL;
 
     if (brix_krb5_file_ccname(path, ccname, sizeof(ccname)) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: krb5 carry: import ccache path too long");
         return NGX_ERROR;
     }
 
     hold = malloc(sizeof(brix_krb5_carry_hold_t));
     if (hold == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: krb5 carry: import hold alloc failed");
         return NGX_ERROR;
     }
@@ -161,7 +162,7 @@ brix_krb5_cred_from_ccache(const char *path, void **out_gss_cred,
 
     maj = gss_krb5_import_cred(&min, cc, NULL, NULL, &gcred);
     if (GSS_ERROR(maj)) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: krb5 carry: gss_krb5_import_cred failed"
                       " (maj=0x%08xui min=0x%08xui)",
                       (ngx_uint_t) maj, (ngx_uint_t) min);
@@ -207,7 +208,7 @@ ngx_int_t
 brix_krb5_cred_to_ccache(void *deleg_gss_cred, const char *path, ngx_log_t *log)
 {
     (void) deleg_gss_cred; (void) path;
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
                   "brix: krb5 carry: built without krb5/GSSAPI support");
     return NGX_ERROR;
 }
@@ -217,7 +218,7 @@ brix_krb5_cred_from_ccache(const char *path, void **out_gss_cred,
     void **out_hold, ngx_log_t *log)
 {
     (void) path; (void) out_gss_cred; (void) out_hold;
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
                   "brix: krb5 carry: built without krb5/GSSAPI support");
     return NGX_ERROR;
 }

@@ -283,6 +283,9 @@ int brix_lstat_confined_canon_at(ngx_log_t *log, int rootfd,
 /* Extract a NUL-terminated path from a raw XRootD request payload. */
 int brix_extract_path(ngx_log_t *log, const u_char *payload,
     size_t payload_len, char *out, size_t outsz, ngx_flag_t strip_cgi);
+int brix_extract_path_kxr(ngx_log_t *log, const u_char *payload,
+    size_t payload_len, char *out, size_t outsz, ngx_flag_t strip_cgi,
+    int *kxr_error);
 
 /* Recursively create directory <path> with mode <mode>. A level that already
  * exists is success ONLY when the existing entry is a directory; a regular file
@@ -336,6 +339,11 @@ ngx_int_t brix_count_path_depth(const char *path);
  * when the file is known to live in the local read-through cache. */
 void brix_make_stat_body(const struct stat *st, ngx_flag_t is_vfs,
     int extra_flags, char *out, size_t outsz);
+
+/* Export-policy-aware variant: when allow_write is false, suppress the
+ * kXR_writable capability even if the backing inode's mode permits writes. */
+void brix_make_stat_body_for_export(const struct stat *st, ngx_flag_t is_vfs,
+    int extra_flags, ngx_flag_t allow_write, char *out, size_t outsz);
 
 /* Write one line to the module access log file. */
 void brix_log_access(brix_ctx_t *ctx, ngx_connection_t *c,

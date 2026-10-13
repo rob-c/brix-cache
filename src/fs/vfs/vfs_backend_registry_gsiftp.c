@@ -1,5 +1,6 @@
 /* Raw-source builder for an outbound GridFTP origin. */
 
+#include "core/compat/log_event.h"
 #include "vfs_backend_internal.h"
 #include "fs/backend/gsiftp/sd_gsiftp.h"
 
@@ -30,11 +31,11 @@ brix_vbr_build_gsiftp(brix_vfs_backend_entry_t *entry, ngx_log_t *log)
     brix_sd_instance_t *inst = brix_sd_gsiftp_create(&cfg, log);
 
     if (inst == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
             "brix: GridFTP backend init failed for export \"%s\"",
             entry->root_canon);
     } else {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: %s storage backend ready at \"%s\" (host=%s base=%s "
             "mode=%c prot=%c)",
             entry->origin_tls ? "gsiftp" : "ftp", entry->root_canon,

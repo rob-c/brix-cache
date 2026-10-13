@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "platform/platform_api.h"   /* O_PATH on every host */
 
@@ -23,7 +24,7 @@ brix_get_canonical_root(ngx_log_t *log, const ngx_str_t *root,
     root_buf[root->len] = '\0';
 
     if (realpath(root_buf, root_canon) == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, errno,
+        BRIX_LOG(NGX_LOG_WARN, log, errno,
                       "brix: cannot canonicalize root \"%s\"", root_buf);
         return 0;
     }

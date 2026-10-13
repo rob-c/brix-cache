@@ -87,15 +87,36 @@ voms_check_holder(const VOMS_AC_INFO *info, X509 *carrier, STACK_OF(X509) *chain
 
 /* --- 3. validity ---------------------------------------------------------- */
 
+/* Compare an ASN.1 timestamp with a POSIX timestamp using the non-deprecated
+ * OpenSSL API. Match X509_cmp_time's result convention: -1 for an earlier or
+ * equal value, 1 for a later value, and 0 when either value is invalid. */
+static int
+voms_time_cmp(const ASN1_TIME *value, time_t reference)
+{
+    ASN1_TIME *reference_time;
+    int        result;
+
+    reference_time = ASN1_TIME_set(NULL, reference);
+    if (reference_time == NULL) {
+        return 0;
+    }
+    result = ASN1_TIME_compare(value, reference_time);
+    ASN1_TIME_free(reference_time);
+    if (result == -2) {
+        return 0;
+    }
+    return result <= 0 ? -1 : 1;
+}
+
 static brix_voms_status_t
 voms_check_validity(const VOMS_AC_INFO *info, time_t now, int skew)
 {
     time_t latest_start = now + skew;
 
-    if (X509_cmp_time(info->validity->not_before, &latest_start) > 0) {
+    if (voms_time_cmp(info->validity->not_before, latest_start) > 0) {
         return BRIX_VOMS_ERR_NOTYET;
     }
-    if (X509_cmp_time(info->validity->not_after, &now) < 0) {
+    if (voms_time_cmp(info->validity->not_after, now) < 0) {
         return BRIX_VOMS_ERR_EXPIRED;
     }
     return BRIX_VOMS_OK;

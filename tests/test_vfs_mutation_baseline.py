@@ -95,8 +95,10 @@ def test_b2_prepare_evict_reaches_the_vfs():
         "the FRM-1 ownership check left the evict arm")
     text = _src("src/protocols/root/query/prepare.c")
     assert "kXR_evict" in text
-    assert "brix_prepare_evict_one" in text and "brix_prepare_recall_one" in text, (
-        "prepare.c no longer dispatches the per-path W6 arms")
+    assert "brix_prepare_accept_resolved" in text, (
+        "prepare.c no longer dispatches resolved paths to the split W6 owner")
+    assert "brix_prepare_evict_one" in recall
+    assert "brix_prepare_recall_one" in recall
     assert not re.search(r"evict[^\n]*noop|noop[^\n]*evict", text,
                          re.IGNORECASE), (
         "the pre-W6 evict-noop comment came back — the arm regressed")

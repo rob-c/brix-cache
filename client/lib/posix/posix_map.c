@@ -24,6 +24,10 @@ brix_statinfo_to_stat(const brix_statinfo *si, int allow_symlink,
      * size; a symlink (lstat) or regular file advertises nlink 1 and the wire
      * size (for a symlink that is the target length, which drives readlink). */
     stbuf->st_mode = brix_stat_mode_from_flags(si->flags, allow_symlink);
+    if (si->have_ext) {
+        stbuf->st_mode = (stbuf->st_mode & S_IFMT)
+                         | (mode_t) (si->mode & 07777);
+    }
     if (S_ISDIR(stbuf->st_mode)) {
         stbuf->st_nlink = 2;
     } else {
@@ -31,8 +35,8 @@ brix_statinfo_to_stat(const brix_statinfo *si, int allow_symlink,
         stbuf->st_size = (off_t) si->size;
     }
     stbuf->st_mtime = (time_t) si->mtime;
-    stbuf->st_atime = stbuf->st_mtime;
-    stbuf->st_ctime = stbuf->st_mtime;
+    stbuf->st_atime = (time_t) (si->have_ext ? si->atime : si->mtime);
+    stbuf->st_ctime = (time_t) (si->have_ext ? si->ctime : si->mtime);
     /* Stable inode from the server's file id so inode-tracking tools (find
      * -samefile, rsync, tar) see a consistent identity across calls. */
     stbuf->st_ino = (ino_t) si->id;

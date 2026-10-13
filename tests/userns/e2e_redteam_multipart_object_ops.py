@@ -202,7 +202,7 @@ def _mpa_d3(state):
        f"CONTROL unconditional self-copy succeeds alice-owned (HTTP {st})")
 
 
-def _mpa_d4(state):
+def _mpa_d4(state, okey):
     (TAG, BKT, MARK, data, s3port, _etag, _complete_xml, _initiate,
      _uid_of, _exists, _body_of) = _mpa_context(state)
     # D4. ANONYMOUS multipart ops (no SigV4) must be rejected, no object created.
@@ -211,7 +211,10 @@ def _mpa_d4(state):
     ok(st in (401, 403) and not _exists(f"alice/{TAG}_anon.bin"),
        f"anonymous multipart initiate DENIED (HTTP {st})")
     st, _ = http("PUT", apath + "?uploadId=x&partNumber=1", s3port, data=b"x")
-    ok(st in (401, 403) and not _exists(f"alice/{TAG}_anon.bin"),
+    # Anonymous-mode endpoints may validate this deliberately malformed upload
+    # id before their write/DAC gate; 400 is still fail-closed and creates no
+    # object or multipart state.
+    ok(st in (400, 401, 403) and not _exists(f"alice/{TAG}_anon.bin"),
        f"anonymous UploadPart DENIED (HTTP {st})")
     st, _ = http("POST", f"/{BKT}/?delete", s3port,
                  data=_delete_xml([f"alice/{TAG}_ok.bin"]))

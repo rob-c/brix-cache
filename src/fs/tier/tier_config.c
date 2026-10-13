@@ -10,6 +10,7 @@
  * authority with a scheme default port. An unknown scheme / unknown credential /
  * missing port is an OPERATOR error ([emerg], fails nginx -t, Appendix F).
  * */
+#include "core/compat/log_event.h"
 #include "tier.h"
 #include "tier_internal.h"              /* tier_fail + tier_role_directive */
 #include "core/types/fs_list.h"
@@ -55,7 +56,7 @@ tier_fail(ngx_conf_t *cf, int log_emerg, char *err, size_t errcap,
         ngx_cpystrn((u_char *) err, (u_char *) buf, errcap);
     }
     if (log_emerg && cf != NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "%s", buf);
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0, "%s", buf);
     }
     return NGX_ERROR;
 }

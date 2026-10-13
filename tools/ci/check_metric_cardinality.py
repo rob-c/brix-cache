@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # check_metric_cardinality.py — enforce INVARIANT #8 (low-cardinality metric
 # labels) at CI time (hyper-hardening-plan §E-3, CWE-770 metric explosion).
@@ -120,18 +125,18 @@ def main() -> int:
     ok, messages = run(scan_dir)
 
     if not ok:
-        print("ERROR: metric label with UNBOUNDED (non-enum) value — INVARIANT #8.", file=sys.stderr)
-        print("       A string-interpolated label value that is not a fixed enum or a", file=sys.stderr)
-        print("       config-bounded name creates one Prometheus series per distinct", file=sys.stderr)
-        print("       value (path/user/DN/IP/URI/key → cardinality explosion, CWE-770):", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_metric_cardinality.py', 'main', "ERROR: metric label with UNBOUNDED (non-enum) value — INVARIANT #8.", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_metric_cardinality.py', 'main', "       A string-interpolated label value that is not a fixed enum or a", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_metric_cardinality.py', 'main', "       config-bounded name creates one Prometheus series per distinct", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_metric_cardinality.py', 'main', "       value (path/user/DN/IP/URI/key → cardinality explosion, CWE-770):", file=sys.stderr)
         for m in messages:
-            print(f"    {m}", file=sys.stderr)
-        print("", file=sys.stderr)
-        print("If the value is genuinely low-cardinality (a fixed enum string, or a", file=sys.stderr)
-        print("configured/observed resource name bounded by deployment config), add its", file=sys.stderr)
-        print("label name to APPROVED in this script with a one-line justification. For a", file=sys.stderr)
-        print("one-off bounded gauge, add a per-line '/* metric-cardinality-allow:", file=sys.stderr)
-        print("<reason> */' marker instead.", file=sys.stderr)
+            _brix_diagnostic('ERROR', 'tools/ci/check_metric_cardinality.py', 'main', f"    {m}", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_metric_cardinality.py', 'main', "", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_metric_cardinality.py', 'main', "If the value is genuinely low-cardinality (a fixed enum string, or a", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_metric_cardinality.py', 'main', "configured/observed resource name bounded by deployment config), add its", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_metric_cardinality.py', 'main', "label name to APPROVED in this script with a one-line justification. For a", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_metric_cardinality.py', 'main', "one-off bounded gauge, add a per-line '/* metric-cardinality-allow:", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_metric_cardinality.py', 'main', "<reason> */' marker instead.", file=sys.stderr)
         return 1
 
     scan = scan_dir if scan_dir is not None else DEFAULT_SCAN_DIR

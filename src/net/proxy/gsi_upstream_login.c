@@ -18,6 +18,7 @@
  *   what the tap observes and what the fd handoff supports.
  */
 
+#include "core/compat/log_event.h"
 #include "proxy_internal.h"
 #include "gsi_upstream.h"
 #include "fs/cache/cache_internal.h"          /* origin connect/bootstrap + fill_t */
@@ -245,12 +246,12 @@ brix_proxy_gsi_connect_async(brix_proxy_ctx_t *proxy,
     proxy_gsi_login_t *g;
 
     if (conf->common.thread_pool == NULL) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
             "brix_tap_proxy_auth gsi: a thread_pool is required");
         return NGX_ERROR;
     }
     if (ctx->gsi.deleg_proxy_pem == NULL || ctx->gsi.deleg_proxy_len == 0) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
             "xrootd tap proxy: no delegated X.509 proxy from the client "
             "(client must delegate; is the client GSI with delegation?)");
         return NGX_ERROR;
@@ -266,7 +267,7 @@ brix_proxy_gsi_connect_async(brix_proxy_ctx_t *proxy,
                                         ctx->gsi.deleg_proxy_len,
                                         g->deleg_path, sizeof(g->deleg_path)) != 0)
     {
-        ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, c->log, ngx_errno,
             "xrootd tap proxy: cannot persist delegated proxy");
         return NGX_ERROR;
     }
@@ -285,7 +286,7 @@ brix_proxy_gsi_connect_async(brix_proxy_ctx_t *proxy,
 
     if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
         (void) unlink(g->deleg_path);   /* vfs-seam-allow: DOMAIN_CREDENTIAL — config-domain delegated GSI proxy credential temp (not export storage) */
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
             "xrootd tap proxy: GSI login thread post failed");
         return NGX_ERROR;
     }

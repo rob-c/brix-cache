@@ -1,5 +1,6 @@
 /* Config-time ftp:// and gsiftp:// origin parser. */
 
+#include "core/compat/log_event.h"
 #include "vfs_backend_config_internal.h"
 #include "core/compat/host_split.h"
 
@@ -116,7 +117,7 @@ vfs_parse_gsiftp_origin(ngx_conf_t *cf, const char *root_canon,
     path_len = value->len - prefix_len - authority_len;
     if (authority_len == 0 || authority_len >= sizeof(authority)
         || path_len >= sizeof(base)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend: ftp origin needs host[:port][/base]");
         return NGX_ERROR;
     }
@@ -124,7 +125,7 @@ vfs_parse_gsiftp_origin(ngx_conf_t *cf, const char *root_canon,
     authority[authority_len] = '\0';
     if (brix_split_host_port(authority, host, sizeof(host), &port,
                              require_gsi ? BRIX_VFS_PORT_GSIFTP_DEFAULT : BRIX_VFS_PORT_GSIFTP_UNPRIV) != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend: invalid ftp origin authority");
         return NGX_ERROR;
     }
@@ -135,7 +136,7 @@ vfs_parse_gsiftp_origin(ngx_conf_t *cf, const char *root_canon,
         base[path_len] = '\0';
     }
     if (!vfs_gsiftp_path_valid(base)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend: unsafe ftp origin base path");
         return NGX_ERROR;
     }

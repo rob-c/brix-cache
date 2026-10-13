@@ -30,6 +30,7 @@
  *          older than the period and re-arms unless exiting.
  */
 
+#include "core/compat/log_event.h"
 #include "config.h"
 #include "process_internal.h"
 #include "core/config/tape_stage_conf.h"  /* brix_frm_engine_conf */
@@ -56,7 +57,7 @@ brix_stage_engine_conf_apply(ngx_cycle_t *cycle)
     if (fe->stagemsg[0] != '\0'
         && brix_stage_events_open(fe->stagemsg, cycle->log) == NGX_OK)
     {
-        ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
                       "brix: stage engine: StageEvents feed \"%s\"",
                       fe->stagemsg);
     }
@@ -64,12 +65,12 @@ brix_stage_engine_conf_apply(ngx_cycle_t *cycle)
         return NULL;                         /* unreachable: brix_frm on demands it */
     }
     if (mkdir(fe->queue_path, BRIX_CRED_STAGE_DIR_MODE) != 0 && errno != EEXIST) {
-        ngx_log_error(NGX_LOG_ERR, cycle->log, errno,
+        BRIX_LOG(NGX_LOG_ERR, cycle->log, errno,
             "brix: brix_frm_queue_path \"%s\": mkdir failed; the stage "
             "journal is in-memory only (no restart recovery)", fe->queue_path);
         return NULL;
     }
-    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
         "brix: stage engine: journal=\"%s\" copymax=%ui fail_retries=%ui "
         "fail_backoff=%M ms copy_timeout=%M ms",
         fe->queue_path, fe->copymax, fe->fail_retries, fe->fail_backoff_ms,
@@ -113,7 +114,7 @@ brix_init_stage_retry_timer(ngx_cycle_t *cycle)
     t->ev.cancelable = 1;                      /* don't delay graceful shutdown */
     ngx_add_timer(&t->ev, brix_cache_reap_delay(t->period_ms));
 
-    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
         "brix: stage retry sweep armed (brix_frm_fail_backoff=%M ms, "
         "brix_frm_fail_retries=%ui)", t->period_ms, fe->fail_retries);
     return NGX_OK;

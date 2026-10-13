@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "open.h"
 #include "cache_internal.h"
 #include "cache_storage.h"
@@ -365,7 +366,7 @@ brix_cache_record_access(const char *cache_path, size_t bytes,
 
         if (utimensat(AT_FDCWD, cache_path, ts, 0) != 0) {
             if (log != NULL) {
-                ngx_log_error(NGX_LOG_DEBUG, log, errno,
+                BRIX_LOG(NGX_LOG_DEBUG, log, errno,
                               "brix: cache access timestamp update failed \"%s\"",
                               cache_path);
             }

@@ -1,0 +1,3 @@
+# /cvmfs is the protocol-wide CVMFS mount namespace used by stock clients and
+# repositories; placing the automount anywhere else would break compatibility.
+non-standard-toplevel-dir [cvmfs/]

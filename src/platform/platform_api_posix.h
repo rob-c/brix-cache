@@ -189,14 +189,17 @@ int brix_plat_setresgid(gid_t rgid, gid_t egid, gid_t sgid);
 int brix_plat_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid);
 int brix_plat_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid);
 
+/** Nonzero when exec or a credential transition makes saved-ID state suspect. */
+int brix_plat_process_tainted(void);
+
 /** getgrouplist(3) with gid_t groups on every host (Darwin takes int *). */
 int brix_plat_getgrouplist(const char *user, gid_t base, gid_t *groups,
     int *ngroups);
 
 /**
- * prctl(2) with one argument. Darwin has no prctl: the call succeeds and
- * does nothing, exactly the pre-PAL behaviour; the Darwin security adapter
- * (src/platform/darwin/README.md) records that no-new-privs is not enforced.
+ * prctl(2) with one argument. Hosts without an enforceable equivalent fail
+ * with ENOTSUP so callers cannot mistake an absent security boundary for one
+ * that was installed.
  */
 int brix_plat_prctl(int option, unsigned long arg);
 

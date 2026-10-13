@@ -2,6 +2,7 @@
  * xrdcp_transfer.c - extracted concern
  * Phase-38 split of xrdcp.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdcp_internal.h"
 #include "protocols/ftp/ftp_client.h"   /* gsiftp:// SIZE/MDTM for --sync */
 
@@ -75,7 +76,7 @@ copy_one_with_retry(const char *src, const char *dst, const brix_copy_opts *o,
             half_ms = (unsigned) backoff * 500u;          /* backoff/2 in ms */
             wait_ms = half_ms + brix_jitter_ms(half_ms + 1u);
             if (!o->silent) {
-                fprintf(stderr, "xrdcp: %s failed (%s); retry %d/%d in %.1fs\n",
+                BRIX_CLIENT_LOG("WARN",  "xrdcp: %s failed (%s); retry %d/%d in %.1fs\n",
                         src, st->msg, attempt + 1, retries, wait_ms / 1000.0);
             }
             ts.tv_sec  = wait_ms / 1000u;
@@ -369,7 +370,7 @@ transfer_one(const char *src, const char *dst, const brix_copy_opts *o,
     /* For non-recursive copies, remove the source; recursive removal is already
      * handled per-file and per-directory inside copy_recursive. */
     if (o->remove_source && !o->recursive && remove_source_entry(src, co) != 0) {
-        fprintf(stderr, "xrdcp: warning: transferred but could not remove "
+        BRIX_CLIENT_LOG("WARN",  "xrdcp: warning: transferred but could not remove "
                         "source %s\n", src);
     }
     return 0;
@@ -433,7 +434,7 @@ batch_worker(void *arg)
             pthread_mutex_lock(&b->lock);
             b->skip++;
             if (!b->o->silent) {
-                fprintf(stderr, "[%zu/%zu] %s (already transferred)\n",
+                BRIX_CLIENT_LOG("INFO",  "[%zu/%zu] %s (already transferred)\n",
                         b->ok + b->skip + b->fail, b->n, b->items[idx]);
             }
             pthread_mutex_unlock(&b->lock);
@@ -446,18 +447,18 @@ batch_worker(void *arg)
         if (rc == 0) {
             b->ok++;
             if (!b->o->silent) {
-                fprintf(stderr, "[%zu/%zu] %s -> %s\n", b->ok + b->skip + b->fail,
+                BRIX_CLIENT_LOG("INFO",  "[%zu/%zu] %s -> %s\n", b->ok + b->skip + b->fail,
                         b->n, b->items[idx], dpath);
             }
         } else if (rc == 1) {
             b->skip++;
             if (!b->o->silent) {
-                fprintf(stderr, "[%zu/%zu] %s (up-to-date)\n",
+                BRIX_CLIENT_LOG("INFO",  "[%zu/%zu] %s (up-to-date)\n",
                         b->ok + b->skip + b->fail, b->n, b->items[idx]);
             }
         } else {
             b->fail++;
-            fprintf(stderr, "xrdcp: %s: %s\n", b->items[idx], st.msg);
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: %s: %s\n", b->items[idx], st.msg);
         }
         pthread_mutex_unlock(&b->lock);
         /* mark after releasing b->lock; brix_journal_mark is internally serialized.

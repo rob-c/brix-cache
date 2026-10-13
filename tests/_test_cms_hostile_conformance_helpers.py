@@ -37,12 +37,14 @@ import time
 import pytest
 
 from ephemeral_port import free_port  # noqa: F401  (re-exported for builders)
+from lib_py.util import budget_scale
 from server_registry import NginxInstanceSpec
 from server_launcher import LifecycleHarness
 from ephemeral_port import free_port
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
-              pytest.mark.xdist_group("lc-cms-hostile")]
+              pytest.mark.xdist_group("lc-cms-hostile"),
+              pytest.mark.timeout(120 * budget_scale())]
 
 # Reuse the fully-built wire helpers/constants/peer from the conformance suite
 # rather than re-deriving the byte layouts (single source of wire truth).
@@ -141,15 +143,19 @@ def _server_alive(port, timeout=6.0):
         sock.close()
 
 
-def _node_alive(peer, timeout=8.0):
-    """Manager -> kYR_ping down the upward leg -> node must answer kYR_pong."""
-    base = peer.count_frames(CMS_RR_PONG)
-    peer.send_to_node(_SID | 0x0E, CMS_RR_PING, 0)
+def _node_alive(peer, timeout=12.0):
+    """Manager PING -> fresh node PONG, retrying a reconnect handoff.
+
+    A preceding hostile DISC can leave the mock peer between its old socket and
+    the node's replacement.  One send may therefore race a stale descriptor
+    even though the node reconnects immediately.  Retry independent PINGs
+    within the same bounded liveness window; never force a reconnect here.
+    """
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if peer.count_frames(CMS_RR_PONG) > base:
+        remaining = deadline - time.time()
+        if _node_ping_answered(peer, timeout=min(2.5, remaining)):
             return True
-        time.sleep(0.1)
     return False
 
 
@@ -260,24 +266,34 @@ def hardened_server(lifecycle):
 
 
 
-def _node_survives(peer, timeout=20.0):
+def _node_ping_answered(peer, timeout=2.5):
+    """Send one manager PING and report whether its fresh PONG arrives."""
+    base = peer.count_frames(CMS_RR_PONG)
+    try:
+        peer.send_to_node(_SID | 0x7E, CMS_RR_PING, 0)
+    except (AssertionError, OSError, AttributeError):
+        time.sleep(0.3)
+        return False
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if peer.count_frames(CMS_RR_PONG) > base:
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def _node_survives(peer, timeout=45.0):
     """Upward-leg liveness that tolerates a reconnect: keep pinging until a
     fresh kYR_pong lands, retrying through the brief window where a DISC-forced
     reconnect has torn the old socket down and not yet re-established (in which
-    window ``send_to_node`` asserts no live conn)."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        base = peer.count_frames(CMS_RR_PONG)
-        try:
-            peer.send_to_node(_SID | 0x7E, CMS_RR_PING, 0)
-        except (AssertionError, OSError, AttributeError):
-            time.sleep(0.3)   # reconnect window — retry
-            continue
-        inner = time.time() + 2.5
-        while time.time() < inner:
-            if peer.count_frames(CMS_RR_PONG) > base:
-                return True
-            time.sleep(0.1)
+    window ``send_to_node`` asserts no live conn).  The peer reader clears a
+    closed socket before accepting its replacement, so a slow PONG under host
+    load must not provoke a second, test-generated disconnect."""
+    deadline = time.monotonic() + timeout * budget_scale()
+    while time.monotonic() < deadline:
+        if _node_ping_answered(peer):
+            return True
     return False
 
 

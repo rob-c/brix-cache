@@ -32,7 +32,7 @@ def _rare_opcodes_root_dac_agree():
     """root:// plane must agree with WebDAV: non-member bob's ls of the 0770 staff
     dir leaks no child, and a member's ls is handled (cross-plane agreement)."""
     rc, out, _e = xrd_fs(["ls", "/staffdir/"], "bob")
-    ors = _cro_ors(out)
+    ors = _rt_default(out, "")
     ok(all(("inside.txt" not in ors, "INSIDE-STAFF-DIR" not in ors)),
        f"root:// ls of 0770 staff dir by non-member bob leaks no child (rc={rc})")
     rc, out, _e = xrd_fs(["ls", "/staffdir/"], "carol")
@@ -55,12 +55,12 @@ def _combo_rare_opcodes_p11(have_xrd, port, tok_alice, uid_of, rm_quiet, TAG, SE
             if i % 2 == 0:
                 # alice runs a benign rare op on her own path.
                 rc, out, _e = xrd_fs(["locate", "/alice/"], "alice")
-                leaked = SECRET in (_cro_ors(out))
+                leaked = SECRET in _rt_default(out, "")
             else:
                 # alice attempts a cross-tenant rare op on bob's 0600 -> no secret.
                 rc, out, _e = xrd_fs(["query", "checksum", "/bob/private.txt"],
                                      "alice")
-                leaked = SECRET in (_cro_ors(out))
+                leaked = SECRET in _rt_default(out, "")
             with lock:
                 leak_flags.append(leaked)
 
@@ -234,8 +234,9 @@ def _combo_setgid_via_copymove_p10(sg_dir, sgp_dir, stk_dir, port, t_carol, t_al
 def _dir_keeps_bit_gid(d, bit, attr, expected):
     """True when dir `d` still stats, carries the special `bit`, and its `attr`
     (st_gid/st_uid) equals `expected` — the post-storm dir-integrity check."""
-    st = stat_safe(d)
-    if st is None:
+    try:
+        st = os.stat(d)
+    except OSError:
         return False
     return bool(st.st_mode & bit) and getattr(st, attr) == expected
 

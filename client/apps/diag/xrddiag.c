@@ -2,6 +2,7 @@
  * xrddiag.c - (kept) routing + shared helpers
  * Phase-38 split of xrddiag.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "diag_internal.h"
 #include "cli/jsonout.h"
 #include "core/version.h"
@@ -405,7 +406,7 @@ dx_parse_argv(diag_args *a, int argc, char **argv, dx_pos_t *pos, int *rc)
                 continue;
             }
             if (dx_opt_parse(a, argc, argv, &i) != 0) {
-                fprintf(stderr, "xrddiag: unknown option '%s'\n", p);
+                BRIX_CLIENT_LOG("ERROR",  "xrddiag: unknown option '%s'\n", p);
                 usage(argv[0]);
                 *rc = 50;
                 return 1;
@@ -413,7 +414,7 @@ dx_parse_argv(diag_args *a, int argc, char **argv, dx_pos_t *pos, int *rc)
         } else if (pos->n < (int) (sizeof(pos->v) / sizeof(pos->v[0]))) {
             pos->v[pos->n++] = p;
         } else {
-            fprintf(stderr, "xrddiag: too many arguments (max %zu URLs)\n",
+            BRIX_CLIENT_LOG("ERROR",  "xrddiag: too many arguments (max %zu URLs)\n",
                     sizeof(pos->v) / sizeof(pos->v[0]));
             *rc = 50;
             return 1;
@@ -502,7 +503,7 @@ dx_unknown_sub(const char *sub, const char *prog)
     };
     const char *suggestion = brix_suggest(sub, XRDDIAG_CMDS);
 
-    fprintf(stderr, "xrddiag: unknown subcommand '%s'\n", sub);
+    BRIX_CLIENT_LOG("ERROR",  "xrddiag: unknown subcommand '%s'\n", sub);
     if (suggestion != NULL) {
         brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
     }

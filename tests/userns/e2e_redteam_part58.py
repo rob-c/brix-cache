@@ -191,7 +191,7 @@ def _rt58_3_concurrent_root_handle_pressure_a(T, port, ta, recover, host, bearer
 
 def _rt58_4b_one_near_64kib_single_header(m, resp, recover):
     st = int(m.group(1)) if m else -1
-    ok(all((b'BOB-PRIVATE-SECRET' not in any((resp, b'')), b'root:x:0:0' not in any((resp, b'')))),
+    ok(all((b'BOB-PRIVATE-SECRET' not in _rt_default(resp, b''), b'root:x:0:0' not in _rt_default(resp, b''))),
        "200-header request: no tenant/passwd leak (HTTP %s)" % st)
     ok(any((st in (200, 400, 414, 431, 494, -1), st >= 400)),
        "200-header COUNT request bounded with a status, no crash (HTTP %s)" % st)
@@ -217,7 +217,7 @@ def _rt58_segment_10(host, bearer, big_val, port, resp, st):
 
 
 def _rt58_5_proppatch_with_60_dead_properties(resp, st, recover, T, port, ta, adir):
-    ok(b'root:x:0:0' not in any((resp, b'')),
+    ok(b'root:x:0:0' not in _rt_default(resp, b''),
        "near-64KiB single header: no /etc/passwd leak (HTTP %s)" % st)
     recover("64KiB single header")
 
@@ -266,7 +266,7 @@ def _rt58_very_long_s3_query_string_on(st, lk_bad, lk_created, s3port, T, recove
                params={"x": (T + "q") * 1500})   # ~ 9KB query value
     ok(st in (200, 400, 403, 404, 414, 431, -1),
        "very long S3 query string: bounded with a status, no crash (HTTP %s)" % st)
-    ok(b'BOB-PRIVATE-SECRET' not in any((b, b'')),
+    ok(b'BOB-PRIVATE-SECRET' not in _rt_default(b, b''),
        "very long S3 query string leaked no tenant secret (HTTP %s)" % st)
     recover("long S3 key/query")
 
@@ -329,7 +329,7 @@ def _rt58_the_crucial_proof_right_after_the(m, dt, resp, ANCHOR, recover, host, 
     ok(all((dt < 12.0, any((st in (-1, 400, 408, 414, 431), st >= 400, st == -1)))),
        "slow partial send (never-completed headers): client-timeout / clean reject, "
        "no worker wedge (HTTP %s, %.1fs)" % (st, dt))
-    ok(all((b'hi-from-alice' not in any((resp, b'')), ANCHOR not in any((resp, b'')))),
+    ok(all((b'hi-from-alice' not in _rt_default(resp, b''), ANCHOR not in _rt_default(resp, b''))),
        "slow partial send returned no body (request never completed)")
     # the crucial proof: RIGHT AFTER the slow attack, a normal alice GET is still fast.
     recover("slow partial send")

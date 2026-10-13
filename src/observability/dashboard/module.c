@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "dashboard_http.h"
 #include "api_admin.h"   /* Phase 23: brix_admin_dispatch + admin directives */
 #include "core/http/http_headers.h"   /* brix_http_source_offer (AGPL sec.13) */
@@ -111,7 +112,7 @@ dashboard_merge_canon_root(ngx_conf_t *cf, const dashboard_canon_root_t *req,
             return NGX_ERROR;
         }
         if (realpath(tmp, req->canon) == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                 "%s \"%V\" is not accessible", req->directive, req->root);
             *err = NGX_CONF_ERROR;
             return NGX_ERROR;

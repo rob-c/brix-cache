@@ -20,6 +20,7 @@
  *       storascan_core.c. No libXrdCl, no goto.
  *       (see docs/superpowers/specs/2026-06-29-client-backend-sysadmin-tooling-design.md)
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "storascan_internal.h"
 #include "storascan_core.h"
 #include "brix.h"
@@ -100,15 +101,15 @@ storascan_connect(const char *url, brix_url *u, brix_conn *c, brix_status *st)
 {
     brix_status_clear(st);
     if (brix_endpoint_parse(url, u, st) != 0) {
-        fprintf(stderr, "xrdstorascan: %s\n", st->msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdstorascan: %s\n", st->msg);
         return SX_USAGE;
     }
     if (u->path[0] == '\0' || strcmp(u->path, "/") == 0) {
-        fprintf(stderr, "xrdstorascan: a file path is required in the URL\n");
+        BRIX_CLIENT_LOG("INFO",  "xrdstorascan: a file path is required in the URL\n");
         return SX_USAGE;
     }
     if (brix_connect(c, u, NULL, st) != 0) {
-        fprintf(stderr, "xrdstorascan: connect %s:%d: %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrdstorascan: connect %s:%d: %s\n",
                 u->host, u->port, st->msg);
         return brix_shellcode(st);
     }
@@ -161,6 +162,6 @@ main(int argc, char **argv)
     if (strcmp(argv[1], "-h") == 0) {
         return usage(prog, SX_OK);               /* -h → stderr (C1) */
     }
-    fprintf(stderr, "xrdstorascan: unknown mode '%s'\n", argv[1]);
+    BRIX_CLIENT_LOG("ERROR",  "xrdstorascan: unknown mode '%s'\n", argv[1]);
     return usage(prog, SX_USAGE);
 }

@@ -10,6 +10,7 @@
  * output captured synchronously via the shared SIGCHLD-safe helper.
  */
 
+#include "core/compat/log_event.h"
 #include "tpc_cred_internal.h"
 #include "tpc_config.h"
 #include "webdav.h"
@@ -61,7 +62,7 @@ tpc_cred_stage_exchange_body(ngx_http_request_t *r,
                               body_file, body_file_size) != 0)
     {
         OPENSSL_cleanse(body_buf, sizeof(body_buf));
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, errno,
                       "tpc_cred(rfc8693): cannot stage credential body "
                       "privately — refusing world-readable /tmp fallback");
         return NGX_ERROR;
@@ -78,7 +79,7 @@ tpc_cred_make_body_arg(ngx_http_request_t *r, const char *body_file,
     size_t body_len = ngx_strlen(body_file);
 
     if (body_len + 2 > body_arg_size) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "tpc_cred(rfc8693): staged body path is too long");
         unlink(body_file);  /* vfs-seam-allow: DOMAIN_CREDENTIAL — staged credential temp, not export storage */
         return NGX_ERROR;
@@ -104,14 +105,14 @@ tpc_cred_build_basic_auth(ngx_http_request_t *r,
         client_secret_len = ngx_strlen(client_secret);
         if (client_secret_len > NGX_MAX_PATH - 2
             || client_id_len > NGX_MAX_PATH - client_secret_len - 2) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                           "tpc_cred(rfc8693): client credentials are too long");
             return NGX_ERROR;
         }
         auth_len = client_id_len + 1 + client_secret_len;
         basic_auth = malloc(auth_len + 1);
         if (basic_auth == NULL) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                           "tpc_cred(rfc8693): cannot allocate client credentials");
             return NGX_ERROR;
         }
@@ -166,13 +167,13 @@ tpc_cred_run_curl(ngx_http_request_t *r,
      * (incl. curl -f on HTTP >= 400) is a credential-fetch failure.
      */
     if (brix_subprocess_capture(curl_argv, buf, buf_size, NULL, &ec) != 0) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, errno,
                       "tpc_cred(rfc8693): curl subprocess failed "
                       "(pipe/fork or signal)");
         return NGX_ERROR;
     }
     if (ec != 0) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "tpc_cred(rfc8693): curl exited %d: %s", ec, buf);
         return NGX_ERROR;
     }

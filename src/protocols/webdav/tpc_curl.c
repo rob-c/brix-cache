@@ -2,6 +2,7 @@
  * tpc_curl.c - (kept) routing + shared helpers
  * Phase-38 split of tpc_curl.c; behavior-identical.
  */
+#include "core/compat/log_event.h"
 #include "tpc_curl_internal.h"
 #include "fs/vfs/vfs.h"   /* confined open/unlink via the VFS seam */
 
@@ -113,7 +114,7 @@ tpc_core_append_headers(webdav_tpc_curl_ctx_t *ctx)
         struct curl_slist *next;
         next = curl_slist_append(ctx->hdrs, (const char *) headers[i].data);
         if (next == NULL) {
-            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, ctx->log, 0,
                           "brix_webdav: curl_slist_append() OOM for TPC %s",
                           ctx->log_tag);
             return NGX_ERROR;
@@ -157,7 +158,7 @@ tpc_core_open_local(webdav_tpc_curl_ctx_t *ctx)
             }
         }
         if (ctx->fp == NULL) {
-            ngx_log_error(NGX_LOG_ERR, ctx->log, ngx_errno,
+            BRIX_LOG(NGX_LOG_ERR, ctx->log, ngx_errno,
                           "brix_webdav: TPC push open(\"%s\") failed",
                           ctx->file_path);
             return NGX_ERROR;
@@ -190,7 +191,7 @@ tpc_core_open_local(webdav_tpc_curl_ctx_t *ctx)
         }
     }
     if (ctx->fp == NULL) {
-        ngx_log_error(NGX_LOG_ERR, ctx->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, ctx->log, ngx_errno,
                       "brix_webdav: TPC pull open(\"%s\") failed",
                       ctx->file_path);
         return NGX_ERROR;
@@ -223,7 +224,7 @@ tpc_core_setup(webdav_tpc_curl_ctx_t *ctx, char *errbuf
 {
     ctx->curl = curl_easy_init();
     if (ctx->curl == NULL) {
-        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, ctx->log, 0,
                       "brix_webdav: curl_easy_init() failed for TPC %s",
                       ctx->log_tag);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -304,7 +305,7 @@ tpc_core_perform(webdav_tpc_curl_ctx_t *ctx, const char *errbuf)
     if (res == CURLE_OK) {
         return NGX_OK;
     }
-    ngx_log_error(NGX_LOG_WARN, ctx->log, 0,
+    BRIX_LOG(NGX_LOG_WARN, ctx->log, 0,
                   "brix_webdav: HTTP-TPC %s failed: %s",
                   ctx->log_tag, errbuf[0] ? errbuf : curl_easy_strerror(res));
     return NGX_HTTP_BAD_GATEWAY;

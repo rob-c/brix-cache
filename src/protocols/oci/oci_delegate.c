@@ -28,6 +28,7 @@
  *       not even whether the repository exists.
  */
 
+#include "core/compat/log_event.h"
 #include "oci.h"
 #include "oci_module_internal.h"
 
@@ -181,7 +182,7 @@ oci_deleg_leg(brix_oci_upstream_t *up, const char *method, const char *path,
                     NULL, 0, BRIX_OCI_DELEG_TIMEOUT_MS, &resp,
                     errbuf, sizeof(errbuf)) != 0)
     {
-        ngx_log_error(NGX_LOG_ERR, up->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, up->log, 0,
             "oci: delegate proof leg unreachable host=%s: %s",
             up->host, errbuf);
         return -1;

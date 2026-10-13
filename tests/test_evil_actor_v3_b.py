@@ -333,30 +333,45 @@ def test_c1_frm_async_deliver_to_recycled_conn(srv):
         "server did not recover after FRM async park/RST cycles"
 
 
+def _stage_durable_reqid(srv):
+    owner, _ = _session(srv.root_port)
+    st1, reqid = _prepare_stage(owner, "/near000.dat")
+    _st2, second_reqid = _prepare_stage(owner, "/near001.dat")
+    if st1 != kXR_ok or not reqid or reqid == "0":
+        owner.close()
+        pytest.skip("FRM stage did not return a durable reqid (got %r)" % reqid)
+    assert reqid != second_reqid, "stage reqids not unique"
+    return owner, reqid
+
+
+def _assert_foreign_cancel_is_inert(srv, owner, reqid):
+    attacker, _ = _session(srv.root_port)
+    cancel_status = _prepare_cancel(attacker, reqid)
+    attacker.close()
+
+    query_status, state = _prepare_query_status(owner, reqid)
+    assert cancel_status == kXR_ok
+    assert query_status == kXR_ok
+    assert state != "M", (
+        "foreign session changed reqid %r it never owned "
+        "(cancel=%r query=%r state=%r)" %
+        (reqid, cancel_status, query_status, state))
+    assert _prepare_cancel(owner, reqid) == kXR_ok
+    owner.close()
+
+
+def _assert_frm_reqid_owner_check(srv):
+    # Tenant B stages a durable id; tenant A must not be able to cancel it.
+    owner, reqid = _stage_durable_reqid(srv)
+    _assert_foreign_cancel_is_inert(srv, owner, reqid)
+
+
 @pytest.mark.timeout(300)  # adversarial stress: many rounds, inherently long on slow hosts
 def test_c2_frm_reqid_forgery_owner_check(srv):
     _frm_skip(srv)
     srv.mark()
     try:
-        # tenant B stages a file -> reqid R (must be real, non-"0", and monotonic)
-        b, _ = _session(srv.root_port)
-        st1, r1 = _prepare_stage(b, "/near000.dat")
-        st2, r2 = _prepare_stage(b, "/near001.dat")
-        b.close()
-        if st1 != kXR_ok or not r1 or r1 == "0":
-            pytest.skip("FRM stage did not return a durable reqid (got %r)" % r1)
-        # reqid should be observably structured/monotonic (predictable)
-        assert r1 != r2, "stage reqids not unique"
-
-        # tenant A (a DIFFERENT session) cancels B's reqid by id alone
-        a, _ = _session(srv.root_port)
-        st_cancel = _prepare_cancel(a, r1)
-        a.close()
-
-        # a foreign principal's cancel of a non-owned reqid must be rejected.
-        assert st_cancel not in (kXR_ok,), (
-            "foreign session cancelled reqid %r it never owned (status=%r) — "
-            "no ownership binding on the FRM cancel path" % (r1, st_cancel))
+        _assert_frm_reqid_owner_check(srv)
     finally:
         srv.assert_healthy("C2 FRM forge")
 

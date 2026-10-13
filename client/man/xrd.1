@@ -212,6 +212,41 @@ bearer creds come from the discovered token; S3 from \fBAWS_ACCESS_KEY_ID\fR/
 cred problem, a failed connect, an expired server cert, clock skew over 5 min, or any
 failed functional check.
 .TP
+.B xrd conform plan \fR[\fB--budget\fR exhaustive|pairwise|boundary] [\fB--print-cases\fR]
+.TQ
+.B xrd conform plant|adopt|verify \fIscratch-directory\fR [\fIrun-key\fR] [\fB--large\fR]
+.TQ
+.B xrd conform accept|full|watch \fIurl\fR \fR[options]
+Run the Phase 118 deployment-time protocol conformance assessment. The embedded
+ledger contains 527 stable clauses: 523 executable assertions and four retained,
+explicitly retracted historical assertions. \fBplan\fR prints the deterministic
+case matrix; \fBplant\fR creates keyed oracle objects; \fBadopt\fR and
+\fBverify\fR validate an existing corpus. \fBaccept\fR runs the bounded acceptance
+shape, \fBfull\fR runs the selected complete profile, and \fBwatch\fR repeats it.
+.IP
+Remote runs are read-only by default. Mutation probes require both
+\fB--allow-mutate\fR and \fB--scratch\fR. Disruptive probes additionally require
+\fB--allow-disrupt\fR and an exact \fB--confirm-target\fR URL. Select scope with
+\fB--profile\fR, \fB--reference\fR, \fB--budget\fR, \fB--families\fR,
+\fB--exclude\fR, \fB--only\fR, \fB--verify-negative\fR, and repeatable
+\fB--also\fR. \fB--fail-on\fR controls verdict-to-exit mapping; \fB--baseline\fR
+compares against a prior report. \fB--run-key\fR makes generated data reproducible
+and \fB--out\fR selects the report directory.
+.IP
+Hard ceilings are \fB--wall-seconds\fR, \fB--request-limit\fR,
+\fB--byte-limit\fR, and \fB--http-request-line-limit\fR. External environment
+contracts use \fB--error-fixture\fR, \fB--readonly-fixture\fR,
+\fB--auth-fixture\fR, \fB--tls-cleartext-fixture\fR, \fB--token-fixture\fR,
+\fB--denied-fixture\fR, \fB--mutation-fixture\fR, \fB--open-fixture\fR,
+\fB--locate-fixture\fR, \fB--move-fixture\fR, \fB--quota-target\fR,
+\fB--capacity-target\fR, \fB--webdav-outside-fixture\fR,
+\fB--cache-fixture\fR, \fB--tpc-fixture\fR, \fB--adv-observer\fR, and
+\fB--adv-fixture\fR. Watch cadence is set by \fB--watch-interval-seconds\fR and
+\fB--watch-cycles\fR. Reports include terminal, JSON, Markdown, HTML, SARIF and
+ECS output plus scrubbed \fI.xrdcap\fR evidence where applicable. A
+generation-bound \fIreport.complete.json\fR commits a complete six-format bundle;
+consumers must reject bundles where this marker is absent or does not match.
+.TP
 .B xrd login \fR[\fB--oidc-account\fR \fIN\fR] [\fB--read\fR]
 Acquire/refresh a bearer token and/or GSI proxy.
 .SH FUSE MOUNTS
@@ -288,6 +323,10 @@ errors like EPERM, EACCES when running against native XRootD);
 54 on unsupported feature (EUNSUPPORTED) or generic server error;
 127 if the underlying tool binary cannot be executed;
 the underlying XRootD shell code on a protocol error.
+.PP
+\fBxrd conform\fR uses its Phase-specific result contract instead: 0 conformant,
+1 divergent, 2 inconclusive under the selected \fB--fail-on\fR policy, 3
+incomplete run, and 4 usage error.
 .SH NOTES
 \fBchown\fR/\fBchgrp\fR are intentionally absent \(em \fBxrd\fR never mutates
 ownership. The link, \fBreadlink\fR, and \fBtouch\fR-time verbs require the

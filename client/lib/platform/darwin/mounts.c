@@ -3,10 +3,11 @@
  *
  * WHAT: brix_plat_mounts_walk over getmntinfo(3).
  * WHY:  `xrd mount` lists xrootdfs mounts on macOS too, not only Linux.
- * HOW:  MNT_NOWAIT snapshot; the table path argument is ignored.
+ * HOW:  MNT_NOWAIT snapshot; an explicit table path uses the shared mountinfo
+ *       parser so diagnostics can consume portable fixture snapshots.
  */
 
-#include "platform/platform.h"
+#include "platform/mounts_internal.h"
 
 #if BRIX_PLATFORM_DARWIN
 
@@ -20,7 +21,9 @@ brix_plat_mounts_walk(const char *table_path, brix_plat_mount_cb cb, void *arg)
     struct statfs *mnt;
     int            n, i, rc = 0;
 
-    (void) table_path;
+    if (table_path != NULL) {
+        return brix_plat_mountinfo_walk(table_path, cb, arg);
+    }
     n = getmntinfo(&mnt, MNT_NOWAIT);
     if (n <= 0) {
         return (n < 0) ? -1 : 0;

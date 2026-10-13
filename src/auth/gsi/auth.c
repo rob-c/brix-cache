@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "gsi_internal.h"
 #include "delegation.h"
 #include "protocols/root/session/registry.h"
@@ -116,7 +117,8 @@ brix_gsi_complete_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     }
     ctx->login.session_slot_hint =
         brix_session_register(ctx->login.sessid, ctx->login.dn,
-                              ctx->login.vo_list, 0);
+                              ctx->login.vo_list, 0,
+                              ctx->sigver.signing_active ? 1 : 0);
 
     /* Track unique user and VO at auth completion. */
     {
@@ -143,7 +145,7 @@ brix_gsi_complete_auth(brix_ctx_t *ctx, ngx_connection_t *c,
         char dn_log[BRIX_AUTH_DN_BUF_SIZE];
 
         brix_sanitize_log_string(ctx->login.dn, dn_log, sizeof(dn_log));
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                       "brix: GSI auth OK dn=\"%s\"", dn_log);
     }
 
@@ -222,7 +224,7 @@ gsi_auth_route_credtype(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_sanitize_log_string(credtype, safe_credtype,
                                sizeof(safe_credtype));
 
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXR_auth credtype=\"%s\" payloadlen=%d",
                    safe_credtype, (int) ctx->recv.cur_dlen);
 
@@ -265,7 +267,7 @@ gsi_auth_route_credtype(brix_ctx_t *ctx, ngx_connection_t *c,
         return NGX_DONE;
     }
 
-    ngx_log_error(NGX_LOG_WARN, c->log, 0,
+    BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                   "brix: kXR_auth unknown credtype=\"%s\"",
                   safe_credtype);
     *out_rc = brix_send_error(ctx, c, kXR_NotAuthorized,
@@ -287,7 +289,7 @@ gsi_auth_step_certreq(brix_ctx_t *ctx, ngx_connection_t *c,
                       ngx_stream_brix_srv_conf_t *conf)
 {
     if (!brix_gsi_inflight_admit(ctx, conf->gsi_max_inflight)) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI handshake shed — %i concurrent in-flight "
                       "(cap reached); asking client to retry",
                       conf->gsi_max_inflight);
@@ -372,7 +374,7 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
     ngx_memcpy(&gsi_step, ctx->recv.payload + 4, 4);
     gsi_step = ntohl(gsi_step);
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: GSI kXR_auth step=%ud", (unsigned) gsi_step);
 
     if (gsi_step == (uint32_t) kXGC_certreq) {
@@ -384,7 +386,7 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
     }
 
     if (gsi_step != (uint32_t) kXGC_cert) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: unexpected GSI step %ud", (unsigned) gsi_step);
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "unexpected GSI auth step");
@@ -446,7 +448,7 @@ brix_handle_auth(brix_ctx_t *ctx, ngx_connection_t *c)
     ngx_uint_t maxfail = (mfconf != NULL && mfconf->auth_maxfail > 0)
         ? (ngx_uint_t) mfconf->auth_maxfail : BRIX_MAX_AUTH_ATTEMPTS;
     if (ctx->login.auth_fail_count >= maxfail) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: %s: auth attempt limit reached, disconnecting",
                       ctx->login.user);
         return brix_send_error(ctx, c, kXR_NotAuthorized,

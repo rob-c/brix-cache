@@ -279,9 +279,9 @@ _S3_MUTATIONS = (
     ("delete-object",  "DELETE", "/seed.txt",                    b"",    {}),
     ("delete-tagging", "DELETE", "/seed.txt?tagging",            b"",    {}),
     ("mpu-initiate",   "POST",   "/mpu.txt?uploads",             b"",    {}),
-    ("mpu-upload-part","PUT",    "/mpu.txt?partNumber=1&uploadId=phase105", b"x", {}),
-    ("mpu-complete",   "POST",   "/mpu.txt?uploadId=phase105",   _S3_MPU_COMPLETE.encode(), {}),
-    ("mpu-abort",      "DELETE", "/mpu.txt?uploadId=phase105",   b"",    {}),
+    ("mpu-upload-part","PUT",    "/mpu.txt?partNumber=1&uploadId=face1050face1050face1050", b"x", {}),
+    ("mpu-complete",   "POST",   "/mpu.txt?uploadId=face1050face1050face1050",   _S3_MPU_COMPLETE.encode(), {}),
+    ("mpu-abort",      "DELETE", "/mpu.txt?uploadId=face1050face1050face1050",   b"",    {}),
     ("batch-delete",   "POST",   "?delete",                      _S3_BATCH_DELETE.encode(), {}),
 )
 

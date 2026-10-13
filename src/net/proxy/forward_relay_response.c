@@ -1,7 +1,9 @@
+#include "core/compat/log_event.h"
 #include "proxy_internal.h"
 #include "protocols/root/session/registry.h"
 #include "protocols/root/protocol/frame_hdr.h"   /* shared kXR_wait seconds parse (libxrdproto) */
 #include "core/compat/cstr.h"
+#include "core/compat/net_target.h"
 #include "forward_relay_response_internal.h"
 
 /*
@@ -34,6 +36,70 @@ extern void proxy_write_path_audit(brix_proxy_ctx_t *proxy, uint16_t status);
  *   kXR_redirect follow-through, fhandle translation, path audit, and streaming.
  */
 
+/* Parse a bounded "host:port\0" redirect body without modifying it.  Requiring
+ * the terminator at the payload boundary prevents an embedded NUL or trailing
+ * bytes from being interpreted differently by validation and connection code;
+ * bracketed IPv6 is accepted and unbracketed multi-colon input is rejected by
+ * the decimal-port parser. */
+static int
+brix_proxy_redirect_target_parse(const u_char *body, uint32_t dlen,
+    const u_char **host, size_t *host_len, uint16_t *port)
+{
+    const u_char *colon;
+    const u_char *end;
+    const u_char *host_end;
+    const u_char *host_start;
+    const u_char *right_bracket;
+    ngx_int_t     parsed_port;
+
+    if (body == NULL || dlen < 4) {
+        return 0;
+    }
+
+    end = memchr(body, '\0', dlen);
+    if (end == NULL || end != body + dlen - 1) {
+        return 0;
+    }
+
+    host_start = body;
+    if (body[0] == '[') {
+        right_bracket = memchr(body + 1, ']', (size_t) (end - body - 1));
+        if (right_bracket == NULL || right_bracket + 1 >= end
+            || right_bracket[1] != ':')
+        {
+            return 0;
+        }
+        host_start = body + 1;
+        host_end = right_bracket;
+        colon = right_bracket + 1;
+    } else {
+        colon = memchr(body, ':', (size_t) (end - body));
+        if (colon == NULL) {
+            return 0;
+        }
+        host_end = colon;
+    }
+
+    *host_len = (size_t) (host_end - host_start);
+    if (*host_len >= BRIX_PROXY_PIN_HOST_MAX
+        || !brix_net_host_chars_valid((const char *) host_start, *host_len))
+    {
+        return 0;
+    }
+
+    parsed_port = ngx_atoi((u_char *) colon + 1,
+                           (size_t) (end - colon - 1));
+    if (parsed_port == NGX_ERROR || parsed_port < 1
+        || parsed_port > BRIX_MAX_PORT)
+    {
+        return 0;
+    }
+
+    *host = host_start;
+    *port = (uint16_t) parsed_port;
+    return 1;
+}
+
 /* kXR_redirect follow-through: when the upstream returns a redirect (and we are
  * under the 3-hop limit), parse the "host:port" target, tear down the current
  * upstream, and reconnect to it re-issuing the saved request.  Returns 1 when
@@ -47,71 +113,64 @@ brix_proxy_relay_try_redirect(brix_proxy_ctx_t *proxy, ngx_connection_t *c,
     if (status == kXR_redirect && body != NULL && dlen > 0
         && proxy->redirect_count < 3)
     {
-        /* Payload is "host:port\0" */
-        char *target = (char *) body;
-        char *colon  = ngx_strchr(target, ':');
+        const u_char *target;
+        size_t        target_len;
+        uint16_t      target_port;
+        u_char       *target_copy;
 
-        if (colon != NULL) {
-            *colon = '\0';
+        if (!brix_proxy_redirect_target_parse(body, dlen, &target,
+                                               &target_len, &target_port))
+        {
+            BRIX_LOG(NGX_LOG_WARN, c->log, 0,
+                     "xrootd proxy: malformed redirect target, relaying");
+            return 0;
+        }
+
+        target_copy = ngx_alloc(target_len + 1, c->log);
+        if (target_copy != NULL) {
+            (void) brix_cbuf_copy((char *) target_copy, target_len + 1,
+                                  target, target_len);
             if (proxy->redirect_host.data != NULL) {
                 ngx_free(proxy->redirect_host.data);
             }
-            proxy->redirect_host.len  = (size_t)(colon - target);
-            proxy->redirect_host.data = ngx_alloc(proxy->redirect_host.len + 1,
-                                                 c->log);
-            if (proxy->redirect_host.data != NULL) {
-                (void) brix_cbuf_copy((char *) proxy->redirect_host.data,
-                    proxy->redirect_host.len + 1, target, proxy->redirect_host.len);
-                {
-                    char    *endp;
-                    long     pval;
-                    errno = 0;
-                    pval = strtol(colon + 1, &endp, 10);
-                    if (errno != 0 || endp == colon + 1 || pval < 1 || pval > BRIX_MAX_PORT) {
-                        ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                                      "xrootd proxy: invalid redirect port (must be 1-%d), dropping",
-                                      BRIX_MAX_PORT);
-                    } else {
-                        proxy->redirect_port = (uint16_t) pval;
+            proxy->redirect_host.data = target_copy;
+            proxy->redirect_host.len = target_len;
+            proxy->redirect_port = target_port;
 
-                        proxy->redirect_count++;
-                        ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                                      "xrootd proxy: following redirect %d to %s:%d",
-                                      proxy->redirect_count,
-                                      proxy->redirect_host.data,
-                                      (int) proxy->redirect_port);
+            proxy->redirect_count++;
+            BRIX_LOG(NGX_LOG_INFO, c->log, 0,
+                     "xrootd proxy: following redirect %d to %s:%d",
+                     proxy->redirect_count, proxy->redirect_host.data,
+                     (int) proxy->redirect_port);
 
-                        /* Close current upstream, reconnect to redirected target */
-                        if (proxy->conn != NULL) {
-                            ngx_close_connection(proxy->conn);
-                            proxy->conn = NULL;
-                        }
-                        if (proxy->resp_body != NULL) {
-                            ngx_free(proxy->resp_body);
-                            proxy->resp_body = NULL;
-                        }
-                        /* Reuse the wait-retry copy to re-issue the request */
-                        proxy->saved_req      = proxy->wait_retry_req;
-                        proxy->saved_req_len  = proxy->wait_retry_req_len;
-                        proxy->saved_local_fh = proxy->wait_retry_local_fh;
-                        proxy->wait_retry_req     = NULL;
-                        proxy->wait_retry_req_len = 0;
-
-                        proxy->state         = XRD_PX_CONNECTING;
-                        proxy->bs_phase      = XRD_PX_BS_HANDSHAKE;
-                        proxy->rhdr_pos      = 0;
-                        proxy->resp_dlen     = 0;
-                        proxy->resp_body_pos = 0;
-
-                        if (brix_proxy_connect(proxy, c, proxy->conf) == NGX_OK) {
-                            return 1; /* reconnect in progress; dispatches saved_req */
-                        }
-                        /* reconnect failed — fall through to relay redirect */
-                        ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                                      "xrootd proxy: redirect follow failed, relaying");
-                    }
-                }
+            /* Close current upstream, reconnect to redirected target */
+            if (proxy->conn != NULL) {
+                ngx_close_connection(proxy->conn);
+                proxy->conn = NULL;
             }
+            if (proxy->resp_body != NULL) {
+                ngx_free(proxy->resp_body);
+                proxy->resp_body = NULL;
+            }
+            /* Reuse the wait-retry copy to re-issue the request */
+            proxy->saved_req      = proxy->wait_retry_req;
+            proxy->saved_req_len  = proxy->wait_retry_req_len;
+            proxy->saved_local_fh = proxy->wait_retry_local_fh;
+            proxy->wait_retry_req     = NULL;
+            proxy->wait_retry_req_len = 0;
+
+            proxy->state         = XRD_PX_CONNECTING;
+            proxy->bs_phase      = XRD_PX_BS_HANDSHAKE;
+            proxy->rhdr_pos      = 0;
+            proxy->resp_dlen     = 0;
+            proxy->resp_body_pos = 0;
+
+            if (brix_proxy_connect(proxy, c, proxy->conf) == NGX_OK) {
+                return 1; /* reconnect in progress; dispatches saved_req */
+            }
+            /* reconnect failed — fall through to relay redirect */
+            BRIX_LOG(NGX_LOG_ERR, c->log, 0,
+                     "xrootd proxy: redirect follow failed, relaying");
         }
     }
 
@@ -161,7 +220,7 @@ brix_proxy_relay_absorb_wait(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
     BRIX_PROXY_METRIC_INC(ctx, wait_responses_total);
     BRIX_PROXY_UP_INC(proxy, wait_responses_total);
 
-    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd proxy: kXR_wait for reqid=%d, retry %d in %us",
                    (int) proxy->fwd_reqid, proxy->wait_retry_count, wait_secs);
 
@@ -463,7 +522,7 @@ brix_proxy_relay_to_client(brix_proxy_ctx_t *proxy)
         proxy->resp_body = NULL;
     }
 
-    ngx_log_debug4(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                   "xrootd proxy: relay reqid=%d status=%d dlen=%uz resptype=%d",
                   (int) proxy->fwd_reqid, (int) status, (size_t) dlen,
                   (int) resptype);

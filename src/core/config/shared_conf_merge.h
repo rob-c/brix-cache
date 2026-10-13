@@ -1,7 +1,8 @@
 /*
  * shared_conf_merge.h — ngx_http_brix_shared_merge() and its per-family
  * helpers, moved out of shared_conf.h (phase-103: 747-line header split).
- * Not a standalone header: #included by shared_conf.h at the point the old
+ * Not a standalone header: #include "core/compat/log_event.h"
+#included by shared_conf.h at the point the old
  * function sat, so every name it needs (the conf struct, the merge macros,
  * brix_shared_apply_read_only, brix_shared_credential_dir_ensure) is already
  * visible and every existing includer keeps working unchanged.
@@ -48,7 +49,7 @@ brix_shared_merge_core(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev,
         conf->access_log_file = ngx_conf_open_file(cf->cycle,
                                                    &conf->access_log);
         if (conf->access_log_file == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix: cannot register HTTP access log \"%V\"",
                 &conf->access_log);
             return NGX_CONF_ERROR;
@@ -279,7 +280,7 @@ brix_shared_merge_authx(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev,
      * sec_slot makes `5m` parse — the clamp is what keeps 300 the ceiling,
      * so it must reject loudly, never silently truncate. */
     if (conf->token_clock_skew < 0 || conf->token_clock_skew > 300) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_token_clock_skew is capped at 300s (security clamp against "
             "unit confusion); got %T", conf->token_clock_skew);
         return NGX_CONF_ERROR;

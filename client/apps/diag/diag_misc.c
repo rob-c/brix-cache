@@ -2,6 +2,7 @@
  * diag_misc.c - extracted concern
  * Phase-38 split of xrddiag.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "diag_internal.h"
 
 
@@ -259,17 +260,17 @@ do_probe_robustness(const diag_args *a)
 
     brix_status_clear(&st);
     if (brix_endpoint_parse(a->url, &u, &st) != 0) {
-        fprintf(stderr, "xrddiag: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: %s\n", st.msg);
         return 50;
     }
     if (resolve_once(u.host, u.port, ip, sizeof(ip), &is_loop, &st) != 0) {
-        fprintf(stderr, "xrddiag: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: %s\n", st.msg);
         return 51;
     }
     /* Safety gate: this is a fuzzing-class tool. Refuse a non-loopback resolved
      * address unless the operator explicitly asserts authorisation. */
     if (!is_loop && !a->authorized) {
-        fprintf(stderr,
+        BRIX_CLIENT_LOG("ERROR",
                 "xrddiag: refusing to fuzz non-loopback target %s (%s) — this is "
                 "an adversarial auditor; re-run with --i-am-authorized only "
                 "against hosts you are authorised to test.\n", u.host, ip);
@@ -310,7 +311,7 @@ do_replay(const diag_args *a)
         rc = brix_capture_replay(a->url, a->conn.wire_trace, stdout, &st);
     }
     if (rc != 0) {
-        fprintf(stderr, "xrddiag: replay: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: replay: %s\n", st.msg);
         return brix_shellcode(&st);
     }
     return 0;
@@ -329,7 +330,7 @@ do_srr(const diag_args *a)
     int            tmo = a->probe_timeout_ms > 0 ? a->probe_timeout_ms : 8000;
 
     if (dx_url_parse(a->url, &u) != 0 || u.proto == DXP_ROOT) {
-        fprintf(stderr, "xrddiag: srr needs an http(s):// URL\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: srr needs an http(s):// URL\n");
         return 50;
     }
     if (u.path[0] == '\0' || strcmp(u.path, "/") == 0) {
@@ -338,12 +339,12 @@ do_srr(const diag_args *a)
     brix_status_clear(&st);
     if (brix_http_req(u.host, u.port, u.tls, "GET", u.path, NULL, NULL, 0, tmo,
                       a->verify_tls, NULL, NULL, &r, &st) != 0) {
-        fprintf(stderr, "xrddiag: srr GET %s:%d%s: %s\n", u.host, u.port, u.path,
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: srr GET %s:%d%s: %s\n", u.host, u.port, u.path,
                 st.msg);
         return 51;
     }
     if (r.status != 200) {
-        fprintf(stderr, "xrddiag: srr returned HTTP %d\n", r.status);
+        BRIX_CLIENT_LOG("INFO",  "xrddiag: srr returned HTTP %d\n", r.status);
         brix_http_resp_free(&r);
         return 51;
     }
@@ -422,13 +423,13 @@ do_tape(const diag_args *a)
 
     if (dx_url_parse(a->url, &u) != 0 || u.proto == DXP_ROOT || u.path[0] != '/'
         || u.path[1] == '\0') {
-        fprintf(stderr, "xrddiag: tape needs an http(s):// URL with a file path\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: tape needs an http(s):// URL with a file path\n");
         return 50;
     }
     /* POST /api/v1/stage {"files":[{"path":"<path>"}]} — reject (don't silently
      * truncate) an over-long path, which would stage the wrong file. */
     if (strlen(u.path) > 900) {
-        fprintf(stderr, "xrddiag: tape path too long (max 900 bytes)\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: tape path too long (max 900 bytes)\n");
         return 50;
     }
     snprintf(body, sizeof(body), "{\"files\":[{\"path\":\"%s\"}]}", u.path);
@@ -436,17 +437,17 @@ do_tape(const diag_args *a)
     if (brix_http_req(u.host, u.port, u.tls, "POST", "/api/v1/stage",
                       "Content-Type: application/json\r\n", body, strlen(body),
                       tmo, a->verify_tls, NULL, NULL, &r, &st) != 0) {
-        fprintf(stderr, "xrddiag: tape stage POST: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: tape stage POST: %s\n", st.msg);
         return 51;
     }
     if (r.status != 200 && r.status != 201) {
-        fprintf(stderr, "xrddiag: tape stage returned HTTP %d\n", r.status);
+        BRIX_CLIENT_LOG("INFO",  "xrddiag: tape stage returned HTTP %d\n", r.status);
         brix_http_resp_free(&r);
         return 51;
     }
     if (!js_str(r.body, "id", reqid, sizeof(reqid))
         && !js_str(r.body, "requestId", reqid, sizeof(reqid))) {
-        fprintf(stderr, "xrddiag: tape stage: no request id in response\n");
+        BRIX_CLIENT_LOG("INFO",  "xrddiag: tape stage: no request id in response\n");
         brix_http_resp_free(&r);
         return 51;
     }

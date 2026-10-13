@@ -190,10 +190,14 @@ class _RegistryLauncherMixinA:
 
         failures: list[str] = []
         listeners = listening_port_pids()
-        for spec in reversed(selected):
-            failure = self._stop_selected_spec(spec, listeners)
-            if failure is not None:
-                failures.append(failure)
+        self._teardown_listeners = listeners
+        try:
+            for spec in reversed(selected):
+                failure = self._stop_selected_spec(spec, listeners)
+                if failure is not None:
+                    failures.append(failure)
+        finally:
+            del self._teardown_listeners
         self._owned.clear()
         if failures:
             raise RuntimeError("fleet teardown failures: " + "; ".join(failures))

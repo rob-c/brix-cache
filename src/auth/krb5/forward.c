@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "auth/krb5/forward.h"
 
 /*
@@ -125,7 +126,7 @@ brix_gss_log_status(ngx_log_t *log, const char *what,
                 break;
             }
 
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix: krb5 gss %s: %*s", what,
                           (int) msg.length,
                           msg.value ? (char *) msg.value : "");
@@ -146,7 +147,7 @@ brix_gss_import_service(const char *princ, gss_name_t *out, ngx_log_t *log)
     gss_buffer_desc name_buf;
 
     if (princ == NULL || princ[0] == '\0') {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: krb5 forward: empty origin service principal");
         return NGX_ERROR;
     }
@@ -177,7 +178,7 @@ brix_gss_token_to_pool(ngx_pool_t *pool, gss_buffer_desc *tok,
     u_char *copy;
 
     if (tok->value == NULL || tok->length == 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: krb5 forward: empty gss output token");
         return NGX_ERROR;
     }
@@ -274,7 +275,7 @@ brix_krb5_deleg_leg_exchange(ngx_pool_t *pool, brix_krb5_wire_fn wire,
     ngx_int_t rc = NGX_OK;
 
     if (*origin_closed) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix: krb5 initiator still owes the origin a token after "
             "it closed the exchange (leg %ui) - failing closed", leg);
         rc = NGX_ERROR;
@@ -368,7 +369,7 @@ brix_krb5_deleg_negotiate(ngx_pool_t *pool, void *deleg_gss_cred,
             /* Mutual auth verified the origin: a spoofed origin's AP-REP would
              * have failed the init above rather than reaching here. */
             if (!(ret_flags & GSS_C_MUTUAL_FLAG)) {
-                ngx_log_error(NGX_LOG_ERR, log, 0,
+                BRIX_LOG(NGX_LOG_ERR, log, 0,
                     "brix: krb5 origin negotiation completed WITHOUT mutual "
                     "authentication - refusing (origin identity unverified)");
                 rc = NGX_ERROR;
@@ -380,7 +381,7 @@ brix_krb5_deleg_negotiate(ngx_pool_t *pool, void *deleg_gss_cred,
          * feed back in. An empty reply means the origin short-circuited an
          * unfinished context (kXR_ok with no token, or a dropped leg) — fail. */
         if (in_buf.length == 0) {
-            ngx_log_error(NGX_LOG_ERR, log, 0,
+            BRIX_LOG(NGX_LOG_ERR, log, 0,
                 "brix: krb5 origin ended the exchange before the security "
                 "context completed (leg %ui) - failing closed", leg);
             rc = NGX_ERROR;
@@ -388,7 +389,7 @@ brix_krb5_deleg_negotiate(ngx_pool_t *pool, void *deleg_gss_cred,
         }
 
         if (leg >= 8) {   /* a krb5 context settles in 2; 8 is a runaway guard */
-            ngx_log_error(NGX_LOG_ERR, log, 0,
+            BRIX_LOG(NGX_LOG_ERR, log, 0,
                 "brix: krb5 origin negotiation exceeded %ui legs - aborting",
                 leg);
             rc = NGX_ERROR;
@@ -427,7 +428,7 @@ brix_krb5_deleg_negotiate(ngx_pool_t *pool, void *deleg_gss_cred,
     (void) wire;
     (void) wire_ctx;
 
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
                   "brix: krb5 credential forwarding not compiled in");
     return NGX_ERROR;
 }
@@ -441,7 +442,7 @@ brix_krb5_deleg_to_origin(ngx_pool_t *pool, void *deleg_gss_cred,
     (void) origin_service_princ;
     (void) out_token;
 
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
                   "brix: krb5 credential forwarding not compiled in");
     return NGX_ERROR;
 }

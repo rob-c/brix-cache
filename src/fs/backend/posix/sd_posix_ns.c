@@ -28,7 +28,9 @@
 #ifndef XRDPROTO_NO_NGX
 #include "fs/vfs/vfs_internal.h"          /* pread_full/pwrite_full + ns_status_errno */
 #include "core/compat/crc32c.h"
+#include "core/compat/log_event.h"
 #include "core/compat/namespace_ops.h"
+#include "fs/meta/xmeta_path.h"
 #include "fs/path/beneath.h"
 #include "fs/path/path.h"
 #endif
@@ -96,8 +98,10 @@ ngx_int_t
 sd_posix_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
 {
     brix_ns_delete_opts_t opts;
+    brix_ns_result_t      result;
     sd_posix_state_t       *st;
     char                    abspath[PATH_MAX];
+    char                    sidecar[PATH_MAX];
     const char             *root;
 
     root = sd_posix_abs_key(inst, path, abspath, sizeof(abspath));
@@ -111,11 +115,39 @@ sd_posix_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
     if (st->rootfd >= 0) {
         /* Borrow the driver's persistent confinement rootfd: same beneath
          * semantics, minus a root open/close per delete. */
-        return sd_posix_ns_result(
-            brix_ns_delete_at(inst->log, st->rootfd, root, abspath, &opts));
+        result = brix_ns_delete_at(inst->log, st->rootfd, root, abspath,
+                                   &opts);
+    } else {
+        result = brix_ns_delete(inst->log, root, abspath, &opts);
     }
-    return sd_posix_ns_result(
-        brix_ns_delete(inst->log, root, abspath, &opts));
+    if (sd_posix_ns_result(result) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    /* A large CSI/cinfo record falls back from the data inode's xattr to the
+     * reserved sibling carrier. Delete that carrier through the same confined
+     * namespace seam as the primary; raw unlink(abspath + ".cinfo") would let
+     * a concurrently replaced parent directory escape confinement. The data
+     * deletion has already committed, so an absent carrier is success and an
+     * unexpected cleanup failure is observable without changing that result. */
+    if (!is_dir
+        && brix_xmeta_sidecar_path(sidecar, sizeof(sidecar), abspath) == 0)
+    {
+        if (st->rootfd >= 0) {
+            result = brix_ns_delete_at(inst->log, st->rootfd, root, sidecar,
+                                       &opts);
+        } else {
+            result = brix_ns_delete(inst->log, root, sidecar, &opts);
+        }
+        if (result.status != BRIX_NS_OK
+            && result.sys_errno != ENOENT
+            && brix_vfs_ns_status_errno(result.status) != ENOENT)
+        {
+            BRIX_LOG(NGX_LOG_WARN, inst->log, result.sys_errno,
+                     "metadata sidecar cleanup failed");
+        }
+    }
+    return NGX_OK;
 }
 
 /* WHAT: Apply a metadata mutation (mode / times / owner) to `path`, kernel-

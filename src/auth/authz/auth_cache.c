@@ -4,6 +4,7 @@
  * The lookup/store logic lives inline in brix_auth_gate() because that is
  * where every key input is in scope; this file only parses the directive.
  */
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "auth_cache.h"
 
@@ -26,33 +27,33 @@ brix_auth_cache_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         } else if (ngx_strncmp(value[i].data, "ttl=", 4) == 0) {
             n = ngx_atoi(value[i].data + 4, value[i].len - 4);
             if (n == NGX_ERROR || n <= 0) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                     "invalid brix_auth_cache ttl \"%V\"", &value[i]);
                 return NGX_CONF_ERROR;
             }
             ttl = (ngx_uint_t) n;
         } else {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "invalid brix_auth_cache parameter \"%V\"", &value[i]);
             return NGX_CONF_ERROR;
         }
     }
 
     if (zone.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_auth_cache requires zone=<name>");
         return NGX_CONF_ERROR;
     }
 
     kv = brix_kv_find(&zone);
     if (kv == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_auth_cache: unknown zone \"%V\" "
             "(declare it with brix_kv_zone first)", &zone);
         return NGX_CONF_ERROR;
     }
     if (kv->key_max < 32 || kv->val_max < sizeof(brix_auth_cache_val_t)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_auth_cache zone \"%V\" too small: need key>=32 val>=%uz",
             &zone, sizeof(brix_auth_cache_val_t));
         return NGX_CONF_ERROR;

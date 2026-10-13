@@ -13,6 +13,7 @@ import http.client
 import http.server
 import os
 from pathlib import Path
+import sys
 import threading
 
 import pytest
@@ -59,6 +60,8 @@ def test_cvmfs_live_failure_is_never_reported_green(monkeypatch):
 @pytest.mark.timeout(600)
 @pytest.mark.parametrize("scenario", sorted(EXPECTED_SCENARIOS))
 def test_cvmfs_live_scenario(scenario: str):
+    if scenario == "keepalive" and sys.platform != "linux":
+        pytest.skip("tuned listen so_keepalive and ss inspection require Linux")
     nginx = _require_live_cvmfs()
     assert cvmfs_live.SCENARIOS[scenario](nginx) == 0
 

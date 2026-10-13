@@ -466,6 +466,13 @@ tpc_fetch_delegated_token(brix_tpc_pull_t *t)
     }
 
     if (ngx_strcmp(t->token_mode, "oidc-agent") == 0) {
+        if (!BRIX_HAS_WORKER_EXEC) {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC token: oidc-agent is unsupported on this host because "
+                     "hardened workers cannot execute subprocesses");
+            t->xrd_error = kXR_Unsupported;
+            return -1;
+        }
         if (tpc_token_oidc_agent(t, t->delegated_token,
                                  sizeof(t->delegated_token)) != 0) {
             return -1;
@@ -474,6 +481,13 @@ tpc_fetch_delegated_token(brix_tpc_pull_t *t)
     }
 
     if (ngx_strcmp(t->token_mode, "token-exchange") == 0) {
+        if (!BRIX_HAS_WORKER_EXEC) {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC token: token-exchange is unsupported on this host because "
+                     "hardened workers cannot execute subprocesses");
+            t->xrd_error = kXR_Unsupported;
+            return -1;
+        }
         if (t->conf->common.tpc_outbound_token_endpoint.len == 0) {
             snprintf(t->err_msg, sizeof(t->err_msg),
                      "TPC token: token_endpoint not configured for "

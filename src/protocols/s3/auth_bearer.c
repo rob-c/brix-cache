@@ -20,6 +20,7 @@
  *       No goto; early-return style throughout.
  */
 
+#include "core/compat/log_event.h"
 #include "s3.h"
 #include "auth_bearer.h"
 #include "auth/token/token.h"
@@ -109,7 +110,7 @@ s3_verify_bearer(ngx_http_request_t *r,
     token_len = authz.len - S3_BEARER_PREFIX_LEN;
 
     if (token_len > S3_BEARER_MAX_TOKEN_LEN) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                       "brix_s3: bearer token too large (%uz bytes)", token_len);
         return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                                  "AccessDenied",
@@ -151,7 +152,7 @@ s3_verify_bearer(ngx_http_request_t *r,
         }
     }
     if (rc != 0) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                       "brix_s3: bearer token validation failed");
         brix_metric_auth(BRIX_PROTO_S3, BRIX_AUTHN_TOKEN, 0);
         return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
@@ -162,7 +163,7 @@ s3_verify_bearer(ngx_http_request_t *r,
     if (identity != NULL
         && brix_identity_set_token_claims(identity, r->pool, &claims) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "brix_s3: failed to set token identity claims (OOM?)");
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }

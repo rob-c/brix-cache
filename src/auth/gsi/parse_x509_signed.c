@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "gsi_internal.h"
 #include "gsi_core.h"
 #include <string.h>
@@ -28,7 +29,7 @@ gsi_recover_peer_signed(const u_char *payload, size_t plen, ngx_log_t *log)
         || gsi_find_bucket(payload, plen, (uint32_t) kXRS_puk,
                            &puk, &puklen) != 0)
     {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: GSI signed-DH: kXRS_cipher/kXRS_puk missing");
         return NULL;
     }
@@ -37,7 +38,7 @@ gsi_recover_peer_signed(const u_char *payload, size_t plen, ngx_log_t *log)
     proxy_pub = pbio ? PEM_read_bio_PUBKEY(pbio, NULL, NULL, NULL) : NULL;
     BIO_free(pbio);
     if (proxy_pub == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: GSI signed-DH: cannot read proxy public key");
         return NULL;
     }
@@ -49,7 +50,7 @@ gsi_recover_peer_signed(const u_char *payload, size_t plen, ngx_log_t *log)
     brix_evp_pkey_free(proxy_pub);
     if (bloblen == 0) {
         free(blob);
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: GSI signed-DH: signature verification failed");
         return NULL;
     }
@@ -86,7 +87,7 @@ gsi_signed_derive_secret(ngx_connection_t *c, EVP_PKEY *dh_key, EVP_PKEY *peer,
     {
         brix_evp_pkey_ctx_free(pkctx);
         brix_evp_pkey_free(peer);
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI signed-DH: DH derive failed");
         return NULL;
     }
@@ -162,7 +163,7 @@ brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c)
 
     if (gsi_find_bucket(payload, plen, (uint32_t) kXRS_main,
                         &main_data, &main_len) != 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: GSI signed-DH: kXRS_main missing");
         return NULL;
     }
@@ -206,12 +207,12 @@ brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c)
                                     1, /* enc */ 0, &plain_len);
     OPENSSL_cleanse(sc.aeskey, sizeof(sc.aeskey));
     if (plain == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: GSI signed-DH: main decrypt failed");
         return NULL;
     }
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, log, 0,
                    "brix: GSI signed-DH decrypted kXRS_main: %uz bytes",
                    plain_len);
     gsi_capture_client_rtag(ctx, plain, plain_len);   /* §F6 delegation rtag */

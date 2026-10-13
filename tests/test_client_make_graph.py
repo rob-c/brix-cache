@@ -26,6 +26,7 @@ touching anything.
 from __future__ import annotations
 
 import pathlib
+import platform
 import re
 import shutil
 import subprocess
@@ -38,9 +39,132 @@ from lib_py.preload_shim import SHIM_NAME
 REPO = pathlib.Path(__file__).resolve().parent.parent
 CLIENT = REPO / "client"
 MAKEFILE = CLIENT / "Makefile"
+PROTO_MAKEFILE = REPO / "shared" / "xrdproto" / "Makefile"
 ABSENT = "/nonexistent/brix-make-graph/libxrdproto.a"
 
 pytestmark = pytest.mark.timeout(120)
+
+
+def _make_variables(makefile: pathlib.Path, **overrides: str) -> dict[str, str]:
+    """Return make's expanded simple variables without building any target."""
+    command = ["make", "-f", str(makefile), "-pn", *(
+        f"{name}={value}" for name, value in overrides.items()
+    )]
+    proc = subprocess.run(command, cwd=makefile.parent,
+                          capture_output=True, text=True)
+    variables = {}
+    for line in proc.stdout.splitlines():
+        match = re.match(
+            r"^(HARDEN|OPT|OPENSSL_CFLAGS|KRB5_CFLAGS)\s*:?=\s*(.*)$",
+            line,
+        )
+        if match:
+            variables[match.group(1)] = match.group(2)
+    return variables
+
+
+@pytest.mark.parametrize("makefile", [MAKEFILE, PROTO_MAKEFILE])
+def test_arm64_defaults_never_select_an_x86_profile(makefile: pathlib.Path) -> None:
+    """An ARM64 build must use an ARM ISA even when no profile is supplied."""
+    variables = _make_variables(makefile, HOST_ARCH="arm64", HOST_OS="Darwin")
+    assert "-march=armv8" in variables["OPT"]
+    assert "x86-64" not in variables["OPT"]
+
+
+@pytest.mark.parametrize("makefile", [MAKEFILE, PROTO_MAKEFILE])
+def test_unknown_arm64_profile_fails_closed_to_auto(makefile: pathlib.Path) -> None:
+    """A misspelled ARM64 profile must not fall back to the x86 default."""
+    variables = _make_variables(
+        makefile, HOST_ARCH="aarch64", HOST_OS="Linux",
+        BRIX_OPTIMIZE="not-a-profile",
+    )
+    assert "-march=armv8" in variables["OPT"]
+    assert "x86-64" not in variables["OPT"]
+
+
+@pytest.mark.parametrize("makefile", [MAKEFILE, PROTO_MAKEFILE])
+def test_hardening_tracks_host_and_architecture_capabilities(
+        makefile: pathlib.Path) -> None:
+    """Keep Linux stack-clash and x86 CET without passing them to Darwin."""
+    darwin = _make_variables(makefile, HOST_ARCH="arm64", HOST_OS="Darwin")
+    linux_arm = _make_variables(makefile, HOST_ARCH="aarch64", HOST_OS="Linux")
+    linux_x86 = _make_variables(makefile, HOST_ARCH="x86_64", HOST_OS="Linux")
+    assert "-fcf-protection=full" not in darwin["HARDEN"]
+    assert "-fstack-clash-protection" not in darwin["HARDEN"]
+    assert "-fcf-protection=full" not in linux_arm["HARDEN"]
+    assert "-fstack-clash-protection" in linux_arm["HARDEN"]
+    assert "-fcf-protection=full" in linux_x86["HARDEN"]
+    assert "-fstack-clash-protection" in linux_x86["HARDEN"]
+
+
+@pytest.mark.parametrize("makefile", [MAKEFILE, PROTO_MAKEFILE])
+def test_openssl_pkg_config_flags_reach_every_client_compile(
+        makefile: pathlib.Path) -> None:
+    """Keg-only OpenSSL headers must be present on every compile command."""
+    body = makefile.read_text()
+    assert re.search(r"^OPENSSL_CFLAGS\s*:=.*pkg-config --cflags openssl", body,
+                     re.MULTILINE)
+    all_cflags = re.search(r"^ALL_CFLAGS\s*:=.*?(?=\n[^ \t])", body,
+                           re.MULTILINE | re.DOTALL)
+    assert all_cflags and "$(OPENSSL_CFLAGS)" in all_cflags.group(0)
+
+
+def test_shared_codec_probes_propagate_non_system_include_paths() -> None:
+    """Enabling an optional codec must carry its pkg-config include flags."""
+    body = PROTO_MAKEFILE.read_text()
+    for package in ("libzstd", "liblzma", "libbrotlienc", "bzip2"):
+        assert re.search(
+            rf"CODEC_CFLAGS\s*\+=.*?pkg-config --cflags[^\n]*{package}", body,
+            re.MULTILINE | re.DOTALL,
+        )
+
+
+def test_module_hardening_flags_are_compiler_probed() -> None:
+    """Architecture-specific mitigations must not be unconditional CFLAGS."""
+    body = (REPO / "config").read_text()
+    base_flags = re.search(r'^CFLAGS="\$CFLAGS ([^\n]+)"$', body, re.MULTILINE)
+    assert base_flags and "-fcf-protection=full" not in base_flags.group(1)
+    assert "for _brix_hflag in -fstack-clash-protection -fcf-protection=full" in body
+
+
+@pytest.mark.parametrize("makefile", [MAKEFILE, PROTO_MAKEFILE])
+def test_darwin_discovers_keg_only_openssl_metadata(
+        makefile: pathlib.Path) -> None:
+    """A stock Homebrew shell must find the OpenSSL headers and libraries."""
+    if platform.system() != "Darwin":
+        pytest.skip("Homebrew discovery requires a Darwin host")
+    variables = _make_variables(makefile, HOST_ARCH="arm64", HOST_OS="Darwin")
+    assert "/openssl@3/" in variables["OPENSSL_CFLAGS"]
+
+
+def test_darwin_client_discovers_keg_only_kerberos_metadata() -> None:
+    """Homebrew Kerberos support remains enabled without caller environment."""
+    if platform.system() != "Darwin":
+        pytest.skip("Homebrew discovery requires a Darwin host")
+    variables = _make_variables(MAKEFILE, HOST_ARCH="arm64", HOST_OS="Darwin")
+    assert "-DBRIX_HAVE_KRB5" in variables["KRB5_CFLAGS"]
+    assert "/krb5/" in variables["KRB5_CFLAGS"]
+
+
+def test_cvmfs_compile_uses_discovered_openssl_headers() -> None:
+    """The special CVMFS recipe must retain keg-only OpenSSL discovery."""
+    body = MAKEFILE.read_text()
+    rule = re.search(
+        r"\$\(BRIX_CVMFS_OBJS\):.*?(?=\n[^\t#].*?:)", body,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert rule and "$(OPENSSL_CFLAGS)" in rule.group(0)
+    assert "$(ZSTD_CFLAGS)" in rule.group(0)
+
+
+def test_darwin_lz4_link_retains_homebrew_library_path() -> None:
+    """ld64 must receive pkg-config's directory for keg-only liblz4."""
+    body = MAKEFILE.read_text()
+    darwin_branch = re.search(
+        r"ifeq \(\$\(HOST_OS\),Darwin\)\n"
+        r"\s*LZ4_SONAME_LINK\s*:=([^\n]+)", body,
+    )
+    assert darwin_branch and "pkg-config --libs liblz4" in darwin_branch.group(1)
 
 
 def _dry_run(goal: str) -> subprocess.CompletedProcess:
@@ -140,15 +264,36 @@ def _link_line(goal: str) -> str:
 
 
 @pytest.mark.parametrize("goal", ["bin/xrdcksum", "bin/xrddiag"])
-def test_executables_offer_the_pal_after_the_protocol_core(goal: str) -> None:
-    """The regression: both binaries that pull the xrdproto storage backends
-    must name libbrix.a again after libxrdproto.a, or their PAL calls dangle."""
+def test_executables_close_the_archive_cycle(goal: str) -> None:
+    """Every native binary must close the libbrix/libxrdproto cycle.
+
+    GNU ld needs an archive group so it can rescan both sides to a fixed point.
+    Darwin's ld64 already rescans archives, so the plain pair is sufficient
+    there and avoids GNU-only options.
+    """
     line = _link_line(goal)
+    _assert_archive_pair(goal, line)
+    _assert_platform_archive_closure(goal, line)
+
+
+def _assert_archive_pair(goal: str, line: str) -> None:
+    """Require the shared pair once; the linker controls any rescans."""
     order = [tok for tok in re.findall(r"\S*lib(?:brix|xrdproto)\.a", line)]
-    assert len(order) >= 3 and order[-1].endswith("libbrix.a"), (
-        f"{goal} links the archives as {order} — libbrix.a must follow "
-        f"libxrdproto.a so the protocol core's brix_plat_* callers resolve:\n{line}"
-    )
+    assert len(order) == 2, f"{goal} must link exactly one archive pair: {line}"
+    assert order[0].endswith("libbrix.a")
+    assert order[1].endswith("libxrdproto.a")
+
+
+def _assert_platform_archive_closure(goal: str, line: str) -> None:
+    """Require GNU grouping while keeping the Darwin command ld64-safe."""
+    if platform.system() == "Darwin":
+        assert "--start-group" not in line and "--end-group" not in line
+        return
+    assert re.search(
+        r"--start-group\s+\S*libbrix\.a\s+"
+        r"\S*libxrdproto\.a\s+-Wl,--end-group",
+        line,
+    ), f"{goal} does not group the cyclic archives:\n{line}"
 
 
 def test_every_executable_link_uses_the_shared_archive_pair() -> None:
@@ -172,18 +317,17 @@ def test_every_executable_link_uses_the_shared_archive_pair() -> None:
 def test_the_unit_recipe_closes_the_same_cycle() -> None:
     """`make <name>-unit` links the same two archives and needs the same cure.
 
-    It cannot use $(BRIX_LIBS) verbatim — $$lib selects whole-archive per test
-    from $(WHOLEARCH_TESTS) — so it trails $(CLIENT_LIB) by hand. Dropping that
-    breaks cred_refresh, relsafe, web_proxy_pem and xrdrc_defaults, whose units
-    reach a storage backend and so import brix_plat_* from libxrdproto.a.
+    Ordinary units use $(BRIX_LIBS), the same platform-specific closure as the
+    executables. Tests that require every client object retain the explicit
+    whole-archive branch.
     """
     body = MAKEFILE.read_text()
     recipe = re.search(r"^%-unit:.*?(?=\n[^\t\n#])", body, re.M | re.S)
     assert recipe, "the %-unit pattern rule is gone"
     link = recipe.group(0)
-    assert re.search(r"\$\(PROTO_LIB\)\s+\$\(CLIENT_LIB\)", link), (
-        "the %-unit link no longer offers $(CLIENT_LIB) after $(PROTO_LIB); "
-        f"units importing brix_plat_* through the protocol core will dangle:\n{link}"
+    assert "lib='$(BRIX_LIBS)'" in link, (
+        "the %-unit ordinary link no longer uses the shared cyclic archive "
+        f"closure:\n{link}"
     )
 
 
@@ -200,41 +344,29 @@ def test_the_sweep_recipe_closes_the_same_cycle() -> None:
     recipe = re.search(r"^test:.*?(?=\n[^\t\n#])", body, re.M | re.S)
     assert recipe, "the `test` sweep target is gone"
     link = recipe.group(0)
-    assert re.search(r"\$\(PROTO_LIB\)\s+\$\(CLIENT_LIB\)", link), (
-        "the `make test` sweep no longer offers $(CLIENT_LIB) after "
-        f"$(PROTO_LIB); the C unit sweep will fail to link:\n{link}"
+    assert "lib='$(BRIX_LIBS)'" in link, (
+        "the `make test` ordinary link no longer uses the shared cyclic "
+        f"archive closure:\n{link}"
     )
-
-
-def _makefile_code_lines_naming(flag: str) -> list[str]:
-    """Makefile lines naming `flag`, comments excluded.
-
-    The rationale comments deliberately say the words this test bans, so a raw
-    text search would flag the explanation of the ban.
-    """
-    return [
-        line
-        for line in MAKEFILE.read_text().splitlines()
-        if flag in line and not line.lstrip().startswith("#")
-    ]
 
 
 def test_the_ordering_cure_stays_portable_to_macos() -> None:
-    """Repeating the archive is the fix precisely because ld64 accepts it.
-
-    --start-group/--end-group would resolve the same cycle on GNU ld and break
-    every Darwin link, so reaching for them is a regression on the macOS host
-    even though this host's build would go green.
-    """
-    offenders = {
-        flag: _makefile_code_lines_naming(flag)
-        for flag in ("--start-group", "--end-group")
-    }
-    assert not any(offenders.values()), (
-        "--start-group/--end-group are GNU ld only — Mach-O linking rejects "
-        "them; repeat the archive (see $(BRIX_LIBS)) to resolve the "
-        f"libbrix/libxrdproto cycle: {offenders}"
+    """GNU grouping must remain confined to the non-Darwin make branch."""
+    body = MAKEFILE.read_text()
+    branch = re.search(
+        r"ifeq \(\$\(HOST_OS\),Darwin\)\n"
+        r"BRIX_LIBS := (?P<darwin>[^\n]+)\n"
+        r"else\n"
+        r"BRIX_LIBS := (?P<other>[^\n]+)\n"
+        r"endif",
+        body,
     )
+    assert branch, "BRIX_LIBS no longer has explicit Darwin/non-Darwin arms"
+    assert "--start-group" not in branch["darwin"]
+    assert "--end-group" not in branch["darwin"]
+    assert branch["darwin"].split() == ["$(CLIENT_LIB)", "$(PROTO_LIB)"]
+    assert "--start-group" in branch["other"]
+    assert "--end-group" in branch["other"]
 
 
 def _undefined_pal_symbols(binary) -> list[str]:

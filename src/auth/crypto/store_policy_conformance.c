@@ -38,7 +38,7 @@ gt2_trailing_cn(X509 *cert)
     const X509_NAME  *issuer  = X509_get_issuer_name(cert);
     int               ns = X509_NAME_entry_count(subject);
     int               ni = X509_NAME_entry_count(issuer);
-    X509_NAME_ENTRY  *last;
+    const X509_NAME_ENTRY *last;
     X509_NAME        *prefix;
     int               i, same;
 
@@ -159,12 +159,12 @@ static const char *BRIX_PX_OID_INDEPENDENT   = "1.3.6.1.5.5.7.21.2";
 /* BRIX_PX_LIMITED_OID (Globus limited) is defined above. */
 
 static int
-brix_dn_has_control_bytes(X509_NAME *nm)
+brix_dn_has_control_bytes(const X509_NAME *nm)
 {
     int i, n = X509_NAME_entry_count(nm);
     for (i = 0; i < n; i++) {
-        X509_NAME_ENTRY     *e = X509_NAME_get_entry(nm, i);
-        ASN1_STRING         *v = X509_NAME_ENTRY_get_data(e);
+        const X509_NAME_ENTRY *e = X509_NAME_get_entry(nm, i);
+        const ASN1_STRING     *v = X509_NAME_ENTRY_get_data(e);
         const unsigned char *s = ASN1_STRING_get0_data(v);
         int                  len = ASN1_STRING_length(v);
         int                  j;
@@ -331,7 +331,7 @@ brix_proxy_pci_ok(STACK_OF(X509) *chain)
     for (i = 0; i < n; i++) {
         X509 *cert = sk_X509_value(chain, i);
         int   loc = X509_get_ext_by_NID(cert, NID_proxyCertInfo, -1);
-        X509_EXTENSION *ext;
+        const X509_EXTENSION *ext;
         PROXY_CERT_INFO_EXTENSION *pci;
         char oid[128];
         int  ok_oid;

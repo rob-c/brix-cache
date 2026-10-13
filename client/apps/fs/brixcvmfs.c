@@ -17,6 +17,7 @@
  */
 #define FUSE_USE_VERSION 31
 
+#include "../../../shared/observability/log_stdio.h"
 #include "brixcvmfs_internal.h"
 #include "platform/platform.h"   /* brix_plat_fuse_opt_supported */
 #include "brixcvmfs_split.h"
@@ -95,13 +96,13 @@ static int opts_o_kv(const char *t, brix_opts_t *o) {
     if (strncmp(t, "cache_format=", 13) == 0) {
         o->cache_packed = strcmp(t + 13, "packed") == 0;
         if (!o->cache_packed && strcmp(t + 13, "flat") != 0)
-            fprintf(stderr, "brixcvmfs: unknown cache_format '%s' "
+            BRIX_CLIENT_LOG("ERROR",  "brixcvmfs: unknown cache_format '%s' "
                     "(flat|packed) — using flat\n", t + 13);
     }
     else if (strncmp(t, "index=", 6) == 0) {
         o->index_mmap = strcmp(t + 6, "mmap") == 0;
         if (!o->index_mmap && strcmp(t + 6, "none") != 0)
-            fprintf(stderr, "brixcvmfs: unknown index '%s' "
+            BRIX_CLIENT_LOG("ERROR",  "brixcvmfs: unknown index '%s' "
                     "(mmap|none) — using none\n", t + 6);
     }
     else if (strncmp(t, "quota=", 6) == 0)   o->quota_mb = atoi(t + 6);
@@ -165,10 +166,10 @@ static int brixcvmfs_open_clever_cache(const char *mnt, const brix_opts_t *o,
     char sub[600];
     snprintf(sub, sizeof(sub), "%s/.brixcache", mnt);
     if (mkdir(sub, 0755) != 0 && errno != EEXIST)
-        fprintf(stderr, "brixcvmfs: warning: cannot create overlay cache %s\n", sub);
+        BRIX_CLIENT_LOG("WARN",  "brixcvmfs: warning: cannot create overlay cache %s\n", sub);
     int fd = open(sub, O_RDONLY | O_DIRECTORY);
     if (fd < 0)
-        fprintf(stderr, "brixcvmfs: overlay cache unavailable, falling back\n");
+        BRIX_CLIENT_LOG("WARN",  "brixcvmfs: overlay cache unavailable, falling back\n");
     return fd;
 }
 
@@ -179,7 +180,7 @@ static int brixcvmfs_open_clever_cache(const char *mnt, const brix_opts_t *o,
 static int brixcvmfs_setup_rw_overlay(const char *mnt, const brix_opts_t *o) {
     if (!brixcvmfs_rw) return 0;
     if (brixcvmfs_setup_rw == NULL || &brixcvmfs_rw_ops == NULL) {
-        fprintf(stderr, "brixcvmfs: rw overlay driver not linked in this build\n");
+        BRIX_CLIENT_LOG("ERROR",  "brixcvmfs: rw overlay driver not linked in this build\n");
         return 2;
     }
     if (brixcvmfs_setup_rw(mnt, o->writes_dir) != 0) return 1;
@@ -298,12 +299,12 @@ static void brixcvmfs_negfilter_setup(cvmfs_client_t *cl, const char *repo,
     int owned = 0;
     int dfd = brixcvmfs_sidecar_dirfd(repo, cache_override, cache_dirfd, &owned);
     if (dfd >= 0 && negf_load_sidecar(cl, dfd) == 0) {
-        fprintf(stderr, "brixcvmfs: negfilter loaded from sidecar\n");
+        BRIX_CLIENT_LOG("INFO",  "brixcvmfs: negfilter loaded from sidecar\n");
     } else if (cvmfs_client_negfilter_build(cl, mono_now()) == 0) {
         if (dfd >= 0) negf_store_sidecar(cl, dfd);
-        fprintf(stderr, "brixcvmfs: negfilter built from verified walk\n");
+        BRIX_CLIENT_LOG("INFO",  "brixcvmfs: negfilter built from verified walk\n");
     } else {
-        fprintf(stderr, "brixcvmfs: negfilter unavailable — lookups stay live\n");
+        BRIX_CLIENT_LOG("WARN",  "brixcvmfs: negfilter unavailable — lookups stay live\n");
     }
     if (owned && dfd >= 0) close(dfd);
 }
@@ -325,12 +326,12 @@ static void brixcvmfs_pathidx_setup(cvmfs_client_t *cl, const char *repo,
     int owned = 0;
     int dfd = brixcvmfs_sidecar_dirfd(repo, cache_override, cache_dirfd, &owned);
     if (dfd >= 0 && cvmfs_client_pathidx_load(cl, dfd, PIDX_SIDECAR) == 0)
-        fprintf(stderr, "brixcvmfs: pathidx loaded from sidecar\n");
+        BRIX_CLIENT_LOG("INFO",  "brixcvmfs: pathidx loaded from sidecar\n");
     else if (dfd >= 0
              && cvmfs_client_pathidx_build(cl, dfd, PIDX_SIDECAR, mono_now()) == 0)
-        fprintf(stderr, "brixcvmfs: pathidx built from verified walk\n");
+        BRIX_CLIENT_LOG("INFO",  "brixcvmfs: pathidx built from verified walk\n");
     else
-        fprintf(stderr, "brixcvmfs: pathidx unavailable — catalog lookups stay live\n");
+        BRIX_CLIENT_LOG("WARN",  "brixcvmfs: pathidx unavailable — catalog lookups stay live\n");
     if (owned && dfd >= 0) close(dfd);
 }
 
@@ -422,14 +423,14 @@ int brixcvmfs_main(int argc, char **argv) {
         return brixcvmfs_prewarm(argv[2]);
     if (argc >= 2 && strcmp(argv[1], "repo") == 0) {
         if (brixcvmfs_repo_main == NULL) {
-            fprintf(stderr, "brixcvmfs: repo driver not linked in this build\n");
+            BRIX_CLIENT_LOG("ERROR",  "brixcvmfs: repo driver not linked in this build\n");
             return 2;
         }
         return brixcvmfs_repo_main(argc - 1, argv + 1);
     }
     if (argc >= 2 && strcmp(argv[1], "ingest") == 0) {
         if (brixcvmfs_ingest_main == NULL) {
-            fprintf(stderr, "brixcvmfs: ingest driver not linked in this build\n");
+            BRIX_CLIENT_LOG("ERROR",  "brixcvmfs: ingest driver not linked in this build\n");
             return 2;
         }
         return brixcvmfs_ingest_main(argc - 1, argv + 1);
@@ -454,7 +455,7 @@ int brixcvmfs_main(int argc, char **argv) {
 int main(int argc, char **argv) {
     if (argc >= 2 && strcmp(argv[1], "--rw") == 0) {   /* brixcvmfs --rw <repo> <mnt> */
         if (brixcvmfs_rw_main == NULL) {
-            fprintf(stderr, "brixcvmfs: rw overlay driver not linked in this build\n");
+            BRIX_CLIENT_LOG("ERROR",  "brixcvmfs: rw overlay driver not linked in this build\n");
             return 2;
         }
         argv[1] = argv[0];

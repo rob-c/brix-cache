@@ -18,6 +18,7 @@
 #define _GNU_SOURCE
 #endif
 
+#include "../../../shared/observability/log_stdio.h"
 #include "brix_fault_proxy_state.h"
 #include "net/resolve.h"
 
@@ -267,7 +268,7 @@ fp_udp_thread(void *arg)
     }
     int lfd = udp_listen(cfg->listen_port);
     if (lfd < 0) {
-        fprintf(stderr, "brix-fault-proxy: udp bind failed on port %d\n",
+        BRIX_CLIENT_LOG("ERROR",  "brix-fault-proxy: udp bind failed on port %d\n",
                 cfg->listen_port);
         free(cfg);
         return NULL;

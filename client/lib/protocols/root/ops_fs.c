@@ -183,6 +183,33 @@ brix_query(brix_conn *c, int infotype, const char *args, char *out, size_t outsz
     return fs_text(c, &req, args, args ? (uint32_t) strlen(args) : 0, out, outsz, st);
 }
 
+/* ---- Issue a handle-addressed query ----
+ *
+ * WHAT: Returns zero with the text reply for a query carrying an open handle.
+ * WHY: Qopaqug and other per-file query forms cannot be represented by the
+ * path/string-only brix_query interface.
+ * HOW: Pack the authoritative query codec with the supplied four-byte handle,
+ * then use the same bounded, redirect-aware text exchange as ordinary queries.
+ */
+int
+brix_query_file(brix_conn *c, const brix_file *file, int infotype,
+    const void *args, size_t args_len, char *out, size_t outsz, brix_status *st)
+{
+    ClientQueryRequest req;
+    xrdw_query_req_t body = { .infotype = (uint16_t) infotype };
+
+    if (file == NULL || (args == NULL && args_len != 0)
+        || args_len > UINT32_MAX) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "invalid handle query arguments");
+        return -1;
+    }
+    memcpy(body.fhandle, file->fhandle, sizeof(body.fhandle));
+    memset(&req, 0, sizeof(req));
+    req.requestid = htons(kXR_query);
+    xrdw_query_req_pack(&body, ((ClientRequestHdr *) &req)->body);
+    return fs_text(c, &req, args, (uint32_t) args_len, out, outsz, st);
+}
+
 int
 brix_statvfs(brix_conn *c, const char *path, char *out, size_t outsz,
              brix_status *st)
@@ -218,8 +245,9 @@ brix_locate(brix_conn *c, const char *path, char *out, size_t outsz,
 }
 
 int
-brix_prepare(brix_conn *c, const char *const *paths, int npaths, int options,
-             int optionX, int prty, char *out, size_t outsz, brix_status *st)
+brix_prepare_port(brix_conn *c, const char *const *paths, int npaths,
+                  int options, int optionX, int prty, uint16_t port,
+                  char *out, size_t outsz, brix_status *st)
 {
     ClientPrepareRequest req;
     char                *payload;
@@ -255,7 +283,7 @@ brix_prepare(brix_conn *c, const char *const *paths, int npaths, int options,
     {
         xrdw_prepare_req_t b = { .options = (uint8_t) (options ? options : kXR_stage),
                                  .prty = (uint8_t) (prty & 0x03),
-                                 .port = 0,
+                                 .port = port,
                                  .optionX = (uint16_t) optionX };
         xrdw_prepare_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
@@ -263,4 +291,12 @@ brix_prepare(brix_conn *c, const char *const *paths, int npaths, int options,
     rc = fs_text(c, &req, payload, (uint32_t) (p - payload), out, outsz, st);
     free(payload);
     return rc;
+}
+
+int
+brix_prepare(brix_conn *c, const char *const *paths, int npaths, int options,
+             int optionX, int prty, char *out, size_t outsz, brix_status *st)
+{
+    return brix_prepare_port(c, paths, npaths, options, optionX, prty, 0,
+                             out, outsz, st);
 }

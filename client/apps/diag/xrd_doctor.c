@@ -2,6 +2,7 @@
  * xrd_doctor.c - extracted concern
  * Phase-38 split of xrd.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrd_internal.h"
 
 
@@ -457,10 +458,10 @@ xrd_certinfo(int argc, char **argv)
     brix_crypto_init();
     brix_status_clear(&st);
     if (brix_endpoint_parse(endpoint, &u, &st) != 0) {
-        fprintf(stderr, "xrd certinfo: %s\n", st.msg); return 50;
+        BRIX_CLIENT_LOG("ERROR",  "xrd certinfo: %s\n", st.msg); return 50;
     }
     if (brix_connect_no_login(&c, &u, &o, &st) != 0) {
-        fprintf(stderr, "xrd certinfo: connect %s:%d: %s\n", u.host, u.port, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrd certinfo: connect %s:%d: %s\n", u.host, u.port, st.msg);
         return brix_shellcode(&st);
     }
     if (brix_tls_peer_cert_info(&c, &ci) != 0 || !ci.have) {

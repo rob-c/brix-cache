@@ -57,7 +57,7 @@ def _rt60_the_probe_file_is_re_created(port, ta):
     def worker_alive(tag):
         st, b = http("GET", "/alice/him_probe.txt", port, ta)
         # the probe file is (re)created just below; survival = a clean own round-trip.
-        ok(all((st in (200, 201, 204, 404), b'BOB-PRIVATE-SECRET' not in any((b, b'')))),
+        ok(all((st in (200, 201, 204, 404), b'BOB-PRIVATE-SECRET' not in _rt_default(b, b''))),
            "worker survived %s (follow-up alice GET HTTP %s)" % (tag, st))
     return worker_alive
 
@@ -143,7 +143,7 @@ def _rt60_host_header_attacks(ta, port, BOB, no_split, status, H):
     miss = (b"GET /bob/private.txt HTTP/1.1\r\nAuthorization: Bearer " + ta.encode()
             + b"\r\nConnection: close\r\n\r\n")
     resp = raw_http(miss, port)
-    ok(all((BOB not in any((resp, b'')), no_split(resp))),
+    ok(all((BOB not in _rt_default(resp, b''), no_split(resp))),
        "missing Host (HTTP/1.1): no bob leak, handled (HTTP %s)" % status(resp))
 
     # (b) absolute-URI request line with a Host header that MISMATCHES the URI
@@ -156,7 +156,7 @@ def _rt60_host_header_attacks(ta, port, BOB, no_split, status, H):
 
 
 def _rt60_c_two_host_headers_on_an(BOB, resp, status, H, ta, port, no_split, tb):
-    ok(BOB not in any((resp, b'')),
+    ok(BOB not in _rt_default(resp, b''),
        "absolute-URI + mismatched Host: no bob leak (HTTP %s)" % status(resp))
 
     # (c) TWO Host headers on an absolute-URI line -> ambiguous authority must 400 /
@@ -165,7 +165,7 @@ def _rt60_c_two_host_headers_on_an(BOB, resp, status, H, ta, port, no_split, tb)
            + H.encode() + b"\r\nHost: evil.example\r\nAuthorization: Bearer "
            + ta.encode() + b"\r\nConnection: close\r\n\r\n")
     resp = raw_http(two, port)
-    ok(all((BOB not in any((resp, b'')), no_split(resp))),
+    ok(all((BOB not in _rt_default(resp, b''), no_split(resp))),
        "two Host headers on absolute-URI: handled, no leak (HTTP %s)" % status(resp))
 
     # =========================================================== obs-fold continuation ==
@@ -180,7 +180,7 @@ def _rt60_c_two_host_headers_on_an(BOB, resp, status, H, ta, port, no_split, tb)
 
 def _rt60_nul_in_header_value(fold, port, BOB, no_split, status, H, ta):
     resp = raw_http(fold, port)
-    ok(all((BOB not in any((resp, b'')), no_split(resp))),
+    ok(all((BOB not in _rt_default(resp, b''), no_split(resp))),
        "obs-fold header continuation: folded Authorization not honoured, no leak "
        "(HTTP %s)" % status(resp))
 
@@ -191,7 +191,7 @@ def _rt60_nul_in_header_value(fold, port, BOB, no_split, status, H, ta):
            + b"\r\nAuthorization: Bearer " + ta.encode()
            + b"\x00 extra\r\nConnection: close\r\n\r\n")
     resp = raw_http(nul, port)
-    ok(BOB not in any((resp, b'')),
+    ok(BOB not in _rt_default(resp, b''),
        "NUL in Authorization value: not truncated into a granting token (HTTP %s)"
        % status(resp))
 
@@ -238,7 +238,7 @@ def _rt60_connection_header_games(data, no_split, resp, status, H, ta, port):
 
 
 def _rt60_duplicate_auth(BOB, resp, status, worker_alive, port, H, ta):
-    ok(BOB not in any((resp, b'')),
+    ok(BOB not in _rt_default(resp, b''),
        "Connection: Authorization (strip-auth game): no anonymous bob read (HTTP %s)"
        % status(resp))
     worker_alive("host-conn-games")
@@ -259,14 +259,17 @@ def _rt60_duplicate_auth(BOB, resp, status, worker_alive, port, H, ta):
     return resp
 
 
-def _rt60_final_bob_s_protected_file_survived(BOB, resp, status, bob_untouched, s3port, data, tb, worker_alive):
-    ok(BOB not in any((resp, b'')),
+def _rt60_final_bob_s_protected_file_survived(
+        BOB, resp, status, bob_untouched, s3port, data, tb, worker_alive,
+        no_split):
+    ok(BOB not in _rt_default(resp, b''),
        "dual Bearer+SigV4 Authorization (WebDAV): never both-grant, bob denied "
        "(HTTP %s)" % status(resp))
     ok(bob_untouched(),
        "after dual-auth WebDAV probe: bob's 0600 unchanged on disk")
 
-    _him_s3_copysource(s3port, data, tb, BOB, C)
+    context = (bob_untouched, no_split, status, worker_alive)
+    _him_s3_copysource(s3port, data, tb, BOB, context)
 
 
 def _him_s3_copysource(s3port, data, tb, BOB, C):
@@ -291,7 +294,7 @@ def _him_s3_copysource(s3port, data, tb, BOB, C):
         st, b = s3("PUT", "alice/him_cs2.bin", s3port,
                    extra_hdrs={"x-amz-copy-source":
                                "/%s/../../../../etc/passwd" % S3_BUCKET})
-        ok(all((b'root:x:0:0' not in any((b, b'')), not os.path.exists(os.path.join(data, 'alice', 'him_cs2.bin')))),
+        ok(all((b'root:x:0:0' not in _rt_default(b, b''), not os.path.exists(os.path.join(data, 'alice', 'him_cs2.bin')))),
            "S3 copy-source ../etc/passwd traversal: no leak, no artifact (HTTP %s)"
            % st)
 
@@ -309,7 +312,7 @@ def _him_s3_copysource(s3port, data, tb, BOB, C):
         sg = dict(s3_sign("GET", "/%s/bob/private.txt" % S3_BUCKET, s3port))
         sg["X-Bearer-Smuggle"] = "Bearer %s" % tb   # bob bearer as a side header
         st, b = http("GET", "/%s/bob/private.txt" % S3_BUCKET, s3port, hdrs=sg)
-        ok(all((st not in (200,), BOB not in any((b, b'')))),
+        ok(all((st not in (200,), BOB not in _rt_default(b, b''))),
            "S3 SigV4(alice) + smuggled bob-bearer: no escalation, bob denied (HTTP %s)"
            % st)
         worker_alive("s3-copy-source")
@@ -365,4 +368,6 @@ def run_header_injection_matrix(key, data, port, s3port):
 
     resp = _rt60_duplicate_auth(BOB, resp, status, worker_alive, port, H, ta)
 
-    _rt60_final_bob_s_protected_file_survived(BOB, resp, status, bob_untouched, s3port, data, tb, worker_alive)
+    _rt60_final_bob_s_protected_file_survived(
+        BOB, resp, status, bob_untouched, s3port, data, tb, worker_alive,
+        no_split)

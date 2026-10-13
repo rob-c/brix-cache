@@ -31,7 +31,12 @@ def _linux_ready() -> bool:
 
 
 def _darwin_ready() -> bool:
-    return any(os.path.exists(p) for p in (MACFUSE_MOUNT, FUSE_T_MOUNT))
+    if os.path.exists(FUSE_T_MOUNT):
+        return True
+    if not os.path.exists(MACFUSE_MOUNT) or shutil.which("kextstat") is None:
+        return False
+    status = subprocess.run(["kextstat"], capture_output=True, text=True)
+    return status.returncode == 0 and "macfuse" in status.stdout.lower()
 
 
 def fuse_ready() -> bool:
@@ -79,7 +84,7 @@ def with_host_mount_opts(opts: str) -> str:
 FUSE_READY = fuse_ready()
 
 #: The reason string every FUSE skip carries.
-SKIP_REASON = ("fuse mount prerequisites missing (macFUSE / FUSE-T bundle)"
+SKIP_REASON = ("fuse mount prerequisites missing (active macFUSE / FUSE-T)"
                if sys.platform == "darwin"
                else "fuse mount prerequisites missing (/dev/fuse, fusermount3)")
 

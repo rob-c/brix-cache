@@ -34,6 +34,7 @@
  *       tests/test_release20_posix_cred_plane.py.
  */
 
+#include "core/compat/log_event.h"
 #include "fs/backend/sd.h"
 
 #ifndef XRDPROTO_NO_NGX   /* module-only: the ngx-free client never dedups a store */
@@ -137,7 +138,7 @@ posix_dedup_adopt(brix_sd_instance_t *inst, const char *path,
     }
 
     if (cst->st_size != ost->st_size) {
-        ngx_log_error(NGX_LOG_WARN, inst->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, inst->log, 0,
             "gcas: canonical size mismatch for \"%s\" (%O vs %O) — "
             "dedup skipped", path,
             (off_t) cst->st_size, (off_t) ost->st_size);
@@ -157,7 +158,7 @@ posix_dedup_adopt(brix_sd_instance_t *inst, const char *path,
         return 0;
     }
 
-    ngx_log_error(NGX_LOG_INFO, inst->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, inst->log, 0,
         "gcas: dedup \"%s\" onto canonical inode", path);
     return 0;
 }
@@ -212,7 +213,7 @@ sd_posix_dedup_publish(brix_sd_instance_t *inst, const char *path,
             return NGX_OK;      /* best-effort: keep the plain per-name copy */
         }
         if (link(oabs, cabs) == 0) {
-            ngx_log_error(NGX_LOG_INFO, inst->log, 0,
+            BRIX_LOG(NGX_LOG_INFO, inst->log, 0,
                 "gcas: registered canonical for \"%s\"", path);
             return NGX_OK;
         }
@@ -251,7 +252,7 @@ sd_posix_dedup_gc(brix_sd_instance_t *inst, const char *canon)
     }
 
     if (unlink(cabs) == 0) {
-        ngx_log_error(NGX_LOG_INFO, inst->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, inst->log, 0,
             "gcas: reaped canonical \"%s\" (last link)", canon);
     }
     return NGX_OK;

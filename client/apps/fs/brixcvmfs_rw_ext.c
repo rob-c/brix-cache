@@ -12,6 +12,7 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#include "../../../shared/observability/log_stdio.h"
 #include "brixcvmfs_internal.h"
 #include "fs/overlay.h"
 #include "brixcvmfs_rw_internal.h"
@@ -430,12 +431,12 @@ int brixcvmfs_setup_rw(const char *mnt, const char *writes_override) {
         snprintf(dir, sizeof(dir), "%s/" BRIX_OV_DIRNAME, mnt);
     }
     if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
-        fprintf(stderr, "brixcvmfs: cannot create overlay dir %s\n", dir);
+        BRIX_CLIENT_LOG("ERROR",  "brixcvmfs: cannot create overlay dir %s\n", dir);
         return -1;
     }
     g_writes_fd = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (g_writes_fd < 0 || brix_overlay_init(&g_ov, g_writes_fd) != 0) {
-        fprintf(stderr, "brixcvmfs: overlay at %s unusable\n", dir);
+        BRIX_CLIENT_LOG("INFO",  "brixcvmfs: overlay at %s unusable\n", dir);
         if (g_writes_fd >= 0) { close(g_writes_fd); g_writes_fd = -1; }
         return -1;
     }

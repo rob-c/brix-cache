@@ -19,6 +19,7 @@
  *   - outbound HTTP:  libcurl, mirroring src/protocols/webdav/tpc_curl.c
  *   - XML parsing:    libxml2 (guarded by BRIX_HAVE_LIBXML2)
  */
+#include "core/compat/log_event.h"
 #include "core/types/tunables.h"
 #include "sts_internal.h"
 
@@ -80,7 +81,7 @@ sts_http_get(const struct brix_dns_policy_s *dns, const char *url,
 
     curl = curl_easy_init();
     if (curl == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "brix_sts: curl_easy_init failed");
+        BRIX_LOG(NGX_LOG_ERR, log, 0, "brix_sts: curl_easy_init failed");
         return NGX_ERROR;
     }
 
@@ -91,7 +92,7 @@ sts_http_get(const struct brix_dns_policy_s *dns, const char *url,
     if (brix_dns_curl_pin(curl, dns, url, &resolve, reason, sizeof(reason))
         != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_sts: cannot resolve STS endpoint: %s", reason);
         curl_easy_cleanup(curl);
         return NGX_ERROR;
@@ -114,7 +115,7 @@ sts_http_get(const struct brix_dns_policy_s *dns, const char *url,
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, http_status);
         rc = NGX_OK;
     } else {
-        ngx_log_error(NGX_LOG_WARN, log, 0, "brix_sts: STS request failed: %s",
+        BRIX_LOG(NGX_LOG_WARN, log, 0, "brix_sts: STS request failed: %s",
             errbuf[0] ? errbuf : curl_easy_strerror(res));
     }
 
@@ -150,7 +151,7 @@ sts_http_post(const struct brix_dns_policy_s *dns, const char *url,
 
     curl = curl_easy_init();
     if (curl == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "brix_sts: curl_easy_init failed");
+        BRIX_LOG(NGX_LOG_ERR, log, 0, "brix_sts: curl_easy_init failed");
         return NGX_ERROR;
     }
 
@@ -181,7 +182,7 @@ sts_http_post(const struct brix_dns_policy_s *dns, const char *url,
     if (brix_dns_curl_pin(curl, dns, url, &resolve, reason, sizeof(reason))
         != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_sts: cannot resolve STS endpoint: %s", reason);
         curl_slist_free_all(hdrs);
         curl_easy_cleanup(curl);
@@ -209,7 +210,7 @@ sts_http_post(const struct brix_dns_policy_s *dns, const char *url,
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, http_status);
         rc = NGX_OK;
     } else {
-        ngx_log_error(NGX_LOG_WARN, log, 0, "brix_sts: STS request failed: %s",
+        BRIX_LOG(NGX_LOG_WARN, log, 0, "brix_sts: STS request failed: %s",
             errbuf[0] ? errbuf : curl_easy_strerror(res));
     }
 
@@ -277,7 +278,7 @@ sts_parse_response(const u_char *body, size_t len,
     doc = xmlReadMemory((const char *) body, (int) len, "sts.xml", NULL,
             XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING);
     if (doc == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix_sts: unparseable STS response");
         return NGX_ERROR;
     }
@@ -292,7 +293,7 @@ sts_parse_response(const u_char *body, size_t len,
             creds->sesssz);
         rc = NGX_OK;
     } else {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix_sts: STS response missing credential fields");
     }
 
@@ -307,7 +308,7 @@ sts_parse_response(const u_char *body, size_t len,
     const sts_creds_buf_t *creds, ngx_log_t *log)
 {
     (void) body; (void) len; (void) creds;
-    ngx_log_error(NGX_LOG_ERR, log, 0,
+    BRIX_LOG(NGX_LOG_ERR, log, 0,
         "brix_sts: built without libxml2; STS exchange unavailable");
     return NGX_ERROR;
 }

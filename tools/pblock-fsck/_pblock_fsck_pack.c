@@ -1,5 +1,6 @@
 /* _pblock_fsck_pack.c — phase-88 W2: the packed small-blob arena legs of
- * pblock-fsck. Do not compile directly; it is #include'd by pblock-fsck.c
+ * pblock-fsck. Do not compile directly; it is #include "../../shared/observability/log_stdio.h"
+#include'd by pblock-fsck.c
  * (the tool's contract stays `cc pblock-fsck.c -lsqlite3`, single file).
  *
  * WHAT: (a) pack_row_len — the probe check_rows uses to recognise a PACKED
@@ -128,7 +129,7 @@ pack_check_rows(sqlite3 *db, const struct opts *o, const struct blobset *bs)
     rc = sqlite3_prepare_v2(db,
         "SELECT blob_id, seg, off, len FROM pack;", -1, &st, NULL);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "pblock-fsck: query pack: %s\n", sqlite3_errmsg(db));
+        BRIX_TOOL_LOG("ERROR",  "pblock-fsck: query pack: %s\n", sqlite3_errmsg(db));
         return 2;
     }
     while ((rc = sqlite3_step(st)) == SQLITE_ROW) {

@@ -68,7 +68,7 @@ def _rt75_2_qcksum_of_bob_s_0600(sock, alice_rel, hexfp, BOB_SECRET, bob_rel):
     alice_fp = hexfp(body)
     ok(all((st == _KXR_OK, alice_fp)),
        f"raw-authed: alice Qcksum of her OWN 0644 file returns a digest (status={st})")
-    ok(BOB_SECRET not in any((body, b'')),
+    ok(BOB_SECRET not in _rt_default(body, b''),
        "raw-authed: alice's own Qcksum response carries no bob secret bytes")
 
     # ----- (2) Qcksum of bob's 0600 DIRECT -> DENIED, no secret/digest ------
@@ -82,7 +82,7 @@ def _rt75_3_qcksum_of_bob_s_0600(alice_deny_blobs, body, st, BOB_SECRET, sock):
     alice_deny_blobs.append(body or b"")
     ok(st != _KXR_OK,
        f"raw-authed: alice Qcksum of bob's 0600 is DENIED at the auth gate (status={st})")
-    ok(BOB_SECRET not in any((body, b'')),
+    ok(BOB_SECRET not in _rt_default(body, b''),
        "raw-authed: alice's denied bob-0600 Qcksum carries no raw secret bytes")
 
     # ----- (3) Qcksum of bob's 0600 via ../ TRAVERSAL -> DENIED ------------
@@ -94,21 +94,21 @@ def _rt75_3_qcksum_of_bob_s_0600(alice_deny_blobs, body, st, BOB_SECRET, sock):
 
 
 def _rt75_4_qcksum_escaping_the_export_to(st, BOB_SECRET, body, sock, alice_rel, bob_size_tok):
-    ok(all((st != _KXR_OK, BOB_SECRET not in any((body, b'')))),
+    ok(all((st != _KXR_OK, BOB_SECRET not in _rt_default(body, b''))),
        f"raw-authed: alice Qcksum of bob's 0600 via ../ traversal denied, no leak (status={st})")
 
     # ----- (4) Qcksum escaping the export to /etc/passwd -> DENIED --------
     st, body = _kxr_send_recv(
         sock, _kxr_query_bytes(_KXR_QCKSUM, b"crc32c /../../../../etc/passwd",
                                streamid=b"\x00\x66"))
-    ok(all((st != _KXR_OK, b'root:' not in any((body, b'')), b'daemon:' not in any((body, b'')))),
+    ok(all((st != _KXR_OK, b'root:' not in _rt_default(body, b''), b'daemon:' not in _rt_default(body, b''))),
        f"raw-authed: alice Qcksum escaping export to /etc/passwd denied, no passwd content (status={st})")
 
     # ----- (5) Qxattr of alice's OWN file -> her metadata, no foreign bytes -
     st, body = _kxr_send_recv(
         sock, _kxr_query_bytes(_KXR_QXATTR, b"/" + alice_rel.encode(),
                                streamid=b"\x00\x67"))
-    ok(all((BOB_SECRET not in any((body, b'')), bob_size_tok not in any((body, b'')))),
+    ok(all((BOB_SECRET not in _rt_default(body, b''), bob_size_tok not in _rt_default(body, b''))),
        f"raw-authed: alice's OWN Qxattr exposes no bob secret/size (status={st})")
 
 
@@ -128,11 +128,11 @@ def _rt75_6_qxattr_of_bob_s_0600(sock, bob_rel, alice_deny_blobs, BOB_SECRET, he
         sock, _kxr_query_bytes(_KXR_QXATTR, b"/" + bob_rel.encode(),
                                streamid=b"\x00\x68"))
     alice_deny_blobs.append(body or b"")
-    ok(BOB_SECRET not in any((body, b'')),
+    ok(BOB_SECRET not in _rt_default(body, b''),
        f"raw-authed: alice Qxattr of bob's 0600 leaks no bob CONTENT bytes (status={st})")
-    ok(not hexfp(any((body, b''))),
+    ok(not hexfp(_rt_default(body, b'')),
        "raw-authed: alice's bob-0600 Qxattr carries no content-derived digest fingerprint")
-    ok(BOB_SECRET not in any((body, b'')),
+    ok(BOB_SECRET not in _rt_default(body, b''),
        "raw-authed: alice's bob-0600 Qxattr carries no raw secret bytes")
 
 
@@ -146,13 +146,13 @@ def _rt75_7_qopaquf_of_bob_s_0600(sock, bob_rel, alice_deny_blobs, BOB_SECRET, b
         sock, _kxr_query_bytes(_KXR_QOPAQUF, b"/" + bob_rel.encode(),
                                streamid=b"\x00\x69"))
     alice_deny_blobs.append(body or b"")
-    ok(all((st != _KXR_OK, BOB_SECRET not in any((body, b'')), bob_size_tok not in any((body, b'')))),
+    ok(all((st != _KXR_OK, BOB_SECRET not in _rt_default(body, b''), bob_size_tok not in _rt_default(body, b''))),
        f"raw-authed: alice Qopaquf of bob's 0600 denied at DAC gate, no secret/size (status={st})")
 
     # ----- (8) GLOBAL Qconfig -> no tenant path/secret embedded -----------
     st, body = _kxr_send_recv(
         sock, _kxr_query_bytes(_KXR_QCONFIG, b"chksum", streamid=b"\x00\x6A"))
-    ok(all((BOB_SECRET not in any((body, b'')), b'/bob/' not in any((body, b'')))),
+    ok(all((BOB_SECRET not in _rt_default(body, b''), b'/bob/' not in _rt_default(body, b''))),
        f"raw-authed: global Qconfig response embeds no tenant path/secret (status={st})")
 
 
@@ -161,13 +161,13 @@ def _rt75_9_global_qspace_no_tenant_path(sock, BOB_SECRET, bob_size_tok):
     # ----- (9) GLOBAL Qspace -> no tenant path/secret ----------------------
     st, body = _kxr_send_recv(
         sock, _kxr_query_bytes(_KXR_QSPACE, b"/", streamid=b"\x00\x6B"))
-    ok(all((BOB_SECRET not in any((body, b'')), bob_size_tok not in any((body, b'')))),
+    ok(all((BOB_SECRET not in _rt_default(body, b''), bob_size_tok not in _rt_default(body, b''))),
        f"raw-authed: global Qspace response embeds no tenant secret/size (status={st})")
 
     # ----- (10) GLOBAL QStats -> no tenant path/secret ---------------------
     st, body = _kxr_send_recv(
         sock, _kxr_query_bytes(_KXR_QSTATS, b"", streamid=b"\x00\x6C"))
-    ok(all((BOB_SECRET not in any((body, b'')), b'/bob/' not in any((body, b'')))),
+    ok(all((BOB_SECRET not in _rt_default(body, b''), b'/bob/' not in _rt_default(body, b''))),
        f"raw-authed: global QStats response embeds no tenant path/secret (status={st})")
 
     # ----- (11) malformed query dlen on the AUTHED conn -> clean error, no
@@ -186,7 +186,7 @@ def _rt75_12_unknown_infotype_kxr_unsupported_no(sock, bad, BOB_SECRET):
     # ----- (12) UNKNOWN infotype -> kXR_Unsupported, no crash, no leak -----
     st, body = _kxr_send_recv(
         sock, _kxr_query_bytes(0x7777, b"/bob/rka_diff.bin", streamid=b"\x00\x6E"))
-    ok(all((st != _KXR_OK, BOB_SECRET not in any((body, b'')))),
+    ok(all((st != _KXR_OK, BOB_SECRET not in _rt_default(body, b''))),
        f"raw-authed: unknown query infotype 0x7777 unsupported, no leak (status={st})")
 
 
@@ -336,7 +336,7 @@ def run_raw_kxr_authed(key, data, port, s3port):
         # run_raw_kxr_wire/deep, which never frame a query opcode at all).
         _hs, st, body, _c = _kxr_oneshot(
             _kxr_query_bytes(_KXR_QCKSUM, b"crc32c /bob/rka_diff.bin", streamid=b"\x00\x60"))
-        ok(all((st != _KXR_OK, BOB_SECRET not in any((body, b'')))),
+        ok(all((st != _KXR_OK, BOB_SECRET not in _rt_default(body, b''))),
            f"raw-authed(degraded): pre-auth Qcksum of bob 0600 not ok, no leak (status={st})")
         survives("degraded-preauth-qcksum")
 
@@ -354,7 +354,7 @@ def run_raw_kxr_authed(key, data, port, s3port):
         # served as a privileged ok before auth; never embeds a tenant secret.
         _hs, st, body, _c = _kxr_oneshot(
             _kxr_query_bytes(_KXR_QCONFIG, b"chksum", streamid=b"\x00\x62"))
-        ok(BOB_SECRET not in any((body, b'')),
+        ok(BOB_SECRET not in _rt_default(body, b''),
            f"raw-authed(degraded): pre-auth Qconfig carries no tenant secret (status={st})")
         survives("degraded-preauth-qconfig")
 

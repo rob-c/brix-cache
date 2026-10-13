@@ -227,10 +227,8 @@ def _rt40_section_1_webdav_per_credential_uniformity(base, key, now, P_EXISTING,
         ("garbage", "not.a.jwt"),
     ]
 
-    _combo_authfail_resource_state_p1(bad, s3port, P_PC, port, P_EXISTING, P_ABSENT, P_700CHILD, P_GRP, EX_SECRET, P_LOCKED, LK_SECRET, GRP_SECRET, P700_SECRET, P_700ABSENT, P_SGIDCHILD, SGID_SECRET, P_STKCHILD, STK_SECRET, P_UNLOCKED, bob_dir, key, safe_write, no_marker, TAG, file_owner, ex_file, is_2xx, grp_file, alice_dir, p700_dir, base, safe_exists, sgid_dir)
 
 
-def _combo_authfail_resource_state_p1(bad, s3port, P_PC, port, P_EXISTING, P_ABSENT, P_700CHILD, P_GRP, EX_SECRET, P_LOCKED, LK_SECRET, GRP_SECRET, P700_SECRET, P_700ABSENT, P_SGIDCHILD, SGID_SECRET, P_STKCHILD, STK_SECRET, P_UNLOCKED, bob_dir, key, safe_write, no_marker, TAG, file_owner, ex_file, is_2xx, grp_file, alice_dir, p700_dir, base, safe_exists, sgid_dir):
     # =====================================================================
     # SECTION 1: WebDAV — per-credential UNIFORMITY across resource states.
     #   For each bad credential, GET the same forbidden-existing, the
@@ -316,10 +314,8 @@ def _rt40_section_2_webdav_positive_controls_auth(bad, P_EXISTING, port, P_ABSEN
         http("PUT", f"{base}/bob/af_{label}.txt", port, tok, data=b"x\n")
         ok(not safe_exists(new_path),
            f"{TAG}: WebDAV {label} PUT into bob's dir created nothing")
-    _combo_authfail_resource_state_p2(s3port, P_PC, port, P_EXISTING, P_ABSENT, P_700CHILD, P_GRP, key, safe_write, bob_dir, TAG, EX_SECRET, no_marker, GRP_SECRET, LK_SECRET, P700_SECRET, file_owner, ex_file, is_2xx, grp_file, SGID_SECRET, alice_dir, p700_dir, sgid_dir)
 
 
-def _combo_authfail_resource_state_p2(s3port, P_PC, port, P_EXISTING, P_ABSENT, P_700CHILD, P_GRP, key, safe_write, bob_dir, TAG, EX_SECRET, no_marker, GRP_SECRET, LK_SECRET, P700_SECRET, file_owner, ex_file, is_2xx, grp_file, SGID_SECRET, alice_dir, p700_dir, sgid_dir):
     # =====================================================================
     # SECTION 2: WebDAV positive controls — auth fires, but a VALID token at
     #   the correct identity gets the RIGHT answer for each resource state.
@@ -327,7 +323,7 @@ def _combo_authfail_resource_state_p2(s3port, P_PC, port, P_EXISTING, P_ABSENT, 
     # =====================================================================
     ta, tb, tc = mint(key, "alice"), mint(key, "bob"), mint(key, "carol")
     st, b = http("GET", P_PC, port, ta)
-    ok(all((st == 200, b'COMBO-AF-PC-OK' in any((b, b'')))),
+    ok(all((st == 200, b'COMBO-AF-PC-OK' in _rt_default(b, b''))),
        f"{TAG}: PC valid alice reads her own world-readable file (HTTP {st})")
     # valid bob: existing_secret.txt is BOB's OWN 0600 file (owner=UID_BOB), so
     # with a valid bob token DAC grants owner-read -> 200 + his own bytes.  This
@@ -340,7 +336,7 @@ def _combo_authfail_resource_state_p2(s3port, P_PC, port, P_EXISTING, P_ABSENT, 
 
 
 def _rt40_carol_owns_the_0700_dir_she(st_e, EX_SECRET, b_e, no_marker, GRP_SECRET, LK_SECRET, P700_SECRET, TAG, file_owner, ex_file, P_ABSENT, port, tb, is_2xx, P_700CHILD, tc):
-    ok(all((st_e == 200, EX_SECRET in any((b_e, b'')), no_marker(b_e, GRP_SECRET), no_marker(b_e, LK_SECRET), no_marker(b_e, P700_SECRET))),
+    ok(all((st_e == 200, EX_SECRET in _rt_default(b_e, b''), no_marker(b_e, GRP_SECRET), no_marker(b_e, LK_SECRET), no_marker(b_e, P700_SECRET))),
        f"{TAG}: PC valid bob (owner) reads his own 0600 file, no other-tenant "
        f"leak (HTTP {st_e})")
     ok(file_owner(ex_file) == (UID_BOB, UID_BOB),
@@ -355,19 +351,18 @@ def _rt40_carol_owns_the_0700_dir_she(st_e, EX_SECRET, b_e, no_marker, GRP_SECRE
 
 
 def _rt40_alice_in_staff_reads_the_group(st_c, P700_SECRET, b_c, TAG, P_GRP, port, ta, GRP_SECRET, file_owner, ex_file, grp_file):
-    ok(all((st_c == 200, P700_SECRET in any((b_c, b'')))),
+    ok(all((st_c == 200, P700_SECRET in _rt_default(b_c, b''))),
        f"{TAG}: PC valid carol (owner) reads her 0700-dir child (HTTP {st_c})")
     # alice (in staff) reads the group-only file -> proves it's reachable for the
     # right identity, so the bad-cred uniform-deny was about AUTH not reachability.
     st_g, b_g = http("GET", P_GRP, port, ta)
-    ok(all((st_g == 200, GRP_SECRET in any((b_g, b'')))),
+    ok(all((st_g == 200, GRP_SECRET in _rt_default(b_g, b''))),
        f"{TAG}: PC valid alice reads her 0640 staff group file (HTTP {st_g})")
     # nothing the forged creds did left residue: ownerships unchanged.
     ok(file_owner(ex_file) == (UID_BOB, UID_BOB),
        f"{TAG}: forbidden-existing file still bob-owned after forged-cred storm")
     ok(file_owner(grp_file) == (UID_ALICE, GID_STAFF),
        f"{TAG}: group-only file still alice:staff after forged-cred storm")
-    _combo_authfail_resource_state_p3(s3port, P_PC, port, ta, safe_write, key, bob_dir, EX_SECRET, GRP_SECRET, P700_SECRET, SGID_SECRET, LK_SECRET, alice_dir, TAG, file_owner, p700_dir, no_marker, sgid_dir, is_2xx)
 
 
 def _rt40_i_tampered_presigned_url_signature_forged(TAG, EX_SECRET, GRP_SECRET, P700_SECRET, SGID_SECRET, LK_SECRET, s3port, is_2xx, no_marker):
@@ -453,7 +448,7 @@ def _rt40_s3_positive_control_alice_valid_sigv4(s3_keys, s3port, old, is_2xx, TA
 
 def _rt40_and_valid_alice_on_bob_s(TAG, s3port, is_2xx, no_marker, EX_SECRET):
     st, b = s3("GET", f"{TAG}_root/alice/s3pc.txt", s3port)
-    ok(all((st == 200, b'COMBO-AF-S3PC' in any((b, b'')))),
+    ok(all((st == 200, b'COMBO-AF-S3PC' in _rt_default(b, b''))),
        f"{TAG}: S3 PC valid alice reads her own file (HTTP {st})")
     # and valid alice on bob's 0600 existing -> denied (DAC), no leak: proves
     # the bad-cred denies above were AUTH, this one is DAC, both no-leak.
@@ -492,7 +487,7 @@ def _rt40_stat_existing_vs_absent_under_forged(TAG, EX_SECRET, GRP_SECRET, P700_
             ok(rc != 0,
                f"{TAG}: root:// forged[{flabel}] cat {tname} rejected (rc={rc})")
             if secret is not None:
-                ok(secret.decode() not in any((out, '')),
+                ok(secret.decode() not in _rt_default(out, ''),
                    f"{TAG}: root:// forged[{flabel}] cat {tname} no secret leak")
         # stat existing vs absent under forged token: neither must succeed
         # (a succeeding stat on existing-only would be an existence oracle).
@@ -510,17 +505,17 @@ def _rt40_stat_existing_vs_absent_under_forged(TAG, EX_SECRET, GRP_SECRET, P700_
     # root:// positive controls: valid carol cats her own 0700-dir child;
     # valid bob denied alice's group file & no leak.
     rc, out, _e = xrd_fs(["cat", f"/{TAG}_root/carol700/inside.txt"], "carol")
-    ok(all((rc == 0, P700_SECRET.decode() in any((out, '')))),
+    ok(all((rc == 0, P700_SECRET.decode() in _rt_default(out, ''))),
        f"{TAG}: root:// PC valid carol reads her 0700-dir child (rc={rc})")
     rc, out, _e = xrd_fs(["cat", f"/{TAG}_root/alice/staffonly.txt"], "bob")
     return rc, out
 
 
 def _rt40_segment_02_2(rc, GRP_SECRET, out, TAG):
-    ok(all((rc != 0, GRP_SECRET.decode() not in any((out, '')))),
+    ok(all((rc != 0, GRP_SECRET.decode() not in _rt_default(out, ''))),
        f"{TAG}: root:// PC valid bob denied alice's staff file, no leak (rc={rc})")
     rc, out, _e = xrd_fs(["cat", f"/{TAG}_root/alice/staffonly.txt"], "alice")
-    ok(all((rc == 0, GRP_SECRET.decode() in any((out, '')))),
+    ok(all((rc == 0, GRP_SECRET.decode() in _rt_default(out, ''))),
        f"{TAG}: root:// PC owner alice reads her staff group file (rc={rc})")
 
 
@@ -545,7 +540,6 @@ def _rt40_section_3_s3_forged_tampered_sigv4(s3port, TAG, EX_SECRET, GRP_SECRET,
         st, b = _rt40_when_s3port(EX_SECRET, GRP_SECRET, P700_SECRET, SGID_SECRET, LK_SECRET, TAG, s3port, is_2xx, no_marker, key, safe_write, alice_dir)
 
 
-def _combo_authfail_resource_state_p4(P_PC, port, ta, key, bob_dir, EX_SECRET, GRP_SECRET, P700_SECRET, SGID_SECRET, LK_SECRET, TAG, file_owner, p700_dir, sgid_dir):
     # =====================================================================
     # SECTION 4: root:// — forged-token resource-state oracle.  Drive native
     #   xrdfs with forged tokens at stat/cat across existing/absent/locked/
@@ -557,14 +551,13 @@ def _combo_authfail_resource_state_p4(P_PC, port, ta, key, bob_dir, EX_SECRET, G
         _rt40_when_xrd_avail(EX_SECRET, GRP_SECRET, P700_SECRET, SGID_SECRET, LK_SECRET, TAG, key)
 
 
-def _combo_authfail_resource_state_p5(P_PC, port, ta, bob_dir, TAG, file_owner, p700_dir, sgid_dir):
     # =====================================================================
     # SECTION 5: worker survival + no-residue after the forged-credential
     #   storm — a follow-up LEGIT op must still work, and nothing the bad
     #   credentials touched produced a svc/root/wrong-owner artifact.
     # =====================================================================
     st, b = http("GET", P_PC, port, ta)
-    ok(all((st == 200, b'COMBO-AF-PC-OK' in any((b, b'')))),
+    ok(all((st == 200, b'COMBO-AF-PC-OK' in _rt_default(b, b''))),
        f"{TAG}: worker survived forged-credential storm (follow-up GET OK, HTTP {st})")
     # the 0700 dir must still be carol-owned & mode-0700 (no broker leak created a
     # svc/root-owned child or relaxed the dir during the auth-failure barrage).

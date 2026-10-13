@@ -13,6 +13,7 @@
  *       the shared cvmfs core, which owns the whitelist/manifest/catalog trust
  *       chain. check/prewarm reuse open, then summarise without a FUSE mount.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include <curl/curl.h>
 
 #include "cvmfs/config/cvmfs_conf.h"
@@ -133,7 +134,7 @@ static unsigned char *brixcvmfs_load_repo_key(const cvmfs_client_t *cl, size_t *
         }
     }
     if (master == NULL)
-        fprintf(stderr, "brixcvmfs: cannot read master key %s\n", keypath);
+        BRIX_CLIENT_LOG("ERROR",  "brixcvmfs: cannot read master key %s\n", keypath);
     return master;
 }
 
@@ -172,7 +173,7 @@ static int brixcvmfs_open_pin_cache(cvmfs_client_t *cl, const char *pin_opt,
                                     int packed_opt, int tiering_opt) {
     const char *pin = (pin_opt != NULL && pin_opt[0]) ? pin_opt : getenv("BRIXCVMFS_PIN");
     if (pin != NULL && pin[0] && cvmfs_client_pin_root(cl, pin) != 0) {
-        fprintf(stderr, "brixcvmfs: bad pin '%s' (want a root-catalog hash)\n", pin);
+        BRIX_CLIENT_LOG("ERROR",  "brixcvmfs: bad pin '%s' (want a root-catalog hash)\n", pin);
         return -1;
     }
 
@@ -195,10 +196,10 @@ cvmfs_client_t *brixcvmfs_open(const char *repo, const char *cache_dir_override,
                                       int cache_dirfd, long quota_override, int retries_override,
                                       const char *pin_opt, int packed_opt, int tiering_opt) {
     cvmfs_client_t *cl = calloc(1, sizeof(*cl));
-    if (cl == NULL) { fprintf(stderr, "brixcvmfs: out of memory\n"); return NULL; }
+    if (cl == NULL) { BRIX_CLIENT_LOG("ERROR",  "brixcvmfs: out of memory\n"); return NULL; }
 
     if (cvmfs_repo_config_defaults(repo, &cl->config) != 0) {
-        fprintf(stderr, "brixcvmfs: '%s' is not a fully-qualified repo name\n", repo);
+        BRIX_CLIENT_LOG("INFO",  "brixcvmfs: '%s' is not a fully-qualified repo name\n", repo);
         free(cl); return NULL;
     }
 
@@ -230,7 +231,7 @@ cvmfs_client_t *brixcvmfs_open(const char *repo, const char *cache_dir_override,
      * catalog (eager slot-0 connect surfaces a curl_easy_init failure here). */
     brix_status pst; brix_status_clear(&pst);
     if (brixcvmfs_transport_pool_init(&pst) != 0) {
-        fprintf(stderr, "brixcvmfs: curl handle pool init failed: %s\n", pst.msg);
+        BRIX_CLIENT_LOG("ERROR",  "brixcvmfs: curl handle pool init failed: %s\n", pst.msg);
         curl_global_cleanup();
         free(cl); return NULL;
     }
@@ -239,7 +240,7 @@ cvmfs_client_t *brixcvmfs_open(const char *repo, const char *cache_dir_override,
                                  quota, cache_dirfd, brixcvmfs_transport, NULL, mono_now());
     free(master);
     if (mrc != 0) {
-        fprintf(stderr, "brixcvmfs: mount of %s failed (trust/catalog error %d)\n", repo, mrc);
+        BRIX_CLIENT_LOG("ERROR",  "brixcvmfs: mount of %s failed (trust/catalog error %d)\n", repo, mrc);
         transport_cleanup();
     curl_global_cleanup();
         free(cl); return NULL;
@@ -345,7 +346,7 @@ int brixcvmfs_prewarm(const char *repo) {
                rc != 0 ? " (walk aborted: catalog fetch/verify failure)" : "");
         printf("%s\n", rc == 0 && ud.errs == 0 ? "WARM" : "INCOMPLETE");
     } else {
-        fprintf(stderr, "brixcvmfs: out of memory\n");
+        BRIX_CLIENT_LOG("ERROR",  "brixcvmfs: out of memory\n");
     }
     free(ud.out);
 

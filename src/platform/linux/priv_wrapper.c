@@ -32,6 +32,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/syscall.h>
+#include <sys/auxv.h>
 #include <unistd.h>
 
 int
@@ -56,6 +57,12 @@ int
 brix_plat_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid)
 {
     return getresgid(rgid, egid, sgid);
+}
+
+int
+brix_plat_process_tainted(void)
+{
+    return getauxval(AT_SECURE) != 0;
 }
 
 int

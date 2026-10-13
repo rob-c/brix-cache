@@ -30,6 +30,7 @@ __all__ = [
     "_inject_nginx_load_modules",
     "_inject_nginx_runtime_paths",
     "_nginx_bin",
+    "fleet_nginx_bootstrap_log",
     "prepare_fleet_nginx_config",
     "env_entry_ok",
     "sanitized_env",
@@ -86,13 +87,25 @@ def _inject_nginx_runtime_paths(config_path: str, prefix: str) -> None:
     inject_nginx_runtime_paths(config_path, prefix)
 
 
-def prepare_fleet_nginx_config(config_path, prefix=None, cwd=None):
-    """Resolve a raw fleet config and apply the registry's module/runtime seams."""
+def _fleet_nginx_paths(config_path, prefix=None, cwd=None):
+    """Resolve the config and test-owned runtime root for a raw fleet launch."""
     working_dir = Path(cwd or os.getcwd()).resolve()
     runtime_prefix = (working_dir / (prefix or ".")).resolve()
     config = (runtime_prefix / config_path).resolve()
     if prefix is None and cwd is None:
         runtime_prefix = config.parent
+    return config, runtime_prefix
+
+
+def fleet_nginx_bootstrap_log(config_path, prefix=None, cwd=None):
+    """System-nginx bootstrap log path, before its config is active."""
+    _, runtime_prefix = _fleet_nginx_paths(config_path, prefix, cwd)
+    return str(runtime_prefix / "logs" / "error.log")
+
+
+def prepare_fleet_nginx_config(config_path, prefix=None, cwd=None):
+    """Resolve a raw fleet config and apply the registry's module/runtime seams."""
+    config, runtime_prefix = _fleet_nginx_paths(config_path, prefix, cwd)
     _inject_nginx_load_modules(str(config))
     _inject_nginx_runtime_paths(str(config), str(runtime_prefix))
     return str(config)

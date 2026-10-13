@@ -14,6 +14,7 @@
  * HOW:  Declared in http_common.h so the command table in http_common.c can
  *       name them; each stores into the shared preamble conf it is handed. */
 
+#include "core/compat/log_event.h"
 #include "core/config/http_common.h"
 #include "core/seccomp/seccomp.h"            /* brix_conf_set_seccomp */
 #include "auth/impersonate/lifecycle.h"      /* brix_conf_set_worker_user */
@@ -57,7 +58,7 @@ brix_conf_set_mint_ca(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         (void) fclose(f);   /* read-only stream: close failure cannot lose data */
     }
     if (cert == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_credential_mint_ca: cannot parse CA cert \"%V\"",
             &value[1]);
         return NGX_CONF_ERROR;
@@ -70,7 +71,7 @@ brix_conf_set_mint_ca(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         (void) fclose(f);   /* read-only stream: close failure cannot lose data */
     }
     if (key == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_credential_mint_ca: cannot parse CA key \"%V\"",
             &value[2]);
         return NGX_CONF_ERROR;
@@ -101,7 +102,7 @@ brix_conf_set_peers(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     (void) cmd;
 
     if (c->common.cache_peers != NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_peers: duplicate directive — list every ring "
             "member in one declaration");
         return NGX_CONF_ERROR;
@@ -150,7 +151,7 @@ brix_conf_set_backend_tx_endpoint(ngx_conf_t *cf, ngx_command_t *cmd,
     if (ep->len <= sizeof("https://") - 1
         || ngx_strncasecmp(ep->data, (u_char *) "https://", 8) != 0
         || ep->data[8] == '/') {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_backend_token_exchange_endpoint: \"%V\" is not an https:// "
             "URL with a host — the exchange client is HTTPS-only (a subject "
             "token and the client secret ride every request), so this "
@@ -159,7 +160,7 @@ brix_conf_set_backend_tx_endpoint(ngx_conf_t *cf, ngx_command_t *cmd,
     }
     for (i = 0; i < ep->len; i++) {
         if (ep->data[i] <= ' ' || ep->data[i] == 0x7f) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_backend_token_exchange_endpoint: whitespace or control "
                 "byte at offset %ui", i);
             return NGX_CONF_ERROR;

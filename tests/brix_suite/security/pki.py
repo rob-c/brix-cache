@@ -66,7 +66,8 @@ def _write(path: Path, text: str) -> None:
 def _pki_material() -> tuple[str, ...]:
     """Every file a standing fleet was started against (module names, read at
     call time so a test may repoint them)."""
-    return (CA_CERT, CA_KEY, SERVER_CERT, SERVER_KEY, USER_CERT, USER_KEY)
+    return (CA_CERT, CA_KEY, SERVER_CERT, SERVER_KEY, USER_CERT, USER_KEY,
+            str(Path(CA_DIR) / "test-user.crl.pem"))
 
 
 def test_pki_complete() -> bool:
@@ -122,6 +123,8 @@ def blitz_test_pki() -> None:
             "-addext",
             "subjectKeyIdentifier=hash",
             "-addext",
+            "authorityKeyIdentifier=keyid:always",
+            "-addext",
             "keyUsage=critical,keyCertSign,cRLSign",
         ]
     )
@@ -173,6 +176,8 @@ def blitz_test_pki() -> None:
     san_ext = server_dir / "san.ext"
     san_ext.write_text(
         "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1\n"  # net-literal-allow: TLS server cert SAN
+        "subjectKeyIdentifier=hash\n"
+        "authorityKeyIdentifier=keyid:always,issuer\n"
         "keyUsage=critical,digitalSignature,keyEncipherment\n"
         "extendedKeyUsage=serverAuth,clientAuth\n"
     )
@@ -229,6 +234,8 @@ def blitz_test_pki() -> None:
     # matches a real user certificate presented over TLS.
     user_ext = user_dir / "user.ext"
     user_ext.write_text(
+        "subjectKeyIdentifier=hash\n"
+        "authorityKeyIdentifier=keyid:always,issuer\n"
         "keyUsage=critical,digitalSignature,keyEncipherment\n"
         "extendedKeyUsage=clientAuth\n"
     )

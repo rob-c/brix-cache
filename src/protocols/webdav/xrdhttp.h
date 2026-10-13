@@ -30,6 +30,8 @@
 #include <ngx_http.h>
 #include <sys/stat.h>
 
+#include "core/http/http_query.h"
+
 /* Maximum lengths for client-supplied strings stored in request context.
  * These are intentionally small to bound per-request allocation. */
 #define XRDHTTP_UUID_MAX     64   /* xrd.clnt.uuid / X-Xrootd-Requuid */
@@ -52,6 +54,10 @@ typedef struct {
     unsigned   is_xrdhttp:1;          /* 1 = client sent X-Xrootd-Proto */
     unsigned   headers_injected:1;    /* 1 = xrdhttp response headers already added */
     char       proto_version[XRDHTTP_PROTO_MAX]; /* e.g. "5.2", NUL-term */
+
+    /* Parsed once at the WebDAV access boundary and shared by auth, redirect,
+     * XrdHttp, and TPC consumers. */
+    brix_http_query_t query;
 
     /* ?xrd.* query parameters — logged and used for routing/metrics. */
     char       clnt_uuid[XRDHTTP_UUID_MAX];  /* xrd.clnt.uuid */
@@ -100,7 +106,7 @@ xrdhttp_req_ctx_t *xrdhttp_get_ctx(ngx_http_request_t *r);
  * Logs clnt_app and clnt_uuid at debug level for auditing.
  * Always succeeds (any unparseable value is silently ignored).
  */
-void xrdhttp_parse_request(ngx_http_request_t *r);
+ngx_int_t xrdhttp_parse_request(ngx_http_request_t *r);
 
 /* ---- response header injection ---- */
 

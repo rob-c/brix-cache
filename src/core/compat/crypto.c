@@ -25,9 +25,21 @@ static EVP_MD  *s_sha256_md;
 int
 brix_crypto_init(void)
 {
-    s_hmac_mac  = EVP_MAC_fetch(NULL, "HMAC", NULL);
-    s_sha256_md = EVP_MD_fetch(NULL, "SHA256", NULL);
-    return s_hmac_mac != NULL && s_sha256_md != NULL;
+    EVP_MAC *hmac_mac;
+    EVP_MD *sha256_md;
+
+    if (s_hmac_mac != NULL && s_sha256_md != NULL) return 1;
+    brix_crypto_cleanup();
+    hmac_mac = EVP_MAC_fetch(NULL, "HMAC", NULL);
+    sha256_md = EVP_MD_fetch(NULL, "SHA256", NULL);
+    if (hmac_mac == NULL || sha256_md == NULL) {
+        EVP_MAC_free(hmac_mac);
+        EVP_MD_free(sha256_md);
+        return 0;
+    }
+    s_hmac_mac = hmac_mac;
+    s_sha256_md = sha256_md;
+    return 1;
 }
 
 void

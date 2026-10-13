@@ -103,10 +103,8 @@ def _make_post_no_cksum(tool):
         assert results[OURS].rc == want, \
             "%s missing-file rc=%s, want %s (stock parity)" % (
                 tool, results[OURS].rc, want)
-        # Bonus oracle: when stock produced a code, it must agree.
-        assert results[STOCK].rc == want, \
-            "%s stock missing-file rc=%s, expected %s" % (
-                tool, results[STOCK].rc, want)
+        # Stock releases disagree on missing-file exit status (0 or nonzero),
+        # so the reference remains an output oracle only for this error case.
 
     return _post
 

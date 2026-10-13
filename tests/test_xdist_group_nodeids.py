@@ -93,10 +93,19 @@ def _collect_only(tmp_path, selector):
     imports = [str(tmp_path), str(Path(__file__).resolve().parent),
                str(Path(__file__).resolve().parents[1] / 'brixtest/src')]
     env['PYTHONPATH'] = os.pathsep.join(imports + [env.get('PYTHONPATH', '')])
+    repo = Path(__file__).resolve().parents[1]
+    source_text, separator, selection = str(selector).partition('::')
+    source = Path(source_text).resolve()
+    collection_root = repo if source.is_relative_to(repo) else tmp_path
+    collection_selector = str(source.relative_to(collection_root))
+    if separator:
+        collection_selector += separator + selection
     proc = subprocess.run([sys.executable, '-m', 'pytest', '--collect-only', '--noconftest',
-                           '-p', 'group_probe', '-c', str(config), '--rootdir', str(tmp_path),
-                           '-o', 'addopts=', '-q', str(selector)],
-                          cwd=tmp_path, env=env, capture_output=True, text=True, timeout=30)
+                           '-p', 'group_probe', '-c', str(config), '--rootdir', str(collection_root),
+                           '--ignore', str(repo.parents[1] / '.Trash'),
+                           '-o', 'addopts=', '-q', collection_selector],
+                          cwd=collection_root, env=env, capture_output=True,
+                          text=True, timeout=30)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     return json.loads(output.read_text())
 

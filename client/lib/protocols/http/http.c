@@ -209,26 +209,84 @@ ci_contains(const char *hay, const char *needle)
 }
 
 
-/* De-chunk a Transfer-Encoding: chunked body in place; returns new length. */
-size_t
-dechunk(char *b, size_t len)
+/* ---- Decode a strict HTTP chunked body in place ----
+ *
+ * WHAT: Returns zero with the decoded length, or -1 for malformed framing.
+ * WHY: Truncating an oversized chunk to available bytes made corrupt responses
+ *      indistinguishable from complete data and let missing zero chunks pass.
+ * HOW: Parse bounded hexadecimal sizes, require CRLF at every boundary, copy
+ *      complete chunks, and require the terminal zero chunk plus empty trailer.
+ */
+int
+dechunk(char *body, size_t length, size_t *plain_length)
 {
-    size_t in = 0, out = 0;
-    while (in < len) {
-        char  *endp = NULL;
-        long   csz = strtol(b + in, &endp, 16);
-        if (endp == NULL || csz < 0) { break; }
-        while (in < len && b[in] != '\n') { in++; }   /* skip to end of size line */
-        if (in < len) { in++; }                        /* past the '\n' */
-        if (csz == 0) { break; }                        /* last chunk */
-        if (in + (size_t) csz > len) { csz = (long) (len - in); }
-        memmove(b + out, b + in, (size_t) csz);
-        out += (size_t) csz;
-        in  += (size_t) csz;
-        while (in < len && (b[in] == '\r' || b[in] == '\n')) { in++; }  /* trailing CRLF */
+    size_t input = 0;
+    size_t output = 0;
+
+    while (input < length) {
+        size_t chunk_size = 0;
+        size_t digits = 0;
+
+        while (input < length) {
+            unsigned char byte = (unsigned char) body[input];
+            unsigned value;
+
+            if (byte >= '0' && byte <= '9') value = byte - '0';
+            else if (byte >= 'a' && byte <= 'f') value = byte - 'a' + 10U;
+            else if (byte >= 'A' && byte <= 'F') value = byte - 'A' + 10U;
+            else break;
+            if (chunk_size > (SIZE_MAX - value) / 16U) return -1;
+            chunk_size = chunk_size * 16U + value;
+            digits++;
+            input++;
+        }
+        if (digits == 0) return -1;
+        if (input < length && body[input] != '\r' && body[input] != ';')
+            return -1;
+        while (input < length && body[input] != '\r') {
+            unsigned char byte = (unsigned char) body[input];
+
+            if (byte < 0x20 || byte > 0x7e) return -1;
+            input++;
+        }
+        if (input + 2 > length || body[input] != '\r'
+            || body[input + 1] != '\n') return -1;
+        input += 2;
+        if (chunk_size == 0) {
+            for (;;) {
+                size_t line_start = input;
+                int colon = 0;
+
+                while (input < length && body[input] != '\r') {
+                    unsigned char byte = (unsigned char) body[input];
+
+                    if (byte == ':') colon = 1;
+                    if ((byte < 0x20 && byte != '\t') || byte > 0x7e)
+                        return -1;
+                    input++;
+                }
+                if (input + 2 > length || body[input] != '\r'
+                    || body[input + 1] != '\n') return -1;
+                if (input == line_start) {
+                    input += 2;
+                    if (input != length) return -1;
+                    body[output] = '\0';
+                    *plain_length = output;
+                    return 0;
+                }
+                if (!colon) return -1;
+                input += 2;
+            }
+        }
+        if (chunk_size > length - input || input + chunk_size + 2 > length)
+            return -1;
+        memmove(body + output, body + input, chunk_size);
+        output += chunk_size;
+        input += chunk_size;
+        if (body[input] != '\r' || body[input + 1] != '\n') return -1;
+        input += 2;
     }
-    b[out] = '\0';
-    return out;
+    return -1;
 }
 
 
@@ -257,6 +315,7 @@ void
 httpx_parse(char *buf, size_t total, brix_http_resp *resp)
 {
     char *eoh;
+    resp->framing_valid = 1;
     if (strncmp(buf, "HTTP/", 5) == 0) {
         char *sp = strchr(buf, ' ');
         if (sp != NULL) {
@@ -285,7 +344,15 @@ httpx_parse(char *buf, size_t total, brix_http_resp *resp)
             resp->body[bodylen] = '\0';
             resp->body_len = bodylen;
             if (ci_contains(resp->headers, "Transfer-Encoding: chunked")) {
-                resp->body_len = dechunk(resp->body, resp->body_len);
+                size_t plain_length = 0;
+
+                if (dechunk(resp->body, resp->body_len, &plain_length) != 0) {
+                    resp->framing_valid = 0;
+                    resp->body_len = 0;
+                    resp->body[0] = '\0';
+                } else {
+                    resp->body_len = plain_length;
+                }
             }
         }
     } else {

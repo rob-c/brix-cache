@@ -3,6 +3,7 @@
  * table, source build + decorator composition, and the resolve entry points.
  * Config-time directive parsing lives in vfs_backend_config.c (phase-38 split).
  */
+#include "core/compat/log_event.h"
 #include "vfs_backend_internal.h"
 #include "fs/backend/xroot/sd_xroot.h"   /* remote root:// backend (brix_sd_xroot_create) */
 #include "fs/backend/http/sd_http.h"     /* HTTP source backend (brix_sd_http_create) */
@@ -122,12 +123,12 @@ brix_vbr_wrap_staging_shim(brix_sd_instance_t *top,
         ? brix_sd_stage_create(top, store, NULL, e->root_canon, log) : NULL;
 
     if (dec != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: write-back stage decorator composed over \"%s\"",
             e->root_canon);
         return dec;
     }
-    ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+    BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
         "brix: stage shim init failed for \"%s\" - source direct",
         e->root_canon);
     return top;
@@ -154,7 +155,7 @@ brix_vbr_wrap_stage_tier(brix_sd_instance_t *top,
                                  log) : NULL;
 
     if (dec != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: write-stage tier (%s) composed over \"%s\"",
             e->stage_tier.driver, e->root_canon);
         return dec;
@@ -186,7 +187,7 @@ brix_vbr_wrap_cache_tier(brix_sd_instance_t *top,
         : NULL;
 
     if (dec != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: read-cache tier (%s) composed over \"%s\"",
             e->cache_tier.driver, e->root_canon);
 
@@ -198,11 +199,11 @@ brix_vbr_wrap_cache_tier(brix_sd_instance_t *top,
             if (cold != NULL) {
                 cold->domain = BRIX_VFS_DOMAIN_CACHE;   /* service storage (C9) */
                 brix_sd_cache_set_cold(dec, cold);
-                ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                     "brix: cold cache tier (%s) attached under \"%s\"",
                     e->cold_tier.driver, e->root_canon);
             } else {
-                ngx_log_error(NGX_LOG_ERR, log, 0,
+                BRIX_LOG(NGX_LOG_ERR, log, 0,
                     "brix: cold cache tier build failed for \"%s\" - "
                     "running hot tier only", e->root_canon);
             }
@@ -234,14 +235,14 @@ brix_vbr_wrap_cache_tier(brix_sd_instance_t *top,
                 pcfg.configured = 1;
                 peers[i].inst = brix_tier_build(&pcfg, log);
                 if (peers[i].inst == NULL) {
-                    ngx_log_error(NGX_LOG_ERR, log, 0,
+                    BRIX_LOG(NGX_LOG_ERR, log, 0,
                         "brix: mesh sibling %s build failed for \"%s\" - "
                         "its keys fall through to the origin",
                         peers[i].label, e->root_canon);
                 }
             }
             brix_sd_cache_set_peers(dec, peers, e->n_peer_ring, e->peer_self);
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                 "brix: sibling mesh (%d members, self=%s) attached under "
                 "\"%s\"", e->n_peer_ring, peers[e->peer_self].label,
                 e->root_canon);

@@ -59,6 +59,9 @@ typedef struct {
     int         redir_trace;  /* §15.4: trace every kXR_redirect hop to stderr */
     int         force_anon;   /* §15.9: log in but present NO credential (auth-suite:
                                * tests the server's own enforcement, not client creds) */
+    int         diagnostic_no_tls_upgrade; /* conformance-only incapable-client
+                               * probe; accepted only with force_anon so no
+                               * credential can cross the cleartext transport */
     int         gsi_delegate; /* 1 ⇒ this session MAY hand the server an X.509
                                * delegated proxy: the certreq advertises the
                                * sign-request capability (kOptsSigReq) so a stock
@@ -105,6 +108,9 @@ typedef struct {
      * identity, taken from the fields above. */
     struct brix_sss_id_registry *sss_id;
     const char *sss_lid;      /* registry key; NULL/"" = the default slot. */
+    uint32_t    gsi_version;  /* diagnostic override; 0 = env/default */
+    int         tls_max_version; /* diagnostic OpenSSL version; 0 = normal */
+    void       *tls_resume_session; /* borrowed SSL_SESSION for diagnostics */
 } brix_opts;
 /* Default reconnect+retry patience window when resilience is on but unspecified. */
 #define XRDC_DEFAULT_MAX_STALL_MS 30000
@@ -132,7 +138,13 @@ typedef struct {
     brix_io  io;
     uint16_t next_sid;
     uint8_t  sessid[XRDC_SESSION_ID_LEN];
+    uint32_t login_body_len;   /* exact successful kXR_login reply length */
+    uint8_t  bound_pathid;     /* nonzero only after a successful kXR_bind */
     uint32_t server_flags;   /* ServerProtocolBody.flags, host byte order */
+    uint32_t server_protocol; /* ServerProtocolBody.pval, host byte order */
+    uint32_t handshake_body_len; /* observed v5 bootstrap response body */
+    uint32_t protocol_body_len;
+    uint8_t  protocol_body[256]; /* exact pre-login kXR_protocol response */
     char     host[256];
     int      port;
     /* --- auth / signing (M4) --- */
@@ -140,6 +152,7 @@ typedef struct {
     int      sec_level;          /* server's signing security level (0 = none) */
     int      sec_odata;          /* server secopt kXR_secOData: sign write payloads */
     int      signing_active;     /* GSI session cipher armed AND sec_level >= 2 */
+    int      tls_session_reused; /* OpenSSL confirmed session resumption */
     uint64_t sig_seqno;          /* monotonic kXR_sigver sequence number */
     /* --- GSI session cipher, captured in gsi round-2: reused by a follow-up
      * kXGS_pxyreq delegation round AND by kXR_sigver request signing --- */
@@ -148,6 +161,14 @@ typedef struct {
     size_t   gsi_deleg_keylen;
     char     gsi_deleg_cipher[24];
     int      gsi_deleg_use_iv;
+    /* Read-only GSI transcript evidence for the conformance client.  These
+     * describe observed wire/handshake facts, never credential bytes. */
+    int      gsi_login_challenge_text;
+    int      gsi_server_dh_plain;
+    int      gsi_server_dh_signed;
+    int      gsi_unpadded_secret;
+    int      gsi_round2_response_built;
+    int      gsi_server_key_persisted;
     /* --- deferred-reply protocols (TPC coordinator open, SSI submit) --- */
     int      defer_surfaces;     /* 1 = a kXR_waitresp on this conn is SURFACED to the
                                   * caller (as status kXR_waitresp, empty body) instead
@@ -213,6 +234,7 @@ typedef struct {
     char          name[XRDC_NAME_MAX];
     int           have_stat;
     brix_statinfo st;
+    char          checksum[144]; /* dcksm "algorithm:hex", empty otherwise */
 } brix_dirent;
 /* ---- sock.c ---- */
 int brix_tcp_connect(const char *host, int port, int timeout_ms, brix_status *st);
@@ -290,6 +312,11 @@ void brix_backoff_sleep_fast(unsigned attempt);
  * $X509_CERT_DIR); when verify_host, the cert name must match c->host. */
 int  brix_tls_upgrade(brix_conn *c, int verify_peer, int verify_host,
                       const char *ca_dir, brix_status *st);
+/* Diagnostic TLS-1.2 renegotiation attempt: 1 accepted, 0 peer-refused,
+ * -1 unavailable or locally indeterminate. Never used by normal I/O. */
+int  brix_tls_probe_renegotiate(brix_conn *c, brix_status *st);
+void *brix_tls_session_get(const brix_conn *c);
+void  brix_tls_session_free(void *session);
 void brix_tls_free(brix_conn *c);
 /* ---- conn.c ---- */
 /* Resolve the CA trust dir for TLS verification: explicit arg → $X509_CERT_DIR →
@@ -353,6 +380,7 @@ typedef struct {
     char   headers[8192];      /* raw response header block (NUL-terminated, truncated) */
     char  *body;               /* malloc'd body (NUL-terminated); NULL if none */
     size_t body_len;
+    int    framing_valid;      /* strict Content-Length/chunk grammar accepted */
     int    tls;                /* 1 if the request used TLS */
     char   tls_ver[24];        /* negotiated TLS version (https) */
     char   tls_cipher[48];     /* negotiated cipher (https) */
@@ -366,6 +394,15 @@ int  brix_http_req(const char *host, int port, int tls, const char *method,
                    const void *body, size_t blen, int timeout_ms, int verify,
                    const char *ca_dir, const char *client_cert,
                    brix_http_resp *resp, brix_status *st);
+/* Send caller-framed HTTP bytes through the shared DNS/TCP/TLS transport. This
+ * diagnostic seam deliberately performs no request normalization. When
+ * finish_write is set, cleartext TCP emits FIN after the supplied bytes; TLS
+ * closes normally after the bounded response wait. */
+int  brix_http_raw_req(const char *host, int port, int tls,
+                       const void *request, size_t request_len,
+                       int finish_write, int timeout_ms, int verify,
+                       const char *ca_dir, const char *client_cert,
+                       brix_http_resp *resp, brix_status *st);
 void brix_http_resp_free(brix_http_resp *resp);
 /* Copy the value of response header `name` (case-insensitive) into out[outsz];
  * 1 if found, 0 if absent. */
@@ -426,6 +463,12 @@ int  brix_s3_sign_v4_q(const char *method, const char *host, const char *uri,
                        const char *canon_qs, const char *ak, const char *sk,
                        const char *region, const char *payload_hex,
                        char *hdrs, size_t hdrsz);
+/* Build a complete SigV4 presigned canonical query at an explicit timestamp.
+ * The result excludes the leading '?'. expires must be 1..604800 seconds. */
+int  brix_s3_presign_v4_at(const char *method, const char *host,
+                           const char *uri, const char *ak, const char *sk,
+                           const char *region, time_t signed_at,
+                           unsigned expires, char *query, size_t query_size);
 /* ---- url.c ---- */
 int brix_url_parse(const char *s, brix_url *out, brix_status *st);
 /* Expand a root:// URL whose LAST path component globs into matching full URLs.

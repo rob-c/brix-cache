@@ -3,6 +3,7 @@
  * The copy engine owns transport recursion; xrdcp retains only source-list
  * expansion and process-level batch orchestration.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "copy_internal.h"
 
 const char *
@@ -282,12 +283,12 @@ recdl_transfer_one(recdl_ctx_t *c, const char *srcurl, const char *rel)
     if (recursive_place(c->dstdir, &p) == 0) {
         c->ok++;
         if (c->fo == NULL || !c->fo->silent) {
-            fprintf(stderr, "[%zu/%zu] %s -> %s/%s\n", c->ok + c->fail, c->n,
+            BRIX_CLIENT_LOG("INFO",  "[%zu/%zu] %s -> %s/%s\n", c->ok + c->fail, c->n,
                     srcurl, c->dstdir, rel);
         }
     } else {
         c->fail++;
-        fprintf(stderr, "xrdcp: %s: %s\n", srcurl, cst.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: %s: %s\n", srcurl, cst.msg);
     }
 }
 
@@ -307,7 +308,7 @@ s3_split_bucket_prefix(const brix_weburl *u, char *bucket, size_t bucketsz,
     size_t      plen;
 
     if (bl >= bucketsz) {
-        fprintf(stderr, "xrdcp: s3 bucket name too long\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: s3 bucket name too long\n");
         return -1;
     }
     memcpy(bucket, u->path + 1, bl);
@@ -347,7 +348,7 @@ s3_download_loop(recdl_ctx_t *c, const brix_weburl *u, char **keys,
             continue;
         }
         if (brix_rel_is_unsafe(rel)) {
-            fprintf(stderr, "xrdcp: refusing unsafe key from server: %s\n", key);
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: refusing unsafe key from server: %s\n", key);
             c->fail++;
             continue;
         }
@@ -383,7 +384,7 @@ recursive_s3_download(const brix_weburl *u, const char *dstdir,
     region = fo->s3_region ? fo->s3_region : getenv("AWS_DEFAULT_REGION");
     if (brix_s3_list(u, ak, sk, region, co ? co->verify_host : 1,
                      co ? co->ca_dir : NULL, &keys, &n, &st) != 0) {
-        fprintf(stderr, "xrdcp: s3 list: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: s3 list: %s\n", st.msg);
         *status = st;
         return -1;
     }
@@ -399,7 +400,7 @@ recursive_s3_download(const brix_weburl *u, const char *dstdir,
     s3_download_loop(&c, u, keys, bucket, prefix);
     brix_strv_free(keys, n);
     if (!fo->silent) {
-        fprintf(stderr, "xrdcp: %zu copied, %zu failed (recursive s3)\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: %zu copied, %zu failed (recursive s3)\n",
                 c.ok, c.fail);
     }
     if (c.fail != 0) {
@@ -436,7 +437,7 @@ web_download_loop(recdl_ctx_t *c, const brix_weburl *u, char **paths,
             continue;
         }
         if (brix_rel_is_unsafe(rel)) {
-            fprintf(stderr, "xrdcp: refusing unsafe path from server: %s\n",
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: refusing unsafe path from server: %s\n",
                     path);
             c->fail++;
             continue;
@@ -476,7 +477,7 @@ copy_web_recursive_download(const char *src, const char *dstdir,
     fo.recursive = 0;
     brix_status_clear(&st);
     if (brix_weburl_parse(src, &u) != 0) {
-        fprintf(stderr, "xrdcp: bad web URL %s\n", src);
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: bad web URL %s\n", src);
         brix_status_set(status, XRDC_EUSAGE, 0,
                         "bad web source URL: %s", src);
         return -1;
@@ -489,7 +490,7 @@ copy_web_recursive_download(const char *src, const char *dstdir,
     const char *pcert = brix_web_proxy_pem(proxybuf, sizeof(proxybuf));
     if (brix_webdav_list(&u, bearer, co ? co->verify_host : 1,
                          co ? co->ca_dir : NULL, pcert, &paths, &n, &st) != 0) {
-        fprintf(stderr, "xrdcp: list %s: %s\n", src, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: list %s: %s\n", src, st.msg);
         *status = st;
         return -1;
     }
@@ -507,7 +508,7 @@ copy_web_recursive_download(const char *src, const char *dstdir,
     web_download_loop(&c, &u, paths, prefix);
     brix_strv_free(paths, n);
     if (o == NULL || !o->silent) {
-        fprintf(stderr, "xrdcp: %zu copied, %zu failed (recursive web)\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: %zu copied, %zu failed (recursive web)\n",
                 c.ok, c.fail);
     }
     if (c.fail != 0) {

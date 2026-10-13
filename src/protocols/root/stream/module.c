@@ -13,6 +13,7 @@
  * See docs/refactor/phase-38-file-size-unix-modularity.md §2.6/§6.10.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "net/proxy/proxy.h"
 #include "net/proxy/proxy_internal.h"
@@ -113,7 +114,7 @@ brix_conf_set_stream_mint_ca(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         (void) fclose(f); /* read-only stream; the PEM parse result is the gate */
     }
     if (cert == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_credential_mint_ca: cannot parse CA cert \"%V\"",
             &value[1]);
         return NGX_CONF_ERROR;
@@ -126,7 +127,7 @@ brix_conf_set_stream_mint_ca(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         (void) fclose(f); /* read-only stream; the PEM parse result is the gate */
     }
     if (key == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_credential_mint_ca: cannot parse CA key \"%V\"",
             &value[2]);
         return NGX_CONF_ERROR;
@@ -160,12 +161,12 @@ brix_conf_set_oss_cgroup(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     (void) cmd;
 
     if (value[1].len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oss_cgroup: the group name must not be empty");
         return NGX_CONF_ERROR;
     }
     if (!brix_oss_space_name_ok(&value[1])) {   /* one rule with brix_oss_space */
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oss_cgroup: \"%V\" contains a byte that would break the "
             "oss.* CGI report grammar (no & = space or control chars)",
             &value[1]);
@@ -190,7 +191,7 @@ brix_conf_set_oss_quota(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     q = ngx_parse_offset(&value[1]);
     if (q == NGX_ERROR || q < 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oss_quota: \"%V\" is not a valid non-negative size", &value[1]);
         return NGX_CONF_ERROR;
     }
@@ -216,7 +217,7 @@ brix_ssi_service_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         xcf->ssi_cta_enable = 1;
         return NGX_CONF_OK;
     }
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                        "unknown SSI service \"%V\" (known: cta)", &value[1]);
     return NGX_CONF_ERROR;
 }
@@ -549,6 +550,9 @@ ngx_command_t ngx_stream_brix_commands[] = {
 #include "directives_writethrough.h"
     /* ---- CMS clustering directives (split into directives_cms.h) ---- */
 #include "directives_cms.h"
+
+    /* ---- single-port HTTP/TLS handoff directives ---- */
+#include "directives_handoff.h"
 
     /* ---- CMS forwarded-namespace-op program (directives_cms_fsxeq.h) ---- */
 #include "directives_cms_fsxeq.h"

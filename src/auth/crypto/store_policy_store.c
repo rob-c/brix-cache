@@ -47,7 +47,12 @@ typedef struct {
  *       still verified afterwards, so this relaxes selection, not trust.
  */
 static int
+#if OPENSSL_VERSION_NUMBER >= 0x40000000L
+brix_sp_proxy_check_issued(X509_STORE_CTX *ctx, const X509 *subject,
+    const X509 *issuer)
+#else
 brix_sp_proxy_check_issued(X509_STORE_CTX *ctx, X509 *subject, X509 *issuer)
+#endif
 {
     int rv;
 

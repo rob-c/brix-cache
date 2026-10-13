@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "core/compat/fs_walk.h"   /* §4.8 dirstats subtree du */
 #include "stat.h"
@@ -150,6 +151,32 @@ typedef struct {
     int                    extra_flags;     /* kXR_cachersp / offline flag bits */
 } stat_target_t;
 
+static int stat_query_handle_index(brix_ctx_t *ctx, ngx_connection_t *c,
+    stat_target_t *tgt, int idx, ngx_int_t *rc);
+
+/* Resolve a path-mode stat to this session's still-open POSC staging handle.
+ * The final name is intentionally absent from storage until close, but the
+ * protocol exposes that pending state through kXR_poscpend. */
+static int
+stat_query_posc_pending(brix_ctx_t *ctx, ngx_connection_t *c,
+    stat_target_t *tgt, ngx_int_t *rc)
+{
+    int idx;
+
+    if (ctx->files == NULL) return 0;
+    for (idx = 0; idx < BRIX_MAX_FILES; idx++) {
+        brix_file_t *file = &ctx->files[idx];
+
+        if (file->posc_final_path == NULL
+            || ngx_strcmp(file->posc_final_path, tgt->full_path) != 0)
+            continue;
+        if (!stat_query_handle_index(ctx, c, tgt, idx, rc)) return -1;
+        tgt->extra_flags |= kXR_poscpend;
+        return 1;
+    }
+    return 0;
+}
+
 /*
  * stat_vfs_ctx_prepare — bind a confined VFS context for one stat probe.
  *
@@ -293,10 +320,13 @@ static int
 stat_query_path(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, stat_target_t *tgt, ngx_int_t *rc)
 {
-    if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
-                             tgt->reqpath_buf, tgt->reqpath_size, 1)) {
+    int path_error;
+
+    if (!brix_extract_path_kxr(c->log, ctx->recv.payload,
+            ctx->recv.cur_dlen, tgt->reqpath_buf, tgt->reqpath_size, 1,
+            &path_error)) {
         BRIX_BAIL_ERR(ctx, c, BRIX_OP_STAT, "STAT", "-", "-",
-                        kXR_ArgInvalid, "invalid path payload", rc);
+                        path_error, "invalid path payload", rc);
     }
     tgt->reqpath = tgt->reqpath_buf;
 
@@ -339,6 +369,12 @@ stat_query_path(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (stat_vfs_query(ctx, c, conf, tgt) != 0) {
+        int pending;
+
+        pending = errno == ENOENT && !(tgt->req->options & kXR_statNoFollow)
+            ? stat_query_posc_pending(ctx, c, tgt, rc) : 0;
+        if (pending > 0) return 1;
+        if (pending < 0) return 0;
         /* E-4: a missing path from a principal already over its miss budget is
          * answered with kXR_wait instead of NotFound, throttling a stat-harvest
          * loop while a legitimate client (which rarely misses) sails through. */
@@ -347,7 +383,7 @@ stat_query_path(brix_ctx_t *ctx, ngx_connection_t *c,
                                                  conf->negcache.window_ms,
                                                  conf->negcache.backoff_s);
             if (w > 0) {
-                ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                     "xrootd negcache: kXR_wait %ud for STAT miss %s",
                     w, tgt->reqpath);
                 BRIX_OP_ERR(ctx, BRIX_OP_STAT);
@@ -378,10 +414,9 @@ stat_query_path(brix_ctx_t *ctx, ngx_connection_t *c,
  * response was sent (*rc carries the handler's return value).
  */
 static int
-stat_query_handle(brix_ctx_t *ctx, ngx_connection_t *c,
-    stat_target_t *tgt, ngx_int_t *rc)
+stat_query_handle_index(brix_ctx_t *ctx, ngx_connection_t *c,
+    stat_target_t *tgt, int idx, ngx_int_t *rc)
 {
-    int          idx = (int)(unsigned char) tgt->req->fhandle[0];
     struct stat *st = tgt->st;
 
     if (!brix_validate_file_handle(ctx, c, idx, "STAT",
@@ -442,6 +477,15 @@ stat_query_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     tgt->extra_flags = ctx->files[idx].from_cache ? kXR_cachersp : 0;
 
     return 1;
+}
+
+static int
+stat_query_handle(brix_ctx_t *ctx, ngx_connection_t *c,
+    stat_target_t *tgt, ngx_int_t *rc)
+{
+    int idx = (int)(unsigned char) tgt->req->fhandle[0];
+
+    return stat_query_handle_index(ctx, c, tgt, idx, rc);
 }
 
 /*
@@ -523,10 +567,11 @@ ngx_int_t brix_handle_stat(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix
     if (is_vfs) {
         brix_make_vfs_body(conf, body, sizeof(body));
     } else {
-        brix_make_stat_body(&st, 0, tgt.extra_flags, body, sizeof(body));
+        brix_make_stat_body_for_export(&st, 0, tgt.extra_flags,
+            conf->common.allow_write, body, sizeof(body));
     }
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXR_stat ok: %s", body);
 
     brix_log_access(ctx, c, "STAT",

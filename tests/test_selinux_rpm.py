@@ -8,7 +8,8 @@ data-plane manage+map, impersonation-broker capabilities, outbound connects).
 
 Run as root on an SELinux-enabled host with the -selinux subpackage installed:
 
-    cd /usr/share/brix && sudo python3 -m pytest tests/test_selinux_rpm.py -v
+    cd /usr/share/brix && sudo env TEST_SKIP_SERVER_SETUP=1 \
+      PYTHONPATH=tests:brixtest/src python3 -m pytest tests/test_selinux_rpm.py -v
 
 The whole module self-skips on hosts without SELinux (dev boxes, containers),
 without root, or without the brix policy module, so it is safe in the general

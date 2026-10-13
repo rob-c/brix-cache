@@ -429,6 +429,12 @@ that no longer exist, which is indistinguishable from "the symbol is gone".
 | pure-cache-node plumbing (any mirror plane) | `src/protocols/shared/merge_export.c` (anchor→rootfd→backend, in that order), `src/protocols/shared/mirror_common.c` (key→path, HTTP-only node's zones/dashboard/fill pool) |
 
 ## HELPERS (MUST USE — NEVER REIMPLEMENT)
+
+Diagnostic logging uses `BRIX_LOG` / `BRIX_LOG_DEBUG` / `BRIX_CONF_LOG` on the
+server, `BRIX_CLIENT_LOG` / `BRIX_TOOL_LOG` for native standalone diagnostics,
+and `tools.logging_support.diagnostic` for Python tools. Follow the
+[logging standard](coding-standards.md); retain CLI presentation contracts and
+existing credential redaction. Guard: `tools/ci/check_logging_template.py`.
 | Function | Purpose |
 |---|---|
 | `ngx_http_brix_webdav_resolve_path(path)` | Canonical+confined path |

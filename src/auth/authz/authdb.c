@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 
 #include <stddef.h>
@@ -413,7 +414,7 @@ brix_check_authdb_identity(ngx_log_t *log, const brix_authdb_query_t *query)
     vo_list = brix_identity_vo_csv_cstr(query->identity);
     brix_sanitize_log_string(query->resolved_path, safe_path, sizeof(safe_path));
 
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
                   "brix: authdb denied path=\"%s\" privs=0x%02xd "
                   "dn=\"%s\" vos=\"%s\" peer=\"%s\"",
                   safe_path, query->needed_privs, dn,

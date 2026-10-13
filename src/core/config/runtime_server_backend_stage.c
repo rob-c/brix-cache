@@ -6,6 +6,7 @@
  * brix_tier_register_stores() are declared in runtime_server_backend_internal.h.
  */
 
+#include "core/compat/log_event.h"
 #include "config.h"
 #include "root_prepare.h"
 #include "credential_block.h"             /* §14 brix_credential lookup/bearer */
@@ -79,23 +80,23 @@ brix_tier_warn_private_tmp(ngx_conf_t *cf,
             continue;
         }
         if (!shouted) {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
                 "brix: ==================== PrivateTmp DETECTED "
                 "====================");
-            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
                 "brix: this service runs with systemd PrivateTmp: /tmp is "
                 "PRIVATE to the service and is DELETED on every service "
                 "stop/restart.");
             shouted = 1;
         }
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix: the store \"%V\" therefore does NOT survive a restart — "
             "staged-but-unflushed writes / cached objects are LOST. Point "
             "it at a durable path or set PrivateTmp=no in the unit.",
             stores[i]);
     }
     if (shouted) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix: ==========================================================="
             "====");
     }
@@ -182,7 +183,7 @@ brix_tier_default_stage_store(ngx_conf_t *cf,
     if (brix_mkdir_recursive(BRIX_TIER_DEFAULT_STAGE_BASE, 0711) != 0
         || (mkdir(dir, BRIX_CRED_STAGE_DIR_MODE) != 0 && errno != EEXIST))
     {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, errno,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, errno,
             "brix: cannot create the default stage store \"%s\" — "
             "write staging stays OFF; random writes to the remote backend "
             "will be rejected (set brix_stage_store, or \"brix_stage off\" "
@@ -190,7 +191,7 @@ brix_tier_default_stage_store(ngx_conf_t *cf,
         return;
     }
     if (stat(dir, &st) != 0 || !S_ISDIR(st.st_mode)) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, errno,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, errno,
             "brix: default stage store \"%s\" is not a usable directory — "
             "write staging stays OFF", dir);
         return;
@@ -204,7 +205,7 @@ brix_tier_default_stage_store(ngx_conf_t *cf,
     if (geteuid() == 0 && st.st_uid != want_uid
         && chown(dir, want_uid, want_gid) != 0)
     {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, errno,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, errno,
             "brix: cannot chown the default stage store \"%s\" to the "
             "worker user — write staging stays OFF", dir);
         return;
@@ -218,7 +219,7 @@ brix_tier_default_stage_store(ngx_conf_t *cf,
     if (geteuid() != 0
         && (st.st_uid != geteuid() || access(dir, W_OK | X_OK) != 0))
     {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix: the default stage store \"%s\" exists but is not owned/"
             "writable by this user (owner uid %lu, we are uid %lu) — "
             "write staging stays OFF; remove the directory or set "
@@ -237,20 +238,20 @@ brix_tier_default_stage_store(ngx_conf_t *cf,
     common->stage_store.len  = url_len;
     common->stage_enable     = 1;
 
-    ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
         "brix: ==================== DEFAULT WRITE-STAGING ===================");
-    ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
         "brix: no stage tier is configured for the whole-object remote "
         "backend \"%V\";", &common->storage_backend);
-    ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
         "brix: random writes will be buffered in \"%s\",", dir);
-    ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
         "brix: a directory MANAGED BY BRIX (created, filled and cleaned by "
         "brix — do not place files there; mount it tmpfs if you want "
         "RAM-tier performance).");
-    ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
         "brix: override with \"brix_stage_store <store-url>\", or opt out "
         "with \"brix_stage off\" (writes must then be strictly sequential).");
-    ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
         "brix: ===============================================================");
 }

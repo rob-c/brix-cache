@@ -277,7 +277,10 @@ def test_webdav_upload_resumes_across_restart(srv, tmp_path):
 
 def _stage_directory(tmp_path, prefix):
     shared_memory = "/dev/shm"
+    enough_space = False
     if os.path.isdir(shared_memory) and os.access(shared_memory, os.W_OK):
+        enough_space = shutil.disk_usage(shared_memory).free >= (256 << 20)
+    if enough_space:
         return os.path.join(shared_memory, f"{prefix}-{os.getpid()}")
     return str(tmp_path / "stage")
 

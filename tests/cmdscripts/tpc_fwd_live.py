@@ -35,6 +35,7 @@ from cmdscripts.live_common import (
 )
 from fleet_ports import cmdscript_ports
 from lib_py.util import wait_tcp
+from log_records import semantic_log_text
 from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, SERVER_CERT, SERVER_HOST, SERVER_KEY, TEST_ROOT
 
 _PORTS = cmdscript_ports("tpc_fwd_live")

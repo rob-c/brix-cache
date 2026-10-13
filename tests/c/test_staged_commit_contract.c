@@ -102,6 +102,14 @@ u_char *ngx_cpystrn(u_char *dst, u_char *src, size_t n)
 void ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
     const char *fmt, ...) { (void) level; (void) log; (void) err; (void) fmt; }
 
+int brix_xmeta_sidecar_path(char *dst, size_t cap, const char *path)
+{
+    (void) dst;
+    (void) cap;
+    (void) path;
+    return -1;
+}
+
 /* Linker-only refs from sd_posix_ns.o that this test never calls. */
 void sd_posix_fill_stat(const struct stat *st, brix_sd_stat_t *out) { (void) st; (void) out; }
 /* W3 C3: keep the real durable-publish barrier (brix_publish_dirsync is in the

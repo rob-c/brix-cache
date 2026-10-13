@@ -25,6 +25,7 @@
  *       them and it refetches whole.  The delta path adds no trust surface;
  *       it only ever changes how many bytes cross the wire.
  */
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "cvmfs_module_internal.h"
 
@@ -225,7 +226,7 @@ cvmfs_delta_emit(ngx_http_request_t *r, time_t mtime, const char *base_id,
     chain.buf  = b;
     chain.next = NULL;
 
-    ngx_log_error(NGX_LOG_DEBUG, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_DEBUG, r->connection->log, 0,
         "cvmfs-delta: coded serve %uz -> %uz base=%s", srclen, outlen,
         base_id);
 

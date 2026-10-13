@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # check_shm_mutex.py — enforce INVARIANT #10: SHM tables are created via the
 # brix_shm_table_* helpers, never a bare ngx_shmtx_create().
@@ -79,12 +84,12 @@ def _file_hits(root, path):
 def main() -> int:
     ok, viol = run()
     if not ok:
-        print(
+        _brix_diagnostic('ERROR', 'tools/ci/check_shm_mutex.py', 'main',
             f"check_shm_mutex: INVARIANT #10 violation — bare ngx_shmtx_create() outside {ALLOW}:",
             file=sys.stderr,
         )
-        print("\n".join(viol), file=sys.stderr)
-        print(
+        _brix_diagnostic('ERROR', 'tools/ci/check_shm_mutex.py', 'main', "\n".join(viol), file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_shm_mutex.py', 'main',
             "Use brix_shm_table_alloc() (src/core/compat/shm_slots.h) instead.",
             file=sys.stderr,
         )

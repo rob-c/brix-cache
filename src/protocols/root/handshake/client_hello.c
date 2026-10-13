@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "handshake.h"
 #include "core/compat/alloc_guard.h"
 
@@ -30,7 +31,7 @@ brix_process_handshake(brix_ctx_t *ctx, ngx_connection_t *c)
      * normal request/response framing.
      */
     if (ntohl(hs->fourth) != 4 || ntohl(hs->fifth) != ROOTD_PQ) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: invalid handshake magic "
                       "(fourth=%u fifth=%u)",
                       ntohl(hs->fourth), ntohl(hs->fifth));
@@ -52,7 +53,7 @@ brix_process_handshake(brix_ctx_t *ctx, ngx_connection_t *c)
     *(kXR_unt32 *)(body + 0) = htonl(kXR_PROTOCOLVERSION);
     *(kXR_unt32 *)(body + 4) = htonl(kXR_DataServer);
 
-    ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: handshake ok, sending standard-format response");
 
     return brix_queue_response(ctx, c, buf, total);

@@ -18,6 +18,7 @@
  *       identity) live in tpc.c and are reached through the split header.
  */
 
+#include "core/compat/log_event.h"
 #include "tpc_internal_split.h"
 
 #include "webdav.h"
@@ -47,7 +48,7 @@ webdav_tpc_push_dest_url(ngx_http_request_t *r, ngx_table_elt_t *dest_hdr,
                            sizeof("https://") - 1) != 0
         || webdav_tpc_str_has_ctl(dest_hdr->value.data, dest_hdr->value.len))
     {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                       "brix_webdav: HTTP-TPC push Destination must be"
                       " an https URL");
         BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_BAD_REQUEST]);

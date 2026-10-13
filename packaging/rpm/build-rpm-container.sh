@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # build-rpm-container.sh — build RPM(s) inside a container to avoid polluting
-# the host and to support cross-distro builds (AlmaLinux 9 and 10).
+# the host and to support cross-distro ARM64 builds.
 #
 # Usage:
 #   packaging/rpm/build-rpm-container.sh [options]
@@ -8,7 +8,9 @@
 # Options:
 #   -v VERSION   Version string embedded in the RPM (default: derived from
 #                BRIX_SERVER_VERSION_BARE in src/core/ident.h)
-#   -d DISTRO    Target distro: alma9 or alma10 (default: alma9)
+#   -d DISTRO    Target distro (default: alma9). Supported values:
+#                alma8, alma9, alma10, alma11, fedora43, fedora44,
+#                fedora-rawhide, centos-stream9, centos-stream10
 #   -o OUTDIR    Directory to copy built RPMs into (default: dist/)
 #   -e ENGINE    Container engine: docker or podman (auto-detected)
 #   -h           Print this help
@@ -69,10 +71,41 @@ if [[ -z "$engine" ]]; then
     fi
 fi
 
-dockerfile="$script_dir/Dockerfile.${distro}"
+build_args=()
+case "$distro" in
+    alma8|alma9|alma10|alma11)
+        dockerfile="$script_dir/Dockerfile.${distro}"
+        ;;
+    fedora43)
+        dockerfile="$script_dir/Dockerfile.fedora"
+        build_args+=(--build-arg FEDORA_RELEASE=43)
+        ;;
+    fedora44)
+        dockerfile="$script_dir/Dockerfile.fedora"
+        build_args+=(--build-arg FEDORA_RELEASE=44)
+        ;;
+    fedora-rawhide)
+        dockerfile="$script_dir/Dockerfile.fedora"
+        build_args+=(--build-arg FEDORA_RELEASE=rawhide)
+        ;;
+    centos-stream9)
+        dockerfile="$script_dir/Dockerfile.centos-stream"
+        build_args+=(--build-arg STREAM_RELEASE=9 --build-arg BRIX_CEPH_RELEASE=reef)
+        ;;
+    centos-stream10)
+        dockerfile="$script_dir/Dockerfile.centos-stream"
+        build_args+=(--build-arg STREAM_RELEASE=10 --build-arg BRIX_CEPH_RELEASE=squid)
+        ;;
+    *)
+        echo "error: unsupported distro '${distro}'" >&2
+        echo "Available distros: alma8, alma9, alma10, alma11, fedora43, fedora44," >&2
+        echo "                   fedora-rawhide, centos-stream9, centos-stream10" >&2
+        exit 1
+        ;;
+esac
+
 if [[ ! -f "$dockerfile" ]]; then
     echo "error: no Dockerfile found for distro '${distro}' (expected: $dockerfile)" >&2
-    echo "Available distros: alma8, alma9, alma10, alma11" >&2
     exit 1
 fi
 
@@ -91,6 +124,7 @@ echo ""
 "$engine" build \
     --file "$dockerfile" \
     --build-arg "VERSION=${version}" \
+    "${build_args[@]}" \
     --tag "$image_tag" \
     "$repo_root"
 
@@ -103,4 +137,4 @@ mkdir -p "$outdir"
 
 echo ""
 echo "==> RPMs written to: ${outdir}"
-find "$outdir" -name "*.rpm" -printf "    %f\n"
+find "$outdir" -name "*.rpm" -exec basename {} \; | sed 's/^/    /'

@@ -487,7 +487,7 @@ static const brix_qconfig_entry_t  brix_qconfig_table[] = {
     { "cmpwrite",      NULL,       brix_qconfig_emit_cmpwrite,           1 },
     { "xrdfs.ext",     "xrdfs.ext=setattr,symlink,readlink,link\n", NULL, 1 },
     { "brix.substreams", "brix.substreams=rw\n",                   NULL, 1 },
-    { "bind_max",      "15\n",                                     NULL, 1 },
+    { "bind_max",      BRIX_QCONF_STR(BRIX_BIND_MAX) "\n",          NULL, 1 },
     { "pio_max",       "5\n",                                      NULL, 1 },
     { "fattr",         BRIX_QCONF_STR(BRIX_ROOT_FATTR_NAME_MAX) " " BRIX_QCONF_STR(BRIX_ROOT_FATTR_VALUE_MAX) "\n", NULL, 1 },
     { "window",        NULL,       brix_qconfig_emit_window,             1 },

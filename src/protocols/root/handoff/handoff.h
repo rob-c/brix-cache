@@ -1,5 +1,4 @@
-#ifndef NGX_BRIX_HANDOFF_H
-#define NGX_BRIX_HANDOFF_H
+#pragma once
 
 /*
  * handoff.h — single-port protocol handoff for the stream xrootd listener.
@@ -39,5 +38,3 @@ char *brix_conf_set_http_handoff(ngx_conf_t *cf, ngx_command_t *cmd,
  * (the caller falls back to closing the connection). */
 ngx_int_t brix_http_handoff_start(ngx_stream_session_t *s,
     ngx_connection_t *c, void *srv_conf, u_char *prefix, size_t prefix_len);
-
-#endif /* NGX_BRIX_HANDOFF_H */

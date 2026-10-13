@@ -120,6 +120,7 @@ s3_prepare_upload_part(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     *p = '\0';
     ngx_cpystrn((u_char *) s3ctx->fs_path, (u_char *) fs_path,
                 sizeof(s3ctx->fs_path));
+    s3ctx->is_upload_part = 1;
     return NGX_OK;
 }
 
@@ -127,14 +128,13 @@ static ngx_int_t
 s3_apply_put_precondition(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot, const char *fs_path)
 {
-    char part_probe[8];
     ngx_int_t rc;
 
     /* NGX_DECLINED = "no response sent, proceed to the PUT body"; any other rc
      * is a response already flushed (e.g. 412) that must gate dispatch — the
      * send itself returns NGX_OK, so the caller must key on NGX_DECLINED, not
      * NGX_OK (same sentinel convention as s3_dispatch_parse_uri). */
-    if (s3_get_query_param(r, "uploadId", part_probe, sizeof(part_probe))) {
+    if (s3ctx->is_upload_part) {
         return NGX_DECLINED;
     }
     rc = s3_put_precondition(r, cf->common.root_canon, fs_path);
@@ -165,6 +165,12 @@ s3_dispatch_object_put(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     }
 
     rc = s3_prepare_upload_part(r, cf, s3ctx, method_slot, fs_path);
+    /* Error renderers return NGX_OK after flushing their response.  Treat a
+     * sent header as terminal so malformed multipart syntax cannot fall
+     * through into the ordinary PutObject body path. */
+    if (r->header_sent) {
+        return rc;
+    }
     if (rc == NGX_DONE || (rc != NGX_OK && rc != NGX_DECLINED)) {
         return rc;
     }

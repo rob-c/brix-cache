@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "upstream_internal.h"
 #include "protocols/root/protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
 #include "protocols/root/protocol/sec_protocol.h"    /* "&P=" advert parser */
@@ -372,7 +373,7 @@ brix_upstream_bootstrap_advance(brix_upstream_t *up)
     up->resp_body_pos = 0;
 
     if (up->bs_phase == XRD_UP_BS_DONE) {
-        ngx_log_debug0(NGX_LOG_DEBUG_STREAM, up->client_conn->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, up->client_conn->log, 0,
                        "brix: upstream bootstrap done; sending request");
         if (brix_upstream_send_request(up) == NGX_ERROR) {
             brix_upstream_abort(up, "upstream: send request failed");

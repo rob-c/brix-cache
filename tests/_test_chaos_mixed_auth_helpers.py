@@ -69,7 +69,8 @@ from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
-              pytest.mark.xdist_group("lc-chaos")]
+              pytest.mark.xdist_group("lc-chaos"),
+              pytest.mark.timeout(300)]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -93,8 +94,14 @@ def _clean_env(extra=None):
     """Env with all ambient credential vars stripped (so each call is explicit)."""
     env = {k: v for k, v in os.environ.items()}
     for k in ("X509_USER_PROXY", "X509_CERT_DIR", "BEARER_TOKEN",
-              "BEARER_TOKEN_FILE", "XrdSecSSSKT", "XrdSecsssKT", "LD_LIBRARY_PATH"):
+              "BEARER_TOKEN_FILE", "XrdSecSSSKT", "XrdSecsssKT", "LD_LIBRARY_PATH",
+              "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+              "http_proxy", "https_proxy", "all_proxy", "no_proxy"):
         env.pop(k, None)
+    # The terminating proxy owns one upstream request at a time.  This mesh is
+    # testing auth hand-off and restart recovery, so keep the client on its
+    # serial reader instead of exercising the separate pipelining surface.
+    env["XRDC_PIPELINE"] = "0"
     if extra:
         env.update(extra)
     return env

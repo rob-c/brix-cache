@@ -44,6 +44,7 @@
  * - Timeout aborts with descriptive message
  * - Cleanup via brix_upstream_cleanup() on ctx destruction
  */
+#include "core/compat/log_event.h"
 #include "upstream_internal.h"
 #include "core/compat/log_diag.h"
 
@@ -68,7 +69,7 @@ brix_upstream_wait_timer_handler(ngx_event_t *ev)
         return;
     }
 
-    ngx_log_error(NGX_LOG_INFO, up->client_conn->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, up->client_conn->log, 0,
                   "brix: upstream kXR_wait expired; retrying");
 
     if (brix_upstream_send_request(up) != NGX_OK && up->conn != NULL) {
@@ -125,7 +126,7 @@ brix_upstream_write_handler(ngx_event_t *wev)
             return;
         }
 
-        ngx_log_debug0(NGX_LOG_DEBUG_STREAM, up->client_conn->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, up->client_conn->log, 0,
                        "brix: upstream TCP connected");
 
         /* Connect succeeded — begin bootstrap and reset the read accumulator so the

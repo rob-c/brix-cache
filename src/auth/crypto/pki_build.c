@@ -9,6 +9,7 @@
  * (~80 lines each, identical logic).  This file owns that logic once.
  */
 
+#include "core/compat/log_event.h"
 #include "pki_build.h"
 #include "auth/crypto/store_policy.h"
 
@@ -36,7 +37,7 @@ pki_load_crls_from_file(X509_STORE *store, const char *path, ngx_log_t *log)
 
     fp = fopen(path, "r");
     if (fp == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "brix_pki: cannot open CRL file \"%s\"", path);
         return -1;
     }
@@ -47,7 +48,7 @@ pki_load_crls_from_file(X509_STORE *store, const char *path, ngx_log_t *log)
         if (X509_STORE_add_crl(store, crl)) {
             count++;
         } else {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_pki: failed to add CRL from \"%s\"", path);
         }
         X509_CRL_free(crl);
@@ -127,7 +128,7 @@ pki_load_crls_from_dirent(X509_STORE *store, const char *dir_path,
         if (ngx_errno == NGX_ENOENT) {
             return 0;
         }
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "brix_pki: cannot open CRL file \"%s\"", fpath);
         return -1;
     }
@@ -162,7 +163,7 @@ pki_load_crls_from_dir(X509_STORE *store, const char *path, ngx_log_t *log)
 
     dir = opendir(path);
     if (dir == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "brix_pki: cannot open CRL directory \"%s\"", path);
         return -1;
     }
@@ -195,7 +196,7 @@ pki_load_crls(X509_STORE *store, const char *path, ngx_log_t *log)
     struct stat st;
 
     if (stat(path, &st) != 0) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "brix_pki: cannot stat CRL path \"%s\"", path);
         return -1;
     }
@@ -205,7 +206,7 @@ pki_load_crls(X509_STORE *store, const char *path, ngx_log_t *log)
     }
 
     if (!S_ISDIR(st.st_mode)) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_pki: CRL path \"%s\" is neither a file nor a "
                       "directory", path);
         return -1;
@@ -223,7 +224,7 @@ static void
 brix_pki_sp_log(void *log, int level, const char *msg)
 {
     ngx_uint_t lvl = (level == BRIX_SP_LOG_WARN) ? NGX_LOG_WARN : NGX_LOG_INFO;
-    ngx_log_error(lvl, (ngx_log_t *) log, 0, "brix_pki: %s", msg);
+    BRIX_LOG(lvl, (ngx_log_t *) log, 0, "brix_pki: %s", msg);
 }
 
 X509_STORE *
@@ -243,14 +244,14 @@ brix_build_ca_store(ngx_log_t *log,
 
     store = X509_STORE_new();
     if (store == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_pki: X509_STORE_new() failed");
         return NULL;
     }
 
     if (cadir != NULL) {
         if (!X509_STORE_load_path(store, cadir)) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_pki: failed to load CA directory \"%s\"",
                           cadir);
         }
@@ -258,7 +259,7 @@ brix_build_ca_store(ngx_log_t *log,
 
     if (cafile != NULL) {
         if (!X509_STORE_load_file(store, cafile)) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_pki: failed to load CA file \"%s\"", cafile);
         }
     }
@@ -364,7 +365,7 @@ brix_ca_store_cache_get(const char *key, ngx_log_t *log, const char *cadir,
              * store reuse actually happened. brix already surfaces informational
              * GSI config "NOTE:"s at WARN for exactly this reason (see
              * postconfiguration.c). Low frequency (only when >1 block shares a CA). */
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                 "brix_pki: NOTE: reusing the CA/CRL store already built for \"%s\" "
                 "(skipped a redundant CRL directory load)",
                 cadir ? cadir : (cafile ? cafile : "(system)"));

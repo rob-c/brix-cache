@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "upstream_internal.h"
 /*
  * upstream lifecycle management
@@ -71,7 +72,7 @@ brix_upstream_abort(brix_upstream_t *up, const char *reason)
     sid[0] = up->req_streamid[0];
     sid[1] = up->req_streamid[1];
 
-    ngx_log_error(NGX_LOG_ERR, c->log, 0,
+    BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                   "brix: upstream abort: %s", reason);
 
     brix_upstream_cleanup(up);

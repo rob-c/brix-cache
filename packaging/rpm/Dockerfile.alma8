@@ -11,40 +11,48 @@
 #
 # AlmaLinux 8 notes:
 #   - Based on RHEL 8 (EL8).  GCC 8 toolchain by default.
-#   - nginx-mod-devel is available via EPEL 8.  If it is absent, uncomment the
-#     nginx stable upstream repo block below.
+#   - Alma's nginx is linked to OpenSSL 1.1.1, while BriX requires OpenSSL 3.
+#     Loading both ABIs into one nginx process is unsafe, so this target builds
+#     the native, co-installable client package only. Server RPMs start at EL9.
 #   - The resulting RPM carries the .el8 dist tag.
 
 FROM almalinux:8 AS builder
 
 # Ceph release to pull dev packages from.
-ARG BRIX_CEPH_RELEASE=reef
+ARG BRIX_CEPH_VERSION=18.2.2
 
 # Step 1: bootstrap repo manager, enable PowerTools (EL8 equivalent of CRB,
 # needed for jansson-devel), then install EPEL.
 RUN dnf install -y 'dnf-command(config-manager)' && \
     dnf config-manager --set-enabled powertools && \
-    dnf install -y epel-release
+    dnf install -y epel-release && \
+    dnf config-manager --set-enabled epel
 
-# Step 2: add the nginx.org stable repo for nginx-mod-devel.
-RUN printf '[nginx-stable]\nname=nginx stable repo\nbaseurl=https://nginx.org/packages/rhel/8/$basearch/\ngpgcheck=1\nenabled=1\ngpgkey=https://nginx.org/keys/nginx_signing.key\nmodule_hotfixes=true\n' \
-    > /etc/yum.repos.d/nginx.repo
-
-# Step 3: add the official Ceph community repo for EL8 (CentOS Stream 8 SIG
-# is EOL; the Ceph project repo remains available).
+# Step 2: add the last official Reef repository published for EL8/AArch64.
+# The moving rpm-reef alias dropped EL8 metadata; the immutable numeric repo
+# keeps this EOL compatibility build reproducible.
 RUN printf '[ceph-%s]\nname=Ceph %s for EL8\nbaseurl=https://download.ceph.com/rpm-%s/el8/$basearch\nenabled=1\ngpgcheck=0\npriority=2\n' \
-    "${BRIX_CEPH_RELEASE}" "${BRIX_CEPH_RELEASE}" "${BRIX_CEPH_RELEASE}" \
+    "${BRIX_CEPH_VERSION}" "${BRIX_CEPH_VERSION}" "${BRIX_CEPH_VERSION}" \
     > /etc/yum.repos.d/ceph.repo
 
-# Step 4: install all build dependencies.
+# Step 3: install all build dependencies.
 RUN dnf install -y \
-        gcc gcc-c++ make pkgconfig rpm-build rpmdevtools redhat-rpm-config \
-        nginx-mod-devel openssl-devel pcre2-devel zlib-devel \
+        gcc gcc-c++ make git pkgconfig rpm-build rpmdevtools redhat-rpm-config \
+        openssl3-devel zlib-devel \
         libxml2-devel jansson-devel libcurl-devel krb5-devel libcom_err-devel \
-        libxcrypt-devel fuse3-devel sqlite-devel liburing-devel libzstd-devel lz4-devel \
-        selinux-policy-devel \
+        libxcrypt-devel sqlite-devel libseccomp-devel \
+        liburing-devel libzstd-devel brotli-devel xz-devel bzip2-devel lz4-devel \
         librados-devel libradospp-devel libradosstriper-devel libcephfs-devel \
     && dnf clean all
+
+# EPEL installs parallel OpenSSL 3 metadata as openssl3.pc/libssl3.pc/
+# libcrypto3.pc. The source build intentionally asks for the unversioned
+# pkg-config interface, so provide build-local aliases without modifying the
+# system packages or selecting OpenSSL 1.1 accidentally.
+RUN mkdir -p /opt/brix-openssl3-pkgconfig && \
+    ln -s /usr/lib64/pkgconfig/openssl3.pc /opt/brix-openssl3-pkgconfig/openssl.pc
+
+ENV PKG_CONFIG_PATH=/opt/brix-openssl3-pkgconfig:/usr/lib64/pkgconfig
 
 # Explicit override only; empty means "use the version baked into the
 # source" (BRIX_SERVER_VERSION_BARE in src/core/ident.h), derived below.
@@ -53,26 +61,9 @@ ARG VERSION=""
 WORKDIR /build/src
 COPY . .
 
-RUN set -euo pipefail && \
-    rpmdev-setuptree && \
-    version="${VERSION:-$(sed -n 's/#define BRIX_SERVER_VERSION_BARE[[:space:]]*"\([^"]*\)".*/\1/p' src/core/ident.h)}" && \
-    test -n "$version" && \
-    source_name="brix-${version}" && \
-    tar \
-        --exclude-vcs \
-        --exclude='./.rpmbuild' \
-        --exclude='./.tmp' \
-        --exclude='./.venv*' \
-        --exclude='./__pycache__' \
-        --exclude='./*.pyc' \
-        --exclude='./davs:*' \
-        --exclude='./tests/davs:*' \
-        --transform "s,^\.,${source_name}," \
-        -czf ~/rpmbuild/SOURCES/"${source_name}.tar.gz" \
-        -C /build/src . && \
-    rpmbuild -ba \
-        --define "version_override ${version}" \
-        /build/src/packaging/rpm/nginx-mod-brix-cache.spec
+RUN RPMBUILD_TOPDIR=/root/rpmbuild \
+    RPM_SPEC=/build/src/packaging/rpm/brix-cache-client-el8.spec \
+    packaging/rpm/build-rpm.sh "${VERSION}"
 
 RUN mkdir -p /artifacts && \
     find ~/rpmbuild/RPMS ~/rpmbuild/SRPMS -name '*.rpm' -exec cp {} /artifacts/ \;

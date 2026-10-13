@@ -25,6 +25,7 @@
  *       happen is the cache miss the client would have had anyway.
  */
 
+#include "core/compat/log_event.h"
 #include "rpm.h"
 #include "rpm_repomd.h"
 
@@ -94,7 +95,7 @@ rpm_prefetch_done(ngx_event_t *ev)
     if (rpm_prefetch_inflight > 0) {
         rpm_prefetch_inflight--;
     }
-    ngx_log_debug3(NGX_LOG_DEBUG_HTTP, t->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_HTTP, t->log, 0,
                    "rpm: repodata prefetch done: %ui warmed, %ui failed, "
                    "%ui in flight", t->warmed, t->failed,
                    rpm_prefetch_inflight);
@@ -153,7 +154,7 @@ rpm_prefetch_post(ngx_http_request_t *r, brix_sd_instance_t *sd,
     }
     rpm_prefetch_inflight++;
 
-    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "rpm: repodata prefetch posted: %ui object(s) named by "
                    "\"%V\"", count, &r->uri);
 }
@@ -184,7 +185,7 @@ rpm_prefetch_keys(ngx_http_request_t *r, ngx_http_brix_rpm_ctx_t *ctx,
         if (brix_rpm_classify(keys[count], ngx_strlen(keys[count]), &req) != 0
             || req.cls != BRIX_RPM_REQ_METADATA)
         {
-            ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+            BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
                 "rpm: ignoring repodata location \"%*s\" named by \"%V\" - "
                 "not a digest-named metadata file",
                 (int) refs[i].href_len, refs[i].href, &r->uri);

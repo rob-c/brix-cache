@@ -6,6 +6,7 @@
  * to compat/staged_file, then publish to the resolved context path. Exclusive
  * commits use NOREPLACE; abort closes and optionally unlinks the temporary file.
  */
+#include "core/compat/log_event.h"
 #include "vfs_internal.h"
 
 #include "core/compat/staged_file.h"
@@ -408,7 +409,7 @@ vfs_staged_driver_barrier(brix_vfs_staged_t *st, const char *final_path)
         || leaf->driver->sync_publish(leaf, physical) != NGX_OK)
     {
         e = errno ? errno : EIO;
-        ngx_log_error(NGX_LOG_CRIT, st->log, e,
+        BRIX_LOG(NGX_LOG_CRIT, st->log, e,
                       "brix: staged commit: durable-publish barrier failed "
                       "for \"%s\"", final_path);
         errno = e;

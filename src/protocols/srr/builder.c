@@ -30,6 +30,7 @@
  *   would ingest as authoritative — can therefore never be emitted.
  */
 
+#include "core/compat/log_event.h"
 #include "srr.h"
 #include "core/compat/fs_usage.h"
 #include "core/ident.h"
@@ -225,7 +226,7 @@ srr_share_usage(ngx_http_request_t *r, brix_srr_share_t *sh,
         share_cap->total = usage.total_bytes;
         share_cap->used  = usage.used_bytes;
     } else {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, ngx_errno,
             "srr: statvfs failed for share \"%V\" path \"%V\" "
             "(reporting 0 bytes)", &sh->name, &sh->path);
     }

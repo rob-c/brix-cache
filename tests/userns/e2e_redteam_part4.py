@@ -169,11 +169,24 @@ def _rt4_segment_13(jwks, run):
     return jwks_path, sock, sport, hport, s3port
 
 
+def _rt4_load_modules():
+    """Render the dynamic modules selected by the platform test harness."""
+    lines = []
+    for module in os.environ.get("TEST_NGINX_LOAD_MODULES", "").split(os.pathsep):
+        if not module:
+            continue
+        if "\n" in module or "\r" in module:
+            raise ValueError("newline in TEST_NGINX_LOAD_MODULES path")
+        escaped = module.replace("\\", "\\\\").replace('"', '\\"')
+        lines.append(f'load_module "{escaped}";\n')
+    return "".join(lines)
+
+
 def _rt4_segment_14(key, sport, logs, sock, data, jwks_path, tmp, hport, cadir, s3port):
     global _jwt_key, _stream_port
     _jwt_key, _stream_port = key, sport          # so the root:// helpers can mint tokens
 
-    conf = f"""
+    conf = _rt4_load_modules() + f"""
 user svc;
 worker_processes 1;
 daemon off;

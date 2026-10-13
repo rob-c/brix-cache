@@ -22,6 +22,7 @@ import time
 
 import pytest
 
+from lib_py.util import linked_libraries
 from settings import (
     BIND_HOST,
     CA_DIR,
@@ -72,8 +73,9 @@ def test_wire_trace_decodes_frames(native_xrdfs):
     # Decoded request + response lines for the login + stat exchange.
     assert "kXR_login" in err, err
     assert "kXR_stat" in err, err
-    assert re.search(r"^> sid=\d+ kXR_stat", err, re.MULTILINE), err
-    assert re.search(r"^< sid=\d+ ok", err, re.MULTILINE), err
+    assert re.search(r'message="> sid=\d+ kXR_stat', err), err
+    assert re.search(r'message="< sid=\d+ ok', err), err
+    assert "level=DEBUG service=brix role=client" in err
     # The normal stat output still lands on stdout, uncorrupted by the trace.
     assert "Size:" in p.stdout, p.stdout
     assert "kXR_" not in p.stdout, "trace leaked onto stdout"
@@ -82,8 +84,11 @@ def test_wire_trace_decodes_frames(native_xrdfs):
 def test_wire_trace_hexdump(native_xrdfs):
     p = _run("--wire-trace=2", ANON_URL, "stat", "/test.txt")
     assert p.returncode == 0, p.stderr
-    assert re.search(r"^\s+[0-9a-f]{4}: ([0-9a-f]{2} )+", p.stderr, re.MULTILINE), \
+    assert re.search(r'message="offset=[0-9a-f]{4} bytes=([0-9a-f]{2} )+', p.stderr), \
         "no hexdump rows at --wire-trace=2"
+    # Login/session and credential-bearing negotiation bodies are never dumped.
+    before_stat = p.stderr.split("kXR_stat", 1)[0]
+    assert 'event="hexdump"' not in before_stat
 
 
 # --------------------------------------------------------------------------
@@ -106,7 +111,7 @@ def test_diagnostics_off_by_default(native_xrdfs):
     p = _run(ANON_URL, "stat", "/test.txt")
     assert p.returncode == 0, p.stderr
     assert "per-opcode RTT" not in p.stderr, "timing printed without --timing"
-    assert not re.search(r"^[<>] sid=", p.stderr, re.MULTILINE), \
+    assert not re.search(r'message="[<>] sid=', p.stderr), \
         "wire-trace printed without --wire-trace"
 
 
@@ -212,8 +217,8 @@ def test_xrdgsitest_built_clean(native_xrdfs):
     """Always-runnable: xrdgsitest builds, links no libXrd*, and forces GSI."""
     if not os.path.exists(NATIVE_XRDGSITEST):
         pytest.skip("xrdgsitest not built")
-    ldd = subprocess.run(["ldd", NATIVE_XRDGSITEST], capture_output=True, text=True).stdout
-    assert "libXrd" not in ldd, ldd
+    linked = linked_libraries(NATIVE_XRDGSITEST)
+    assert "libXrd" not in linked, linked
     h = subprocess.run([NATIVE_XRDGSITEST, "-h"], capture_output=True, text=True).stderr
     assert "GSI" in h or "gsi" in h, h
 

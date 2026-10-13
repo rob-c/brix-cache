@@ -1,9 +1,10 @@
 """Mesh TLS identities have deterministic permissions without changing umask."""
 
-from pathlib import Path
+import os
 import stat
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -21,7 +22,9 @@ def test_generated_mesh_certificate_is_safe_under_permissive_umask(tmp_path):
               "gen_cert(sys.argv[1])")
     result = subprocess.run(
         [sys.executable, "-c", script, str(tmp_path)],
-        capture_output=True, text=True, umask=0, check=False, timeout=30)
+        capture_output=True, text=True, umask=0, check=False, timeout=30,
+        env={**os.environ,
+             "PYTHONPATH": str(Path(__file__).resolve().parent)})
     assert result.returncode == 0, result.stderr
     _assert_modes(tmp_path)
     parsed = subprocess.run(

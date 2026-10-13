@@ -12,6 +12,7 @@
  *       so --io-uring reaches vfs_posix via vopts; stdin/stdout stay raw pipes.
  *       Each do_* parses operands into a file-local xfer bundle. No goto.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdfs_internal.h"
 #include "brix_ops.h"              /* brix_cli_parse_io_uring */
 #include "fs/vfs.h"   /* local endpoint I/O routes through the shared SD driver */
@@ -49,13 +50,13 @@ xfer_common_arg(const char *who, char **argv, int argc, int *i, xfer_args_t *x)
     if (strncmp(a, "bs=", 3) == 0) {
         x->bs = parse_bytes(a + 3);
         if (x->bs <= 0 || x->bs > XRDFS_DD_MAXBS) {
-            fprintf(stderr, "xrdfs: %s: bad bs (max 256M)\n", who); return -1;
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: %s: bad bs (max 256M)\n", who); return -1;
         }
         return 1;
     }
     if (strncmp(a, "rate=", 5) == 0) {
         int64_t r = parse_bytes(a + 5);
-        if (r < 0) { fprintf(stderr, "xrdfs: %s: bad rate\n", who); return -1; }
+        if (r < 0) { BRIX_CLIENT_LOG("ERROR",  "xrdfs: %s: bad rate\n", who); return -1; }
         x->rate = (double) r;
         return 1;
     }
@@ -63,7 +64,7 @@ xfer_common_arg(const char *who, char **argv, int argc, int *i, xfer_args_t *x)
     if (strncmp(a, "--io-uring=", 11) == 0) {
         int v = brix_cli_parse_io_uring(a + 11);
         if (v < 0) {
-            fprintf(stderr, "xrdfs: %s: --io-uring: invalid mode '%s' "
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: %s: --io-uring: invalid mode '%s' "
                     "(use on|off|auto)\n", who, a + 11);
             return -1;
         }
@@ -74,7 +75,7 @@ xfer_common_arg(const char *who, char **argv, int argc, int *i, xfer_args_t *x)
         const char *m = argv[++(*i)];
         int v = brix_cli_parse_io_uring(m);
         if (v < 0) {
-            fprintf(stderr, "xrdfs: %s: --io-uring: invalid mode '%s' "
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: %s: --io-uring: invalid mode '%s' "
                     "(use on|off|auto)\n", who, m);
             return -1;
         }
@@ -126,7 +127,7 @@ upload_copy_loop(const xfer_io_t *io, int64_t *off, brix_status *st)
                                                  (size_t) io->bs, st);
         if (r < 0) {
             if (io->is_pipe && errno == EINTR) { continue; }
-            fprintf(stderr, "xrdfs: upload: read %s: %s\n", io->local,
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: upload: read %s: %s\n", io->local,
                     io->is_pipe ? strerror(errno) : st->msg);
             return -1;
         }
@@ -200,7 +201,7 @@ do_upload(brix_conn *c, const char *cwd, int argc, char **argv)
         vopts.io_uring = a.io_uring_mode; vopts.expected_size = -1; vopts.cred = NULL;
         brix_status_clear(&st);
         if (brix_vfs_open(local, XRDC_VFS_READ, &vopts, &svf, &st) != 0) {
-            fprintf(stderr, "xrdfs: upload: %s: %s\n", local, st.msg);
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: upload: %s: %s\n", local, st.msg);
             return 50;
         }
     }
@@ -214,7 +215,7 @@ do_upload(brix_conn *c, const char *cwd, int argc, char **argv)
     if (buf == NULL) {
         brix_rfile_close(&f, &st);
         if (svf != NULL) { brix_vfs_close(svf); }
-        fprintf(stderr, "xrdfs: upload: out of memory\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: upload: out of memory\n");
         return 51;
     }
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -226,7 +227,7 @@ do_upload(brix_conn *c, const char *cwd, int argc, char **argv)
     brix_rfile_close(&f, &st);   /* commit */
     if (svf != NULL) { brix_vfs_close(svf); }
     if (rc != 0) { return rc < 0 ? 1 : rc; }
-    fprintf(stderr, "%lld bytes uploaded to %s\n", (long long) off, rpath);
+    BRIX_CLIENT_LOG("INFO",  "%lld bytes uploaded to %s\n", (long long) off, rpath);
     return 0;
 }
 
@@ -251,7 +252,7 @@ download_write_stdout(int fd, const uint8_t *buf, ssize_t n, const char *local)
         ssize_t k = write(fd, buf + w, (size_t) (n - w));
         if (k < 0) {
             if (errno == EINTR) { continue; }
-            fprintf(stderr, "xrdfs: download: write %s: %s\n", local, strerror(errno));
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: download: write %s: %s\n", local, strerror(errno));
             return 1;
         }
         if (k == 0) { return 1; }
@@ -269,7 +270,7 @@ download_finalize_local(brix_vfs_file *dvf, int rc, const char *local, brix_stat
 {
     if (dvf != NULL) {
         if (rc == 0 && brix_vfs_commit(dvf, st) != 0) {
-            fprintf(stderr, "xrdfs: download: commit %s: %s\n", local, st->msg);
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: download: commit %s: %s\n", local, st->msg);
             rc = 1;
         } else if (rc != 0) {
             brix_vfs_abort(dvf);
@@ -292,7 +293,7 @@ download_open_local(const char *local, int force, int io_uring_mode,
     brix_status_clear(st);
     if (brix_vfs_open(local, XRDC_VFS_WRITE | (force ? XRDC_VFS_FORCE : 0),
                       &vopts, dvf, st) != 0) {
-        fprintf(stderr, "xrdfs: download: %s: %s\n", local, st->msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: download: %s: %s\n", local, st->msg);
         return -1;
     }
     return 0;
@@ -309,7 +310,7 @@ download_default_local(const char *rpath, char *namebuf, size_t namebuf_sz,
     const char *base = strrchr(rpath, '/');
     base = (base != NULL) ? base + 1 : rpath;
     if (base[0] == '\0') {
-        fprintf(stderr, "xrdfs: download: no local dest and remote has no basename\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: download: no local dest and remote has no basename\n");
         return 50;
     }
     snprintf(namebuf, namebuf_sz, "%s", base);
@@ -335,7 +336,7 @@ download_copy_loop(const xfer_io_t *io, int64_t *off, brix_status *st)
         if (io->is_pipe) {
             rc = download_write_stdout(io->fd, io->buf, n, io->local);
         } else if (brix_vfs_pwrite(io->vf, *off, io->buf, (size_t) n, st) != 0) {
-            fprintf(stderr, "xrdfs: download: write %s: %s\n", io->local, st->msg);
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: download: write %s: %s\n", io->local, st->msg);
             rc = 1;
         }
         if (rc != 0) { return rc; }
@@ -398,7 +399,7 @@ do_download(brix_conn *c, const char *cwd, int argc, char **argv)
     if (buf == NULL) {
         brix_rfile_close(&f, &st);
         if (dvf != NULL) { brix_vfs_abort(dvf); brix_vfs_close(dvf); }
-        fprintf(stderr, "xrdfs: download: out of memory\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: download: out of memory\n");
         return 51;
     }
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -411,7 +412,7 @@ do_download(brix_conn *c, const char *cwd, int argc, char **argv)
     rc = download_finalize_local(dvf, rc, local, &st);
     if (rc != 0) { return rc; }
     if (!is_stdout) {   /* don't pollute a piped stdout with the summary */
-        fprintf(stderr, "%lld bytes downloaded to %s\n", (long long) off, local);
+        BRIX_CLIENT_LOG("INFO",  "%lld bytes downloaded to %s\n", (long long) off, local);
     }
     return 0;
 }

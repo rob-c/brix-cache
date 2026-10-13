@@ -47,13 +47,14 @@ size_t brix_urldecode_inplace(char *str);
 ngx_int_t brix_http_arg(ngx_http_request_t *r, const char *name,
     size_t name_len, ngx_str_t *out);
 /*
- * Redact the value of every "authz="/"access_token=" query key, in place and
+ * Redact every WebDAV bearer and S3 presigned-secret query value, in place and
  * LENGTH-PRESERVING (each value byte → 'x', no shrink/memmove), so a bearer token
  * presented via the URL never reaches a log line. Safe to apply to the overlapping
  * log sources r->args, r->unparsed_uri and r->request_line (their independent ->len
  * fields stay valid). Idempotent; other args preserved.
  */
 void brix_http_redact_query_token(ngx_str_t *query);
+void brix_http_redact_request_query_tokens(ngx_http_request_t *r);
 /*
  * Returns 1 (treat as unsafe) if data[0..len) contains any byte < 0x20 or 0x7F
  * (DEL), else 0. NULL data returns 1. Note: HTAB (0x09) is reported as a ctl.

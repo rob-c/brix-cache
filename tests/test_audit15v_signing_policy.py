@@ -95,6 +95,7 @@ from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
 from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN
 from _test_gsi_handshake_helpers import _mint_proxy
+from log_records import semantic_log_text
 
 pytestmark = [pytest.mark.timeout(300),
               pytest.mark.uses_lifecycle_harness,
@@ -265,7 +266,7 @@ def _errlog(endpoint):
     """Instance logs are wiped at teardown, so failures quote them inline."""
     try:
         with open(os.path.join(endpoint.prefix, "logs", "error.log")) as fh:
-            return fh.read()
+            return semantic_log_text(fh.read())
     except OSError:
         return "(error log unavailable)"
 

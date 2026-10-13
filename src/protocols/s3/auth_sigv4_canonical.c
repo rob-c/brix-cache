@@ -36,47 +36,92 @@ typedef struct {
     size_t value_len;
 } qparam_t;
 
-/*
- * qsort comparator implementing SigV4's "sort by name, then by value" ordering.
- *
- * SigV4 sorts on the byte values of the *encoded* params, but because percent-
- * encoding is order-preserving for the unreserved-only alphabet used here, a raw
- * byte compare of the decoded bytes yields the same ordering — so we compare the
- * decoded buffers directly and avoid encoding twice.
- *
- * Names are not NUL-terminated to a common length, so a plain strcmp/memcmp over
- * the longer length would read past one buffer. We instead memcmp() the common
- * prefix (the shorter of the two lengths); only if that prefix is equal does the
- * shorter string sort first (the length tiebreak below). This reproduces standard
- * lexicographic ordering where "a" < "ab". Value comparison repeats the same
- * prefix-then-length scheme as the secondary key.
- */
+typedef struct {
+    const u_char *data;
+    size_t        len;
+    size_t        pos;
+    unsigned      escape_phase;
+} sigv4_encoded_cursor_t;
+
+static int
+sigv4_is_unreserved(u_char c)
+{
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+           || (c >= '0' && c <= '9') || c == '-' || c == '_'
+           || c == '.' || c == '~';
+}
+
+static int
+sigv4_encoded_next(sigv4_encoded_cursor_t *cursor, u_char *out)
+{
+    static const u_char hex[] = "0123456789ABCDEF";
+    u_char c;
+
+    if (cursor->pos >= cursor->len) {
+        return 0;
+    }
+    c = cursor->data[cursor->pos];
+    if (sigv4_is_unreserved(c)) {
+        cursor->pos++;
+        *out = c;
+        return 1;
+    }
+    if (cursor->escape_phase == 0) {
+        cursor->escape_phase = 1;
+        *out = '%';
+    } else if (cursor->escape_phase == 1) {
+        cursor->escape_phase = 2;
+        *out = hex[c >> 4];
+    } else {
+        cursor->escape_phase = 0;
+        cursor->pos++;
+        *out = hex[c & 0x0f];
+    }
+    return 1;
+}
+
+static int
+sigv4_encoded_cmp(const u_char *a, size_t alen,
+    const u_char *b, size_t blen)
+{
+    sigv4_encoded_cursor_t ac = { a, alen, 0, 0 };
+    sigv4_encoded_cursor_t bc = { b, blen, 0, 0 };
+    u_char                 av;
+    u_char                 bv;
+    int                    ahas;
+    int                    bhas;
+
+    for (;;) {
+        ahas = sigv4_encoded_next(&ac, &av);
+        bhas = sigv4_encoded_next(&bc, &bv);
+        if (!ahas || !bhas) {
+            return ahas - bhas;
+        }
+        if (av != bv) {
+            return av < bv ? -1 : 1;
+        }
+    }
+}
+
+/* SigV4 compares the RFC 3986 encoded name bytes, then encoded value bytes. */
 static int
 qparam_cmp(const void *a, const void *b)
 {
     const qparam_t *pa = (const qparam_t *) a;
     const qparam_t *pb = (const qparam_t *) b;
-    size_t ml = pa->name_len < pb->name_len ? pa->name_len : pb->name_len;
-    int r = memcmp(pa->name, pb->name, ml);
-    if (r != 0) return r;
-    /* common prefix equal -> shorter name is the lesser ("a" < "ab") */
-    if (pa->name_len != pb->name_len) {
-        return (pa->name_len < pb->name_len) ? -1 : 1;
-    }
+    int             r;
 
-    ml = pa->value_len < pb->value_len ? pa->value_len : pb->value_len;
-    r = memcmp(pa->value, pb->value, ml);
-    if (r != 0) return r;
-    return (pa->value_len < pb->value_len) ? -1
-         : (pa->value_len > pb->value_len) ? 1 : 0;
+    r = sigv4_encoded_cmp(pa->name, pa->name_len, pb->name, pb->name_len);
+    return r != 0 ? r
+                  : sigv4_encoded_cmp(pa->value, pa->value_len,
+                                      pb->value, pb->value_len);
 }
 
 /* Thin wrapper: percent-encode a query-param name or value (unreserved chars only). */
-static size_t
+static ssize_t
 uriencode_param(const u_char *src, size_t slen, u_char *out, size_t outsz)
 {
-    ssize_t n = brix_http_urlencode(src, slen, (char *) out, outsz, "");
-    return n < 0 ? 0 : (size_t) n;
+    return brix_http_urlencode(src, slen, (char *) out, outsz, "");
 }
 
 /*
@@ -108,7 +153,7 @@ sigv4_store_param(qparam_t *p, const u_char *segment_start,
             BRIX_URLDECODE_PLUS_TO_SPACE |
             BRIX_URLDECODE_REJECT_NUL) != BRIX_URLDECODE_OK)
     {
-        return 0;
+        return -1;
     }
     p->name_len = strlen((char *) p->name);
 
@@ -124,7 +169,7 @@ sigv4_store_param(qparam_t *p, const u_char *segment_start,
             BRIX_URLDECODE_PLUS_TO_SPACE |
             BRIX_URLDECODE_REJECT_NUL) != BRIX_URLDECODE_OK)
     {
-        return 0;
+        return -1;
     }
     p->value_len = strlen((char *) p->value);
     return 1;
@@ -192,17 +237,25 @@ sigv4_parse_qs(const u_char *qs, size_t qslen, ngx_flag_t skip_signature,
     const u_char *cursor = qs;
     const u_char *end = qs + qslen;
 
-    while (cursor < end && param_count < max_params) {
+    while (cursor < end) {
         const u_char *segment_start = cursor;
         const u_char *equals = NULL;
         const u_char *segment_end =
             sigv4_scan_segment(segment_start, end, &equals);
+        int stored;
 
-        if (segment_start < segment_end
-            && sigv4_store_param(&params[param_count], segment_start,
-                                 segment_end, equals, skip_signature))
-        {
-            param_count++;
+        if (segment_start < segment_end) {
+            if (param_count >= max_params) {
+                return -1;
+            }
+            stored = sigv4_store_param(&params[param_count], segment_start,
+                                       segment_end, equals, skip_signature);
+            if (stored < 0) {
+                return -1;
+            }
+            if (stored > 0) {
+                param_count++;
+            }
         }
 
         /* Step past the '&' delimiter; if segment_end already hit `end` there is
@@ -229,18 +282,19 @@ sigv4_parse_qs(const u_char *qs, size_t qslen, ngx_flag_t skip_signature,
  *   2. Append it only if oi + encoded_len stays strictly below outsz.
  *   3. Return the advanced offset (or the original offset when it did not fit).
  */
-static size_t
-sigv4_append_encoded(u_char *out, size_t oi, size_t outsz,
+static int
+sigv4_append_encoded(u_char *out, size_t *oi, size_t outsz,
     const u_char *src, size_t slen)
 {
     u_char enc[BRIX_S3_QUERY_ENCODE_BUF_SIZE];
-    size_t n = uriencode_param(src, slen, enc, sizeof(enc));
+    ssize_t n = uriencode_param(src, slen, enc, sizeof(enc));
 
-    if (oi + n < outsz) {
-        ngx_memcpy(out + oi, enc, n);
-        oi += n;
+    if (n < 0 || *oi + (size_t) n >= outsz) {
+        return -1;
     }
-    return oi;
+    ngx_memcpy(out + *oi, enc, (size_t) n);
+    *oi += (size_t) n;
+    return 1;
 }
 
 /* ---- Emit sorted parameters as the canonical "name=value&..." string ----
@@ -259,23 +313,31 @@ sigv4_append_encoded(u_char *out, size_t oi, size_t outsz,
  *   2. Append the encoded name, then a '=', then the encoded value.
  *   3. NUL-terminate the buffer and return the written length.
  */
-static size_t
+static ssize_t
 sigv4_emit_canonical_qs(const qparam_t *params, int param_count,
     u_char *out, size_t outsz)
 {
     size_t oi = 0;
 
     for (int i = 0; i < param_count; i++) {
-        if (i > 0 && oi + 1 < outsz) {
+        if (i > 0) {
+            if (oi + 1 >= outsz) {
+                return -1;
+            }
             out[oi++] = '&';
         }
-        oi = sigv4_append_encoded(out, oi, outsz, params[i].name,
-                                  params[i].name_len);
-        if (oi + 1 < outsz) {
-            out[oi++] = '=';
+        if (sigv4_append_encoded(out, &oi, outsz, params[i].name,
+                                 params[i].name_len) < 0
+            || oi + 1 >= outsz)
+        {
+            return -1;
         }
-        oi = sigv4_append_encoded(out, oi, outsz, params[i].value,
-                                  params[i].value_len);
+        out[oi++] = '=';
+        if (sigv4_append_encoded(out, &oi, outsz, params[i].value,
+                                 params[i].value_len) < 0)
+        {
+            return -1;
+        }
     }
 
     out[oi] = '\0';
@@ -298,7 +360,7 @@ sigv4_emit_canonical_qs(const qparam_t *params, int param_count,
  *   2. Sort them by name then value using qparam_cmp (SigV4 ordering).
  *   3. Emit the sorted parameters as the canonical query string.
  */
-size_t
+ssize_t
 build_canonical_qs(const u_char *qs, size_t qslen, ngx_flag_t skip_signature,
                     u_char *out, size_t outsz)
 {
@@ -306,6 +368,49 @@ build_canonical_qs(const u_char *qs, size_t qslen, ngx_flag_t skip_signature,
     int      param_count;
 
     param_count = sigv4_parse_qs(qs, qslen, skip_signature, params, 64);
+    if (param_count < 0) {
+        return -1;
+    }
     qsort(params, (size_t) param_count, sizeof(params[0]), qparam_cmp);
     return sigv4_emit_canonical_qs(params, param_count, out, outsz);
+}
+
+ssize_t
+build_canonical_parsed_qs(const brix_http_query_t *query,
+    ngx_flag_t skip_signature, u_char *out, size_t outsz)
+{
+    qparam_t  params[64];
+    int       count;
+    ngx_uint_t i;
+
+    if (query == NULL || !query->parsed || out == NULL || outsz == 0) {
+        return -1;
+    }
+
+    count = 0;
+    for (i = 0; i < query->count; i++) {
+        const brix_http_query_param_t *src = &query->params[i];
+
+        if (skip_signature && src->name.len == 15
+            && ngx_strcmp(src->name.data,
+                          (u_char *) "X-Amz-Signature") == 0)
+        {
+            continue;
+        }
+        if (count >= 64 || src->name.len >= sizeof(params[count].name)
+            || src->value.len >= sizeof(params[count].value))
+        {
+            return -1;
+        }
+        ngx_memcpy(params[count].name, src->name.data, src->name.len);
+        params[count].name[src->name.len] = '\0';
+        params[count].name_len = src->name.len;
+        ngx_memcpy(params[count].value, src->value.data, src->value.len);
+        params[count].value[src->value.len] = '\0';
+        params[count].value_len = src->value.len;
+        count++;
+    }
+
+    qsort(params, (size_t) count, sizeof(params[0]), qparam_cmp);
+    return sigv4_emit_canonical_qs(params, count, out, outsz);
 }

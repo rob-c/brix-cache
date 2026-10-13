@@ -101,7 +101,13 @@ main(int argc, char **argv)
     uint16_t rid = htons(kXR_ping);
     memcpy(hdr + 2, &rid, 2);
 
-    brix_aio_opts opts = { 0 /*adaptive deadline*/, -1 /*default retries*/, 1 /*retry_safe*/ };
+    brix_aio_opts opts = {
+        .deadline_ms = 0, /* adaptive deadline */
+        .max_retries = -1, /* aconn default */
+        .retry_safe = 1,
+        .dst = NULL,
+        .dst_cap = 0,
+    };
 
     printf("producing %d pings @ %d ms; bouncing server after %d submits...\n",
            NPINGS, INTERVAL_US / 1000, BOUNCE_AT);

@@ -14,6 +14,7 @@
  *       inner dispatch runs with metalink_off forced on, so a mirror that
  *       itself names a .meta4 can never recurse.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "copy_internal.h"
 #include "metalink.h"
 
@@ -321,7 +322,7 @@ copy_metalink_run(const char *src, const char *dst, const brix_copy_opts *o,
             return -1;
         }
         if (!o->silent && i + 1 < ml.n_urls) {
-            fprintf(stderr, "xrdcp: metalink mirror %s failed (%s); "
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: metalink mirror %s failed (%s); "
                             "trying next mirror\n",
                     ml.urls[i].rank_url, st->msg);
         }

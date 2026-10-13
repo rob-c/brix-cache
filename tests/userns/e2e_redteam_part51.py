@@ -54,7 +54,7 @@ def _rt51_clean_rejection_status_family_nginx_core(snap, bpriv, port, ta):
     # Each must NOT return bob's secret body (the read would run as alice=other).
     for m in ("REPORT", "SEARCH", "ACL", "LABEL", "PROPPATCH-NOPE"):
         st, b = http(m, "/bob/private.txt", port, ta)
-        ok(all((st in REJECT + (207, 200, 422), SECRET not in any((b, b'')))),
+        ok(all((st in REJECT + (207, 200, 422), SECRET not in _rt_default(b, b''))),
            f"undispatched {m} on bob's 0600 leaks no secret body (HTTP {st})")
     return REJECT, SECRET
 
@@ -65,13 +65,11 @@ def _rt51_the_same_read_class_probe_must(port, ta, SECRET, snap, bpriv, REJECT, 
     st, b = http("SEARCH", "/bobsecret/", port, ta,
                  data=b"<?xml version='1.0'?><searchrequest/>",
                  hdrs={"Content-Type": "application/xml"})
-    ok(all((SECRET not in any((b, b'')), b'bob-only' not in any((b, b'')))),
+    ok(all((SECRET not in _rt_default(b, b''), b'bob-only' not in _rt_default(b, b''))),
        f"undispatched SEARCH of bob's 0700 dir enumerates/leaks nothing (HTTP {st})")
 
-    _webdav_undispatched_methods_p1(data, snap, port, ta, adir, bpriv, not_svc_root, SECRET, REJECT, base)
 
 
-def _webdav_undispatched_methods_p1(data, snap, port, ta, adir, bpriv, not_svc_root, SECRET, REJECT, base):
     # ============================================================ MUTATE-CLASS VERBS
     # Methods that, IF routed as a write/patch, would alter or destroy bob's file.
     # After each, bob's secret must be byte-identical, mode 0600, still bob-owned.
@@ -125,10 +123,8 @@ def _rt51_method_override_smuggling(data, st, REJECT, not_svc_root, snap, bpriv,
     pubp = os.path.join(data, "pub", "und_act")
     ok(all((st in REJECT + (200, 201, 204), not_svc_root(pubp))),
        f"undispatched MKACTIVITY in world-writable pub creates no svc/root file (HTTP {st})")
-    _webdav_undispatched_methods_p2(adir, port, ta, data, snap, bpriv, not_svc_root, SECRET, REJECT, base)
 
 
-def _webdav_undispatched_methods_p2(adir, port, ta, data, snap, bpriv, not_svc_root, SECRET, REJECT, base):
     # ============================================================ METHOD-OVERRIDE SMUGGLING
     # POST/PUT carrying X-HTTP-Method-Override: DELETE on bob/private.txt -- the
     # server must NOT honour the header to delete/mutate bob's file.  Snapshot the
@@ -186,11 +182,12 @@ def _rt51_case_folding_verbs(port, ta, REJECT, SECRET, adir):
     # the server case-folds, the DAC still applies: lowercase get on bob's 0600 must
     # not leak; lowercase put into alice's dir must (if honoured) stay alice-owned.
     st, b = http("get", "/bob/private.txt", port, ta)
-    ok(all((st in REJECT + (200,), SECRET not in any((b, b'')))),
+    ok(all((st in REJECT + (200,), SECRET not in _rt_default(b, b''))),
        f"lowercase 'get' on bob's 0600 leaks no secret (HTTP {st})")
     st, _ = http("put", "/alice/und_lower.txt", port, ta, b"lower\n")
     lp = os.path.join(adir, "und_lower.txt")
-    ok(any((not os.path.lexists(lp), os.lstat(lp).st_uid == UID_ALICE)),
+    ok(_rt_missing_or_stat(lp, lambda meta: meta.st_uid == UID_ALICE,
+                           follow_symlinks=False),
        f"lowercase 'put' into alice's dir is rejected or stays alice-owned (HTTP {st})")
 
 
@@ -200,10 +197,8 @@ def _rt51_lowercase_put_into_bob_s_dir(data, port, ta, REJECT, adir):
     http("put", "/bob/und_lower_bob.txt", port, ta, b"x\n")
     ok(not os.path.exists(lbob),
        "lowercase 'put' into bob's dir created no file (case-fold cannot bypass DAC)")
-    _webdav_undispatched_methods_p3(port, ta, adir, snap, bpriv, REJECT)
 
 
-def _webdav_undispatched_methods_p3(port, ta, adir, snap, bpriv, REJECT):
     # ============================================================ BOGUS VERB
     # A wholly-unknown verb must be cleanly rejected and mutate nothing.
     st, b = http("FOOBAR", "/alice/und_foobar.txt", port, ta, b"x\n")
@@ -214,7 +209,7 @@ def _webdav_undispatched_methods_p3(port, ta, adir, snap, bpriv, REJECT):
 def _rt51_bogus_verb_against_the_etc_symlink(port, ta):
     # Bogus verb against the /etc-symlink escape must not read /etc/passwd.
     st, b = http("FOOBAR", "/escape/passwd", port, ta)
-    ok(b'root:x:0:0' not in any((b, b'')),
+    ok(b'root:x:0:0' not in _rt_default(b, b''),
        f"bogus verb on /escape symlink does not read /etc/passwd (HTTP {st})")
 
     # ============================================================ TRACE / CONNECT (raw)
@@ -248,7 +243,6 @@ def _rt51_connect_authority_form_must_not_open(resp, port):
     first = cresp.split(b"\r\n", 1)[0] if cresp else b""
     ok(all((b'200' not in first, b'Connection established' not in cresp)),
        f"CONNECT tunnel refused (no SSRF forward-proxy): {first[:40]!r}")
-    _webdav_undispatched_methods_p4(port, ta, adir, snap, bpriv)
 
 
 def _rt51_worker_survival(port, ta, adir):

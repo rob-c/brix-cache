@@ -15,6 +15,7 @@
  *       brix_dns_req_finish().  brix_dns_cache_mark_pending() dedups fills
  *       for the same (name, af) while one is in flight.
  */
+#include "core/compat/log_event.h"
 #include "net/dns/dns.h"
 
 
@@ -22,7 +23,7 @@ static void
 dns_prefetch_done(brix_dns_req_t *req)
 {
     if (req->rc != NGX_OK && !req->negative) {
-        ngx_log_error(NGX_LOG_INFO, req->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, req->log, 0,
                       "brix dns: prefetch of \"%V\" failed: %s", &req->name,
                       req->error ? req->error : "unknown");
     }

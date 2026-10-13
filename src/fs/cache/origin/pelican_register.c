@@ -18,6 +18,7 @@
  * the blocking discovery+POST never runs on the event loop.
  */
 
+#include "core/compat/log_event.h"
 #include "pelican_register.h"
 #include "auth/token/jwt_sign.h"
 #include "core/ident.h"
@@ -335,7 +336,7 @@ brix_pelican_discover_cfg(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
     curl_easy_cleanup(curl);
 
     if (res != CURLE_OK || code < 200 || code >= 300) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix: pelican advertise: discovery failed (%s, http %ld)",
             reason[0] ? reason : curl_easy_strerror(res), code);
         return NGX_ERROR;
@@ -408,13 +409,13 @@ brix_pelican_post(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
     curl_easy_cleanup(curl);
 
     if (res != CURLE_OK || code < 200 || code >= 300) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "brix: pelican advertise: registerCache POST failed "
             "(%s, http %ld) to %s", reason[0] ? reason : curl_easy_strerror(res),
             code, url);
         return NGX_ERROR;
     }
-    ngx_log_error(NGX_LOG_INFO, log, 0,
+    BRIX_LOG(NGX_LOG_INFO, log, 0,
         "brix: pelican advertise: registered cache with director (http %ld)",
         code);
     return NGX_OK;
@@ -453,7 +454,7 @@ brix_cache_pelican_advertise_once(ngx_stream_brix_srv_conf_t *conf,
         != NGX_OK)
     {
         free(body);
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix: pelican advertise: JWT signing failed");
         return NGX_ERROR;
     }
@@ -526,7 +527,7 @@ brix_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
     conf->advertise.key_pkey =
         brix_jwt_load_ec_key((char *) conf->advertise.key.data);
     if (conf->advertise.key_pkey == NULL) {
-        ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, cycle->log, 0,
             "brix: pelican advertise disabled — cannot load EC key \"%s\"",
             conf->advertise.key.data);
         return;
@@ -558,7 +559,7 @@ brix_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
     /* First advertisement shortly after startup, then every interval. */
     ngx_add_timer(ev, BRIX_VFS_CACHE_BACKOFF_CAP_MS / 4);
 
-    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
         "brix: pelican cache advertise started — federation=%s:%ui "
         "interval=%Mms data-url=%V", conf->advertise.federation.data,
         conf->advertise.federation_port,

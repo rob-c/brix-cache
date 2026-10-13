@@ -17,6 +17,7 @@
  *       tokens are mapped through a NULL-terminated name/bit table, keeping the
  *       parse loop a flat data walk.
  */
+#include "core/compat/log_event.h"
 #include "stream_mirror.h"
 
 
@@ -46,7 +47,7 @@ brix_stream_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         }
     }
     if (xcf->mirror.targets->nelts >= BRIX_MIRROR_MAX_TARGETS) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_mirror_url: at most %d targets supported",
             BRIX_MIRROR_MAX_TARGETS);
         return NGX_CONF_ERROR;
@@ -56,7 +57,7 @@ brix_stream_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         || ngx_strlchr(hostport.data, hostport.data + hostport.len, ':')
            == NULL)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_mirror_url: expected host:port, got \"%V\"",
             &hostport);
         return NGX_CONF_ERROR;
@@ -67,7 +68,7 @@ brix_stream_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     u.default_port = BRIX_MIRROR_DEFAULT_PORT;
     u.no_resolve   = 1;              /* phase-116: parse only, resolve at runtime */
     if (ngx_parse_url(cf->pool, &u) != NGX_OK || u.host.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_mirror_url: cannot parse \"%V\"%s%s", &hostport,
             u.err ? ": " : "", u.err ? u.err : "");
         return NGX_CONF_ERROR;
@@ -95,7 +96,7 @@ brix_stream_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         t->host.len  = (size_t) (colon - hostport.data);
     }
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: stream mirror target %V", &hostport);
     return NGX_CONF_OK;
 }
@@ -197,7 +198,7 @@ brix_mirror_parse_opcode_args(ngx_conf_t *cf, const char *directive,
         ngx_uint_t  bit = brix_mirror_opcode_name_bit(v->data);
 
         if (brix_mirror_opcode_is_unreplayable(v->data)) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "%s: \"%V\" addresses an open handle that only the primary"
                 " session holds, so the one-shot mirror can never replay it"
                 " — remove it (reads are never mirrored; the mask must mean"
@@ -206,7 +207,7 @@ brix_mirror_parse_opcode_args(ngx_conf_t *cf, const char *directive,
             return NGX_CONF_ERROR;
         }
         if (bit == 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "%s: unknown opcode \"%V\" (expected one of"
                 " all stat locate open dirlist statx query"
                 " mkdir rm rmdir mv truncate chmod write)",

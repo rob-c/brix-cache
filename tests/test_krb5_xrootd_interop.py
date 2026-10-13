@@ -35,6 +35,7 @@ import pytest
 
 import kdc_helpers
 from ephemeral_port import free_port
+from lib_py.util import linked_libraries
 from settings import (
     HOST,
     KRB5_CCACHE,
@@ -110,7 +111,7 @@ def _client_has_krb5():
     if "krb5" not in subprocess.run([XRDFS, "-h"],
                                     capture_output=True, text=True).stderr:
         return False
-    linked = subprocess.run(["ldd", XRDFS], capture_output=True, text=True).stdout
+    linked = linked_libraries(XRDFS)
     return "libkrb5" in linked
 
 

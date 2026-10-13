@@ -111,13 +111,13 @@ def _rt46_segment_10(data):
 
 def _rt46_locate_of_a_non_existent_path(SECRET):
     rc_secret, out_secret, _e = xrd_fs(["locate", "/bob/private.txt"], "alice")
-    ok(all((SECRET not in any((out_secret, '')), 'BOB-PRIV' not in any((out_secret, '')))),
+    ok(all((SECRET not in _rt_default(out_secret, ''), 'BOB-PRIV' not in _rt_default(out_secret, ''))),
        f"locate of bob's 0600 by alice leaks no secret bytes (rc={rc_secret})")
     # locate of a NON-EXISTENT path under bob: response must not be more
     # confidence-revealing than the 0600 case (no content either way).
     rc_none, out_none, _e = xrd_fs(["locate", "/bob/does_not_exist_cro.txt"],
                                    "alice")
-    ok(SECRET not in any((out_none, '')),
+    ok(SECRET not in _rt_default(out_none, ''),
        f"locate of a non-existent bob path leaks nothing (rc={rc_none})")
     # locate of svc-only 0750 file by alice (alice not in svc group): no name/
     # content leak of the svc-only secret.
@@ -126,23 +126,23 @@ def _rt46_locate_of_a_non_existent_path(SECRET):
 
 
 def _rt46_positive_control_staff_member_carol_locates(out, SVCMARK, rc, STAFFMARK):
-    ok(all((SVCMARK not in any((out, '')), 'secret-name' not in any((out, '')))) if out else True,
+    ok(all((SVCMARK not in _rt_default(out, ''), 'secret-name' not in _rt_default(out, ''))) if out else True,
        f"locate of svc-only 0750 file by alice leaks no svc content (rc={rc})")
     # locate of a group 0640 file (alice:staff) by NON-member bob: no content.
     rc, out, _e = xrd_fs(["locate", "/grp/staff_r.txt"], "bob")
-    ok(STAFFMARK not in any((out, '')),
+    ok(STAFFMARK not in _rt_default(out, ''),
        f"locate of group 0640 file by non-member bob leaks no content (rc={rc})")
     # POSITIVE CONTROL: staff MEMBER carol locates the same group file — handled,
     # still no raw content (locate returns a location, never bytes).
     rc, out, _e = xrd_fs(["locate", "/grp/staff_r.txt"], "carol")
-    ok(STAFFMARK not in any((out, '')),
+    ok(STAFFMARK not in _rt_default(out, ''),
        f"control: staff member carol locate returns a location not bytes (rc={rc})")
 
 
 def _rt46_positive_control_alice_locates_her_own(SECRET, SVCMARK, rc, out):
     # POSITIVE CONTROL: alice locates her OWN file — handled, no foreign secret.
     rc, out, _e = xrd_fs(["locate", "/alice/"], "alice")
-    ok(all((SECRET not in any((out, '')), SVCMARK not in any((out, '')))),
+    ok(all((SECRET not in _rt_default(out, ''), SVCMARK not in _rt_default(out, ''))),
        f"control: alice locate of own path returns no foreign secret (rc={rc})")
     return rc, out
 
@@ -168,13 +168,13 @@ def _rt46_check_when_have_xrd(have_xrd, mk_fixture, uid_of, body_of, SECRET, TAG
         ok(all((uid_of(f'alice/{TAG}_stage.bin') in (UID_ALICE, -1), body_of(f'alice/{TAG}_stage.bin') == pre_body)),
            f"prepare-stage of alice's own file leaves owner+content intact "
            f"(rc={rc}, uid={uid_of(f'alice/{TAG}_stage.bin')})")
-        ok(SECRET not in any((out, '')),
+        ok(SECRET not in _rt_default(out, ''),
            f"prepare-stage own file response carries no foreign secret (rc={rc})")
 
         # cross-tenant stage of bob's 0600 private.txt by alice: a stage/recall
         # response must NEVER echo bob's secret content, and must not chown his inode.
         rc, out, _e = xrd_fs(["prepare", "-s", "/bob/private.txt"], "alice")
-        ok(SECRET not in any((out, '')),
+        ok(SECRET not in _rt_default(out, ''),
            f"prepare-stage of bob's 0600 by alice leaks no secret content (rc={rc})")
         ok(uid_of("bob/private.txt") == UID_BOB,
            f"bob's private.txt owner unchanged after alice's stage attempt "
@@ -182,7 +182,7 @@ def _rt46_check_when_have_xrd(have_xrd, mk_fixture, uid_of, body_of, SECRET, TAG
         # the stage must not have opened a DAC-bypassing read window: an immediate
         # cat after the stage still denies alice the secret.
         rc, out, _e = xrd_fs(["cat", "/bob/private.txt"], "alice")
-        ok(SECRET not in any((out, '')),
+        ok(SECRET not in _rt_default(out, ''),
            f"read right after cross-tenant stage still denies bob's secret (rc={rc})")
 
         # cross-tenant EVICT of bob's file by alice: a cache-evict must not be a
@@ -196,7 +196,7 @@ def _rt46_check_when_have_xrd(have_xrd, mk_fixture, uid_of, body_of, SECRET, TAG
         rc, out, _e = xrd_fs(["prepare", "-s", "/bob/private.txt"], "bob")
         ok(any((rc == 0, rc != 0)),
            f"control: bob stages his own 0600 file — handled per-identity (rc={rc})")
-        ok(SECRET not in any((out, '')),
+        ok(SECRET not in _rt_default(out, ''),
            f"control: bob's own stage response is a status, not file bytes (rc={rc})")
     return rc, out
 
@@ -207,10 +207,8 @@ def _rt46_section_1_prepare_stage_combined_with(mk_fixture, TAG, uid_of, body_of
     if not have_xrd:
         ok(True, "combo_rare_opcodes: native xrdfs unavailable — root:// combos skipped (handled)")
 
-    _combo_rare_opcodes_p1(have_xrd, key, port, uid_of, mk_fixture, body_of, rm_quiet, exists, mtime_of, SECRET, STAFFMARK, SVCMARK, STAFFNONE, gid_of, TAG, size_of)
 
 
-def _combo_rare_opcodes_p1(have_xrd, key, port, uid_of, mk_fixture, body_of, rm_quiet, exists, mtime_of, SECRET, STAFFMARK, SVCMARK, STAFFNONE, gid_of, TAG, size_of):
     # ===================================================================
     # SECTION 1 — PREPARE/STAGE combined with CROSS-TENANT + then-READ.
     # prepare (kXR_prepare) is barely touched.  Combine it with: (a) own file
@@ -222,7 +220,6 @@ def _combo_rare_opcodes_p1(have_xrd, key, port, uid_of, mk_fixture, body_of, rm_
     rc, out = _rt46_check_when_have_xrd(have_xrd, mk_fixture, uid_of, body_of, SECRET, TAG, exists)
 
 
-def _combo_rare_opcodes_p2(have_xrd, key, port, uid_of, mk_fixture, rm_quiet, exists, mtime_of, SECRET, STAFFMARK, SVCMARK, STAFFNONE, gid_of, TAG, size_of, body_of):
     # ===================================================================
     # SECTION 2 — LOCATE existence-oracle combined with the FULL visibility ladder:
     # own / cross-tenant 0600 / group 0640 (member vs non-member) / svc-only 0750.
@@ -234,7 +231,6 @@ def _combo_rare_opcodes_p2(have_xrd, key, port, uid_of, mk_fixture, rm_quiet, ex
         rc, out = _rt46_when_have_xrd_4(SECRET, SVCMARK, STAFFMARK)
 
 
-def _combo_rare_opcodes_p3(have_xrd, key, port, uid_of, mk_fixture, rm_quiet, exists, mtime_of, SECRET, SVCMARK, STAFFNONE, gid_of, TAG, size_of, body_of):
     # ===================================================================
     # SECTION 3 — STATVFS / DF combined with cross-tenant + group paths: must be a
     # filesystem-stat op only, never a per-file confidentiality oracle that embeds
@@ -242,18 +238,18 @@ def _combo_rare_opcodes_p3(have_xrd, key, port, uid_of, mk_fixture, rm_quiet, ex
     # ===================================================================
     if have_xrd:
         rc, out, _e = xrd_fs(["statvfs", "/bob/private.txt"], "alice")
-        ok(SECRET not in any((out, '')),
+        ok(SECRET not in _rt_default(out, ''),
            f"statvfs of bob's 0600 by alice leaks no secret content (rc={rc})")
         rc, out, _e = xrd_fs(["df", "/svconly/secret-name.txt"], "alice")
-        ok(SVCMARK not in any((out, '')),
+        ok(SVCMARK not in _rt_default(out, ''),
            f"df of svc-only 0750 path by alice leaks no svc content (rc={rc})")
         rc, out, _e = xrd_fs(["statvfs", "/grp/staff_none.txt"], "bob")
-        ok(STAFFNONE not in any((out, '')),
+        ok(STAFFNONE not in _rt_default(out, ''),
            f"statvfs of group 0600 file by non-member bob leaks nothing (rc={rc})")
         # POSITIVE CONTROL: bob statvfs of his OWN path is handled, no self/foreign
         # secret echoed (proves statvfs works, the deny above is a real no-leak).
         rc, out, _e = xrd_fs(["statvfs", "/bob/"], "bob")
-        ok(all((SECRET not in any((out, '')), STAFFNONE not in any((out, '')))),
+        ok(all((SECRET not in _rt_default(out, ''), STAFFNONE not in _rt_default(out, ''))),
            f"control: bob statvfs of own path handled, no secret echoed (rc={rc})")
     return have_xrd
 
@@ -283,7 +279,7 @@ def _rt46_the_bytes_landed_at_the_right(rm_quiet, TAG, exists, uid_of, gid_of, s
     # with no secret bytes anywhere in the concatenated output.
     rc, out, _e = xrd_fs(["readv", "/bob/private.txt", "0", "8", "8", "11"],
                          "alice")
-    ok(all((SECRET not in any((out, '')), 'BOB-PRIV' not in any((out, '')), '-SECRET' not in any((out, '')))),
+    ok(all((SECRET not in _rt_default(out, ''), 'BOB-PRIV' not in _rt_default(out, ''), '-SECRET' not in _rt_default(out, ''))),
        f"readv straddling bob's 0600 secret by alice leaks no segment bytes "
        f"(rc={rc})")
 
@@ -292,7 +288,7 @@ def _rt46_positive_control_owner_bob_readv_of(mk_fixture, TAG):
     # POSITIVE CONTROL: owner bob readv of his own private.txt yields his bytes
     # (proves readv works; alice's empty result above is DAC, not a broken op).
     rc, out, _e = xrd_fs(["readv", "/bob/private.txt", "0", "8"], "bob")
-    ok(any((rc != 0, 'BOB-PRIV' in any((out, '')))),
+    ok(any((rc != 0, 'BOB-PRIV' in _rt_default(out, ''))),
        f"control: owner bob readv reads his own secret prefix (rc={rc})")
 
     # (b2) readv of alice's OWN multi-segment file: segments must be exact bytes.
@@ -301,7 +297,7 @@ def _rt46_positive_control_owner_bob_readv_of(mk_fixture, TAG):
     rc, out, _e = xrd_fs(["readv", f"/alice/{TAG}_rv.bin", "0", "4", "8", "4"],
                          "alice")
     if rc == 0:
-        ok(all(('AAAA' in any((out, '')), 'CCCC' in any((out, '')), 'BBBB' not in any((out, '')))),
+        ok(all(('AAAA' in _rt_default(out, ''), 'CCCC' in _rt_default(out, ''), 'BBBB' not in _rt_default(out, ''))),
            f"readv own file returns exactly the requested segments (rc={rc})")
     else:
         ok(True, f"readv own file unsupported/handled (rc={rc})")
@@ -381,7 +377,7 @@ def _rt46_query_checksum_through_the_hard_link(mk_fixture, TAG, rm_quiet, exists
         # query checksum THROUGH the hard link -> alice's own data, no leak.
         rc2, out2, _e2 = xrd_fs(["query", "checksum",
                                  f"/alice/{TAG}_lnhard.txt"], "alice")
-        ok(SECRET not in any((out2, '')),
+        ok(SECRET not in _rt_default(out2, ''),
            f"query checksum through alice's own hard link: no foreign secret "
            f"(rc={rc2})")
         # prepare-stage THROUGH the hard link -> no corruption of the shared inode.
@@ -408,7 +404,7 @@ def _rt46_segment_02_2(TAG, exists, SECRET):
        f"(rc={rc}, landed={landed})")
     rc2, out2, _e2 = xrd_fs(["query", "checksum",
                              f"/alice/{TAG}_lnsteal.txt"], "alice")
-    ok(SECRET not in any((out2, '')),
+    ok(SECRET not in _rt_default(out2, ''),
        f"query checksum through cross-tenant link chain leaks no secret (rc={rc2})")
 
 

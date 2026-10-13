@@ -25,6 +25,7 @@
  *     src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph_compat.c \
  *     -lrados -o xrdceph_migrate
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "sd.h"
 #include "rados/sd_ceph.h"
 
@@ -79,7 +80,7 @@ carry_xattrs(sd_ceph_conn_t *c, const char *oid, int fd)
         vlen = sd_ceph_oid_getxattr(c, oid, name, val, sizeof(val));
         if (vlen < 0) { continue; }
         if (fsetxattr(fd, name, val, (size_t) vlen, 0) != 0) {
-            fprintf(stderr, "  warn: xattr %s on %s: %s\n", name, oid, strerror(errno));
+            BRIX_CLIENT_LOG("WARN",  "  warn: xattr %s on %s: %s\n", name, oid, strerror(errno));
         }
     }
 }
@@ -140,15 +141,15 @@ open_source_and_dest(const char *pool, const char *dest,
     conf.conf_file = getenv("CEPH_CONF") ? getenv("CEPH_CONF") : "/etc/ceph/ceph.conf";
 
     c = sd_ceph_conn_create(&conf, NULL, &err);
-    if (c == NULL) { fprintf(stderr, "connect %s: %s\n", pool, strerror(err)); return -1; }
+    if (c == NULL) { BRIX_CLIENT_LOG("ERROR",  "connect %s: %s\n", pool, strerror(err)); return -1; }
 
     if (mkdir(dest, 0755) != 0 && errno != EEXIST) {
-        fprintf(stderr, "mkdir %s: %s\n", dest, strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "mkdir %s: %s\n", dest, strerror(errno));
         sd_ceph_conn_destroy(c);
         return -1;
     }
     if (rados_nobjects_list_open(sd_ceph_conn_ioctx(c), lc_out) < 0) {
-        fprintf(stderr, "list open: %s\n", strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "list open: %s\n", strerror(errno));
         sd_ceph_conn_destroy(c);
         return -1;
     }
@@ -193,18 +194,18 @@ migrate_one_object(sd_ceph_conn_t *c, const char *dest, const char *entry,
              (entry[0] == '/') ? entry + 1 : entry);
 
     if (mkdirs_for(path) != 0) {
-        fprintf(stderr, "mkdirs for %s: %s\n", path, strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "mkdirs for %s: %s\n", path, strerror(errno));
         return -1;
     }
     out = fopen(path, "wb");
     if (out == NULL) {
-        fprintf(stderr, "create %s: %s\n", path, strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "create %s: %s\n", path, strerror(errno));
         return -1;
     }
     fd = fileno(out);
 
     if (stream_object(c, entry, fd) != 0) {
-        fprintf(stderr, "copy %s failed\n", entry);
+        BRIX_CLIENT_LOG("ERROR",  "copy %s failed\n", entry);
         fclose(out);
         return -1;
     }
@@ -245,7 +246,7 @@ migrate_pool(sd_ceph_conn_t *c, const char *dest, rados_list_ctx_t lc,
 
         rc = rados_nobjects_list_next2(lc, &entry, NULL, NULL, NULL, NULL, NULL);
         if (rc == -ENOENT) { break; }
-        if (rc < 0) { fprintf(stderr, "list next: %d\n", rc); (*fails)++; break; }
+        if (rc < 0) { BRIX_CLIENT_LOG("INFO",  "list next: %d\n", rc); (*fails)++; break; }
         if (entry == NULL || entry[0] == '\0') { continue; }
 
         if (migrate_one_object(c, dest, entry, bytes) == 0) { (*files)++; }

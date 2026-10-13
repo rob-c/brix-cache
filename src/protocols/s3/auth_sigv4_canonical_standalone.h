@@ -23,7 +23,29 @@
 #include <string.h>
 #include <sys/types.h>   /* u_char */
 
+#include "core/types/tunables_s3.h"
+
 typedef intptr_t ngx_flag_t;                         /* nginx: ngx_config.h */
+typedef uintptr_t ngx_uint_t;
+
+typedef struct {
+    size_t  len;
+    u_char *data;
+} ngx_str_t;
+
+typedef struct {
+    ngx_str_t  raw_name;
+    ngx_str_t  name;
+    ngx_str_t  value;
+    unsigned   has_value:1;
+} brix_http_query_param_t;
+
+typedef struct {
+    ngx_str_t                raw;
+    brix_http_query_param_t *params;
+    ngx_uint_t               count;
+    unsigned                 parsed:1;
+} brix_http_query_t;
 
 #define ngx_strcmp(s1, s2)   strcmp((const char *) s1, (const char *) s2)
 #define ngx_memcpy(dst, src, n)   (void) memcpy(dst, src, n)

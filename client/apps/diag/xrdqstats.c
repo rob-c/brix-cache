@@ -6,6 +6,7 @@
  * WHY:  A scriptable front-end over the client library's kXR_query. libXrdCl-free.
  * HOW:  brix_endpoint_parse → brix_connect → brix_query(infotype, args).
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "core/compat/crypto.h"
 #include "core/version.h"
@@ -64,7 +65,7 @@ brix_qstats_main(int argc, char **argv)
         }
     }
     if (brix_query(&c, infotype, args, reply, sizeof(reply), &st) != 0) {
-        fprintf(stderr, "%s: %s\n", argv[0], st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "%s: %s\n", argv[0], st.msg);
         brix_close(&c);
         return brix_shellcode(&st);
     }

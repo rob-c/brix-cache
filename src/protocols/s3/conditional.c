@@ -220,8 +220,8 @@ s3_override_header(ngx_http_request_t *r, const char *param, const char *header)
 
     /* query_get returns 1 on success and NUL-terminates val; the decoded
      * length is strlen(val), NOT the return value. */
-    if (brix_http_query_get(r->args, param, val, sizeof(val),
-                              S3_OVERRIDE_QUERY_FLAGS) <= 0)
+    if (!s3_get_query_param_flags(r, param, val, sizeof(val),
+                                  S3_OVERRIDE_QUERY_FLAGS))
     {
         return;
     }
@@ -243,8 +243,8 @@ s3_apply_response_overrides(ngx_http_request_t *r)
     }
 
     /* response-content-type overrides the computed Content-Type in-place. */
-    if (brix_http_query_get(r->args, "response-content-type", ct, sizeof(ct),
-                              S3_OVERRIDE_QUERY_FLAGS) > 0
+    if (s3_get_query_param_flags(r, "response-content-type", ct, sizeof(ct),
+                                 S3_OVERRIDE_QUERY_FLAGS)
         && (len = ngx_strlen(ct)) > 0
         && !brix_http_str_has_ctl((u_char *) ct, len))
     {

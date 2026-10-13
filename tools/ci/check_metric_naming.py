@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # WHAT: phase-110 W12 — governance for the Prometheus metric surface. Two rules
 #       over the families the exporter declares (its `# HELP`/`# TYPE` lines):
@@ -156,7 +161,7 @@ def main(argv):
     for rule, name, msg in findings:
         print(f"  [{rule}] {name}: {msg}")
     if fail:
-        print(f"\ncheck_metric_naming: FAIL — {len(findings)} finding(s)",
+        _brix_diagnostic('ERROR', 'tools/ci/check_metric_naming.py', 'main', f"\ncheck_metric_naming: FAIL — {len(findings)} finding(s)",
               file=sys.stderr)
         return 1
     print("\ncheck_metric_naming: WARN — findings reported (run --fail to gate)")

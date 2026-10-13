@@ -18,26 +18,11 @@ That is the whole of the documented effect.  What it also selects, and what no
 test could have noticed while the directive was never written, is whether the
 URL token is REDACTED before the request reaches the logs.
 
-DEFECT CANDIDATE #67 — off logs the token that on redacts
----------------------------------------------------------
-``wt_redact_query_token()`` (auth_token.c:206) is called from exactly two places
-in ``wt_parse_header()``: the dual-transport reject at :299 and the
-post-extraction scrub at :305.  Both are downstream of a token having been
-successfully EXTRACTED.  With the flag off, ``webdav_bearer_from_query()``
-declines at :272-274 and ``wt_parse_header()`` returns NGX_DECLINED straight
-through :404-406 — before either redaction call.
-
-So ``brix_webdav_query_token off`` — which an operator writes precisely to stop
-accepting credentials in URLs — is the configuration under which a credential in
-a URL is written to the logs verbatim — the access log in all three of the
-fields the redactor exists to scrub (``$request``, ``$request_uri``, ``$args``)
-AND the error log, whose per-request `, request: "..."` suffix is
-``r->request_line``, the third of those fields.  The arm that honours the token
-hides it; the arm that refuses it publishes it, twice.  The
-token is refused, so it is not *usable* against this server — but it is a live
-bearer for every other endpoint that trusts the same issuer, and it is now in a
-file that outlives the request, is shipped to log collectors, and is readable by
-anyone with the operator's log access.
+DEFECTS #67 AND #68 — resolved
+-------------------------------
+Query credentials are now redacted at the request boundary, before transport
+selection or any request-context diagnostic.  Both directive arms therefore
+scrub access and error logs, including lines emitted before token validation.
 
 WHAT THIS FILE ASSERTS
 ----------------------
@@ -51,12 +36,8 @@ WHAT THIS FILE ASSERTS
 §D  RFC 6750 §2: header+query is 400 under ``on``; under ``off`` there is only
     one transport, so the same request authenticates.  The dual-transport gate
     is a property of the enabled arm.
-§E  DEFECT CANDIDATE #67: what each arm leaves in the access log AND the error
-    log, with the refused-token control that shows redaction is about
-    extraction and not about the verdict.
-§E2 DEFECT CANDIDATE #68, found while measuring #67 and not the flag's fault:
-    redaction runs inside the token phase, so a log line written by an EARLIER
-    phase carries the raw token even on the arm that redacts.
+§E  both arms redact query credentials from the access and error logs.
+§E2 diagnostics emitted before token validation are redacted too.
 §F  the parse tier for this directive: token set, case, arity, placement.
 §G  the source: both redaction call sites are still below the extraction the
     disabled flag skips.
@@ -78,9 +59,13 @@ from server_registry import NginxInstanceSpec
 from settings import HOST, BIND_HOST, NGINX_BIN
 from utils.make_token import TokenIssuer
 
-def _check_test_the_two_arms_disagree_about_the_same_token_1(token, off_line):
-    assert any(token in ln for ln in off_line), (
-        "off no longer leaks the token — see #67")
+def _assert_token_redacted(token, lines):
+    assert not any(token in line for line in lines), "query token reached a log"
+
+
+def _request_lines(text, arm):
+    path = f"/{arm}/{SEED}"
+    return [line for line in text.splitlines() if path in line]
 
 
 pytestmark = [pytest.mark.timeout(300),
@@ -371,41 +356,28 @@ class TestWhatEachArmLeavesInTheLog:
             "the accepted token reached the access log despite redaction")
         assert "authz=xxxx" in joined, joined[:400]
 
-    def test_off_writes_the_token_to_the_access_log_verbatim(self, qtoken):
-        """DEFECT CANDIDATE #67.  The arm an operator selects to STOP accepting
-        credentials in URLs is the arm that publishes them: wt_parse_header()
-        returns NGX_DECLINED at :272-274 before either call to
-        wt_redact_query_token(), so nothing scrubs the request line.
-
-        When this is fixed — redact whenever a query token is PRESENT, not only
-        when it was consumed — this assertion inverts, and the one above it
-        stays as it is."""
+    def test_off_redacts_the_refused_token_from_the_access_log(self, qtoken):
+        """Refusing query-token transport must not publish the credential."""
         endpoint, issuer = qtoken
         token, response, lines = self._probe(endpoint, issuer, OFF, "offarm")
         assert response.status_code == 401
         assert lines, "the request was not logged at all"
         joined = "\n".join(lines)
-        assert token in joined, (
-            "defect candidate #67 appears to be fixed — the refused URL token "
-            "is no longer in the access log; invert this test and update the "
-            "audit document")
+        assert token not in joined, "the refused URL token reached the access log"
+        assert "authz=xxxx" in joined, joined[:400]
 
-    def test_the_two_arms_disagree_about_the_same_token(self, qtoken):
-        """The pair, read out of one log: one token, two locations, and the
-        location that refused it is the one that kept a copy."""
+    def test_the_two_arms_both_redact_the_same_token(self, qtoken):
+        """Transport policy changes the verdict, never the logging policy."""
         endpoint, issuer = qtoken
         token = _token(issuer, sub="botharms")
         _get(endpoint, ON, params={"authz": token})
         _get(endpoint, OFF, params={"authz": token})
         text = _access_log(endpoint)
-        on_line = [ln for ln in text.splitlines() if f"/{ON}/{SEED}" in ln]
-        off_line = [ln for ln in text.splitlines() if f"/{OFF}/{SEED}" in ln]
-        def _assert_test_the_two_arms_disagree_about_the_same_token_1():
-            assert on_line and off_line
-            assert not any(token in ln for ln in on_line), "on leaked the token"
-
-        _assert_test_the_two_arms_disagree_about_the_same_token_1()
-        _check_test_the_two_arms_disagree_about_the_same_token_1(token, off_line)
+        on_line = _request_lines(text, ON)
+        off_line = _request_lines(text, OFF)
+        assert on_line and off_line
+        _assert_token_redacted(token, on_line)
+        _assert_token_redacted(token, off_line)
 
     def test_a_token_the_server_refuses_is_still_redacted_when_it_was_read(
             self, qtoken):
@@ -422,23 +394,14 @@ class TestWhatEachArmLeavesInTheLog:
         recent = "\n".join(lines[-5:])
         assert garbage not in recent, recent[:400]
 
-    def test_the_error_log_carries_the_refused_token_as_well(self, qtoken):
-        """The true size of #67: two log sinks, not one.
-
-        nginx appends `, request: "<r->request_line>"` to every message logged
-        with a request context (ngx_http_log_error_handler), and that is the
-        SAME field brix_http_redact_query_token() scrubs — which is why the
-        redactor targets three fields and not just $args.  On the `off` arm
-        nothing ever scrubs it, so the unredacted request line reaches the error
-        log too."""
+    def test_the_error_log_redacts_the_refused_token_as_well(self, qtoken):
+        """The request-context suffix must follow the same redaction policy."""
         endpoint, issuer = qtoken
         token = _token(issuer, sub="errlogarm")
         _get(endpoint, OFF, params={"authz": token})
         errlog = (_logdir(endpoint) / "error.log").read_text(
             encoding="utf-8", errors="replace")
-        assert token in errlog, (
-            "defect candidate #67's error-log half appears fixed — invert this "
-            "test together with the access-log one and update the audit")
+        assert token not in errlog, "the refused URL token reached the error log"
 
 
 class TestRedactionRunsTooLateForEarlierLogLines:
@@ -458,7 +421,7 @@ class TestRedactionRunsTooLateForEarlierLogLines:
     token is PRESENT, at the earliest phase that can see it.
     """
 
-    def test_a_line_written_before_the_token_phase_keeps_the_raw_token(
+    def test_a_line_written_before_the_token_phase_is_already_redacted(
             self, qtoken):
         endpoint, issuer = qtoken
         token = _token(issuer, sub="earlyline")
@@ -467,14 +430,8 @@ class TestRedactionRunsTooLateForEarlierLogLines:
                                      "that redaction worked and was still too late"
         errlog = (_logdir(endpoint) / "error.log").read_text(
             encoding="utf-8", errors="replace")
-        carriers = [ln for ln in errlog.splitlines() if token in ln]
-        assert carriers, (
-            "defect candidate #68 appears fixed — no error-log line written "
-            "before the token phase carries the raw token any more")
-        assert any("cannot verify GSI" in ln for ln in carriers), (
-            "the token still reaches the error log, but through a different "
-            "line than auth_cert.c:481-484 — re-read #68:\n"
-            + "\n".join(ln[:200] for ln in carriers))
+        assert token not in errlog, "an early diagnostic leaked the query token"
+        assert "cannot verify GSI" in errlog, "the early diagnostic did not run"
 
     def test_the_access_log_is_still_clean_on_that_same_request(self, qtoken):
         """What separates #68 from #67.  The access log is written at request

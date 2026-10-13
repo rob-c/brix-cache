@@ -119,7 +119,9 @@ brix_voms_carrier_at(X509 *leaf, STACK_OF(X509) *chain, int index,
         return NULL;
     }
     {
-        ASN1_OCTET_STRING *data = X509_EXTENSION_get_data(X509_get_ext(cert, idx));
+        const ASN1_OCTET_STRING *data;
+
+        data = X509_EXTENSION_get_data(X509_get_ext(cert, idx));
 
         *der = ASN1_STRING_get0_data(data);
         *len = ASN1_STRING_length(data);

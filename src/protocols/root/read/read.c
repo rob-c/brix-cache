@@ -119,14 +119,29 @@ read_validate_req(brix_ctx_t *ctx, ngx_connection_t *c,
 
     /*
      * §1.1: a kXR_read's optional read_args ride the payload — pathid at byte 0
-     * when dlen >= 1 (the response-offload channel selector). Mirror pgread/§1.2:
+     * in the fixed eight-byte read_args, optionally followed by whole 16-byte
+     * readahead_list entries. Refuse every partial shape before interpreting it;
+     * otherwise a truncated payload could silently select a response path.
+     * Mirror pgread/§1.2:
      * a NONZERO pathid MUST name one of this session's live kXR_bind paths, else
      * kXR_ArgInvalid "invalid path ID", exactly as stock refuses an unbound path
      * ID (read previously ignored the read_args entirely — an inconsistency vs
      * pgread). Routing the response over that bound path (offloading) is a later
      * slice; the validated pathid is captured in io for it.
      */
-    if (ctx->recv.cur_dlen >= 1 && ctx->recv.payload != NULL) {
+    if (ctx->recv.cur_dlen != 0
+        && (ctx->recv.cur_dlen < BRIX_READ_ARGS_LEN
+            || (ctx->recv.cur_dlen - BRIX_READ_ARGS_LEN)
+                % BRIX_READV_SEGSIZE != 0))
+    {
+        BRIX_OP_ERR(ctx, BRIX_OP_READ);
+        *rc = brix_send_error(ctx, c, kXR_ArgInvalid,
+                              "malformed read arguments");
+        return 0;
+    }
+    if (ctx->recv.cur_dlen >= BRIX_READ_ARGS_LEN
+        && ctx->recv.payload != NULL)
+    {
         io->pathid = (unsigned) ((u_char *) ctx->recv.payload)[0];
         if (io->pathid != 0
             && !brix_session_pathid_bound(ctx->is_bound ? ctx->bound_sessid
@@ -144,6 +159,13 @@ read_validate_req(brix_ctx_t *ctx, ngx_connection_t *c,
         return 0;
     }
 
+    if (req.rlen < 0) {
+        BRIX_OP_ERR(ctx, BRIX_OP_READ);
+        *rc = brix_send_error(ctx, c, kXR_ArgInvalid,
+                              "negative read length");
+        return 0;
+    }
+
     if (io->rlen == 0) {
         BRIX_OP_OK(ctx, BRIX_OP_READ);
         *rc = brix_send_ok(ctx, c, NULL, 0);
@@ -158,9 +180,19 @@ read_validate_req(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (io->offset < 0) {
         brix_log_access(ctx, c, "READ", ctx->files[io->idx].path, "-",
-                          0, kXR_IOError, "negative read offset", 0);
+                          0, kXR_ArgInvalid, "negative read offset", 0);
         BRIX_OP_ERR(ctx, BRIX_OP_READ);
-        *rc = brix_send_error(ctx, c, kXR_IOError, "negative read offset");
+        *rc = brix_send_error(ctx, c, kXR_ArgInvalid,
+                              "negative read offset");
+        return 0;
+    }
+
+    if ((uint64_t) io->offset > (uint64_t) INT64_MAX - io->rlen) {
+        brix_log_access(ctx, c, "READ", ctx->files[io->idx].path, "-",
+                          0, kXR_ArgInvalid, "read range overflow", 0);
+        BRIX_OP_ERR(ctx, BRIX_OP_READ);
+        *rc = brix_send_error(ctx, c, kXR_ArgInvalid,
+                              "read range overflow");
         return 0;
     }
 

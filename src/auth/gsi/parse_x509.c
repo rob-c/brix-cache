@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "gsi_internal.h"
 #include "gsi_core.h"
 #include <string.h>
@@ -99,7 +100,7 @@ gsi_chain_from_plaintext(const u_char *plain, int plain_len, ngx_log_t *log)
 
     if (gsi_find_bucket(plain, (size_t) plain_len, (uint32_t) kXRS_x509,
                         &x509_data, &x509_len) != 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: GSI kXGC_cert: kXRS_x509 not found "
                       "in decrypted inner buffer");
         return NULL;
@@ -119,12 +120,12 @@ gsi_chain_from_plaintext(const u_char *plain, int plain_len, ngx_log_t *log)
     BIO_free(bio);
 
     if (sk_X509_num(chain) == 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: GSI kXGC_cert: kXRS_x509 contained no certs");
         sk_X509_pop_free(chain, X509_free);
         return NULL;
     }
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, log, 0,
                    "brix: GSI parsed %d cert(s) from kXRS_x509 after decrypt",
                    sk_X509_num(chain));
     return chain;

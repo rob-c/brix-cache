@@ -2,6 +2,7 @@
  * tpc_curl_setup.c - extracted concern
  * Phase-38 split of tpc_curl.c; behavior-identical.
  */
+#include "core/compat/log_event.h"
 #include "tpc_curl_internal.h"
 
 
@@ -56,7 +57,7 @@ tpc_curl_secure(CURL *curl, ngx_http_brix_webdav_loc_conf_t *conf,
         || brix_net_target_check_dns_pin(&tgt, &pol, pin_ip, sizeof(pin_ip),
                                            err, sizeof(err)) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_webdav: TPC egress check blocked \"%s\": %s",
                       url, err);
         return -1;
@@ -235,7 +236,7 @@ tpc_curl_head_size(ngx_log_t *log,
 
     curl = curl_easy_init();
     if (curl == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_webdav: curl_easy_init() failed for HEAD");
         return -1;
     }
@@ -260,7 +261,7 @@ tpc_curl_head_size(ngx_log_t *log,
         content_length = (cl >= 1.0) ? (off_t) cl : -1;
 #endif
     } else {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_webdav: HEAD for multi-stream size failed: %s",
                       curl_easy_strerror(res));
     }

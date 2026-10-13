@@ -5,7 +5,7 @@
  * cms/meter.h — native machine-load meter for the CMS heartbeat (Phase-89 W4).
  *
  * WHAT: Fills the first five kYR_load "theLoad" bytes (cpu, net, xeq, mem,
- * pag — each a 0-100 percentage) from /proc, replacing the zero placeholders,
+ * pag — each a 0-100 percentage) from the host PAL, replacing the zero placeholders,
  * analogous to XrdCmsMeter without the C++ ABI.  The sixth byte (dsk) stays
  * the caller's statvfs-derived utilisation.
  *
@@ -13,10 +13,10 @@
  * node as idle.  The parsers are pure (buffer in, number out, no I/O) so the
  * standalone meter_unittest.c can exercise them without a running nginx.
  *
- * HOW: brix_cms_meter_sample() reads /proc/loadavg, /proc/meminfo,
- * /proc/net/dev and /proc/vmstat, converts the instantaneous readings (cpu,
- * mem) directly and the counter readings (net, pag) as deltas against the
- * previous sample held in brix_cms_meter_t.  Any read/parse failure yields 0
+ * HOW: brix_cms_meter_sample() consumes brix_plat_sysload_sample(), converts
+ * the instantaneous readings (cpu, mem) directly and the counter readings
+ * (net, pag) as deltas against the previous sample held in brix_cms_meter_t.
+ * Any unavailable reading yields 0
  * for that byte — a meter fault must never take the heartbeat down.  The
  * state struct is valid all-zeroes, so a pcalloc'd owner needs no init call;
  * the first sample reports 0 for the delta-based bytes (unprimed).
@@ -59,6 +59,10 @@ int brix_cms_meter_parse_loadavg(const char *buf, long ncpu, uint8_t *pct);
 
 /* "/proc/meminfo": *pct = (MemTotal - MemAvailable) / MemTotal as 0-100. */
 int brix_cms_meter_parse_meminfo(const char *buf, uint8_t *pct);
+
+/* Portable total/available-byte conversion used by the host-PAL fallback. */
+int brix_cms_meter_memory_pct(uint64_t total, uint64_t available,
+    uint8_t *pct);
 
 /* "/proc/net/dev": *total_bytes = sum of rx+tx byte counters over every
  * interface except "lo" (loopback traffic is not network load). */

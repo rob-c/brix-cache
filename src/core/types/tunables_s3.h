@@ -63,7 +63,7 @@
  * Canonical request includes method, URI, query, headers, payload hash.
  * Typical size is 500-2000 bytes; 8 KB provides 4x headroom.
  */
-#define BRIX_S3_SIGV4_CANONICAL_MAX        8192
+#define BRIX_S3_SIGV4_CANONICAL_MAX        16384
 
 /*
  * S3 signature version 4 maximum string-to-sign size (bytes).
@@ -162,7 +162,7 @@
  * Used in auth_sigv4_verify_crypto.c for query string canonicalization.
  * Typical query strings are 256-512 bytes; 2 KB provides 4x headroom.
  */
-#define BRIX_S3_CANONICAL_QUERY_BUF_SIZE   2048
+#define BRIX_S3_CANONICAL_QUERY_BUF_SIZE   8192
 
 /*
  * S3 canonical headers buffer size (bytes).
@@ -183,14 +183,14 @@
  * Used in auth_sigv4_canonical.c for header value extraction.
  * HTTP header values are typically 64-256 bytes; 1 KB provides 4x headroom.
  */
-#define BRIX_S3_HEADER_VALUE_BUF_SIZE      1024
+#define BRIX_S3_HEADER_VALUE_BUF_SIZE      2048
 
 /*
  * Scratch capacity for one percent-encoded SigV4 query name or value.
  * Preserves the canonicalizer's 1024-byte buffer; credential scopes exceed
  * the separate timestamp buffer even with ordinary short access keys.
  */
-#define BRIX_S3_QUERY_ENCODE_BUF_SIZE      1024
+#define BRIX_S3_QUERY_ENCODE_BUF_SIZE      6144
 
 /*
  * S3 ISO 8601 timestamp buffer size (bytes).

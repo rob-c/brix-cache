@@ -215,6 +215,7 @@ static void test_oversized_url_skipped(void)     /* security-neg */
     char doc[8192];
     char long_url[4000];
     size_t off = 0;
+    int rc;
 
     memset(long_url, 'a', sizeof(long_url) - 1);
     long_url[sizeof(long_url) - 1] = '\0';
@@ -225,7 +226,8 @@ static void test_oversized_url_skipped(void)     /* security-neg */
                              "</file></metalink>", long_url);
 
     brix_status_clear(&st);
-    assert_one_ok_mirror(&ml, brix_metalink_parse(doc, off, &ml, &st));
+    rc = brix_metalink_parse(doc, off, &ml, &st);
+    assert_one_ok_mirror(&ml, rc);
 }
 
 
@@ -329,10 +331,11 @@ static void test_entity_non_ascii_and_nul_refused(void)  /* security-neg */
             "<url priority=\"1\">&#102;ile:///etc/passwd</url>"
             "<url priority=\"2\">&#114;oot://ok.example:1094//f</url>"
             "</file></metalink>";
+        int rc;
 
         brix_status_clear(&st);
-        assert_one_ok_mirror(&ml,
-                             brix_metalink_parse(doc, sizeof(doc) - 1, &ml, &st));
+        rc = brix_metalink_parse(doc, sizeof(doc) - 1, &ml, &st);
+        assert_one_ok_mirror(&ml, rc);
     }
 }
 

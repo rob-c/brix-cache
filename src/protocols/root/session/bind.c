@@ -2,6 +2,7 @@
  * bind.c — kXR_bind opcode: attach a secondary data channel to a session.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "registry.h"
 #include "offload_registry.h"   /* §1.1 per-worker (sessid,pathid)->conn map */
@@ -27,8 +28,6 @@
  * authority that decides which handles exist; secondaries are data channels.
  */
 
-static ngx_uint_t  brix_next_pathid = 0;
-
 /* §1.4: the attach core shared by the local path and the migration target.
  * Runs everything AFTER the sessid is known: registry lookup, identity
  * inheritance, pathid assignment, offload registration and the kXR_ok reply
@@ -38,10 +37,12 @@ ngx_int_t
 brix_bind_attach(brix_ctx_t *ctx, ngx_connection_t *c,
     const u_char sessid[BRIX_SESSION_ID_LEN])
 {
+    unsigned           claimed_pathid;
     u_char             pathid;
     u_char            *buf;
     size_t             total;
     ngx_uint_t         token_auth = 0;
+    ngx_uint_t         request_signing = 0;
 
     /*
      * The primary connection inserts its session registry entry at the point
@@ -51,7 +52,7 @@ brix_bind_attach(brix_ctx_t *ctx, ngx_connection_t *c,
     if (!brix_session_lookup(sessid,
                                ctx->login.dn, sizeof(ctx->login.dn),
                                ctx->login.vo_list, sizeof(ctx->login.vo_list),
-                               &token_auth))
+                               &token_auth, &request_signing))
     {
         brix_log_access(ctx, c, "BIND", "-", "-",
                           0, kXR_NotAuthorized,
@@ -60,6 +61,7 @@ brix_bind_attach(brix_ctx_t *ctx, ngx_connection_t *c,
                                  "bind sessid not recognised");
     }
     ctx->token.auth = (int) token_auth;
+    ctx->sigver.inherited_required = request_signing ? 1 : 0;
     if (ctx->identity != NULL) {
         if (token_auth) {
             if (brix_identity_set_subject(ctx->identity, c->pool, ctx->login.dn,
@@ -81,11 +83,24 @@ brix_bind_attach(brix_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    /* Assign a path ID.  Pathid 0 is reserved for the primary; we cycle 1–253. */
-    if (++brix_next_pathid > 253) {
-        brix_next_pathid = 1;
+    /* Claim and publish an unused path ID under the registry mutex. This is
+     * also the enforcement point for the advertised per-session bind limit. */
+    if (brix_session_pathid_claim(sessid, BRIX_BIND_MAX,
+                                  &claimed_pathid) != 1)
+    {
+        brix_log_access(ctx, c, "BIND", "-", "-", 0, kXR_ArgTooLong,
+                          "session data-substream limit reached", 0);
+        return brix_send_error(ctx, c, kXR_ArgTooLong,
+                                 "maximum bound data streams reached");
     }
-    pathid = (u_char) brix_next_pathid;
+    pathid = (u_char) claimed_pathid;
+
+    total = XRD_RESPONSE_HDR_LEN + 1;
+    buf = ngx_palloc(c->pool, total);
+    if (buf == NULL) {
+        brix_session_pathid_unbind(sessid, claimed_pathid);
+        return NGX_ERROR;
+    }
 
     /* Bind the session: record the primary's sessid and inherit auth state. */
     ngx_memcpy(ctx->bound_sessid, sessid, BRIX_SESSION_ID_LEN);
@@ -98,22 +113,17 @@ brix_bind_attach(brix_ctx_t *ctx, ngx_connection_t *c,
      * can validate pathid-tagged requests against the session's live binds
      * (stock refuses an unbound pathid with kXR_ArgInvalid). Cleared again in
      * the disconnect path when this secondary goes away. */
-    brix_session_pathid_bind(sessid, (unsigned) pathid);
-
     /* §1.1 response offloading: record this secondary's per-worker connection so
      * a later read/readv handler can route a pathid-tagged response out its
      * socket. Best-effort — a full table just means this channel keeps using the
      * control stream (never an error). Cleared in the disconnect path. */
     (void) brix_offload_register(ctx->bound_sessid, (unsigned) pathid, c);
 
-    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXR_bind: pathid=%d sessid=%02xd%02xd...",
                    (int) pathid,
                    (unsigned) sessid[0],
                    (unsigned) sessid[1]);
-
-    total = XRD_RESPONSE_HDR_LEN + 1;
-    BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
     brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, 1,
                           (ServerResponseHdr *) buf);

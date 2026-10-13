@@ -191,19 +191,21 @@ gen_tpc_key(char *out, size_t outsz)
  *       lets the orchestrator return tpc_teardown(...) directly at each decision
  *       site instead of jumping to a shared label.
  * HOW:  Each `*open` / `*_up` flag gates the matching close so a partially set-up
- *       rendezvous frees only what it acquired. The destination handle reports its
- *       close error into `st` only on success (so a failed sync's status survives);
- *       the source handle always closes silently. The opaque strings are freed
- *       unconditionally (they are allocated before any session is opened).
+ *       rendezvous frees only what it acquired. A successful destination closes
+ *       normally; a failed POSC transfer deliberately leaves its handle open until
+ *       the connection closes, which is the protocol abort that discards staging.
+ *       Sending kXR_close after failure would falsely commit an empty/partial POSC
+ *       object. The source handle always closes silently. Opaque strings are freed.
  */
 int
 tpc_teardown(brix_conn *sc, brix_conn *dc, brix_file *sf, brix_file *df,
              char *src_opaque, char *dst_opaque,
              int su_up, int du_up, int sopen, int dopen, int rc, brix_status *st)
 {
-    if (dopen) {
-        brix_status tw; brix_status_clear(&tw);
-        brix_file_close(dc, df, rc == 0 ? st : &tw);
+    if (dopen && rc == 0) {
+        if (brix_file_close(dc, df, st) != 0) {
+            rc = -1;
+        }
     }
     if (sopen) {
         brix_status tw; brix_status_clear(&tw);

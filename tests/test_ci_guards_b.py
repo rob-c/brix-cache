@@ -207,6 +207,8 @@ def test_guard_set_errors_when_the_fleet_is_missing(tmp_path) -> None:
     (tmp_path / ".github/workflows").mkdir(parents=True)
     (tmp_path / ".github/workflows/guards.yml").write_text("jobs: {}\n")
     shutil.copy(CI / "guard_set.py", ci / "guard_set.py")
+    shutil.copy(CI.parent / "logging_support.py",
+                tmp_path / "tools/logging_support.py")
 
     p = subprocess.run(
         [sys.executable, str(ci / "guard_set.py")], capture_output=True, text=True

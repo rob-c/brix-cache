@@ -18,6 +18,7 @@
  *   flow returns NGX_DECLINED and is simply not marked.
  */
 
+#include "core/compat/log_event.h"
 #include "pmark.h"
 #include "core/compat/cstr.h"
 #include "net/dns/dns.h"       /* async collector resolution (phase-116) */
@@ -163,7 +164,7 @@ pmark_dest_resolved(brix_dns_req_t *req)
     brix_pmark_dest_t  *dst;
 
     if (req->rc != NGX_OK || req->naddrs == 0) {
-        ngx_log_error(NGX_LOG_WARN, req->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, req->log, 0,
             "pmark: cannot resolve firefly dest \"%V\": %s", &d->spec,
             req->error ? req->error : "unknown");
         return;
@@ -194,7 +195,7 @@ pmark_resolve_dest(ngx_str_t *spec, brix_pmark_conf_t *pm, ngx_pool_t *pool,
         return NGX_ERROR;
     }
     if (pmark_split_dest(spec, d->host, sizeof(d->host), &port) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "pmark: malformed firefly dest \"%V\"", spec);
         return NGX_OK;
     }
@@ -209,7 +210,7 @@ pmark_resolve_dest(ngx_str_t *spec, brix_pmark_conf_t *pm, ngx_pool_t *pool,
     d->req.handler = pmark_dest_resolved;
     d->req.data = d;
     if (brix_dns_resolve(&d->req) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "pmark: cannot start resolving firefly dest \"%V\": %s", spec,
             d->req.error ? d->req.error : "unknown");
     }
@@ -233,7 +234,7 @@ pmark_load_defs(brix_pmark_conf_t *pm, ngx_pool_t *pool, ngx_log_t *log)
         return NULL;
     }
     if (brix_pmark_defsfile_load(path, pool, &defs, log) == NGX_ERROR) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "pmark: defsfile load failed; named mappings disabled");
     }
     return defs;
@@ -262,7 +263,7 @@ pmark_resolve_exp_rules(brix_pmark_conf_t *pm, ngx_array_t *defs,
         ngx_uint_t id = brix_pmark_defs_exp_id(defs, &src[i].exp_name);
         brix_pmark_exp_rule_r_t *r;
         if (id == 0) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                 "pmark: experiment \"%V\" not in defsfile; rule ignored",
                 &src[i].exp_name);
             continue;
@@ -302,7 +303,7 @@ pmark_resolve_act_rules(brix_pmark_conf_t *pm, ngx_array_t *defs,
         ngx_uint_t aid = brix_pmark_defs_act_id(defs, eid, &src[i].act_name);
         brix_pmark_act_rule_r_t *r;
         if (eid == 0 || aid == 0) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                 "pmark: activity \"%V/%V\" not in defsfile; rule ignored",
                 &src[i].exp_name, &src[i].act_name);
             continue;

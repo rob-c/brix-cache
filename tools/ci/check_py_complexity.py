@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # WHAT: Fail CI when any Python function under tests/ (incl. tests/cmdscripts/),
 #       utils/, or tools/ exceeds the cyclomatic complexity cap (CCN 15 — the same
@@ -34,7 +39,7 @@ try:
 except ModuleNotFoundError as exc:            # pragma: no cover - CI-only path
     if exc.name != "readability":
         raise
-    print(f"check_py_complexity: FAIL — its lizard engine {_TOOLS / 'readability.py'} "
+    _brix_diagnostic('ERROR', 'tools/ci/check_py_complexity.py', 'main', f"check_py_complexity: FAIL — its lizard engine {_TOOLS / 'readability.py'} "
           "is missing. This guard cannot measure anything without it. On CI that "
           "means the file exists in a working tree but was never committed: run "
           "`git status --porcelain tools/readability.py` and add it.",

@@ -22,7 +22,7 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 from stock_xrootd_owner import StockXrootdOwner
 
@@ -64,12 +64,16 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
-STOCK_XRDFS = "/usr/bin/xrdfs"
+STOCK_XRDFS = shutil.which("xrdfs")
+if (STOCK_XRDFS is not None
+        and os.path.realpath(STOCK_XRDFS) == os.path.realpath(NATIVE_XRDFS)):
+    STOCK_XRDFS = None
 PORT = 21094
 
 
 def _have(*tools):
-    return all(shutil.which(t) or os.path.exists(t) for t in tools)
+    return all(t is not None and (shutil.which(t) or os.path.exists(t))
+               for t in tools)
 
 
 def _run(cmd, **kw):
@@ -130,9 +134,11 @@ def _root_server_args(base, certs, server, admin):
 
 def _listener_ready():
     for _ in range(50):
-        result = _run(["bash", "-c", f"ss -tln | grep -q ':{PORT}'"])
-        if result.returncode == 0:
-            return True
+        try:
+            with socket.create_connection((HOST, PORT), timeout=0.2):
+                return True
+        except OSError:
+            pass
         time.sleep(0.1)
     return False
 

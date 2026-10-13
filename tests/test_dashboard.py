@@ -77,6 +77,16 @@ def _get(path, cookie=None):
     return int(status), body
 
 
+def _foundation_endpoint(path, field, cookie):
+    """Fetch and validate one schema-tagged list endpoint."""
+    status, body = _get(path, cookie)
+    assert status == 200
+    data = json.loads(body.decode())
+    assert data["schema"] == "xrootd-dashboard.v1"
+    assert isinstance(data[field], list)
+    return data[field]
+
+
 class TestDashboardApiFoundation:
     def test_v1_snapshot_anonymous_is_pii_free(self):
         """With `brix_dashboard_anonymous on` (the test fleet config) the read
@@ -89,6 +99,9 @@ class TestDashboardApiFoundation:
         assert status == 200, "anonymous read API must be reachable (anonymous tier on)"
         data = json.loads(body.decode())
         assert data["schema"] == "xrootd-dashboard.v1"
+        assert isinstance(data["history"]["buckets"], list)
+        assert all(bucket["time_ms"] >= 0
+                   for bucket in data["history"]["buckets"])
         # Anonymous snapshot must not leak host fingerprints / PII at the top level.
         assert "worker_pid" not in data
         for t in data.get("active_transfers", []):
@@ -143,7 +156,7 @@ class TestDashboardApiFoundation:
         assert status == 200
         data = json.loads(body.decode())
         assert data["schema"] == "xrootd-dashboard.v1"
-        for key in (
+        required = (
             "limits",
             "active_transfers",
             "tpc_transfers",
@@ -153,32 +166,26 @@ class TestDashboardApiFoundation:
             "events",
             "history",
             "totals",
-        ):
-            assert key in data
+        )
+        assert all(key in data for key in required)
 
         assert set(data["protocols"]) == {
             "root", "webdav", "s3", "cvmfs", "tpc", "gridftp", "oci", "rpm",
         }
-        for summary in data["protocols"].values():
-            assert "active" in summary
-            assert "ingress_bps" in summary
-            assert "egress_bps" in summary
+        assert all(
+            {"active", "ingress_bps", "egress_bps"} <= summary.keys()
+            for summary in data["protocols"].values()
+        )
+        assert all(0 <= bucket["time_ms"] <= data["server_ms"]
+                   for bucket in data["history"]["buckets"])
 
     def test_v1_empty_foundation_endpoints(self):
         cookie = _dashboard_cookie()
-        expected = {
-            "/brix/api/v1/events": "events",
-            "/brix/api/v1/history": "buckets",
-            "/brix/api/v1/cluster": "servers",
-        }
-
-        for path, field in expected.items():
-            status, body = _get(path, cookie)
-            assert status == 200
-            data = json.loads(body.decode())
-            assert data["schema"] == "xrootd-dashboard.v1"
-            assert isinstance(data[field], list)
-            # We don't assert empty anymore because the login itself generates events
+        _foundation_endpoint("/brix/api/v1/events", "events", cookie)
+        buckets = _foundation_endpoint(
+            "/brix/api/v1/history", "buckets", cookie)
+        _foundation_endpoint("/brix/api/v1/cluster", "servers", cookie)
+        assert all(bucket["time_ms"] >= 0 for bucket in buckets)
 
         status, body = _get("/brix/api/v1/cache", cookie)
         assert status == 200

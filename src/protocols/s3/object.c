@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "s3.h"
 #include "usermeta.h"
 #include "fs/cache/open.h"
@@ -86,15 +87,14 @@ s3_get_serve_zip_member(ngx_http_request_t *r, const char *fs_path,
         return NGX_DECLINED;
     }
 
-    zr = brix_zip_http_member_arg(r, member, sizeof(member));
+    if (!s3_get_query_param(r, "xrdcl.unzip", member, sizeof(member))) {
+        return NGX_DECLINED;
+    }
+    zr = brix_zip_http_member_validate(member);
     if (zr < 0) {
         return s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidArgument",
                                  "invalid xrdcl.unzip member");
     }
-    if (zr == 0) {
-        return NGX_DECLINED;
-    }
-
     {
         ngx_int_t zs = brix_zip_http_serve(r, vfs_scope,
                                           cf->common.zip_cd_max_bytes,
@@ -430,7 +430,7 @@ s3_get_serve_multirange(ngx_http_request_t *r, brix_vfs_file_t *fh,
 
     send_fd = dup(brix_vfs_file_sendfile_fd(fh));
     if (send_fd == NGX_INVALID_FILE) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, ngx_errno,
                       "s3 multi-range: dup(sendfile fd) failed for \"%s\"",
                       fs_path);
         brix_vfs_close(fh, r->connection->log);

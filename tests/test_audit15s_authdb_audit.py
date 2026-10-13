@@ -102,6 +102,7 @@ import requests
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, NGINX_BIN
 from _test_phase25_ratelimit_helpers import _http_values, _parse_fail
+from log_records import semantic_log_text
 
 pytestmark = [pytest.mark.timeout(240),
               pytest.mark.uses_lifecycle_harness,
@@ -187,7 +188,8 @@ def _errlog(ep):
 
 def _audit(ep):
     """Every audit line the instance has written so far, parsed."""
-    return [m.groupdict() for m in _LINE.finditer(_errlog(ep))]
+    return [m.groupdict() for m in
+            _LINE.finditer(semantic_log_text(_errlog(ep)))]
 
 
 def _for(lines, path):
@@ -415,10 +417,11 @@ class TestTheLineCannotBeInjected:
 
     def test_a_quote_in_the_path_is_escaped(self, auditmodes):
         """A `"` would otherwise close the quoted path field early.  It is
-        emitted as `\\"`, so the field still spans the whole path."""
+        first emitted as `\\"`; the structured envelope then encodes both
+        bytes, so the field still spans the whole path."""
         _get(auditmodes, "all", "refused/a%22b")
         log = _errlog(auditmodes)
-        assert 'deny read "/all/refused/a\\"b"' in log, (
+        assert r'deny read \x22/all/refused/a\x5c\x22b\x22' in log, (
             f"quote not escaped:\n{log[-2000:]}")
 
     def test_a_control_byte_never_reaches_the_log(self, auditmodes):
@@ -427,7 +430,7 @@ class TestTheLineCannotBeInjected:
         0x20 is replaced by `?` (audit.c:34-35)."""
         _get(auditmodes, "all", "refused/a%0Ab")
         log = _errlog(auditmodes)
-        assert 'deny read "/all/refused/a?b"' in log, (
+        assert r'deny read \x22/all/refused/a?b\x22' in log, (
             f"control byte survived:\n{log[-2000:]}")
         assert "\nxrootd authz" not in log.replace("\nxrootd authz: @", ""), (
             "an audit line was split")
@@ -437,7 +440,7 @@ class TestTheLineCannotBeInjected:
         sequence becomes two `?`, so the escaped length is a function of the
         wire path and never of its decoding."""
         _get(auditmodes, "all", "refused/a%C3%A9b")
-        assert 'deny read "/all/refused/a??b"' in _errlog(auditmodes)
+        assert r'deny read \x22/all/refused/a??b\x22' in _errlog(auditmodes)
 
     def test_the_forged_path_is_still_refused(self, auditmodes):
         """The sanitiser is about the log, not the verdict: all three paths

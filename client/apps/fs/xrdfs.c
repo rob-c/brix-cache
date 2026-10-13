@@ -2,6 +2,7 @@
  * xrdfs.c - (kept) routing + shared helpers
  * Phase-38 split of xrdfs.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdfs_internal.h"
 #include "core/version.h"
 #include "core/progname.h"  /* brix_prog_base(): argv[0]-derived identity + footer */
@@ -110,7 +111,7 @@ dispatch_unknown(const char *name)
     }
     names[ncmds] = NULL;
 
-    fprintf(stderr, "xrdfs: unknown command '%s'\n", name);
+    BRIX_CLIENT_LOG("ERROR",  "xrdfs: unknown command '%s'\n", name);
     suggestion = brix_suggest(name, names);
     if (suggestion != NULL) {
         brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
@@ -433,11 +434,11 @@ run_web_endpoint(const char *endpoint, const brix_opts *opts,
     web_ctx     w;
 
     if (brix_weburl_parse(endpoint, &wu) != 0) {
-        fprintf(stderr, "xrdfs: bad web URL: %s\n", endpoint);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: bad web URL: %s\n", endpoint);
         return 50;
     }
     if (wu.is_s3) {
-        fprintf(stderr, "xrdfs: s3:// endpoints are not supported "
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: s3:// endpoints are not supported "
                         "(use http/https/dav/davs)\n");
         return 50;
     }
@@ -452,7 +453,7 @@ run_web_endpoint(const char *endpoint, const brix_opts *opts,
     w.verify = opts->verify_host;
     w.ca_dir = brix_resolve_ca_dir(NULL);
     if (nargs <= 0) {
-        fprintf(stderr, "xrdfs: an http(s)/WebDAV endpoint needs a command "
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: an http(s)/WebDAV endpoint needs a command "
                         "(e.g. ls); the interactive shell is root:// only\n");
         return 50;
     }
@@ -480,11 +481,11 @@ run_root_endpoint(const char *endpoint, brix_opts *opts, int nargs, char **args,
 
     brix_status_clear(&st);
     if (endpoint_to_url(endpoint, &u, &st) != 0) {
-        fprintf(stderr, "xrdfs: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: %s\n", st.msg);
         return 50;
     }
     if (brix_connect_resilient(&c, &u, opts, &st) != 0) {
-        fprintf(stderr, "xrdfs: connect %s:%d: %s\n", u.host, u.port, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: connect %s:%d: %s\n", u.host, u.port, st.msg);
         return brix_shellcode(&st);
     }
 

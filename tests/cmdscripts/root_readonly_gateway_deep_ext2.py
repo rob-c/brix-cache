@@ -493,6 +493,7 @@ def _try_manager_conf(
     conf = work / f"{name}.conf"
     conf.write_text(
         "daemon off;\n"
+        f"pid {work / (name + '.pid')};\n"
         f"error_log {work / 'logs' / (name + '.log')} info;\n"
         "events { worker_connections 64; }\n"
         "stream {\n"

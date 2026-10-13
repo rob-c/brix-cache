@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/http/sesslog_conn.h"
 
 #define BRIX_HTTP_SESS_CONN_SLOTS 4096
@@ -68,7 +69,7 @@ brix_http_sess_alloc(ngx_log_t *log)
     idx = brix_http_sess_free_head;
     if (idx < 0) {
         if (!brix_http_sess_full_warned && log != NULL) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "sesslog: HTTP connection registry full (%d); "
                           "further HTTP sessions unlogged",
                           BRIX_HTTP_SESS_CONN_SLOTS);

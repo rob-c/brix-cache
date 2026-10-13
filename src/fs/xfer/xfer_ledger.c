@@ -25,6 +25,7 @@
  *       it never fails a transfer. Early-return, no goto.
  */
 
+#include "core/compat/log_event.h"
 #include "xfer.h"
 
 #include "fs/path/path.h"   /* brix_sanitize_log_string — shared, never reimpl */
@@ -148,7 +149,7 @@ xfer_audit_fd_get(ngx_log_t *log)
         xfer_audit_fd = xfer_audit_try_open(path);
         if (xfer_audit_fd < 0) {
             xfer_audit_failed = 1;
-            ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+            BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                           "xfer: cannot open audit log \"%s\" "
                           "($BRIX_XFER_AUDIT_LOG) — transfer auditing "
                           "disabled this worker", path);
@@ -165,7 +166,7 @@ xfer_audit_fd_get(ngx_log_t *log)
     if (xfer_audit_errorlog_sibling(alt, sizeof(alt))) {
         xfer_audit_fd = xfer_audit_try_open(alt);
         if (xfer_audit_fd >= 0) {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                           "xfer: audit log at \"%s\" (default \"%s\" "
                           "unavailable)", alt, path);
             return xfer_audit_fd;
@@ -173,7 +174,7 @@ xfer_audit_fd_get(ngx_log_t *log)
     }
 
     xfer_audit_failed = 1;
-    ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+    BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                   "xfer: cannot open audit log \"%s\" — transfer auditing "
                   "disabled this worker (set $BRIX_XFER_AUDIT_LOG to choose "
                   "a writable path)", path);

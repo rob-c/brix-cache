@@ -137,9 +137,8 @@ def test_dnf_installs_from_a_generated_repo(repo, tmp_path):
         capture_output=True, text=True)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     # all three arrive, and the epoch survives the round trip
-    for want in ("brixtest-app-0.9-4", "brixtest-lib-2:2.0-1",
-                 "brixtest-tools-1.2-3"):
-        assert want in proc.stdout, proc.stdout
+    installed = make_fixtures.installed_nevras(root)
+    assert make_fixtures.expected_nevras() <= installed, installed
 
 
 def test_inspect_agrees_with_rpm_qp(fixtures):
@@ -160,7 +159,7 @@ def test_inspect_agrees_with_rpm_qp(fixtures):
 
     _assert_test_inspect_agrees_with_rpm_qp_1()
     def _assert_test_inspect_agrees_with_rpm_qp_2():
-        assert got["arch"] == "x86_64"
+        assert got["arch"] == make_fixtures.NATIVE_RPM_ARCH
         assert got["nevra"] == qp("%{NAME}-%{EPOCH}:%{VERSION}-%{RELEASE}.%{ARCH}")
 
     _assert_test_inspect_agrees_with_rpm_qp_2()

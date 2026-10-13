@@ -35,6 +35,7 @@
  *      server exactly as s3 does — the cache fill/offload helpers need it.
  */
 
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "cvmfs_module_internal.h"         /* cross-file seam: georank/merge/build */
 #include "core/config/config.h"           /* brix_metrics_ensure_zone */
@@ -285,7 +286,7 @@ ngx_http_brix_cvmfs_postconfiguration(ngx_conf_t *cf)
 
         lcf->common.thread_pool = ngx_thread_pool_get(cf->cycle, pool_name);
         if (lcf->common.thread_pool == NULL) {
-            ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
                 "brix_cvmfs: thread pool \"%V\" not found - "
                 "async cache fills disabled (add a thread_pool directive)",
                 pool_name);

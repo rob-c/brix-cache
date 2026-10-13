@@ -68,6 +68,7 @@ kXR_ArgInvalid    = 3000
 kXR_FileLocked    = 3003
 kXR_FileNotOpen   = 3004
 kXR_IOError       = 3007
+kXR_NoMemory      = 3008
 kXR_NotAuthorized = 3010
 kXR_NotFound      = 3011
 kXR_ServerError   = 3012

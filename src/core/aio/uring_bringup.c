@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "aio.h"
 #include "uring.h"
@@ -141,7 +142,7 @@ uring_setup_rings(brix_uring_t *u, ngx_uint_t want_restrict)
         if (brix_uring_apply_restrictions(&u->ring) == NGX_OK) {
             u->restrict_ops = 1;
         } else {
-            ngx_log_error(NGX_LOG_NOTICE, u->log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, u->log, 0,
                 "brix: io_uring_register_restrictions unavailable "
                 "(kernel < 5.10?); ring runs unrestricted — containment still "
                 "holds via the unprivileged worker + confined fd");

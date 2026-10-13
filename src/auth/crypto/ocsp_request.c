@@ -23,6 +23,7 @@
  * status is never overridden.  Shared structs/decls live in ocsp_internal.h.
  */
 
+#include "core/compat/log_event.h"
 #include "ocsp_internal.h"
 #include "net/dns/dns.h"                  /* brix_dns_resolve_sync (phase-116) */
 
@@ -107,7 +108,7 @@ ocsp_connect_responder(ngx_log_t *log, const ocsp_url_t *u,
                               SOCK_STREAM, addrs, BRIX_DNS_MAX_ADDRS, reason,
                               sizeof(reason));
     if (n == 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: cannot resolve responder host \"%s\": %s",
                       u->host, reason);
         return -1;
@@ -180,7 +181,7 @@ do_ocsp_request(ngx_log_t *log, const brix_dns_policy_t *dns, const char *url,
     *req_out = NULL;
 
     if (parse_ocsp_url(url, &u) != 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: cannot parse URL \"%s\"", url);
         return NULL;
     }
@@ -221,7 +222,7 @@ do_ocsp_request(ngx_log_t *log, const brix_dns_policy_t *dns, const char *url,
     if (rctx == NULL) {
         ocsp_conn_free(&conn);
         OCSP_REQUEST_free(req);
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: cannot build request context for \"%s\"", url);
         return NULL;
     }
@@ -237,7 +238,7 @@ do_ocsp_request(ngx_log_t *log, const brix_dns_policy_t *dns, const char *url,
     if (rc <= 0 || resp == NULL) {
         /* rc == 0 also fires when the reply exceeded OCSP_MAX_RESPONSE_BYTES:
          * OpenSSL aborts the read at the cap and returns failure. */
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: no valid response from \"%s\" (capped at %d bytes)",
                       url, OCSP_MAX_RESPONSE_BYTES);
         if (resp != NULL) {
@@ -300,7 +301,7 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
     int             rc = -1;
 
     if (OCSP_response_status(resp) != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: OCSP response status = %d (not successful)",
                       OCSP_response_status(resp));
         return -1;
@@ -313,7 +314,7 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
 
     /* Verify the response signature against the trust store */
     if (store != NULL && OCSP_basic_verify(bresp, NULL, store, 0) <= 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: OCSP response signature verification failed");
         OCSP_BASICRESP_free(bresp);
         return -1;
@@ -329,16 +330,16 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
              * (A-6 item 2); otherwise warn only — most CA responders serve
              * pre-signed, nonce-less responses, so hard-fail is opt-in. */
             if (require_nonce) {
-                ngx_log_error(NGX_LOG_WARN, log, 0,
+                BRIX_LOG(NGX_LOG_WARN, log, 0,
                               "brix_ocsp: nonce missing in OCSP response and "
                               "brix_ocsp_require_nonce is on — denying (replay guard)");
                 OCSP_BASICRESP_free(bresp);
                 return -1;
             }
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_ocsp: nonce missing in OCSP response");
         } else if (nonce_rc == 0) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_ocsp: OCSP response nonce mismatch");
             OCSP_BASICRESP_free(bresp);
             return -1;
@@ -348,7 +349,7 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
     if (!OCSP_resp_find_status(bresp, id, &status, &reason,
                                &rev, &thisupd, &nextupd))
     {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: certificate not found in OCSP response");
         OCSP_BASICRESP_free(bresp);
         return -1;
@@ -367,7 +368,7 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
                              BRIX_OCSP_VALIDITY_MAX_AGE_SEC)
         && status != V_OCSP_CERTSTATUS_REVOKED)
     {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: response outside its validity window "
                       "(stale or not yet valid) — treating as UNKNOWN");
         OCSP_BASICRESP_free(bresp);
@@ -379,13 +380,13 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
         rc = 0;
         break;
     case V_OCSP_CERTSTATUS_REVOKED:
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: certificate is REVOKED (reason=%d)", reason);
         rc = -1;
         break;
     case V_OCSP_CERTSTATUS_UNKNOWN:
     default:
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: certificate status is UNKNOWN");
         rc = 1;  /* caller decides based on soft_fail */
         break;

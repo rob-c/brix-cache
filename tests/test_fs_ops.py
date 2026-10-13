@@ -277,11 +277,9 @@ class TestMv:
 # ---------------------------------------------------------------------------
 
 def _worker_own(path: str) -> str:
-    """Hand a root-created test file to the server's `nobody` worker so its
-    chmod(2) is owner-legal (chmod needs ownership, not a mode bit).  Best-effort;
-    a no-op unprivileged where the invoking user already owns everything."""
-    from official_interop_lib import chown_stock  # noqa: PLC0415
-    chown_stock(path)
+    """Hand a root-created file to the active nginx service account."""
+    from official_interop_lib import chown_brix  # noqa: PLC0415
+    chown_brix(path)
     return path
 
 

@@ -12,6 +12,7 @@
  * sd_stage decorators and enforces tape-requires-cache (P4/G8). The result is
  * memoised per worker; the VFS resolves to it blind (P3, G4/G5).
  */
+#include "core/compat/log_event.h"
 #include "tier.h"
 
 #include "core/types/tunables.h"  /* BRIX_VFS_BUSY_TIMEOUT_DEFAULT_MS */
@@ -79,7 +80,7 @@ static brix_sd_instance_t *tier_needs_dev(ngx_log_t *log, const char *driver,
 static brix_sd_instance_t *
 tier_needs_dev(ngx_log_t *log, const char *driver, const char *sp)
 {
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
         "xrootd tier: the \"%s\" driver is not yet implemented as a storage tier "
         "(needs development - phase-64 %s); this export is inactive until then",
         driver, sp);
@@ -173,7 +174,7 @@ brix_tier_pblock_hand_to_worker(const char *root, ngx_log_t *log)
                                     (ngx_gid_t) NGX_CONF_UNSET_UINT,
                                     &uid, &gid) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "xrootd tier: cannot resolve the worker identity to own the "
             "pblock store \"%s\" — de-escalated workers may not be able to "
             "write it", root);
@@ -182,7 +183,7 @@ brix_tier_pblock_hand_to_worker(const char *root, ngx_log_t *log)
     for (i = 0; i < sizeof(tails) / sizeof(tails[0]); i++) {
         (void) snprintf(path, sizeof(path), "%s%s", root, tails[i]);
         if (chown(path, uid, gid) != 0 && errno != ENOENT) {
-            ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+            BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                 "xrootd tier: chown(\"%s\") to the worker identity failed — "
                 "de-escalated workers may not be able to write the pblock "
                 "store", path);
@@ -444,7 +445,7 @@ brix_tier_build(const brix_tier_cfg_t *t, ngx_log_t *log)
         return tier_build_tape(t, log);
     }
 
-    ngx_log_error(NGX_LOG_ERR, log, 0,
+    BRIX_LOG(NGX_LOG_ERR, log, 0,
         "xrootd tier: unknown driver \"%s\"", t->driver);
     return NULL;   /* operator error - parse_store should have rejected it */
 }
@@ -472,7 +473,7 @@ tier_compose_stage(brix_tier_stack_t *s, brix_sd_instance_t *top,
     store->domain = BRIX_VFS_DOMAIN_STAGE;   /* service storage (C9) */
     top = brix_sd_stage_create(top, store, &s->stage, NULL, log);
     if (top == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
             "xrootd tier: stage decorator init failed");
         return NULL;
     }
@@ -505,7 +506,7 @@ tier_compose_cache(brix_tier_stack_t *s, brix_sd_instance_t *top,
                ? s->cache_store.path : NULL;
     top = brix_sd_cache_create(top, store, &s->cache, local_root, log);
     if (top == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
             "xrootd tier: cache decorator init failed");
         return NULL;
     }
@@ -533,7 +534,7 @@ brix_tier_build_stack(brix_tier_stack_t *s, ngx_log_t *log)
      * the recall target. The operator-facing [emerg] is raised at config time once
      * the tier config wiring lands (section 9.4); this is the build-time guard. */
     if (s->backend.nearline && !s->cache_store.configured) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "xrootd tier: a nearline (tape) backend requires brix_cache (the "
             "recall target) - export held inactive");
         return NULL;

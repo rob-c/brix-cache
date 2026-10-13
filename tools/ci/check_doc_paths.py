@@ -227,7 +227,8 @@ def _path_message(root, relative, token):
 def _tracked(root: Path, path: str) -> bool:
     """True when `git ls-files -- path` reports at least one tracked entry."""
     result = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "--", path],
+        ["git", "-c", f"safe.directory={root}",
+         "-C", str(root), "ls-files", "--", path],
         capture_output=True,
         text=True,
     )

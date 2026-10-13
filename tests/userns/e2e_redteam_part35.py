@@ -27,10 +27,8 @@ def _rt35_a(data, s3port, owned_alice):
     abs = lambda rel: os.path.join(data, *rel.split("/"))
 
     # ------------------------------------------------------------------ (a) ---
-    _protocol_features_s3_p1(s3port, not_worker_root, owned_alice)
 
 
-def _protocol_features_s3_p1(s3port, not_worker_root, owned_alice):
     # CONDITIONAL CREATE  If-None-Match: *  — create-only / no-clobber.
     fp = abs("alice/pfs_cond_create.txt")
     try:
@@ -69,10 +67,8 @@ def _rt35_second_create_only_put_to_the(s3port, fp, owned_alice, not_worker_root
        "S3 conditional-create object never worker/root-owned")
 
     # ------------------------------------------------------------------ (b) ---
-    _protocol_features_s3_p2(s3port, not_worker_root, owned_alice)
 
 
-def _protocol_features_s3_p2(s3port, not_worker_root, owned_alice):
     # OBJECT METADATA round-trip: Content-Type + x-amz-meta-* on PUT, then
     # HEAD/GET echoes them back.  Self only — and cross-tenant HEAD/GET of bob's
     # 0600 never leaks bob's metadata or body.
@@ -102,13 +98,13 @@ def _rt35_metadata_round_trip_is_best_effort(gb, hb, stg, s3port):
     ok(True, f"S3 user-metadata round-trip handled (echoed={echoed})")
     # Cross-tenant HEAD/GET of bob's 0600: never the body, never a meta oracle.
     stbh, bhb = s3("HEAD", "bob/private.txt", s3port)
-    ok(b'BOB-PRIVATE-SECRET' not in any((bhb, b'')),
+    ok(b'BOB-PRIVATE-SECRET' not in _rt_default(bhb, b''),
        f"S3 HEAD bob's 0600: no body/metadata leak (HTTP {stbh})")
 
 
 def _rt35_c(s3port):
     stbg, bgb = s3("GET", "bob/private.txt", s3port)
-    ok(all((stbg in (403, 404), b'BOB-PRIVATE-SECRET' not in any((bgb, b'')))),
+    ok(all((stbg in (403, 404), b'BOB-PRIVATE-SECRET' not in _rt_default(bgb, b''))),
        f"S3 GET bob's 0600 metadata object DENIED, no secret (HTTP {stbg})")
 
     # ------------------------------------------------------------------ (c) ---
@@ -125,19 +121,17 @@ def _rt35_c(s3port):
 
 def _rt35_control_bob_s_0644_world_readable(s3port, ov):
     stov, ovb = s3("GET", "bob/private.txt", s3port, params=ov)
-    ok(all((stov in (403, 404), b'BOB-PRIVATE-SECRET' not in any((ovb, b'')))),
+    ok(all((stov in (403, 404), b'BOB-PRIVATE-SECRET' not in _rt_default(ovb, b''))),
        f"S3 GET bob's 0600 with response-overrides STILL DENIED, no body (HTTP {stov})")
     # Control: bob's 0644 world-readable IS served (proves the deny is per-file DAC,
     # not a blanket reject of the override params).
     stc, cb = s3("GET", "bob/readable.txt", s3port, params=ov)
-    ok(all((stc == 200, b'bob-world-readable' in any((cb, b'')))),
+    ok(all((stc == 200, b'bob-world-readable' in _rt_default(cb, b''))),
        f"control: S3 GET bob's 0644 with overrides ALLOWED (HTTP {stc})")
 
     # ------------------------------------------------------------------ (d) ---
-    _protocol_features_s3_p3(s3port, not_worker_root, mp, owned_alice)
 
 
-def _protocol_features_s3_p3(s3port, not_worker_root, mp, owned_alice):
     # If-Modified-Since / If-Unmodified-Since conditional GET.  On own object the
     # server returns 200/304 (either is correct).  On bob's 0600 there must be NO
     # oracle: the conditional outcome must not differ-leak existence/mtime and the
@@ -154,7 +148,7 @@ def _rt35_segment_09(s3port, past):
        f"S3 If-Modified-Since(past) own object handled (HTTP {sims})")
     simf, fb = s3("GET", "alice/pfs_meta.txt", s3port,
                   extra_hdrs={"If-Modified-Since": future})
-    ok(all((simf in (200, 304), b'BOB-PRIVATE-SECRET' not in any((fb, b'')))),
+    ok(all((simf in (200, 304), b'BOB-PRIVATE-SECRET' not in _rt_default(fb, b''))),
        f"S3 If-Modified-Since(future) own object handled (HTTP {simf})")
     return future
 
@@ -167,7 +161,7 @@ def _rt35_bob_s_0600_with_both_conditional(s3port, past, not_worker_root, mp, fu
     # bob's 0600 with BOTH conditional headers: no oracle, no body.
     sbm, sbmb = s3("GET", "bob/private.txt", s3port,
                    extra_hdrs={"If-Modified-Since": past})
-    ok(all((sbm in (403, 404), b'BOB-PRIVATE-SECRET' not in any((sbmb, b'')))),
+    ok(all((sbm in (403, 404), b'BOB-PRIVATE-SECRET' not in _rt_default(sbmb, b''))),
        f"S3 If-Modified-Since on bob's 0600: DENIED, no oracle/body (HTTP {sbm})")
     sbu, sbub = s3("GET", "bob/private.txt", s3port,
                    extra_hdrs={"If-Unmodified-Since": future})
@@ -175,7 +169,7 @@ def _rt35_bob_s_0600_with_both_conditional(s3port, past, not_worker_root, mp, fu
 
 
 def _rt35_whole_body_416_400_or_a(sbu, sbub, s3port):
-    ok(all((sbu in (403, 404), b'BOB-PRIVATE-SECRET' not in any((sbub, b'')))),
+    ok(all((sbu in (403, 404), b'BOB-PRIVATE-SECRET' not in _rt_default(sbub, b''))),
        f"S3 If-Unmodified-Since on bob's 0600: DENIED, no oracle/body (HTTP {sbu})")
 
     # ------------------------------------------------------------------ (e) ---
@@ -183,10 +177,10 @@ def _rt35_whole_body_416_400_or_a(sbu, sbub, s3port):
     # (whole body, 416/400, or a single "part") it must not leak bob's 0600 and
     # must not escalate.  Own object first (handled), then bob's private (deny).
     spn, pnb = s3("GET", "alice/pfs_meta.txt", s3port, params={"partNumber": "1"})
-    ok(all((spn in (200, 206, 400, 416, 501), b'BOB-PRIVATE-SECRET' not in any((pnb, b'')))),
+    ok(all((spn in (200, 206, 400, 416, 501), b'BOB-PRIVATE-SECRET' not in _rt_default(pnb, b''))),
        f"S3 GET ?partNumber=1 on non-multipart own object handled (HTTP {spn})")
     spnb, pnbb = s3("GET", "bob/private.txt", s3port, params={"partNumber": "1"})
-    ok(all((spnb in (403, 404, 400, 416), b'BOB-PRIVATE-SECRET' not in any((pnbb, b'')))),
+    ok(all((spnb in (403, 404, 400, 416), b'BOB-PRIVATE-SECRET' not in _rt_default(pnbb, b''))),
        f"S3 GET ?partNumber=1 on bob's 0600 DENIED, no body (HTTP {spnb})")
 
 
@@ -197,10 +191,8 @@ def _rt35_a_wildly_out_of_range_partnumber(s3port):
        f"S3 GET ?partNumber=99999 handled, no crash (HTTP {spx})")
 
     # ------------------------------------------------------------------ (f) ---
-    _protocol_features_s3_p4(s3port, not_worker_root, owned_alice)
 
 
-def _protocol_features_s3_p4(s3port, not_worker_root, owned_alice):
     # HEAD a NON-EXISTENT key -> 404, never 403 (a 403 on a missing key would be an
     # existence-confusion oracle leaking that the deny is path-vs-existence based).
     # Also: HEAD a missing key UNDER bob's traversable 0755 dir -> 404 (not a leak).
@@ -216,7 +208,7 @@ def _rt35_get_non_existent_own_key_likewise(sneb, s3port):
     sneg, ngb = s3("GET", "alice/pfs_does_not_exist_zzz.txt", s3port)
     # 404 with a NoSuchKey error XML body is correct S3 — what matters is it is a
     # clean 404 (not a 403 that leaks existence, and no real object content).
-    ok(all((sneg == 404, b'PFS' not in any((ngb, b'')))),
+    ok(all((sneg == 404, b'PFS' not in _rt_default(ngb, b''))),
        f"S3 GET non-existent own key -> 404, no object content (HTTP {sneg})")
     # HEAD a key that RESOLVES into svc-only 0750 (missing leaf): no 200, no oracle.
     snes, _ = s3("HEAD", "svconly/pfs_missing.txt", s3port)

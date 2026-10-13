@@ -486,7 +486,7 @@ def _cegt_forbidden_leak(k, b, PW, BOB, BOBS, SVC, EXEC, CAROL_SECRET):
     through an encoded escape (alice legitimately owns execonly/known.txt)."""
     owns_exec = (k == "execonly/known.txt")
     return (_has(b, BOBS) or _has(b, BOB) or _has(b, CAROL_SECRET)
-            or _has(b, SVC) or PW in (_cegt_orb(b))
+            or _has(b, SVC) or PW in _rt_default(b, b"")
             or (not owns_exec and _has(b, EXEC)))
 
 

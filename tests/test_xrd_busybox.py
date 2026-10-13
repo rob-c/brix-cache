@@ -51,14 +51,22 @@ def test_tail_follow_sees_append_then_sigint(rw):
     proc = subprocess.Popen([XRD, "tail", "-f", "--interval", "0.2",
                              _url(rw, "/grow.txt")],
                             stdout=subprocess.PIPE, text=True)
+    selector = selectors.DefaultSelector()
+    selector.register(proc.stdout, selectors.EVENT_READ)
     try:
-        time.sleep(0.4)
+        ready = selector.select(timeout=10)
+        assert ready, "tail -f did not emit its initial line"
+        out = proc.stdout.readline()
         with open(target, "a") as fh:
             fh.write("b\n")
-        time.sleep(0.6)
+        ready = selector.select(timeout=10)
+        assert ready, "tail -f did not emit the appended line"
+        out += proc.stdout.readline()
         proc.send_signal(signal.SIGINT)
-        out, _ = proc.communicate(timeout=10)
+        remainder, _ = proc.communicate(timeout=10)
+        out += remainder
     finally:
+        selector.close()
         if proc.poll() is None:
             proc.kill()
     assert "a" in out and "b" in out, repr(out)

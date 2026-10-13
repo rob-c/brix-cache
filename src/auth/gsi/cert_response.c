@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "gsi_internal.h"
 #include "gsi_core.h"
 #include "keypool.h"
@@ -164,7 +165,7 @@ gsi_record_handshake_opts(brix_ctx_t *ctx, ngx_connection_t *c,
      * kOptsFwdPxy (forward) vs kOptsDlgPxy / kOptsSigReq (sign-request). */
     ctx->gsi.clnt_opts = gsi_certreq_u32(ctx->recv.payload, ctx->recv.cur_dlen,
                                          (uint32_t) kXRS_clnt_opts, 1, 4095);
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "brix: GSI client delegation opts=0x%02xd (fwd=%d sign=%d dlg=%d)",
                   (unsigned) ctx->gsi.clnt_opts,
                   (ctx->gsi.clnt_opts & 0x2) ? 1 : 0,
@@ -272,7 +273,7 @@ gsi_select_dh_public_bucket(ngx_connection_t *c,
                                     ch->pub_data, ch->pub_len, sig, cap) : 0;
 
         if (pub_len == 0) {
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                           "brix: GSI signed-DH: failed to sign DH public");
             return NGX_ERROR;
         }
@@ -382,7 +383,7 @@ gsi_build_main_container(ngx_connection_t *c,
     }
     *(uint32_t *) mp = htonl(kXRS_none);
 
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXGS_cert signed rtag=%uz bytes main_len=%uz",
                    signed_rtag_len, main_len);
 
@@ -481,7 +482,7 @@ gsi_frame_cert_response(brix_ctx_t *ctx, ngx_connection_t *c,
 
     gsi_wire_put_u32(p, kXRS_none);
 
-    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXGS_cert sent cert_len=%uz puk_len=%uz main_len=%uz",
                    ch->cert_len, ch->puk_len, ch->main_len);
 

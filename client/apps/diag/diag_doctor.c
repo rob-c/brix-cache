@@ -15,6 +15,7 @@
  *       doctor_dispatch routes by URL scheme to the protocol batteries; the
  *       renderers walk the accumulated doctor_ep[] array. No goto; PII-free.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "diag_internal.h"
 
 
@@ -505,7 +506,7 @@ do_remote_doctor_fanout(const diag_args *a)
     int        i, n = 0, trunc = 0, worst;
 
     if (doctor_fanout(a, &eps, &n, &trunc) != 0 || eps == NULL) {
-        fprintf(stderr, "xrddiag: remote-doctor fan-out allocation failed\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: remote-doctor fan-out allocation failed\n");
         return 50;
     }
     /* record the cross-cluster findings onto eps[0]; print the human summary only
@@ -545,7 +546,7 @@ do_remote_doctor(const diag_args *a)
     int       i, worst = DOC_GREEN, crit;
 
     if (a->nurls < 1) {
-        fprintf(stderr, "xrddiag: remote-doctor needs at least one URL\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: remote-doctor needs at least one URL\n");
         return 50;
     }
     if (a->all_servers || a->map || a->latency) {

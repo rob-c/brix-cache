@@ -18,6 +18,7 @@
  * Clean-room: composes the public libbrix API only; the locate token grammar is
  * this project's own (registry.c). No XrdCl / xrdmapc source consulted.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "core/compat/crypto.h"
 #include "core/compat/host_split.h"   /* shared host:port parse (libxrdproto) */
@@ -149,7 +150,8 @@ probe_holder(const brix_opts *co, const char *path,
  *       plain holder line and return 1. 3. Otherwise probe_holder() and return 1.
  */
 static int
-map_holder(const brix_opts *co, const char *path, const char *tok, int verify)
+map_holder(const brix_opts *co, const char *path, const char *tok, int verify,
+    int machine)
 {
     char host[256];
     int  port = 0;
@@ -157,6 +159,13 @@ map_holder(const brix_opts *co, const char *path, const char *tok, int verify)
 
     if (parse_holder(tok, host, sizeof(host), &port, &rw) != 0) {
         return 0;
+    }
+    if (machine) {
+        int v6 = strchr(host, ':') != NULL && host[0] != '[';
+
+        printf("%s%s%s:%d\n", v6 ? "[" : "", host, v6 ? "]" : "",
+            port);
+        return 1;
     }
     if (!verify) {
         printf("  %s:%d  [%s]\n", host, port, rw == 'w' ? "rw" : "ro");
@@ -183,7 +192,8 @@ map_holder(const brix_opts *co, const char *path, const char *tok, int verify)
  *       verifying with no ghosts.
  */
 static void
-map_holders(const brix_opts *co, const char *loc, const char *path, int verify)
+map_holders(const brix_opts *co, const char *loc, const char *path, int verify,
+    int machine)
 {
     char  copy[8192];
     char *tok, *save;
@@ -192,8 +202,9 @@ map_holders(const brix_opts *co, const char *loc, const char *path, int verify)
     snprintf(copy, sizeof(copy), "%s", loc);
     for (tok = strtok_r(copy, " \t\r\n", &save); tok != NULL;
          tok = strtok_r(NULL, " \t\r\n", &save)) {
-        n += map_holder(co, path, tok, verify);
+        n += map_holder(co, path, tok, verify, machine);
     }
+    if (machine) return;
     if (n == 0) {
         printf("  (none)\n");
     }
@@ -217,7 +228,7 @@ map_holders(const brix_opts *co, const char *loc, const char *path, int verify)
  *       6. Close and return 1 if g_ghosts else 0.
  */
 static int
-do_map(const char *url, const brix_opts *co, int verify)
+do_map(const char *url, const brix_opts *co, int verify, int machine)
 {
     brix_url    u;
     brix_conn   c;
@@ -227,25 +238,26 @@ do_map(const char *url, const brix_opts *co, int verify)
 
     brix_status_clear(&st);
     if (brix_endpoint_parse(url, &u, &st) != 0) {
-        fprintf(stderr, "xrdmapc: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdmapc: %s\n", st.msg);
         return 50;
     }
     if (brix_connect_resilient(&c, &u, co, &st) != 0) {
-        fprintf(stderr, "xrdmapc: connect %s:%d: %s\n", u.host, u.port, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdmapc: connect %s:%d: %s\n", u.host, u.port, st.msg);
         return brix_shellcode(&st);
     }
     path = (u.path[0] != '\0') ? u.path : "/";
 
     if (brix_locate(&c, path, loc, sizeof(loc), &st) != 0) {
-        fprintf(stderr, "xrdmapc: locate %s: %s\n", path, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdmapc: locate %s: %s\n", path, st.msg);
         brix_close(&c);
         return brix_shellcode(&st);
     }
-    printf("Cluster map for %s:%d  path %s\n", u.host, u.port, path);
-
-    print_space(&c, path);
-    printf("Holders:\n");
-    map_holders(co, loc, path, verify);
+    if (!machine) {
+        printf("Cluster map for %s:%d  path %s\n", u.host, u.port, path);
+        print_space(&c, path);
+        printf("Holders:\n");
+    }
+    map_holders(co, loc, path, verify, machine);
 
     brix_close(&c);
     return g_ghosts ? 1 : 0;
@@ -259,6 +271,7 @@ usage_fp(FILE *out, const char *prog)
         "usage: %s [opts] root[s]://host[:port][//path] [--verify]\n"
         "  lists the data servers holding <path> (default /), with r/w + space.\n"
         "  --verify        probe each holder; flag GHOST (advertised, not serving)\n"
+        "  --machine       print one bare holder authority per line\n"
         "  opts: --tls --notlsok --noverifyhost --auth <gsi|ztn|krb5|sss|unix>\n"
         "        --version  print version and exit\n",
         prog);
@@ -276,7 +289,7 @@ main(int argc, char **argv)
 {
     brix_opts   co;
     const char *url = NULL;
-    int         verify = 0, i;
+    int         verify = 0, machine = 0, i;
 
     brix_opts_init(&co);
     brix_crypto_init();
@@ -286,17 +299,19 @@ main(int argc, char **argv)
         if (a[0] == '-' && a[1] != '\0' && strcmp(a, "-") != 0) {
             if (strcmp(a, "--verify") == 0) {
                 verify = 1;
+            } else if (strcmp(a, "--machine") == 0) {
+                machine = 1;
             } else {
                 int pr = brix_opts_parse_arg(&co, argc, argv, &i);
                 if (pr == 2) { usage_fp(stdout, argv[0]); return 0; }  /* --help */
                 if (pr)      { /* common conn flag, already handled */ }
                 else if (strcmp(a, "-h") == 0) { usage(argv[0]); return 0; }  /* C1 */
-                else { fprintf(stderr, "xrdmapc: unknown option '%s'\n", a); usage(argv[0]); return 50; }
+                else { BRIX_CLIENT_LOG("ERROR",  "xrdmapc: unknown option '%s'\n", a); usage(argv[0]); return 50; }
             }
         } else if (url == NULL) {
             url = a;
         } else {
-            fprintf(stderr, "xrdmapc: too many arguments\n");
+            BRIX_CLIENT_LOG("ERROR",  "xrdmapc: too many arguments\n");
             return 50;
         }
     }
@@ -304,5 +319,10 @@ main(int argc, char **argv)
         usage(argv[0]);
         return 50;
     }
-    return do_map(url, &co, verify);
+    if (verify && machine) {
+        BRIX_CLIENT_LOG("ERROR",
+            "xrdmapc: --verify and --machine are mutually exclusive\n");
+        return 50;
+    }
+    return do_map(url, &co, verify, machine);
 }

@@ -54,6 +54,30 @@ int brix_plat_is_root(void);
  */
 int brix_plat_cpu_count(void);
 
+#define BRIX_SYSLOAD_HAVE_LOAD   0x01U
+#define BRIX_SYSLOAD_HAVE_MEMORY 0x02U
+#define BRIX_SYSLOAD_HAVE_NET    0x04U
+#define BRIX_SYSLOAD_HAVE_PAGING 0x08U
+
+typedef struct {
+    double   load1;
+    uint64_t total_memory;
+    uint64_t available_memory;
+    uint64_t net_bytes;
+    uint64_t paging_events;
+    uint32_t have;
+} brix_plat_sysload_t;
+
+/* One host-wide, configuration-free load sample for CMS balancing. */
+int brix_plat_sysload_sample(brix_plat_sysload_t *sample);
+
+/**
+ * Check whether a pointer value has the host's canonical user-space shape.
+ * This validates values before indirect calls; it does not dereference them.
+ * @return 1 for a canonical user pointer, 0 otherwise
+ */
+int brix_plat_pointer_is_canonical(const void *ptr);
+
 /**
  * Get total system memory in bytes
  * @return Memory size, or 0 on error

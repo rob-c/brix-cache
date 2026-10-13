@@ -13,6 +13,7 @@
  *       xrdcp_recursive.c and the shared URL/path helpers in xrdcp.c, all
  *       reached through xrdcp_internal.h. No goto; early-return throughout.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdcp_internal.h"
 #include "core/version.h"
 #include "core/progname.h"  /* brix_prog_base(): argv[0]-derived identity + footer */
@@ -73,12 +74,12 @@ xrdcp_dispatch_recursive_web_download(const xrdcp_transfer_ctx *ctx)
             if (brix_copy(ctx->exp[i], ctx->dst, ctx->opts,
                           ctx->conn, &st) != 0) {
                 bad++;
-                fprintf(stderr, "xrdcp: %s: %s\n", ctx->exp[i], st.msg);
+                BRIX_CLIENT_LOG("ERROR",  "xrdcp: %s: %s\n", ctx->exp[i], st.msg);
             }
         } else if (copy_one_with_retry(ctx->exp[i], ctx->dst, ctx->opts,
                                        ctx->conn, ctx->retries, &st) != 0) {
             bad++;
-            fprintf(stderr, "xrdcp: %s: %s\n", ctx->exp[i], st.msg);
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: %s: %s\n", ctx->exp[i], st.msg);
             xrdcp_hint_failed_source(ctx->exp[i], ctx->dst, &st);
         }
     }
@@ -95,7 +96,7 @@ xrdcp_dispatch_recursive_web_upload(const xrdcp_transfer_ctx *ctx)
 
     brix_status_clear(&st);
     if (ctx->opts->sync_delete) {
-        fprintf(stderr, "xrdcp: --delete is not supported for web "
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: --delete is not supported for web "
                         "destinations (ignored)\n");
     }
     for (i = 0; i < ctx->nexp; i++) {
@@ -104,12 +105,12 @@ xrdcp_dispatch_recursive_web_upload(const xrdcp_transfer_ctx *ctx)
             if (brix_copy(ctx->exp[i], ctx->dst, ctx->opts,
                           ctx->conn, &st) != 0) {
                 bad++;
-                fprintf(stderr, "xrdcp: %s: %s\n", ctx->exp[i], st.msg);
+                BRIX_CLIENT_LOG("ERROR",  "xrdcp: %s: %s\n", ctx->exp[i], st.msg);
             }
         } else if (copy_one_with_retry(ctx->exp[i], ctx->dst, ctx->opts,
                                        ctx->conn, ctx->retries, &st) != 0) {
             bad++;
-            fprintf(stderr, "xrdcp: %s: %s\n", ctx->exp[i], st.msg);
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: %s: %s\n", ctx->exp[i], st.msg);
         }
     }
     return (bad == 0) ? 0 : 1;
@@ -175,9 +176,9 @@ xrdcp_dispatch_single(xrdcp_transfer_ctx *ctx)
     one = transfer_one(ctx->exp[0], ctx->dst, ctx->opts, ctx->conn,
                        ctx->retries, ctx->sync_mode, &st);
     if (one == 1 && !ctx->opts->silent) {
-        fprintf(stderr, "xrdcp: %s up-to-date, skipped\n", ctx->dst);
+        BRIX_CLIENT_LOG("WARN",  "xrdcp: %s up-to-date, skipped\n", ctx->dst);
     } else if (one < 0 && !ctx->opts->silent) {
-        fprintf(stderr, "xrdcp: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: %s\n", st.msg);
         xrdcp_hint_failed_source(ctx->exp[0], ctx->dst, &st);
     }
     return (one >= 0) ? 0 : brix_shellcode(&st);
@@ -196,7 +197,7 @@ xrdcp_open_batch_journal(const xrdcp_transfer_ctx *ctx, brix_status *st,
     {
         brix_journal *jrn = brix_journal_open(ctx->journal_path, st);
         if (jrn == NULL) {
-            fprintf(stderr, "xrdcp: %s\n", st->msg);
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: %s\n", st->msg);
             *rc = 51;
         }
         return jrn;
@@ -214,7 +215,7 @@ xrdcp_batch_one(const xrdcp_transfer_ctx *ctx, brix_journal *jrn,
     if (jrn != NULL && brix_journal_has(jrn, ctx->exp[idx])) {
         t->skip++;
         if (!ctx->opts->silent) {
-            fprintf(stderr, "[%zu/%zu] %s (already transferred)\n",
+            BRIX_CLIENT_LOG("INFO",  "[%zu/%zu] %s (already transferred)\n",
                     t->ok + t->skip + t->fail, ctx->nexp, ctx->exp[idx]);
         }
         return;
@@ -224,7 +225,7 @@ xrdcp_batch_one(const xrdcp_transfer_ctx *ctx, brix_journal *jrn,
     if (one == 0) {
         t->ok++;
         if (!ctx->opts->silent) {
-            fprintf(stderr, "[%zu/%zu] %s -> %s\n",
+            BRIX_CLIENT_LOG("INFO",  "[%zu/%zu] %s -> %s\n",
                     t->ok + t->skip + t->fail, ctx->nexp, ctx->exp[idx], dpath);
         }
         if (jrn != NULL && !ctx->opts->dry_run) {
@@ -233,12 +234,12 @@ xrdcp_batch_one(const xrdcp_transfer_ctx *ctx, brix_journal *jrn,
     } else if (one == 1) {
         t->skip++;
         if (!ctx->opts->silent) {
-            fprintf(stderr, "[%zu/%zu] %s (up-to-date)\n",
+            BRIX_CLIENT_LOG("INFO",  "[%zu/%zu] %s (up-to-date)\n",
                     t->ok + t->skip + t->fail, ctx->nexp, ctx->exp[idx]);
         }
     } else {
         t->fail++;
-        fprintf(stderr, "xrdcp: %s: %s\n", ctx->exp[idx], t->st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: %s: %s\n", ctx->exp[idx], t->st.msg);
         xrdcp_hint_failed_source(ctx->exp[idx], ctx->dst, &t->st);
     }
 }
@@ -256,7 +257,7 @@ xrdcp_dispatch_batch(xrdcp_transfer_ctx *ctx)
     memset(&t, 0, sizeof(t));
     brix_status_clear(&t.st);
     if (dest_is_dir(ctx->dst, ctx->conn) != 1) {
-        fprintf(stderr, "xrdcp: destination must be an existing directory for "
+        BRIX_CLIENT_LOG("INFO",  "xrdcp: destination must be an existing directory for "
                         "multi-source copy: %s\n", ctx->dst);
         return 50;
     }
@@ -275,7 +276,7 @@ xrdcp_dispatch_batch(xrdcp_transfer_ctx *ctx)
         }
     }
     if (!ctx->opts->silent) {
-        fprintf(stderr, "xrdcp: %zu copied, %zu skipped, %zu failed\n",
+        BRIX_CLIENT_LOG("WARN",  "xrdcp: %zu copied, %zu skipped, %zu failed\n",
                 t.ok, t.skip, t.fail);
     }
     return (t.fail == 0) ? 0 : 1;

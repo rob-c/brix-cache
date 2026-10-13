@@ -31,6 +31,7 @@
  *           rebuilds scope_raw via macaroon_rebuild_scope_raw() if narrowed
  */
 
+#include "core/compat/log_event.h"
 #include "core/types/tunables.h"
 #include "token_internal.h"
 #include "macaroon.h"
@@ -175,7 +176,7 @@ macaroon_apply_path_to_scope(ngx_log_t *log, brix_token_scope_t *scope,
         if (strcmp(scope->path, caveat_path) == 0) {
             return 0;
         }
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
             "brix_macaroon: path: caveat \"%s\" narrows "
             "scope path \"%s\" → \"%s\"", caveat_path, scope->path,
             caveat_path);
@@ -190,7 +191,7 @@ macaroon_apply_path_to_scope(ngx_log_t *log, brix_token_scope_t *scope,
     }
 
     if (scope->read || scope->write || scope->create || scope->modify) {
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
             "brix_macaroon: path: caveat \"%s\" revokes "
             "scope path \"%s\" (disjoint)", caveat_path, scope->path);
     }

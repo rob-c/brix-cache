@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "platform/platform_api.h"
 /*
  * write.c — kXR_write opcode handler.
@@ -128,7 +129,7 @@ brix_write_route_special(brix_ctx_t *ctx, ngx_connection_t *c,
 	if (ctx->files[idx].wrts_enabled &&
 	    brix_wrts_is_replay(&ctx->files[idx], w->offset, (uint32_t) w->wlen))
 	{
-		ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+		BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
 		    "brix: write recovery replay skip offset=%L len=%uz",
 		    w->offset, w->wlen);
 		BRIX_OP_OK(ctx, BRIX_OP_WRITE);
@@ -399,6 +400,16 @@ brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c)
 	if (!brix_validate_write_handle(ctx, c, idx, "WRITE",
 									  BRIX_OP_WRITE, &rc)) {
 		return rc;
+	}
+	if (offset < 0) {
+		snprintf(write_detail, sizeof(write_detail), "%lld+%zu",
+		         (long long) offset, wlen);
+		brix_log_access(ctx, c, "WRITE", ctx->files[idx].path,
+		                  write_detail, 0, kXR_ArgInvalid,
+		                  "negative write offset", 0);
+		BRIX_OP_ERR(ctx, BRIX_OP_WRITE);
+		return brix_send_error(ctx, c, kXR_ArgInvalid,
+		                       "negative write offset");
 	}
 
 	/* INVARIANT 1 / hostile-network integrity: a cleartext kXR_write carries NO

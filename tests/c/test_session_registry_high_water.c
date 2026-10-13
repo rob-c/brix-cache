@@ -135,7 +135,8 @@ reg(brix_session_table_t *tbl, unsigned n, const char *dn, ngx_msec_t now)
     if (sc.free_slot >= tbl->capacity) {
         return tbl->capacity;                   /* full */
     }
-    brix_session_fill_slot(tbl, sc.free_slot, sessid, dn, "", 0, src_key, now);
+    brix_session_fill_slot(tbl, sc.free_slot, sessid, dn, "", 0, 0,
+        src_key, now);
     return sc.free_slot;
 }
 

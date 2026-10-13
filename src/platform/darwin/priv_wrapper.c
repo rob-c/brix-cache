@@ -17,48 +17,77 @@
 #if BRIX_PLATFORM_DARWIN
 
 #include <errno.h>
+#include <sandbox.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-/* Darwin has no saved-set ids: seteuid/setegid carry the effective id and
- * the real/saved ids read as the real ones (the pre-PAL emulation). */
+/* Darwin exposes no authoritative getres* interface.  Refuse these Linux
+ * contracts instead of fabricating a saved ID that may still be privileged. */
 int
 brix_plat_setresuid(uid_t ruid, uid_t euid, uid_t suid)
 {
-    (void) ruid; (void) suid;
-    return seteuid(euid);
+    (void) ruid; (void) euid; (void) suid;
+    errno = ENOTSUP;
+    return -1;
 }
 
 int
 brix_plat_setresgid(gid_t rgid, gid_t egid, gid_t sgid)
 {
-    (void) rgid; (void) sgid;
-    return setegid(egid);
+    (void) rgid; (void) egid; (void) sgid;
+    errno = ENOTSUP;
+    return -1;
 }
 
 int
 brix_plat_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid)
 {
-    *ruid = getuid();
-    *euid = geteuid();
-    *suid = getuid();
-    return 0;
+    (void) ruid; (void) euid; (void) suid;
+    errno = ENOTSUP;
+    return -1;
 }
 
 int
 brix_plat_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid)
 {
-    *rgid = getgid();
-    *egid = getegid();
-    *sgid = getgid();
-    return 0;
+    (void) rgid; (void) egid; (void) sgid;
+    errno = ENOTSUP;
+    return -1;
+}
+
+int
+brix_plat_process_tainted(void)
+{
+    return issetugid() != 0;
 }
 
 int
 brix_plat_prctl(int option, unsigned long arg)
 {
-    (void) option; (void) arg;
-    return 0;   /* no prctl on Darwin: documented no-op */
+    char *error = NULL;
+    int   rc;
+    static const char no_exec_profile[] =
+        "(version 1)\n"
+        "(allow default)\n"
+        "(deny process-exec)\n";
+
+    if (option != PR_SET_NO_NEW_PRIVS || arg != 1) {
+        errno = ENOTSUP;
+        return -1;
+    }
+    /* Darwin has no Linux NNP bit. A sandbox profile which forbids every
+     * subsequent exec blocks both set-id helpers and sudo after parsing. */
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    rc = sandbox_init(no_exec_profile, 0, &error);
+    if (error != NULL) {
+        sandbox_free_error(error);
+    }
+#pragma clang diagnostic pop
+    if (rc != 0 && errno == 0) {
+        errno = EPERM;
+    }
+    return rc;
 }
 
 int

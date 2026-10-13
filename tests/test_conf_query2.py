@@ -44,6 +44,13 @@ def _check_test_qconfig_differential_shape_3(key, line_f, line_o, o_first):
 def _check_test_qconfig_multi_key_matches_singletons_4(rc_m, raw_m):
     assert rc_m == 0, f"OUR multi-key failed: {raw_m!r}"
 
+def _require_multikey_qconfig_client(rc, raw):
+    """Skip when this stock xrdfs accepts only one config key per command."""
+    if (rc != 0 and "Preparing relative path" in raw
+            and "is disallowed" in raw):
+        pytest.skip("installed stock xrdfs rejects additional query-config "
+                    "keys as relative paths; raw-wire multi-key coverage runs")
+
 def _check_test_qconfig_multi_key_matches_singletons_5(multi, keys, out_m):
     assert len(multi) == len(keys), f"line count mismatch: {out_m!r}"
 
@@ -168,6 +175,7 @@ def test_qconfig_multi_key_order_and_lines(srv):
     (do_Qconf loops GetToken() and appends "%s\\n" per token)."""
     keys = ["tpc", "tpcdlg", "version"]
     rc_o, out_o, raw_o = qconfig(srv["our"], *keys)
+    _require_multikey_qconfig_client(rc_o, raw_o)
     assert rc_o == 0, f"OUR multi-key query config failed: {raw_o!r}"
     lines_o = [l for l in out_o.split("\n") if l != ""]
     assert len(lines_o) == len(keys), (
@@ -199,6 +207,7 @@ def test_qconfig_multi_key_matches_singletons(srv):
     (the loop is just per-token concatenation; no cross-key contamination)."""
     keys = ["bind_max", "tpc", "role"]
     rc_m, out_m, raw_m = qconfig(srv["our"], *keys)
+    _require_multikey_qconfig_client(rc_m, raw_m)
     _check_test_qconfig_multi_key_matches_singletons_4(rc_m, raw_m)
     multi = [l for l in out_m.split("\n") if l != ""]
     _check_test_qconfig_multi_key_matches_singletons_5(multi, keys, out_m)

@@ -6,6 +6,7 @@
  * s3_transport_internal.h for the shared seam.
  */
 
+#include "core/compat/log_event.h"
 #include "s3_transport.h"
 #include "s3_transport_internal.h"
 #include "net/dns/curl_pin.h"       /* phase-116: pin the endpoint resolve */
@@ -249,12 +250,12 @@ s3o_trace(const s3o_trace_t *t)
     brix_sanitize_log_string(t->path != NULL ? t->path : "",
                                safe, sizeof(safe));
     if (t->status < 0) {
-        ngx_log_error(level, ngx_cycle->log, 0,
+        BRIX_LOG(level, ngx_cycle->log, 0,
             "cvmfs-trace: upstream %s http://%s:%d%s FAILED (%s) dur_ms=%l",
             t->method, t->host, t->port, safe,
             t->err ? t->err : "transport error", t->dur_ms);
     } else {
-        ngx_log_error(level, ngx_cycle->log, 0,
+        BRIX_LOG(level, ngx_cycle->log, 0,
             "cvmfs-trace: upstream %s http://%s:%d%s status=%d bytes=%uz "
             "host=%s:%d dur_ms=%l proto=%s",
             t->method, t->host, t->port, safe, t->status, t->bytes,

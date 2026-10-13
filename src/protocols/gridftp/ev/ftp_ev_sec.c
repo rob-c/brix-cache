@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "ftp_ev.h"
 
 #include "core/types/identity.h"
@@ -59,7 +60,7 @@ ev_gss_carry_voms(ftp_ev_t *fc)
         && brix_identity_set_vos_csv(fc->identity, fc->c->pool, vo_list)
            == NGX_OK)
     {
-        ngx_log_error(NGX_LOG_INFO, fc->c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, fc->c->log, 0,
                       "brix: GridFTP(ev) VOMS carry primary_vo=\"%s\"",
                       primary_vo);
     }
@@ -101,7 +102,7 @@ ev_gss_finalize(ftp_ev_t *fc)
         ev_gss_carry_voms(fc);           /* lift VOMS FQANs into fc->identity */
         fc->authed = 1;
         brix_metric_auth(BRIX_PROTO_GRIDFTP, BRIX_AUTHN_GSI, 1);
-        ngx_log_error(NGX_LOG_INFO, fc->c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, fc->c->log, 0,
                       "brix: GridFTP(ev) gsiftp authenticated dn=\"%V\" deleg=%uz",
                       &dn, proxy.len);
     } else {

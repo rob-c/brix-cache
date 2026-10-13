@@ -39,8 +39,10 @@ brix_max_payload_for_request(uint16_t reqid)
     }
 
     if (reqid == kXR_readv) {
-        /* Each segment is BRIX_READV_SEGSIZE (16) bytes. */
-        return BRIX_READV_MAXSEGS * BRIX_READV_SEGSIZE;
+        /* Admit exactly the first invalid count so the readv handler can
+         * return kXR_ArgTooLong instead of resetting the transport.  Larger
+         * bodies still fail before allocation. */
+        return (BRIX_READV_MAXSEGS + 1U) * BRIX_READV_SEGSIZE;
     }
 
     if (reqid == kXR_auth) {
@@ -49,6 +51,15 @@ brix_max_payload_for_request(uint16_t reqid)
 
     if (reqid == kXR_prepare) {
         return BRIX_MAX_PREPARE_PAYLOAD;
+    }
+
+    if (reqid == kXR_fattr) {
+        /* Path + NUL, then the largest legal name and value vectors. Keep the
+         * frame gate wide enough for the handler to accept the exact maxima
+         * and return defined kXR errors for per-field over-limit values. */
+        return BRIX_MAX_PATH + 1U
+            + kXR_faMaxVars * (2U + kXR_faMaxNlen + 1U
+                               + 4U + kXR_faMaxVlen);
     }
 
     /* All other requests carry only a path (BRIX_MAX_PATH) plus a small

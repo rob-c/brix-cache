@@ -7,6 +7,7 @@
  * rejected with kXR_Unsupported). All bookkeeping mirrors the read-only subset
  * of brix_open_resolved_file(); none of the write/POSC/WT machinery applies.
  */
+#include "core/compat/log_event.h"
 #include "zip_member.h"
 #include "fs/vfs/vfs.h"   /* brix_vfs_open_fd_at (handle-table confined open) */
 #include "zip_dir.h"
@@ -314,7 +315,7 @@ zip_stage_archive_maybe(const zip_open_req_t *rq, int *fd,
     }
     close(*fd);
     *fd = sfd;                           /* same bytes/size — ast still valid */
-    ngx_log_error(NGX_LOG_INFO, rq->c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, rq->c->log, 0,
                   "zip: archive staged to scratch (%O bytes)",
                   (off_t) ast->st_size);
     return NGX_OK;

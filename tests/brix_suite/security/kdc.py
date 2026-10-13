@@ -317,6 +317,7 @@ def kinit_client():
 # the second worker blocks until the first tears its realm down.
 _REALM_LOCK_PATH = os.path.join(os.path.dirname(KRB5_DIR), ".krb5-realm.lock")
 _realm_lock_fd = None
+_attached_realm = False
 
 
 def _acquire_realm_lock():
@@ -338,6 +339,21 @@ def _release_realm_lock():
             _realm_lock_fd = None
 
 
+def _reusable_realm_is_live():
+    """Whether a complete externally-owned test realm is already serving.
+
+    The registry launcher starts the KDC through a short-lived helper process.
+    Its realm lock is therefore released while the daemon remains alive.  A
+    test-local ``up()`` may attach only when every credential/config artefact is
+    present as well as the listener; ``kinit_client()`` then proves that those
+    files and the live database still agree.
+    """
+    required = (KRB5_CONF, _KDC_CONF, KRB5_KEYTAB, KRB5_CLIENT_KEYTAB)
+    return all(os.path.isfile(path) for path in required) and _port_open(
+        HOST, KRB5_KDC_PORT
+    )
+
+
 def up():
     """Provision + start the KDC + kinit the client.  Returns True on success.
 
@@ -349,12 +365,21 @@ def up():
         print(f"krb5 tier: skipped (missing MIT KDC tooling: {', '.join(missing)}; "
               f"install krb5-server)")
         return False
+    global _attached_realm
     _acquire_realm_lock()
     try:
+        if _reusable_realm_is_live():
+            _attached_realm = True
+            kinit_client()
+            print(f"krb5 tier: attached to realm {KRB5_REALM} "
+                  f"(kdc :{KRB5_KDC_PORT})")
+            return True
+        _attached_realm = False
         provision()
         start_kdc()
         kinit_client()
     except BaseException:
+        _attached_realm = False
         _release_realm_lock()
         raise
     print(f"krb5 tier: realm {KRB5_REALM} up (kdc :{KRB5_KDC_PORT}, "
@@ -365,9 +390,12 @@ def up():
 def down():
     """Stop the KDC and release the realm lock (files are reclaimed by the
     session-wide TEST_ROOT wipe)."""
+    global _attached_realm
     try:
-        stop_kdc()
+        if not _attached_realm:
+            stop_kdc()
     finally:
+        _attached_realm = False
         _release_realm_lock()
 
 

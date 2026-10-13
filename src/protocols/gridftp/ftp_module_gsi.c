@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "ftp_gateway.h"
 #include "ftp_module_internal.h"
 
@@ -39,7 +40,7 @@ brix_ftp_gsi_paths(ngx_conf_t *cf, ngx_stream_brix_ftp_srv_conf_t *conf,
     if (conf->common.certificate.len == 0 || conf->common.certificate_key.len == 0
         || conf->common.trusted_ca.len == 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_gridftp_gsi requires brix_certificate, "
             "brix_certificate_key and brix_trusted_ca");
         return NGX_ERROR;
@@ -48,7 +49,7 @@ brix_ftp_gsi_paths(ngx_conf_t *cf, ngx_stream_brix_ftp_srv_conf_t *conf,
         || conf->common.certificate_key.len >= key_cap
         || conf->common.trusted_ca.len >= ca_cap)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_gridftp_gsi certificate/key/CA path too long");
         return NGX_ERROR;
     }
@@ -75,7 +76,7 @@ brix_ftp_gsi_ssl_ctx(ngx_conf_t *cf)
 
     ctx = SSL_CTX_new(TLS_method());
     if (ctx == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_gridftp_gsi: SSL_CTX_new failed");
         return NULL;
     }
@@ -107,7 +108,7 @@ brix_ftp_gsi_host_credentials(ngx_conf_t *cf, SSL_CTX *ctx,
     {
         return NGX_OK;
     }
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                        "brix_gridftp_gsi: cannot load host cert %s / key %s",
                        cert, key);
     return NGX_ERROR;
@@ -175,12 +176,12 @@ brix_ftp_build_gsi(ngx_conf_t *cf, ngx_stream_brix_ftp_srv_conf_t *conf)
             NULL, &pol);
     }
     if (conf->ca_store == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_gridftp_gsi: cannot build CA trust store from %s", ca_raw);
         return NGX_CONF_ERROR;
     }
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: GridFTP gsiftp security enabled (cert=%V ca=%s)",
         &conf->common.certificate, ca_raw);
     return NGX_CONF_OK;

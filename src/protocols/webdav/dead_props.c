@@ -6,6 +6,7 @@
  * local renames and avoid hidden sidecar files in the namespace.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "fs/path/path.h"
 #include "fs/vfs/vfs.h"
@@ -137,8 +138,9 @@ webdav_dead_prop_set_target(const webdav_dead_prop_target_t *t,
     webdav_vfs_ctx_build(t->r, t->path, &vctx);
 
     if (brix_vfs_setxattr(&vctx, attr, xml, xml_len, 0) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, t->r->connection->log, errno,
-                      "brix_webdav: setxattr dead property failed");
+        BRIX_LOG(NGX_LOG_WARN, t->r->connection->log, errno,
+                      "brix_webdav: setxattr dead property \"%s\" failed",
+                      attr);
         return NGX_ERROR;
     }
 
@@ -187,7 +189,7 @@ webdav_dead_prop_remove(ngx_http_request_t *r, const char *path,
     if (brix_vfs_removexattr(&vctx, attr) != NGX_OK
         && errno != ENODATA && errno != ENOATTR)
     {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, errno,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, errno,
                       "brix_webdav: removexattr dead property failed");
         return NGX_ERROR;
     }
@@ -239,7 +241,7 @@ webdav_dead_prop_read_value(const webdav_dead_prop_target_t *t,
             return NGX_DECLINED;
         }
         /* Anything else fails the whole PROPFIND with a 500; say why. */
-        ngx_log_error(NGX_LOG_WARN, t->r->connection->log, errno,
+        BRIX_LOG(NGX_LOG_WARN, t->r->connection->log, errno,
                       "brix_webdav: dead property \"%s\" read on \"%s\" failed",
                       attr, t->path);
         return NGX_ERROR;

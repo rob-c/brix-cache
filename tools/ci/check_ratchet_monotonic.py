@@ -41,6 +41,11 @@
 #   tools/ci/check_ratchet_monotonic.py --base <rev>     # CI passes the PR base sha
 
 from __future__ import annotations
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import argparse
 import subprocess
@@ -153,12 +158,12 @@ def run(root: Path, read_base: Callable[[str], str | None]) -> int:
             print(f"  ok    {path}")
             continue
         failed = True
-        print(f"FAIL  {path} grew — it arms {guard}", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_ratchet_monotonic.py', 'run', f"FAIL  {path} grew — it arms {guard}", file=sys.stderr)
         for finding in findings:
-            print(f"        {finding}", file=sys.stderr)
+            _brix_diagnostic('ERROR', 'tools/ci/check_ratchet_monotonic.py', 'run', f"        {finding}", file=sys.stderr)
 
     if failed:
-        print(
+        _brix_diagnostic('ERROR', 'tools/ci/check_ratchet_monotonic.py', 'run',
             "\nA ratchet backlog may only shrink. Fix the code (split the file, cut the\n"
             "complexity, remove the marker) rather than widening the ceiling — that is\n"
             "the whole mechanism by which these numbers trend to zero.",

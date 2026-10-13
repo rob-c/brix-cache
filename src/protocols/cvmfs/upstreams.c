@@ -12,6 +12,7 @@
  *       a config error (allowlist bigger than upstream_max) surfaced loudly.
  *       Registration + resolve run on the event loop only.
  */
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "fs/vfs/vfs_backend_registry.h"
 
@@ -54,7 +55,7 @@ brix_cvmfs_upstream_get(ngx_http_request_t *r,
 
     cap = ngx_min(lcf->cvmfs.upstream_max, CVMFS_UP_MAX);
     if (cvmfs_ups_n >= cap || host->len >= sizeof(cvmfs_ups[0].host)) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
             "cvmfs: upstream registry full (%ui slots)\n"
             "  cause: more distinct Stratum-1 authorities than "
             "brix_cvmfs_upstream_max\n"
@@ -122,7 +123,7 @@ brix_cvmfs_upstream_get(ngx_http_request_t *r,
     /* First time this worker sees this Stratum-1: record it so the origin
      * decisions that follow (which host served, any failover) can be tied
      * back to a concrete upstream. */
-    ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, r->connection->log, 0,
         "cvmfs: proxy-mode upstream registered %s:%ui (slot %ui/%ui, store %s)",
         s->host, (ngx_uint_t) port, cvmfs_ups_n, cap, s->up_root);
     return inst;

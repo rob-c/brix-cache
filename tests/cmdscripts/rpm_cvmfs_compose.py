@@ -137,6 +137,11 @@ def dnf_install(repo_dir: Path, base: Path, *pkgs: str, tag: str = "t"):
         capture_output=True, text=True)
 
 
+def installed_nevras(base: Path, tag: str) -> set[str]:
+    """Read the transaction result from RPM, independent of DNF's UI."""
+    return make_fixtures.installed_nevras(base / f"root.{tag}")
+
+
 # ---- C1: the runbook path ---------------------------------------------------
 
 def check_c1(ingest: Path, repotool: Path, base: Path, results: list) -> None:
@@ -162,9 +167,9 @@ def check_c1(ingest: Path, repotool: Path, base: Path, results: list) -> None:
     # the whole point: dnf depsolves epoch + soname out of the CVMFS copy
     inst = dnf_install(dest, base, "brixtest-app", tag="c1")
     ck("dnf-install", inst.returncode == 0, (inst.stdout + inst.stderr)[-800:])
-    for want in ("brixtest-app-0.9-4", "brixtest-lib-2:2.0-1",
-                 "brixtest-tools-1.2-3"):
-        ck(f"resolved-{want}", want in inst.stdout)
+    installed = installed_nevras(base, "c1")
+    for want in sorted(make_fixtures.expected_nevras()):
+        ck(f"resolved-{want}", want in installed)
 
 
 # ---- C2: the time machine ---------------------------------------------------

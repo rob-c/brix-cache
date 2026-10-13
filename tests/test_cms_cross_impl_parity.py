@@ -39,13 +39,17 @@ import pytest
 
 from cms_mesh_lib import (
     PORTS, data_dir, have_binaries, port_open, stat_size,
-    xrdcp_get, xrdfs_locate, xrdfs_ls, xrdfs_stat,
+    stock_cms_interop_supported, xrdcp_get, xrdfs_locate, xrdfs_ls, xrdfs_stat,
 )
 
 pytestmark = [
     pytest.mark.skipif(
         not have_binaries(),
         reason="CMS manager parity needs xrootd, cmsd, xrdfs, xrdcp and nginx",
+    ),
+    pytest.mark.skipif(
+        not stock_cms_interop_supported(),
+        reason="Homebrew XRootD cmsd cannot dial all.manager on Darwin",
     ),
     pytest.mark.timeout(180),
     # serial: two live CMS meshes with heartbeat timing — unreliable in the pool.

@@ -140,11 +140,12 @@ class TestNegativeOffsetRejected:
             sock.close()
             _unlink(full)
 
-    def test_read_negative_offset(self, rd_handle_4g):
+    @pytest.mark.parametrize("offset", [-1, -(1 << 63)])
+    def test_read_negative_offset(self, rd_handle_4g, offset):
         sock, fh, _ = rd_handle_4g
-        _, status, body = _read(sock, fh, -1, 64)
+        _, status, body = _read(sock, fh, offset, 64)
         assert status == kXR_error, "negative read offset must error"
-        assert _error_code(body) in (kXR_IOError, kXR_ArgInvalid)
+        assert _error_code(body) == kXR_ArgInvalid
         assert _ping(sock)[1] == kXR_ok
 
     def test_readv_negative_offset(self, rd_handle_4g):
@@ -160,7 +161,7 @@ class TestNegativeOffsetRejected:
             pytest.skip("anon server read-only; cannot open for write")
         _, status, body = _write(sock, fh, -16, b"x" * 32)
         assert status == kXR_error, "negative write offset must error"
-        assert _error_code(body) in (kXR_IOError, kXR_ArgInvalid)
+        assert _error_code(body) == kXR_ArgInvalid
         assert _ping(sock)[1] == kXR_ok
 
     def test_pgwrite_negative_offset(self, wr_handle):
@@ -239,7 +240,9 @@ class TestOffsetLengthOverflow:
     def test_pgread_offset_plus_rlen_overflow(self, rd_handle_4g):
         sock, fh, _ = rd_handle_4g
         _, status, body, pages = _pgread(sock, fh, INT64_MAX, 0x7FFFFFFF)
-        assert status == kXR_error, "overflowing pgread extent must error"
+        # pgread always uses its extended-status envelope, including an empty
+        # past-EOF result; kXR_error would violate the protocol invariant.
+        assert status == kXR_status
         assert pages == b""
         assert _ping(sock)[1] == kXR_ok
 

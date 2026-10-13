@@ -45,6 +45,8 @@ import time
 
 import pytest
 
+from log_records import semantic_log_text
+
 from _test_sss_helpers import sss_auth_frame, sss_credential, sss_write_keytab
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST
@@ -136,7 +138,7 @@ def _identities(endpoint, expect, timeout=10.0):
     while time.time() < deadline:
         try:
             with open(path, errors="replace") as fh:
-                found = _OK_LINE.findall(fh.read())
+                found = _OK_LINE.findall(semantic_log_text(fh.read()))
         except FileNotFoundError:
             found = []
         if len(found) >= expect:

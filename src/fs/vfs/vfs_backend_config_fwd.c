@@ -18,6 +18,7 @@
  *       refuses a forwarding export that ends up with none.
  */
 
+#include "core/compat/log_event.h"
 #include "vfs_backend_config_internal.h"
 
 #define VFS_FWD_PREFIX "forward://"
@@ -76,7 +77,7 @@ vfs_parse_forward_origin(ngx_conf_t *cf, const char *root_canon,
     if (vfs_fwd_parse_protocols(sb->data + pfxn, sb->len - pfxn,
                                 &root, &roots) != NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend \"%V\": forward:// takes a protocol list of "
             "root and/or roots (e.g. forward://root,roots)", sb);
         return NGX_ERROR;
@@ -84,7 +85,7 @@ vfs_parse_forward_origin(ngx_conf_t *cf, const char *root_canon,
 
     e = brix_vfs_backend_entry_claim(root_canon, "xroot_fwd");
     if (e == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend \"%V\": backend registry is full", sb);
         return NGX_ERROR;
     }

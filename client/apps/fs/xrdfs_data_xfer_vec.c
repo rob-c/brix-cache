@@ -6,6 +6,7 @@
  * to hold each TU within the size budget. Both share apps/fs/xrdfs_internal.h,
  * where every do_* entry point is declared. No goto.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdfs_internal.h"
 #include "brix_ops.h"              /* brix_cli_parse_io_uring, brix_readv_seg */
 #include "fs/vfs.h"
@@ -24,7 +25,7 @@ readv_parse_segs(int argc, char **argv, brix_readv_seg *segs, size_t *nseg_out)
         if (parse_u64_strict(argv[a], &off) != 0
             || parse_u64_strict(argv[a + 1], &len) != 0) {
             for (i = 0; i < nseg; i++) { free(segs[i].buf); }
-            fprintf(stderr, "xrdfs: readv: bad offset/length '%s %s'\n",
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: readv: bad offset/length '%s %s'\n",
                     argv[a], argv[a + 1]);
             return 50;
         }
@@ -34,7 +35,7 @@ readv_parse_segs(int argc, char **argv, brix_readv_seg *segs, size_t *nseg_out)
         segs[nseg].buf    = malloc(segs[nseg].len ? segs[nseg].len : 1);
         if (segs[nseg].buf == NULL) {
             for (i = 0; i < nseg; i++) { free(segs[i].buf); }
-            fprintf(stderr, "xrdfs: readv: out of memory\n");
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: readv: out of memory\n");
             return 51;
         }
         nseg++;
@@ -113,7 +114,7 @@ readvm_setup(brix_conn *c, const char *cwd, int argc, char **argv,
 
         if (parse_u64_strict(argv[a + 1], &off) != 0
             || parse_u64_strict(argv[a + 2], &len) != 0) {
-            fprintf(stderr, "xrdfs: readvm: bad offset/length '%s %s'\n",
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: readvm: bad offset/length '%s %s'\n",
                     argv[a + 1], argv[a + 2]);
             return 50;
         }
@@ -123,7 +124,7 @@ readvm_setup(brix_conn *c, const char *cwd, int argc, char **argv,
         segs[s].got    = 0;
         segs[s].buf    = malloc(len ? (size_t) len : 1);
         if (segs[s].buf == NULL) {
-            fprintf(stderr, "xrdfs: readvm: out of memory\n");
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: readvm: out of memory\n");
             return 51;
         }
         (*nseg)++;
@@ -221,26 +222,26 @@ writev_parse_seg(char **argv, int a, brix_writev_seg *segs, size_t nseg)
     unsigned long long off;
 
     if (hl == 0 || (hl % 2) != 0) {
-        fprintf(stderr, "xrdfs: writev: bad hex data\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: writev: bad hex data\n");
         return 50;
     }
     d = malloc(n);
     if (d == NULL) {
-        fprintf(stderr, "xrdfs: writev: out of memory\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: writev: out of memory\n");
         return 51;
     }
     for (j = 0; j < n; j++) {
         unsigned v;
         if (sscanf(hex + 2 * j, "%2x", &v) != 1) {
             free(d);
-            fprintf(stderr, "xrdfs: writev: bad hex data\n");
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: writev: bad hex data\n");
             return 50;
         }
         d[j] = (uint8_t) v;
     }
     if (parse_u64_strict(argv[a], &off) != 0) {
         free(d);
-        fprintf(stderr, "xrdfs: writev: bad offset '%s'\n", argv[a]);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: writev: bad offset '%s'\n", argv[a]);
         return 50;
     }
     segs[nseg].offset = (int64_t) off;

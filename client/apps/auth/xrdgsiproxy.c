@@ -8,6 +8,7 @@
  * HOW:  Thin arg parse → subcommand table (init/info/destroy) → per-cmd helper
  *       → brix_proxy_create/info/destroy.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "core/compat/crypto.h"
 #include "core/version.h"
@@ -136,7 +137,7 @@ cmd_init(int argc, char **argv, brix_status *st)
     }
     rc = brix_proxy_create(&o, st);
     if (rc != 0) {
-        fprintf(stderr, "xrdgsiproxy: init: %s\n", st->msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdgsiproxy: init: %s\n", st->msg);
         return brix_shellcode(st);
     }
     return brix_proxy_info(o.out_path, stdout, st);  /* echo what we made */
@@ -187,7 +188,7 @@ cmd_info(int argc, char **argv, brix_status *st)
         printf("%s\n", st->msg);
         return 1;
     }
-    fprintf(stderr, "xrdgsiproxy: info: %s\n", st->msg);
+    BRIX_CLIENT_LOG("ERROR",  "xrdgsiproxy: info: %s\n", st->msg);
     return brix_shellcode(st);
 }
 
@@ -211,7 +212,7 @@ cmd_destroy(int argc, char **argv, brix_status *st)
     if (rc == 0) {
         return 0;
     }
-    fprintf(stderr, "xrdgsiproxy: destroy: %s\n", st->msg);
+    BRIX_CLIENT_LOG("ERROR",  "xrdgsiproxy: destroy: %s\n", st->msg);
     return brix_shellcode(st);
 }
 

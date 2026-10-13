@@ -54,6 +54,26 @@ def _tail(proc: subprocess.CompletedProcess) -> str:
     return (proc.stderr or proc.stdout or "")[-3000:]
 
 
+def _nginx_generated_include(ngx_src: Path) -> Path:
+    direct = ngx_src / "objs"
+    if (direct / "ngx_auto_headers.h").is_file():
+        return direct
+
+    configured = os.environ.get("BRIX_NGINX_BUILD_DIR")
+    candidates = []
+    if configured:
+        candidates.append(Path(configured).resolve() / "modules")
+    candidates.extend(sorted((REPO_ROOT / "build").glob("*/modules")))
+    source_line = f"NGINX_SRC_DIR:PATH={ngx_src.resolve()}"
+    for candidate in candidates:
+        cache = candidate.parent / "CMakeCache.txt"
+        if not (candidate / "ngx_auto_headers.h").is_file() or not cache.is_file():
+            continue
+        if source_line in cache.read_text(errors="replace"):
+            return candidate
+    return direct
+
+
 def _nginx_includes(ngx_src: Path, *, http: bool = False, stream: bool = False) -> list[str]:
     incs = [
         "-I",
@@ -63,9 +83,13 @@ def _nginx_includes(ngx_src: Path, *, http: bool = False, stream: bool = False) 
         "-I",
         str(ngx_src / "src/event/modules"),
         "-I",
+        str(ngx_src / "src/event/quic"),
+        "-I",
+        str(ngx_src / "src/http/v3"),
+        "-I",
         str(ngx_src / "src/os/unix"),
         "-I",
-        str(ngx_src / "objs"),
+        str(_nginx_generated_include(ngx_src)),
     ]
     if stream:
         incs += ["-I", str(ngx_src / "src/stream")]
@@ -142,7 +166,9 @@ def _cc(argv: list[str]) -> subprocess.CompletedProcess:
 
 def _compile_and_run(binary: Path, argv: list[str]) -> tuple[bool, str]:
     objs = [Path(a) for a in argv if a.endswith(".o") and Path(a).exists()]
-    built = _cc(["-o", str(binary), *argv, *_gcov_flags(objs), *_sanitizer_flags(objs)])
+    built = _cc(["-o", str(binary), *argv,
+                 "tests/c/brix_log_link_stubs.c",
+                 *_gcov_flags(objs), *_sanitizer_flags(objs)])
     if built.returncode != 0:
         return result(False, f"compile failed: {_tail(built)}")
     # A gcov-instrumented harness would otherwise write .gcda beside the shared

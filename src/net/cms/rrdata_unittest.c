@@ -73,6 +73,8 @@ slot_ptr(brix_cms_rrdata_t *d, char key, size_t **len)
     case 'p': *len = &d->path_len;   return &d->path;
     case '2': *len = &d->path2_len;  return &d->path2;
     case 'o': *len = &d->opaque_len; return &d->opaque;
+    case 't': *len = &d->opaque2_len; return &d->opaque2;
+    case 'a': *len = &d->avoid_len;   return &d->avoid;
     case 'r': *len = &d->reqid_len;  return &d->reqid;
     case 'n': *len = &d->notify_len; return &d->notify;
     case 'y': *len = &d->prty_len;   return &d->prty;
@@ -153,7 +155,8 @@ static void
 test_mv(void)
 {
     /* fwdArgB: ident, path, path2, [fence], opaque, opaque2 */
-    (void) run_case(K_MV, "ip2", "id", "/a/src", "/a/dst");
+    (void) run_case(K_MV, "ip2ot", "id", "/a/src", "/a/dst",
+                    "src=1", "dst=2");
 }
 
 static void
@@ -167,7 +170,8 @@ static void
 test_select_with_opts(void)
 {
     /* locArgs: ident, opts(int), path, [fence], opaque, avoid */
-    (void) run_case(K_SELECT, "i#p", "id", 0x10u, "/sel/path");
+    (void) run_case(K_SELECT, "i#poa", "id", 0x10u, "/sel/path",
+                    "authz=x", "node.example");
 }
 
 static void
@@ -195,6 +199,115 @@ test_truncated_string_rejected(void)
     brix_cms_rrdata_t d;
     int rc = brix_cms_rrdata_parse(K_RM, buf, 5, &d);
     CHECK(rc == -1);
+}
+
+static void
+test_missing_string_terminator_rejected(void)
+{
+    /* A complete declared span is still malformed when its final byte is not
+     * NUL: consumers must never search beyond the received CMS frame. */
+    unsigned char buf[] = {
+        0x00, 0x02, 'i', 'X',
+        0x00, 0x04, 'r', 'e', 'q', '\0'
+    };
+    brix_cms_rrdata_t d;
+
+    CHECK(brix_cms_rrdata_parse(K_PREPDEL, buf, sizeof(buf), &d) == -1);
+}
+
+static void
+test_embedded_string_nul_rejected(void)
+{
+    /* A Pup field represents one C string, not a prefix plus hidden suffix. */
+    unsigned char buf[] = {
+        0x00, 0x04, 'i', '\0', 'x', '\0',
+        0x00, 0x04, 'r', 'e', 'q', '\0'
+    };
+    brix_cms_rrdata_t d;
+
+    CHECK(brix_cms_rrdata_parse(K_PREPDEL, buf, sizeof(buf), &d) == -1);
+}
+
+static void
+test_optional_string_with_embedded_nul_rejected(void)
+{
+    unsigned char buf[64], *p = buf;
+    brix_cms_rrdata_t d;
+
+    p = put_str(p, "id");
+    p = put_str(p, "/gone");
+    *p++ = 0x00;
+    *p++ = 0x04;
+    *p++ = 'x';
+    *p++ = '\0';
+    *p++ = 'y';
+    *p++ = '\0';
+    CHECK(brix_cms_rrdata_parse(K_RM, buf, (size_t) (p - buf), &d) == -1);
+}
+
+static void
+test_optional_string_without_terminator_rejected(void)
+{
+    unsigned char buf[64], *p = buf;
+    brix_cms_rrdata_t d;
+
+    p = put_str(p, "id");
+    p = put_str(p, "/gone");
+    *p++ = 0x00;
+    *p++ = 0x04;
+    *p++ = 'c';
+    *p++ = 'g';
+    *p++ = 'i';
+    *p++ = 'X';
+    CHECK(brix_cms_rrdata_parse(K_RM, buf, (size_t) (p - buf), &d) == -1);
+}
+
+static void
+test_canonical_and_noncanonical_empty_strings(void)
+{
+    unsigned char canonical[] = { 0, 0, 0, 0 };
+    unsigned char one_byte[] = { 0, 1, 0, 0, 0 };
+    brix_cms_rrdata_t d;
+
+    CHECK(brix_cms_rrdata_parse(K_PREPDEL, canonical,
+                                sizeof(canonical), &d) == 0);
+    CHECK(d.ident == NULL && d.reqid == NULL);
+    CHECK(brix_cms_rrdata_parse(K_PREPDEL, one_byte,
+                                sizeof(one_byte), &d) == -1);
+}
+
+static void
+test_trailing_bytes_rejected(void)
+{
+    unsigned char buf[64], *p = buf;
+    brix_cms_rrdata_t d;
+
+    p = put_str(p, "id");
+    p = put_str(p, "req");
+    *p++ = 'X';
+    CHECK(brix_cms_rrdata_parse(K_PREPDEL, buf,
+                                (size_t) (p - buf), &d) == -1);
+
+    p = buf;
+    p = put_str(p, "id");
+    p = put_str(p, "/gone");
+    p = put_str(p, "cgi=1");
+    *p++ = 'X';
+    CHECK(brix_cms_rrdata_parse(K_RM, buf, (size_t) (p - buf), &d) == -1);
+}
+
+static void
+test_malformed_tagged_integer_rejected(void)
+{
+    unsigned char buf[32], *p = buf;
+    brix_cms_rrdata_t d;
+
+    p = put_str(p, "id");
+    *p++ = 0xa0;
+    *p++ = 0;
+    *p++ = 0;
+    CHECK(brix_cms_rrdata_parse(K_SELECT, buf,
+                                (size_t) (p - buf), &d) == -1);
 }
 
 static void
@@ -285,6 +398,13 @@ main(void)
     test_prepadd();
     test_prepdel();
     test_truncated_string_rejected();
+    test_missing_string_terminator_rejected();
+    test_embedded_string_nul_rejected();
+    test_optional_string_with_embedded_nul_rejected();
+    test_optional_string_without_terminator_rejected();
+    test_canonical_and_noncanonical_empty_strings();
+    test_trailing_bytes_rejected();
+    test_malformed_tagged_integer_rejected();
     test_unknown_opcode_rejected();
     test_encode_roundtrip_mkdir();
     test_encode_roundtrip_mv_with_opaque();

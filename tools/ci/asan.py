@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # WHAT: Build the brix module (objs/nginx) + client with ASan+UBSan, boot the
 #       test fleet against that instrumented binary, drive real I/O through it,
@@ -274,12 +279,12 @@ def _stop_process(tests, san_env):
 def _verdict(log_dir, suite_rc):
     hits = _reports_with_findings(log_dir)
     if hits:
-        print(f"asan: FAIL — {len(hits)} sanitizer report(s) with findings:", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/asan.py', '_verdict', f"asan: FAIL — {len(hits)} sanitizer report(s) with findings:", file=sys.stderr)
         for path, text in hits:
-            print(f"---- {path} ----\n{text[:4000]}\n", file=sys.stderr)
+            _brix_diagnostic('ERROR', 'tools/ci/asan.py', '_verdict', f"---- {path} ----\n{text[:4000]}\n", file=sys.stderr)
         return 1
     if suite_rc != 0:
-        print(f"asan: FAIL — driver command exited {suite_rc} "
+        _brix_diagnostic('ERROR', 'tools/ci/asan.py', '_verdict', f"asan: FAIL — driver command exited {suite_rc} "
               "(no sanitizer report, but the I/O leg itself failed)", file=sys.stderr)
         return suite_rc
     print("asan: OK — sanitized fleet served the workload with zero "

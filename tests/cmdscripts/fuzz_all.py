@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import os
+import sys
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
 
@@ -25,7 +26,9 @@ def _expression_3(ran):
 
 FUZZ_DIR = REPO_ROOT / "tests" / "fuzz"
 ARTIFACT_DIR = FUZZ_DIR / "artifacts"
-SAN = ["-O1", "-g", "-fsanitize=fuzzer,address,undefined"]
+PLATFORM_HOST = "darwin" if sys.platform == "darwin" else "linux"
+SAN = ["-O1", "-g", "-fsanitize=fuzzer,address,undefined",
+       f"-DBRIX_PLATFORM_HOST={PLATFORM_HOST}"]
 
 
 BUILD_ARGS = {
@@ -59,6 +62,7 @@ BUILD_ARGS = {
         "-iquote",
         "../../src",
         "fuzz_zip_dir.c",
+        f"../../src/platform/{PLATFORM_HOST}/storage_wrapper.c",
         "-lz",
         "-o",
         "fuzz_zip_dir",
@@ -172,6 +176,8 @@ BUILD_ARGS = {
     "fuzz_tar_header": [
         "clang",
         *SAN,
+        "-I",
+        "../../src",
         "-I",
         "../../shared",
         "fuzz_tar_header.c",

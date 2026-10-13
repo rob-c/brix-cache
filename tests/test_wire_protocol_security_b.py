@@ -23,6 +23,10 @@ class TestPreAuthRequestRejection:
         status, body = self._send_before_login(kXR_sync)
         self._assert_rejected(status, body)
 
+    def test_preauth_gpfile_rejected(self):
+        status, body = self._send_before_login(kXR_gpfile)
+        self._assert_rejected(status, body)
+
     def test_preauth_fattr_rejected(self):
         path = b"/test.txt\x00"
         status, body = self._send_before_login(kXR_fattr, path)

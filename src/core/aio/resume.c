@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "uring.h"
 #include "protocols/root/connection/disconnect.h"
@@ -77,6 +78,13 @@ brix_aio_post_task(brix_ctx_t *ctx, ngx_connection_t *c,
 {
     *posted = 0;
 
+    /* ngx_event_process_posted() consults event.log before it invokes the
+     * completion handler.  ngx_thread_task_post() historically supplied the
+     * surrounding thread-pool machinery, but the io_uring tier posts this
+     * embedded event directly.  Bind the request log at the shared selector
+     * boundary so every completion tier presents the same valid event. */
+    task->event.log = c->log;
+
     /*
      * Phase 44 tier 1: io_uring.  Compiled out entirely in a stub build (no
      * liburing), so this is exactly the historical thread-pool path there.  The
@@ -116,7 +124,7 @@ brix_aio_post_task(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (ngx_thread_task_post(pool, task) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0, "%s", fallback_log);
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0, "%s", fallback_log);
         return NGX_OK;
     }
 
@@ -156,7 +164,7 @@ brix_aio_resume(ngx_connection_t *c)
         return;
     }
 
-    ngx_log_debug5(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: aio_resume state=%d ravail=%d rready=%d "
                    "wready=%d wposted=%d",
                    (int) ctx->state, c->read->available,

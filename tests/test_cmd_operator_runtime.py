@@ -34,9 +34,12 @@ def test_operator_runtime_ports_are_importable(tmp_path: Path):
     assert not failed, "\n".join(failed)
 
 
-def test_operator_runtime_module_defines_dispatch_before_direct_execution():
+def test_operator_runtime_module_defines_dispatch_before_direct_execution(tmp_path):
     env = os.environ.copy()
     env["PYTHONPATH"] = str(Path(__file__).parent)
+    test_root = tmp_path / "operator-runtime"
+    (test_root / "tmp").mkdir(parents=True)
+    env["TEST_ROOT"] = str(test_root)
     proc = subprocess.run(
         [sys.executable, "-m", "cmdscripts.operator_runtime", "not-a-runner"],
         cwd=Path(__file__).parents[1], env=env, capture_output=True, text=True,
@@ -336,6 +339,31 @@ def test_explicit_project_modules_prepend_discovered_distro_stream_module(tmp_pa
     assert operator_runtime.os.environ["TEST_NGINX_LOAD_MODULES"].split(
         operator_runtime.os.pathsep
     ) == [str(stream), *[str(module) for module in project]]
+
+
+def test_static_nginx_accepts_compatible_project_modules(tmp_path: Path):
+    nginx = _executable(tmp_path / "nginx")
+    modules = [tmp_path / "ngx_stream_brix_module.so",
+               tmp_path / "ngx_http_brix_xrdhttp_filter_module.so"]
+    for module in modules:
+        module.write_bytes(b"project")
+
+    assert operator_runtime._configure_nginx_modules(
+        str(nginx), [str(module) for module in modules],
+    ) is True
+    assert operator_runtime.os.environ["TEST_NGINX_LOAD_MODULES"].split(
+        operator_runtime.os.pathsep
+    ) == [str(module) for module in modules]
+
+
+def test_static_nginx_rejects_dynamic_stream_core(tmp_path: Path):
+    nginx = _executable(tmp_path / "nginx")
+    stream = tmp_path / "ngx_stream_module.so"
+    stream.write_bytes(b"foreign core")
+
+    assert operator_runtime._configure_nginx_modules(
+        str(nginx), [str(stream)],
+    ) is False
 
 
 def test_dynamic_nginx_rejects_foreign_explicit_stream_module(tmp_path: Path):

@@ -15,7 +15,9 @@ Build-Depends: debhelper-compat (= 13),
                libcrypt-dev,
                libsqlite3-dev,
                libfuse3-dev,
+               libseccomp-dev,
                libzstd-dev,
+               libbrotli-dev,
                liblz4-dev,
                liburing-dev,
                librados-dev,
@@ -23,7 +25,7 @@ Build-Depends: debhelper-compat (= 13),
                libradosstriper-dev,
                libcephfs-dev
 Standards-Version: 4.6.2
-Homepage: https://github.com/HEP-x/nginx-xrootd
+Homepage: https://github.com/rob-c/brix-cache
 Rules-Requires-Root: no
 
 Package: nginx-mod-brix-cache
@@ -31,7 +33,9 @@ Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          ${brix:nginx-abi},
+         adduser,
          curl,
+         logrotate,
          librados2,
          libradosstriper1
 Provides: nginx-mod-xrootd (= ${binary:Version})
@@ -51,7 +55,7 @@ Description: BriX-Cache - XRootD, WebDAV, S3, CMS and metrics modules for nginx
 
 Package: brix-cache-client
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, python3
 Recommends: brix-xrootdfs-fuse (= ${binary:Version}),
             brix-cvmfs-fuse (= ${binary:Version})
 Provides: nginx-xrootd-client (= ${binary:Version})
@@ -61,8 +65,9 @@ Description: BriX-Cache clean-room native XRootD client tools (xrdcp, xrdfs, ...
  xrdcp, xrdfs, xrd, xrdcksum and checksum personalities, xrdqstats, xrdprep,
  xrdgsiproxy, xrddiag, xrdmapc, xrdgsitest, xrdstorascan, mpxstats-brix,
  xrdsssadmin-brix and wait41-brix, plus brix-fault-proxy (a root-free TCP
- fault-injection proxy for resilience testing) and the libbrixposix_preload.so
- LD_PRELOAD POSIX shim.  The FUSE mounts live in the brix-xrootdfs-fuse and
+ fault-injection proxy for resilience testing), brix-config-migrate (an
+ offline XRootD-to-BriX configuration assistant), and the
+ libbrixposix_preload.so LD_PRELOAD POSIX shim.  The FUSE mounts live in the brix-xrootdfs-fuse and
  brix-cvmfs-fuse packages (installed by default via Recommends).
 
 Package: brix-cache-client-compat

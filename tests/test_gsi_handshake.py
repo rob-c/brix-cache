@@ -1,3 +1,13 @@
+import json
+import socket
+import struct
+import threading
+from contextlib import contextmanager
+from pathlib import Path
+
+from settings import HOST
+from ephemeral_port import free_port
+
 from split_continuation import reexport as _reexport
 def _expression_1(proxy, pki):
     return (
@@ -12,7 +22,269 @@ def _expression_2(cf, kf):
 
 _reexport(globals(), "_test_gsi_handshake_helpers")
 
-pytestmark = [*pytestmark, pytest.mark.xdist_group("test_gsi_handshake")]
+pytestmark = [*pytestmark, pytest.mark.xdist_group("test_gsi_handshake"),
+              pytest.mark.timeout(150)]
+
+
+def _recv_exact(connection, length):
+    data = b""
+    while len(data) < length:
+        chunk = connection.recv(length - len(data))
+        if not chunk:
+            raise ConnectionError("peer closed")
+        data += chunk
+    return data
+
+
+def _recv_request(connection):
+    header = _recv_exact(connection, 24)
+    request_id = struct.unpack("!H", header[2:4])[0]
+    length = struct.unpack("!I", header[20:24])[0]
+    if length > 1024 * 1024:
+        raise ConnectionError("request exceeds hostile-peer bound")
+    body = _recv_exact(connection, length) if length else b""
+    return header, request_id, body
+
+
+class _GsiTranscriptFaultProxy:
+    """Proxy a real GSI peer while falsifying its legacy transcript."""
+
+    def __init__(self, backend_host, backend_port):
+        self.backend_host = backend_host
+        self.backend_port = backend_port
+        self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.listener.bind((HOST, free_port(HOST)))
+        self.listener.listen(32)
+        self.listener.settimeout(0.2)
+        self.port = self.listener.getsockname()[1]
+        self.closing = False
+        self.thread = threading.Thread(target=self._accept, daemon=True)
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, *_exc):
+        self.closing = True
+        self.listener.close()
+        self.thread.join(timeout=5)
+
+    def _accept(self):
+        while not self.closing:
+            try:
+                client, _address = self.listener.accept()
+            except (OSError, socket.timeout):
+                continue
+            threading.Thread(target=self._serve, args=(client,),
+                             daemon=True).start()
+
+    @staticmethod
+    def _corrupt_login_challenge(body, request_id):
+        if request_id != 3007 or len(body) < 16:
+            return body
+        altered = bytearray(body)
+        terminator = altered.find(0, 16)
+        end = terminator if terminator >= 0 else len(altered)
+        if end > 16:
+            altered[end - 1] = 0x7f
+        return bytes(altered)
+
+    @staticmethod
+    def _premature_auth_success(response, body, request_id, first_auth):
+        consumed = request_id == 3000 and first_auth
+        if not consumed:
+            return response, body, False
+        stream_id = response[:2]
+        return stream_id + struct.pack("!HI", 0, 0), b"", True
+
+    @classmethod
+    def _forward_response(cls, backend, client, request_id, first_auth):
+        response = _recv_exact(backend, 8)
+        status = struct.unpack("!H", response[2:4])[0]
+        length = struct.unpack("!I", response[4:8])[0]
+        body = _recv_exact(backend, length) if length else b""
+        body = cls._corrupt_login_challenge(body, request_id)
+        response, body, consumed = cls._premature_auth_success(
+            response, body, request_id, first_auth,
+        )
+        client.sendall(response + body)
+        return status, consumed
+
+    def _serve(self, client):
+        backend = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client.settimeout(5)
+        backend.settimeout(5)
+        first_auth = True
+        try:
+            backend.connect((self.backend_host, self.backend_port))
+            handshake = _recv_exact(client, 20)
+            backend.sendall(handshake)
+            client.sendall(_recv_exact(backend, 16))
+            while not self.closing:
+                header, request_id, body = _recv_request(client)
+                backend.sendall(header + body)
+                _status, consumed = self._forward_response(
+                    backend, client, request_id, first_auth,
+                )
+                if consumed:
+                    first_auth = False
+        except (ConnectionError, OSError, struct.error):
+            return
+        finally:
+            backend.close()
+            client.close()
+
+
+@contextmanager
+def _gsi_transcript_fault_peer(target):
+    parsed = target.removeprefix("root://").split("/", 1)[0]
+    host, port = parsed.rsplit(":", 1)
+    with _GsiTranscriptFaultProxy(host, int(port)) as proxy:
+        yield f"root://{HOST}:{proxy.port}"
+
+
+class _SigverFaultProxy(_GsiTranscriptFaultProxy):
+    """Keep real GSI crypto, but falsify one post-auth signing outcome."""
+
+    def __init__(self, backend_host, backend_port, clause):
+        super().__init__(backend_host, backend_port)
+        self.clause = clause
+
+    @staticmethod
+    def _error(stream_id):
+        body = struct.pack("!I", 3022) + b"controlled sigver fault\x00"
+        return stream_id + struct.pack("!HI", 4003, len(body)) + body
+
+    @staticmethod
+    def _success(stream_id, request_id):
+        if request_id == 3017:
+            body = b"0 20 0 0\x00"
+        elif request_id == 3013:
+            body = b"x"
+        else:
+            body = b""
+        return stream_id + struct.pack("!HI", 0, len(body)) + body
+
+    def _read_response(self, backend, request_id):
+        response = _recv_exact(backend, 8)
+        length = struct.unpack("!I", response[4:8])[0]
+        body = _recv_exact(backend, length) if length else b""
+        if self.clause == "SIG-010" and request_id == 3006 \
+                and len(body) >= 12 and body[8] == ord("S"):
+            altered = bytearray(body)
+            altered[11] |= 0x02
+            body = bytes(altered)
+        return response[:4] + struct.pack("!I", len(body)) + body
+
+    def _rewrite_covered(self, response, request_id, pending):
+        handler = getattr(self, "_rewrite_" + self.clause.replace("-", "_"), None)
+        return handler(response, request_id, pending) if handler else response
+
+    def _rewrite_SIG_001(self, response, request_id, pending):
+        if not pending and request_id == 3017:
+            return self._success(response[:2], request_id)
+        return response
+
+    def _rewrite_SIG_002(self, response, request_id, pending):
+        if pending and request_id == 3017:
+            return self._error(response[:2])
+        return response
+
+    def _rewrite_SIG_003(self, response, request_id, pending):
+        if pending and pending["expectrid"] != request_id:
+            return self._success(response[:2], request_id)
+        return response
+
+    def _rewrite_SIG_005(self, response, request_id, pending):
+        del request_id
+        if pending and pending["sequence"] == 1 << 40:
+            return self._error(response[:2])
+        return response
+
+    def _rewrite_SIG_006(self, response, request_id, pending):
+        del request_id
+        if pending and pending["flags"] & 0x01:
+            return self._error(response[:2])
+        return response
+
+    def _rewrite_SIG_009(self, response, request_id, pending):
+        del pending
+        if request_id == 3013:
+            return self._success(response[:2], request_id)
+        return response
+
+    def _rewrite_invalid_prefix(self, response, version, crypto, replay):
+        if ((self.clause == "SIG-004" and replay)
+                or (self.clause == "SIG-007" and crypto != 0x01)
+                or (self.clause == "SIG-008" and version != 0)):
+            return self._success(response[:2], 3029)
+        return response
+
+    @staticmethod
+    def _prefix_state(header, last_sequence):
+        version = header[6]
+        flags = header[7]
+        sequence = struct.unpack("!Q", header[8:16])[0]
+        crypto = header[16]
+        replay = sequence <= last_sequence
+        pending = {
+            "expectrid": struct.unpack("!H", header[4:6])[0],
+            "flags": flags,
+            "sequence": sequence,
+        }
+        return version, crypto, replay, sequence, pending
+
+    def _forward_prefix(self, backend, client, header, last_sequence):
+        version, crypto, replay, sequence, pending = self._prefix_state(
+            header, last_sequence,
+        )
+        if version == 0 and crypto == 0x01 and not replay:
+            return pending, sequence
+        response = self._read_response(backend, 3029)
+        client.sendall(self._rewrite_invalid_prefix(
+            response, version, crypto, replay,
+        ))
+        return None, last_sequence
+
+    def _forward_covered(self, backend, client, request_id, pending):
+        response = self._read_response(backend, request_id)
+        client.sendall(self._rewrite_covered(response, request_id, pending))
+
+    def _serve(self, client):
+        backend = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client.settimeout(8)
+        backend.settimeout(8)
+        pending = None
+        last_sequence = 0
+        try:
+            backend.connect((self.backend_host, self.backend_port))
+            handshake = _recv_exact(client, 20)
+            backend.sendall(handshake)
+            client.sendall(_recv_exact(backend, 16))
+            while not self.closing:
+                header, request_id, body = _recv_request(client)
+                backend.sendall(header + body)
+                if request_id == 3029:
+                    pending, last_sequence = self._forward_prefix(
+                        backend, client, header, last_sequence,
+                    )
+                    continue
+                self._forward_covered(backend, client, request_id, pending)
+                pending = None
+        except (ConnectionError, OSError, struct.error):
+            return
+        finally:
+            backend.close()
+            client.close()
+
+
+@contextmanager
+def _sigver_fault_peer(target, clause):
+    parsed = target.removeprefix("root://").split("/", 1)[0]
+    host, port = parsed.rsplit(":", 1)
+    with _SigverFaultProxy(host, int(port), clause) as proxy:
+        yield f"root://{HOST}:{proxy.port}"
 
 def _rejected(http_code):
     """A WebDAV auth rejection is any non-2xx outcome — the request was refused
@@ -20,6 +292,90 @@ def _rejected(http_code):
     handshake outright (000).  The only failure that matters is being *served*."""
     code = (http_code or "").strip()
     return bool(code) and not code.startswith("2")
+
+
+@pytest.fixture(scope="module")
+def sigver_conform_results(pki, nginx_root_sigver, tmp_path_factory):
+    """Run the Phase-118 active-signing ledger against a real GSI session."""
+    xrd = Path(REPO) / "client" / "bin" / "xrd"
+    output = tmp_path_factory.mktemp("xrd-conform-gsi-sigver")
+    target = nginx_root_sigver["url"] + "//hello.txt"
+
+    assert xrd.exists(), "native client/bin/xrd must be built (make -C client)"
+    result = _run(
+        [str(xrd), "conform", "accept", target, "--auth", "gsi",
+         "--families", "SIG", "--fail-on", "divergent",
+         "--wall-seconds", "60", "--request-limit", "128",
+         "--byte-limit", "1048576", "--out", str(output)],
+        env=pki["env"])
+    assert result.returncode == 0, result.stderr + result.stdout
+    report = json.loads((output / "report.json").read_text(encoding="utf-8"))
+    return {row["id"]: row for row in report["results"]}
+
+
+def test_conform_sigver_serves_valid_signed_shapes(sigver_conform_results):
+    """Success: signed shapes work and bound streams retain signing policy."""
+    for clause in ("SIG-002", "SIG-005", "SIG-006", "SIG-009"):
+        assert sigver_conform_results[clause]["verdict"] == "conformant"
+
+
+def test_conform_sigver_refuses_unsigned_and_malformed_shapes(
+        sigver_conform_results):
+    """Security-negative: unsigned, mismatched, replayed and unknown forms fail."""
+    for clause in ("SIG-001", "SIG-003", "SIG-004", "SIG-007", "SIG-008"):
+        assert sigver_conform_results[clause]["verdict"] == "conformant"
+
+
+def test_conform_sigver_does_not_green_unavailable_crosses(
+        sigver_conform_results):
+    """Error honesty: an unadvertised signing option is claim-skipped."""
+    assert sigver_conform_results["SIG-010"]["verdict"] == "skipped"
+    assert sigver_conform_results["SIG-010"]["reason"] == \
+        "claim-absent:secOFrce"
+
+
+@pytest.mark.parametrize("clause", ("LOG-009", "LOG-010", "LOG-011",
+                                    "LOG-012"))
+def test_conform_rejects_falsified_legacy_gsi_transcript(
+        clause, pki, nginx_root_sigver, tmp_path):
+    """Security-negative: a round-one success cannot forge GSI evidence."""
+    xrd = Path(REPO) / "client" / "bin" / "xrd"
+    output = tmp_path / clause.lower()
+    with _gsi_transcript_fault_peer(nginx_root_sigver["url"]) as peer:
+        result = _run(
+            [str(xrd), "conform", "accept", peer + "//hello.txt",
+             "--auth", "gsi", "--families", "LOG", "--only", clause,
+             "--verify-negative", clause, "--fail-on", "divergent",
+             "--wall-seconds", "30", "--request-limit", "96",
+             "--byte-limit", "1048576", "--out", str(output)],
+            env=pki["env"])
+    report = json.loads((output / "report.json").read_text(encoding="utf-8"))
+    rows = {row["id"]: row for row in report["results"]}
+    assert result.returncode == 1, result.stderr + result.stdout
+    assert rows[clause]["verdict"] == "divergent", rows[clause]
+    assert f"verify-negative={clause} result=passed" in result.stdout
+
+
+@pytest.mark.parametrize("clause", tuple(f"SIG-{index:03d}"
+                                         for index in range(1, 11)))
+def test_conform_detects_hostile_sigver_peer(
+        clause, pki, nginx_root_sigver, tmp_path):
+    """Security-negative: each signing contract has executable red evidence."""
+    xrd = Path(REPO) / "client" / "bin" / "xrd"
+    output = tmp_path / clause.lower()
+    with _sigver_fault_peer(nginx_root_sigver["url"], clause) as peer:
+        result = _run(
+            [str(xrd), "conform", "accept", peer + "//hello.txt",
+             "--auth", "gsi", "--families", "SIG", "--only", clause,
+             "--verify-negative", clause, "--fail-on", "divergent",
+             "--wall-seconds", "45", "--request-limit", "128",
+             "--byte-limit", "1048576", "--out", str(output)],
+            env=pki["env"])
+    report = json.loads((output / "report.json").read_text(encoding="utf-8"))
+    rows = {row["id"]: row for row in report["results"]}
+    assert result.returncode == 1, result.stderr + result.stdout
+    assert rows[clause]["verdict"] == "divergent", rows[clause]
+    assert f"verify-negative={clause} result=passed" in result.stdout
 
 
 def _curl(pki, webdav, proxy, *args, method=None, upload=None):
@@ -252,151 +608,4 @@ class TestVersionAdvertisement:
 # --------------------------------------------------------------------------- #
 # root:// — identity (DN) extraction from the verified proxy chain
 # --------------------------------------------------------------------------- #
-class TestIdentityExtraction:
-    def test_dn_logged(self, pki, nginx_root_off):
-        r = _run([STOCK_XRDFS, nginx_root_off["url"], "ls", "/"], env=pki["env"])
-        assert r.returncode == 0, r.stderr
-        time.sleep(0.2)
-        log = open(nginx_root_off["log"]).read() if os.path.exists(
-            nginx_root_off["log"]) else ""
-        assert "GSI auth OK" in log, "server did not log a GSI auth"
-        # The log sanitizer escapes the space in "Test User" → "Test\x20User",
-        # so match the stable, unescaped CN prefix instead.
-        assert "CN=Test" in log, f"expected the proxy DN in the log:\n{log[-800:]}"
-
-
-# --------------------------------------------------------------------------- #
-# root:// — negative paths: the credential must be REFUSED
-# --------------------------------------------------------------------------- #
-class TestRootNegative:
-    def test_no_proxy_rejected(self, pki, nginx_root_off):
-        env = dict(os.environ, X509_CERT_DIR=pki["certs"],
-                   X509_USER_PROXY="/nonexistent/proxy.pem")
-        env.pop("BEARER_TOKEN", None)
-        r = _run([STOCK_XRDFS, "--noasync", nginx_root_off["url"], "ls", "/"],
-                 env=env)
-        assert r.returncode != 0, "auth without a proxy must fail"
-
-    def test_untrusted_ca_proxy_rejected(self, pki, nginx_root_off):
-        assert pki["untrusted_proxy"], "untrusted proxy not provisioned"
-        # Present the untrusted proxy but keep the trusted certdir so the client
-        # offers gsi; the server must reject the chain (unknown CA).
-        env = dict(os.environ, X509_CERT_DIR=pki["certs"],
-                   X509_USER_PROXY=pki["untrusted_proxy"])
-        r = _run([STOCK_XRDFS, nginx_root_off["url"], "ls", "/"], env=env)
-        assert r.returncode != 0, "a proxy from an untrusted CA must be refused"
-
-    def test_expired_proxy_rejected(self, pki, nginx_root_off):
-        assert pki["expired_proxy"], "expired credential not provisioned"
-        env = _env_with(pki, pki["expired_proxy"])
-        r = _run([STOCK_XRDFS, nginx_root_off["url"], "ls", "/"], env=env)
-        assert r.returncode != 0, "an expired credential must be refused"
-
-    def test_wrong_server_ca_rejected(self, pki, nginx_root_off):
-        # Client trusts only the untrusted CA → must reject the server host cert.
-        env = dict(os.environ, X509_CERT_DIR=os.path.join(pki["base"], "ucerts"),
-                   X509_USER_PROXY=pki["valid_proxy"])
-        r = _run([STOCK_XRDFS, nginx_root_off["url"], "ls", "/"], env=env)
-        assert r.returncode != 0, "client must reject an untrusted server cert"
-
-
-# --------------------------------------------------------------------------- #
-# root:// — foreign-CA host cert: the client's kXRS_issuer_hash must name the
-# proxy's OWN issuing CA, never the server's advertised ca: (which is only the
-# SERVER host cert's CA). Regression guard for the "certificate chain
-# verification failed: chain is inconsistent" interop bug our native client hit
-# against UK e-Science CA 2B grid sites (Glasgow/Lancaster) where the stock
-# client authenticated with the very same proxy.
-# --------------------------------------------------------------------------- #
-class TestForeignCaHostCert:
-    def _skip(self):
-        assert os.path.exists(NATIVE_XRDFS), \
-            "native client/bin/xrdfs must be built (make -C client)"
-
-    def test_native_auth_foreign_ca_host(self, pki, stock_root_foreign_ca):
-        # Success + regression guard: our native client authenticates to a STOCK
-        # XrdSecgsi server whose host cert is signed by a CA distinct from our
-        # proxy's CA. A client that echoes the server's advertised ca: as its
-        # issuer hash makes the stock server anchor our chain on the wrong CA and
-        # reject it ("chain is inconsistent") — this fails on the pre-fix client.
-        self._skip()
-        r = _run([NATIVE_XRDFS, "--auth", "gsi",
-                  stock_root_foreign_ca["url"], "ls", "/gsidata"], env=pki["env"])
-        assert r.returncode == 0, f"native→foreign-CA stock host: {r.stderr}"
-        assert "/gsidata/hello.txt" in r.stdout
-
-    def test_stock_auth_foreign_ca_host(self, pki, stock_root_foreign_ca):
-        # Oracle: the stock client authenticates too, proving the foreign-CA
-        # server is correctly configured (it trusts our proxy CA). So a native
-        # failure here is our client's bug, not a lax/broken fixture.
-        r = _run([STOCK_XRDFS, stock_root_foreign_ca["url"], "ls", "/gsidata"],
-                 env=pki["env"])
-        assert r.returncode == 0, f"stock→foreign-CA stock host: {r.stderr}"
-        assert "/gsidata/hello.txt" in r.stdout
-
-    def test_native_untrusted_proxy_rejected_foreign_ca(
-            self, pki, stock_root_foreign_ca):
-        # Security-negative: naming our own proxy CA in the issuer hash must not
-        # weaken verification — a proxy from a CA the server does not trust is
-        # still refused (the server anchors on its real trust store, not the hint).
-        self._skip()
-        env = dict(os.environ, X509_CERT_DIR=pki["certs"],
-                   X509_USER_PROXY=pki["untrusted_proxy"])
-        r = _run([NATIVE_XRDFS, "--auth", "gsi",
-                  stock_root_foreign_ca["url"], "ls", "/gsidata"], env=env)
-        assert r.returncode != 0, "a proxy from an untrusted CA must be refused"
-
-    def test_native_no_proxy_fails_cleanly_foreign_ca(
-            self, pki, stock_root_foreign_ca):
-        # Error path: with no readable proxy, gsi_client_issuer_hash returns -1
-        # and gsi_first falls back to the echoed server ca:. Auth must fail
-        # cleanly (no crash), exercising the fallback branch.
-        self._skip()
-        env = dict(os.environ, X509_CERT_DIR=pki["certs"],
-                   X509_USER_PROXY="/nonexistent/proxy.pem")
-        env.pop("BEARER_TOKEN", None)
-        r = _run([NATIVE_XRDFS, "--auth", "gsi",
-                  stock_root_foreign_ca["url"], "ls", "/gsidata"], env=env)
-        assert r.returncode != 0, "auth without a proxy must fail cleanly"
-
-
-# --------------------------------------------------------------------------- #
-# Native client ↔ real stock xrootd server (the reverse keystone, with ops)
-# --------------------------------------------------------------------------- #
-class TestNativeAgainstStock:
-    def _skip(self):
-        assert os.path.exists(NATIVE_XRDFS) and os.path.exists(NATIVE_XRDCP), \
-            "native client/bin/xrd{fs,cp} must be built (make -C client)"
-
-    def test_native_ls_stock(self, pki, stock_root):
-        self._skip()
-        r = _run([NATIVE_XRDFS, "--auth", "gsi", stock_root["url"],
-                  "ls", "/gsidata"], env=pki["env"])
-        assert r.returncode == 0, f"native→stock ls: {r.stderr}"
-        assert "/gsidata/hello.txt" in r.stdout
-
-    def test_native_read_stock(self, pki, stock_root, tmp_path):
-        self._skip()
-        out = str(tmp_path / "ns.txt")
-        r = _run([NATIVE_XRDCP, "--auth", "gsi", "-f",
-                  f"{stock_root['url']}//gsidata/hello.txt", out], env=pki["env"])
-        assert r.returncode == 0, f"native→stock read: {r.stderr}"
-        assert open(out).read() == "hello-gsi-handshake\n"
-
-    def test_native_write_stock(self, pki, stock_root, tmp_path):
-        self._skip()
-        src = str(tmp_path / "nw.bin")
-        blob = _big(src, 2 * 1024 * 1024)
-        up = _run([NATIVE_XRDCP, "--auth", "gsi", "-f", src,
-                   f"{stock_root['url']}//gsidata/nw.bin"], env=pki["env"])
-        assert up.returncode == 0, f"native→stock write: {up.stderr}"
-        back = str(tmp_path / "nwback.bin")
-        dl = _run([NATIVE_XRDCP, "--auth", "gsi", "-f",
-                   f"{stock_root['url']}//gsidata/nw.bin", back], env=pki["env"])
-        assert dl.returncode == 0, f"native→stock readback: {dl.stderr}"
-        assert open(back, "rb").read() == blob
-
-
-# --------------------------------------------------------------------------- #
-# https:// WebDAV — the SAME x509 proxy credential over TLS client-cert auth
-# --------------------------------------------------------------------------- #
+_reexport(globals(), "_test_gsi_handshake_extended")

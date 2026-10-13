@@ -2,6 +2,7 @@
  * deleg_capture.c — HTTP capture of a user-supplied full x509 proxy for backend
  * credential PASSTHROUGH (phase-70 §5.1). See deleg_capture.h for the contract.
  */
+#include "core/compat/log_event.h"
 #include "deleg_capture.h"
 
 #include "core/http/http_headers.h"
@@ -77,13 +78,13 @@ brix_proto_deleg_capture_proxy_header(ngx_http_request_t *r,
     /* §6 secret hygiene: a private key must never ride cleartext. */
 #if (NGX_HTTP_SSL)
     if (r->connection->ssl == NULL) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
             "brix: rejecting " BRIX_DELEG_PROXY_HEADER
             " over cleartext transport");
         return NGX_HTTP_FORBIDDEN;
     }
 #else
-    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
         "brix: rejecting " BRIX_DELEG_PROXY_HEADER
         " (TLS support not compiled in)");
     return NGX_HTTP_FORBIDDEN;
@@ -96,7 +97,7 @@ brix_proto_deleg_capture_proxy_header(ngx_http_request_t *r,
     }
 
     if (ngx_decode_base64(&decoded, &hdr->value) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
             "brix: " BRIX_DELEG_PROXY_HEADER " is not valid base64");
         return NGX_HTTP_FORBIDDEN;
     }
@@ -104,7 +105,7 @@ brix_proto_deleg_capture_proxy_header(ngx_http_request_t *r,
     /* Leaf DN must equal the authenticated identity DN — no privilege swap. */
     if (!deleg_proxy_leaf_dn(decoded.data, decoded.len,
                              leaf_dn, sizeof(leaf_dn))) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
             "brix: " BRIX_DELEG_PROXY_HEADER
             " does not decode to a PEM certificate");
         return NGX_HTTP_FORBIDDEN;
@@ -114,7 +115,7 @@ brix_proto_deleg_capture_proxy_header(ngx_http_request_t *r,
         || identity->dn.len != ngx_strlen(leaf_dn)
         || ngx_strncmp(identity->dn.data, leaf_dn, identity->dn.len) != 0)
     {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
             "brix: rejecting " BRIX_DELEG_PROXY_HEADER
             " — proxy leaf DN does not match authenticated identity");
         return NGX_HTTP_FORBIDDEN;

@@ -48,12 +48,16 @@ from pathlib import Path
 import pytest
 from lib_py.util import budget_scale
 
+ROOT = Path(__file__).resolve().parent.parent
+
 # The closure scans the whole tracked tree; that is seconds idle and minutes
 # inside an 8-worker lane, so the budget scales with the host.
 pytestmark = [pytest.mark.timeout(120 * budget_scale()),
-              pytest.mark.xdist_group("phase112-closure")]
+              pytest.mark.xdist_group("phase112-closure"),
+              pytest.mark.skipif(
+                  not (ROOT / ".git").exists(),
+                  reason="tracked-tree closure requires a Git checkout")]
 
-ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
 REGISTRY_GUARD = ROOT / "tools" / "ci" / "check_directive_registry.py"
 

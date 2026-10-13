@@ -7,6 +7,7 @@
  * (negcache_core.c). See negcache.h for the contract and E-4 rationale.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"        /* brix_ctx_t (identity + login) umbrella */
 #include "core/fnv.h"
 #include "core/negcache/negcache.h"
@@ -96,7 +97,7 @@ brix_negcache_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     if (cf->args->nelts != 4) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_negcache_backoff: expected \"off\" or"
             " \"<threshold> <window_seconds> <wait_seconds>\"");
         return NGX_CONF_ERROR;
@@ -110,7 +111,7 @@ brix_negcache_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         || win == NGX_ERROR || win < 1 || win > 86400
         || back == NGX_ERROR || back < 1 || back > 3600)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_negcache_backoff: threshold >= 1, window_seconds 1..86400"
             " and wait_seconds 1..3600 required");
         return NGX_CONF_ERROR;

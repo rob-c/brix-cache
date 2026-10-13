@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_wlcg_token_conformance_fill_helpers")
 
+pytestmark = pytest.mark.xdist_group("wlcg-token-fill")
+
 @pytest.mark.tokenconf
 @pytest.mark.registry_server("webdav-token")
 def test_fil_wg_17_read_root_get_atlas_accept():

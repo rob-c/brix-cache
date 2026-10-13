@@ -16,6 +16,41 @@ from cmdscripts import fake_nginx, fake_nginx_broken, live_common
 _TR = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
 
 
+def _runtime_config(path):
+    path.write_text("events {}\n", encoding="utf-8")
+    return path
+
+
+def test_runtime_scratch_is_worker_writable_and_sticky(tmp_path):
+    config = _runtime_config(tmp_path / "nginx.conf")
+    prefix = tmp_path / "runtime"
+
+    live_common.inject_nginx_runtime_paths(config, prefix)
+
+    assert (prefix / "tmp").stat().st_mode & 0o7777 == 0o1777
+
+
+def test_runtime_scratch_repairs_a_restrictive_existing_directory(tmp_path):
+    config = _runtime_config(tmp_path / "nginx.conf")
+    prefix = tmp_path / "runtime"
+    scratch = prefix / "tmp"
+    scratch.mkdir(parents=True)
+    scratch.chmod(0o700)
+
+    live_common.inject_nginx_runtime_paths(config, prefix)
+
+    assert scratch.stat().st_mode & 0o7777 == 0o1777
+
+
+def test_runtime_path_injection_does_not_world_widen_logs(tmp_path):
+    config = _runtime_config(tmp_path / "nginx.conf")
+    prefix = tmp_path / "runtime"
+
+    live_common.inject_nginx_runtime_paths(config, prefix)
+
+    assert (prefix / "logs").stat().st_mode & 0o022 == 0
+
+
 @pytest.fixture
 def reaper_probe(monkeypatch):
     """Record every external action the reaper takes against a fake world."""
@@ -143,6 +178,37 @@ def test_freeze_nginx_is_session_shared_not_per_process(fresh_freeze, tmp_path):
     live_common._FROZEN_NGINX = {}  # simulate a fresh xdist worker process
     second = live_common.freeze_nginx(src)
     assert second == first, "a second process must reuse the shared frozen copy"
+
+
+def test_freeze_directory_is_stable_for_one_effective_user(
+        fresh_freeze, monkeypatch):
+    monkeypatch.setattr(live_common.os, "geteuid", lambda: 1001)
+    first = live_common._session_freeze_dir()
+    assert live_common._session_freeze_dir() == first
+
+
+def test_freeze_directory_separates_root_from_regular_user(
+        fresh_freeze, monkeypatch):
+    monkeypatch.setattr(live_common.os, "geteuid", lambda: 0)
+    root_dir = live_common._session_freeze_dir()
+    monkeypatch.setattr(live_common.os, "geteuid", lambda: 1001)
+    assert live_common._session_freeze_dir() != root_dir
+
+
+def test_root_owned_stale_freeze_cannot_block_regular_user(
+        fresh_freeze, tmp_path, monkeypatch):
+    src = Path(fake_nginx.install(tmp_path))
+    monkeypatch.setattr(live_common.os, "geteuid", lambda: 0)
+    root_dir = live_common._session_freeze_dir()
+    root_dir.mkdir(parents=True)
+    root_dir.chmod(0o500)
+    monkeypatch.setattr(live_common.os, "geteuid", lambda: 1001)
+
+    frozen = live_common.freeze_nginx(src)
+
+    assert frozen != src
+    assert frozen.parent != root_dir
+    assert frozen.read_bytes() == src.read_bytes()
 
 
 def test_freeze_nginx_missing_source_falls_back_to_live_path(fresh_freeze, tmp_path):

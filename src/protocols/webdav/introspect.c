@@ -35,6 +35,7 @@
  *     request proceeds when fail_open is on (WLCG default) or is rejected with
  *     403 when off.
  */
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "core/compat/crypto.h"
 
@@ -112,7 +113,7 @@ webdav_introspect_done(ngx_http_request_t *r, void *data, ngx_int_t rc)
     } else {
         /* IdP unreachable / error → honour the configured failure policy. */
         active = conf->common.introspect_fail_open ? 1 : 0;
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                       "brix_webdav: token introspection failed "
                       "(rc=%i status=%ui) — %s",
                       rc, status,
@@ -212,7 +213,7 @@ webdav_introspect_access_handler(ngx_http_request_t *r)
     /* Resume path: the subrequest already produced a verdict. */
     if (ctx->introspect_done) {
         if (!ctx->introspect_active) {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                           "brix_webdav: bearer token rejected by"
                           " introspection (revoked)");
             return NGX_HTTP_FORBIDDEN;
@@ -227,7 +228,7 @@ webdav_introspect_access_handler(ngx_http_request_t *r)
             u_char  v[4];
             size_t  vl = sizeof(v);
             if (brix_kv_get(conf->revoke_kv, key, 32, v, &vl) == 1) {
-                ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                               "brix_webdav: bearer token rejected"
                               " (revocation cache hit)");
                 return NGX_HTTP_FORBIDDEN;
@@ -262,27 +263,27 @@ webdav_conf_revoke_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
             zone.data = value[i].data + 5;
             zone.len  = value[i].len - 5;
         } else {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "invalid brix_webdav_revoke_cache parameter \"%V\"",
                 &value[i]);
             return NGX_CONF_ERROR;
         }
     }
     if (zone.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_webdav_revoke_cache requires zone=<name>");
         return NGX_CONF_ERROR;
     }
 
     kv = brix_kv_find(&zone);
     if (kv == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_webdav_revoke_cache: unknown zone \"%V\" "
             "(declare it with brix_kv_zone first)", &zone);
         return NGX_CONF_ERROR;
     }
     if (kv->key_max < 32 || kv->val_max < 1) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_webdav_revoke_cache zone \"%V\" too small: need key>=32 val>=1",
             &zone);
         return NGX_CONF_ERROR;

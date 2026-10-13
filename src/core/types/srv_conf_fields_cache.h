@@ -299,6 +299,8 @@
      * nginx data node.  NULL = off (legacy: a non-XRootD client is closed). */
     ngx_addr_t *http_handoff_addr;
     ngx_str_t   http_handoff_name;
+    ngx_msec_t  http_handoff_connect_timeout;
+    ngx_msec_t  http_handoff_idle_timeout;
 
     /* [brix_transparent_proxy host:port] — relay every connection on this port
      * verbatim to an upstream XRootD server (auth handshake travels end-to-end)

@@ -16,6 +16,7 @@
  *       drives these in order (validate → build candidate) before handing the
  *       candidate to the resolution stage in unified_resolve.c.
  */
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 
 #include <errno.h>
@@ -78,7 +79,7 @@ brix_validate_components_cstr(ngx_log_t *log, const char *path)
 
     if (brix_count_path_depth(path) != NGX_OK) {
         if (log != NULL) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix: path depth exceeds limit");
         }
         return BRIX_PATH_STATUS_INVALID;

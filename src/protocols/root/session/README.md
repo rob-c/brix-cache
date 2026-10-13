@@ -23,7 +23,7 @@ deferred until `kXR_auth` succeeds.
 
 Two cross-cutting concerns live here because they are session-scoped but must
 survive across worker boundaries. First, the **session registry** maps
-`sessid → {dn, vo_list, token_auth}` in shared memory so a `kXR_bind` secondary
+`sessid → {dn, vo_list, token_auth, request_signing}` in shared memory so a `kXR_bind` secondary
 connection (or proxy-mode forwarding) can inherit a primary's authenticated
 identity without re-authenticating. Second, the **published-handle table** lets a
 secondary stream reopen and re-validate a primary's readable file handles even
@@ -44,8 +44,8 @@ envelope used on GSI sessions.
 | `protocol.c` | `kXR_protocol` handler — builds the 8-byte `ServerProtocolBody` (version + capability bitmask) and the optional `SecurityInfo` trailer. Caps are computed live from `conf`: always `kXR_isServer \| kXR_suppgrw \| kXR_supposc`, plus `kXR_isManager` (manager/supervisor/virtual-redirector), `kXR_attrSuper`, `kXR_attrVirtRdr`, `kXR_attrMeta`, `kXR_attrProxy`, `kXR_attrCache`, `kXR_collapseRedir`, `kXR_recoverWrts`, and `kXR_haveTLS\|kXR_gotoTLS\|kXR_tlsLogin` when TLS is offered. The trailer advertises offered auth methods (4-char tags `sss`/`unix`/`krb5`/`ztn`/`gsi`, in that order) and a `ServerResponseReqs_Protocol` carrying `seclvl=conf->security_level` (and `kXR_secOData` when `seclvl>=4`). Arms `ctx->tls_pending`; rejects `kXR_wantTLS` with `kXR_TLSRequired` when no TLS context is configured. |
 | `login.c` | `kXR_login` handler — copies the 8-byte null-padded ASCII username and **rejects NUL/non-printable bytes** (blocks `"a\x00evil"` truncation impersonation), stores `login_user`/`login_pid`, sets `logged_in=1`. For `auth=none` it also sets `auth_done=1`, registers the session, and replies sessid-only; otherwise it re-fetches the live merged `srv_conf` and replies `sessid + "&P=..."` naming the required plugin (`ztn,0:4096:` / `sss,0.+<lifetime>:` / `unix` / `krb5,<principal>` / `ztn`+`gsi` for both / `gsi,...,ca:<hash>`). Refuses login with `kXR_Overloaded` if `conf->cms_suspended`. Counts the `LOGIN` op-ok metric and writes the access log. |
 | `lifecycle.c` | `kXR_ping` (no-op liveness reply) and `kXR_endsess` (graceful teardown). **`endsess` is session-scoped**: it terminates the session NAMED by `req->sessid`, not merely the connection it arrives on. If the named sessid is NOT this connection's own (e.g. the official client's reconnect recovery releasing its previous, dropped session on a freshly re-logged-in connection), it only `brix_session_unregister()`s that session and leaves THIS connection authenticated. Only an endsess for the connection's OWN session forwards the upstream frame (proxy), runs `brix_on_disconnect` + `brix_close_all_files`, and **clears `logged_in`/`auth_done`** (enforces GSI proxy-expiry / session-end). Clearing auth on a *foreign*-session endsess (the old behavior) made the official client's recovery `kXR_open` fail with `kXR_NotAuthorized` on a lossy link. Guarded by `tests/test_endsess_session_scope.py`. |
-| `bind.c` | `kXR_bind` handler — attaches a read-only secondary data channel. Looks up the primary's sessid via `brix_session_lookup`, inherits its identity (DN/VO/token_auth → `ctx->identity` via `brix_identity_set_*`), assigns a `pathid` from a static counter cycling 1–253 (0 reserved for the primary), sets `is_bound/logged_in/auth_done=1`, and replies with the single-byte pathid. Fails closed (`kXR_NotAuthorized`) if the sessid is unknown. |
-| `signing.c` | `kXR_sigver` handler — phase-1 of request signing. Parses `expectrid` (u16) + `seqno` (u64 BE via `be64toh`); when `signing_active`, enforces strictly-increasing `seqno` (replay rejection) and, for `kXR_SHA256_sig` without `kXR_rsaKey_sig`, stores the expected 32-byte HMAC + `expectrid`/`nodata` as pending state on `ctx`. RSA-signed requests are accepted unverified; non-GSI sessions accept sigver without enforcement. Phase-2 verification happens in `../handshake/`. |
+| `bind.c` | `kXR_bind` handler — attaches a read-only secondary data channel. Looks up the primary's sessid via `brix_session_lookup`, atomically inherits its identity and signing-required posture, claims an unused `pathid` 1–253 under the registry mutex, sets `is_bound/logged_in/auth_done=1`, and replies with that byte. The signing key is never copied; an unsigned bound request therefore fails closed. Unknown sessions and exhausted per-session bind capacity are refused. |
+| `signing.c` | `kXR_sigver` handler — phase-1 of request signing. Parses `expectrid` and `seqno`; when `signing_active`, enforces a supported version/hash, strictly increasing sequence numbers, and a bounded encrypted signature blob before recording pending state. Unsupported RSA/hash forms are rejected with `kXR_SigVerErr`; non-GSI sessions accept unsolicited sigver without enforcement. Phase-2 verification happens in `../handshake/`. |
 | `tls_config.c` | `brix_configure_tls()` — postconfig builder for the in-protocol TLS `SSL_CTX` (TLSv1.2/1.3, server cert+key from `conf->certificate`/`certificate_key`), optional kTLS send-offload (`SSL_OP_ENABLE_KTLS`, gated on `tls_ktls`, enables sendfile over TLS) and the OCSP-stapling status callback `brix_ocsp_stapling_cb`. Runs once per TLS-enabled server block; emerg-fails if cert/key are missing. |
 | `registry.c` | Shared-memory **session registry**: zone creation/sizing (`brix_configure_session_registry`, sized by runtime `slots`), `*_shm_init_zone`, and the `register`/`lookup`/`unregister` lifecycle. Includes the Phase-27 LRU reap-on-full (evict the global-LRU slot older than `BRIX_SESSION_REAP_MIN_AGE_MS` to defeat slot-exhaustion DoS) and emits `session_registry_full_total`/`session_evict_total` metrics. |
 | `handles.c` | Shared-memory **published-handle table**: `publish`/`lookup`/`lookup_hint`/`unpublish`/`unpublish_all` plus the `brix_shared_handle_same_key` key matcher and zone init. Publishes only *readable* primary handles (write-only/`path==NULL` → entry removal); carries `device`/`inode`/`cached_size`/`path` for secondary reopen + identity re-validation. `lookup_hint` adds a caller-cached slot index for O(1) per-read revalidation on hot bound streams (Phase 33 C2). |
@@ -55,8 +55,9 @@ envelope used on GSI sessions.
 ## Key types & data structures
 
 - **`brix_session_entry_t`** (`registry.h`) — one registry slot: `sessid[16]`,
-  `dn[512]`, `vo_list[512]`, `token_auth`, `in_use`, and `last_seen` (the LRU key
-  for reap-on-full). Models the *identity* a bound secondary or proxy inherits.
+  `dn[512]`, `vo_list[512]`, `token_auth`, `request_signing`, `in_use`, and
+  `last_seen` (the LRU key for reap-on-full). Models the identity and the
+  fail-closed signing posture a bound secondary inherits.
 - **`brix_shared_handle_entry_t`** (`registry.h`) — one published-handle slot,
   keyed by `sessid + handle_index`: `readable`/`writable`/`from_cache`/`is_regular`
   flags, `device`/`inode` (stale-reference defence), `cached_size`, and the
@@ -136,11 +137,12 @@ also consumes the pending HMAC stored by `signing.c` *before* the next opcode ru
   declined. `lookup_hint` keeps the full key (`in_use + sessid + handle_index`)
   re-check under the lock, so a primary close/reuse (which clears `in_use`)
   correctly revokes the fast path (`handles.c:209-245`).
-- **Sigver replay protection.** `seqno` must *strictly increase*
-  (`signing.c:85`); only `kXR_SHA256_sig` without `kXR_rsaKey_sig` is actually
-  verified (RSA path accepted unchecked). Sigver on non-GSI sessions
-  (`!signing_active`) is accepted but not enforced (some clients send it
-  unsolicited).
+- **Sigver replay and bound-stream protection.** `seqno` must *strictly
+  increase*; only the supported SHA-256 session-cipher form is accepted and
+  verified. A bound stream atomically inherits a one-bit `request_signing`
+  posture, not cryptographic material, so it cannot turn a signing-active
+  primary into an unsigned authorization oracle. Sigver on non-GSI sessions is
+  accepted but not enforced because some clients send it unsolicited.
 - **Shared-memory discipline.** Every table access is serialised by its zone
   shmtx (`brix_session_mutex` / `brix_handle_mutex`); the `lock` field **must
   be first** in each table struct. Zone init uses the `(void *) 1` sentinel in

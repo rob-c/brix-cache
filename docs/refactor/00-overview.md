@@ -1,9 +1,11 @@
 # Refactor programme — master overview
 
-**Last reconciled:** 2026-09-02
-**Status:** ACTIVE — implementation is mature, but the repository-wide close
-gate is not green. The authoritative open-work register is
-[Phase 111](phase-111-repository-work-burndown.md).
+**Last reconciled:** 2026-10-07
+**Status:** RELEASE-CANDIDATE RECONCILED — Phase 111 is closed, Phases 115–119
+have landed to the boundaries stated in their own status blocks, and the
+remaining v2.0 work is classified below as external/deferred or will-not-do.
+This overview is the current routing page; the historical Phase-111 register
+remains the evidence for its completed repository-wide close.
 
 ## Purpose
 
@@ -20,9 +22,9 @@ without reading the status/reconciliation block in the same document.
 
 ## Current read order
 
-1. Read [Phase 111](phase-111-repository-work-burndown.md) for the current P0/P1/P2 queue,
-   exact quality failures, missing-phase reconciliation and full-document
-   disposition.
+1. Read the release disposition table below, then [Phase 111](phase-111-repository-work-burndown.md)
+   for the closed P0/P1/P2 queue, historical quality findings,
+   missing-phase reconciliation and full-document disposition.
 2. Open the owning phase linked from the selected burn-down row for the design,
    invariants, tests and acceptance criteria.
 3. Re-run the row's discovery/guard command against the current tree before
@@ -37,16 +39,29 @@ without reading the status/reconciliation block in the same document.
 |---|---|---|
 | Intent/path/auth/config foundations | implemented | Phases 2–6, 8, 11, 18, 21–25 |
 | Core protocol and resilience work | mostly implemented | Phases 31–53; explicit client/performance tails remain |
-| VFS and backend architecture | active | Phases 54–64 are historical foundations; Phases 71, 80, 91, 104, 105, 107 and 108 carry current work |
+| VFS and backend architecture | implemented, with named exclusions | Phases 54–64 are historical foundations; Phases 71, 80, 91, 104, 105, 107 and 108 carry the landing record |
 | CVMFS/OCI/RPM distribution | implemented with dependency-gated extensions | Phases 68, 83–87, 93, 96 and OCI/RPM Phase 104 |
-| Test orchestration | active migration | Phases 4, 81 and `testsuite-modernization-plan.md` |
-| Maintainability | regressed from a previously green close | Phases 38/72–79/103 plus the current Phase-111 offender list |
-| Monitoring vocabulary | Phase 110 complete; compatibility removal planned | Phases 110 and 112 |
+| Test orchestration | implemented baseline; continuing maintenance | Phases 4, 81 and `testsuite-modernization-plan.md` |
+| Maintainability | close gates restored | Phases 38/72–79/103 and closed Phase 111 |
+| Monitoring vocabulary | Phase 110 complete; compatibility removal deferred | Phases 110 and 112 |
 
-The immediate baseline is not green: full pytest collection and the lifecycle
-port-ledger tests pass, but five native and five Python files exceed their size
-caps. The Python CCN and higher-order Cognitive/NPath/Halstead/nesting gates are
-green. Exact names and acceptance commands live in Phase 111.
+The Phase-111 baseline is green and its size offenders are split. Current
+release evidence belongs in the
+[2.0 readiness register](../10-reference/release-2.0-readiness.md), not in a
+reopened Phase-111 queue.
+
+## v2.0 disposition
+
+| Classification | Work | Release meaning |
+|---|---|---|
+| **Completed** | Phase 115 implementation, Phase 116 DNS, Phase 118 `xrd conform`, and Phase 119 Darwin ARM64 module/client verification | shipped and covered by the named local/native evidence |
+| **Deferred / external** | Phase-115 W5.5 validation against an independently operated Globus or dCache door; Darwin Intel runtime validation; optional hardware/performance lanes; credential reaping and the seccomp exec broker | no claim of validation or support beyond the recorded boundary; GridFTP now has a strict 9/9 evidence gate |
+| **Will not do in v2.0** | in-tree Reed–Solomon/XrdEc (Phase 117 no-go), GridFTP-over-SSH, ESTO/SPOR, Alma 8 server/OpenSSL 1.1 module, and the out-of-repository containerd snapshotter | deliberate exclusions, not unfinished checkboxes |
+
+The external GridFTP row may move to **completed** only when
+`tools/ci/check_gridftp_interop_image.py evidence` accepts a preserved JUnit report from
+the live lane. A skipped PROT-P cell is safe behaviour but is not release
+interoperability evidence.
 
 ## Phase/reference rules
 
@@ -62,9 +77,9 @@ green. Exact names and acceptance commands live in Phase 111.
   from Phase 109.
 - [Phase 114](phase-114-credential-artifact-lifecycle.md) owns credential TTL/reaping; old Phase-108 text pointing that work
   at Phase 109 was incorrect.
-- [Phase 115](phase-115-deployment-surface-and-remaining-feature-bodies.md) is the open work-todo register for
-  the deployment surface (image, compose stacks, CI-validated examples, stale docs) and the eight remaining
-  feature bodies; an item leaves it only by landing with tests or by delegation to a numbered phase.
+- [Phase 115](phase-115-deployment-surface-and-remaining-feature-bodies.md) is the implemented landing register for
+  the deployment surface and remaining feature bodies; its external GridFTP
+  acceptance remains explicitly deferred until a site supplies evidence.
 - [Phase 116](phase-116-runtime-dns-resolv-conf.md) owns runtime DNS: a `resolv.conf`-seeded resolver with
   search/`ndots` semantics, start-safe hostnames in every brix directive, one cached re-resolving lookup path
   (forward and reverse) for `src/`, `client/` and `shared/`, guarded by `tools/ci/check_dns_seam.py`.
@@ -92,8 +107,11 @@ green. Exact names and acceptance commands live in Phase 111.
 | Monitoring compatibility | `phase-112-observability-compatibility-removal.md` | release-window gated removal |
 | LOCK offload | `phase-113-webdav-lock-mutation-offload.md` | decision/measurement gated |
 | Credential lifecycle | `phase-114-credential-artifact-lifecycle.md` | deferred Phase-108 stretch |
-| Deployment surface + remaining bodies | `phase-115-deployment-surface-and-remaining-feature-bodies.md` | PLANNED / OPEN, nine items W1–W9, none started |
+| Deployment surface + remaining bodies | `phase-115-deployment-surface-and-remaining-feature-bodies.md` | IMPLEMENTED; W5.5 external 9/9 GridFTP acceptance deferred |
 | Runtime DNS from `resolv.conf` | `phase-116-runtime-dns-resolv-conf.md` | IMPLEMENTED 2026-09-06, W1–W6 closed; W5.4 (SRV) and W6 option A recorded as non-goals |
+| Erasure coding | `phase-117-erasure-coding-design-spike.md` | SPIKE CLOSED; in-tree implementation will not be done |
+| Security assessment toolkit | `phase-118-security-assessment-toolkit.md` | M1–M5 COMPLETE 2026-10-07 |
+| macOS feature parity | `phase-119-macos-feature-parity-v2.1.md` | ARM64 COMPLETE for v2.0; Intel runtime validation deferred |
 | Optional hardening | `seccomp-exec-broker-plan.md` | Option B unimplemented |
 
 ## Historical material

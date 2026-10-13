@@ -2,6 +2,7 @@
  * tpc_curl_multi.c - parallel Range-based multi-stream pull (curl_multi driver).
  * Phase-38 split of tpc_curl.c; behavior-identical.
  */
+#include "core/compat/log_event.h"
 #include "tpc_curl_internal.h"
 
 
@@ -65,7 +66,7 @@ tpc_ms_prepare_output(ngx_log_t *log, const char *tmp_path, off_t total_size)
     /* Pre-create the output file at full size so all streams can pwrite. */
     fd = open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, BRIX_WEBDAV_PRIVATE_FILE_MODE);  /* vfs-seam-allow: DOMAIN_STAGE — TPC multi-stream assembly temp (committed via rename); O_NOFOLLOW matches the sibling staging opens */
     if (fd < 0) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "brix_webdav: multi-stream: open(\"%s\") failed",
                       tmp_path);
         return -1;
@@ -73,7 +74,7 @@ tpc_ms_prepare_output(ngx_log_t *log, const char *tmp_path, off_t total_size)
 
     brix_sd_posix_wrap(&obj, fd);
     if (brix_sd_posix_driver.ftruncate(&obj, total_size) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "brix_webdav: multi-stream: ftruncate failed");
         close(fd);
         return -1;
@@ -168,7 +169,7 @@ tpc_ms_drive(ngx_log_t *log, CURLM *cm)
         int       numfds;
         CURLMcode mc = curl_multi_wait(cm, NULL, 0, 1000, &numfds);
         if (mc != CURLM_OK) {
-            ngx_log_error(NGX_LOG_ERR, log, 0,
+            BRIX_LOG(NGX_LOG_ERR, log, 0,
                           "brix_webdav: curl_multi_wait error: %s",
                           curl_multi_strerror(mc));
             return NGX_HTTP_BAD_GATEWAY;
@@ -197,7 +198,7 @@ tpc_ms_harvest(ngx_log_t *log, CURLM *cm)
 
     while ((msg = curl_multi_info_read(cm, &msgs_left)) != NULL) {
         if (msg->msg == CURLMSG_DONE && msg->data.result != CURLE_OK) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_webdav: HTTP-TPC multi-stream failed: %s",
                           curl_easy_strerror(msg->data.result));
             rc = NGX_HTTP_BAD_GATEWAY;
@@ -263,7 +264,7 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
     total_size = tpc_curl_head_size(log, conf, source_url, transfer_headers,
                                     user_cert, user_key);
     if (total_size <= 0) {
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
                       "brix_webdav: multi-stream: unknown Content-Length,"
                       " falling back to single stream");
         return webdav_tpc_run_curl_pull(log, conf, source_url, tmp_path,

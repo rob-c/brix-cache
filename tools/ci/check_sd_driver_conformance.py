@@ -27,6 +27,11 @@
 # USAGE: tools/ci/check_sd_driver_conformance.py
 
 from __future__ import annotations
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import os
 import re
@@ -272,7 +277,7 @@ def main() -> int:
     ok, out = run()
 
     if not out:
-        print("check_sd_driver_conformance: FAIL — no driver rows parsed from %s"
+        _brix_diagnostic('ERROR', 'tools/ci/check_sd_driver_conformance.py', 'main', "check_sd_driver_conformance: FAIL — no driver rows parsed from %s"
               % FS_LIST, file=sys.stderr)
         return 1
 
@@ -280,7 +285,7 @@ def main() -> int:
         print(line)
 
     if not ok:
-        print("check_sd_driver_conformance: FAILED — see lines above", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_sd_driver_conformance.py', 'main', "check_sd_driver_conformance: FAILED — see lines above", file=sys.stderr)
         return 1
     return 0
 

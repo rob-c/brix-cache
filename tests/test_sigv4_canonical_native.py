@@ -75,7 +75,26 @@ def test_modified_credential_does_not_keep_the_original_signature(canonical_bina
     assert not hmac.compare_digest(_signature(parsed, canonical, params), signature)
 
 
-def test_short_output_stays_terminated_inside_its_buffer(canonical_binary):
+@pytest.mark.parametrize(("query", "expected"), [
+    ("z=v&%C3%A9=v", "%C3%A9=v&z=v"),
+    ("same=z&same=%C3%A9", "same=%C3%A9&same=z"),
+], ids=["encoded-name-order", "encoded-value-order"])
+def test_sort_order_uses_encoded_bytes(canonical_binary, query, expected):
+    assert _canonical(canonical_binary, query) == expected
+
+
+def test_short_output_fails_without_crossing_its_buffer(canonical_binary):
     result = subprocess.run([str(canonical_binary), "bounds", _fixture_url().query],
+                            capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("query", [
+    "uploadId=" + "b" * 24 + "x" * 2100 + "&uploadId=" + "a" * 24,
+    "&".join(f"p{index}=v" for index in range(65)),
+    "&".join(f"p{index}=" + "x" * 100 for index in range(50)),
+], ids=["overlong-first-value", "parameter-limit", "output-limit"])
+def test_unrepresentable_query_is_rejected(canonical_binary, query):
+    result = subprocess.run([str(canonical_binary), "reject", query],
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stdout + result.stderr

@@ -22,6 +22,7 @@
  *       brix_sd_stage_reflush; a permanent deny goes through stage_deny_terminal.
  */
 
+#include "core/compat/log_event.h"
 #include "stage_engine.h"
 #include "stage_engine_internal.h"
 #include "stage_events.h"          /* 2.0 F2 StageEvents feed (brix_frm_stagemsg) */
@@ -122,7 +123,7 @@ stage_reconcile_archive(const char *path, brix_sreq_t *rec, ngx_log_t *log)
     if (why != NULL) {
         brix_stage_events_emit("engine", "dropped", rec->reqid, rec->dst_key,
                                "reason", why, NULL);
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "xrootd stage: archive seal of \"%s\" (export \"%s\") dropped: %s",
             rec->dst_key, rec->export_root, why);
         (void) unlink(path);
@@ -131,7 +132,7 @@ stage_reconcile_archive(const char *path, brix_sreq_t *rec, ngx_log_t *log)
     if (stage_retry_terminal(brix_stage_engine_journal_dir(), rec, saved_errno, log)) {
         return -1;   /* dead-lettered = dropped from active journal */
     }
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
         "xrootd stage: archive seal of \"%s\" (export \"%s\") failed "
         "(errno %d attempts=%uD) - record kept FAILED for retry",
         rec->dst_key, rec->export_root, saved_errno, rec->attempts);
@@ -212,7 +213,7 @@ stage_reconcile_one(const char *path, ngx_log_t *log)
                 return -1;   /* dead-lettered = dropped from active journal */
             }
             /* Below the cap: keep for retry (same as transient). */
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                 "xrootd stage: reconcile denied flush \"%s\" (export \"%s\" "
                 "attempts=%uD) - record kept (below dead-letter cap)",
                 rec.dst_key, rec.export_root, rec.attempts);
@@ -228,7 +229,7 @@ stage_reconcile_one(const char *path, ngx_log_t *log)
         if (stage_retry_terminal(brix_stage_engine_journal_dir(), &rec, saved_errno, log)) {
             return -1;   /* dead-lettered = dropped from active journal */
         }
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "xrootd stage: reconcile re-flush of \"%s\" (export \"%s\") failed "
             "(errno %d attempts=%uD) - record kept FAILED for retry",
             rec.dst_key, rec.export_root, saved_errno, rec.attempts);
@@ -236,7 +237,7 @@ stage_reconcile_one(const char *path, ngx_log_t *log)
     }
 
     /* Backend unreachable / no stage tier now: keep the record for a later retry. */
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
         "xrootd stage: reconcile could not re-flush \"%s\" (export \"%s\") - "
         "record kept for retry", rec.dst_key, rec.export_root);
     return 0;
@@ -318,7 +319,7 @@ brix_stage_reconcile(brix_stage_queue_t *queue)
     }
 
     if (replayed > 0 || kept > 0 || dropped > 0) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "xrootd stage: restart reconcile - %ui staged flush(es) replayed, "
             "%ui kept for retry, %ui dropped", replayed, kept, dropped);
     }
@@ -363,7 +364,7 @@ brix_stage_retry_sweep(ngx_uint_t min_age_sec, ngx_log_t *log)
         else if (r < 0) { dropped++;  }
     }
     if (driven > 0) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "xrootd stage: retry sweep - %ui FAILED record(s) re-driven, "
             "%ui completed, %ui dead-lettered/dropped",
             driven, replayed, dropped);

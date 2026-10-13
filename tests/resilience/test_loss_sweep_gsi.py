@@ -86,15 +86,18 @@ def test_through_proxy_0pct_byte_exact(fleet, name):
 
 @pytest.mark.parametrize("name", ["nginx", "xrootd"])
 def test_resilient_recovers_under_loss(fleet, name):
-    """With resilience on (default), `xrdfs cat` rides out a lossy link —
+    """With resilience on (default), `xrdfs cat` rides out a mid-read sever —
     reconnecting + reopening + resuming — and returns the file byte-exact, the
-    way xrootdfs does. (Recovery pays a re-handshake per sever, so a wide window
-    is given; higher loss simply needs a wider window.)"""
+    way xrootdfs does.  Cut the downstream leg after 512 KiB on every connection:
+    this deterministically reaches the data phase without randomly severing the
+    multi-round GSI login, then forces the adaptive read size below the cut."""
     with servers.FaultProxy(fleet[name]) as fp:
-        fp.set_loss(2)
+        fp.set_truncate(512 * 1024, "down")
         ok, elapsed, nbytes, why = measure(fp.url(), FILE_PATH, SIZE, 90,
                                            client_max_stall_ms=60000)
-    assert ok, f"{name}: resilient cat did not recover under 2% loss: {why}"
+        faults = fp.counters()
+    assert faults.get("severs_total", 0) > 0, f"{name}: fault did not fire"
+    assert ok, f"{name}: resilient cat did not recover after a mid-read sever: {why}"
     assert nbytes == SIZE
 
 

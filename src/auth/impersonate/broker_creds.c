@@ -2,6 +2,7 @@
  * broker_creds.c - extracted concern
  * Phase-38 split of broker.c; behavior-identical.
  */
+#include "core/compat/log_event.h"
 #include "broker_internal.h"
 #include "core/seccomp/seccomp_core.h"
 #include "platform/platform_api.h"
@@ -74,7 +75,7 @@ imp_capset_setuid_setgid(int with_effective, ngx_log_t *log)
     data[0].effective   = with_effective ? data[0].permitted : 0;
     data[0].inheritable = 0;
     if (brix_plat_capset(&hdr, data) != 0) {
-        if (log) ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
+        if (log) BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
                                "impersonate broker: capset failed");
         return -1;
     }
@@ -136,7 +137,7 @@ imp_apply_service_drop(ngx_log_t *log, uid_t svc_uid, gid_t svc_gid)
     gid_t one[1];
 
     if (brix_plat_prctl(PR_SET_KEEPCAPS, 1) != 0) {
-        if (log) ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
+        if (log) BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
                                "impersonate broker: PR_SET_KEEPCAPS failed");
         return -1;
     }
@@ -189,7 +190,7 @@ imp_verify_service_drop(ngx_log_t *log, uid_t svc_uid, gid_t svc_gid)
         || ru != svc_uid || eu != svc_uid || su != svc_uid
         || rg != svc_gid || eg != svc_gid || sg != svc_gid)
     {
-        if (log) ngx_log_error(NGX_LOG_EMERG, log, 0,
+        if (log) BRIX_LOG(NGX_LOG_EMERG, log, 0,
                                "impersonate broker: service-uid drop did not "
                                "stick (r/e/s mismatch)");
         return -1;
@@ -228,7 +229,7 @@ imp_drop_to_service_user(ngx_log_t *log)
         return -1;
     }
 
-    if (log) ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    if (log) BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                            "impersonate broker: running as non-root service uid %d "
                            "with only CAP_SETUID+CAP_SETGID", (int) svc_uid);
     return 0;
@@ -251,7 +252,7 @@ imp_drop_bounding_caps(ngx_log_t *log)
             continue;
         }
         if (brix_plat_prctl(PR_CAPBSET_DROP, cap) != 0 && ngx_errno != EINVAL) {
-            if (log) ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
+            if (log) BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
                                    "impersonate broker: CAPBSET_DROP(%d) failed",
                                    cap);
             return -1;
@@ -276,11 +277,11 @@ imp_enable_broker_seccomp(ngx_log_t *log)
 
     rc = brix_seccomp_broker_apply(NULL, NULL, &nkill);
     if (rc == BRIX_SECCOMP_CORE_OK) {
-        if (log) ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        if (log) BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "impersonate broker: seccomp active (%ui dangerous syscalls killed)",
             (ngx_uint_t) nkill);
     } else if (rc == BRIX_SECCOMP_CORE_ERR && log) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "impersonate broker: seccomp filter failed to load (continuing "
             "with cap-drop + reserved-id floor)");
     }
@@ -295,7 +296,7 @@ brix_imp_broker_drop_caps(ngx_log_t *log)
 {
     /* No new privileges (defence in depth: no setuid-binary escalation). */
     if (brix_plat_prctl(PR_SET_NO_NEW_PRIVS, 1) != 0) {
-        if (log) ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
+        if (log) BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
                                "impersonate broker: PR_SET_NO_NEW_PRIVS failed");
         return -1;
     }
@@ -329,13 +330,13 @@ brix_imp_broker_drop_caps(ngx_log_t *log)
     imp_enable_broker_seccomp(log);
 
     if (geteuid() == 0 && log) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "impersonate broker: running as root (CAP_SETUID/SETGID only) — set "
             "brix_idmap_broker_user to a dedicated non-root account for "
             "defense in depth");
     }
 
-    if (log) ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    if (log) BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                            "impersonate broker: dropped to CAP_SETUID+CAP_SETGID "
                            "(DAC now enforced for the impersonated user)");
     return 0;

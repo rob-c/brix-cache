@@ -19,6 +19,7 @@ proxied credential are logged as lengths — neither is log material.
 import collections
 import re
 
+from log_records import semantic_log_text
 from _release20_tpc_helpers import err_text, log_since, log_size, start_lab
 from _test_sss_helpers import sss_auth_frame, sss_credential, sss_write_keytab
 from settings import HOST
@@ -58,7 +59,8 @@ def cut_keytabs(base, key, policies=("any", "pinned", "origin")):
 def ok_lines(text):
     """Every `SSS auth OK` line in `text`, parsed, oldest first."""
     return [SssOk(user, group, vorg, role, int(endo), int(creds))
-            for user, group, vorg, role, endo, creds in _OK_RE.findall(text)]
+            for user, group, vorg, role, endo, creds in
+            _OK_RE.findall(semantic_log_text(text))]
 
 
 def sss_round(sock, key, **cred):

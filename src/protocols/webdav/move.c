@@ -2,6 +2,7 @@
  * move.c - WebDAV MOVE handler (RFC 4918 §9.9).
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "fs/vfs/vfs.h"   /* brix_vfs_rename (ctx-bound) + brix_vfs_probe */
 #include "core/http/http_conditionals.h"
@@ -308,7 +309,7 @@ webdav_move_collection_post_task(const webdav_move_req_t *req)
         return NGX_ERROR;
     }
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
                   "brix_webdav: offloaded collection MOVE to thread pool");
 
     r->main->count++;
@@ -479,7 +480,7 @@ webdav_move_async_render(ngx_http_request_t *r, void *ctx, int op_errno)
     } else if (op_errno == EACCES || op_errno == EPERM) {
         status = NGX_HTTP_FORBIDDEN;
     } else {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, op_errno,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, op_errno,
                       "brix_webdav MOVE: async rename() failed");
         status = NGX_HTTP_INTERNAL_SERVER_ERROR;
     }

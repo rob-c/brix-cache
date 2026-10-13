@@ -222,6 +222,7 @@ struct ngx_brix_cms_ctx_s {
     ngx_uint_t                      sess_end_hint_set;
     ngx_uint_t                      sess_attempt_logged;
     ngx_event_t                     timer;       /* reconnect / heartbeat timer */
+    ngx_event_t                     read_resume; /* fairness continuation */
     ngx_msec_t                      backoff;     /* current reconnect wait (ms) */
     ngx_uint_t                      logged_in;   /* 1 after kYR_login exchange */
 

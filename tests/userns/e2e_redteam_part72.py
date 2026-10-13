@@ -104,7 +104,7 @@ def _rt72_correct_400_baddigest_object_removed_either(wpath, uid_of, tmp_orphans
     # Correct: 400 BadDigest + object removed.  Either way the hard invariants
     # are: no svc/root artifact, and no staging orphan from THIS object.
     no_priv_artifact = (not wexists) or (wuid == UID_ALICE and wuid not in (UID_SVC, 0))
-    ok(any((all((wst == 400, b'BadDigest' in any((wb, b'')), not wexists)), no_priv_artifact)),
+    ok(any((all((wst == 400, b'BadDigest' in _rt_default(wb, b''), not wexists)), no_priv_artifact)),
        "S3 PUT own object w/ MISMATCHED %s -> 400 BadDigest + removed, or (if "
        "unverified) stored alice-owned never svc/root (HTTP %s, exists=%s, "
        "uid=%s)" % (a, wst, wexists, wuid))

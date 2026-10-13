@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "metrics.h"
 #include "observability/metrics/unified.h"
 
@@ -51,7 +52,7 @@ brix_tpc_metric_transfer(ngx_uint_t protocol, ngx_uint_t direction,
      * shared, low-cardinality call site now lets both transports move through
      * one API without changing existing WebDAV metric semantics.
      */
-    ngx_log_debug4(NGX_LOG_DEBUG_CORE, log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_CORE, log, 0,
                    "brix_tpc: metric protocol=%ui direction=%ui "
                    "event=%ui bytes=%uz",
                    protocol, direction, event, bytes);

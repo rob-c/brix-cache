@@ -311,7 +311,7 @@ commit_flush_and_chmod(ngx_fd_t fd, mode_t final_mode, int relaxed)
  */
 static ngx_int_t
 commit_cross_device(const char *stage_path, const char *final_path,
-    ngx_log_t *log)
+    const char *root_canon, ngx_log_t *log)
 {
     char         tmp[PATH_MAX];
     int          rfd, dfd, e;
@@ -353,7 +353,7 @@ commit_cross_device(const char *stage_path, const char *final_path,
      * carried onto the STAGED partial (brix_commit_staged) did not follow it,
      * so carry from the destination onto this adjacent temp before it
      * publishes (brix_staged_lock_carry). */
-    if (brix_staged_lock_carry(log, final_path, tmp) != NGX_OK) {
+    if (brix_staged_lock_carry(log, root_canon, final_path, tmp) != NGX_OK) {
         e = errno; (void) unlink(tmp); errno = e; return NGX_ERROR;
     }
     if (rename(tmp, final_path) != 0) {
@@ -413,7 +413,7 @@ brix_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
      * does not silently discharge it (brix_staged_lock_carry). The backend
      * route above publishes through the driver's own staged commit, which
      * carries inside staged_commit_internal. */
-    if (brix_staged_lock_carry(log, final_path, stage_path) != NGX_OK) {
+    if (brix_staged_lock_carry(log, be_root, final_path, stage_path) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -461,5 +461,5 @@ brix_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
 
     /* Cross-device commit: copy the staged data to a temp adjacent to (and on the
      * same filesystem as) the final path, then atomically rename it into place. */
-    return commit_cross_device(stage_path, final_path, log);
+    return commit_cross_device(stage_path, final_path, be_root, log);
 }

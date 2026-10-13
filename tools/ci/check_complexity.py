@@ -39,6 +39,11 @@ Requires: lizard  (pip install --user lizard)
 """
 
 from __future__ import annotations
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import os
 import sys
@@ -52,7 +57,7 @@ try:
 except ModuleNotFoundError as error:  # pragma: no cover - CI-only path
     if error.name != "readability":
         raise
-    print(
+    _brix_diagnostic('ERROR', 'tools/ci/check_complexity.py', 'main',
         f"check_complexity: FAIL — lizard engine {TOOLS / 'readability.py'} is missing",
         file=sys.stderr,
     )
@@ -84,7 +89,7 @@ def check() -> int:
             f"FAIL over-complex function: {file}::{function} "
             f"(CCN {ccn} > {readability.CCN_MAX}) — decompose it"
         )
-    print(f"check_complexity: FAIL ({len(rows)} function(s) over CCN 15)", file=sys.stderr)
+    _brix_diagnostic('ERROR', 'tools/ci/check_complexity.py', 'check', f"check_complexity: FAIL ({len(rows)} function(s) over CCN 15)", file=sys.stderr)
     return 1
 
 

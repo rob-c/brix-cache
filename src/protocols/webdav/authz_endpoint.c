@@ -38,6 +38,7 @@
  *           operator copying them onward with auth_request_set cannot leak a
  *           bearer token or a proxy key.
  */
+#include "core/compat/log_event.h"
 #include "authz_endpoint.h"
 #include "webdav_module_internal.h"
 #include "core/http/http_headers.h"
@@ -140,7 +141,7 @@ webdav_authz_enforce(ngx_http_request_t *r)
 
     rc = ngx_http_brix_webdav_access_handler(r);
     if (rc == NGX_DECLINED) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "brix_webdav_authz: no brix policy on this location — "
                       "refusing (an authz endpoint must fail closed)");
         return NGX_HTTP_FORBIDDEN;

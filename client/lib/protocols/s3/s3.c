@@ -118,24 +118,31 @@ brix_s3_sigv4_build_sts(const char *amzdate, const char *datestamp,
     return 0;
 }
 
-/* ---- Derive the signing key, sign the STS, and emit the header block ----
+/* ---- Derive the signing key and sign the string-to-sign ----
  *
  * WHAT: Runs the 4-round HMAC signing-key derivation, HMAC-signs the
- *       string-to-sign, and writes the x-amz-date / x-amz-content-sha256 /
- *       Authorization header block into hdrs. Returns 0 on success, -1 if the
- *       key derivation or HMAC fails or the header block would overflow hdrs.
+ *       string-to-sign, and writes its lowercase hexadecimal signature.
  *
- * WHY:  This is the final stage where the derived secret becomes bytes on the
- *       wire; a truncated Authorization header advertises a signature the server
- *       cannot reproduce, so truncation must fail cleanly rather than emit a
- *       partial header.
+ * WHY:  Header and query authentication must share the exact same key chain.
  *
- * HOW:  1. Derive the signing key with the shared libxrdproto 4-round chain and
- *          HMAC-sign the string-to-sign; bail on any crypto failure.
- *       2. Hex-encode the signature.
- *       3. snprintf the header block (Credential uses the same scope that was
- *          signed); fail on truncation.
+ * HOW:  Derive with the shared four-round helper, HMAC, then hex-encode.
  */
+static int
+brix_s3_sigv4_signature(const char *sk, const char *datestamp,
+                        const char *region, const char *sts,
+                        char sighex[65])
+{
+    uint8_t k4[32], sig[32];
+
+    if (!brix_sigv4_signing_key((const uint8_t *) sk, strlen(sk),
+            datestamp, region, "s3", k4)
+        || !brix_hmac_sha256(k4, 32, (const uint8_t *) sts, strlen(sts), sig))
+        return -1;
+    brix_hex_encode(sig, 32, sighex);
+    return 0;
+}
+
+/* Emit the ordinary SigV4 headers after signing the string-to-sign. */
 static int
 brix_s3_sigv4_sign_and_emit(const char *sk, const char *datestamp,
                             const char *region, const char *sts,
@@ -143,17 +150,11 @@ brix_s3_sigv4_sign_and_emit(const char *sk, const char *datestamp,
                             const char *amzdate, const char *scope,
                             char *hdrs, size_t hdrsz)
 {
-    uint8_t k4[32], sig[32];
     char    sighex[65];
     int     cn;
 
-    /* Shared 4-round signing-key derive (libxrdproto), then sign the STS. */
-    if (!brix_sigv4_signing_key((const uint8_t *) sk, strlen(sk),
-                                  datestamp, region, "s3", k4)
-        || !brix_hmac_sha256(k4, 32, (const uint8_t *) sts, strlen(sts), sig)) {
+    if (brix_s3_sigv4_signature(sk, datestamp, region, sts, sighex) != 0)
         return -1;
-    }
-    brix_hex_encode(sig, 32, sighex);
 
     cn = snprintf(hdrs, hdrsz,
              "x-amz-date: %s\r\nx-amz-content-sha256: %s\r\n"
@@ -164,6 +165,116 @@ brix_s3_sigv4_sign_and_emit(const char *sk, const char *datestamp,
         return -1;
     }
     return 0;
+}
+
+/* ---- Hash a host-only presigned canonical request ----
+ *
+ * WHAT: Writes the SHA-256 hex of a SigV4 presigned canonical request.
+ * WHY: Presigned requests sign only `host` and carry auth material in the query.
+ * HOW: Encode the URI, format the host-only canonical shape, then hash it.
+ */
+static int
+brix_s3_presign_canon_hash(const char *method, const char *host,
+                           const char *uri, const char *canon_qs,
+                           char canon_hex[65])
+{
+    char encoded_uri[2048];
+    char canonical[8192];
+    int written;
+
+    if (brix_http_urlencode((const unsigned char *) uri, strlen(uri),
+            encoded_uri, sizeof(encoded_uri), "/") < 0) return -1;
+    written = snprintf(canonical, sizeof(canonical),
+        "%s\n%s\n%s\nhost:%s\n\nhost\nUNSIGNED-PAYLOAD", method,
+        encoded_uri, canon_qs, host);
+    if (written < 0 || (size_t) written >= sizeof(canonical)) return -1;
+    brix_s3_sha256_hex(canonical, strlen(canonical), canon_hex);
+    return 0;
+}
+
+/* ---- Build a complete deterministic SigV4 presigned query ----
+ *
+ * WHAT: Returns zero with a canonical query including X-Amz-Signature.
+ * WHY: Conformance probes need expired and path-replay URLs without an SDK.
+ * HOW: Derive date/scope, encode Credential, hash host-only canonical request,
+ *      sign its string-to-sign, and append the signature to the same query.
+ */
+static int
+brix_s3_presign_dates(time_t signed_at, unsigned expires,
+    char amzdate[20], char datestamp[12])
+{
+    struct tm tmv;
+
+    if (expires == 0 || expires > 604800) return -1;
+    if (gmtime_r(&signed_at, &tmv) == NULL) return -1;
+    if (strftime(amzdate, 20, "%Y%m%dT%H%M%SZ", &tmv) == 0) return -1;
+    return strftime(datestamp, 12, "%Y%m%d", &tmv) == 0 ? -1 : 0;
+}
+
+static int
+brix_s3_presign_args_valid(const char *method, const char *host,
+    const char *uri, const char *ak, const char *sk, const char *region,
+    const char *query)
+{
+    return method != NULL && host != NULL && uri != NULL && ak != NULL
+        && sk != NULL && region != NULL && query != NULL;
+}
+
+static int
+brix_s3_presign_credential(const char *ak, const char *region,
+    const char *datestamp, char scope[160], char encoded[1536])
+{
+    char credential[512];
+    int written;
+
+    written = snprintf(scope, 160, "%s/%s/s3/aws4_request",
+        datestamp, region);
+    if (written < 0 || written >= 160) return -1;
+    written = snprintf(credential, sizeof(credential), "%s/%s", ak, scope);
+    if (written < 0 || (size_t) written >= sizeof(credential)) return -1;
+    return brix_http_urlencode((const unsigned char *) credential,
+        strlen(credential), encoded, 1536, "") < 0 ? -1 : 0;
+}
+
+static int
+brix_s3_presign_unsigned_query(const char *credential, const char *amzdate,
+    unsigned expires, char query[3072])
+{
+    int written = snprintf(query, 3072,
+        "X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=%s"
+        "&X-Amz-Date=%s&X-Amz-Expires=%u&X-Amz-SignedHeaders=host",
+        credential, amzdate, expires);
+
+    return written < 0 || written >= 3072 ? -1 : 0;
+}
+
+int
+brix_s3_presign_v4_at(const char *method, const char *host, const char *uri,
+    const char *ak, const char *sk, const char *region, time_t signed_at,
+    unsigned expires, char *query, size_t query_size)
+{
+    char amzdate[20], datestamp[12];
+    char scope[160], encoded_credential[1536];
+    char unsigned_query[3072], canon_hex[65], sts[640], sighex[65];
+    int written;
+
+    if (!brix_s3_presign_args_valid(method, host, uri, ak, sk, region, query))
+        return -1;
+    if (brix_s3_presign_dates(signed_at, expires, amzdate, datestamp) != 0)
+        return -1;
+    if (brix_s3_presign_credential(ak, region, datestamp, scope,
+            encoded_credential) != 0) return -1;
+    if (brix_s3_presign_unsigned_query(encoded_credential, amzdate, expires,
+            unsigned_query) != 0) return -1;
+    if (brix_s3_presign_canon_hash(method, host, uri, unsigned_query,
+            canon_hex) != 0) return -1;
+    if (brix_s3_sigv4_build_sts(amzdate, datestamp, region, canon_hex,
+            scope, sizeof(scope), sts, sizeof(sts)) != 0) return -1;
+    if (brix_s3_sigv4_signature(sk, datestamp, region, sts, sighex) != 0)
+        return -1;
+    written = snprintf(query, query_size, "%s&X-Amz-Signature=%s",
+        unsigned_query, sighex);
+    return written < 0 || (size_t) written >= query_size ? -1 : 0;
 }
 
 int

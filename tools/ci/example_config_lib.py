@@ -481,6 +481,8 @@ _HOST_LIMITS = (
      "so_keepalive tuning is Linux-only"),
     (re.compile(r"host not found in upstream"),
      "this libc ignores HOSTALIASES (Darwin)"),
+    (re.compile(r'getpwnam\("[^"]+"\) failed'),
+     "the example's service account is not installed on this host"),
 )
 
 

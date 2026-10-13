@@ -7,6 +7,7 @@
  * macaroon_endpoint.c and are reached via macaroon_endpoint_internal.h.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "auth/token/macaroon.h"
 #include "auth/token/macaroon_issue.h"
@@ -328,7 +329,7 @@ webdav_handle_macaroon_token(ngx_http_request_t *r)
         conf->common.token_macaroon_secret.len,
         root_key, sizeof(root_key));
     if (key_len <= 0) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "macaroon_endpoint: failed to parse macaroon secret");
         mac_respond(r, NGX_HTTP_INTERNAL_SERVER_ERROR,
                     J_SERVER_ERROR, sizeof(J_SERVER_ERROR) - 1);

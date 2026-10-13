@@ -20,6 +20,7 @@
  *       layer), maps the returned status back to errno (sys_errno or EIO), and
  *       observes the operation as BRIX_METRIC_OP_RENAME on every path.
  */
+#include "core/compat/log_event.h"
 #include "vfs_internal.h"
 #include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_evict: leaf-dispatch bypasses the decorator's own evict */
 #include "vfs_backend_registry.h"       /* brix_vfs_backend_durable (C3 barrier gate) */
@@ -169,7 +170,7 @@ brix_vfs_rename_driver(brix_vfs_ctx_t *ctx, const brix_path_result_t *dst,
         && leaf->driver->sync_publish(leaf, dst_key) != NGX_OK)
     {
         saved_errno = errno ? errno : EIO;
-        ngx_log_error(NGX_LOG_CRIT, ctx->log, saved_errno,
+        BRIX_LOG(NGX_LOG_CRIT, ctx->log, saved_errno,
                       "brix: rename: durable-publish barrier failed for "
                       "\"%s\"", dst_key);
         errno = saved_errno;
@@ -353,7 +354,7 @@ brix_vfs_exchange_driver(brix_vfs_ctx_t *ctx, const brix_path_result_t *other,
             || leaf->driver->sync_publish(leaf, b_key) != NGX_OK))
     {
         saved_errno = errno ? errno : EIO;
-        ngx_log_error(NGX_LOG_CRIT, ctx->log, saved_errno,
+        BRIX_LOG(NGX_LOG_CRIT, ctx->log, saved_errno,
                       "brix: exchange: durable-publish barrier failed for "
                       "\"%s\" <-> \"%s\"", a_key, b_key);
         errno = saved_errno;

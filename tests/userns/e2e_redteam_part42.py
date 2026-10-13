@@ -19,7 +19,7 @@ def _rt42_segment_02():
 
 def _rt42_segment_03(data):
 
-    export_abs = os.path.abspath(data)
+    export_abs = os.path.realpath(data)
     parent1 = os.path.dirname(export_abs)
     parent2 = os.path.dirname(parent1)
     return parent1, parent2
@@ -121,7 +121,7 @@ def _rt42_positive_control_cluster_the_path_encoding(priv700, priv700_secret, po
     # this child's content), so assert the GRANT (200 + a real body carol may see)
     # without pinning the stale canonical marker, and require no OTHER-tenant
     # secret leaked into the response.
-    ok(all((st == 200, bool(b), PW not in any((b, b'')), BOB not in any((b, b'')), BOBS not in any((b, b'')), SVC not in any((b, b'')))),
+    ok(all((st == 200, bool(b), PW not in _rt_default(b, b''), BOB not in _rt_default(b, b''), BOBS not in _rt_default(b, b''), SVC not in _rt_default(b, b''))),
        f"control: carol (staff) reads staffdir via dot-segment, group GRANT "
        f"+ normalize works (HTTP {st})")
     # (PC2) carol reaches the group dir through an encoded but in-bounds segment.
@@ -339,7 +339,7 @@ def _rt42_control_alice_reads_her_own_file(climb_cross, port, ta, BOBS, clean_bo
            f"(HTTP {st})")
     # control: alice reads her OWN file inside her 0700 dir via a normalizing path.
     st, b = http("GET", f"/{tag}_priv700/../{tag}_priv700/inner.txt", port, ta)
-    ok(all((st in (200, 404), not _has(b, BOBS), PW not in any((b, b'')))),
+    ok(all((st in (200, 404), not _has(b, BOBS), PW not in _rt_default(b, b''))),
        f"control: alice reads own 0700-dir file via normalize (owner allowed) "
        f"(HTTP {st})")
 
@@ -362,7 +362,7 @@ def _rt42_control_alice_reads_her_own_file(climb_cross, port, ta, BOBS, clean_bo
     ]
     for p in normalize_into:
         st, b = http("GET", p, port, ta)
-        ok(all((not _has(b, BOB), not _has(b, BOBS), not _has(b, CAROL_SECRET), not _has(b, SVC), PW not in any((b, b'')))),
+        ok(all((not _has(b, BOB), not _has(b, BOBS), not _has(b, CAROL_SECRET), not _has(b, SVC), PW not in _rt_default(b, b''))),
            f"(D) alice normalize-into-sibling GET {p[:34]!r} no cross-tenant/svc "
            f"leak (HTTP {st})")
 

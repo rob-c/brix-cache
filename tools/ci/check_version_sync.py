@@ -7,9 +7,10 @@
 #         S1  the RPM spec's %global upstream_version literal fallback
 #         S2  the version on the spec's newest %changelog entry
 #         S3  the version of the newest docs/10-reference/CHANGELOG.md entry
+#         S4  the Nix package version literal
 #       Plus two shape rules that keep the history readable:
-#         S4  docs/10-reference/CHANGELOG.md entries are strictly descending by version
-#         S5  the spec %changelog is descending by (version, release)
+#         S5  docs/10-reference/CHANGELOG.md entries are strictly descending by version
+#         S6  the spec %changelog is descending by (version, release)
 #
 # WHY:  These four files drifted apart in the wild: the server reported 1.3.0
 #       while docs/10-reference/CHANGELOG.md stopped at 1.0.8, so neither an operator reading the
@@ -37,6 +38,7 @@ ROOT = Path(__file__).resolve().parents[2]
 IDENT = "src/core/ident.h"
 SPEC = "packaging/rpm/nginx-mod-brix-cache.spec"
 CHANGELOG = "docs/10-reference/CHANGELOG.md"
+NIX_PACKAGE = "packaging/nix/package.nix"
 
 RE_IDENT = re.compile(r'#define\s+BRIX_SERVER_VERSION_BARE\s+"([^"]+)"')
 # %global upstream_version %{?version_override}%{!?version_override:1.4.0}
@@ -47,6 +49,7 @@ RE_SPEC_FALLBACK = re.compile(
 RE_SPEC_ENTRY = re.compile(r"^\*\s+.*?-\s+(\d+(?:\.\d+)*)-(\d+)\s*$")
 # ## v1.4.0 — 2026-08-03   (trailing prose after the version is allowed)
 RE_CL_ENTRY = re.compile(r"^##\s+v(\d+(?:\.\d+)*)\b")
+RE_NIX_VERSION = re.compile(r'^\s*version\s*=\s*"([^"]+)"\s*;', re.M)
 
 
 def _key(version):
@@ -97,9 +100,23 @@ def run(root):
         return False, [error]
     out = _spec_findings(_read(root, SPEC), version)
     out.extend(_changelog_findings(_read(root, CHANGELOG), version))
+    out.extend(_literal_findings(_read(root, NIX_PACKAGE), RE_NIX_VERSION,
+                                 NIX_PACKAGE, version))
     if out:
         return False, out
-    return True, [f"check_version_sync: OK ({version} in ident.h, spec and CHANGELOG)"]
+    return True, [f"check_version_sync: OK ({version} in ident.h, spec, "
+                  "CHANGELOG and Nix package)"]
+
+
+def _literal_findings(text, pattern, label, version):
+    if text is None:
+        return [f"{label}: missing"]
+    match = pattern.search(text)
+    if not match:
+        return [f"{label}: no version literal found"]
+    if match.group(1) == version:
+        return []
+    return [f"{label}: version is {match.group(1)}, {IDENT} says {version}"]
 
 
 def _ident_version(root):
@@ -168,11 +185,13 @@ def _show(root):
     ident_text = _text(root, IDENT)
     spec_text = _text(root, SPEC)
     cl_text = _text(root, CHANGELOG)
+    nix_text = _text(root, NIX_PACKAGE)
     print(f"{IDENT:<44} {_match_value(RE_IDENT, ident_text)}")
     print(f"{SPEC + ' (fallback)':<44} {_match_value(RE_SPEC_FALLBACK, spec_text)}")
     entries = _spec_changelog_entries(spec_text)
     print(f"{SPEC + ' (%changelog)':<44} {_spec_entry_value(entries)}")
     print(f"{CHANGELOG:<44} {_first_or_dash(_changelog_entries(cl_text))}")
+    print(f"{NIX_PACKAGE:<44} {_match_value(RE_NIX_VERSION, nix_text)}")
 
 
 def _text(root, relative):

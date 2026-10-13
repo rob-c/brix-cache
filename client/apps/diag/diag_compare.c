@@ -2,6 +2,7 @@
  * diag_compare.c - extracted concern
  * Phase-38 split of xrddiag.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "diag_internal.h"
 
 void
@@ -92,7 +93,7 @@ compare_root_md5(const diag_args *a, brix_url *ua, char *hex, size_t hexsz,
 
     brix_status_clear(&st);
     if (brix_connect(&ca, ua, &a->conn, &st) != 0) {
-        fprintf(stderr, "xrddiag: connect %s:%d: %s\n", ua->host, ua->port, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: connect %s:%d: %s\n", ua->host, ua->port, st.msg);
         *exit_rc = brix_shellcode(&st);
         return -1;
     }
@@ -125,7 +126,7 @@ compare_davs_md5(const char *dhost, int dport, const char *path,
     *exit_rc = 1;
     body = (char *) malloc(1u << 20);
     if (body == NULL) {
-        fprintf(stderr, "xrddiag: out of memory\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: out of memory\n");
         *exit_rc = 51;
         return -1;
     }
@@ -207,11 +208,11 @@ do_compare_davs(const diag_args *a)
 
     brix_status_clear(&st);
     if (brix_endpoint_parse(a->url, &ua, &st) != 0) {
-        fprintf(stderr, "xrddiag: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: %s\n", st.msg);
         return 50;
     }
     if (ua.path[0] == '\0' || strcmp(ua.path, "/") == 0) {
-        fprintf(stderr, "xrddiag: compare --davs needs a file path in the URL\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: compare --davs needs a file path in the URL\n");
         return 50;
     }
     parse_http_hostport(a->davs, dhost, sizeof(dhost), &dport);
@@ -257,25 +258,25 @@ compare_setup(const diag_args *a, brix_url *ua, brix_url *ub,
     brix_status st;
 
     if (a->ref_url == NULL) {
-        fprintf(stderr, "xrddiag: compare needs --vs-reference <url>\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: compare needs --vs-reference <url>\n");
         return 50;
     }
     brix_status_clear(&st);
     if (brix_endpoint_parse(a->url, ua, &st) != 0 ||
         brix_endpoint_parse(a->ref_url, ub, &st) != 0) {
-        fprintf(stderr, "xrddiag: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: %s\n", st.msg);
         return 50;
     }
     if (ua->path[0] == '\0' || strcmp(ua->path, "/") == 0) {
-        fprintf(stderr, "xrddiag: compare needs a file/dir path in the URL\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: compare needs a file/dir path in the URL\n");
         return 50;
     }
     if (brix_connect(ca, ua, &a->conn, &st) != 0) {
-        fprintf(stderr, "xrddiag: connect A %s:%d: %s\n", ua->host, ua->port, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: connect A %s:%d: %s\n", ua->host, ua->port, st.msg);
         return brix_shellcode(&st);
     }
     if (brix_connect(cb, ub, &a->conn, &st) != 0) {
-        fprintf(stderr, "xrddiag: connect B %s:%d: %s\n", ub->host, ub->port, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: connect B %s:%d: %s\n", ub->host, ub->port, st.msg);
         brix_close(ca);
         return brix_shellcode(&st);
     }

@@ -20,6 +20,7 @@
  * frames — steady state is silent.
  */
 
+#include "core/compat/log_event.h"
 #include "cms_internal.h"
 #include "altds.h"
 #include "frame_io.h"     /* brix_cms_send_frame — status broadcast */
@@ -87,7 +88,7 @@ altds_verdict(brix_cms_altds_t *ad, int alive)
     }
     ad->down = !alive;
 
-    ngx_log_error(NGX_LOG_NOTICE, ad->cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, ad->cycle->log, 0,
         "brix: cms altds 127.0.0.1:%i is %s — %s",
         (int) ad->conf->cms.altds_port,
         alive ? "back" : "down",
@@ -228,7 +229,7 @@ brix_cms_altds_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
 
     ngx_add_timer(&ad->tick, conf->cms.altds_interval);
 
-    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
                   "brix: cms altds monitor started for 127.0.0.1:%i "
                   "(every %Mms)",
                   (int) conf->cms.altds_port, conf->cms.altds_interval);

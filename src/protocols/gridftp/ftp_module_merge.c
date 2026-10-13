@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "ftp_gateway.h"
 #include "ftp_module_internal.h"           /* brix_ftp_build_gsi (ftp_module_gsi.c) */
 #include "core/config/stream_common.h"     /* phase-101 W3: adopt the bare storage names */
@@ -42,7 +43,7 @@ brix_ftp_install_backend_credential(ngx_conf_t *cf,
                 ngx_min(conf->common.storage_credential.len + 1, sizeof(name)));
     cred = brix_credential_lookup(name);
     if (cred == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_credential \"%s\" names no brix_credential "
             "block", name);
         return NGX_CONF_ERROR;
@@ -50,7 +51,7 @@ brix_ftp_install_backend_credential(ngx_conf_t *cf,
     if (brix_credential_to_backend_cred(cred, bearer, sizeof(bearer),
                                         &bcred, cf->log) != NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_gridftp: cannot derive credential \"%s\" for export \"%s\"",
             name, conf->common.root_canon);
         return NGX_CONF_ERROR;
@@ -86,7 +87,7 @@ brix_ftp_finalize_vo_rules(ngx_conf_t *cf,
     root.data = (u_char *) conf->common.root_canon;
     root.len  = ngx_strlen(conf->common.root_canon);
     if (brix_finalize_vo_rules(cf->log, &root, conf->common.vo_rules) != NGX_OK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_require_vo: cannot finalize VO rules for "
             "export \"%s\"", conf->common.root_canon);
         return NGX_CONF_ERROR;
@@ -162,14 +163,14 @@ ftp_resolve_root(ngx_conf_t *cf, ngx_stream_brix_ftp_srv_conf_t *conf)
         return NGX_CONF_ERROR;
     }
     if (dir.len >= sizeof(raw)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_export path too long: %V", &dir);
         return NGX_CONF_ERROR;
     }
     ngx_memcpy(raw, dir.data, dir.len);
     raw[dir.len] = '\0';
     if (realpath(raw, conf->common.root_canon) == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
             "brix_export \"%s\" cannot be resolved (does it exist?)", raw);
         return NGX_CONF_ERROR;
     }
@@ -209,7 +210,7 @@ brix_ftp_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     }
 
     if (conf->enable && conf->common.root_canon[0] == '\0') {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_gridftp is on but brix_export is unset or "
             "unresolvable");
         return NGX_CONF_ERROR;

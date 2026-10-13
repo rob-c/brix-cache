@@ -49,24 +49,43 @@ def _rt44_segment_05():
     return lockinfo
 
 
+def _rt44_privileged_xattrs(inode_path):
+    try:
+        names = os.listxattr(inode_path)
+    except OSError:
+        return {}
+    values = {}
+    for name in names:
+        if name.startswith("user.") or name.startswith("system.posix_acl"):
+            continue
+        try:
+            values[name] = os.getxattr(inode_path, name)
+        except OSError:
+            values[name] = None
+    return values
+
+
+def _rt44_xattr_changes(current, baseline):
+    return sorted(name for name in set(current) | set(baseline)
+                  if current.get(name) != baseline.get(name))
+
+
 def _rt44_segment_06():
+    baselines = {}
 
     def bad_xattr_on(inode_path):
-        """Return the list of PRIVILEGED (non-user.*, non-posix_acl) xattr names on
-        the real inode — the escalation we are hunting.  Any such name means a
-        group-authorized (or cross-tenant) PROPPATCH/LOCK leaked out of user.*."""
-        try:
-            names = os.listxattr(inode_path)
-        except OSError:
+        """Return privileged xattrs added or changed since the first probe.
+
+        SELinux hosts legitimately label every new inode with
+        ``security.selinux``.  The first pre-attack probe records such
+        platform-owned metadata; later probes still detect any added or mutated
+        privileged namespace/value.
+        """
+        current = _rt44_privileged_xattrs(inode_path)
+        if inode_path not in baselines:
+            baselines[inode_path] = current
             return []
-        bad = []
-        for n in names:
-            if n.startswith("user."):
-                continue
-            if n.startswith("system.posix_acl"):
-                continue
-            bad.append(n)
-        return bad
+        return _rt44_xattr_changes(current, baselines[inode_path])
     return bad_xattr_on
 
 
@@ -86,10 +105,8 @@ def _rt44_segment_07(bad_xattr_on):
 
 def _rt44_a_positive_control_carol_group_write(sw, bad_xattr_on, proppatch, t_carol):
 
-    _combo_xattr_namespace_group_p1(bad_xattr_on, sw, proppatch, t_carol, propfind, inode_clean, t_bob, t_alice, t_dave, lockinfo, port, grp_dir, SW_SECRET, tag, XML, tok, val)
 
 
-def _combo_xattr_namespace_group_p1(bad_xattr_on, sw, proppatch, t_carol, propfind, inode_clean, t_bob, t_alice, t_dave, lockinfo, port, grp_dir, SW_SECRET, tag, XML, tok, val):
     # ========================================================================
     # 0) FIXTURE INVARIANT — the combination only discriminates if the target is
     #    group-writable by carol but NOT writable by bob/dave (so a passing
@@ -111,10 +128,8 @@ def _combo_xattr_namespace_group_p1(bad_xattr_on, sw, proppatch, t_carol, propfi
     base_bad = bad_xattr_on(sw)
     ok(base_bad == [],
        f"baseline: staff_w.txt carries no privileged xattr before attack ({base_bad})")
-    _combo_xattr_namespace_group_p2(proppatch, t_carol, propfind, bad_xattr_on, sw, inode_clean, t_bob, t_alice, t_dave, lockinfo, port, grp_dir, SW_SECRET, tag, XML, tok, val)
 
 
-def _combo_xattr_namespace_group_p2(proppatch, t_carol, propfind, bad_xattr_on, sw, inode_clean, t_bob, t_alice, t_dave, lockinfo, port, grp_dir, SW_SECRET, tag, XML, tok, val):
     # ========================================================================
     # A) POSITIVE CONTROL — carol (GROUP WRITE) sets a user.* dead-property; it
     #    round-trips via PROPFIND.  This proves the broker, acting AS carol, can
@@ -131,7 +146,7 @@ def _rt44_segment_09(propfind, t_carol, st_pp, bad_xattr_on, sw):
        f"carol (group write) user.* PROPPATCH handled (PROPPATCH {st_pp}, "
        f"PROPFIND {st_pf})")
     if carol_set_ok:
-        ok(b'cerulean' in any((body, b'')),
+        ok(b'cerulean' in _rt_default(body, b''),
            "POSITIVE: carol's user.* dead-property round-trips via PROPFIND "
            "(group write authorizes user-namespace xattr)")
     bad_after_carol = bad_xattr_on(sw)
@@ -145,10 +160,8 @@ def _rt44_b_negative_control_bob_not_staff(bad_after_carol, inode_clean, sw, pro
     ok(all((okst[1] == UID_ALICE, okst[2] == GID_STAFF, not okst[3] & 3072)),
        "after carol user.* set: owner/group still alice:staff, no setuid/setgid "
        f"gained (uid={okst[1]}, gid={okst[2]}, mode={okst[3] & 0o7777:o})")
-    _combo_xattr_namespace_group_p3(proppatch, t_bob, propfind, t_alice, t_dave, lockinfo, port, t_carol, inode_clean, sw, grp_dir, bad_xattr_on, SW_SECRET, tag, XML, tok, val)
 
 
-def _combo_xattr_namespace_group_p3(proppatch, t_bob, propfind, t_alice, t_dave, lockinfo, port, t_carol, inode_clean, sw, grp_dir, bad_xattr_on, SW_SECRET, tag, XML, tok, val):
     # ========================================================================
     # B) NEGATIVE CONTROL — bob (NOT staff, NO write) cannot set ANY property; the
     #    property must never persist.  Combination: cross-GROUP non-writer vs the
@@ -167,7 +180,7 @@ def _rt44_segment_11(st_bob, body, proppatch, t_dave, propfind, t_alice):
     ok(st_bob not in (200,),
        f"bob (no write, cross-group) user.* PROPPATCH refused via 207/403 "
        f"(HTTP {st_bob})")
-    ok(b'bobpwn' not in any((body, b'')),
+    ok(b'bobpwn' not in _rt_default(body, b''),
        "bob's denied property never persisted (no group-write escalation for "
        "a non-member)")
     st_dave, _ = proppatch("/grp/staff_w.txt", t_dave, "ckcolor", "davepwn")
@@ -179,12 +192,10 @@ def _rt44_segment_11(st_bob, body, proppatch, t_dave, propfind, t_alice):
 
 
 def _rt44_explicit_xrdcks_by_owner_control_even(body, proppatch, t_carol, bad_xattr_on, sw, inode_clean, t_alice):
-    ok(b'davepwn' not in any((body, b'')),
+    ok(b'davepwn' not in _rt_default(body, b''),
        "dave's denied property never persisted on the staff group file")
-    _combo_xattr_namespace_group_p4(proppatch, t_alice, lockinfo, port, t_carol, t_bob, propfind, inode_clean, sw, grp_dir, bad_xattr_on, SW_SECRET, t_dave, tag, XML, tok, val)
 
 
-def _combo_xattr_namespace_group_p4(proppatch, t_alice, lockinfo, port, t_carol, t_bob, propfind, inode_clean, sw, grp_dir, bad_xattr_on, SW_SECRET, t_dave, tag, XML, tok, val):
     # ========================================================================
     # C) THE CORE COMBINATION — carol HAS group write, yet must NOT be able to set
     #    a PRIVILEGED-NAMESPACE xattr via PROPPATCH.  We probe security.*, system.*,
@@ -230,7 +241,6 @@ def _combo_xattr_namespace_group_p4(proppatch, t_alice, lockinfo, port, t_carol,
     ok(bad_xattr_on(sw) == [],
        f"owner alice also cannot plant a trusted.* xattr via PROPPATCH "
        f"(namespace confinement is identity-independent) (HTTP {st_a})")
-    _combo_xattr_namespace_group_p5(lockinfo, port, t_carol, t_bob, propfind, t_alice, inode_clean, sw, proppatch, grp_dir, bad_xattr_on, SW_SECRET, t_dave, tag, XML, tok, val)
 
 
 def _rt44_d_lock_leg_of_the_combination(lockinfo, port, t_carol, XML, bad_xattr_on, sw):
@@ -277,10 +287,8 @@ def _rt44_release_carol_s_lock_if_held(lock_tok, port, t_carol):
              hdrs={"Lock-Token": "<" + lock_tok.decode("latin1").split("<")[-1]
                    .split(">")[0] + ">" if b"<" not in lock_tok
                    else lock_tok.decode("latin1")})
-    _combo_xattr_namespace_group_p6(propfind, t_alice, inode_clean, sw, proppatch, t_bob, t_carol, grp_dir, port, bad_xattr_on, SW_SECRET, t_dave, tag, tok, val, XML)
 
 
-def _combo_xattr_namespace_group_p6(propfind, t_alice, inode_clean, sw, proppatch, t_bob, t_carol, grp_dir, port, bad_xattr_on, SW_SECRET, t_dave, tag, tok, val, XML):
     # ========================================================================
     # E) CONCURRENT same-property set by alice (owner) + carol (group write) — both
     #    authorized via DIFFERENT authority paths writing the SAME dead-property.
@@ -342,7 +350,6 @@ def _rt44_whatever_landed_must_be_a_real(seen, bad_xattr_on, sw, inode_clean):
     cl = inode_clean(sw)
     ok(all((cl[1] == UID_ALICE, cl[2] == GID_STAFF)),
        f"after concurrent races: file still alice:staff (uid={cl[1]}, gid={cl[2]})")
-    _combo_xattr_namespace_group_p7(proppatch, t_bob, propfind, t_alice, t_carol, grp_dir, port, bad_xattr_on, sw, inode_clean, SW_SECRET, t_dave, tag, XML)
 
 
 def _rt44_f_cross_tenant_bob_proppatch_on(proppatch, t_bob, propfind, t_alice, bad_xattr_on, sw):
@@ -357,11 +364,10 @@ def _rt44_f_cross_tenant_bob_proppatch_on(proppatch, t_bob, propfind, t_alice, b
     ok(st_xt not in (200,),   # 207/403 per-property denial; non-persistence next
        f"cross-tenant bob PROPPATCH on alice's group file refused via 207/403 "
        f"(HTTP {st_xt})")
-    ok(b'BOB-XT-PWN' not in any((body, b'')),
+    ok(b'BOB-XT-PWN' not in _rt_default(body, b''),
        "cross-tenant property never persisted (owner PROPFIND confirms absence)")
     ok(bad_xattr_on(sw) == [],
        "cross-tenant PROPPATCH planted no privileged xattr either")
-    _combo_xattr_namespace_group_p8(propfind, t_carol, grp_dir, port, proppatch, bad_xattr_on, sw, inode_clean, t_alice, t_bob, SW_SECRET, t_dave, tag, XML)
 
 
 def _rt44_g_listxattr_getxattr_leak_check_a(sw, propfind, t_carol, body):
@@ -390,9 +396,9 @@ def _rt44_g_listxattr_getxattr_leak_check_a(sw, propfind, t_carol, body):
 
 
 def _rt44_herself_set_in_section_c_whose(body, bad_xattr_on, sw, SW_SECRET):
-    ok(b'PRIV-XATTR-VALUE' not in any((body, b'')),
+    ok(b'PRIV-XATTR-VALUE' not in _rt_default(body, b''),
        "PROPFIND by group member leaks NO trusted.* xattr VALUE (namespace hidden)")
-    ok(b'SEC-XATTR-VALUE' not in any((body, b'')),
+    ok(b'SEC-XATTR-VALUE' not in _rt_default(body, b''),
        "PROPFIND by group member leaks NO security.* xattr VALUE")
     # The real escalation surface is the INODE: a PROPFIND must never expose a
     # privileged (non-user.*) xattr that lives on the file.  bad_xattr_on() reads
@@ -408,7 +414,7 @@ def _rt44_herself_set_in_section_c_whose(body, bad_xattr_on, sw, SW_SECRET):
     ok(bad_xattr_on(sw) == [],
        "PROPFIND surfaces no privileged xattr NAMESPACE to the group member "
        f"(inode carries no non-user.* xattr: {bad_xattr_on(sw)})")
-    ok(SW_SECRET not in any((body, b'')),
+    ok(SW_SECRET not in _rt_default(body, b''),
        "metadata PROPFIND on the group file leaks no body-secret bytes")
     # cleanup planted privileged xattrs so the export stays clean for later batches.
     try:
@@ -443,18 +449,16 @@ def _rt44_shared_has_group_write_there_but(sw, SW_SECRET, grp_dir):
     # a privileged namespace (cross-protocol leg of the same confinement claim).
     if xrd_avail():
         rc, out, _e = xrd_fs(["query", "xattr", "/grp/staff_w.txt"], "carol")
-        ok(SW_SECRET.decode() not in any((out, '')),
+        ok(SW_SECRET.decode() not in _rt_default(out, ''),
            f"root:// query xattr by group member leaks no body secret (rc={rc})")
-        ok(all(('trusted.' not in any((out, '')), 'security.' not in any((out, '')))),
+        ok(all(('trusted.' not in _rt_default(out, ''), 'security.' not in _rt_default(out, ''))),
            f"root:// query xattr by group member surfaces no privileged ns (rc={rc})")
         # cross-group non-member (bob via root://) also gets nothing.
         rc, out, _e = xrd_fs(["query", "xattr", "/grp/staff_w.txt"], "bob")
-        ok(SW_SECRET.decode() not in any((out, '')),
+        ok(SW_SECRET.decode() not in _rt_default(out, ''),
            f"root:// query xattr by non-member bob leaks no body secret (rc={rc})")
-    _combo_xattr_namespace_group_p9(grp_dir, port, t_carol, proppatch, propfind, bad_xattr_on, sw, inode_clean, t_alice, t_bob, t_dave, tag, XML, SW_SECRET)
 
 
-def _combo_xattr_namespace_group_p9(grp_dir, port, t_carol, proppatch, propfind, bad_xattr_on, sw, inode_clean, t_alice, t_bob, t_dave, tag, XML, SW_SECRET):
     # ========================================================================
     # H) SECOND GROUP-WRITE TARGET — shared_w.txt (0660 alice:shared); bob IS in
     #    shared (HAS group write there) but NOT in staff.  This flips the matrix:
@@ -498,7 +502,7 @@ def _rt44_negative_within_the_same_flip_bob(proppatch, t_bob, bad_xattr_on, shw,
 
 def _rt44_segment_03_2(propfind, t_alice, st_dd):
     st_pf, body = propfind("/grp/shared_w.txt", t_alice)
-    ok(all((st_dd not in (200,), b'davepwn2' not in any((body, b'')))),   # 207/403 denial
+    ok(all((st_dd not in (200,), b'davepwn2' not in _rt_default(body, b''))),   # 207/403 denial
        f"dave (no shared membership) PROPPATCH on shared file denied, no "
        f"persistence (HTTP {st_dd})")
     return body
@@ -520,7 +524,6 @@ def _rt44_positive_control_on_the_same_file(shared_ok, proppatch, t_bob, propfin
         body = _rt44_when_shared_ok(proppatch, t_bob, propfind, bad_xattr_on, shw, inode_clean, t_dave, t_alice)
 
 
-def _combo_xattr_namespace_group_p10(grp_dir, port, t_carol, proppatch, propfind, bad_xattr_on, sw, inode_clean, t_alice, t_bob, tag, XML, SW_SECRET):
     # ========================================================================
     # I) NEW GROUP-OWNED FIXTURE — a setgid staff dir; carol creates a file inside
     #    (inherits gid=staff via setgid), then carol (group writer on her OWN new
@@ -562,16 +565,14 @@ def _combo_xattr_namespace_group_p10(grp_dir, port, t_carol, proppatch, propfind
             # POSITIVE control on the same file: a user.* prop DOES round-trip.
             st_up, _ = proppatch(rel_new, t_carol, "okprop", "okval")
             st_pf, body = propfind(rel_new, t_carol)
-            ok(any((all((st_up in (200, 207), b'okval' in any((body, b'')))), st_up in (403, 423, 501))),
+            ok(any((all((st_up in (200, 207), b'okval' in _rt_default(body, b''))), st_up in (403, 423, 501))),
                f"carol's user.* prop on her own setgid-inherited file round-trips "
                f"(PROPPATCH {st_up})")
         else:
             ok(st_pn in (403, 404, 409, 423, 501),
                f"carol PUT into setgid staff dir handled (no file) (HTTP {st_pn})")
-    _combo_xattr_namespace_group_p11(port, t_carol, proppatch, propfind, bad_xattr_on, sw, inode_clean, t_alice, t_bob, XML, SW_SECRET)
 
 
-def _combo_xattr_namespace_group_p11(port, t_carol, proppatch, propfind, bad_xattr_on, sw, inode_clean, t_alice, t_bob, XML, SW_SECRET):
     # ========================================================================
     # J) DESYNC / SURVIVAL — an oversized privileged-namespace PROPPATCH body by the
     #    group writer must not desync the broker payload path; a follow-up legit
@@ -603,10 +604,8 @@ def _rt44_k_final_invariant_sweep_across_every(recovered, st_rp, bad_xattr_on, s
     ok(recovered,
        f"after oversized hostile PROPPATCH, broker survives: carol's follow-up "
        f"group-write user.* set works (HTTP {st_rp})")
-    _combo_xattr_namespace_group_p12(bad_xattr_on, sw, inode_clean, port, t_alice, t_bob, t_carol, SW_SECRET)
 
 
-def _combo_xattr_namespace_group_p12(bad_xattr_on, sw, inode_clean, port, t_alice, t_bob, t_carol, SW_SECRET):
     # ========================================================================
     # K) FINAL INVARIANT SWEEP — across every attack above, the group fixtures kept
     #    their owner/group, gained no setid bit, and hold NO privileged xattr.  The
@@ -626,14 +625,14 @@ def _rt44_positive_control_that_the_worker_is(port, t_alice, SW_SECRET, t_bob, t
     # the body is still the original secret content, owner unchanged — no xattr
     # attack mutated the data plane.
     st_g, gb = http("GET", "/grp/staff_w.txt", port, t_alice)
-    ok(all((st_g == 200, SW_SECRET in any((gb, b'')))),
+    ok(all((st_g == 200, SW_SECRET in _rt_default(gb, b''))),
        f"FINAL: group file data intact, owner can still read original body "
        f"(HTTP {st_g})")
     # the non-writer (bob) still cannot read-write-escalate — worker survived and
     # DAC still discriminates (a wedged/escalated broker would change this).
     st_bp2, bb = http("GET", "/grp/staff_w.txt", port, t_bob)
     # staff_w is 0660 (no other read) -> bob (non-member) must be denied a read too.
-    ok(all((st_bp2 != 200, SW_SECRET not in any((bb, b'')))),
+    ok(all((st_bp2 != 200, SW_SECRET not in _rt_default(bb, b''))),
        f"FINAL: cross-group bob still denied read of 0660 staff file, no leak "
        f"(HTTP {st_bp2})")
     # positive control that the worker is alive for the authorized group member.
@@ -642,7 +641,7 @@ def _rt44_positive_control_that_the_worker_is(port, t_alice, SW_SECRET, t_bob, t
 
 
 def _rt44_segment_27(st_cg, SW_SECRET, cb):
-    ok(all((st_cg == 200, SW_SECRET in any((cb, b'')))),
+    ok(all((st_cg == 200, SW_SECRET in _rt_default(cb, b''))),
        f"FINAL: authorized group member carol can still read the group file — "
        f"worker survived the whole battery (HTTP {st_cg})")
 

@@ -197,17 +197,7 @@ static int
 sigv4_copy_arg_decoded(ngx_http_request_t *r, const char *name,
     char *dst, size_t dst_size)
 {
-    ngx_str_t raw;
-
-    if (ngx_http_arg(r, (u_char *) name, ngx_strlen(name), &raw) != NGX_OK
-        || raw.len == 0)
-    {
-        return 0;
-    }
-
-    return brix_http_urldecode(raw.data, raw.len, dst, dst_size,
-        BRIX_URLDECODE_PLUS_TO_SPACE |
-        BRIX_URLDECODE_REJECT_NUL) == BRIX_URLDECODE_OK;
+    return s3_get_query_param(r, name, dst, dst_size);
 }
 
 /*
@@ -293,27 +283,30 @@ parse_authorization(const ngx_str_t *auth, sigv4_components_t *out)
 int
 parse_presigned_authorization(ngx_http_request_t *r, sigv4_components_t *out)
 {
-    ngx_str_t sig_qs;
+    ngx_http_s3_req_ctx_t *ctx;
     char      algorithm[64];
     char      credential[BRIX_S3_CREDENTIAL_BUF_SIZE];
     char      expires[32];
 
-    /* X-Amz-Signature is the presence test: absent => this is not presigned. */
-    if (ngx_http_arg(r, (u_char *) "X-Amz-Signature", 15, &sig_qs)
-        != NGX_OK)
-    {
+    ngx_memzero(out, sizeof(*out));
+
+    /* Presence selects presigned mode even when the value is empty.  An empty
+     * signature is malformed and must never fall back to header auth. */
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
+    if (ctx == NULL) {
+        return NGX_ERROR;
+    }
+    if (brix_http_query_parsed_has(&ctx->query, "X-Amz-Signature",
+                                   BRIX_HTTP_QUERY_HAS_VALUE_OK) == 0) {
         return NGX_DECLINED;
     }
-
-    ngx_memzero(out, sizeof(*out));
-    out->presigned = 1;
-
-    if (sig_qs.len == 0
-        || brix_str_cbuf(out->signature, sizeof(out->signature), &sig_qs)
-           == NULL)
+    if (!s3_get_query_param(r, "X-Amz-Signature", out->signature,
+                            sizeof(out->signature)))
     {
         return NGX_ERROR;
     }
+
+    out->presigned = 1;
 
     /* All of these fields are mandatory; the short-circuit && treats any
      * missing/over-long/badly-encoded field (or wrong algorithm) as a single

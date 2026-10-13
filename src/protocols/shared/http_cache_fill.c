@@ -25,6 +25,7 @@
  * cleanup (which always fires exactly once), so a late cleanup can never
  * use-after-free a waiter the done handler already resolved.
  */
+#include "core/compat/log_event.h"
 #include "http_cache_fill.h"
 #include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_* */
 #include "fs/backend/http/sd_http.h"    /* sd_http_n_endpoints (verify budget) */
@@ -241,7 +242,7 @@ brix_http_cache_fill_if_needed(ngx_http_request_t *r,
     if (pool == NULL) {
         /* No pool: nothing can run off-loop, so fall through to the inline path
          * (preserves the pre-SP2 behaviour - a remote miss may stall/fail). */
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
             "brix: cache miss on \"%s\" needs an async thread pool to fill a "
             "remote tier; none configured - serving inline (may stall)", key);
         brix_http_fill_cred_wipe(&cred);
@@ -302,7 +303,7 @@ brix_http_cache_fill_if_needed(ngx_http_request_t *r,
 
     brix_http_fill_publish(t);
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
         "brix: offloaded cache fill of \"%s\" to the thread pool", key);
     return NGX_DONE;
 }

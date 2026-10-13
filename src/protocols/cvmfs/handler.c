@@ -12,6 +12,7 @@
  *       helpers. The proxy-mode (T14) per-upstream override rides on the
  *       request ctx (convention #2).
  */
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "cvmfs_module_internal.h"         /* cvmfs_finalize_observe */
 #include "core/compat/error_mapping.h"
@@ -335,7 +336,7 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
     brix_http_vfs_bind_no_rules(&lcf->common, &vctx);
     vctx.sd = cvmfs_resolve_sd(r, lcf);
     if (vctx.sd == NULL) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
             "cvmfs: no storage backend registered for \"%s\" - check "
             "brix_storage_backend", root);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;

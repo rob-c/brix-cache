@@ -55,7 +55,6 @@ def _rt13_f4_embedded_and_and_trailing_dot(recover, T, port, ta, adir):
             ok(os.stat(fp).st_uid == UID_ALICE,
                f"canonicalized embedded-path file {nm} owned by alice")
     recover("embedded ./ // segments")
-    _broker_resource_limits_p9(s3port, port, ta, adir, recover, fifo, hl_made, bdir, tb, data, T, prop_name, BOBHL_MARK)
 
 
 def _rt13_g_xattr_namespace_probes_via_proppatch(T, port, ta, adir):
@@ -87,22 +86,33 @@ def _rt13_segment_18(T, port, ta):
     return _proppatch_ns
 
 
+def _rt13_privileged_xattrs(xfp):
+    try:
+        names = os.listxattr(xfp)
+    except OSError:
+        return {}
+    values = {}
+    for name in names:
+        if name.startswith("user.") or name.startswith("system.posix_acl"):
+            continue
+        try:
+            values[name] = os.getxattr(xfp, name)
+        except OSError:
+            values[name] = None
+    return values
+
+
 def _rt13_the_webdav_dead_property_name_carries(xfp):
 
     # The WebDAV dead-property name carries no raw xattr namespace, but probe that
     # the server never grows a privileged xattr on the inode regardless.  After
     # each PROPPATCH, scan the real inode's xattrs for any non-user.* namespace.
+    baseline = _rt13_privileged_xattrs(xfp)
+
+
     def _bad_xattr_present():
-        try:
-            names = os.listxattr(xfp)
-        except OSError:
-            return False
-        for n in names:
-            if not (n.startswith("user.") or n.startswith("system.posix_acl")):
-                return True
-            if n in ("security.capability",):
-                return True
-        return False
+        current = _rt13_privileged_xattrs(xfp)
+        return current != baseline
     return _bad_xattr_present
 
 
@@ -127,11 +137,10 @@ def _rt13_direct_raw_xattr_confinement_check_plant(_proppatch_ns, _bad_xattr_pre
     # root:// query xattr on bob's 0600 must not leak xattr values either.
     if xrd_avail():
         rc, out, _e = xrd_fs(["query", "xattr", "/bob/private.txt"], "alice")
-        ok('BOB-PRIVATE-SECRET' not in any((out, '')),
+        ok('BOB-PRIVATE-SECRET' not in _rt_default(out, ''),
            f"root:// query xattr on bob's 0600 leaks no content (rc={rc})")
         rc, out, _e = xrd_fs(["query", "xattr", f"/alice/{T}xattr.txt"], "alice")
         ok(True, f"root:// query xattr on own file returned (rc={rc})")
-    _broker_resource_limits_p10(s3port, port, recover, fifo, hl_made, bdir, ta, adir, tb, data, T, BOBHL_MARK)
 
 
 def _rt13_segment_01_9(T, i, port, ta):
@@ -198,10 +207,8 @@ def _rt13_h_rapid_sequential_broker_stress_hammer(T, port, ta, adir):
 def _rt13_h2_rapid_keep_alive_pipelined_burst(stall, T, ta, port):
     ok(stall == 0, f"broker socket never wedged under burst: every interleaved "
                    f"known-good probe passed fast (stalls={stall})")
-    _broker_resource_limits_p11(s3port, port, recover, fifo, hl_made, bdir, ta, adir, tb, data, T, BOBHL_MARK)
 
 
-def _broker_resource_limits_p11(s3port, port, recover, fifo, hl_made, bdir, ta, adir, tb, data, T, BOBHL_MARK):
     # H2) rapid keep-alive pipelined burst on ONE TCP connection — stresses the
     #     per-request principal re-establishment without a fresh connect each time;
     #     none may bleed identity (every created file alice-owned).
@@ -232,10 +239,8 @@ def _rt13_h3_interleave_cross_tenant_bob_writes(adir, T, ka_bad_owner, ka_ok, ta
     ok(all((ka_ok >= 1, ka_bad_owner == 0)),
        f"keep-alive pipelined burst: {ka_ok}/10 ok, no wrong-owner file "
        f"(bad_owner={ka_bad_owner})")
-    _broker_resource_limits_p12(s3port, port, recover, fifo, hl_made, bdir, ta, tb, data, adir, T, BOBHL_MARK)
 
 
-def _broker_resource_limits_p12(s3port, port, recover, fifo, hl_made, bdir, ta, tb, data, adir, T, BOBHL_MARK):
     # H3) interleave cross-tenant bob writes into the burst window — a leaked
     #     principal would let one land in the wrong tenant or as the wrong owner.
     inter = []
@@ -268,10 +273,8 @@ def _rt13_i_s3_special_file_boundary_probes(data, T, recover, s3port, fifo, hl_m
     ok(drift == 0, f"interleaved alice/bob pipelined PUTs: zero principal drift "
                    f"(wrong-owner={drift})")
     recover("rapid broker stress")
-    _broker_resource_limits_p13(s3port, fifo, hl_made, recover, bdir, adir, T, BOBHL_MARK)
 
 
-def _broker_resource_limits_p13(s3port, fifo, hl_made, recover, bdir, adir, T, BOBHL_MARK):
     # =====================================================================
     # I) S3 special-file + boundary probes (the S3 async-body handler must fail
     #    closed on the same pathological nodes, no hang/leak).
@@ -292,7 +295,6 @@ def _broker_resource_limits_p13(s3port, fifo, hl_made, recover, bdir, adir, T, B
             ok(all((st != 200, not _has(b, BOBHL_MARK))),
                f"S3 GET cross-tenant hardlink DENIED, no leak (HTTP {st})")
         recover("S3 special-file probes")
-    _broker_resource_limits_p14(recover, bdir, adir, T)
 
 
 def _rt13_privileged_owner_drift(adir, tag, name):

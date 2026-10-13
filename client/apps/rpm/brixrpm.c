@@ -10,6 +10,7 @@
  * HOW:  exit codes follow the brixcvmfs table subset: 0 ok · 1 operation
  *       failed · 2 usage.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brixrpm_internal.h"
 
 #include "core/version.h"
@@ -212,7 +213,7 @@ rpm_cmd_inspect(const char *path, int json)
     brix_rpm_pkg_t *p = brix_rpm_open(path, err, sizeof(err));
 
     if (p == NULL) {
-        fprintf(stderr, "brixrpm: %s\n", err);
+        BRIX_CLIENT_LOG("ERROR",  "brixrpm: %s\n", err);
         return 1;
     }
     (void) brix_rpm_u32(p, BRIX_RPMTAG_EPOCH, 0, &epoch);
@@ -251,11 +252,11 @@ rpm_createrepo_args(int argc, char **argv, brixrpm_cr_opts_t *o)
             /* the default (and only) href mode — accepted, nothing to set */
         } else if (strcmp(a, "--compress") == 0) {
             if (i + 1 >= argc || strcmp(argv[++i], "gz") != 0) {
-                fprintf(stderr, "brixrpm: --compress supports only gz\n");
+                BRIX_CLIENT_LOG("INFO",  "brixrpm: --compress supports only gz\n");
                 return -1;
             }
         } else {
-            fprintf(stderr, "brixrpm: unknown option %s\n", a);
+            BRIX_CLIENT_LOG("ERROR",  "brixrpm: unknown option %s\n", a);
             return -1;
         }
     }
@@ -314,7 +315,7 @@ brixrpm_main(int argc, char **argv)
     if (strcmp(argv[1], "inspect") == 0) {
         return rpm_run_inspect(argc, argv);
     }
-    fprintf(stderr, "brixrpm: unknown command \"%s\"\n", argv[1]);
+    BRIX_CLIENT_LOG("ERROR",  "brixrpm: unknown command \"%s\"\n", argv[1]);
     rpm_usage(stderr);
     return 2;
 }

@@ -11,6 +11,7 @@
  * extraction → time window. Returns 0 (claims populated) / -1 (reason logged).
  */
 
+#include "core/compat/log_event.h"
 #include "token_internal.h"
 #include "validate_internal.h"
 #include "b64url.h"
@@ -78,7 +79,7 @@ token_sanitize_for_log(const char *in, char *out, size_t outsz)
 int
 brix_token_malformed(ngx_log_t *log)
 {
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
                   "brix_token: malformed JWT structure");
     return -1;
 }
@@ -148,7 +149,7 @@ static int
 token_validate_macaroon(const brix_token_validate_args_t *a)
 {
     if (a->macaroon_secret == NULL || a->secret_len == 0) {
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                       "brix_token: Macaroon detected but no secret configured");
         return -1;
     }
@@ -163,7 +164,7 @@ token_validate_macaroon(const brix_token_validate_args_t *a)
     {
         char safe_iss[BRIX_TOKEN_ISS_BUF_SIZE];
         token_sanitize_for_log(a->claims->iss, safe_iss, sizeof(safe_iss));
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                       "brix_macaroon: issuer/location mismatch: got \"%s\" "
                       "expected \"%s\"", safe_iss, a->expected_issuer);
         return -1;
@@ -222,7 +223,7 @@ token_extract_claims(const brix_token_validate_args_t *a, const char *pay_json,
                         claims->sub, sizeof(claims->sub)) < 0
         && json_has_member(pay_json, pay_len, "sub"))
     {
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                       "brix_token: \"sub\" claim present but not a StringOrURI "
                       "(RFC 7519 rules 4/6)");
         return -1;
@@ -246,7 +247,7 @@ token_extract_claims(const brix_token_validate_args_t *a, const char *pay_json,
     if (json_get_int64(pay_json, pay_len, "exp", &claims->exp) != 0
         || claims->exp <= 0)
     {
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                       "brix_token: token missing valid positive exp");
         return -1;
     }
@@ -301,7 +302,7 @@ token_check_issuer_audience(const brix_token_validate_args_t *a,
         if (strcmp(a->claims->iss, a->expected_issuer) != 0) {
             char safe_iss[BRIX_TOKEN_ISS_BUF_SIZE];
             token_sanitize_for_log(a->claims->iss, safe_iss, sizeof(safe_iss));
-            ngx_log_error(NGX_LOG_WARN, a->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                           "brix_token: issuer mismatch: got \"%s\" "
                           "expected \"%s\"", safe_iss, a->expected_issuer);
             return -1;
@@ -323,7 +324,7 @@ token_check_issuer_audience(const brix_token_validate_args_t *a,
         if (!aud_ok) {
             char safe_aud[BRIX_TOKEN_AUD_BUF_SIZE];
             token_sanitize_for_log(a->claims->aud, safe_aud, sizeof(safe_aud));
-            ngx_log_error(NGX_LOG_WARN, a->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                           "brix_token: audience mismatch: got \"%s\" "
                           "expected \"%s\"", safe_aud,
                           a->expected_audience);
@@ -380,7 +381,7 @@ token_check_time_window(const brix_token_validate_args_t *a)
         exp_limit = a->claims->exp + (int64_t) a->clock_skew;
     }
     if (now > (time_t) exp_limit) {
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                       "brix_token: token expired at %L (now=%L skew=%d)",
                       (long long) a->claims->exp, (long long) now,
                       a->clock_skew);
@@ -389,7 +390,7 @@ token_check_time_window(const brix_token_validate_args_t *a)
 
     if (a->claims->nbf > 0 && now < (time_t) a->claims->nbf)
     {
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                       "brix_token: token not yet valid (nbf=%L now=%L)",
                       (long long) a->claims->nbf, (long long) now);
         return -1;
@@ -431,7 +432,7 @@ token_log_valid(ngx_log_t *log, const brix_token_claims_t *claims)
         token_sanitize_for_log(claims->iss,       safe_iss,    sizeof(safe_iss));
         token_sanitize_for_log(claims->scope_raw, safe_scope,  sizeof(safe_scope));
         token_sanitize_for_log(claims->groups,    safe_groups, sizeof(safe_groups));
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
                       "brix_token: valid token sub=\"%s\" iss=\"%s\" "
                       "scope=\"%s\" groups=\"%s\" scopes=%d",
                       safe_sub, safe_iss, safe_scope, safe_groups,
@@ -492,7 +493,7 @@ brix_token_validate(const brix_token_validate_args_t *a)
     }
 
     if (a->token_len == 0 || a->token_len > BRIX_B64_DECODE_MAX) {
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                       "brix_token: token length invalid: %uz", a->token_len);
         return -1;
     }

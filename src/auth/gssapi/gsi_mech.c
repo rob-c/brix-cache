@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "gsi_mech.h"
 
 #include "auth/gsi/proxy_req.h"
@@ -222,7 +223,7 @@ gss_verify_peer(brix_gssapi_srv_t *g)
 
     leaf = SSL_get_peer_certificate(g->ssl);        /* +1 ref */
     if (leaf == NULL) {
-        ngx_log_error(NGX_LOG_ERR, g->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, g->log, 0,
                       "brix gsi_mech: client presented no certificate");
         return NGX_ERROR;
     }
@@ -266,7 +267,7 @@ gss_send_proxy_req(brix_gssapi_srv_t *g, ngx_str_t *out)
     parent.data = parent_pem.data;
     parent.len = parent_pem.len;
     if (brix_gsi_build_pxyreq(&parent, &g->req_key, &req_der, &err) != 0) {
-        ngx_log_error(NGX_LOG_ERR, g->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, g->log, 0,
                       "brix gsi_mech: build proxy request failed: %s", errbuf);
         return BRIX_GSS_FAILED;
     }
@@ -304,7 +305,7 @@ gss_recv_signed(brix_gssapi_srv_t *g, ngx_str_t *out)
     p = signed_der.data;
     proxy = d2i_X509(NULL, &p, (long) signed_der.len);   /* first cert = proxy */
     if (proxy == NULL) {
-        ngx_log_error(NGX_LOG_ERR, g->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, g->log, 0,
                       "brix gsi_mech: signed proxy is not a valid certificate");
         return BRIX_GSS_FAILED;
     }
@@ -325,7 +326,7 @@ gss_recv_signed(brix_gssapi_srv_t *g, ngx_str_t *out)
     if (brix_gsi_assemble_proxy(&proxy_blob, g->req_key, &chain_blob, &cred,
                                 &err) != 0)
     {
-        ngx_log_error(NGX_LOG_ERR, g->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, g->log, 0,
                       "brix gsi_mech: assemble delegated proxy failed: %s",
                       errbuf);
         return BRIX_GSS_FAILED;
@@ -426,7 +427,7 @@ gss_step_tls(brix_gssapi_srv_t *g, ngx_str_t *out)
             return BRIX_GSS_CONTINUE;
         }
     } else {
-        ngx_log_error(NGX_LOG_ERR, g->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, g->log, 0,
                       "brix gsi_mech: TLS handshake failed (SSL_error=%d)",
                       error);
     }
@@ -449,7 +450,7 @@ gss_step_delegation_marker(brix_gssapi_srv_t *g, ngx_str_t *out)
     if (gss_read_all(g, 8, &dbuf) != NGX_OK || dbuf.len == 0
         || dbuf.data[0] != 'D')
     {
-        ngx_log_error(NGX_LOG_ERR, g->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, g->log, 0,
                       "brix gsi_mech: expected delegation 'D' marker");
         g->state = ST_FAIL;
         return BRIX_GSS_FAILED;

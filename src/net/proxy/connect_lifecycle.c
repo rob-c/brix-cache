@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "proxy_internal.h"
 #include "net/dns/dns.h"
 #include <sys/socket.h>
@@ -140,7 +141,7 @@ brix_proxy_abort(brix_proxy_ctx_t *proxy, const char *reason)
             proxy->reconnect_left--;
             BRIX_PROXY_METRIC_INC(ctx, reconnects_total);
             BRIX_PROXY_UP_INC(proxy, reconnects_total);
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                           "xrootd proxy: upstream dropped while idle, "
                           "reconnecting (%d attempt(s) left): %s",
                           proxy->reconnect_left, reason);
@@ -154,12 +155,12 @@ brix_proxy_abort(brix_proxy_ctx_t *proxy, const char *reason)
             }
 
             /* connect() failed — fall through to hard abort */
-            ngx_log_error(NGX_LOG_ERR, c->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                           "xrootd proxy: reconnect failed, aborting session");
         }
     }
 
-    ngx_log_error(NGX_LOG_ERR, c->log, 0,
+    BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                   "xrootd proxy: upstream error: %s", reason);
 
     if (!proxy->policy_refusal) {

@@ -24,6 +24,7 @@
  *       logging is at the edges; the scoring math is side-effect-honest.
  */
 
+#include "core/compat/log_event.h"
 #include "sd_http_internal.h"    /* endpoint + inst_state + req_t layout */
 #include "fs/path/path.h"        /* brix_sanitize_log_string (wire keys) */
 
@@ -189,13 +190,13 @@ sd_http_log_switch(sd_http_inst_state *is, sd_http_endpoint *ep)
     }
     pref = sd_http_preferred(is);
     if (ep == pref) {
-        ngx_log_error(NGX_LOG_NOTICE, lg, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, lg, 0,
             "brix: http origin switched to %s:%d (endpoint %d, rank %d, "
             "fail_score %d; the policy-preferred endpoint), was %s",
             ep->host, ep->port, idx, sd_http_ep_rank(ep), ep->fail_score,
             prev);
     } else {
-        ngx_log_error(NGX_LOG_NOTICE, lg, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, lg, 0,
             "brix: http origin switched to %s:%d (endpoint %d, rank %d, "
             "fail_score %d), was %s; policy-preferred %s:%d SKIPPED "
             "(rank %d, fail_score %d - benched by recent transport failures, "
@@ -236,7 +237,7 @@ sd_http_fo_select(const sd_http_req_t *rq)
     }
     ngx_log_t *lg = sd_http_live_log(is);
     if (pref != ep && lg != NULL) {
-        ngx_log_error(NGX_LOG_INFO, lg, 0,
+        BRIX_LOG(NGX_LOG_INFO, lg, 0,
             "brix: http origin half-open probe: re-trying benched "
             "preferred %s:%d (rank %d, fail_score %d) instead of "
             "%s:%d for %s \"%s\"",
@@ -406,7 +407,7 @@ sd_http_fo_follow(const sd_http_req_t *rq, sd_http_endpoint *ep,
         {
             ngx_log_t *lg = sd_http_live_log(is);
             if (lg != NULL) {
-                ngx_log_error(NGX_LOG_WARN, lg, 0,
+                BRIX_LOG(NGX_LOG_WARN, lg, 0,
                     "brix: http origin %s:%d redirect refused "
                     "signal=origin_redirect_refused status=%d",
                     hop_ep.host, hop_ep.port, rq->resp->status);
@@ -486,7 +487,7 @@ sd_http_fo_next(const sd_http_req_t *rq, sd_http_endpoint *first)
     }
     ngx_log_t *lg = sd_http_live_log(is);
     if (lg != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, lg, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, lg, 0,
             "brix: http origin failover for %s \"%s\": %s:%d -> %s:%d "
             "(alternate rank %d, fail_score %d)",
             rq->method, sd_http_log_key(rq->key, klog, sizeof(klog)),
@@ -507,7 +508,7 @@ sd_http_fo_note_fail(const sd_http_req_t *rq, sd_http_endpoint *ep,
     }
     char klog[160];
 
-    ngx_log_error(NGX_LOG_WARN, lg, 0,
+    BRIX_LOG(NGX_LOG_WARN, lg, 0,
         "brix: http origin %s:%d failed %s \"%s\": %s "
         "(attempt %d/2, rank %d, fail_score %d -> %d)",
         ep->host, ep->port, rq->method,
@@ -568,7 +569,7 @@ sd_http_request_fo(const sd_http_req_t *rq, sd_http_endpoint **used)
     }
     ngx_log_t *lg = sd_http_live_log(is);
     if (lg != NULL) {
-        ngx_log_error(NGX_LOG_ERR, lg, 0,
+        BRIX_LOG(NGX_LOG_ERR, lg, 0,
             "brix: http origin request exhausted all endpoints (%d tried) "
             "for %s \"%s\" - reporting EIO to the fill layer",
             (is->n_eps < 2) ? 1 : 2, rq->method,

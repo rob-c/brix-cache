@@ -251,6 +251,16 @@ listener.
 Reverse-proxy topology (the client didn't ask for the WebDAV port), but like
 §3.2 it terminates nothing itself — the target listener owns auth.
 
+The target should be a numeric loopback address so it cannot become an
+authentication-bypass endpoint and does not depend on DNS. The connection and
+relay deadlines are independently configurable:
+
+```nginx
+brix_http_handoff 127.0.0.1:19095;
+brix_http_handoff_connect_timeout 5s;  # default 5s
+brix_http_handoff_idle_timeout 75s;    # default 75s per blocked direction
+```
+
 ### 3.4 WebDAV perimeter reverse proxy — removed
 
 **Status: gone.** The dedicated WebDAV reverse-proxy terminated client HTTPS +

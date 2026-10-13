@@ -7,6 +7,7 @@
  */
 
 
+#include "core/compat/log_event.h"
 #include "s3.h"
 #include "s3_handler_internal.h"
 #include "tagging.h"
@@ -83,7 +84,7 @@ s3_rate_limit(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
  *   returns XML listing of objects rather than serving file content. Detection
  *   enables separate metrics tracking and distinct handler dispatch.
  *
- * HOW: Validates method=GET and args present, uses brix_http_query_get() to
+ * HOW: Validates method=GET and args present, uses the shared parsed query to
  *   extract list-type parameter, compares to "2" (ListObjectsV2 version).
  */
 static int
@@ -95,8 +96,8 @@ s3_is_list_request(ngx_http_request_t *r)
         return 0;
     }
 
-    return brix_http_query_get(r->args, "list-type", list_type,
-                                 sizeof(list_type), 0) > 0
+    return s3_get_query_param(r, "list-type", list_type,
+                              sizeof(list_type))
            && ngx_strcmp(list_type, "2") == 0;
 }
 
@@ -324,8 +325,9 @@ s3_pmark_begin_if_enabled(ngx_http_request_t *r, ngx_http_s3_req_ctx_t *s3ctx,
     }
 
     ngx_cpystrn(pth, r->uri.data, ngx_min(r->uri.len + 1, sizeof(pth)));
-    if (r->args.len) {
-        ngx_cpystrn(cgi, r->args.data, ngx_min(r->args.len + 1, sizeof(cgi)));
+    if (s3ctx->query.raw.len) {
+        ngx_cpystrn(cgi, s3ctx->query.raw.data,
+                    ngx_min(s3ctx->query.raw.len + 1, sizeof(cgi)));
     } else {
         cgi[0] = '\0';
     }
@@ -365,13 +367,17 @@ s3_tls_gate(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     {
         caps |= BRIX_TLSREQ_DATA;
     }
-    if (r->headers_in.authorization != NULL) {
+    if (r->headers_in.authorization != NULL
+        || brix_http_query_has_decoded_name(r->args, "X-Amz-Signature", 0))
+    {
         caps |= BRIX_TLSREQ_LOGIN;
     }
     caps = brix_tls_gate_refused(cf->common.tls_require, caps,
                                  r->connection->ssl != NULL);
     if (caps != 0) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        /* nginx error-log context may append the request line. */
+        brix_http_redact_request_query_tokens(r);
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
             "brix: cleartext S3 request refused by brix_tls_require %s "
             "(method=%V)", brix_tls_cap_name(caps), &r->method_name);
         return NGX_HTTP_FORBIDDEN;
@@ -430,20 +436,44 @@ ngx_http_s3_handler(ngx_http_request_t *r)
         return NGX_DECLINED;
     }
 
+    /* Throttle before TLS-policy logging, query scanning, or authentication. */
+    rc = s3_rate_limit(r, cf);
+    if (rc != NGX_OK) {
+        brix_http_redact_request_query_tokens(r);
+        return rc;
+    }
+
     rc = s3_tls_gate(r, cf);
     if (rc != NGX_OK) {
+        brix_http_redact_request_query_tokens(r);
         return rc;
     }
 
     /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */
     brix_http_source_offer(r);
 
-    BRIX_PCALLOC_OR_RETURN(s3ctx, r->pool, sizeof(*s3ctx), NGX_HTTP_INTERNAL_SERVER_ERROR);
+    s3ctx = ngx_pcalloc(r->pool, sizeof(*s3ctx));
+    if (s3ctx == NULL) {
+        brix_http_redact_request_query_tokens(r);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     s3ctx->identity = brix_identity_alloc(r->pool);
     if (s3ctx->identity == NULL) {
+        brix_http_redact_request_query_tokens(r);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     ngx_http_set_ctx(r, s3ctx, ngx_http_brix_s3_module);
+
+    if (s3_query_prepare(r, s3ctx) < 0)
+    {
+        brix_http_redact_request_query_tokens(r);
+        return s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST,
+                                 "InvalidArgument",
+                                 "Malformed query string.");
+    }
+    /* SigV4 and routing consume s3ctx->query from here onward.  Scrub usable
+     * presigned credentials from nginx's request-line access-log fields. */
+    brix_http_redact_request_query_tokens(r);
 
     /*
      * ListObjectsV2 is an HTTP GET on the wire, but it has very different
@@ -455,13 +485,6 @@ ngx_http_s3_handler(ngx_http_request_t *r)
                                   : s3_metrics_method_slot(r);
     s3_metrics_request_method(method_slot);
 
-    /* phase-105 W1: per-client-IP rate limit, before the auth burden
-     * (mirrors webdav's access-phase ordering — reject cheap first). */
-    rc = s3_rate_limit(r, cf);
-    if (rc != NGX_OK) {
-        return s3_metrics_return_method(r, method_slot, rc);
-    }
-
     if (r->method == NGX_HTTP_OPTIONS) {
         return s3_metrics_return_method(r, method_slot,
                                         s3_handle_options(r, cf));
@@ -471,6 +494,9 @@ ngx_http_s3_handler(ngx_http_request_t *r)
         rc = s3_verify_sigv4(r, cf, s3ctx->identity);
         if (rc != NGX_OK) {
             return s3_metrics_return_method(r, method_slot, rc);
+        }
+        if (r->header_sent) {
+            return s3_metrics_return_method(r, method_slot, NGX_OK);
         }
     }
 

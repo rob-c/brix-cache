@@ -36,6 +36,7 @@
  *     num_slot), and offsetof() into ngx_http_s3_loc_conf_t. Ends with ngx_null_command.
  */
 
+#include "core/compat/log_event.h"
 #include "s3.h"
 #include "auth/authz/acc/acc.h"            /* XrdAcc engine directives + enum tables */
 #include "auth/token/token.h"              /* brix_jwks_load, brix_jwks_register_cleanup */
@@ -159,7 +160,7 @@ ngx_http_s3_postconfiguration(ngx_conf_t *cf)
 
         scf->common.thread_pool = ngx_thread_pool_get(cf->cycle, pool_name);
         if (scf->common.thread_pool == NULL) {
-            ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
                 "brix_s3: thread pool \"%V\" not found - "
                 "async PUT I/O disabled (add a thread_pool directive)",
                 pool_name);

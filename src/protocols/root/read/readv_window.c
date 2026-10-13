@@ -1,12 +1,11 @@
+#include "core/compat/log_event.h"
 #include "platform/platform_api.h"
 /*
  * readv_window.c — bounded-resident kXR_readv response streaming.
  *
  * The protocol's logical body is [16-byte segment header][segment bytes] for
- * every returned range.  Stock XrdCl matches each returned header against the
- * exact requested offset and length, so neither a range nor its header may be
- * split into extra protocol records.  We instead advertise the complete body
- * length once, then produce its bytes through a reusable bounded window.
+ * every returned range. Official clients require one length-delimited response
+ * header; the body itself is produced through a reusable bounded window.
  */
 #include "read.h"
 #include "protocols/root/connection/budget.h"
@@ -110,7 +109,7 @@ readv_window_fail(brix_ctx_t *ctx, ngx_connection_t *c, const char *message)
         /* A response header has already promised the remaining raw body.  A
          * framed error here would be consumed as file data and desynchronise
          * the connection, so force the normal disconnect funnel instead. */
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                       "brix: readv body stream aborted: %s", message);
         c->close = 1;
         return NGX_ERROR;
@@ -195,9 +194,7 @@ brix_readv_window_emit(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     chain = brix_build_body_fragment_chain(ctx, c, ctx->rd.read_scratch,
-                                              prefix + got,
-                                              ctx->rd.win_readv_body_size,
-                                              first);
+        prefix + got, ctx->rd.win_readv_body_size, first);
     if (chain == NULL) {
         return readv_window_fail(ctx, c, "readv response framing failed");
     }

@@ -2,6 +2,7 @@
  * manager_map.c — the `brix_manager_map` directive (CMS manager mode).
  */
 
+#include "core/compat/log_event.h"
 #include "config.h"
 
 #include <stdlib.h>
@@ -65,7 +66,7 @@ brix_manager_map_parse_port(ngx_conf_t *cf, const char *port_str,
 
     pnum = strtol(port_str, &endp, 10);
     if (*endp != '\0' || pnum <= 0 || pnum > BRIX_MAX_PORT) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_manager_map: invalid port in \"%V\"", arg);
         return NGX_ERROR;
     }
@@ -99,12 +100,12 @@ brix_manager_map_parse_ipv6(ngx_conf_t *cf, brix_manager_map_t *entry,
 
     rb = strchr(addr_copy, ']');
     if (rb == NULL || rb == addr_copy) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_manager_map: invalid IPv6 host \"%V\"", arg);
         return NGX_ERROR;
     }
     if (*(rb + 1) != ':') {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_manager_map: missing port in \"%V\"", arg);
         return NGX_ERROR;
     }
@@ -144,7 +145,7 @@ brix_manager_map_parse_hostport(ngx_conf_t *cf, brix_manager_map_t *entry,
 
     colon = strrchr(addr_copy, ':');
     if (colon == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_manager_map: missing port in \"%V\"", arg);
         return NGX_ERROR;
     }
@@ -226,7 +227,7 @@ brix_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     /* Normalize and store the prefix path (policy-style) */
     if (brix_normalize_policy_path(cf->pool, &value[1], &entry->prefix) != NGX_OK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_manager_map: invalid path \"%V\"", &value[1]);
         return NGX_CONF_ERROR;
     }
@@ -243,7 +244,7 @@ brix_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: manager_map configured: prefix=%s backend=%s:%d",
         (char *) entry->prefix.data, (char *) entry->host.data, (int) entry->port);
 

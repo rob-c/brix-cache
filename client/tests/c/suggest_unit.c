@@ -95,12 +95,12 @@ static void
 test_64_byte_cap_no_match(void)
 {
     /* A 128-byte arg that starts with "stat" but is padded past the cap. */
-    const char long_arg[129];
+    char long_arg[129];
     int i;
     for (i = 0; i < 128; i++) {
-        ((char *)long_arg)[i] = 'a' + (i % 26);
+        long_arg[i] = 'a' + (i % 26);
     }
-    ((char *)long_arg)[128] = '\0';
+    long_arg[128] = '\0';
 
     const char *s = brix_suggest(long_arg, CMDS);
     /* The 64-byte prefix of the long_arg is "abcdefghijklmnopqrstuvwxyzabcde...";

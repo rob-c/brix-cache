@@ -36,6 +36,7 @@
  *        3. After loop: checks found_sig/expiry, finalizes scopes
  */
 
+#include "core/compat/log_event.h"
 #include "token_internal.h"
 #include "macaroon.h"
 #include "macaroon_internal.h"
@@ -93,7 +94,7 @@ macaroon_packet_cid(brix_macaroon_parse_state_t *state,
     u_char next_sig[32];
 
     if (!state->found_id) {
-        ngx_log_error(NGX_LOG_WARN, state->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, state->log, 0,
                       "brix_macaroon: caveat before identifier");
         return NGX_ERROR;
     }
@@ -154,7 +155,7 @@ macaroon_packet_signature(brix_macaroon_parse_state_t *state,
 
     if (data_len < 10 + 32
         || CRYPTO_memcmp(state->sig, provided_sig, 32) != 0) {
-        ngx_log_error(NGX_LOG_WARN, state->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, state->log, 0,
                       "brix_macaroon: signature mismatch");
         return NGX_ERROR;
     }
@@ -191,13 +192,13 @@ macaroon_check_expiry(brix_macaroon_parse_state_t *state)
     time_t now = time(NULL);
 
     if (state->tp_arr != NULL && state->claims->exp <= 0) {
-        ngx_log_error(NGX_LOG_WARN, state->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, state->log, 0,
                       "brix_macaroon: rejected — no before: (expiry) caveat; "
                       "non-expiring macaroons are not accepted");
         return NGX_ERROR;
     }
     if (state->claims->exp > 0 && now > (time_t)state->claims->exp) {
-        ngx_log_error(NGX_LOG_WARN, state->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, state->log, 0,
                       "brix_macaroon: token expired at %L (now=%L)",
                       (long long)state->claims->exp, (long long)now);
         return NGX_ERROR;
@@ -327,7 +328,7 @@ macaroon_parse_core(const macaroon_parse_input_t *in,
         size_t  dlen;
 
         if (plen < 4 || p + plen > end) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_macaroon: malformed packet length: %d", plen);
             return -1;
         }
@@ -345,7 +346,7 @@ macaroon_parse_core(const macaroon_parse_input_t *in,
     }
 
     if (!state.found_sig) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_macaroon: no valid signature found");
         return -1;
     }

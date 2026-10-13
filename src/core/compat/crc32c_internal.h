@@ -38,4 +38,14 @@ uint32_t brix_crc32c_copy_hw3(const unsigned char *src, unsigned char *dst,
 
 #endif /* __x86_64__ */
 
+#if defined(BRIX_ARCH_ARM64) && BRIX_ARCH_ARM64 \
+    && defined(__ARM_FEATURE_CRC32)
+
+uint32_t brix_crc32c_arm64_extend(uint32_t crc, const unsigned char *p,
+    size_t len);
+uint32_t brix_crc32c_arm64_copy(const unsigned char *src, unsigned char *dst,
+    size_t len);
+
+#endif
+
 #endif /* BRIX_COMPAT_CRC32C_INTERNAL_H */

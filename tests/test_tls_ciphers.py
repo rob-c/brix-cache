@@ -58,7 +58,8 @@ def _nginx_t(tmp_path, ciphers_line):
     inject_nginx_load_modules(conf, NGINX_BIN)
     inject_nginx_runtime_paths(conf, tmp_path)
     return subprocess.run(
-        [NGINX_BIN, "-t", "-p", str(tmp_path), "-c", str(conf)],
+        [NGINX_BIN, "-e", "stderr", "-t", "-p", str(tmp_path),
+         "-c", str(conf)],
         capture_output=True, text=True, timeout=30)
 
 

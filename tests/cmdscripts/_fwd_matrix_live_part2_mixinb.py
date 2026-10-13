@@ -27,6 +27,7 @@ from typing import Iterator, NamedTuple
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from lib_py.util import wait_tcp
+from log_records import semantic_log_text
 from settings import BIND_HOST, CA_CERT, CA_DIR, CA_KEY, HOST, SERVER_CERT, SERVER_KEY
 from ephemeral_port import free_ports
 from cmdscripts.fwd_matrix_live import _call, _curl_code  # noqa: E402 (split-drop fix)
@@ -184,7 +185,7 @@ pss.setopt DebugLevel 0
     def assert_backend_identity(kind: str, log: Path | None, expect: str) -> bool:
         if log is None or not log.is_file():
             return False
-        text = log.read_text(errors="replace")
+        text = semantic_log_text(log.read_text(errors="replace"))
         # brix_sanitize_log_string writes spaces as literal \x20.
         alt = f"({re.escape(expect)}|{re.escape(expect.replace(' ', chr(92) + 'x20'))})"
         if kind == "stock":

@@ -86,7 +86,7 @@ def _rt49_a(s3port, absp, owner_uid, confined, not_worker_root):
             # ?acl / ?tagging are now HANDLED ops (GetObjectAcl / GetObjectTagging,
             # src/protocols/s3/tagging.c) — a benign metadata XML response, NOT the object
             # body; still runs as alice, never leaks another tenant.
-            ok(all((st == 200, b'SR-OWN-BODY' not in any((b, b'')), any((b'<AccessControlPolicy' in any((b, b'')), b'<Tagging' in any((b, b'')))))),
+            ok(all((st == 200, b'SR-OWN-BODY' not in _rt_default(b, b''), any((b'<AccessControlPolicy' in _rt_default(b, b''), b'<Tagging' in _rt_default(b, b''))))),
                f"S3 GET ?{sr} on own object -> handled canned metadata, not the "
                f"object body (HTTP {st})")
         else:
@@ -160,7 +160,7 @@ def _rt49_c(s3port, SECRET, absp, XML_BODY):
             after_uid = os.stat(bpriv).st_uid
         except OSError:
             after_bytes, after_mode, after_uid = None, -2, -2
-        ok(all((st not in (200, 201, 204), after_bytes == before_bytes, SECRET in any((before_bytes, b'')), after_mode == before_mode, after_uid == before_uid == UID_BOB)),
+        ok(all((st not in (200, 201, 204), after_bytes == before_bytes, SECRET in _rt_default(before_bytes, b''), after_mode == before_mode, after_uid == before_uid == UID_BOB)),
            f"S3 alice PUT ?{sr} on bob's 0600 DENIED: bytes+mode+owner unchanged (HTTP {st})")
 
     # ============================================================== (E) ===
@@ -219,7 +219,7 @@ def _rt49_f(delp, st, absp, s3port, XML_BODY, SECRET):
     for method in ["GET", "PUT", "DELETE"]:
         body = XML_BODY if method == "PUT" else None
         st, b = s3(method, "", s3port, params={"acl": ""}, data=body)
-        ok(all((st in (200, 400, 403, 404, 405, 501), b'escape/' not in any((b, b'')), SECRET not in any((b, b'')))),
+        ok(all((st in (200, 400, 403, 404, 405, 501), b'escape/' not in _rt_default(b, b''), SECRET not in _rt_default(b, b''))),
            f"S3 {method} /bucket/?acl (bucket-level) no object/leak (HTTP {st})")
 
     # ============================================================== (H) ===

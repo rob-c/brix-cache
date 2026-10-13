@@ -18,6 +18,7 @@
  *       split host:port → copy out) fills a vfs_origin_parse_t, then registers
  *       the primary endpoint and appends any failovers.
  */
+#include "core/compat/log_event.h"
 #include "vfs_backend_config_internal.h"
 
 #include <string.h>
@@ -86,7 +87,7 @@ vfs_http_origin_strip_scheme(ngx_conf_t *cf, u_char *seg, size_t segn,
         out->tls      = 0;
         return NGX_OK;
     }
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
         "brix_storage_backend: every |-separated origin must be an "
         "http:// or https:// URL");
     return NGX_ERROR;
@@ -110,7 +111,7 @@ vfs_http_origin_host_port(ngx_conf_t *cf, u_char *h, size_t hplen, int htls,
         ngx_int_t pn = ngx_atoi(colon + 1, (size_t) (h + hplen - (colon + 1)));
 
         if (pn == NGX_ERROR || pn < BRIX_VFS_PORT_MIN || pn > BRIX_VFS_PORT_MAX) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_storage_backend: invalid http origin port (1-65535)");
             return NGX_ERROR;
         }
@@ -163,7 +164,7 @@ vfs_parse_http_origin(ngx_conf_t *cf, u_char *seg, size_t segn,
     }
     hostn = out->host_len;
     if (hostn == 0 || hostn >= out->host_cap || pathlen >= out->base_cap) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend: invalid http origin host/path");
         return NGX_ERROR;
     }
@@ -189,13 +190,13 @@ vfs_backend_add_http_endpoint(ngx_conf_t *cf, const char *root_canon,
     size_t                      n;
 
     if (e == NULL || ngx_strcmp(e->backend, "http") != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend: internal - endpoint list before primary");
         return NGX_ERROR;
     }
     n = sizeof(e->http_extra) / sizeof(e->http_extra[0]);
     if ((size_t) e->n_http_extra >= n) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend: too many |-separated origins (max %uz)",
             n + 1);
         return NGX_ERROR;
@@ -203,7 +204,7 @@ vfs_backend_add_http_endpoint(ngx_conf_t *cf, const char *root_canon,
     if (ngx_strlen(parsed->host) >= sizeof(e->http_extra[0].host)
         || ngx_strlen(parsed->base) >= sizeof(e->http_extra[0].base))
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend: origin host/base too long for the "
             "endpoint table");
         return NGX_ERROR;

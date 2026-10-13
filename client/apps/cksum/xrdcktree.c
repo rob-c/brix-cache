@@ -14,6 +14,7 @@
  *       the root's path prefix + one slash).  Manifest format "<hex>  <rel>\n"
  *       (two spaces) is sha256sum -c compatible; brix_ckmf_parse_line is the sole
  *       gate on the check path so hostile manifests cannot escape the root. */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "brix_ops.h"
 #include "cktree_internal.h"
@@ -152,7 +153,7 @@ cktree_walk(const char *lpath, const char *rel,
 
     d = opendir(lpath);
     if (d == NULL) {
-        fprintf(stderr, "xrdcksum tree: opendir %s: %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrdcksum tree: opendir %s: %s\n",
                 lpath, strerror(errno));
         (*errors)++;
         /* Root opendir failure is fatal to the subtree but callers continue. */
@@ -168,7 +169,7 @@ cktree_walk(const char *lpath, const char *rel,
         }
         if (ckt_path_join(lpath, de->d_name, lc, sizeof(lc)) != 0
             || rel_join(rel, de->d_name, relc, sizeof(relc)) != 0) {
-            fprintf(stderr,
+            BRIX_CLIENT_LOG("ERROR",
                     "xrdcksum tree: path too long under %s\n", lpath);
             (*errors)++;   /* a skipped file is an error, not clean output */
             closedir(d);
@@ -228,13 +229,13 @@ tree_emit_file(const char *lpath, const char *rel, void *u)
     brix_status_clear(&st);
     fd = open(lpath, O_RDONLY);
     if (fd < 0) {
-        fprintf(stderr, "xrdcksum tree: open %s: %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrdcksum tree: open %s: %s\n",
                 lpath, strerror(errno));
         (*ctx->errors)++;
         return 0;
     }
     if (brix_cksum_fd(fd, ctx->algo, hex, sizeof(hex), &st) != 0) {
-        fprintf(stderr, "xrdcksum tree: %s: %s\n", lpath,
+        BRIX_CLIENT_LOG("ERROR",  "xrdcksum tree: %s: %s\n", lpath,
                 st.msg[0] ? st.msg : "checksum error");
         close(fd);
         (*ctx->errors)++;
@@ -244,7 +245,7 @@ tree_emit_file(const char *lpath, const char *rel, void *u)
     /* Refuse to emit a record for a newline/CR-bearing name: it would
      * forge an extra manifest line.  Skip-and-warn (counted). */
     if (rel_has_newline(rel)) {
-        fprintf(stderr, "xrdcksum tree: %s: name contains newline/CR, "
+        BRIX_CLIENT_LOG("WARN",  "xrdcksum tree: %s: name contains newline/CR, "
                 "skipping\n", lpath);
         (*ctx->errors)++;
         return 0;
@@ -292,7 +293,7 @@ remote_tree_visitor(const char *path, const brix_dirent *e, int depth,
      * Guard: if the path does not start with root_path, skip (should not happen). */
     if (strncmp(path, ctx->root_path, ctx->root_path_len) != 0
         || path[ctx->root_path_len] != '/') {
-        fprintf(stderr,
+        BRIX_CLIENT_LOG("ERROR",
                 "xrdcksum tree: unexpected path %s outside root %s\n",
                 path, ctx->root_path);
         (*ctx->errors)++;
@@ -303,7 +304,7 @@ remote_tree_visitor(const char *path, const brix_dirent *e, int depth,
     /* A newline/CR in the derived rel would forge an extra manifest line — skip
      * it and count the error rather than corrupt the manifest. */
     if (rel_has_newline(rel)) {
-        fprintf(stderr, "xrdcksum tree: %s: name contains newline/CR, skipping\n",
+        BRIX_CLIENT_LOG("WARN",  "xrdcksum tree: %s: name contains newline/CR, skipping\n",
                 path);
         (*ctx->errors)++;
         return 0;
@@ -312,7 +313,7 @@ remote_tree_visitor(const char *path, const brix_dirent *e, int depth,
     brix_status_clear(&st);
     if (brix_query_cksum(ctx->c, path, ctx->algo_name,
                          hex, sizeof(hex), &st) != 0) {
-        fprintf(stderr, "xrdcksum tree: %s: %s\n", path,
+        BRIX_CLIENT_LOG("ERROR",  "xrdcksum tree: %s: %s\n", path,
                 st.msg[0] ? st.msg : "query_cksum error");
         (*ctx->errors)++;
         return 0;
@@ -381,13 +382,13 @@ cktree_parse_args(int argc, char **argv, cktree_opts *o, int *rc)
             *rc = usage_tree(argv[0], 0);
             return -1;
         } else if (a[0] == '-') {
-            fprintf(stderr, "%s: unknown option '%s'\n", argv[0], a);
+            BRIX_CLIENT_LOG("ERROR",  "%s: unknown option '%s'\n", argv[0], a);
             *rc = usage_tree(argv[0], XRDC_EXIT_USAGE);
             return -1;
         } else if (o->root == NULL) {
             o->root = a;
         } else {
-            fprintf(stderr, "%s: unexpected argument '%s'\n", argv[0], a);
+            BRIX_CLIENT_LOG("ERROR",  "%s: unexpected argument '%s'\n", argv[0], a);
             *rc = usage_tree(argv[0], XRDC_EXIT_USAGE);
             return -1;
         }
@@ -449,12 +450,12 @@ cktree_run_remote(const char *prog, const cktree_opts *o,
     if (brix_url_parse(o->root, &u, &st) != 0
         || (u.scheme != XRDC_SCHEME_ROOT
             && u.scheme != XRDC_SCHEME_ROOTS)) {
-        fprintf(stderr, "%s: %s\n", prog,
+        BRIX_CLIENT_LOG("ERROR",  "%s: %s\n", prog,
                 st.msg[0] ? st.msg : "bad URL");
         return XRDC_EXIT_USAGE;
     }
     if (brix_connect(&c, &u, NULL, &st) != 0) {
-        fprintf(stderr, "%s: connect: %s\n", prog, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "%s: connect: %s\n", prog, st.msg);
         return XRDC_EXIT_USAGE;
     }
     ctx.c         = &c;
@@ -470,7 +471,7 @@ cktree_run_remote(const char *prog, const cktree_opts *o,
 
     wrc = brix_tree_walk(&c, u.path, remote_tree_visitor, &ctx, &st);
     if (wrc < 0) {
-        fprintf(stderr, "%s: walk error: %s\n", prog,
+        BRIX_CLIENT_LOG("ERROR",  "%s: walk error: %s\n", prog,
                 st.msg[0] ? st.msg : "tree walk failed");
         (*errors)++;
     }
@@ -503,13 +504,13 @@ brix_xrdcktree_main(int argc, char **argv)
         return rc;
     }
     if (brix_cksum_algo_parse(o.algo_str, &algo) != 0) {
-        fprintf(stderr, "%s: unknown algorithm '%s'\n", argv[0], o.algo_str);
+        BRIX_CLIENT_LOG("ERROR",  "%s: unknown algorithm '%s'\n", argv[0], o.algo_str);
         return XRDC_EXIT_USAGE;
     }
     if (o.outpath != NULL) {
         out = fopen(o.outpath, "w");
         if (out == NULL) {
-            fprintf(stderr, "%s: cannot open '%s': %s\n",
+            BRIX_CLIENT_LOG("ERROR",  "%s: cannot open '%s': %s\n",
                     argv[0], o.outpath, strerror(errno));
             return XRDC_EXIT_USAGE;
         }

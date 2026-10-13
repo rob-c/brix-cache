@@ -14,6 +14,7 @@
  * HOW: Check c->ssl->handshaked flag — if false (failure): log error, disconnect, close files, finalize with NGX_STREAM_INTERNAL_SERVER_ERROR and return; if true (success): log cipher name, reset ctx->tls_pending=0, set state=XRD_ST_REQ_HEADER, reset hdr_pos=0, restore recv/send handlers, call ngx_stream_brix_recv() to resume request loop. Thread safety: single-owner per connection on nginx event thread — no locking required.
  */
 
+#include "core/compat/log_event.h"
 #include "tls.h"
 #include <ngx_event.h>
 #include <ngx_event_connect.h>
@@ -26,13 +27,13 @@ void brix_tls_handshake_done(ngx_connection_t *c) {
     ngx_stream_session_t *s   = c->data;
     brix_ctx_t         *ctx = ngx_stream_get_module_ctx(s, ngx_stream_brix_module);
     if (!c->ssl->handshaked) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0, "brix: kXR_ableTLS handshake failed");
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0, "brix: kXR_ableTLS handshake failed");
         brix_on_disconnect(ctx, c);
         brix_close_all_files(ctx);
         ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
         return;
     }
-    ngx_log_error(NGX_LOG_INFO, c->log, 0, "brix: kXR_ableTLS TLS handshake complete (%s)", SSL_get_cipher(c->ssl->connection));
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0, "brix: kXR_ableTLS TLS handshake complete (%s)", SSL_get_cipher(c->ssl->connection));
     ctx->tls_pending = 0;
     ctx->state       = XRD_ST_REQ_HEADER;
     ctx->recv.hdr_pos     = 0;
@@ -57,7 +58,7 @@ brix_start_tls(brix_ctx_t *ctx, ngx_connection_t *c,
     ERR_clear_error();
     ctx->state = XRD_ST_TLS_HANDSHAKE;
     if (ngx_ssl_create_connection(conf->tls_ctx, c, NGX_SSL_BUFFER) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0, "brix: ngx_ssl_create_connection failed");
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0, "brix: ngx_ssl_create_connection failed");
         brix_on_disconnect(ctx, c);
         brix_close_all_files(ctx);
         ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
@@ -72,7 +73,7 @@ brix_start_tls(brix_ctx_t *ctx, ngx_connection_t *c,
         brix_tls_handshake_done(c);
         return;
     }
-    ngx_log_error(NGX_LOG_ERR, c->log, 0, "brix: kXR_ableTLS ngx_ssl_handshake error");
+    BRIX_LOG(NGX_LOG_ERR, c->log, 0, "brix: kXR_ableTLS ngx_ssl_handshake error");
     brix_on_disconnect(ctx, c);
     brix_close_all_files(ctx);
     ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);

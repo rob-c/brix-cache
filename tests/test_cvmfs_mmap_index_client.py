@@ -38,6 +38,8 @@ from pathlib import Path
 
 import pytest
 
+from log_records import semantic_log_text
+
 def _expression_1(forge):
     return (
         [k for k in forge.cas
@@ -61,7 +63,8 @@ def _check_test_index_build_failure_leaves_transport_alive_6(cache):
         "a failed build must never persist a partial index"
 
 def _check_test_index_build_failure_leaves_transport_alive_3(text):
-    assert "pathidx unavailable — catalog lookups stay live" in text, text
+    semantic = semantic_log_text(text)
+    assert "pathidx unavailable — catalog lookups stay live" in semantic, semantic
 
 def _check_test_index_build_failure_leaves_transport_alive_5(proc):
     assert proc.poll() is None

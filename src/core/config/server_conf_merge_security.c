@@ -17,6 +17,8 @@
  *       observe already-merged inputs. No behaviour change from the split.
  */
 
+#include "core/compat/log_event.h"
+#include "platform/platform_api.h"  /* BRIX_HAS_WORKER_EXEC */
 #include "config.h"
 #include "server_conf_internal.h"
 #include "auth/crypto/store_policy.h"   /* BRIX_SP_MODE_*, BRIX_CRL_MODE_* defaults */
@@ -76,7 +78,7 @@ brix_merge_srv_gsi_acc(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         && conf->common.acc.format == BRIX_AUTHDB_FORMAT_NATIVE
         && conf->auth == BRIX_AUTH_NONE)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_authdb (native format) requires an authenticating brix_auth "
             "scheme; use `brix_authdb_engine xrdacc` for anonymous rules");
         return NGX_CONF_ERROR;
@@ -102,6 +104,14 @@ brix_merge_srv_x509(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
     ngx_conf_merge_str_value(conf->prepare_command, prev->prepare_command, "");
+#if !BRIX_HAS_WORKER_EXEC
+    if (conf->prepare_command.len > 0) {
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
+            "brix_prepare_command is unsupported on this host because "
+            "hardened workers cannot execute subprocesses");
+        return NGX_CONF_ERROR;
+    }
+#endif
     if (brix_frm_conf_merge(cf, &conf->frm, &prev->frm) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
@@ -156,7 +166,7 @@ brix_merge_srv_tokens(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     if (conf->throttle.zone == NULL && conf->throttle.zone_name.len > 0) {
         conf->throttle.zone = brix_rl_zone_get(&conf->throttle.zone_name);
         if (conf->throttle.zone == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_throttle_zone \"%V\" is not a declared "
                 "brix_rate_limit_zone", &conf->throttle.zone_name);
             return NGX_CONF_ERROR;
@@ -171,7 +181,7 @@ brix_merge_srv_tokens(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         && brix_secret_page_guard(conf->common.token_macaroon_secret.data,
                          conf->common.token_macaroon_secret.len) != 0)
     {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, ngx_errno,
             "brix: could not fully page-guard the macaroon secret "
             "(madvise/mlock); continuing unguarded");
     }
@@ -179,7 +189,7 @@ brix_merge_srv_tokens(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         && brix_secret_page_guard(conf->common.token_macaroon_secret_old.data,
                          conf->common.token_macaroon_secret_old.len) != 0)
     {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, ngx_errno,
             "brix: could not fully page-guard the old macaroon secret "
             "(madvise/mlock); continuing unguarded");
     }

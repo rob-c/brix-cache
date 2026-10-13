@@ -13,6 +13,7 @@
  *       Read-only: every mutating op is refused with -EROFS, not the kernel's
  *       default ENOSYS/EPERM.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brixcvmfs_internal.h"
 #include "brixcvmfs_split.h"
 
@@ -35,7 +36,7 @@ static void brix_refresh(void) {
         if (!drift_logged) {
             char pin[48];
             cvmfs_hash_to_hex(&g_cl->pin_root, 0, pin, sizeof(pin));
-            fprintf(stderr, "brixcvmfs: audit signal=pindrift repo=%s pinned=%s "
+            BRIX_CLIENT_LOG("INFO",  "brixcvmfs: audit signal=pindrift repo=%s pinned=%s "
                     "upstream=%s serving=pinned\n", g_cl->config.name, pin, up);
             drift_logged = 1;
         }

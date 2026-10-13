@@ -5,7 +5,9 @@ usr/bin/xrdcephfs_rescue
 usr/bin/xrdceph_migrate
 usr/bin/xrdceph_striper_migrate.py
 usr/bin/xrdceph_cephfs_to_striper.py
-usr/libexec/brix
+usr/libexec/brix/xrdceph_striper_migrate.py
+usr/libexec/brix/xrdceph_cephfs_to_striper.py
+usr/libexec/brix/pymigrate
 usr/share/man/man1/xrdceph_cephfs_to_striper.1
 usr/share/man/man1/xrdceph_migrate.1
 usr/share/man/man1/xrdceph_striper_migrate.1

@@ -30,6 +30,7 @@
  *       (locate_format_local) and reply with brix_send_ok.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "net/upstream/upstream.h"
 #include "protocols/root/path/op_path.h"
@@ -231,7 +232,7 @@ locate_check_data_server(locate_ctx_t *lc, ngx_int_t *out_rc)
                                                  conf->negcache.window_ms,
                                                  conf->negcache.backoff_s);
             if (w > 0) {
-                ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                     "xrootd negcache: kXR_wait %ud for LOCATE miss %s",
                     w, lc->reqpath);
                 BRIX_OP_ERR(ctx, BRIX_OP_LOCATE);

@@ -228,7 +228,7 @@ def _rt50_a11_a_non_multipart_post_to(s3port, exists, BOB, st):
     #     probe answered with the config-supplied region only (LocationConstraint).
     #     It carries NO tenant data — assert it leaks no body content / svc names.
     st, b = s3("GET", "", s3port, params={"location": ""})
-    ok(all((st in (200, 400, 403, 404), BOB not in any((b, b'')), b'secret-name.txt' not in any((b, b'')))),
+    ok(all((st in (200, 400, 403, 404), BOB not in _rt_default(b, b''), b'secret-name.txt' not in _rt_default(b, b''))),
        f"GET /bucket?location no tenant leak (HTTP {st})")
 
     # B2. GET /bucket with NO list-type (S3 ListObjects v1) -> valid op: the walk is
@@ -242,7 +242,7 @@ def _rt50_a11_a_non_multipart_post_to(s3port, exists, BOB, st):
 
 
 def _rt50_b3_head_bucket_empty_key_headbucket(st, BOB, b, s3port, data, bobread):
-    ok(all((st in (200, 400, 403, 404), BOB not in any((b, b'')), b'bobsecret/s.txt' not in any((b, b'')), b'bob-only' not in any((b, b'')))),
+    ok(all((st in (200, 400, 403, 404), BOB not in _rt_default(b, b''), b'bobsecret/s.txt' not in _rt_default(b, b''), b'bob-only' not in _rt_default(b, b''))),
        f"GET /bucket (ListObjects v1): no cross-tenant CONTENTS leaked — bob's 0700 "
        f"bobsecret/ contents (key 'bobsecret/s.txt' + its 'bob-only' body) are NOT "
        f"enumerated (s3_walk returns 0 on an access-denied dir); a bare prefix name "
@@ -251,7 +251,7 @@ def _rt50_b3_head_bucket_empty_key_headbucket(st, BOB, b, s3port, data, bobread)
     # B3. HEAD /bucket (empty key) -> HeadBucket: header-only probe (200 + region or
     #     404); either way the response has NO body.
     st, b = s3("HEAD", "", s3port)
-    ok(all((st in (200, 400, 403, 404), not any((b, b'')))),
+    ok(all((st in (200, 400, 403, 404), not _rt_default(b, b''))),
        f"HEAD /bucket (HeadBucket) no body (HTTP {st})")
 
     # B4. DELETE /bucket (empty key) -> rejected, and the export root + alice/ must

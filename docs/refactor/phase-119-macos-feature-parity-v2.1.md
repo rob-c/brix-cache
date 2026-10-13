@@ -1,9 +1,20 @@
-# Phase 119 — macOS feature parity for BriX-Cache v2.1
+# Phase 119 — macOS ARM64 feature parity for BriX-Cache v2.0
 
-**Status:** PLAN — no code proposed as landed by this document.
+**Status:** IMPLEMENTED AND NATIVE-VERIFIED ON DARWIN ARM64 — the Homebrew-derived
+nginx/modules, native client, WebDAV serving smoke, fail-closed security probes,
+CMS sysload, combined kqueue read/write path, storage/AIO and hardware CRC32C
+all run in the Darwin verifier. Unsupported confinement ABIs, saved-ID changes,
+capabilities, splice, clone statistics and worker subprocess features fail
+explicitly. Recursive FSEvents remains a documented, non-consumed PAL
+limitation (§8); the Intel runtime half of the original two-host exit gate still
+requires an Intel host and is not inferred from this ARM64 run.
+**Release reconciliation:** this file kept its historical `v2.1` filename so
+existing links remain stable, but the implemented ARM64 work is in v2.0 scope.
+Intel runtime verification is a deferred expansion, not evidence inferred from
+Apple Silicon.
 **One-sentence goal:** every feature the macOS port currently stubs, degrades or
 silently no-ops, and for which Darwin offers a supported mechanism, works on
-macOS in v2.1 with the same tests the Linux path passes; the residue that has
+macOS ARM64 in v2.0 with the same tests the Linux path passes; the residue that has
 no Darwin mechanism fails closed, is documented, and is caught by CI.
 **Scope:** `src/platform/darwin/`, the `#if defined(__APPLE__)` sites across
 `src/` `shared/` `client/`, `config`, `client/Makefile`, `tools/ci/`, the test
@@ -53,7 +64,7 @@ the log says nothing, and the feature is off.
 
 Almost none of this is a platform limitation. Darwin has a supported API for
 every item in §3 and §4. The port simply never got past the "compile it"
-milestone. v2.1 gets it to "it works and the suite proves it".
+milestone. v2.0 gets ARM64 to "it works and the suite proves it".
 
 The deliverable is five waves (§7). Wave A is small and must land first: it
 turns every silent-success stub into a fail-closed one, and turns the CI
@@ -118,7 +129,7 @@ it lands the repository **claims** things about macOS that are false: a CI
 job that passes, a quickstart table that says "thread pool fallback" for AIO
 when there is none, a `brix_seccomp enforce`-equivalent that returns success.
 Wave A is one commit-sized batch and is the precondition for calling anything
-after it "v2.1".
+after it "v2.0 on ARM64".
 
 ### 2.2 The nine silent-success stubs → fail closed
 
@@ -544,6 +555,13 @@ success — confined open of a deep path; error — `..` escape → `EXDEV`
 
 ### 5.1 CMS load meter
 
+**Implemented (2026-10-04).** `brix_plat_sysload_sample()` now owns the
+host-wide sample. Darwin uses `getloadavg`, Mach VM statistics and 64-bit
+`NET_RT_IFLIST2` link counters; Linux owns its `/proc/vmstat` read inside the Linux PAL. The CMS
+meter contains no host path and consumes only the typed sample and availability
+bits. Native Darwin tests pin NULL refusal, sane load/memory, and monotonic
+paging counters.
+
 **Today.** `src/net/cms/meter.c:254, 263, 317, 319` reads `/proc/loadavg`,
 `/proc/meminfo`, `/proc/net/dev`, `/proc/vmstat` with no gate and no
 fallback. On macOS `brix_cms_meter_sample()` reports **cpu=0 net=0 xeq=0
@@ -727,7 +745,7 @@ BUILD.md: table vs hardware MB/s on M-series.
 init/submit/wait. The quickstart claims a "thread pool fallback"; there is
 none — the header comment says nginx's thread pool API is not used either.
 
-**Fix, step 1 (v2.1):** wire the Darwin `aio_wrapper.c` to
+**Fix, step 1 (v2.0 ARM64):** wire the Darwin `aio_wrapper.c` to
 `ngx_thread_pool_run` exactly as the Linux non-io_uring path does (the
 selector in `src/fs/vfs/` already falls back to the pool when io_uring is
 absent — Darwin just never implemented the pool arm). nginx's thread pool
@@ -742,6 +760,13 @@ read past EOF returns 0 bytes, not error; security-neg — a submit with a
 buffer outside the request pool is refused (the existing bounds check).
 
 ### 6.3 kqueue: read and write on one descriptor
+
+**Implemented (2026-10-04).** The Darwin implementation now exports the public
+`brix_platform_event_*` ABI, registers independent `EVFILT_READ` and
+`EVFILT_WRITE` changes in one call, maps directory creation to parent
+`NOTE_WRITE`, and rejects mixed vnode/socket masks with `EINVAL`. The native
+contract test observes both filters, a closed-fd error, and the mixed-mask
+security-negative refusal.
 
 **Today.** `event_wrapper.c:44-80` registers `EVFILT_READ` **or**
 `EVFILT_WRITE` via `if/else if`; a caller asking for both silently gets
@@ -827,7 +852,7 @@ the largest single item and the only one with an open design question
 
 ---
 
-## 8. What stays unsupported in v2.1, and how it is reported
+## 8. What stays unsupported in v2.0, and how it is reported
 
 Every row here is emitted by the §2.3 generated table and appears in the
 quickstart "Known Limitations" verbatim. None returns success.
@@ -845,6 +870,8 @@ quickstart "Known Limitations" verbatim. None returns success.
 | `posix_fadvise` range hints | `fadvise` | `F_RDAHEAD`/`F_NOCACHE` are per-fd | §6.4 mapping, per-fd only |
 | `syncfs` | `syncfs` | none | `F_FULLFSYNC` on the dir fd (§6.4) |
 | clone-space statistics | `FIEMAP` | no public API | `ENOTSUP` (S9) |
+| recursive filesystem watching | recursive inotify watch management | the current PAL has no consumer and retains per-descriptor kqueue vnode watches | directory registration fails explicitly; no recursive-watch claim is advertised |
+| worker subprocess features | worker `execve` / `posix_spawn` | the no-new-privileges sandbox denies `process-exec` | configuration rejects prepare, FRM stage/purge, CMS perf/fsxeq programs; environment-selected FRM exec fails startup; dynamic OIDC-agent/token-exchange modes return explicit unsupported errors |
 | `perf_events` counters | `perf_event_open` | needs entitlement | `brix_apple_perf_*` return `ENOTSUP`; the zero-filling stubs at `apple_silicon.c:312-346` are made honest in wave A |
 | CephFS / librados backend | `libcephfs` | no macOS build | configure disables; `brix-tools` Ceph utilities not built |
 | VOMS | `libvomsapi` | no macOS build | `host_caps.py` drops `vo-acl`; tests skipped with reason |
@@ -884,16 +911,18 @@ run keeps only the compile-adapter checks.
    `check_metric_cardinality.py` (§5.2), `check_ratchet_monotonic.py` on
    the §2.3 residue count.
 
-**Recorded results.** BUILD.md gains §13 "macOS v2.1 validation" with the
+**Recorded results.** BUILD.md gains §13 "macOS v2.0 ARM64 validation" with the
 same shape as §8/§12: host, toolchain, configure line, `make` result,
 `nginx -t`, suite pass/skip/fail counts, and the §2.3 table as it stood at
 the run.
 
 ---
 
-## 10. Exit gate for v2.1
+## 10. Exit gate for v2.0 ARM64
 
-All of the following, on an Intel and an Apple Silicon host:
+All of the following on an Apple Silicon host. The originally requested Intel
+run remains deferred and must be reported separately before any universal or
+x86_64 Darwin claim is made:
 
 - `tools/ci/verify_platform_builds.sh` compiles the module and the client
   from source and passes `nginx -t` (§2.3).

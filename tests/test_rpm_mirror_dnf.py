@@ -22,6 +22,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -180,6 +181,10 @@ def _dnf(base, baseurl, *pkgs, tag="t", reposdir=None, extra=()):
                           capture_output=True, text=True)
 
 
+def _installed(base, tag):
+    return make_fixtures.installed_nevras(Path(base) / f"root.{tag}")
+
+
 class Upstream:
     """The origin repo, stoppable and restartable.
 
@@ -285,9 +290,7 @@ def test_install_through_mirror_then_survive_upstream_loss(upstream, mirror):
 
     first = _dnf(str(base), baseurl, "brixtest-app", tag="m1")
     assert first.returncode == 0, (first.stdout + first.stderr)[-1500:]
-    for want in ("brixtest-app-0.9-4", "brixtest-lib-2:2.0-1",
-                 "brixtest-tools-1.2-3"):
-        assert want in first.stdout, first.stdout
+    assert make_fixtures.expected_nevras() <= _installed(base, "m1")
 
     # the mirror really did cache: its store is non-empty
     store = os.path.join(cachedir, "store")
@@ -299,7 +302,7 @@ def test_install_through_mirror_then_survive_upstream_loss(upstream, mirror):
     second = _dnf(str(base), baseurl, "brixtest-app", tag="m2")
     def _assert_test_install_through_mirror_then_survive_upstream_loss_1():
         assert second.returncode == 0, (second.stdout + second.stderr)[-1500:]
-        assert "brixtest-app-0.9-4" in second.stdout
+        assert "brixtest-app-0:0.9-4" in _installed(base, "m2")
 
     _assert_test_install_through_mirror_then_survive_upstream_loss_1()
 

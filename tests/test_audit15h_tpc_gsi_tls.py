@@ -78,6 +78,7 @@ tls.c now appends it to the handshake error.
 
 import os
 import shutil
+import socket
 import struct
 import time
 
@@ -128,6 +129,18 @@ OTHER_LOOPBACK = "127.0.0.2"                             # net-literal-allow: sa
 # cope with — and what it must NOT be loosened by.
 MAPPED_SRC = f"[::ffff:{SRC_ADDR}]"
 MAPPED_OTHER = f"[::ffff:{OTHER_LOOPBACK}]"
+
+
+def _require_other_loopback():
+    """Skip name-binding arms when this host has no 127/8 loopback route."""
+    probe = socket.socket()
+    try:
+        from ephemeral_port import free_port
+        probe.bind((OTHER_LOOPBACK, free_port(OTHER_LOOPBACK)))
+    except OSError:
+        pytest.skip(f"{OTHER_LOOPBACK} is not a local loopback address")
+    finally:
+        probe.close()
 
 # The two distinct reasons a pull socket can refuse the source, as tls.c now
 # reports them.  Asserting on the reason is what keeps the anchor negative and
@@ -387,6 +400,7 @@ def test_the_source_hostname_is_bound_to_its_certificate(tpcgsi):
     """Chain-only verification would accept any CA-valid certificate for any
     host.  Dialing the same server by an address its certificate does not carry
     must fail — and must fail for the NAME, with the chain intact."""
+    _require_other_loopback()
     endpoints, dstdata = tpcgsi
     status, body = _pull(endpoints, "good", "/hostname-on-tls.bin",
                          src_host=OTHER_LOOPBACK)
@@ -401,6 +415,7 @@ def test_the_source_hostname_is_bound_to_its_certificate(tpcgsi):
 def test_the_other_loopback_address_is_otherwise_reachable(tpcgsi):
     """Attribution: the refusal above was certificate-name binding and not a
     source the destination simply could not reach."""
+    _require_other_loopback()
     endpoints, dstdata = tpcgsi
     status, body = _pull(endpoints, "good", "/hostname-on-gsi.bin", face="gsi",
                          src_host=OTHER_LOOPBACK)
@@ -438,6 +453,7 @@ def test_the_ipv4_mapped_spelling_of_another_address_is_still_refused(tpcgsi):
     became "an IP-shaped name cannot be checked, so skip it" would leave the
     positive above green while accepting any CA-valid certificate for any host,
     which is the whole gap SSL_set1_host was added to close."""
+    _require_other_loopback()
     endpoints, dstdata = tpcgsi
     status, body = _pull(endpoints, "good", "/mapped-other-on-tls.bin",
                          src_host=MAPPED_OTHER)

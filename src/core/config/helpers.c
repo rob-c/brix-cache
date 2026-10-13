@@ -3,6 +3,7 @@
  * Each function is documented at its definition below.
  */
 
+#include "core/compat/log_event.h"
 #include "config.h"
 
 /* Validate a configured path at startup: existence (stat), type
@@ -20,7 +21,7 @@ brix_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
     }
 
     if (stat((char *) path->data, &st) != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            "brix: %s path \"%s\" is not accessible",
                            label, path->data);
         return NGX_ERROR;
@@ -29,7 +30,7 @@ brix_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
     switch (kind) {
     case BRIX_PATH_REGULAR_FILE:
         if (!S_ISREG(st.st_mode)) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                                "brix: %s path \"%s\" must be a regular file",
                                label, path->data);
             return NGX_ERROR;
@@ -38,7 +39,7 @@ brix_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
 
     case BRIX_PATH_DIRECTORY:
         if (!S_ISDIR(st.st_mode)) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                                "brix: %s path \"%s\" must be a directory",
                                label, path->data);
             return NGX_ERROR;
@@ -47,7 +48,7 @@ brix_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
 
     case BRIX_PATH_FILE_OR_DIRECTORY:
         if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode)) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                                "brix: %s path \"%s\" must be a file or directory",
                                label, path->data);
             return NGX_ERROR;
@@ -56,7 +57,7 @@ brix_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
     }
 
     if (access_mode != 0 && access((char *) path->data, access_mode) != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            "brix: %s path \"%s\" failed permission check",
                            label, path->data);
         return NGX_ERROR;
@@ -104,7 +105,7 @@ brix_conf_parse_addr(ngx_conf_t *cf, ngx_str_t *spec, const char *directive,
     if (ngx_parse_url(cf->pool, &url) != NGX_OK || url.no_port
         || url.port == 0 || url.host.len == 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "%s: expected host:port in \"%V\"%s%s", directive, spec,
             url.err ? ": " : "", url.err ? url.err : "");
         return NULL;
@@ -137,7 +138,7 @@ brix_conf_upstream_directive(ngx_conf_t *cf, ngx_command_t *cmd,
         return NGX_CONF_ERROR;
     }
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: %V upstream configured: %V", &cmd->name, &value[1]);
     return NGX_CONF_OK;
 }
@@ -218,7 +219,7 @@ brix_conf_set_backend_sts_endpoint(ngx_conf_t *cf, ngx_command_t *cmd,
     }
 
     if (scheme == 0 || ep->data[scheme] == '/') {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_backend_s3_sts_endpoint: \"%V\" is not an http:// or "
             "https:// URL with a host — it is SigV4-signed and handed to the "
             "STS client verbatim, so a malformed endpoint could never be "
@@ -227,7 +228,7 @@ brix_conf_set_backend_sts_endpoint(ngx_conf_t *cf, ngx_command_t *cmd,
     }
     for (i = 0; i < ep->len; i++) {
         if (ep->data[i] <= ' ' || ep->data[i] == 0x7f) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_backend_s3_sts_endpoint: whitespace or control byte at "
                 "offset %ui", i);
             return NGX_CONF_ERROR;

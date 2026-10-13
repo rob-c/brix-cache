@@ -29,6 +29,7 @@
  *      away while the program ran, so the completion handler re-checks it.
  */
 
+#include "core/compat/log_event.h"
 #include "cms_internal.h"
 #include "recv_internal.h"
 #include "node_ops.h"
@@ -266,11 +267,11 @@ fsxeq_done(ngx_event_t *ev)
     why = fsxeq_verdict(t, buf, sizeof(buf));
 
     if (why == NULL) {
-        ngx_log_debug3(NGX_LOG_DEBUG_EVENT, t->ctx->cycle->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, t->ctx->cycle->log, 0,
             "brix: CMS node: fsxeq %s ok via \"%s\" (%s)",
             t->opname, t->display, t->out);
     } else {
-        ngx_log_error(NGX_LOG_NOTICE, t->ctx->cycle->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, t->ctx->cycle->log, 0,
             "brix: CMS node: fsxeq %s path=%s via \"%s\" failed: %s%s%s",
             t->opname, t->path, t->display, why,
             t->out[0] ? "; said: " : "", t->out);
@@ -351,7 +352,7 @@ brix_cms_fsxeq_dispatch(ngx_brix_cms_ctx_t *ctx, u_char code,
     *taken = 1;
 
     if (!fsxeq_plan_paths_ok(plan)) {
-        ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ctx->cycle->log, 0,
             "brix: CMS node: forwarded op code=%ui refused before fsxeq: "
             "path denied", (ngx_uint_t) code);
         return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
@@ -359,7 +360,7 @@ brix_cms_fsxeq_dispatch(ngx_brix_cms_ctx_t *ctx, u_char code,
     }
 
     if (fsxeq_post(ctx, streamid, slot, plan) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, ctx->cycle->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, ctx->cycle->log, 0,
             "brix: CMS node: fsxeq %s could not be posted (thread pool?)",
             fsxeq_opname(slot));
         return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,

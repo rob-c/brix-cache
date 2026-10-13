@@ -271,6 +271,13 @@ class TestInvalidRequestID:
         assert status == kXR_error
         assert _error_code(body) == kXR_InvalidRequest
 
+    def test_retired_gpfile_is_explicitly_unsupported(self):
+        sock = _full_session()
+        _, status, body = self._send_unknown(sock, kXR_gpfile)
+        sock.close()
+        assert status == kXR_error
+        assert _error_code(body) == kXR_Unsupported
+
     def test_requestid_max_uint16_rejected(self):
         sock = _full_session()
         _, status, body = self._send_unknown(sock, 0xFFFF)

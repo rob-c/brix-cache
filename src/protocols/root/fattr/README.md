@@ -4,11 +4,15 @@
 
 This subsystem implements the XRootD `kXR_fattr` opcode, which lets `root://`
 clients read, write, delete, and enumerate *extended attributes* (xattrs) on
-exported files. XRootD attributes map directly onto the POSIX `user.` xattr
-namespace: a client-visible name such as `mykey` is stored on disk under the
-kernel key `user.U.mykey` and reported back to the client as `U.mykey`. The
-`user.U.` prefix (`BRIX_FATTR_XKEY_PFX`) namespaces our managed attributes so
-listing never leaks unrelated `user.*` xattrs written by other tools.
+exported files. A client-visible name such as `mykey` is normally stored under
+the POSIX key `user.U.mykey`. The `user.U.` prefix
+(`BRIX_FATTR_XKEY_PFX`) namespaces our managed attributes so listing never
+leaks unrelated `user.*` xattrs written by other tools. When that direct key
+exceeds the selected host's xattr-name limit (Darwin is 127 bytes while the
+wire contract permits 248), `storage.c` uses a reserved SHA-256 key and a
+versioned envelope containing the exact logical name. Get, list and delete
+validate and unwrap that representation, so the wire behavior does not inherit
+the narrower host limit.
 
 `kXR_fattr` is a single wire opcode carrying one of four sub-codes — `Get`,
 `Set`, `Del`, `List`. Since phase-62 **every xattr syscall here goes through the
@@ -44,6 +48,7 @@ per-attribute results and increments the `BRIX_OP_FATTR` metric slot.
 | `ngx_brix_fattr.h` | Internal API: the `brix_fattr_entry_t` parsed-attribute struct, key-prefix constants (`BRIX_FATTR_XKEY_PFX`, `BRIX_FATTR_XKEY_PFX_LEN`), and prototypes for every handler/helper below. |
 | `dispatch.c` | `brix_handle_fattr()` — the single entry point. Validates `subcode`/`numattr`/write-permission, resolves file-handle vs path target, builds one function-scope `brix_vfs_ctx_t` (a confined `brix_vfs_stat` verifies a path target; fd targets carry proto/log only), auth-gates path targets, copies and parses the name vector, then routes the ctx + path/fd to `fattr_get`/`fattr_set`/`fattr_del`/`fattr_list`. |
 | `helpers.c` | Shared plumbing: `fattr_errno_to_xrd()` (errno→kXR), `fattr_set_rc()` (write per-attribute status in place, big-endian), `fattr_parse_nvec()` (parse the request name vector into `attrs[]`), `fattr_send_vector_status()` (build/send the Set/Del status frame). |
+| `storage.c` | Portable logical-name adapter. Direct `user.U.*` xattrs remain the common case; names beyond the host limit use a collision-checked SHA-256 key plus a versioned name/value envelope. |
 | `get.c` | `fattr_get()` — `kXR_fattrGet`. Two-phase read (size query then buffered read) of each named attribute via the VFS xattr seam — `brix_vfs_getxattr` (path mode) / `brix_vfs_fgetxattr` (fd mode); builds the value-vector (`vvec`) response: per-attr 4-byte big-endian length + raw bytes. |
 | `set.c` | `fattr_set()` — `kXR_fattrSet`. Parses the value vector (4-byte BE length + bytes per attribute) with signed-length safety checks, applies each via `brix_vfs_setxattr`/`brix_vfs_fsetxattr`, honoring `kXR_fa_isNew` → `XATTR_CREATE`. |
 | `del.c` | `fattr_del()` — `kXR_fattrDel`. Removes each named attribute via `brix_vfs_removexattr`/`brix_vfs_fremovexattr`, recording per-attribute status; partial success is valid. |
@@ -58,8 +63,8 @@ per-attribute results and increments the `BRIX_OP_FATTR` metric slot.
     entry's 2-byte status slot lives. Handlers overwrite this slot in place so
     the status response reuses the original wire frame without rebuilding it.
   - `name` / `nlen` — the client attribute name (a slice of `nvec_copy`).
-  - `xkey[512]` — the full `user.U.<name>` kernel key built by
-    `fattr_parse_nvec()` (the only buffer actually passed to syscalls).
+  - `xkey[512]` — the full logical `user.U.<name>` key built by
+    `fattr_parse_nvec()`; `storage.c` selects its portable physical form.
   - `value` / `vlen` — value bytes for Get results (`vlen == -1`/`0` means
     none).
   - `errcode` — per-attribute kXR status (0 = success), mirrored into `rc_ptr`.
@@ -160,9 +165,11 @@ ops run inline.
   `FATTR_RECURSE_XLIST_BUF` (8 KiB), and total response cap
   `FATTR_RECURSE_RESP_CAP` (256 KiB); dotfiles are skipped and only regular
   files contribute entries.
-- **Listing is namespace-filtered.** Only keys beginning with `user.U.` are
-  returned, with the leading `user.` (5 bytes) stripped so clients see `U.name`.
-  Unmanaged `user.*` xattrs are invisible to clients.
+- **Listing is namespace-filtered.** Only managed `user.U.*` keys are returned,
+  with the complete private prefix stripped so clients see the verbatim name.
+  Reserved digest keys are emitted only after their envelope name and digest
+  match; malformed or forged envelopes fail closed. Unmanaged `user.*` xattrs
+  are invisible to clients.
 - **Stale doc note (corrected here):** earlier docs claimed handle requests are
   serviced via a `/proc/self/fd/N` path. They are not — handle requests use the
   `f*xattr` syscall family directly (`get.c`, `set.c`, `del.c`, `list.c`).

@@ -123,3 +123,23 @@ def free_ports(n, host="127.0.0.1"):
     """Return ``n`` distinct infrastructure-assigned mock ports."""
     del host
     return [_assigned_port() for _ in range(n)]
+
+
+def bind_port(factory, host="127.0.0.1", attempts=5):
+    """Create a listener on a leased port, retrying bounded bind collisions.
+
+    The fixed mock window can overlap the host's ephemeral client range.  A
+    lease prevents two test fixtures choosing the same slot, but cannot prevent
+    the kernel briefly assigning that slot to an outbound connection between
+    allocation and bind.  ``factory`` owns cleanup when its bind fails.
+    """
+    if attempts < 1:
+        raise ValueError("attempts must be positive")
+    for attempt in range(attempts):
+        port = free_port(host)
+        try:
+            return port, factory(port)
+        except OSError:
+            if attempt == attempts - 1:
+                raise
+    raise AssertionError("unreachable leased-port retry state")

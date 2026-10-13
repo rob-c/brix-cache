@@ -68,8 +68,7 @@ class TestTheZipAccessArm:
     @pytest.mark.parametrize("member", ("../secret.txt",
                                         "%2E%2E%2Fsecret.txt",
                                         "/etc/passwd",
-                                        "a/../../secret.txt",
-                                        ""))
+                                        "a/../../secret.txt"))
     @pytest.mark.parametrize("host,prefix", ZIP_ON)
     def test_the_enabled_arm_refuses_a_member_name_that_escapes(self, sc, host,
                                                                 prefix, member):
@@ -82,6 +81,13 @@ class TestTheZipAccessArm:
         assert r.status_code == 400, (r.status_code, sc.errlog()[-2000:])
         assert SECRET not in r.content, "an escape served the file next door"
         assert b"root:" not in r.content
+
+    @pytest.mark.parametrize("host,prefix", ZIP_ON)
+    def test_an_empty_member_value_is_the_whole_archive(self, sc, host, prefix):
+        """An empty selector is equivalent to no selected member."""
+        r = _unzip(sc, host, prefix, "")
+        assert r.status_code == 200, (r.status_code, sc.errlog()[-2000:])
+        assert r.content.startswith(b"PK\x03\x04"), r.content[:80]
 
     @pytest.mark.parametrize("member", ("../secret.txt",
                                         "%2E%2E%2Fsecret.txt",
@@ -653,10 +659,10 @@ class TestTheDeclarationsAreWhatTheFileSays:
 
     def test_zip_member_selection_is_gated_before_the_argument_is_read(self):
         """The §A readings all rest on the flag being checked BEFORE
-        ``brix_zip_http_member_arg``, which is why the ``off`` arm cannot 400 an
+        the parsed-query lookup, which is why the ``off`` arm cannot 400 an
         escape: it never parses one."""
         text = GET_C.read_text()
         body = text.split("get_zip_member_serve(ngx_http_request_t *r,", 1)[1]
         body = body.split("\n}\n", 1)[0]
         assert body.index("!conf->common.zip_access") < \
-            body.index("brix_zip_http_member_arg"), body
+            body.index("brix_http_query_parsed_get"), body

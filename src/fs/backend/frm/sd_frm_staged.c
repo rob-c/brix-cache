@@ -14,6 +14,7 @@
  *       sd_frm.c. The C3 barrier delegates to the MSS adapter's sync_publish
  *       verb (NULL verb = nothing local to flush -> NGX_OK).
  */
+#include "core/compat/log_event.h"
 #include "sd_frm.h"
 #include "sd_frm_mss.h"
 #include "sd_frm_internal.h"
@@ -293,7 +294,7 @@ sd_frm_exchange(brix_sd_instance_t *inst, const char *a, const char *b)
     }
     if (frm_publish(inst, b) != NGX_OK) {
         err = errno ? errno : EIO;
-        ngx_log_error(NGX_LOG_CRIT, st->log, err,
+        BRIX_LOG(NGX_LOG_CRIT, st->log, err,
                       "brix: frm exchange: tape catch-up migrate failed for "
                       "\"%s\" after \"%s\" shipped", b, a);
         errno = err;

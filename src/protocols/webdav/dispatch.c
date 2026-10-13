@@ -16,6 +16,7 @@
  * Returns NGX_DECLINED for unrecognised methods so nginx returns 405.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "xrdhttp.h"
 #include "authz_endpoint.h"   /* phase-106 W3/W4 gate-only handlers */
@@ -28,46 +29,6 @@
 
 static ngx_int_t webdav_dispatch_inner(ngx_http_request_t *r);
 
-/*
- * webdav_tls_require_gate — per-capability TLS gate (brix_tls_require) for the
- * WebDAV plane, sharing the generic VFS mask/check (fs/vfs/vfs_secgate.h) with
- * the stream plane.  Capability classification: every request exercises
- * `session`; GET/PUT additionally exercise `data`; a request presenting an
- * Authorization credential over cleartext exercises `login` (the credential is
- * what the policy protects).  `tpc` is gated where COPY is classified as TPC
- * (webdav_dispatch_copy), not here.  Returns NGX_DECLINED to continue, or the
- * finished 403 response when a required capability is exercised in cleartext.
- */
-static ngx_int_t
-webdav_tls_require_gate(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf)
-{
-    ngx_uint_t  caps, refused;
-
-    if (conf->common.tls_require == 0) {
-        return NGX_DECLINED;
-    }
-
-    caps = BRIX_TLSREQ_SESSION;
-    if (r->method == NGX_HTTP_GET || r->method == NGX_HTTP_PUT) {
-        caps |= BRIX_TLSREQ_DATA;
-    }
-    if (r->headers_in.authorization != NULL) {
-        caps |= BRIX_TLSREQ_LOGIN;
-    }
-
-    refused = brix_tls_gate_refused(conf->common.tls_require, caps,
-                                    r->connection->ssl != NULL);
-    if (refused == 0) {
-        return NGX_DECLINED;
-    }
-
-    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-        "brix: cleartext request refused by brix_tls_require %s (method=%V)",
-        brix_tls_cap_name(refused), &r->method_name);
-    return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
-}
-
 /* TPC leg of the gate: is this classified-TPC COPY refused on cleartext? */
 static int
 webdav_tpc_tls_refused(ngx_http_request_t *r,
@@ -79,7 +40,7 @@ webdav_tpc_tls_refused(ngx_http_request_t *r,
         return 0;
     }
 
-    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
         "brix: cleartext TPC COPY refused by brix_tls_require tpc");
     return 1;
 }
@@ -498,13 +459,6 @@ webdav_dispatch_inner(ngx_http_request_t *r)
      */
     if (ngx_exiting) {
         return webdav_dispatch_draining(r);
-    }
-
-    /* Per-capability TLS gate (brix_tls_require): refuse before any handler
-     * work, mirroring the stream plane's pre-dispatch enforcement. */
-    rc = webdav_tls_require_gate(r, conf);
-    if (rc != NGX_DECLINED) {
-        return rc;
     }
 
     /* phase-106 W4/W3: the gate-only seams (authz_endpoint.c). They serve no

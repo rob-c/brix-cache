@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_wlcg_token_conformance_fill_helpers")
 
+pytestmark = pytest.mark.xdist_group("wlcg-token-fill")
+
 @pytest.mark.tokenconf
 def test_fil_sz_01_clearly_under_accept():
     """FIL-SZ-01: oversized(2000) on root:// 11097 → accept.

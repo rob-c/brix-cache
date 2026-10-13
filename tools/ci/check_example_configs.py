@@ -20,6 +20,11 @@ HOW:  `nginx -t` needs the built binary (TEST_NGINX_BIN or NGINX_SRC/objs/nginx)
 Exit 0 = all examples parse; 1 = a failure; 2 = usage/environment.
 """
 from __future__ import annotations
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import argparse
 import shutil
@@ -104,7 +109,7 @@ def _binary(requested: str | None) -> tuple[str, bool]:
     binary = requested or lib.nginx_bin()
     have_bin = shutil.which(binary) is not None or Path(binary).exists()
     if not have_bin:
-        print(f"check_example_configs: no nginx binary at {binary}; directive-name check only",
+        _brix_diagnostic('ERROR', 'tools/ci/check_example_configs.py', '_binary', f"check_example_configs: no nginx binary at {binary}; directive-name check only",
               file=sys.stderr)
     return binary, have_bin
 

@@ -9,6 +9,11 @@ Every run retains its config and logs in a unique directory under --work-dir.
 """
 
 from __future__ import annotations
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import argparse
 import hashlib
@@ -269,7 +274,7 @@ def main(argv=None):
         _exercise(args, nginx, modules, work)
     except (OSError, RuntimeError, ValueError, http.client.HTTPException,
             subprocess.SubprocessError) as error:
-        print(f"FAIL: {error}", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/nginx_compat_smoke.py', 'main', f"FAIL: {error}", file=sys.stderr)
         return 1
     print("PASS: nginx compatibility smoke; private nginx stopped", flush=True)
     return 0

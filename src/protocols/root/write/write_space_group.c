@@ -2,6 +2,7 @@
  * write_space_group.c — per-space-group accounting + write admission
  * (phase-115 W3.3). Contract and rationale: write_space_group.h.
  */
+#include "core/compat/log_event.h"
 #include "write_space_group.h"
 #include "protocols/ssi/ssi.h"
 #include "fs/vfs/vfs.h"
@@ -67,7 +68,7 @@ brix_space_group_usage(ngx_log_t *log, ngx_stream_brix_srv_conf_t *conf,
                        &opts, space_walk_add_file, &sum, NULL, err, sizeof(err));
     if (rc == NGX_ERROR) {
         g->used_valid = 0;
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
                       "brix: space group \"%V\" (%V): usage walk failed: %s",
                       &g->name, &g->prefix, err);
         return NGX_ERROR;

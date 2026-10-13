@@ -19,6 +19,7 @@
  *   no locking needed.
  */
 
+#include "core/compat/log_event.h"
 #include "acc.h"
 #include "observability/metrics/metrics.h"          /* ngx_brix_metrics_t */
 #include "observability/metrics/metrics_macros.h"   /* Phase 51 (E6): breaker counter */
@@ -231,7 +232,7 @@ acc_nss_note_latency(int64_t elapsed, time_t now)
             acc_nss_breaker.open_until = now + ACC_NSS_COOLDOWN_SECS;
             acc_nss_breaker.consecutive_slow = 0;
             BRIX_RESIL_METRIC_INC(acc_nss_breaker_open_total);
-            ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, ngx_cycle->log, 0,
                           "brix_acc: NSS group lookup slow (%L ms) — "
                           "opening circuit breaker for %ds (failing to "
                           "no-supplementary-groups)",

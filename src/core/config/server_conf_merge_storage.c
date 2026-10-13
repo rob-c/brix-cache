@@ -7,6 +7,7 @@
  * sub-helper file-local.  No behaviour change.
  */
 
+#include "core/compat/log_event.h"
 #include "config.h"
 #include "server_conf_internal.h"
 #include "auth/crypto/store_policy.h"   /* BRIX_SP_MODE_*, BRIX_CRL_MODE_* defaults */
@@ -288,7 +289,7 @@ brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         && (conf->common.cache_slice_size < (1024 * 1024)
             || (conf->common.cache_slice_size % (1024 * 1024)) != 0))
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_slice_size must be a positive multiple of 1m");
         return NGX_CONF_ERROR;
     }
@@ -300,7 +301,7 @@ brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         && (conf->common.cache_prefetch < 0
             || conf->common.cache_prefetch > 64))
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_prefetch must be between 0 and 64");
         return NGX_CONF_ERROR;
     }
@@ -308,7 +309,7 @@ brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         && conf->common.cache_prefetch_window != 0
         && conf->common.cache_prefetch_window < 64 * 1024)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_prefetch_window must be 0 or at least 64k");
         return NGX_CONF_ERROR;
     }

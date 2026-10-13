@@ -3,6 +3,7 @@
  * See list_cache.h for the design, consistency model, and rationale.
  */
 
+#include "core/compat/log_event.h"
 #include "list_cache.h"
 
 #include <string.h>
@@ -23,15 +24,15 @@ typedef struct {
 } s3_lc_id_t;
 
 typedef struct {
-    int            used;
-    uint64_t       seq;          /* LRU recency (higher = more recent) */
-    char          *root;         /* identity: (root, prefix, delimiter) */
-    char          *prefix;
-    char          *delimiter;
-    time_t         dir_mtime;    /* bucket-root mtime when stored */
-    ngx_msec_t     stored_at;    /* ngx_current_msec at store time */
-    s3_lc_entry_t *entries;
-    int            n;
+    int                    used;
+    uint64_t               seq;       /* LRU recency (higher = more recent) */
+    char                  *root;      /* identity: root, prefix, delimiter */
+    char                  *prefix;
+    char                  *delimiter;
+    s3_list_cache_stamp_t dir_mtime; /* bucket-root mtime when stored */
+    ngx_msec_t             stored_at; /* ngx_current_msec at store time */
+    s3_lc_entry_t         *entries;
+    int                    n;
 } s3_lc_slot_t;
 
 /* Per-worker (process-local) state — never shared across workers. */
@@ -78,7 +79,7 @@ s3_lc_matches(const s3_lc_slot_t *s, const s3_lc_id_t *id)
 
 int
 s3_list_cache_get(ngx_http_request_t *r, const char *root,
-    const char *prefix, const char *delimiter, time_t dir_mtime,
+    const char *prefix, const char *delimiter, s3_list_cache_stamp_t dir_mtime,
     ngx_msec_t ttl_ms, s3_entry_t **out_items, int *out_n)
 {
     s3_lc_id_t    id = { root, prefix, delimiter };
@@ -97,7 +98,8 @@ s3_list_cache_get(ngx_http_request_t *r, const char *root,
     }
 
     /* Invalidate on a top-level mutation or TTL expiry. */
-    if (s->dir_mtime != dir_mtime
+    if (s->dir_mtime.sec != dir_mtime.sec
+        || s->dir_mtime.nsec != dir_mtime.nsec
         || (ngx_msec_t) (ngx_current_msec - s->stored_at) >= ttl_ms)
     {
         s3_lc_slot_clear(s);
@@ -144,7 +146,7 @@ s3_lc_within_cap(ngx_log_t *log, int n)
     }
     if (!warned) {
         warned = 1;
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
                       "s3 list-cache: %d entries exceeds cap %d; "
                       "this listing is not cached", n,
                       S3_LIST_CACHE_MAX_ENTRIES);
@@ -229,8 +231,8 @@ s3_lc_copy_entries(ngx_log_t *log, const s3_entry_t *items, int n)
  *       and return 0. On success wire up metadata and mark used, returning 1.
  */
 static int
-s3_lc_slot_store(s3_lc_slot_t *victim, const s3_lc_id_t *id, time_t dir_mtime,
-    s3_lc_entry_t *copy, int n)
+s3_lc_slot_store(s3_lc_slot_t *victim, const s3_lc_id_t *id,
+    s3_list_cache_stamp_t dir_mtime, s3_lc_entry_t *copy, int n)
 {
     victim->root      = s3_lc_strdup(id->root);
     victim->prefix    = s3_lc_strdup(id->prefix);
@@ -257,7 +259,8 @@ s3_lc_slot_store(s3_lc_slot_t *victim, const s3_lc_id_t *id, time_t dir_mtime,
 
 void
 s3_list_cache_put(ngx_log_t *log, const char *root, const char *prefix,
-    const char *delimiter, time_t dir_mtime, const s3_entry_t *items, int n)
+    const char *delimiter, s3_list_cache_stamp_t dir_mtime,
+    const s3_entry_t *items, int n)
 {
     s3_lc_id_t     id = { root, prefix, delimiter };
     s3_lc_slot_t  *victim;

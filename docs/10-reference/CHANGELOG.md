@@ -17,7 +17,7 @@ what changed for a user of the server.
 
 ---
 
-## v2.0.0 — 2026-09-05
+## v2.0.0 — UNRELEASED
 
 The first release distributed as `.rpm` and `.deb` packages. What a user may
 expect and what is actually present, tested, complete and documented is
@@ -140,6 +140,39 @@ register, the registry and the prose in step.
   [Phase 112](../refactor/phase-112-observability-compatibility-removal.md).
 
 ### Added
+
+- **Standalone XRootD configuration migration assistant.**
+  `brix-config-migrate` converts common POSIX, PSS/PFC, XrdCeph/librados,
+  GSI/VOMS, XrdAcc, SciTokens/macaroons, XrdHttp, CMS, and TPC settings into a
+  reviewable BriX nginx suggestion plus an optional JSON decision report. It
+  is shipped by the native packages and Homebrew formula. Companion XrdAcc
+  authdb conversion is explicit and never follows a path from untrusted input.
+  External validation against all six public Lancaster endpoint configs passes
+  `nginx -t`; the representative cluster result also starts a real Darwin
+  ARM64 worker on both derived listeners. Site inputs remain external evidence,
+  not fixtures in the integrated test suite.
+
+- **Release-grade external GridFTP interoperability evidence.** The existing
+  `gridftp-outbound` lane can persist JUnit XML to an operator-selected PVC,
+  and `tools/ci/check_gridftp_interop_image.py evidence` accepts it only when the exact
+  nine-cell Globus/dCache matrix passes with no skips, failures or errors. Its
+  JSON result contains bounded server metadata and the raw report digest, but
+  never captured output or credential material. No qualifying external report
+  is checked in yet, so independent-door validation remains deferred rather
+  than claimed for v2.0.
+
+- **Deployment-time protocol assessment (`xrd conform`, Phase 118).** The
+  shipped toolkit has a generated conformance registry, bounded active probes,
+  explicit skipped/inconclusive verdicts, reference baselines, scrubbed
+  captures, and terminal, Markdown, JSON, SARIF, ECS and standalone HTML
+  reports.
+
+- **Native macOS ARM64 module and client validation (Phase 119).** The Darwin
+  verifier builds against Homebrew nginx and exercises the dynamic modules,
+  client, WebDAV smoke, fail-closed security probes, kqueue I/O, storage/AIO
+  and hardware CRC32C. Intel runtime validation is deferred and is not inferred
+  from the ARM64 result; the Homebrew bottle remains client-only because an
+  nginx module is ABI-coupled to the exact nginx build.
 
 - **The native `brix_authdb` grammar: `v`/`l` identity selectors, compound
   selector sets, and the `x` (stage) privilege.** Field 1 of a native authdb

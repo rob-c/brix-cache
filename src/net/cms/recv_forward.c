@@ -24,6 +24,7 @@
  * export-confined, so a hostile manager cannot escape the export root.
  */
 
+#include "core/compat/log_event.h"
 #include "cms_internal.h"
 #include "recv_internal.h"
 #include "fs/vfs/vfs.h"   /* confined open/unlink via the VFS seam */
@@ -201,7 +202,7 @@ cms_forward_exec(ngx_brix_cms_ctx_t *ctx, brix_sd_instance_t *sd,
             brix_vfs_policy_from_write_enable(ctx->conf->common.allow_write),
             BRIX_PROTO_ROOT, cms_forward_mutation_op(plan->action)) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ctx->cycle->log, 0,
             "brix: CMS node: forwarded op code=%ui path=%s refused: "
             "read-only export", (ngx_uint_t) code, plan->path);
         return ngx_brix_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
@@ -239,7 +240,7 @@ cms_forward_exec(ngx_brix_cms_ctx_t *ctx, brix_sd_instance_t *sd,
                                          "unsupported operation");
     }
     if (rc != 0) {
-        ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ctx->cycle->log, 0,
             "brix: CMS node: forwarded op code=%ui path=%s failed: %s",
             (ngx_uint_t) code, plan->path, strerror(errno));
         /* byte-exact: ecode is always kYR_EINVAL; text carries strerror. */
@@ -247,7 +248,7 @@ cms_forward_exec(ngx_brix_cms_ctx_t *ctx, brix_sd_instance_t *sd,
                                          strerror(errno));
     }
 
-    ngx_log_debug3(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
         "brix: CMS node: forwarded op code=%ui path=%s ok (%s)",
         (ngx_uint_t) code, plan->path, sd != NULL ? "driver" : "posix");
     return NGX_OK;

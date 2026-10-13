@@ -19,6 +19,7 @@
  *       NGX_DECLINED and, on a match, fills a registry entry through the
  *       static builder for its driver.
  */
+#include "core/compat/log_event.h"
 #include "vfs_backend_config_internal.h"
 #include "fs/backend/frm/sd_frm.h"      /* brix_sd_frm_parse_query (tape ?arc=) */
 
@@ -169,7 +170,7 @@ vfs_tape_query(ngx_conf_t *cf, char *base, unsigned *depth)
         *q++ = '\0';
     }
     if (brix_sd_frm_parse_query(q, &opts) != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend: tape:// query \"%s\" is not \"arc=<1..8>\"",
             q);
         return NGX_ERROR;
@@ -231,7 +232,7 @@ vfs_parse_cephfsro_origin(ngx_conf_t *cf, const char *root_canon,
         vfs_parse_cephfsro_parts(rest, restn, &parts);
 
         if (meta[0] == '\0' || data[0] == '\0') {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "brix_storage_backend: "
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0, "brix_storage_backend: "
                 "cephfsro needs both pools (cephfsro:<meta>+<data>)");
             return NGX_ERROR;
         }
@@ -241,7 +242,7 @@ vfs_parse_cephfsro_origin(ngx_conf_t *cf, const char *root_canon,
         cfg.quiesced  = (ngx_strstr(q, "assume_quiesced=1") != NULL);
         cfg.live      = (ngx_strstr(q, "live=1") != NULL);
         if (!cfg.quiesced && !cfg.live) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "brix_storage_backend: "
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0, "brix_storage_backend: "
                 "cephfsro requires a consistency assertion: "
                 "?assume_quiesced=1 (fs frozen — MDS down/failed, journal flushed) "
                 "or ?live=1 (still mounted — best-effort eventually-consistent "
@@ -293,7 +294,7 @@ vfs_parse_ceph_origin(ngx_conf_t *cf, const char *root_canon,
             }
             pool[pn] = '\0'; conf[cn] = '\0'; prefix[xn] = '\0';
             if (pool[0] == '\0') {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                     "brix_storage_backend: %s: needs a pool (%s:<pool>)",
                     backend, backend);
                 return NGX_ERROR;
@@ -338,7 +339,7 @@ vfs_parse_rados_origin(ngx_conf_t *cf, const char *root_canon,
             prefix[restn - slash - 1] = '\0';
         }
         if (pool[0] == '\0') {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_storage_backend: rados:// needs \"//<pool>[/<namespace>]\"");
             return NGX_ERROR;
         }
@@ -397,7 +398,7 @@ vfs_parse_tape_origin(ngx_conf_t *cf, const char *root_canon,
                 return NGX_ERROR;
             }
             if (base[0] != '/') {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                     "brix_storage_backend: tape://|frm:// needs "
                     "\"//<adapter>/<base-path>[?arc=<depth>]\"");
                 return NGX_ERROR;

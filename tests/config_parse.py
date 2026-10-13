@@ -20,6 +20,7 @@ from cmdscripts.live_common import (
     inject_nginx_runtime_paths,
 )
 from brix_suite.nginx_tools import _nginx_bin
+from log_records import semantic_log_text
 
 
 def nginx_t(template, root, **template_values):
@@ -66,10 +67,13 @@ def nginx_t_text(text, root):
     # notices that were being written, correctly, to a file nobody read.  The
     # registry launcher has always passed its own `-e`; this is the parse lane
     # catching up.
-    return subprocess.run(
+    result = subprocess.run(
         [_nginx_bin(), "-t", "-p", str(root), "-c", "conf/nginx.conf",
          "-e", "stderr"],
         capture_output=True,
         text=True,
         timeout=30,
     )
+    result.stdout = semantic_log_text(result.stdout)
+    result.stderr = semantic_log_text(result.stderr)
+    return result

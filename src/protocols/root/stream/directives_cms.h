@@ -331,17 +331,9 @@
      * _keepalive_interval, _path_rewrite) is removed ahead of deleting the unused
      * proxy implementation; a config using any of them now fails with nginx
      * "unknown directive". Handlers/runtime remain temporarily, scheduled for
-     * removal. NOT affected: brix_http_handoff (single-port handoff, retained
-     * below) and brix_cache_origin_proxy (phase-64 tier origin). */
-
-    /* single-port protocol handoff: splice a non-XRootD (HTTP/TLS) client on
-     * this stream port to a local HTTP/WebDAV listener (host:port). */
-    { ngx_string("brix_http_handoff"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      brix_conf_set_http_handoff,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      0,
-      NULL },
+     * removal. NOT affected: brix_http_handoff (single-port handoff, registered
+     * in directives_handoff.h) and brix_cache_origin_proxy (phase-64 tier
+     * origin). */
 
     /* transparent pass-through relay: relay every connection on this port
      * verbatim to an upstream XRootD server while a tap decodes the cleartext

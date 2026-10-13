@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "fs/vfs/vfs.h"   /* confined open/unlink via the VFS seam */
 #include "chkpoint_xeq.h"
@@ -286,7 +287,7 @@ brix_handle_chkpoint(brix_ctx_t *ctx, ngx_connection_t *c,
         return ckp_xeq(ctx, c, idx);
 
     default:
-        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "brix: kXR_chkpoint unknown opcode=%d",
                        (int)(unsigned char) req.opcode);
         BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);

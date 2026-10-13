@@ -31,6 +31,8 @@ from pathlib import Path
 
 import pytest
 
+from log_records import semantic_log_text
+
 from server_registry import NginxInstanceSpec
 from stock_xrootd_owner import StockXrootdOwner
 from ephemeral_port import free_port
@@ -307,7 +309,8 @@ def test_dest_captures_delegated_proxy(gate):
               f"root://{gate['fqdn']}:{gate['dst_port']}//cap.txt"], env=gate["env"])
     time.sleep(0.5)
     errlog = Path(gate["dst_logs"]) / "dst-err.log"
-    log = errlog.read_text(errors="replace") if errlog.exists() else ""
+    raw_log = errlog.read_text(errors="replace") if errlog.exists() else ""
+    log = semantic_log_text(raw_log)
     assert "captured delegated proxy" in log, (
         f"nginx dest did not capture the delegated proxy (xrdcp rc={r.returncode}: "
         f"{r.stderr.strip()})\n--- dst-err tail ---\n"

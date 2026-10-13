@@ -10,6 +10,7 @@ compiler / libcrypto is available.
 """
 
 import os
+import shlex
 import shutil
 import subprocess
 
@@ -17,6 +18,12 @@ import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CC = os.environ.get("CC", "cc")
+
+
+def _openssl_flags():
+    proc = subprocess.run(["pkg-config", "--cflags", "--libs", "openssl"],
+                          capture_output=True, text=True)
+    return shlex.split(proc.stdout) if proc.returncode == 0 else ["-lcrypto"]
 
 
 @pytest.mark.timeout(60)
@@ -36,7 +43,7 @@ def test_gsi_cipher_unit():
         os.path.join(REPO, "src/auth/gsi/gsi_buf.c"),
         os.path.join(REPO, "src/auth/gsi/gsi_dh.c"),
         os.path.join(REPO, "src/core/compat/crypto.c"),
-        "-lcrypto",
+        *_openssl_flags(),
     ]
     build = subprocess.run(cmd, capture_output=True, text=True)
     if build.returncode != 0 and "lcrypto" in build.stderr:

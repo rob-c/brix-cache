@@ -12,6 +12,7 @@
  *   parses config.
  */
 
+#include "core/compat/log_event.h"
 #include "guard_http.h"
 
 static void *ngx_http_brix_guard_create_loc_conf(ngx_conf_t *cf);
@@ -258,7 +259,7 @@ ngx_http_brix_guard_build_ruleset(ngx_conf_t *cf,
                     (const char *) entries[entry_index].data,
                     entries[entry_index].len))
             {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                     "brix_guard_signature: more than %d signatures",
                     GUARD_MAX_SIGS);
                 return NGX_CONF_ERROR;
@@ -275,7 +276,7 @@ ngx_http_brix_guard_build_ruleset(ngx_conf_t *cf,
                     (const char *) entries[entry_index].data,
                     entries[entry_index].len))
             {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                     "brix_guard_valid_prefix: more than %d prefixes",
                     GUARD_MAX_PREFIXES);
                 return NGX_CONF_ERROR;
@@ -296,7 +297,7 @@ ngx_http_brix_guard_build_ruleset(ngx_conf_t *cf,
             guard_op_class_t op = method_name_to_op(&entries[entry_index]);
 
             if (op == GUARD_OP_UNKNOWN) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                     "brix_guard_valid_method: unknown method \"%V\"",
                     &entries[entry_index]);
                 return NGX_CONF_ERROR;
@@ -373,7 +374,7 @@ ngx_http_brix_guard_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     }
 
     if (conf->bounce_status != 403 && conf->bounce_status != 444) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_guard_bounce_status must be 403 or 444, got %i",
             conf->bounce_status);
         return NGX_CONF_ERROR;

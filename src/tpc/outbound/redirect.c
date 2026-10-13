@@ -22,6 +22,7 @@
  *      Runs on the pull thread: only the pull task and its immutable conf are
  *      touched (a refusal is counted on the event loop by done.c via
  *      t->redirect_refused). */
+#include "core/compat/log_event.h"
 #include "tpc/engine/tpc_internal.h"
 #include "protocols/root/protocol/frame_hdr.h"   /* xrd_redirect_body_decode */
 #include "tpc/common/egress_guard.h"             /* brix_tpc_source_guard_check */
@@ -136,7 +137,7 @@ tpc_redirect_follow(brix_tpc_pull_t *t, ngx_log_t *log)
     }
 
     t->hops++;
-    ngx_log_error(NGX_LOG_INFO, log, 0,
+    BRIX_LOG(NGX_LOG_INFO, log, 0,
                   "brix: TPC hop %ui: %s:%ud -> %s:%ud for %s",
                   t->hops, t->src_host, cur_port, t->redir_host, new_port,
                   t->src_path);

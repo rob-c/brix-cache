@@ -41,6 +41,11 @@ pytestmark = [
 def _require(*pairs):
     """Skip unless every (label, port) is listening — i.e. the harness brought
     that topology up (python3 -m cmdscripts.manage_test_servers start-all)."""
+    if (not M.stock_cms_interop_supported()
+            and any(port in M.STOCK_CMS_ENDPOINT_PORTS
+                    for _label, port in pairs)):
+        pytest.skip("Homebrew XRootD cmsd cannot dial all.manager on Darwin; "
+                    "the pure BriX mesh cells remain enabled")
     for label, port in pairs:
         if not port_open(port):
             pytest.skip(f"{label} (:{port}) not up — run "

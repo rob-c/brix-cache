@@ -12,7 +12,9 @@ import subprocess
 import time
 
 
-def run(argv: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+def run(argv: list[str], *, cwd: Path | None = None,
+        env: dict[str, str] | None = None,
+        timeout: float | None = None) -> subprocess.CompletedProcess:
     proc = subprocess.Popen(
         argv,
         cwd=str(cwd) if cwd else None,
@@ -21,7 +23,12 @@ def run(argv: list[str], *, cwd: Path | None = None, env: dict[str, str] | None 
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    stdout, stderr = proc.communicate()
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        stdout, stderr = proc.communicate()
+        return subprocess.CompletedProcess(argv, 124, stdout, stderr)
     return subprocess.CompletedProcess(argv, proc.returncode, stdout, stderr)
 
 
@@ -49,6 +56,17 @@ def true_command() -> str:
     return shutil.which("true") or "/usr/bin/true"
 
 
+def nologin_shell() -> str:
+    """Absolute non-login shell across FHS, Nix, and Homebrew layouts."""
+    found = shutil.which("nologin")
+    if found:
+        return str(Path(found).resolve())
+    for candidate in (Path("/usr/sbin/nologin"), Path("/sbin/nologin")):
+        if candidate.is_file():
+            return str(candidate)
+    return "/usr/sbin/nologin"
+
+
 def find_xrd_library(*names: str) -> Path | None:
     """Find an XRootD library across RPM, Debian multiarch, and ldconfig layouts."""
     for name in names:
@@ -62,12 +80,26 @@ def _direct_xrd_library(name):
     requested = Path(name)
     if requested.is_absolute() and requested.is_file():
         return requested.resolve()
-    roots = (Path("/usr/lib64"), Path("/usr/lib"), Path("/lib64"), Path("/lib"))
+    found = _configured_xrd_library(name)
+    if found:
+        return found
+    return _system_xrd_library(name) or _homebrew_xrd_library(name)
+
+
+def _configured_xrd_library(name):
+    configured = os.environ.get("BRIX_XROOTD_LIBDIR", "")
+    if not configured or not Path(configured).is_absolute():
+        return None
+    return _library_below(Path(configured), name)
+
+
+def _system_xrd_library(name):
+    roots = [Path("/usr/lib64"), Path("/usr/lib"), Path("/lib64"), Path("/lib")]
     for root in roots:
         found = _library_below(root, name)
         if found:
             return found
-    return _homebrew_xrd_library(name)
+    return None
 
 
 def _homebrew_xrd_library(name):
@@ -84,14 +116,21 @@ def _homebrew_xrd_library(name):
     return None
 
 
-def _library_below(root, name):
-    candidate = root / name
-    if candidate.is_file():
-        return candidate.resolve()
-    for multiarch in root.glob(f"*/{name}"):
-        if multiarch.is_file():
-            return multiarch.resolve()
+def _first_library(candidates):
+    """Return the first regular library file from an ordered candidate list."""
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
     return None
+
+
+def _library_below(root, name):
+    pattern = re.sub(r"(?:-\d+)?\.so$", "-*.so", name)
+    candidates = [root / name]
+    candidates.extend(root.glob(f"*/{name}"))
+    candidates.extend(sorted(root.glob(pattern), reverse=True))
+    candidates.extend(sorted(root.glob(f"*/{pattern}"), reverse=True))
+    return _first_library(candidates)
 
 
 def _ldconfig_xrd_library(names):
@@ -197,14 +236,41 @@ def _lsof_established_to_port(port: int | str) -> int:
                if line.startswith("n") and line.rsplit("->", 1)[-1].endswith(f":{port}"))
 
 
+def _netstat_established_to_port(port: int | str) -> int | None:
+    """Remote-port count, or None when macOS returned no observable table."""
+    rows = _darwin_netstat_rows("ESTABLISHED")
+    if not rows:
+        return None
+    return sum(1 for _local, foreign, _pid in rows
+               if _darwin_addr_port(foreign) == str(port))
+
+
 def established_to_port(port: int | str) -> int:
     """TCP connections whose REMOTE end is ``port`` (ss -tn, or netstat/lsof elsewhere)."""
     if have_cmd("ss"):
         return _ss_established_to_port(port)
     if have_cmd("netstat"):
-        return sum(1 for _l, foreign, _p in _darwin_netstat_rows("ESTABLISHED")
-                   if _darwin_addr_port(foreign) == str(port))
+        count = _netstat_established_to_port(port)
+        if count is not None:
+            return count
+        # Some macOS execution contexts allow netstat(1) to exit zero but
+        # return an empty captured stream.  That is an unavailable observer,
+        # not proof that no connection exists; use the port-scoped lsof query.
     return _lsof_established_to_port(port) if have_cmd("lsof") else 0
+
+
+def _darwin_netstat_row(line: str, state: str) -> tuple[str, str, int] | None:
+    """Parse one Darwin ``netstat -anv`` TCP row.
+
+    The process column is ``name:pid`` but the name may itself contain spaces,
+    so it has no stable split-field index.  The two fixed-width hexadecimal
+    state/option columns that follow it provide an unambiguous right boundary.
+    """
+    fields = line.split()
+    if len(fields) <= 5 or not fields[0].startswith("tcp") or fields[5] != state:
+        return None
+    owner = re.search(r":([0-9]+)\s+[0-9A-Fa-f]{5}\s+[0-9A-Fa-f]{8}\s", line)
+    return (fields[3], fields[4], int(owner.group(1))) if owner else None
 
 
 def _darwin_netstat_rows(state: str) -> list[tuple[str, str, int]]:
@@ -215,15 +281,11 @@ def _darwin_netstat_rows(state: str) -> list[tuple[str, str, int]]:
     (817 processes, 8 xdist workers).  Column 11 is the owning pid on Darwin.
     """
     try:
-        out = run(["netstat", "-anv", "-p", "tcp"]).stdout
+        out = run(["netstat", "-anv", "-p", "tcp"], timeout=5).stdout
     except OSError:
         return []
-    rows = []
-    for line in out.splitlines():
-        f = line.split()
-        if len(f) > 10 and f[0].startswith("tcp") and f[5] == state and f[10].isdigit():
-            rows.append((f[3], f[4], int(f[10])))
-    return rows
+    return [row for line in out.splitlines()
+            if (row := _darwin_netstat_row(line, state)) is not None]
 
 
 def close_wait_on_ports(ports) -> int:
@@ -296,7 +358,13 @@ def listener_table_lines() -> list[str]:
     if have_cmd("ss"):
         return run(["ss", "-tlnp"]).stdout.splitlines()
     if have_cmd("netstat"):
-        return _netstat_listener_lines()
+        rows = _netstat_listener_lines()
+        if rows:
+            return rows
+        # macOS sandboxed Python children can receive a successful but empty
+        # netstat table.  lsof's single fleet-wide descriptor walk remains an
+        # authoritative fallback and is still vastly cheaper than one walk per
+        # registered port.
     return _lsof_listener_lines() if have_cmd("lsof") else []
 
 
@@ -369,7 +437,10 @@ def linked_libraries(binary: str) -> str:
 
 def _lsof_listener_pids(port: int | str) -> list[int]:
     """Every pid listening on ``port``, from lsof (authoritative)."""
-    output = run(["lsof", "-t", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"]).stdout
+    output = run(
+        ["lsof", "-t", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"],
+        timeout=2,
+    ).stdout
     return sorted({int(value) for value in output.split() if value.isdigit()})
 
 
@@ -405,8 +476,6 @@ def pids_on_port(port: int | str) -> list[int]:
     if have_cmd("ss"):
         return sorted(_pids_in_text(
             run(["ss", "-ltnp", f"( sport = :{port} )"]).stdout))
-    if have_cmd("netstat") and not _netstat_has_listener(port):
-        return []               # cheap and decisive: nothing holds the port
     if have_cmd("lsof"):
         return _lsof_listener_pids(port)
     return _netstat_listener_pids(port)
@@ -477,15 +546,39 @@ def pids_in_port_range(start: int, end: int) -> list[int]:
 _CLK_TCK = os.sysconf("SC_CLK_TCK")
 
 
+def _elapsed_time_seconds(value: str) -> float | None:
+    """Parse the portable ``ps -o etime=`` shape into seconds.
+
+    POSIX ``ps`` uses ``[[dd-]hh:]mm:ss``.  Keep this parser strict: an odd
+    result must look like a vanished process to a liveness caller, never like
+    a plausible but fabricated process age.
+    """
+    match = re.fullmatch(r"(?:(\d+)-)?(?:(\d+):)?(\d{1,2}):(\d{2})", value.strip())
+    if match is None:
+        return None
+    days, hours, minutes, seconds = (
+        int(field or 0) for field in match.groups()
+    )
+    if minutes >= 60 or seconds >= 60:
+        return None
+    return float((((days * 24) + hours) * 60 + minutes) * 60 + seconds)
+
+
 def process_age(pid: int) -> float | None:
     """Seconds the process ``pid`` has been alive, or ``None`` if it is gone.
 
-    Read from ``/proc/<pid>/stat`` field 22 (``starttime``, in clock ticks
-    since boot) against ``/proc/uptime`` — no ``ps`` fork, and immune to PID
-    reuse within the read because a vanished/replaced pid surfaces as an
-    ``OSError``/parse miss rather than a stale age.  The ``comm`` field can
-    contain spaces and parentheses, so split *after* its final ``)``.
+    Linux reads ``/proc/<pid>/stat`` field 22 (``starttime``, in clock ticks
+    since boot) against ``/proc/uptime``.  Hosts without procfs ask ``ps`` for
+    the POSIX elapsed-time field.  Both paths return ``None`` if the process
+    vanishes during the sample.  The Linux ``comm`` field can contain spaces
+    and parentheses, so split *after* its final ``)``.
     """
+    if not os.path.isdir("/proc"):
+        try:
+            proc = run(["ps", "-p", str(int(pid)), "-o", "etime="])
+        except (OSError, ValueError):
+            return None
+        return _elapsed_time_seconds(proc.stdout) if proc.returncode == 0 else None
     try:
         with open(f"/proc/{pid}/stat", "r") as fh:
             data = fh.read()

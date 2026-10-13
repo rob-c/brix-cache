@@ -99,6 +99,8 @@ from pathlib import Path
 
 import pytest
 
+from log_records import semantic_log_text
+
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
@@ -338,8 +340,8 @@ class _Planes:
 
     def errorlog(self):
         try:
-            return (self.log_dir / "error.log").read_text(encoding="utf-8",
-                                                          errors="replace")
+            return semantic_log_text((self.log_dir / "error.log").read_text(
+                encoding="utf-8", errors="replace"))
         except FileNotFoundError:
             return ""
 
@@ -404,4 +406,3 @@ def _assert_no_poison(planes, dst, content=PAYLOAD):
     if path.exists():
         assert path.read_bytes() != content, (
             "a refused pull left a complete copy at %s" % path)
-

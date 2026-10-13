@@ -32,6 +32,7 @@ Run (serial):
 import hashlib
 import os
 import shutil
+import socket
 import subprocess
 from brix_suite.client_build import client_make
 from pathlib import Path
@@ -39,8 +40,10 @@ from pathlib import Path
 import pytest
 
 import kdc_helpers
+from lib_py.util import linked_libraries
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from log_records import semantic_log_text
 from settings import (
     BIND_HOST,
     HOST,
@@ -201,9 +204,10 @@ def mech_sss(harness, client_built, tmp_path_factory):
 @pytest.fixture(scope="module")
 def mech_host(harness, client_built, tmp_path_factory):
     tmp = tmp_path_factory.mktemp("authdb-host")
-    r = subprocess.run(["getent", "hosts", "127.0.0.1"],  # net-literal-allow: loopback reverse-DNS is the host-auth identity
-                       capture_output=True, text=True, timeout=30)
-    peer_name = r.stdout.split()[1] if len(r.stdout.split()) > 1 else ""
+    try:
+        peer_name = socket.gethostbyaddr("127.0.0.1")[0]  # net-literal-allow: loopback reverse-DNS is the host-auth identity
+    except OSError:
+        peer_name = ""
     if not peer_name:
         pytest.skip("127.0.0.1 has no reverse-DNS name on this host")  # net-literal-allow: loopback reverse-DNS skip condition
 
@@ -221,8 +225,7 @@ def mech_host(harness, client_built, tmp_path_factory):
 def mech_krb5(harness, client_built, tmp_path_factory):
     if not kdc_helpers.krb5_tools_available():
         pytest.skip("MIT KDC tooling not installed (install krb5-server)")
-    if "libkrb5" not in subprocess.run(["ldd", XRDCP], capture_output=True,
-                                       text=True).stdout:
+    if "libkrb5" not in linked_libraries(XRDCP):
         pytest.skip("client built without -DBRIX_HAVE_KRB5")
     if not kdc_helpers.up():
         pytest.skip("krb5 realm could not be provisioned")
@@ -365,6 +368,6 @@ def test_authdb_denial_is_logged(mech_pwd, tmp_path):
     log = Path(TEST_ROOT, "registry", "lc-authdb-pwd", "logs", "error.log")
     if not log.exists():
         pytest.skip("instance log not at the registry path")
-    body = log.read_text(errors="replace")
+    body = semantic_log_text(log.read_text(errors="replace"))
     assert "authdb denied" in body, "no authdb denial line was logged"
     assert f'dn="{PWD_USER}"' in body, "denial line does not name the identity"

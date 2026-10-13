@@ -19,6 +19,7 @@
  *      primitives, raw syscalls, and the job's POD buffers.
  */
 
+#include "core/compat/log_event.h"
 #include "vfs_internal.h"
 #include "vfs_io_core.h"
 #include "vfs_io_core_internal.h"
@@ -149,7 +150,7 @@ brix_vfs_io_dirlist_stat_entry(brix_vfs_job_t *job, int dfd,
      * error log so a quietly-shrinking listing is diagnosable. */
     if (dfd < 0 || fstatat(dfd, name, &entry_st, AT_SYMLINK_NOFOLLOW) != 0) {
         if (dfd >= 0 && errno != ENOENT) {
-            ngx_log_error(NGX_LOG_ERR, job->log, errno,
+            BRIX_LOG(NGX_LOG_ERR, job->log, errno,
                           "xrootd[disk]: dirlist stat of entry \"%s\" under "
                           "\"%s\" failed; entry omitted from the listing",
                           name, job->path != NULL ? job->path : "-");

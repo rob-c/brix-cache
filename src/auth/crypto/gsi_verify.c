@@ -20,6 +20,7 @@
  *      all passed-in objects; none are freed here.
  */
 
+#include "core/compat/log_event.h"
 #include "gsi_verify.h"
 
 #include "auth/crypto/store_policy.h"
@@ -43,7 +44,7 @@ static ngx_int_t
 brix_gsi_enforce_proxy_monotonicity(X509_STORE_CTX *vctx, ngx_log_t *log)
 {
     if (!brix_proxy_chain_ok(X509_STORE_CTX_get0_chain(vctx))) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "brix: GSI proxy chain rejected: a full proxy is issued beneath a "
             "limited proxy (RFC 3820 delegation escalation)");
         return NGX_ERROR;
@@ -97,7 +98,7 @@ brix_gsi_enforce_signing_policy(X509_STORE_CTX *vctx, ngx_log_t *log)
                               subj_dn, sizeof(subj_dn));
             brix_x509_oneline(X509_get_subject_name(issuer),
                               ca_dn, sizeof(ca_dn));
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                 "brix: GSI signing_policy: CA \"%s\" may not sign subject "
                 "\"%s\" (namespace violation or missing policy)",
                 ca_dn, subj_dn);
@@ -125,20 +126,20 @@ brix_gsi_enforce_cert_policy(X509_STORE_CTX *vctx, X509 *leaf, ngx_log_t *log,
     n = chain ? sk_X509_num(chain) : 0;
     for (i = 0; i < n; i++) {
         if (brix_cert_policy_violation(sk_X509_value(chain, i))) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                 "brix: GSI cert rejected: weak key/algorithm, malformed serial, "
                 "or invalid DN in the chain (RFC 5280 / IGTF profile)");
             return NGX_ERROR;
         }
     }
     if (!brix_proxy_pci_ok(chain)) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "brix: GSI proxy rejected: proxyCertInfo not critical or unknown "
             "policy language (RFC 3820 §3.1/§3.2)");
         return NGX_ERROR;
     }
     if (client_purpose && brix_leaf_purpose_violation(leaf)) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "brix: client cert rejected: extendedKeyUsage lacks clientAuth or "
             "keyUsage lacks digitalSignature (RFC 5280 §4.2.1.12/§4.2.1.3)");
         return NGX_ERROR;
@@ -221,7 +222,7 @@ brix_gsi_verify_log_failure(X509_STORE_CTX *vctx, ngx_log_t *log,
 
     cur = X509_STORE_CTX_get_current_cert(vctx);
     if (cur == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "brix: tls verify log: chain rejected at depth %d: %s "
             "(no certificate in context)",
             X509_STORE_CTX_get_error_depth(vctx), verr_str);
@@ -229,7 +230,7 @@ brix_gsi_verify_log_failure(X509_STORE_CTX *vctx, ngx_log_t *log,
     }
 
     brix_x509_oneline(X509_get_subject_name(cur), dn, sizeof(dn));
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
         "brix: tls verify log: chain rejected at depth %d: %s "
         "(subject \"%s\")",
         X509_STORE_CTX_get_error_depth(vctx), verr_str, dn);
@@ -261,7 +262,7 @@ brix_gsi_verify_log_chain(X509_STORE_CTX *vctx, ngx_log_t *log)
     for (i = 0; i < n; i++) {
         brix_x509_oneline(X509_get_subject_name(sk_X509_value(chain, i)),
                           dn, sizeof(dn));
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: tls verify log: chain accepted, depth %d subject \"%s\"",
             i, dn);
     }
@@ -357,7 +358,7 @@ brix_gsi_enforce_legacy_policy(X509_STORE_CTX *vctx, X509 *leaf, int mode,
     }
     for (i = 0; i < n; i++) {
         if (brix_gt2_proxy_kind(sk_X509_value(chain, i)) == BRIX_PX_LIMITED) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                 "brix: GSI client cert rejected: legacy limited proxy in the "
                 "chain (brix_gsi_legacy_proxy full-only)");
             return NGX_ERROR;
@@ -399,13 +400,13 @@ brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
 
     vctx = X509_STORE_CTX_new();
     if (vctx == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix: GSI: X509_STORE_CTX_new() failed");
         return NGX_ERROR;
     }
 
     if (!X509_STORE_CTX_init(vctx, store, leaf, untrusted)) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix: GSI: X509_STORE_CTX_init() failed");
         X509_STORE_CTX_free(vctx);
         return NGX_ERROR;
@@ -450,7 +451,7 @@ brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
     if (legacy != BRIX_LEGACY_PROXY_OFF
         && brix_gt2_proxy_kind(leaf) != BRIX_PX_NONE)
     {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: GSI: legacy (pre-RFC 3820) proxy accepted; plan the "
             "client's move to RFC 3820 proxies");
     }

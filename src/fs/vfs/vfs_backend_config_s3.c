@@ -17,6 +17,7 @@
  *       declared in vfs_backend_config_internal.h; each fills a registry entry
  *       through the builder for its driver (or defers to the local-driver path).
  */
+#include "core/compat/log_event.h"
 #include "vfs_backend_config_internal.h"
 
 #include <string.h>
@@ -119,7 +120,7 @@ vfs_parse_s3_port(ngx_conf_t *cf, const u_char *authority,
         pn = ngx_atoi((u_char *) colon + 1,
                       (size_t) (authority + authority_len - (colon + 1)));
         if (pn == NGX_ERROR || pn < BRIX_VFS_PORT_MIN || pn > BRIX_VFS_PORT_MAX) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_storage_backend: invalid s3 origin port (1-65535)");
             return NGX_ERROR;
         }
@@ -169,7 +170,7 @@ vfs_parse_s3_url(ngx_conf_t *cf, const ngx_str_t *sb, vfs_origin_parse_t *out)
     if (host_len == 0 || host_len >= out->host_cap || path_len == 0
         || path_len >= out->base_cap)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend: s3:// needs \"//host[:port]/bucket\"");
         return NGX_ERROR;
     }
@@ -252,13 +253,13 @@ vfs_config_local_backend(ngx_conf_t *cf, const char *root_canon,
             || (sb->len > sizeof("pblock:") - 1
                 && ngx_strncmp(sb->data, "pblock:", sizeof("pblock:") - 1) == 0))
         {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
                 "brix_storage_backend \"%V\": the single-colon form is "
                 "legacy — use \"%s\" bare (default root) or "
                 "\"pblock://<dir>[?opts]\"", sb,
                 sb->data[1] == 'o' ? "posix" : "pblock");
         } else {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_storage_backend \"%V\": unrecognized backend scheme "
                 "(known: posix, pblock, pblock://, mirage:, block:, "
                 "root://, roots://, root+tape://, roots+tape://, forward://, "
@@ -342,7 +343,7 @@ vfs_parse_xroot_or_driver_origin(ngx_conf_t *cf, const char *root_canon,
             if (addr[i - 1] == ':') { colon = addr + i - 1; break; }
         }
         if (colon == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_storage_backend: remote origin needs host:port");
             return NGX_ERROR;
         }
@@ -351,7 +352,7 @@ vfs_parse_xroot_or_driver_origin(ngx_conf_t *cf, const char *root_canon,
         if (hostn == 0 || hostn >= sizeof(host) || portnum == NGX_ERROR
             || portnum <= 0 || portnum > BRIX_MAX_PORT)
         {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_storage_backend: invalid remote origin host:port");
             return NGX_ERROR;
         }

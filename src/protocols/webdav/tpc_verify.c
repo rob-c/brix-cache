@@ -29,6 +29,7 @@
  *       so all three tiers (sync, thread, marker) pass through it.
  */
 
+#include "core/compat/log_event.h"
 #include "tpc_curl_internal.h"
 
 #include "fs/vfs/vfs.h"             /* confined open of the staged temp */
@@ -169,7 +170,7 @@ tpc_verify_probe_source(ngx_log_t *log,
 
     res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_webdav: HTTP-TPC completion probe failed: %s",
                       curl_easy_strerror(res));
         return webdav_tpc_curl_finish(NGX_ERROR, curl, hdrs, resolve, NULL);
@@ -197,19 +198,19 @@ tpc_verify_size(ngx_log_t *log, ngx_http_brix_webdav_loc_conf_t *conf,
         if (!conf->common.tpc_require_source_size) {
             return NGX_OK;
         }
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_webdav: HTTP-TPC pull refused: source declared no "
                       "size and brix_webdav_tpc_require_source_size is on");
         return NGX_HTTP_BAD_GATEWAY;
     }
     if (fstat(fd, &st) != 0) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "brix_webdav: HTTP-TPC pull refused: cannot stat the "
                       "staged temp for the size gate");
         return NGX_HTTP_BAD_GATEWAY;
     }
     if (st.st_size != src->size) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_webdav: HTTP-TPC pull truncated: wrote %O of %O "
                       "source bytes", st.st_size, src->size);
         return NGX_HTTP_BAD_GATEWAY;
@@ -267,7 +268,7 @@ tpc_verify_checksum(ngx_log_t *log, ngx_http_brix_webdav_loc_conf_t *conf,
         return NGX_OK;
     }
     if (src->digest[0] == '\0') {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_webdav: HTTP-TPC pull refused: source supplied no "
                       "Digest for Want-Digest: %V", &conf->common.tpc_verify_checksum);
         return NGX_HTTP_BAD_GATEWAY;
@@ -275,7 +276,7 @@ tpc_verify_checksum(ngx_log_t *log, ngx_http_brix_webdav_loc_conf_t *conf,
     if (tpc_verify_split(src->digest, alg, sizeof(alg),
                          src_hex, sizeof(src_hex)) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_webdav: HTTP-TPC pull refused: malformed source "
                       "Digest header");
         return NGX_HTTP_BAD_GATEWAY;
@@ -284,13 +285,13 @@ tpc_verify_checksum(ngx_log_t *log, ngx_http_brix_webdav_loc_conf_t *conf,
                                   sizeof(local_hex), normalized,
                                   sizeof(normalized)) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_webdav: HTTP-TPC pull refused: cannot compute "
                       "\"%s\" on the staged temp", alg);
         return NGX_HTTP_BAD_GATEWAY;
     }
     if (strcasecmp(local_hex, src_hex) != 0) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_webdav: HTTP-TPC checksum mismatch: source %s=%s "
                       "destination=%s", alg, src_hex, local_hex);
         return NGX_HTTP_BAD_GATEWAY;
@@ -316,7 +317,7 @@ webdav_tpc_verify_pulled(ngx_log_t *log,
     if (tpc_verify_probe_source(log, conf, source_url, transfer_headers,
                                 user_cert, user_key, &src) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_webdav: HTTP-TPC pull refused: the completion gate "
                       "could not re-probe the source");
         return NGX_HTTP_BAD_GATEWAY;
@@ -327,7 +328,7 @@ webdav_tpc_verify_pulled(ngx_log_t *log,
     fd = brix_vfs_open_fd(log, conf->common.root_canon, tmp_path,
                           O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0);
     if (fd < 0) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
                       "brix_webdav: HTTP-TPC pull refused: cannot re-open the "
                       "staged temp for the completion gate");
         return NGX_HTTP_BAD_GATEWAY;

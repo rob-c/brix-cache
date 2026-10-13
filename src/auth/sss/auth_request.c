@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "sss_internal.h"
 #include "fs/path/path.h"
 #include "protocols/root/response/response.h"
@@ -254,14 +255,14 @@ sss_entity_policy(const ngx_stream_brix_srv_conf_t *conf,
         id->vorg[0] = '\0';
         id->role[0] = '\0';
         id->endo[0] = '\0';
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
                       "brix: SSS entity fields dropped: keytab pins the identity");
     }
 
     if (id->creds_len > 0 && !conf->sss_getcreds) {
         OPENSSL_cleanse(id->creds, id->creds_len);
         id->creds_len = 0;
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
                       "brix: SSS proxied credential dropped: "
                       "brix_sss_getcreds is off");
     }
@@ -289,7 +290,7 @@ sss_log_ok(ngx_connection_t *c, const char *user, const char *group,
                                safe_vorg, sizeof(safe_vorg));
     brix_sanitize_log_string(id->role[0] ? id->role : "-",
                                safe_role, sizeof(safe_role));
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "brix: SSS auth OK user=\"%s\" group=\"%s\" "
                   "vorg=\"%s\" role=\"%s\" endo=%uz creds=%uz",
                   safe_user, safe_group, safe_vorg, safe_role,
@@ -370,7 +371,7 @@ sss_reply(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ctx->login.session_slot_hint =
         brix_session_register(ctx->login.sessid, ctx->login.dn,
-                              ctx->login.vo_list, 0);
+                              ctx->login.vo_list, 0, 0);
 
     sss_log_ok(c, user, group, id);
 

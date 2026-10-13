@@ -12,6 +12,7 @@
  * --count = ops per worker. Exit non-zero on any op failure or a p99 breach so
  * it doubles as an operator health gate.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "diag_internal.h"
 #include "observability/metabench/metabench_run.h"
 
@@ -26,7 +27,7 @@ do_metabench(const diag_args *a)
 
     brix_status_clear(&st);
     if (a->url == NULL || brix_endpoint_parse(a->url, &u, &st) != 0) {
-        fprintf(stderr, "xrddiag metabench: bad or missing url\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag metabench: bad or missing url\n");
         return 50;
     }
 

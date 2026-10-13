@@ -46,6 +46,7 @@ import time
 
 import pytest
 
+from settings import HOST
 from server_launcher import LifecycleHarness  # noqa: E402
 from server_registry import NginxInstanceSpec  # noqa: E402
 from port_ladder import PORT_LAST  # noqa: E402
@@ -258,8 +259,11 @@ def _wait_listen(proc, port, what):
     failure (these tests are required to pass, never skip)."""
     for _ in range(60):
         assert proc.poll() is None, f"{what} exited before binding {port}"
-        if pids_on_port(port):
-            return True
+        try:
+            with socket.create_connection((HOST, port), timeout=0.2):
+                return True
+        except OSError:
+            pass
         time.sleep(0.1)
     proc.terminate()
     raise AssertionError(f"{what} did not come up on {port}")

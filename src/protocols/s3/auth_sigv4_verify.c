@@ -121,6 +121,7 @@ static ngx_flag_t
 s3_request_has_session_token(ngx_http_request_t *r, ngx_flag_t presigned)
 {
     ngx_str_t token;
+    char      query_token[BRIX_S3_HEADER_VALUE_BUF_SIZE];
 
     token = get_header(r, "x-amz-security-token");
     if (token.len > 0) {
@@ -128,9 +129,8 @@ s3_request_has_session_token(ngx_http_request_t *r, ngx_flag_t presigned)
     }
 
     if (presigned
-        && ngx_http_arg(r, (u_char *) "X-Amz-Security-Token", 20, &token)
-           == NGX_OK
-        && token.len > 0)
+        && s3_get_query_param(r, "X-Amz-Security-Token", query_token,
+                              sizeof(query_token)))
     {
         return 1;
     }
@@ -144,7 +144,7 @@ s3_request_has_session_token(ngx_http_request_t *r, ngx_flag_t presigned)
  *
  * WHAT:  When brix_s3_token is enabled, decide whether the request should be
  *        handled by the Bearer path, rejected, or allowed to fall through to
- *        SigV4/anonymous.
+ *        a configured SigV4 verifier.
  * WHY:   Keeps the token-vs-SigV4 arbitration in one place so the SigV4 verifier
  *        body stays a linear sequence and INVARIANT §6 is auditable at a glance.
  * HOW:   Detects Bearer and SigV4 presence; both-present is a 400 client error;
@@ -152,7 +152,7 @@ s3_request_has_session_token(ngx_http_request_t *r, ngx_flag_t presigned)
  *        is a 403.  Returns NGX_DECLINED to mean "fall through to SigV4"; any
  *        other value is a terminal response already emitted by this helper.
  *
- * Returns: NGX_DECLINED to continue into the SigV4/anonymous path, otherwise the
+ * Returns: NGX_DECLINED to continue into the SigV4 path, otherwise the
  *   terminal ngx_int_t result (response emitted).
  */
 static ngx_int_t
@@ -160,19 +160,27 @@ s3_sigv4_bearer_intercept(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     brix_identity_t *identity)
 {
     ngx_str_t authz;
+    ngx_http_s3_req_ctx_t *ctx;
     int       has_bearer;
-    int       has_sigv4;
+    int       sigv4_enabled;
+    int       sigv4_present;
 
     if (!cf->token_enable) {
         return NGX_DECLINED;
     }
 
     authz      = get_header(r, "authorization");
+    ctx        = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
     has_bearer = s3_bearer_present(r);
-    has_sigv4  = (authz.len >= 4
-                 && ngx_strncasecmp(authz.data, (u_char *) "AWS4", 4) == 0);
+    sigv4_enabled = cf->access_key.len > 0;
+    sigv4_present = (authz.len >= 4
+                     && ngx_strncasecmp(authz.data, (u_char *) "AWS4", 4) == 0)
+                    || (ctx != NULL
+                        && brix_http_query_parsed_has(&ctx->query,
+                               "X-Amz-Signature",
+                               BRIX_HTTP_QUERY_HAS_VALUE_OK) == 1);
 
-    if (has_bearer && has_sigv4) {
+    if (has_bearer && sigv4_present) {
         s3_record_auth_result(BRIX_S3_AUTH_MALFORMED);
         return s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST,
                                  "InvalidRequest",
@@ -183,16 +191,16 @@ s3_sigv4_bearer_intercept(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         return s3_verify_bearer(r, cf, identity);
     }
 
-    /* Enforcing token-only mode: no Bearer, no SigV4 — reject. */
-    if (!has_sigv4) {
+    /* Token enforcement may defer only to an actually configured SigV4
+     * verifier.  A credential-shaped query alone must never disable Bearer. */
+    if (!sigv4_present || !sigv4_enabled) {
         s3_record_auth_result(BRIX_S3_AUTH_MISSING);
         return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                                  "AccessDenied",
                                  "bearer token required");
     }
 
-    /* SigV4 credentials were presented: fall through to verify them if an
-     * access_key is configured, or to the anonymous path if not. */
+    /* SigV4 credentials were presented and the verifier is configured. */
     return NGX_DECLINED;
 }
 
@@ -449,7 +457,11 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         return rc;
     }
 
-    if (s3_sigv4_compute_signature(r, cf, &comp, &amz, &sig) != NGX_OK) {
+    rc = s3_sigv4_compute_signature(r, cf, &comp, &amz, &sig);
+    if (r->header_sent) {
+        return rc;
+    }
+    if (rc != NGX_OK) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 

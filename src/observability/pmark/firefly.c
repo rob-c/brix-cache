@@ -19,6 +19,7 @@
  *   send error is dropped, never surfaced, and never blocks the data plane.
  */
 
+#include "core/compat/log_event.h"
 #include "pmark.h"
 #include "observability/metrics/metrics.h"
 #include "observability/metrics/metrics_macros.h"
@@ -136,7 +137,7 @@ pmark_emit(brix_pmark_flow_t *f, const char *state, int with_end,
                 < 0)
             {
                 BRIX_PMARK_METRIC_INC(pmark_firefly_dropped_total);
-                ngx_log_debug1(NGX_LOG_DEBUG_CORE, log, ngx_errno,
+                BRIX_LOG_DEBUG(NGX_LOG_DEBUG_CORE, log, ngx_errno,
                     "pmark: firefly sendto failed (state=%s)", state);
             } else {
                 BRIX_PMARK_METRIC_INC(pmark_firefly_sent_total);

@@ -3,6 +3,7 @@
  * opt-in via --parallel). Split from copy_local.c (600-line ratchet); the
  * serial download paths and the shared temp/commit helpers stay there.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "copy_internal.h"
 
 #include <pthread.h>   /* Phase 94: concurrent striped download workers */
@@ -224,7 +225,7 @@ copy_download_parallel(const download_job_t *job, int *out_rc, brix_status *st)
     brix_streams_open(job->ss, job->c, o->streams, st);   /* best-effort; n may be 0 */
     nconns = 1 + job->ss->n;
     if (getenv("BRIX_STREAMS_DEBUG") != NULL) {
-        fprintf(stderr, "brix: parallel-download stripes=%d\n", nconns);
+        BRIX_CLIENT_LOG("INFO",  "brix: parallel-download stripes=%d\n", nconns);
     }
 
     /* Atomic temp+rename via the VFS (INV-12), io_uring OFF so posix_pwrite is a

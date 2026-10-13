@@ -18,6 +18,7 @@
  *   port 10514).  Arrays inherit from the parent when the child did not set them.
  */
 
+#include "core/compat/log_event.h"
 #include "pmark.h"
 #include "core/config/shared_conf.h"
 #include "net/dns/dns.h"   /* brix_dns_backend_prepare (phase-116) */
@@ -53,7 +54,7 @@ brix_pmark_conf_merge(ngx_conf_t *cf, brix_pmark_conf_t *prev,
      * monitoring benefit. Mirror it: warn and raise rather than reject so a
      * config written against stock xrootd semantics keeps working. */
     if (conf->echo > 0 && conf->echo < BRIX_PMARK_FIREFLY_ECHO_INTERVAL_US) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix_pmark_echo %M ms is below the 30s minimum; raised to 30s",
             conf->echo);
         conf->echo = BRIX_PMARK_FIREFLY_ECHO_INTERVAL_US;
@@ -124,7 +125,7 @@ brix_pmark_set_domain(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     } else if (ngx_strcmp(value[1].data, "remote") == 0) {
         pm->domain = BRIX_PMARK_DOMAIN_REMOTE;
     } else {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "invalid brix_pmark_domain \"%V\" (use any|local|remote)",
             &value[1]);
         return NGX_CONF_ERROR;
@@ -192,7 +193,7 @@ pmark_map_directive(ngx_conf_t *cf, void *conf, const pmark_map_desc_t *d)
         *(ngx_str_t *) (rule + d->name_off) = value[d->arms[i].nelts - 1];
         return NGX_CONF_OK;
     }
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "%s", d->usage);
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0, "%s", d->usage);
     return NGX_CONF_ERROR;
 }
 

@@ -54,7 +54,8 @@ void ngx_log_error_core(void) {}
 void ngx_pcalloc(void) {}
 void ngx_pnalloc(void) {}
 void ngx_snprintf(void) {}
-char ngx_http_brix_webdav_module;   /* data symbol, never read */
+_Alignas(8) unsigned char ngx_http_brix_webdav_module[512];
+                                      /* ngx_module_t stub, never read */
 
 /* ---- helpers -------------------------------------------------------------- */
 

@@ -29,6 +29,10 @@
 #include "core/compat/checksum.h"   /* brix_checksum_parse — verify-digest name */
 #include "core/compat/str_dup.h"    /* brix_pstrdupz */
 
+#ifndef BRIX_DEFAULT_CURL_PATH
+#define BRIX_DEFAULT_CURL_PATH "/usr/bin/curl"
+#endif
+
 void
 ngx_http_brix_webdav_tpc_create_loc_conf(
     ngx_http_brix_webdav_loc_conf_t *conf)
@@ -61,7 +65,7 @@ ngx_http_brix_webdav_tpc_merge_loc_conf(
      * (source_guard/source_allow) merged in ngx_http_brix_shared_merge
      * (common.*) — phase-101 W4. */
     ngx_conf_merge_str_value(conf->tpc_curl, prev->tpc_curl,
-                             "/usr/bin/curl");
+                             BRIX_DEFAULT_CURL_PATH);
     ngx_conf_merge_str_value(conf->tpc_cert, prev->tpc_cert, "");
     ngx_conf_merge_str_value(conf->tpc_key, prev->tpc_key, "");
     ngx_conf_merge_str_value(conf->tpc_cadir, prev->tpc_cadir, "");

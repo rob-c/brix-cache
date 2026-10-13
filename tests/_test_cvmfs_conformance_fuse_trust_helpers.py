@@ -413,8 +413,8 @@ def _repo_root() -> str:
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def _build_brixcvmfs() -> str | None:
-    """Compile the standalone brixcvmfs --check binary; None if deps missing."""
+def _compile_brixcvmfs() -> str | None:
+    """Compile the standalone fallback; return None if dependencies are absent."""
     global _BUILD_ERR
     root = _repo_root()
     if shutil.which("pkg-config") is None:
@@ -449,6 +449,20 @@ def _build_brixcvmfs() -> str | None:
         _BUILD_ERR = r.stderr.strip().splitlines()[-1] if r.stderr.strip() else "gcc failed"
         return None
     return out
+
+
+def _build_brixcvmfs() -> str | None:
+    """Return the production client, or compile a standalone fallback.
+
+    The trust matrix already requires ``make -C client`` for its archives.  A
+    successful client build also produces the real ``brixcvmfs`` multicall
+    personality; exercising that artifact avoids drifting from the Makefile's
+    Darwin FUSE ABI and Homebrew header/link flags.  Keep the source-assembled
+    fallback for minimal CI jobs that build archives without front ends.
+    """
+    production = os.path.join(_repo_root(), "client", "bin", "brixcvmfs")
+    return (production if os.path.isfile(production)
+            and os.access(production, os.X_OK) else _compile_brixcvmfs())
 
 
 # Re-export from split helpers

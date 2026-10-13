@@ -36,6 +36,11 @@ Requires: lizard, complexipy, radon  (all in requirements.txt)
 """
 
 from __future__ import annotations
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import argparse
 import os
@@ -51,7 +56,7 @@ except ModuleNotFoundError as error:  # pragma: no cover - CI-only path
     # Same failure mode check_complexity.py documents: the guard is committed,
     # its engine is not, and CI builds from a fresh clone. Name the cause, or a
     # bare traceback reads as "the guard is broken".
-    print(
+    _brix_diagnostic('ERROR', 'tools/ci/check_python_quality.py', 'main',
         f"check_python_quality: FAIL — {error.name} is missing "
         f"(engine: {ROOT / 'tests/python_quality_lib.py'}; "
         f"analyzers: pip install -r requirements.txt)",
@@ -75,9 +80,9 @@ def _samples(failed: list[str], limit: int) -> list[str]:
 def check(limit: int, root: Path) -> int:
     report = quality.score_repository(root)
     if report.errors:
-        print("check_python_quality: FAIL — metric analysis errored:", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_python_quality.py', 'check', "check_python_quality: FAIL — metric analysis errored:", file=sys.stderr)
         for error in report.errors:
-            print(f"  {error}", file=sys.stderr)
+            _brix_diagnostic('ERROR', 'tools/ci/check_python_quality.py', 'check', f"  {error}", file=sys.stderr)
         return 1
 
     failed = quality.violations(report.scores)
@@ -88,7 +93,7 @@ def check(limit: int, root: Path) -> int:
 
     for line in _samples(failed, limit):
         print(f"FAIL {line} — decompose it")
-    print(f"check_python_quality: FAIL ({len(failed)} limit(s) exceeded)", file=sys.stderr)
+    _brix_diagnostic('ERROR', 'tools/ci/check_python_quality.py', 'check', f"check_python_quality: FAIL ({len(failed)} limit(s) exceeded)", file=sys.stderr)
     return 1
 
 

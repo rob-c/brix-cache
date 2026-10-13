@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "ftp_ev.h"
 
 /*
@@ -27,7 +28,7 @@ static ngx_int_t
 ev_out_put(ftp_ev_t *fc, const u_char *data, size_t len)
 {
     if (len > BRIX_FTP_EV_OB_CAP - fc->ob_len) {
-        ngx_log_error(NGX_LOG_ERR, fc->c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, fc->c->log, 0,
                       "brix: GridFTP(ev) reply exceeds outbound buffer (%uz)",
                       len);
         return NGX_ERROR;

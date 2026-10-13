@@ -34,6 +34,7 @@ typedef struct {
     uint16_t     options;          /* req.options snapshot */
     ngx_flag_t   need_resolved;    /* fill out_resolved (any arm below is on)  */
     ngx_flag_t   do_stage;         /* kXR_stage: drive brix_vfs_recall (W6)    */
+    ngx_flag_t   do_fresh;         /* stage+fresh: evict before recall         */
     ngx_flag_t   do_evict;         /* kXR_evict: drive brix_vfs_evict (W6)     */
     ngx_flag_t   do_enqueue;       /* record into the durable FRM queue        */
     ngx_flag_t   collect_stage;    /* prepare_command configured (the fallback)*/
@@ -99,6 +100,8 @@ void brix_prepare_vfs_ctx(brix_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t brix_prepare_recall_one(brix_ctx_t *ctx, ngx_connection_t *c,
     prepare_scan_t *sc, char *out_resolved);
 ngx_int_t brix_prepare_evict_one(brix_ctx_t *ctx, ngx_connection_t *c,
+    prepare_scan_t *sc, char *out_resolved);
+ngx_int_t brix_prepare_accept_resolved(brix_ctx_t *ctx, ngx_connection_t *c,
     prepare_scan_t *sc, char *out_resolved);
 
 #endif /* BRIX_PREPARE_INTERNAL_H */

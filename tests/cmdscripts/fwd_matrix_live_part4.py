@@ -377,6 +377,8 @@ def _start_relay(run, context, origin_port, relay_port):
 
 
 def _exercise_relay(run, context, relay_port):
+    from log_records import semantic_log_text  # noqa: PLC0415
+
     payload = context["origin"] / "root/f.bin"
     payload.write_bytes(os.urandom(300000))
     got = run.root / "relay_a.got"
@@ -384,7 +386,8 @@ def _exercise_relay(run, context, relay_port):
               stdout_to=got, timeout=60)
     stat = _call([BRIX_XRDFS, f"root://{HOST}:{relay_port}", "stat", "/f.bin"], timeout=60)
     time.sleep(0.5)
-    relay_log = (context["relay"] / "logs/e.log").read_text(errors="replace")
+    relay_log = semantic_log_text(
+        (context["relay"] / "logs/e.log").read_text(errors="replace"))
     checks = _relay_checks(got, payload, stat, relay_log)
     return _print_relay_results(checks)
 

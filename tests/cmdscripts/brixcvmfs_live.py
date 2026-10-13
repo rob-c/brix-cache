@@ -32,7 +32,7 @@ from cmdscripts.c_regression_units import _gcov_flags
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, SERVER_HOST
 
-from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS, client_pal_host_sources
 from lib_py.fuse_host import FUSE_READY, SKIP_REASON as FUSE_SKIP_REASON
 
 _PORTS = cmdscript_ports("brixcvmfs_live")
@@ -251,6 +251,7 @@ def _link_dependencies(frontends, includes, sources):
         return _prepare_umbrella_dependencies(includes, sources)
     _extend_unique(includes, ("client/lib", "src"))
     _extend_unique(sources, CPOOL_STANDALONE_DEPS)
+    _extend_unique(sources, client_pal_host_sources("posix"))
     return ["-DXRDPROTO_NO_NGX"], [], []
 
 

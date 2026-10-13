@@ -196,9 +196,10 @@ class _RegistryLauncherMixinB:
     def stop(self, name: str) -> None:
         _launcher_stop(self, name, globals())
 
-    @staticmethod
-    def _reap_orphan_nginx_workers(spec: NginxInstanceSpec) -> None:
-        _launcher_reap_workers(spec, declared_ports)
+    def _reap_orphan_nginx_workers(self, spec: NginxInstanceSpec) -> None:
+        _launcher_reap_workers(
+            spec, declared_ports, getattr(self, "_teardown_listeners", None),
+        )
 
     def reload(self, name: str, check: bool = True) -> subprocess.CompletedProcess:
         return self._signal(name, "reload", check=check)

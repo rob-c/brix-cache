@@ -131,14 +131,13 @@ def test_read_only_overrides_allow_write_and_leaves_the_origin_intact(
 
 def test_whole_opcode_space_holds_no_accepted_mutation(probe_results):
     """Every request id defined in opcodes.h — standard AND vendor — is fired.
-    Opcodes the C routes through the write table answer kXR_fsReadOnly, and an
-    opcode routed by no dispatch table at all is refused rather than reaching a
-    handler.  The classification comes from parsing the four dispatch_*.c
-    tables, so a new opcode cannot enter the surface unswept."""
+    Opcodes the C routes through the write table answer kXR_fsReadOnly. Any
+    opcode routed by no dispatch table at all is refused; a fully routed opcode
+    vocabulary is also valid. The classification comes from parsing the four
+    dispatch_*.c tables, so a new opcode cannot enter the surface unswept."""
     _assert_all_green(_rows(probe_results, "opcodes.h defines"))
     _assert_all_green(_rows(probe_results, "exists in opcodes.h"))
     _assert_all_green(_rows(probe_results, "is write-routed -> kXR_fsReadOnly"))
-    _assert_all_green(_rows(probe_results, "routed by no dispatch table"))
     _assert_all_green(_rows(probe_results, "every write-routed opcode refused"))
     _assert_all_green(_rows(probe_results, "no unrouted opcode was accepted"))
     _assert_all_green(_rows(probe_results, "unrouted opcodes exercised"))

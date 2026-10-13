@@ -71,6 +71,15 @@
 #include <openssl/bn.h>
 #include <openssl/ec.h>
 
+/* OpenSSL 4 const-qualified borrowed extension accessors.  Older releases
+ * expose the same borrowed object through a mutable pointer and require that
+ * type when it is passed to their read-only extension helpers. */
+#if OPENSSL_VERSION_NUMBER >= 0x40000000L
+typedef const X509_EXTENSION brix_x509_extension_view_t;
+#else
+typedef X509_EXTENSION brix_x509_extension_view_t;
+#endif
+
 /* Free an EVP_PKEY (NULL-safe, no-op on NULL). Caller's pointer is not nulled;
  * the slot stays dangling, so use only at a one-shot cleanup label. */
 static inline void brix_evp_pkey_free(EVP_PKEY *p)

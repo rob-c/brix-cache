@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "ftp_ev.h"
 
 #include "protocols/gridftp/ftp_dc_sec.h"
@@ -51,7 +52,7 @@ brix_ftp_ev_tls_verify(ftp_ev_t *fc, ngx_connection_t *c)
     brix_ftp_dc_sec_t sec;
 
     if (!c->ssl->handshaked) {
-        ngx_log_error(NGX_LOG_ERR, fc->c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, fc->c->log, 0,
                       "brix: GridFTP(ev) PROT P data-channel handshake failed");
         return NGX_ERROR;
     }
@@ -74,7 +75,7 @@ brix_ftp_ev_tls_begin(ftp_ev_t *fc, ngx_connection_t *c, ngx_pool_t **poolp,
     ngx_int_t          rc;
 
     if (fc->conf->tls_ctx == NULL) {
-        ngx_log_error(NGX_LOG_ERR, fc->c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, fc->c->log, 0,
                       "brix: GridFTP(ev) PROT P requested but no server TLS "
                       "context configured");
         return NGX_ERROR;
@@ -92,7 +93,7 @@ brix_ftp_ev_tls_begin(ftp_ev_t *fc, ngx_connection_t *c, ngx_pool_t **poolp,
     flags = tls_client ? NGX_SSL_CLIENT : 0;
 
     if (ngx_ssl_create_connection(fc->conf->tls_ctx, c, flags) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, fc->c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, fc->c->log, 0,
                       "brix: GridFTP(ev) data-channel ngx_ssl_create_connection "
                       "failed");
         return NGX_ERROR;

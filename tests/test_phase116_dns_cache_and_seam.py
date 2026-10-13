@@ -43,6 +43,11 @@ GUARD = REPO / "tools" / "ci" / "check_dns_seam.py"
 MANAGER = "manager.lab.test"
 
 
+def _require_git_checkout():
+    if not (REPO / ".git").exists():
+        pytest.skip("tracked-file census requires a Git checkout")
+
+
 def _guard():
     spec = importlib.util.spec_from_file_location("check_dns_seam", GUARD)
     mod = importlib.util.module_from_spec(spec)
@@ -396,6 +401,7 @@ def test_every_suffix_the_scanned_trees_carry_is_scanned_or_named():
     """A census, not a sample: if a new language lands under a scanned tree,
     it must either be scanned or be named non-source here deliberately.  Silence about .cpp is what let the ceph apps ship
     unguarded.  Tracked files only, so a dirty build tree cannot skew it."""
+    _require_git_checkout()
     guard = _guard()
     tracked = subprocess.run(["git", "ls-files", *guard.SCAN_DIRS],
                              cwd=REPO, capture_output=True, text=True, check=True)
@@ -448,6 +454,7 @@ def test_the_guard_reads_the_standalone_tools_too(tmp_path):
 
 def _tracked_files() -> list[str]:
     """Every path git tracks, so a build tree cannot skew a census."""
+    _require_git_checkout()
     out = subprocess.run(["git", "ls-files"], cwd=REPO,
                          capture_output=True, text=True, check=True)
     return out.stdout.split()

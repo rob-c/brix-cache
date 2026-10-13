@@ -13,6 +13,7 @@
  *   "<id>@<host> grant|deny <op> <path>" with control/quote bytes escaped.
  */
 
+#include "core/compat/log_event.h"
 #include "core/types/tunables.h"
 #include "acc.h"
 
@@ -62,7 +63,7 @@ brix_acc_audit(ngx_log_t *log, ngx_uint_t level, int granted,
     acc_audit_sanitize(hostbuf, sizeof(hostbuf), host);
     acc_audit_sanitize(pathbuf, sizeof(pathbuf), path);
 
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                   "xrootd authz: %s@%s %s %s \"%s\"",
                   idbuf, hostbuf, granted ? "grant" : "deny",
                   (op != NULL) ? op : "?", pathbuf);

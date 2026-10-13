@@ -21,6 +21,7 @@
  *      array after a complete parse, and always preserves the old set on error.
  */
 
+#include "core/compat/log_event.h"
 #include "core/config/config.h"
 #include "token.h"
 
@@ -49,7 +50,7 @@ brix_token_jwks_try_reload(brix_jwks_refresh_runtime_t *runtime,
     int                new_count;
 
     if (stat((const char *) spec->path.data, &st) != 0) {
-        ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                       "brix: JWKS stat failed for \"%s\" — will retry",
                       spec->path.data);
         return;
@@ -63,7 +64,7 @@ brix_token_jwks_try_reload(brix_jwks_refresh_runtime_t *runtime,
                                  (const char *) spec->path.data,
                                  new_keys, BRIX_MAX_JWKS_KEYS);
     if (new_count <= 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: JWKS reload from \"%s\" returned %d keys "
                       "— keeping old keys",
                       spec->path.data, new_count);
@@ -77,7 +78,7 @@ brix_token_jwks_try_reload(brix_jwks_refresh_runtime_t *runtime,
     *spec->key_count = new_count;
     spec->mtime = st.st_mtime;
 
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                   "brix: JWKS refreshed from \"%s\" — %d key(s) loaded",
                   spec->path.data, new_count);
 }
@@ -128,7 +129,7 @@ brix_token_jwks_schedule(ngx_cycle_t *cycle,
 
     runtime = ngx_pcalloc(cycle->pool, sizeof(*runtime));
     if (runtime == NULL) {
-        ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, cycle->log, 0,
                       "brix: failed to allocate JWKS refresh timer");
         return NGX_ERROR;
     }
@@ -141,7 +142,7 @@ brix_token_jwks_schedule(ngx_cycle_t *cycle,
 
     ngx_add_timer(&runtime->event, runtime->spec.interval);
 
-    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
                   "brix: JWKS refresh timer started — interval=%Mms path=\"%s\"",
                   runtime->spec.interval, runtime->spec.path.data);
     return NGX_OK;
@@ -160,7 +161,7 @@ brix_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
     spec.mtime = conf->jwks_mtime;
     spec.interval = conf->common.token_jwks_refresh_interval;
     if (brix_token_jwks_schedule(cycle, &spec) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, cycle->log, 0,
                       "brix: JWKS refresh timer was not started");
     }
 }

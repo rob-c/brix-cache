@@ -1,0 +1,108 @@
+name: native packages
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  deb:
+    name: ${{ matrix.distro }} ARM64 debs
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [ubuntu24, ubuntu26]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build distro-nginx packages
+        run: packaging/deb/build-deb-container.sh -d "${{ matrix.distro }}" -f distro -o "dist/${{ matrix.distro }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: brix-cache-${{ matrix.distro }}-arm64
+          path: dist/${{ matrix.distro }}/*.deb
+      - name: Attach packages to the GitHub release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/${{ matrix.distro }}/*.deb --clobber
+
+  rpm:
+    name: ${{ matrix.distro }} ARM64 RPMs
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - alma8
+          - alma9
+          - alma10
+          - fedora43
+          - fedora44
+          - fedora-rawhide
+          - centos-stream9
+          - centos-stream10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build native-repository packages
+        run: packaging/rpm/build-rpm-container.sh -d "${{ matrix.distro }}" -o "dist/${{ matrix.distro }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: brix-cache-${{ matrix.distro }}-arm64
+          path: dist/${{ matrix.distro }}/*.rpm
+      - name: Create a collision-free release bundle
+        if: github.event_name == 'release'
+        run: |
+          tar -C "dist/${{ matrix.distro }}" -czf \
+            "../brix-cache-${{ matrix.distro }}-arm64.tar.gz" .
+          pushd dist
+          sha256sum "brix-cache-${{ matrix.distro }}-arm64.tar.gz" > \
+            "brix-cache-${{ matrix.distro }}-arm64.tar.gz.sha256"
+          popd
+      - name: Attach packages to the GitHub release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            "dist/brix-cache-${{ matrix.distro }}-arm64.tar.gz" \
+            "dist/brix-cache-${{ matrix.distro }}-arm64.tar.gz.sha256" --clobber
+
+  nix:
+    name: NixOS 26.05 ARM64 packages
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - name: Evaluate and build the pinned flake
+        run: |
+          docker run --rm -v "$PWD:/src:ro" -w /src nixos/nix:2.32.1 \
+            --extra-experimental-features "nix-command flakes" \
+            flake check path:/src --print-build-logs
+
+  homebrew:
+    name: macOS ARM64 Homebrew bottle
+    runs-on: macos-14
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build dependencies
+        run: brew install brotli krb5 lz4 openssl@3 pkgconf xz zstd
+      - name: Build and test bottle
+        env:
+          BRIX_HOMEBREW_LOCAL_SOURCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
+        run: packaging/homebrew/build-bottle.sh "${{ github.event.release.tag_name || 'v2.0.0' }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: brix-cache-homebrew-arm64
+          path: dist/homebrew/*
+      - name: Attach bottle and formula to the GitHub release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/homebrew/* --clobber

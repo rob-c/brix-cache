@@ -20,6 +20,7 @@
  *       read/write is memory-served (no kernel fd).
  */
 
+#include "core/compat/log_event.h"
 #include "sd_xroot_internal.h"    /* obj_state + origin_open_req_t + machinery */
 #include "fs/cache/verify.h"      /* brix_pgverify_mode_e — the store-line policy */
 
@@ -172,7 +173,7 @@ xroot_read_range(sd_xroot_obj_state *st, const sd_xroot_inst_state *is,
         brix_cache_set_error(st->t, kXR_Unsupported, 0,
             "origin cannot page-read (kXR_pgread) and the store line says "
             "verify_pages=require");
-        ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, ngx_cycle->log, 0,
             "brix: refusing to read from origin %s unverified — it cannot "
             "page-read (kXR_pgread) and the store line says "
             "verify_pages=require", is->host);
@@ -180,7 +181,7 @@ xroot_read_range(sd_xroot_obj_state *st, const sd_xroot_inst_state *is,
     }
 
     st->pgread_off = 1;
-    ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
+    BRIX_LOG(NGX_LOG_WARN, ngx_cycle->log, 0,
         "brix: origin %s cannot page-read (kXR_pgread); verify_pages is "
         "best-effort, so this object falls back to unverified kXR_read",
         is->host);

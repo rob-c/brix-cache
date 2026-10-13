@@ -36,6 +36,9 @@ def _touch_all(paths):
             os.makedirs(os.path.dirname(value), exist_ok=True)
             with open(value, "w", encoding="utf-8") as fh:
                 fh.write("x")
+    crl = os.path.join(paths["CA_DIR"], "test-user.crl.pem")
+    with open(crl, "w", encoding="utf-8") as fh:
+        fh.write("crl")
 
 
 def test_a_complete_pki_is_left_alone(private_pki):
@@ -64,6 +67,17 @@ def test_a_certificate_without_its_key_is_not_complete(private_pki):
     paths, calls = private_pki
     _touch_all(paths)
     os.unlink(paths["CA_KEY"])
+    assert not pki.test_pki_complete()
+    assert pki.ensure_test_pki() is True
+    assert calls == ["blitz"]
+
+
+def test_a_pki_without_its_revocation_list_is_not_complete(private_pki):
+    """Security-negative: accepting a CRL-less tree would silently disable
+    revocation checks and leaves the registered CRL endpoint unable to start."""
+    paths, calls = private_pki
+    _touch_all(paths)
+    os.unlink(os.path.join(paths["CA_DIR"], "test-user.crl.pem"))
     assert not pki.test_pki_complete()
     assert pki.ensure_test_pki() is True
     assert calls == ["blitz"]

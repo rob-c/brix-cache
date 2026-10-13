@@ -33,7 +33,7 @@ ssize_t httpx_read_some(brix_io *io, void *buf, size_t n, int timeout_ms, brix_s
 
 /* http.c */
 int ci_contains(const char *hay, const char *needle);
-size_t dechunk(char *b, size_t len);
+int dechunk(char *body, size_t length, size_t *plain_length);
 void httpx_parse(char *buf, size_t total, brix_http_resp *resp);
 
 /* http_req.c */

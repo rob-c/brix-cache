@@ -21,6 +21,7 @@
 #ifndef BRIX_FS_BACKEND_CRED_MINT_INTERNAL_H
 #define BRIX_FS_BACKEND_CRED_MINT_INTERNAL_H
 
+#include "core/compat/log_event.h"
 #include "cred_mint.h"
 
 #include <openssl/evp.h>
@@ -35,7 +36,7 @@
  *       has no nginx log cycle available and passes NULL — guard every call
  *       site rather than change ngx_log_error's own contract. */
 #define MINT_LOG(level, log, err, ...) \
-    do { if ((log) != NULL) { ngx_log_error(level, log, err, __VA_ARGS__); } } while (0)
+    do { if ((log) != NULL) { BRIX_LOG(level, log, err, __VA_ARGS__); } } while (0)
 
 /* ---- mint_ca_t / mint_material_t -----------------------------------------
  * WHAT: mint_ca_t bundles the loaded mint-CA cert+key (the signer);

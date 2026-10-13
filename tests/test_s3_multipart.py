@@ -117,6 +117,35 @@ class TestMultipartUploadLifecycle:
         assert r.status_code == 200
         assert r.content == data
 
+    def test_upload_part_skips_put_object_preconditions(self, s3_url):
+        key = f"mpu_part_condition_{uuid.uuid4().hex}.bin"
+        upload_id = _initiate(s3_url, key)
+        url = (f"{_obj_url(s3_url, key)}?partNumber=1"
+               f"&uploadId={upload_id}")
+
+        r = requests.put(
+            url, data=b"conditional-part",
+            headers={"If-Match": '"put-object-precondition-must-not-run"'},
+            timeout=10)
+
+        assert r.status_code == 200, r.text
+
+    def test_incomplete_upload_part_keeps_put_object_preconditions(self, s3_url):
+        key = f"mpu_incomplete_condition_{uuid.uuid4().hex}.bin"
+        object_url = _obj_url(s3_url, key)
+        r = requests.put(object_url, data=b"existing", timeout=10)
+        assert r.status_code == 200, r.text
+
+        r = requests.put(
+            f"{object_url}?uploadId={'a' * 24}", data=b"replacement",
+            headers={"If-Match": '"definitely-not-the-current-etag"'},
+            timeout=10)
+
+        assert r.status_code == 412, r.text
+        r = requests.get(object_url, timeout=10)
+        assert r.status_code == 200
+        assert r.content == b"existing"
+
     def test_overwrite_existing_object(self, s3_url):
         """CompleteMultipartUpload must atomically replace an existing object."""
         key = f"mpu_overwrite_{uuid.uuid4().hex}.bin"
@@ -223,6 +252,22 @@ class TestMultipartUploadNegative:
                f"?partNumber=../../etc/passwd&uploadId={upload_id}")
         r = requests.put(url, data=b"data", timeout=10)
         assert r.status_code == 400
+
+    def test_malformed_upload_part_cannot_overwrite_object(self, s3_url):
+        key = f"mpu_malformed_no_overwrite_{uuid.uuid4().hex}.bin"
+        object_url = _obj_url(s3_url, key)
+        r = requests.put(object_url, data=b"original", timeout=10)
+        assert r.status_code == 200, r.text
+        upload_id = _initiate(s3_url, key)
+
+        r = requests.put(
+            f"{object_url}?partNumber=invalid&uploadId={upload_id}",
+            data=b"replacement", timeout=10)
+
+        assert r.status_code == 400, r.text
+        r = requests.get(object_url, timeout=10)
+        assert r.status_code == 200
+        assert r.content == b"original"
 
     def test_invalid_upload_id_rejected_on_abort(self, s3_url):
         """An uploadId containing non-hex characters must return 400."""

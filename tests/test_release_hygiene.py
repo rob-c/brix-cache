@@ -28,6 +28,8 @@ CHANGELOG = ROOT / "docs/10-reference/CHANGELOG.md"
 SECURITY = ROOT / "SECURITY.md"
 BUG_REPORT = ROOT / ".github/ISSUE_TEMPLATE/bug_report.yml"
 RELEASE_DOC = ROOT / "docs/09-developer-guide/release-process.md"
+HOMEBREW_FORMULA = ROOT / "Formula/brix-cache.rb"
+NIX_PACKAGE = ROOT / "packaging/nix/package.nix"
 
 
 @pytest.fixture(scope="module")
@@ -73,6 +75,20 @@ def test_changelog_top_entry_is_this_version(version: str) -> None:
     entries = re.findall(r"^##\s+v(\d+(?:\.\d+)*)\b", CHANGELOG.read_text(), re.M)
     assert entries, "docs/10-reference/CHANGELOG.md has no '## vX.Y.Z' entries"
     assert entries[0] == version
+
+
+def test_homebrew_formula_tag_matches_ident(version: str) -> None:
+    text = HOMEBREW_FORMULA.read_text()
+    assert f'tag: "v{version}"' in text, (
+        f"Homebrew formula does not build v{version} from the release tag"
+    )
+
+
+def test_nix_package_matches_ident(version: str) -> None:
+    text = NIX_PACKAGE.read_text()
+    assert re.search(rf'^\s*version\s*=\s*"{re.escape(version)}"\s*;', text, re.M), (
+        f"Nix package does not identify itself as {version}"
+    )
 
 
 def test_changelog_covers_the_shipped_history() -> None:

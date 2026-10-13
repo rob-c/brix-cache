@@ -6,6 +6,7 @@
  * §7.12) owns its own TU now that the query-code and cksum verbs share the
  * sibling file. Behaviour-identical to the pre-split code.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdfs_internal.h"
 
 /* xattr ls|get|set|rm — extended attributes via kXR_fattr (client/lib/fattr.c).
@@ -79,7 +80,7 @@ xattr_get(brix_conn *c, const char *path, int argc, char **argv)
     if (argc < 4) { fprintf(stderr, "usage: xattr get <path> <name>\n"); return 50; }
     brix_status_clear(&st);
     if (brix_fattr_get(c, path, argv[3], val, sizeof(val), &vlen, &st) != 0) {
-        fprintf(stderr, "xrdfs: xattr get %s [%s]: %s\n", path, argv[3], st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: xattr get %s [%s]: %s\n", path, argv[3], st.msg);
         return brix_shellcode(&st);
     }
     fwrite(val, 1, vlen < sizeof(val) ? vlen : sizeof(val), stdout);
@@ -108,7 +109,7 @@ xattr_set(brix_conn *c, const char *path, int argc, char **argv)
     if (argc < 5) { fprintf(stderr, "usage: xattr set <path> <name> <value>\n"); return 50; }
     brix_status_clear(&st);
     if (brix_fattr_set(c, path, argv[3], argv[4], strlen(argv[4]), 0, &st) != 0) {
-        fprintf(stderr, "xrdfs: xattr set %s [%s]: %s\n", path, argv[3], st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: xattr set %s [%s]: %s\n", path, argv[3], st.msg);
         return brix_shellcode(&st);
     }
     return 0;
@@ -134,7 +135,7 @@ xattr_rm(brix_conn *c, const char *path, int argc, char **argv)
     if (argc < 4) { fprintf(stderr, "usage: xattr rm <path> <name>\n"); return 50; }
     brix_status_clear(&st);
     if (brix_fattr_del(c, path, argv[3], &st) != 0) {
-        fprintf(stderr, "xrdfs: xattr rm %s [%s]: %s\n", path, argv[3], st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: xattr rm %s [%s]: %s\n", path, argv[3], st.msg);
         return brix_shellcode(&st);
     }
     return 0;
@@ -192,7 +193,7 @@ xattr_stock_form(brix_conn *c, const char *path, int argc, char **argv)
         char *eq = strchr(argv[3], '=');
 
         if (eq == NULL) {
-            fprintf(stderr, "xrdfs: xattr set: expected name=value, got '%s'\n",
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: xattr set: expected name=value, got '%s'\n",
                     argv[3]);
             return 50;
         }

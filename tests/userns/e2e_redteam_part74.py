@@ -297,7 +297,8 @@ def _rt74_inbound_6_decompression_bomb_deflate_into(rel_bz, port, ta, BOMB_GZ, g
         ok(any((sbz == 413, 400 <= sbz < 500)),
            "BOMB gzip PUT (alice, ratio>1000) REJECTED by the bomb guard with a 4xx "
            "(413 preferred) (HTTP %s)" % sbz)
-        ok(any((not exists(disk_bz), os.stat(disk_bz).st_size < len(BOMB_RAW))),
+        ok(_rt_missing_or_stat(
+            disk_bz, lambda meta: meta.st_size < len(BOMB_RAW)),
            "BOMB gzip PUT commits NO full %d-byte decompressed object (no disk "
            "exhaustion)" % len(BOMB_RAW))
         ok(not exists(disk_bz),
@@ -383,7 +384,8 @@ def _rt74_s3_bomb_into_alice_s_own(has_staged_orphan, bobsecret_dir, svc_root_ar
 
 
 def _rt74_segment_04_2(sb, exists, s3bdisk, BOMB_RAW, has_staged_orphan, alice_dir):
-    ok(all((sb >= 400, any((not exists(s3bdisk), os.stat(s3bdisk).st_size < len(BOMB_RAW))))),
+    ok(all((sb >= 400, _rt_missing_or_stat(
+        s3bdisk, lambda meta: meta.st_size < len(BOMB_RAW)))),
        "S3 BOMB gzip PUT (alice) REJECTED 4xx + no full decompressed object "
        "(HTTP %s)" % sb)
     ok(not has_staged_orphan(alice_dir),
@@ -404,7 +406,8 @@ def _rt74_when_s3port(data, exists, s3port, gz, PLAIN, body_of, uid_of, has_stag
 def _rt74_inbound_7_s3_cross_protocol_decode(rel_bd, port, ta, BOMB_DF, exists, disk_bd, BOMB_RAW, has_staged_orphan, alice_dir, s3port, data, gz, PLAIN, body_of, uid_of, bobsecret_dir, svc_root_artifact, BOMB_GZ):
     sbd, _ = http("PUT", "/" + rel_bd, port, ta, BOMB_DF,
                   hdrs={"Content-Encoding": "deflate"})
-    ok(all((sbd >= 400, any((not exists(disk_bd), os.stat(disk_bd).st_size < len(BOMB_RAW))))),
+    ok(all((sbd >= 400, _rt_missing_or_stat(
+        disk_bd, lambda meta: meta.st_size < len(BOMB_RAW)))),
        "BOMB deflate PUT (alice, ratio>1000) REJECTED 4xx + no full decompressed object "
        "committed (HTTP %s)" % sbd)
     ok(not has_staged_orphan(alice_dir),

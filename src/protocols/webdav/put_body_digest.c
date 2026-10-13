@@ -9,6 +9,7 @@
  * in put_body.c.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "core/http/etag.h"
 #include "core/http/http_body.h"
@@ -171,7 +172,7 @@ webdav_put_verify_ingest_digest(ngx_http_request_t *r,
     }
 
     if (!webdav_hex_norm_equal(exp_hex, info.hex)) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
             "brix_webdav: PUT ingest %s digest mismatch (asserted=%s got=%s)",
             alg, exp_hex, info.hex);
         brix_log_safe_path(r->connection->log, NGX_LOG_ERR, 0,

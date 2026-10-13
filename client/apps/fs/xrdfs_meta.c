@@ -2,6 +2,7 @@
  * xrdfs_meta.c - stat / locate / cache / space queries
  * Phase-38 split of xrdfs.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdfs_internal.h"
 
 
@@ -114,7 +115,7 @@ stat_one_path(brix_conn *c, const char *cwd, const char *arg, int json,
         int q = stat_query_eval(query, si.flags);
 
         if (q < 0) {
-            fprintf(stderr, "xrdfs: stat: unknown -q flag in '%s' "
+            BRIX_CLIENT_LOG("ERROR",  "xrdfs: stat: unknown -q flag in '%s' "
                     "(XBitSet, IsDir, Other, Offline, POSCPending, "
                     "IsReadable, IsWriteable)\n", query);
             return -1;
@@ -383,7 +384,7 @@ do_spaceinfo(brix_conn *c, const char *cwd, int argc, char **argv)
         const char *hit = strstr(reply, keys[k]);
 
         if (hit == NULL) {
-            fprintf(stderr, "xrdfs: spaceinfo: server reply lacks %s\n",
+            BRIX_CLIENT_LOG("INFO",  "xrdfs: spaceinfo: server reply lacks %s\n",
                     keys[k]);
             return 54;
         }

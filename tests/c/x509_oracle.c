@@ -153,7 +153,15 @@ load_crls(X509_STORE *store, const char *cadir)
             && ent->d_name[n - 1] >= '0' && ent->d_name[n - 1] <= '9')
         {
             char path[4096];
-            snprintf(path, sizeof(path), "%s/%s", cadir, ent->d_name);
+            size_t cadir_len = strlen(cadir);
+            if (cadir_len >= sizeof(path) - 1
+                || n > sizeof(path) - cadir_len - 2)
+            {
+                continue;
+            }
+            memcpy(path, cadir, cadir_len);
+            path[cadir_len] = '/';
+            memcpy(path + cadir_len + 1, ent->d_name, n + 1);
             FILE *fp = fopen(path, "r");
             X509_CRL *crl;
             if (fp == NULL) {

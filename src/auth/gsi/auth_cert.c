@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "gsi_internal.h"
 #include "delegation.h"
 #include "protocols/root/session/registry.h"
@@ -42,7 +43,7 @@ gsi_promote_fullproxy(brix_ctx_t *ctx, ngx_connection_t *c)
 
     /* (1) TLS-only: a full proxy carries a private key; never over cleartext. */
     if (c->ssl == NULL) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI full-proxy passthrough rejected: "
                       "supplied over cleartext (roots:// required)");
         return NGX_ERROR;
@@ -63,7 +64,7 @@ gsi_promote_fullproxy(brix_ctx_t *ctx, ngx_connection_t *c)
     if (leaf == NULL || key == NULL) {
         X509_free(leaf);
         brix_evp_pkey_free(key);
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI full-proxy passthrough rejected: "
                       "PEM missing cert chain or private key");
         return NGX_ERROR;
@@ -80,7 +81,7 @@ gsi_promote_fullproxy(brix_ctx_t *ctx, ngx_connection_t *c)
     X509_free(leaf);
 
     if (!dn_ok) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI full-proxy passthrough rejected: "
                       "supplied proxy identity does not match authenticated DN");
         return NGX_ERROR;
@@ -103,7 +104,7 @@ gsi_promote_fullproxy(brix_ctx_t *ctx, ngx_connection_t *c)
     ctx->gsi.client_fullproxy_pem = NULL;
     ctx->gsi.client_fullproxy_len = 0;
 
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "brix: GSI full-proxy passthrough accepted for backend "
                   "delegation (identity verified)");
     return NGX_OK;
@@ -185,7 +186,7 @@ gsi_cert_capture_dn(brix_ctx_t *ctx, ngx_connection_t *c,
                     const brix_gsi_verify_result_t *verify_res)
 {
     if (strlen(verify_res->dn_buf) >= sizeof(ctx->login.dn)) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI DN too long (%uz bytes), truncating to %uz; "
                       "VO ACL rules may not match correctly",
                       strlen(verify_res->dn_buf), sizeof(ctx->login.dn) - 1);
@@ -249,7 +250,7 @@ gsi_cert_extract_voms(brix_ctx_t *ctx, ngx_connection_t *c,
         char vo_log[256];
 
         brix_sanitize_log_string(ctx->login.vo_list, vo_log, sizeof(vo_log));
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                       "brix: VOMS VO membership: %s", vo_log);
     }
 }

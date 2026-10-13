@@ -77,6 +77,11 @@ _ADDED_SINCE_MOVE = {
     "_pki_material", "ensure_test_pki", "test_pki_complete",
 }
 
+# The destructive entry point was retained for callers that explicitly need a
+# fresh CA, but now delegates material creation through the same hardened path
+# as ensure_test_pki().  Pin the one reviewed post-move edit in both directions.
+_CHANGED_SINCE_MOVE = {"blitz_test_pki"}
+
 
 def _probe(code: str, env: dict | None = None) -> str:
     """Run a snippet the way the six string call sites do: a bare subprocess."""
@@ -117,8 +122,10 @@ def test_every_definition_moved_verbatim():
     assert set(old) - set(new) == set(), f"dropped in the move: {set(old)-set(new)}"
     undeclared = set(new) - set(old) - _ADDED_SINCE_MOVE
     assert undeclared == set(), f"undeclared additions: {undeclared}"
-    differing = [n for n in old if old[n] != new[n]]
-    assert differing == [], f"bodies changed in the move: {differing}"
+    differing = {n for n in old if old[n] != new[n]}
+    assert differing == _CHANGED_SINCE_MOVE, (
+        f"post-move body ledger drift: {differing ^ _CHANGED_SINCE_MOVE}"
+    )
     assert len(old) == 7
 
 

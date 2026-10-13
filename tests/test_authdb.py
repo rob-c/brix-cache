@@ -174,6 +174,9 @@ def authdb_setup():
                    "hostcidr", "hostdeny"):
         path = os.path.join(AUTHDB_DATA, subdir)
         os.makedirs(path, exist_ok=True)
+        # The packaged nginx worker is unprivileged.  AuthDB, rather than the
+        # backing directory's owner bits, must decide the positive write case.
+        os.chmod(path, 0o777 if subdir == "private" else 0o755)
         with open(os.path.join(path, "seed.txt"), "w") as f:
             f.write(f"seed in {subdir}\n")
 

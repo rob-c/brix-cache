@@ -85,8 +85,8 @@ pxr_parent_pathlen(X509 *parent)
     int i;
 
     for (i = 0; i < n; i++) {
-        X509_EXTENSION *e = X509_get_ext(parent, i);
-        char            oid[128];
+        brix_x509_extension_view_t *e = X509_get_ext(parent, i);
+        char                        oid[128];
         int             is_new, is_old;
 
         OBJ_obj2txt(oid, sizeof(oid), X509_EXTENSION_get_object(e), 1);
@@ -122,9 +122,9 @@ pxr_copy_parent_exts(X509 *parent, STACK_OF(X509_EXTENSION) *dst)
     int i;
 
     for (i = 0; i < n; i++) {
-        X509_EXTENSION *e = X509_get_ext(parent, i);
-        char            oid[128];
-        X509_EXTENSION *dup;
+        brix_x509_extension_view_t *e = X509_get_ext(parent, i);
+        char                        oid[128];
+        X509_EXTENSION             *dup;
 
         OBJ_obj2txt(oid, sizeof(oid), X509_EXTENSION_get_object(e), 1);
         if (strcmp(oid, GSI_SUBJ_ALT_NAME_OID) == 0

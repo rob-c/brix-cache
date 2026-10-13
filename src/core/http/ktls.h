@@ -23,6 +23,7 @@
  *       this helper only touches the SSL_CTX it is handed).
  */
 
+#include "core/compat/log_event.h"
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <openssl/ssl.h>
@@ -35,7 +36,7 @@ brix_http_ktls_enable_ctx(SSL_CTX *ctx, ngx_log_t *log, ngx_str_t *server_name)
         return;
     }
     SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                   "brix: kernel-TLS (kTLS) requested on SSL context for server "
                   "%V (brix_ktls on - opt-in, HW-offload-only; software kTLS "
                   "regresses) - engages per-connection when the negotiated "

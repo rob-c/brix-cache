@@ -5,10 +5,8 @@
 def _rt47_f_auth_failure_then_recovery_on(pc_e, st_uid, apath, TAG, key, rm_quiet, ta, port, exists):
     ok(all((pc_e[0] in (200, 201, 204), st_uid(apath(f'{TAG}e_single.txt')) == UID_ALICE)),
        f"(e) positive control: single alice credential creates alice file (HTTP {pc_e[0]})")
-    _combo_connection_state_identity_p6(port, rm_quiet, exists, ta, tb, statuses, tc, key, TAG, apath, cpath, data, st_uid, H, a_secret, bpath)
 
 
-def _combo_connection_state_identity_p6(port, rm_quiet, exists, ta, tb, statuses, tc, key, TAG, apath, cpath, data, st_uid, H, a_secret, bpath):
     # ========================================================================
     # (f) AUTH-FAILURE then RECOVERY on the SAME conn: a forged/expired token request
     #     (rejected), immediately followed by a VALID alice request on the same TCP
@@ -59,10 +57,8 @@ def _rt47_a_webdav_get_on_a_collection(exp, ta, port, TAG):
     # the canonical clean status for a directory GET.
     ok(rfx[1][0] in (200, 207, 301, 403, 404),
        f"(f) valid alice dirlist after forged-bob-attempt handled cleanly (HTTP {rfx[1][0]})")
-    _combo_connection_state_identity_p7(rm_quiet, port, exists, ta, tb, statuses, tc, TAG, apath, cpath, data, st_uid, H, a_secret, bpath)
 
 
-def _combo_connection_state_identity_p7(rm_quiet, port, exists, ta, tb, statuses, tc, TAG, apath, cpath, data, st_uid, H, a_secret, bpath):
     # ========================================================================
     # (g) METHOD-SWITCHING identity chain on ONE conn: alice CREATEs a 0600 file ->
     #     bob tries to READ it -> carol tries to DELETE it -> alice MOVEs it.  Each
@@ -142,10 +138,8 @@ def _rt47_carol_s_delete_on_alice_s(rg, exists, apath, chain, chain_dst, st_uid,
     else:
         ok(exists(apath(chain)),
            "(g) MOVE not applied -> original alice file intact (no destructive cross-step)")
-    _combo_connection_state_identity_p8(rm_quiet, port, exists, ta, tb, statuses, tc, TAG, cpath, data, st_uid, H, a_secret, apath, bpath)
 
 
-def _combo_connection_state_identity_p8(rm_quiet, port, exists, ta, tb, statuses, tc, TAG, cpath, data, st_uid, H, a_secret, apath, bpath):
     # ========================================================================
     # (h) CONN with VALID alice cred but PUT targeting carol's home (cross-tenant
     #     write), then a legit alice PUT in alice's home — both on one conn.  The
@@ -182,10 +176,8 @@ def _rt47_the_deny_is_what_matters_alice(rm_quiet, cpath, cross_w, ta, TAG, port
 def _rt47_i_raw_pipelined_two_request_stream(rh, st_uid, apath, TAG, port, ta, tb):
     ok(all((rh[1][0] in (200, 201, 204), st_uid(apath(f'{TAG}h_legit.txt')) == UID_ALICE)),
        f"(h) alice's legit write after the denied cross-write works + owned alice (HTTP {rh[1][0]})")
-    _combo_connection_state_identity_p9(port, ta, tb, statuses, tc, TAG, data, H, a_secret, st_uid, apath, bpath, cpath)
 
 
-def _combo_connection_state_identity_p9(port, ta, tb, statuses, tc, TAG, data, H, a_secret, st_uid, apath, bpath, cpath):
     # ========================================================================
     # (i) RAW pipelined two-request stream alice-then-bob in ONE send (no waiting for
     #     the first response) targeting EACH OTHER's homes — proves the parser binds
@@ -232,10 +224,8 @@ def _rt47_cross_check_a_pipelined_alice_req(H, ta, a_secret, tb, port, statuses)
        f"(i) pipelined alice-for-bob-secret leaked nothing (codes={statuses(rpix)})")
     ok(b"ALICE-FRESH-SECRET-BODY" not in rpix,
        f"(i) pipelined bob-for-alice-secret leaked nothing (codes={statuses(rpix)})")
-    _combo_connection_state_identity_p10(port, ta, tb, tc, data, TAG, H, st_uid, apath, bpath, cpath)
 
 
-def _combo_connection_state_identity_p10(port, ta, tb, tc, data, TAG, H, st_uid, apath, bpath, cpath):
     # ========================================================================
     # (j) SLOW-DRIP authed request interrupted by identity ambiguity: send alice's
     #     request line + Host, PAUSE, then a bob Authorization header, then finish.

@@ -17,6 +17,7 @@
  *      upstream health table from the shared round-robin cursor.
  */
 
+#include "core/compat/log_event.h"
 #include "proxy_internal.h"
 
 /* Round-robin counter for multiple upstream endpoints. */
@@ -142,7 +143,7 @@ brix_proxy_select_endpoint(brix_proxy_ctx_t *proxy, ngx_connection_t *client_con
         brix_proxy_upstream_t *ups = conf->proxy.upstreams->elts;
 
         if (pc_pick_healthy_upstream(conf, &idx) != NGX_OK) {
-            ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, client_conn->log, 0,
                           "xrootd proxy: all %ui upstream(s) down — "
                           "failing request",
                           (ngx_uint_t) conf->proxy.upstreams->nelts);

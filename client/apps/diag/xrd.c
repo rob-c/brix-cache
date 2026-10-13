@@ -2,6 +2,7 @@
  * xrd.c - (kept) routing + shared helpers
  * Phase-38 split of xrd.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrd_internal.h"
 #include "core/version.h"
 #include "core/progname.h"  /* brix_prog_*(): argv[0]-derived identity + exec prefix */
@@ -78,7 +79,7 @@ exec_tool(const char *prefix, const char *tool, char **argv)
     argv[0] = (char *) tool;
     try_exec_dir(dir, tool, argv);
     execvp(tool, argv);
-    fprintf(stderr, "xrd: cannot run %s: %s\n", tool, strerror(errno));
+    BRIX_CLIENT_LOG("ERROR",  "xrd: cannot run %s: %s\n", tool, strerror(errno));
     _exit(127);
 }
 
@@ -190,7 +191,7 @@ cmd_get(int argc, char **argv)
     char *nv[5];
     int   k = 0;
 
-    if (argc < 3) { fprintf(stderr, "xrd get: needs a <url>\n"); return 50; }
+    if (argc < 3) { BRIX_CLIENT_LOG("ERROR",  "xrd get: needs a <url>\n"); return 50; }
     nv[k++] = (char *) "xrdcp";
     nv[k++] = argv[2];
     nv[k++] = (argc >= 4) ? argv[3] : (char *) ".";
@@ -211,7 +212,7 @@ cmd_put(int argc, char **argv)
     const char *pfx = brix_prog_prefix(brix_prog_base(argv[0]));
     char *nv[4];
 
-    if (argc < 4) { fprintf(stderr, "xrd put: needs <localfile> <url>\n"); return 50; }
+    if (argc < 4) { BRIX_CLIENT_LOG("ERROR",  "xrd put: needs <localfile> <url>\n"); return 50; }
     nv[0] = (char *) "xrdcp";
     nv[1] = argv[2];
     nv[2] = argv[3];
@@ -268,11 +269,11 @@ cmd_sync(int argc, char **argv)
     int    k = 0, j;
 
     if (argc < 4) {
-        fprintf(stderr, "xrd sync: needs <srcdir> <dstdir>\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrd sync: needs <srcdir> <dstdir>\n");
         return 50;
     }
     nv = (char **) malloc((size_t) (argc + 3) * sizeof(char *));
-    if (nv == NULL) { fprintf(stderr, "xrd: out of memory\n"); return 51; }
+    if (nv == NULL) { BRIX_CLIENT_LOG("ERROR",  "xrd: out of memory\n"); return 51; }
     nv[k++] = (char *) "xrdcp";
     nv[k++] = (char *) "-r";
     nv[k++] = (char *) "--sync";
@@ -340,6 +341,7 @@ static const xrd_dispatch_t XRD_DISPATCH[] = {
     { "whoami",    xrd_whoami    },
     { "caps",      xrd_caps      },
     { "doctor",    xrd_doctor    },   /* cross-tool verbs (composition, no exec) */
+    { "conform",   xrd_conform   },   /* Phase-118 oracle and live assessor */
     { "login",     xrd_login     },
     { "mount",     xrd_mount     },   /* FUSE3 driver + fusermount */
     { "mounts",    cmd_mounts    },
@@ -485,7 +487,7 @@ fs_map_split_args(char **nv, int k, int argc, char **argv, fs_split_t *sp)
         }
         m = map_fs_arg(argv[i], sp->host, sp->port, &mism);
         if (mism) {
-            fprintf(stderr, "xrd %s: every path must be on the same endpoint "
+            BRIX_CLIENT_LOG("INFO",  "xrd %s: every path must be on the same endpoint "
                             "(%s)\n", argv[1], sp->endpoint);
             return -1;
         }

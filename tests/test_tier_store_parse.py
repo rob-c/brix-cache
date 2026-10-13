@@ -15,6 +15,7 @@ import pytest
 
 from cmdscripts.live_common import inject_nginx_load_modules
 from settings import BIND_HOST, HOST, NGINX_ANON_PORT, NGINX_BIN
+from log_records import semantic_log_text
 
 REMOTE = f"brix_storage_backend root://{HOST}:{NGINX_ANON_PORT};"
 
@@ -35,7 +36,7 @@ stream {{ server {{ listen {BIND_HOST}:13297;
     inject_nginx_load_modules(conf)
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
-    return p.returncode, p.stderr + p.stdout
+    return p.returncode, semantic_log_text(p.stderr + p.stdout)
 
 
 # brix_cache_store bad URL → finaliser [emerg] (valid remote backend prepended).

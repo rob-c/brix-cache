@@ -160,7 +160,6 @@ webdav_is_mutating_method(ngx_http_request_t *r)
     return (op && (op->flags & (BRIX_PROTO_OP_WRITE | BRIX_PROTO_OP_LOCK)));
 }
 
-
 /*
  * access_is_mirror_subrequest — Phase 24 mirror-shadow detection.
  *
@@ -440,6 +439,24 @@ access_check_scope(ngx_http_request_t *r)
     return NGX_OK;
 }
 
+/* Apply the allocation-free pre-authentication gates in policy order. */
+static ngx_int_t
+access_preauth_gate(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    ngx_int_t rc;
+
+    rc = access_rate_limit(r, conf);
+    if (rc == NGX_OK) {
+        rc = webdav_tls_require_gate(r, conf);
+    }
+    if (rc != NGX_DECLINED && rc != NGX_OK) {
+        brix_http_redact_request_query_tokens(r);
+        return rc;
+    }
+    return NGX_OK;
+}
+
 ngx_int_t
 ngx_http_brix_webdav_access_handler(ngx_http_request_t *r)
 {
@@ -458,17 +475,27 @@ ngx_http_brix_webdav_access_handler(ngx_http_request_t *r)
 
     /* CORS headers must appear on every response. */
     if (webdav_add_cors_headers(r) != NGX_OK) {
+        brix_http_redact_request_query_tokens(r);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     /* Count the request and track IP-version bytes. */
     access_count_request(r);
 
-    /* Phase 20: per-client-IP rate limit, before the auth burden. */
-    rc = access_rate_limit(r, conf);
+    /* Rate limit, then refuse disallowed cleartext capabilities, before
+     * allocating/parsing query state or verifying credentials. */
+    rc = access_preauth_gate(r, conf);
     if (rc != NGX_OK) {
         return rc;
     }
+
+    rc = access_parse_query_boundary(r);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    /* Authentication reads the request-owned parsed copy; scrub every native
+     * nginx log source before any later handler can return. */
+    brix_http_redact_request_query_tokens(r);
 
     /* OPTIONS pre-flight: no authentication required. */
     if (r->method == NGX_HTTP_OPTIONS) {
@@ -483,8 +510,10 @@ ngx_http_brix_webdav_access_handler(ngx_http_request_t *r)
 
     /* XrdHttp: extract client identity, UUID, opaque, and ?tpc.* params.
      * Must run after auth so the request context exists. */
-    xrdhttp_parse_request(r);
-    xrdhttp_inject_tpc_headers(r);
+    rc = access_prepare_xrdhttp(r);
+    if (rc != NGX_OK) {
+        return rc;
+    }
 
     /* Phase-70 §5.1: delegated-proxy header capture (delegation modes only). */
     rc = access_capture_deleg_proxy(r, conf);

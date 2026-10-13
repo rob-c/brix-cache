@@ -32,6 +32,7 @@
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #endif
+#include "../../../shared/observability/log_stdio.h"
 #include "brixcvmfs_ingest_internal.h"
 
 #include <dirent.h>
@@ -197,7 +198,7 @@ bci_layer_record(const char *repo, const char *prefix, const ing_layer_t *v,
         snprintf(line, sizeof(line), "%s %s %s %ld %s\n", prefix, digest,
                  v[i].diffid[0] != '\0' ? v[i].diffid : "-", rev, utc);
         if (bci_write_atomic(path, line) != 0) {
-            fprintf(stderr, "brixcvmfs ingest: warning: cannot write layer"
+            BRIX_CLIENT_LOG("WARN",  "brixcvmfs ingest: warning: cannot write layer"
                     " ledger %s\n", path);
         }
     }
@@ -221,7 +222,7 @@ bci_imglayers_record(const char *repo, const char *prefix,
     }
     body[off] = '\0';
     if (bci_write_atomic(path, body) != 0) {
-        fprintf(stderr, "brixcvmfs ingest: warning: cannot write image layer"
+        BRIX_CLIENT_LOG("WARN",  "brixcvmfs ingest: warning: cannot write image layer"
                 " list %s\n", path);
     }
     free(body);

@@ -23,6 +23,7 @@
  *     send the kXR_ok reply from the owning worker.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "bind_migrate.h"
 #include "registry.h"
@@ -79,7 +80,7 @@ brix_bind_migrate_create_channels(ngx_cycle_t *cycle)
     }
     n = (ngx_uint_t) ccf->worker_processes;
     if (n > BRIX_BIND_MIGRATE_MAX_WORKERS) {
-        ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, cycle->log, 0,
                       "brix: %ui workers exceed the bind-migration channel "
                       "cap (%d) — cross-worker kXR_bind secondaries will use "
                       "inline responses", n, BRIX_BIND_MIGRATE_MAX_WORKERS);
@@ -91,7 +92,7 @@ brix_bind_migrate_create_channels(ngx_cycle_t *cycle)
             || ngx_nonblocking(s_chan[i][0]) == -1
             || ngx_nonblocking(s_chan[i][1]) == -1)
         {
-            ngx_log_error(NGX_LOG_WARN, cycle->log, ngx_errno,
+            BRIX_LOG(NGX_LOG_WARN, cycle->log, ngx_errno,
                           "brix: bind-migration socketpair failed — "
                           "cross-worker secondaries will use inline responses");
             while (i-- > 0) {
@@ -135,7 +136,7 @@ brix_bind_migrate_init_worker(ngx_cycle_t *cycle)
 
     ch = ngx_get_connection(s_chan[ngx_worker][0], cycle->log);
     if (ch == NULL) {
-        ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, cycle->log, 0,
                       "brix: no connection slot for the bind-migration "
                       "channel — this worker will not adopt secondaries");
         return;
@@ -148,7 +149,7 @@ brix_bind_migrate_init_worker(ngx_cycle_t *cycle)
         ngx_close_connection(ch);
         return;
     }
-    ngx_log_error(NGX_LOG_INFO, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, cycle->log, 0,
                   "brix: bind-migration channel armed (worker %ui of %ui)",
                   ngx_worker, s_chan_n);
 }
@@ -233,7 +234,7 @@ brix_bind_migrate_try(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_memcpy(CMSG_DATA(cm), &c->fd, sizeof(int));
 
     if (sendmsg(s_chan[owner][1], &mh, 0) != (ssize_t) sizeof(m)) {
-        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, ngx_errno,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, ngx_errno,
                        "brix: bind migration to worker %i declined at "
                        "sendmsg — binding locally", owner);
         return NGX_DECLINED;
@@ -521,7 +522,7 @@ brix_bind_migrate_read(ngx_event_t *rev)
     }
 
     if (ngx_handle_read_event(rev, 0) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ALERT, ch->log, 0,
+        BRIX_LOG(NGX_LOG_ALERT, ch->log, 0,
                       "brix: bind-migration channel read re-arm failed");
     }
 }

@@ -2,12 +2,15 @@
 
 import json
 import os
+from pathlib import Path
 import subprocess
+import tempfile
 from types import SimpleNamespace
 
 import pytest
 from cryptography import x509
-from cryptography.exceptions import InvalidSignature
+from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
 
 import x509forge
@@ -41,16 +44,46 @@ def _assert_child_policy(policy):
         if "-sha1" not in command:
             assert environment is None, command
             continue
-        assert command[1] in ("req", "x509")
+        assert command[1] in ("req", "x509", "dgst")
         assert environment["OPENSSL_CONF"] != policy.parent
         assert environment["BRIX_X509_POLICY_SENTINEL"] == "inherited"
 
 
 def _verify_signature(certificate, issuer, content):
-    issuer.public_key().verify(
-        certificate.signature, content, padding.PKCS1v15(),
-        certificate.signature_hash_algorithm,
-    )
+    try:
+        issuer.public_key().verify(
+            certificate.signature, content, padding.PKCS1v15(),
+            certificate.signature_hash_algorithm,
+        )
+        return
+    except UnsupportedAlgorithm:
+        if certificate.signature_hash_algorithm.name != "sha1":
+            raise
+
+    with tempfile.TemporaryDirectory(prefix="brix-x509-verify.") as directory:
+        root = Path(directory)
+        public = root / "issuer.pub"
+        signature = root / "certificate.sig"
+        data = root / "certificate.tbs"
+        public.write_bytes(issuer.public_key().public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        ))
+        signature.write_bytes(certificate.signature)
+        data.write_bytes(content)
+        environment = dict(
+            os.environ,
+            OPENSSL_CONF=str(
+                Path(primitives.__file__).resolve().with_name("fixture-signing.cnf")
+            ),
+        )
+        verified = subprocess.run(
+            ["openssl", "dgst", "-sha1", "-verify", str(public),
+             "-signature", str(signature), str(data)],
+            capture_output=True, env=environment,
+        )
+    if verified.returncode != 0:
+        raise InvalidSignature
 
 
 def _build_clause_chain(tmp_path, identifier, expected):

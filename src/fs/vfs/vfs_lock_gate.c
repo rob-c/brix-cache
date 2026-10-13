@@ -26,6 +26,7 @@
  *       ancestor half every plane shares. Impure by design (reads xattrs),
  *       which is why it is not part of vfs_policy.c's pure kernel.
  */
+#include "core/compat/log_event.h"
 #include "vfs_internal.h"
 #include "vfs_policy.h"
 #include "vfs_backend_registry.h"
@@ -135,7 +136,7 @@ brix_vfs_lock_refuse(const brix_vfs_ctx_t *ctx, brix_vfs_mutation_op_t op,
 
     if (mode == BRIX_VFS_LOCK_ADVISORY) {
         if (ctx->log != NULL) {
-            ngx_log_error(NGX_LOG_WARN, ctx->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, ctx->log, 0,
                           "brix: %s on \"%s\" proceeds under a live foreign "
                           "lock (brix_lock_enforcement advisory)",
                           brix_vfs_mutation_op_name(op),

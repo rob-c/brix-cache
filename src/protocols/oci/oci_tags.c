@@ -26,6 +26,7 @@
  * answer at all) becomes an envelope of ours.
  */
 
+#include "core/compat/log_event.h"
 #include "oci.h"
 #include "oci_module_internal.h"
 
@@ -101,7 +102,7 @@ oci_tags_leg(oci_tags_task_t *t, const char *hdrs,
                     hdrs, NULL, 0, BRIX_OCI_TAGS_TIMEOUT_MS, &resp,
                     errbuf, sizeof(errbuf)) != 0)
     {
-        ngx_log_error(NGX_LOG_ERR, t->up->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, t->up->log, 0,
             "oci: tags upstream unreachable host=%s: %s", t->up->host, errbuf);
         return;
     }

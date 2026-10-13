@@ -19,6 +19,7 @@
  *       (sd_stage_record_cred, shared seam) so a deferred or async flush
  *       authenticates as the original user.
  */
+#include "core/compat/log_event.h"
 #include "sd_stage.h"
 #include "sd_stage_internal.h"
 #include "fs/xfer/stage_engine.h"   /* brix_stage_run_inline / _submit (FLUSH) */
@@ -84,7 +85,7 @@ sd_stage_wb_hydrate(sd_stage_inst_state *is, const char *path,
     }
     if (is->source->driver->stat(is->source, path, &sst) != NGX_OK) {
         if (errno != ENOENT) {
-            ngx_log_error(NGX_LOG_WARN, is->log, errno,
+            BRIX_LOG(NGX_LOG_WARN, is->log, errno,
                 "stage write-back: cannot probe source \"%s\" — proceeding "
                 "as a whole-object create (unreachable backend)", path);
         }
@@ -102,7 +103,7 @@ sd_stage_wb_hydrate(sd_stage_inst_state *is, const char *path,
     {
         int e = errno ? errno : EIO;
 
-        ngx_log_error(NGX_LOG_ERR, is->log, e,
+        BRIX_LOG(NGX_LOG_ERR, is->log, e,
             "stage write-back: hydrating existing object \"%s\" (%O bytes) "
             "from the backend failed — refusing the update open (an "
             "unhydrated flush would truncate it)", path, sst.size);

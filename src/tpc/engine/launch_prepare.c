@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "tpc_internal.h"
 #include "fs/vfs/vfs.h"   /* brix_vfs_open_fd_at (handle-table confined open) */
 #include "core/compat/host_format.h"  /* brix_format_host_port — IPv6 bracketing */
@@ -254,7 +255,7 @@ tpc_egress_emit_signal(brix_ctx_t *ctx, ngx_connection_t *c, const char *host)
     req.status_code  = kXR_NotAuthorized;
 
     if (guard_audit_format(&req, GUARD_R_TPCEGRESS, ts, line, sizeof(line)) > 0) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0, "%s", line);
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0, "%s", line);
     }
 }
 

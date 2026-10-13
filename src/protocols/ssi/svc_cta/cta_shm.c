@@ -8,6 +8,7 @@
  * is recovered rather than stranding the queue for everyone.
  */
 
+#include "core/compat/log_event.h"
 #include "cta_shm.h"
 
 #include "core/compat/shm_slots.h"
@@ -67,7 +68,7 @@ cta_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
     if (cta_journal_path[0] != '\0'
         && cta_queue_open_journal(q, cta_journal_path) != 0)
     {
-        ngx_log_error(NGX_LOG_ERR, shm_zone->shm.log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, shm_zone->shm.log, ngx_errno,
                       "brix: CTA journal \"%s\" unusable; the queue will not "
                       "survive a restart", cta_journal_path);
         /* Not fatal: an unwritable journal degrades restart recovery, it does

@@ -44,6 +44,7 @@
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #endif
+#include "../../../shared/observability/log_stdio.h"
 #include "brixcvmfs_ingest_internal.h"
 #include "cvmfs/publish/publish.h"
 #include "oci/flatten.h"
@@ -440,14 +441,14 @@ static void img_record(ing_img_ctx_t *c, long rev) {
     snprintf(line, sizeof(line), "%s %s %ld %s\n",
              c->flat_path, c->desc.digest, rev, utc);
     if (bci_write_atomic(c->memo_path, line) != 0)
-        fprintf(stderr, "brixcvmfs ingest: warning: cannot write memo %s\n",
+        BRIX_CLIENT_LOG("WARN",  "brixcvmfs ingest: warning: cannot write memo %s\n",
                 c->memo_path);
     snprintf(lpath, sizeof(lpath), "%s/.brix-ingest/roots%s/%s",
              c->o->repo, img_pfx(c), c->hex);
     snprintf(line, sizeof(line), "%s %s %ld %s\n",
              c->o->prefix, c->desc.digest, rev, utc);
     if (bci_write_atomic(lpath, line) != 0)
-        fprintf(stderr, "brixcvmfs ingest: warning: cannot write ledger %s\n",
+        BRIX_CLIENT_LOG("WARN",  "brixcvmfs ingest: warning: cannot write ledger %s\n",
                 lpath);
     if (c->o->layered) {
         bci_layer_record(c->o->repo, c->o->prefix, c->layers, c->nlayers, rev);

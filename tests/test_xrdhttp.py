@@ -182,15 +182,13 @@ class TestXrdHttpChecksum:
         assert "Digest" not in r.headers
 
     def test_cksum_security_unknown_algorithm(self, xrd_file):
-        """Security neg: unknown checksum algorithm is silently ignored (no crash, no Digest:)."""
+        """Security neg: reject an oversized unknown checksum algorithm."""
         r = requests.get(
             xrd_file["url"] + "?xrd.want.cksum=" + "X" * 512,
             headers={"X-Xrootd-Proto": "xroot"},
             timeout=10,
         )
-        # Must return a valid response (not 500)
-        assert r.status_code == 200
-        # With an unknown/oversized algo name, no Digest: header should be emitted
+        assert r.status_code == 400
         assert "Digest" not in r.headers
 
 

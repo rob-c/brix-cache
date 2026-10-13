@@ -163,7 +163,12 @@
 # the notes above give: the sum of the widths ABOVE a lane is its offset, and a
 # width bumped without re-applying that sum leaves this lane overlapping the one
 # it follows until test_fleet_ports.py's band check notices.
-LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1295, 221
+# 2026-10-05: 1295 -> 1297 for the shared lane's 1116 -> 1118 Phase-118
+# WRT-007 fixture pair.  Every subsequent offset carries the same delta.
+# 2026-10-06: 1297 -> 1299 for the shared lane's 1118 -> 1120 Phase-118
+# OPN-012 read-only/writable fixture pair.  Every subsequent offset carries
+# the same delta so the packed ladder remains gapless and collision-free.
+LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1299, 221
 
 
 # 2026-08-19: 205 -> 211 for the six-port root_readonly_gateway block (origin +
@@ -204,7 +209,7 @@ LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1295, 221
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1516, 216
+CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1520, 216
 # 2026-09-07: 1657 -> 1658, the running sum, for the F6 posix-origin slot in
 # the exclusive lane above (167 -> 168).
 # 2026-09-07: +2, the running sum, for the F8 plugin lab in the exclusive lane
@@ -231,7 +236,7 @@ CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1516, 216
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1732, 83
+CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1736, 83
 # 2026-09-07: 1740 -> 1741, the running sum, for the F6 posix-origin slot in
 # the exclusive lane above (167 -> 168).
 # 2026-09-07: +2, the running sum, for the F8 plugin lab in the exclusive lane
@@ -258,7 +263,7 @@ CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1732, 83
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1815, 23
+HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1819, 23
 # 2026-09-07: 1763 -> 1764, the running sum, for the F6 posix-origin slot in
 # the exclusive lane above (167 -> 168).
 # 2026-09-07: +2, the running sum, for the F8 plugin lab in the exclusive lane
@@ -285,7 +290,7 @@ HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1815, 23
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1838, 2
+PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1842, 2
 
 # CVMFS conformance mock-Stratum-1 + nginx port blocks (cvmfs/conformance_common.py
 # PORT_BLOCKS): 26 files x a 20-port block. Anchored into the ladder so every
@@ -319,7 +324,7 @@ PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1838, 2
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1840, 588
+CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1844, 588
 
 # Differential-interop per-file fixed ports (official_interop_lib.worker_port):
 # one slot per distinct conformance base (65 today), anchored here so they stay
@@ -355,7 +360,7 @@ CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1840, 588
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2428, 65
+INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2432, 65
 
 # 2026-08-31 (phase-106): shared lane +5 for the five nginx-integration nodes;
 # every lane below shifts by 5. Packed ladder — an intentional compatibility
@@ -452,4 +457,5 @@ INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2428, 65
 # 2489 -> 2490; +2 for the impgm broker-hold arms, 2490 -> 2492.
 # 2026-09-19: +1 for lc-policy-rule-scope, the remote-backed webdav export that
 # pins a policy rule's path scope when root_canon is "/", 2492 -> 2493.
-PORT_COUNT = 2493
+# 2026-10-05: +2 for the Phase-118 WRT-007 fixture pair, 2493 -> 2495.
+PORT_COUNT = 2497

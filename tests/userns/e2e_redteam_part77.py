@@ -6,7 +6,6 @@ def run_broker_failclosed(key, data, port, s3port, sock, tok_alice):
     _assert_broker_lock_closed(port, tok_alice)
     _assert_broker_s3_closed(data, s3port)
 
-
 def _kill_broker(sock):
     try:
         with open(sock + ".pid") as fh:
@@ -55,7 +54,3 @@ def _assert_broker_s3_closed(data, s3port):
     s_bad = s_created and os.stat(sfp).st_uid != UID_ALICE
     ok(st not in (200, 201) and not (s_created and s_bad),
        f"broker killed -> S3 PUT FAILS CLOSED (HTTP {st}, created={s_created})")
-
-
-if __name__ == "__main__":
-    sys.exit(main())

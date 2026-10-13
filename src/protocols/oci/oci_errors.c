@@ -22,6 +22,7 @@
  *       HTML error page over the JSON.
  */
 
+#include "core/compat/log_event.h"
 #include "oci.h"
 #include "oci_module_internal.h"
 
@@ -227,7 +228,7 @@ brix_oci_errno_status(ngx_http_request_t *r, int err)
      * or a genuine escape attempt. Say so once, loudly, with the signal the
      * fail2ban filter keys on. */
     if (err == EACCES || err == EPERM || err == ELOOP || err == EXDEV) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, err,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, err,
             "oci: store open refused signal=oci_path_escape uri=\"%V\" "
             "client=%V", &r->uri, &r->connection->addr_text);
         return NGX_HTTP_FORBIDDEN;

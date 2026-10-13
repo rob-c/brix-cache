@@ -25,7 +25,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl ca-certificates gnupg \
         libssl-dev libpcre2-dev zlib1g-dev libxml2-dev libjansson-dev \
         libcurl4-openssl-dev libkrb5-dev comerr-dev libcrypt-dev \
-        libsqlite3-dev libfuse3-dev libzstd-dev liblz4-dev liburing-dev \
+        libsqlite3-dev libfuse3-dev libseccomp-dev libzstd-dev \
+        libbrotli-dev liblz4-dev liburing-dev \
         librados-dev libradospp-dev libradosstriper-dev libcephfs-dev
 
 # org: nginx.org packages for Ubuntu (stream compiled in; stable branch —
@@ -44,7 +45,10 @@ RUN set -e; \
         echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/ubuntu ${VERSION_CODENAME} nginx" \
             > /etc/apt/sources.list.d/nginx.list; \
     fi; \
-    apt-get update
+    apt-get update; \
+    if [ "$NGINX_FLAVOR" = "distro" ]; then \
+        apt-get install -y --no-install-recommends nginx-dev; \
+    fi
 
 # Explicit overrides only; empty means "derive" (VERSION from
 # src/core/ident.h, NGINX_VERSION from apt for the chosen flavor).
@@ -56,7 +60,7 @@ WORKDIR /build/src
 COPY . .
 
 # Step 3: build.  build-deb.sh stages the tree, generates debian/changelog,
-# downloads + unpacks the matching nginx source, and runs dpkg-buildpackage.
+# prepares the matching nginx source/SDK and runs dpkg-buildpackage.
 RUN packaging/deb/build-deb.sh \
         -f "$NGINX_FLAVOR" \
         ${VERSION:+-v "$VERSION"} \

@@ -106,11 +106,12 @@ class _LauncherInternals:
         the master process is gone, but the kernel can still hold the listen
         socket for a beat (a worker draining, close() lagging the exit). The next
         test reusing this exact port then loses ``bind()`` to the stale socket
-        with ``Address already in use``. We probe each declared port exactly the
-        way nginx binds it — wildcard address, ``SO_REUSEADDR`` set — so a socket
-        merely in ``TIME_WAIT`` does NOT read as busy (nginx would rebind over it
-        fine), only a still-live overlapping listener does. That is precisely the
-        condition worth waiting out.
+        with ``Address already in use``. We probe each declared port with the
+        configured bind address and ``SO_REUSEADDR`` set, so a socket merely in
+        ``TIME_WAIT`` does NOT read as busy (nginx would rebind over it fine),
+        only a still-live overlapping listener does. The exact address matters:
+        Darwin permits a wildcard reuse bind while a loopback listener still
+        owns the port.
 
         Best-effort: on timeout we return quietly rather than raise. A genuinely
         stuck port surfaces as the successor's own EADDRINUSE with full nginx

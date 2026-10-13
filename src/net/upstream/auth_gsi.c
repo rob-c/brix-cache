@@ -28,6 +28,7 @@
  *   as on the cache origin); missing bucket or verdict != 1 → refuse.
  */
 
+#include "core/compat/log_event.h"
 #include "upstream_internal.h"
 #include "auth/gsi/gsi_core.h"
 #include "auth/gsi/cred_load.h"
@@ -47,7 +48,7 @@ brix_upstream_send_gsi_certreq(brix_upstream_t *up, const char *gsi_parms)
 
     certreq = brix_gsi_build_certreq_from_parms(gsi_parms, rtag, &certreq_len);
     if (certreq == NULL) {
-        ngx_log_error(NGX_LOG_ERR, up->conn->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, up->conn->log, 0,
                       "brix: upstream gsi: certreq build failed");
         return NGX_ERROR;
     }
@@ -68,7 +69,7 @@ upstream_gsi_verify_server(brix_upstream_t *up,
     size_t          pem_len = 0;
 
     if (conf->gsi_store == NULL) {
-        ngx_log_error(NGX_LOG_WARN, up->conn->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, up->conn->log, 0,
                       "brix: upstream gsi: no brix_trusted_ca configured; "
                       "upstream server certificate not verified");
         return NGX_OK;
@@ -77,7 +78,7 @@ upstream_gsi_verify_server(brix_upstream_t *up,
                                &pem, &pem_len) != 0
         || pem_len == 0)
     {
-        ngx_log_error(NGX_LOG_ERR, up->conn->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, up->conn->log, 0,
                       "brix: upstream gsi: server presented no certificate "
                       "to verify");
         return NGX_ERROR;
@@ -85,7 +86,7 @@ upstream_gsi_verify_server(brix_upstream_t *up,
     /* Unparseable (-1) and rejected (0) both fail closed: the upstream is a
      * credentialed peer, so "could not evaluate" is not "verified". */
     if (brix_gsi_verify_peer_leaf(conf->gsi_store, pem, pem_len) != 1) {
-        ngx_log_error(NGX_LOG_ERR, up->conn->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, up->conn->log, 0,
                       "brix: upstream gsi: server certificate verification "
                       "failed");
         return NGX_ERROR;
@@ -111,7 +112,7 @@ upstream_gsi_load_cred(brix_upstream_t *up, ngx_stream_brix_srv_conf_t *conf,
     if (*pem != NULL && *key != NULL) {
         return NGX_OK;
     }
-    ngx_log_error(NGX_LOG_ERR, up->conn->log, 0,
+    BRIX_LOG(NGX_LOG_ERR, up->conn->log, 0,
                   "brix: upstream gsi: cannot load credential "
                   "brix_upstream_x509_proxy \"%V\"%s",
                   &conf->upstream_x509_proxy,
@@ -145,7 +146,7 @@ brix_upstream_gsi_respond(brix_upstream_t *up, ngx_stream_brix_srv_conf_t *conf)
                                        key, &payload, &plen, err, sizeof(err))
         != 0)
     {
-        ngx_log_error(NGX_LOG_ERR, up->conn->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, up->conn->log, 0,
                       "brix: upstream gsi: cert response build failed: %s", err);
         rc = NGX_ERROR;
     } else {

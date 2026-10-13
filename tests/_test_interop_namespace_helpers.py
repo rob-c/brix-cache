@@ -18,6 +18,7 @@ import os
 import stat
 
 import pytest
+import official_interop_lib as L
 from XRootD import client
 from XRootD.client.flags import (
     AccessMode,

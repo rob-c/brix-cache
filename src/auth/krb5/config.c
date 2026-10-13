@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/config/config.h"
 #include "auth/protbind/protbind.h"   /* brix_protbind_any_names */
 #include "core/compat/log_diag.h"
@@ -91,7 +92,7 @@ brix_krb5_init_context(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 
     rc = krb5_init_context(&xcf->krb5.context);
     if (rc != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix: krb5_init_context failed (%d)",
                            (int) rc);
         return NGX_ERROR;
@@ -124,7 +125,7 @@ brix_krb5_parse_principal(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
                          &xcf->krb5.principal_obj);
     if (rc != 0) {
         kmsg = brix_krb5_error(xcf, rc);
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix: cannot parse krb5 principal \"%V\": %s",
                            &xcf->krb5.principal, kmsg ? kmsg : "unknown");
         brix_krb5_free_error(xcf, kmsg);
@@ -204,7 +205,7 @@ brix_krb5_probe_keytab(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
                                &cursor);
     if (rc != 0) {
         kmsg = brix_krb5_error(xcf, rc);
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix: cannot read krb5 keytab: %s",
                            kmsg ? kmsg : "unknown");
         brix_krb5_free_error(xcf, kmsg);
@@ -249,7 +250,7 @@ brix_krb5_log_configured(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         principal = NULL;
     }
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
                        "brix: krb5 auth configured - principal=%s "
                        "keytab=%s ip_check=%s",
                        principal != NULL ? principal
@@ -325,7 +326,7 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
     if (xcf->auth == BRIX_AUTH_KRB5
         || brix_protbind_any_names(xcf->protbind, BRIX_AUTH_KRB5))
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_auth krb5 requested, but this build "
                            "was configured without Kerberos 5 support");
         return NGX_ERROR;

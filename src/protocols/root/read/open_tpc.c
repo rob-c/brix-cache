@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "open_internal.h"
 #include "protocols/root/path/op_path.h"
 #include "net/manager/registry.h"
@@ -168,7 +169,7 @@ static ngx_int_t
 tpc_handle_source(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc)
 {
-	ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
+	BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
 	               "brix: TPC source open key=%s dst=%s org=%s",
 	               tpc->has_key ? tpc->key : "-",
 	               tpc->has_dst ? tpc->dst : "-",
@@ -177,14 +178,14 @@ tpc_handle_source(brix_ctx_t *ctx, ngx_connection_t *c,
 	if (tpc->has_key && tpc->key[0] != '\0' && tpc->has_dst
 	    && !tpc->has_org) {
 		brix_tpc_key_register(tpc->key, conf->tpc_key_ttl_ms);
-		ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+		BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
 		               "brix: TPC source key=%s registered",
 		               tpc->key);
 
 	} else if (tpc->has_key && tpc->key[0] != '\0'
 	           && tpc->has_org) {
 		if (brix_tpc_key_consume(tpc->key)) {
-			ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+			BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
 			               "brix: TPC source key=%s consumed",
 			               tpc->key);
 		} else {
@@ -210,7 +211,7 @@ static ngx_int_t
 tpc_handle_push_target(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc)
 {
-	ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+	BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
 	               "brix: TPC push target open key=%s org=%s",
 	               tpc->key, tpc->has_org ? tpc->org : "-");
 
@@ -427,6 +428,37 @@ tpc_open_is_source(int is_write, const brix_tpc_params_t *tpc)
 {
 	return !is_write && !tpc_open_is_push_source(is_write, tpc)
 	       && (tpc->has_key || tpc->has_dst || tpc->has_org);
+}
+
+/* ---- Identify the disabled native-push target before the write gate. ----
+ *
+ * WHAT: Return 1 only when this request is a native-push target write-open and
+ *       the listener has brix_tpc_push disabled; return 0 otherwise.
+ *
+ * WHY: The global endpoint mutation gate runs before brix_handle_open(). A
+ *      disabled dialect is not a mutation-policy decision, so its stable
+ *      kXR_Unsupported answer must survive even on a read-only listener.
+ *
+ * HOW: Reuse the authoritative opaque extractor, TPC parser, and role
+ *      predicate. The open handler repeats the same classification after the
+ *      authentication gate and emits the fixed refusal.
+ */
+int
+brix_open_tpc_push_target_disabled(brix_ctx_t *ctx,
+    ngx_stream_brix_srv_conf_t *conf, int is_write)
+{
+	char              opaque[BRIX_MAX_PATH + 1];
+	brix_tpc_params_t tpc;
+
+	if (conf->tpc_push || !is_write || ctx->recv.payload == NULL
+	    || ctx->recv.cur_dlen == 0
+	    || !open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen,
+	                            opaque, sizeof(opaque))
+	    || brix_tpc_parse_opaque(opaque, &tpc) != 0)
+	{
+		return 0;
+	}
+	return tpc_open_is_push_target(is_write, &tpc);
 }
 
 ngx_int_t

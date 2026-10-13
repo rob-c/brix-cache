@@ -304,6 +304,7 @@ def _start_mock(run: LiveRun, argv_prefix: list[str], bind: str, port: int) -> s
 def cvmfs_baselines(nginx: Path | None = None) -> int:
     """Standalone squid/varnish baseline runs against a local mock Stratum-1."""
     out_dir = Path(os.environ.get("CVMFS_BASELINE_OUT", os.getcwd()))
+    out_dir.mkdir(parents=True, exist_ok=True)
     with LiveRun("cvmfs_baseline", nginx) as run:
         mock_port, squid_port, varnish_port = _PORTS[0:3]  # was free_ports(3)
         _start_mock(run, [], BIND_HOST, mock_port)

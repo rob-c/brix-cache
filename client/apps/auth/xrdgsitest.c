@@ -12,6 +12,7 @@
  *
  * Clean-room: composes the public libbrix API only.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "core/compat/crypto.h"
 #include "core/version.h"
@@ -65,11 +66,11 @@ main(int argc, char **argv)
                 if (pr)      { continue; }
             }
             if (strcmp(a, "-h") == 0) { usage(argv[0]); return 0; }  /* C1 */
-            else { fprintf(stderr, "xrdgsitest: unknown option '%s'\n", a); usage(argv[0]); return 50; }
+            else { BRIX_CLIENT_LOG("ERROR",  "xrdgsitest: unknown option '%s'\n", a); usage(argv[0]); return 50; }
         } else if (url == NULL) {
             url = a;
         } else {
-            fprintf(stderr, "xrdgsitest: too many arguments\n");
+            BRIX_CLIENT_LOG("ERROR",  "xrdgsitest: too many arguments\n");
             return 50;
         }
     }
@@ -80,11 +81,11 @@ main(int argc, char **argv)
 
     brix_status_clear(&st);
     if (brix_endpoint_parse(url, &u, &st) != 0) {
-        fprintf(stderr, "xrdgsitest: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdgsitest: %s\n", st.msg);
         return 50;
     }
     if (brix_connect_resilient(&c, &u, &o, &st) != 0) {
-        fprintf(stderr, "xrdgsitest: GSI handshake failed: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdgsitest: GSI handshake failed: %s\n", st.msg);
         return brix_shellcode(&st);
     }
 

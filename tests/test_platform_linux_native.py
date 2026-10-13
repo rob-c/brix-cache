@@ -45,6 +45,11 @@ def native_compile(tmp_path_factory):
         command += ['-O0', '-fno-lto', '-Werror=implicit-function-declaration',
                     '-Werror=int-conversion', str(source)]
         command += [str(root / path) for path in sources]
+        # BRIX_LOG is header-only, so extracted production functions inherit
+        # nginx's formatter symbols even when their test log is always NULL.
+        # The weak inert definitions keep these object-level units standalone;
+        # a unit that links nginx's formatter still resolves to the strong one.
+        command.append(str(root / 'tests/c/brix_log_link_stubs.c'))
         command += list(extra) + ['-o', str(executable)]
         result = subprocess.run(command, cwd=build / 'nginx-src',
                                 capture_output=True, text=True, timeout=60)
@@ -110,6 +115,41 @@ def test_memory_contract(memory_binary, case):
 
 
 @pytest.fixture(scope='module')
+def canonical_pointer_binary(native_compile):
+    """Exercise the host-owned user-pointer shape without dereferencing it."""
+    return native_compile('canonical-pointer', r'''
+#include <assert.h>
+#include <stdint.h>
+#include <string.h>
+#include "platform/platform_api.h"
+int main(int argc, char **argv) {
+    assert(argc == 2);
+    if (strcmp(argv[1], "live") == 0) {
+        assert(brix_plat_pointer_is_canonical((const void *) &main));
+    } else if (strcmp(argv[1], "arm-high") == 0) {
+#if BRIX_ARCH_ARM64
+        assert(brix_plat_pointer_is_canonical(
+            (const void *) (uintptr_t) 0x0000ffff8e773c80ULL));
+#else
+        assert(!brix_plat_pointer_is_canonical(
+            (const void *) (uintptr_t) 0x000080008e773c80ULL));
+#endif
+    } else {
+        assert(!brix_plat_pointer_is_canonical(
+            (const void *) (uintptr_t) 0x123400008e773c80ULL));
+    }
+    return 0;
+}
+''', ['src/platform/linux/host_info.c'])
+
+
+@pytest.mark.parametrize('case', ['live', 'arm-high', 'mangled'])
+def test_canonical_pointer_contract(canonical_pointer_binary, case):
+    """Accept live/ARM high VAs and reject a mangled non-canonical value."""
+    _run(canonical_pointer_binary, case)
+
+
+@pytest.fixture(scope='module')
 def event_binary(native_compile):
     """Link calls through the declared public event API."""
     return native_compile('events', r'''
@@ -152,6 +192,69 @@ int main(int argc, char **argv) {
 def test_event_api(event_binary, case):
     """Exercise readiness, bad descriptors, and rejected event types."""
     _run(event_binary, case)
+
+
+@pytest.fixture(scope='module')
+def spawn_closefrom_binary(native_compile):
+    """Force the pre-glibc-2.34 closefrom action fallback."""
+    return native_compile('spawn-closefrom', r'''
+#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <spawn.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include "platform/platform_api.h"
+extern char **environ;
+int main(int argc, char **argv) {
+    if (argc == 3 && strcmp(argv[1], "child-closed") == 0) {
+        int fd = atoi(argv[2]);
+        assert(fcntl(fd, F_GETFD) == -1 && errno == EBADF);
+        return 0;
+    }
+    if (argc == 3 && strcmp(argv[1], "child-open") == 0) {
+        assert(fcntl(atoi(argv[2]), F_GETFD) >= 0);
+        return 0;
+    }
+    assert(argc == 2);
+    posix_spawn_file_actions_t actions;
+    posix_spawnattr_t attr;
+    assert(posix_spawn_file_actions_init(&actions) == 0);
+    assert(posix_spawnattr_init(&attr) == 0);
+    if (strcmp(argv[1], "invalid") == 0) {
+        assert(brix_plat_spawn_closefrom(&actions, &attr, -1) == EBADF);
+        return 0;
+    }
+    int descriptors[2];
+    assert(pipe(descriptors) == 0);
+    int lowfd = strcmp(argv[1], "preserve-lower") == 0
+        ? descriptors[1] : descriptors[0];
+    assert(brix_plat_spawn_closefrom(&actions, &attr, lowfd) == 0);
+    char fd_text[32];
+    int checked_fd = strcmp(argv[1], "preserve-lower") == 0
+        ? descriptors[0] : descriptors[1];
+    assert(snprintf(fd_text, sizeof(fd_text), "%d", checked_fd) > 0);
+    char *child_argv[] = { argv[0],
+        strcmp(argv[1], "preserve-lower") == 0 ? "child-open" : "child-closed",
+        fd_text, NULL };
+    pid_t child;
+    assert(posix_spawn(&child, argv[0], &actions, &attr, child_argv, environ) == 0);
+    int status;
+    assert(waitpid(child, &status, 0) == child);
+    assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    return 0;
+}
+''', ['src/platform/linux/process_wrapper.c'],
+       ['-DBRIX_TEST_FORCE_SPAWN_CLOSEFROM_FALLBACK=1'])
+
+
+@pytest.mark.parametrize('case', ['closes-range', 'preserve-lower', 'invalid'])
+def test_spawn_closefrom_fallback(spawn_closefrom_binary, case):
+    """Close the selected range, preserve lower fds and reject negatives."""
+    _run(spawn_closefrom_binary, case)
 
 
 @pytest.fixture(scope='module')
@@ -240,7 +343,7 @@ int main(int argc, char **argv) {
     }
     return 0;
 }
-''', extra=['-luring', '-Wl,--wrap=io_uring_submit',
+''', extra=['-DBRIX_HAVE_LIBURING=1', '-luring', '-Wl,--wrap=io_uring_submit',
             '-Wl,--wrap=io_uring_wait_cqe_timeout'])
 
 

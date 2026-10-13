@@ -146,7 +146,8 @@ class _Arms:
     def errlog(self):
         """Instance prefixes are wiped at teardown, so failures quote inline."""
         log = Path(self.instance.prefix) / "logs" / "error.log"
-        return log.read_text(errors="replace") if log.exists() else ""
+        return semantic_log_text(log.read_text(errors="replace")) \
+            if log.exists() else ""
 
     def tree(self, which):
         return self.trees[which]
@@ -349,4 +350,3 @@ def _auto_derived_lines(arms):
 # --------------------------------------------------------------------------- #
 # §A — the two arms over the wire                                              #
 # --------------------------------------------------------------------------- #
-

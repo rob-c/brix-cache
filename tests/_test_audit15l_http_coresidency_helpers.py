@@ -121,6 +121,7 @@ import pytest
 import requests
 
 from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
+from log_records import semantic_log_text
 from server_registry import NginxInstanceSpec
 from settings import HOST, NGINX_BIN, BIND_HOST
 
@@ -253,8 +254,9 @@ def _get(endpoint, path, **kwargs):
 def _errlog(endpoint):
     """Instance logs are wiped at teardown, so failures quote them inline."""
     try:
-        return (Path(endpoint.prefix) / "logs" / "error.log").read_text(
-            errors="replace")
+        return semantic_log_text(
+            (Path(endpoint.prefix) / "logs" / "error.log").read_text(
+                errors="replace"))
     except FileNotFoundError:
         return ""
 

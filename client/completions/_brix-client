@@ -1,4 +1,4 @@
-#compdef xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin-brix brixMount xrdstorascan xrdcrc32c xrdcrc64 xrdadler32 xrdckverify xrdcinfo xrdcks xrootdfs
+#compdef xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin-brix brixMount xrdstorascan xrdcrc32c xrdcrc64 xrdadler32 xrdckverify xrdcinfo xrdcks xrootdfs brix-config-migrate
 
 # _brix-client — zsh completion for the brix client CLI suite.
 #
@@ -29,7 +29,31 @@ _brix-client() {
     (brixMount)                          _brix_brixMount ;;
     (xrdstorascan)                       _brix_xrdstorascan ;;
     (xrootdfs)                           _brix_xrootdfs ;;
+    (brix-config-migrate)                _brix_config_migrate ;;
     esac
+}
+
+_brix_config_migrate() {
+    _arguments -S \
+        '(-o --output)'{-o,--output}'=[write suggested nginx config]:file:_files' \
+        '--report=[write JSON decision report]:file:_files' \
+        '--strict[fail when review items remain]' \
+        '--ca-bundle=[trusted CA bundle]:file:_files' \
+        '--authdb-input=[XrdAcc authdb companion]:file:_files' \
+        '--authdb-output=[converted BriX XrdAcc authdb]:file:_files' \
+        '--vomsdir=[VOMS trust directory]:directory:_files -/' \
+        '--voms-cert-dir=[VOMS issuer certificate directory]:directory:_files -/' \
+        '*--require-vo=[add PATH=VO rule]:rule' \
+        '--ceph-pool=[librados pool]:pool' \
+        '--ceph-conf=[Ceph configuration]:file:_files' \
+        '--ceph-key-prefix=[object-key prefix]:prefix' \
+        '--n2n-scheme=[name mapping]:scheme:(identity ral cephfs_path)' \
+        '--n2n-pool=[name-to-name pool]:pool' \
+        '--n2n-prefix=[name-to-name prefix]:prefix' \
+        '--http-port=[WebDAV port (private when source port is shared)]:port' \
+        '--http-connect-timeout=[private WebDAV connect timeout]:time' \
+        '--http-idle-timeout=[HTTP handoff idle timeout]:time' \
+        '1:XRootD configuration:_files'
 }
 
 # ---------------------------------------------------------------------------
@@ -387,6 +411,7 @@ _brix_xrd() {
         'whoami:show negotiated auth identity'
         'caps:server capability matrix'
         'doctor:full endpoint health check (--rw --also URL --insecure --json)'
+        'conform:deployment-time protocol conformance assessment'
         'login:acquire/refresh credentials (--oidc-account --read)'
         'mount:FUSE mount via xrootdfs (--legacy)'
         'mounts:list active XRootD FUSE mounts'
@@ -418,6 +443,64 @@ _brix_xrd() {
             '--also=[add another protocol endpoint]:url' \
             '--insecure[skip TLS chain verification]' \
             '--json[emit full JSON report]' \
+            '*: :' ;;
+    (conform)
+        if (( CURRENT == 3 )); then
+            local -a _conform_modes
+            _conform_modes=(
+                'plan:print the deterministic corpus plan'
+                'plant:create keyed local oracle objects'
+                'adopt:adopt and verify an existing keyed corpus'
+                'verify:verify a planted local corpus'
+                'accept:run the bounded acceptance profile'
+                'full:run the selected complete profile'
+                'watch:repeat conformance assessment'
+            )
+            _describe 'mode' _conform_modes
+            return
+        fi
+        _arguments \
+            '--print-cases[plan: print every selected generated case]' \
+            '--large[plant/adopt/verify: include large oracle objects]' \
+            '--profile=[deployment role]:role:(data manager cache proxy tape s3 http tls tpc full)' \
+            '--reference=[comparison contract]:reference:(strict ecosystem both)' \
+            '--budget=[case-generation budget]:budget:(exhaustive pairwise boundary)' \
+            '--fail-on=[verdicts that make the run fail]:policy:(divergent inconclusive any)' \
+            '--families=[include clause families]:csv' \
+            '--exclude=[exclude clause families]:csv' \
+            '--only=[run one clause]:clause-id' \
+            '*--verify-negative=[authorize a named negative clause]:clause-id' \
+            '*--also=[add a cross-plane endpoint]:url' \
+            '*--error-fixture=[map an errno to a fixture URL]:mapping' \
+            '--readonly-fixture=[read-only plane fixture]:mapping' \
+            '*--auth-fixture=[authentication fixture]:mapping' \
+            '--tls-cleartext-fixture=[TLS downgrade fixture]:mapping' \
+            '--token-fixture=[token-claim fixture]:mapping' \
+            '--denied-fixture=[denied-authority fixture]:mapping' \
+            '--mutation-fixture=[mutation fixture]:mapping' \
+            '--open-fixture=[open-state fixture]:mapping' \
+            '--locate-fixture=[locate-behaviour fixture]:mapping' \
+            '--move-fixture=[destination scratch URL]:url' \
+            '--quota-target=[quota-limited ROOT URL]:url' \
+            '--capacity-target=[capacity-limited ROOT URL]:url' \
+            '--webdav-outside-fixture=[outside-scratch HTTP URL]:url' \
+            '--cache-fixture=[cache-state fixture]:state:(partial filling capacity corrupt)' \
+            '--tpc-fixture=[TPC fixture]:mapping' \
+            '--scratch=[mutation scratch path]:path:_files -/' \
+            '--allow-mutate[authorize scratch-confined mutation probes]' \
+            '--allow-disrupt[authorize disruptive probes]' \
+            '--confirm-target=[exact target confirmation]:url' \
+            '--adv-observer=[adversarial observer URL]:url' \
+            '--adv-fixture=[adversarial fixture]:fixture:(generator-gap nondeterministic authority-bypass)' \
+            '--run-key=[deterministic 32-hex run key]:hex' \
+            '--out=[report directory]:directory:_files -/' \
+            '--baseline=[prior JSON report]:file:_files' \
+            '--wall-seconds=[wall-clock ceiling]:seconds' \
+            '--request-limit=[request-count ceiling]:n' \
+            '--byte-limit=[wire-byte ceiling]:bytes' \
+            '--http-request-line-limit=[HTTP request-line ceiling]:bytes' \
+            '--watch-interval-seconds=[watch interval]:seconds' \
+            '--watch-cycles=[watch cycle count]:n' \
             '*: :' ;;
     (login)
         _arguments \

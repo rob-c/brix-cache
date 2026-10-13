@@ -1,4 +1,5 @@
 /* xrdcp_recursive.c - CLI source expansion before copy-engine dispatch. */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdcp_internal.h"
 
 /* A '?' introducing an opaque query is not a glob metacharacter. */
@@ -36,11 +37,11 @@ expand_root_glob(const char *source, const brix_opts *opts, char ***out,
         if (status.kxr == XRDC_EUSAGE) {
             return str_append(out, count, capacity, source);
         }
-        fprintf(stderr, "xrdcp: glob %s: %s\n", source, status.msg);
+        BRIX_CLIENT_LOG("INFO",  "xrdcp: glob %s: %s\n", source, status.msg);
         return 0;
     }
     if (match_count == 0) {
-        fprintf(stderr, "xrdcp: no matches for %s\n", source);
+        BRIX_CLIENT_LOG("INFO",  "xrdcp: no matches for %s\n", source);
     }
     for (i = 0; i < match_count; i++) {
         if (str_append(out, count, capacity, matches[i]) != 0) {
@@ -64,7 +65,7 @@ expand_local_glob(const char *source, char ***out, size_t *count,
     rc = glob(source, 0, NULL, &result);
     if (rc != 0) {
         globfree(&result);
-        fprintf(stderr, "xrdcp: no matches for %s\n", source);
+        BRIX_CLIENT_LOG("INFO",  "xrdcp: no matches for %s\n", source);
         return 0;
     }
     for (i = 0; i < result.gl_pathc; i++) {

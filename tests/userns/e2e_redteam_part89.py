@@ -85,7 +85,9 @@ def _rt48_d2_mkcol_whose_intermediate_parent_is(awork, port, ta, exists, listdir
     return before
 
 
-def _rt48_truncates_bob_s_0600_file_denied(listdir, ndw, before, bad_owned, awork, port, ta, body_of, uid_of, TAG, size_of, MARK_BOB, exists):
+def _rt48_truncates_bob_s_0600_file_denied(
+        listdir, ndw, before, bad_owned, awork, port, ta, body_of, uid_of,
+        TAG, size_of, MARK_BOB, exists, big, residue):
     ok(all((sorted(listdir(ndw)) == before, bad_owned(ndw) == [])),
        "(d) cross-tenant dir unchanged + no svc/root residue after denied MKCOL")
 
@@ -108,7 +110,6 @@ def _combo_error_rollback_p5(port, ta, size_of, exists, listdir, awork, body_of,
     else:
         _rollback_truncate_matrix(awork, size_of, exists, body_of, MARK_BOB,
                                   uid_of, TAG)
-    _combo_error_rollback_p6(port, ta, listdir, awork, body_of, MARK_BOB, big, bad_owned, TAG, uid_of, exists, residue, ndw)
 
 
 def _rollback_truncate_matrix(awork, size_of, exists, body_of, MARK_BOB, uid_of,
@@ -327,7 +328,9 @@ def run_combo_error_rollback(key, data, port, s3port):
 
     before = _rt48_d2_mkcol_whose_intermediate_parent_is(awork, port, ta, exists, listdir, ndw, before)
 
-    _rt48_truncates_bob_s_0600_file_denied(listdir, ndw, before, bad_owned, awork, port, ta, body_of, uid_of, TAG, size_of, MARK_BOB, exists)
+    _rt48_truncates_bob_s_0600_file_denied(
+        listdir, ndw, before, bad_owned, awork, port, ta, body_of, uid_of,
+        TAG, size_of, MARK_BOB, exists, big, residue)
 
     _rt48_control_source_alice_s_own_readable(TAG, awork, uid_of, exists, listdir, MARK_BOB, body_of, residue, bad_owned, ndw, ta, big, port)
 

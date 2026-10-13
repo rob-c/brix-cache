@@ -6,46 +6,6 @@
 
 /*
  *
- * WHAT: Queries the size of an extended attribute's stored value (NULL buffer)
- *       through the VFS xattr seam — path mode (brix_vfs_getxattr on the vctx's
- *       resolved path) or open-handle mode (brix_vfs_fgetxattr on fd) selected
- *       by `path != NULL`. Returns ssize_t: positive = value length in bytes,
- *       -1 = error (errno set). First step before fattr_read_value() reads data.
- *
- * WHY: Two-phase read pattern — query size first then allocate buffer
- *       second avoids over-allocation and handles zero-length attributes
- *       correctly. Routing through the VFS keeps every xattr touch confined and
- *       observed (OP_XATTR metric) rather than hitting getxattr(2) directly. */
-static ssize_t
-fattr_read_value_size(brix_vfs_ctx_t *vctx, const char *path, int fd,
-    const char *xkey)
-{
-    return path != NULL ? brix_vfs_getxattr(vctx, xkey, NULL, 0)
-                        : brix_vfs_fgetxattr(vctx, fd, xkey, NULL, 0);
-}
-
-/*
- *
- * WHAT: Reads the actual bytes stored in an extended attribute into the caller's
- *       buffer through the VFS xattr seam — path or open-handle mode as above.
- *       Returns ssize_t: positive = bytes read, -1 = error (errno set). Caller
- *       must ensure value_len >= queried size from fattr_read_value_size().
- *
- * WHY: Same path/fd dispatch pattern as fattr_read_value_size() — single
- *       helper serves both operation modes. Buffer filled with raw attribute
- *       bytes; caller responsible for null-termination if needed (fattr_get
- *       adds +1 byte padding at allocation). */
-static ssize_t
-fattr_read_value(brix_vfs_ctx_t *vctx, const char *path, int fd,
-    const char *xkey, u_char *value, size_t value_len)
-{
-    return path != NULL ? brix_vfs_getxattr(vctx, xkey, value, value_len)
-                        : brix_vfs_fgetxattr(vctx, fd, xkey, value,
-                                               value_len);
-}
-
-/*
- *
  * WHAT: Returns the number of bytes an attribute's value contributes to the
  *       vvec (value vector) portion of the kXR_fattrGet response body. If
  *       attr->vlen > 0 returns that value as size_t; if vlen == 0 (error or
@@ -93,36 +53,17 @@ fattr_get(brix_ctx_t *ctx, ngx_connection_t *c, brix_vfs_ctx_t *vctx,
 
     for (int attr_index = 0; attr_index < numattr; attr_index++) {
         brix_fattr_entry_t *attr;
-        ssize_t              value_size;
         ssize_t              bytes_read;
 
         attr = &attrs[attr_index];
-        value_size = fattr_read_value_size(vctx, path, fd, attr->xkey);
-        if (value_size < 0) {
-            fattr_set_rc(attr, fattr_errno_to_xrd(errno));
-            response_size += 4;
-            continue;
-        }
-
-        if (value_size > kXR_faMaxVlen) {
-            value_size = kXR_faMaxVlen;
-        }
-
-        attr->value = ngx_palloc(pool, (size_t) value_size + 1);
-        if (attr->value == NULL) {
-            fattr_set_rc(attr, kXR_NoMemory);
-            response_size += 4;
-            continue;
-        }
-
-        bytes_read = fattr_read_value(vctx, path, fd, attr->xkey, attr->value,
-                                      (size_t) value_size);
+        bytes_read = fattr_storage_get(pool, vctx, path, fd, attr->name,
+                                       attr->nlen, &attr->value);
         if (bytes_read < 0) {
             fattr_set_rc(attr, fattr_errno_to_xrd(errno));
-            attr->vlen = 0;
-        } else {
-            attr->vlen = bytes_read;
+            response_size += 4;
+            continue;
         }
+        attr->vlen = bytes_read;
 
         response_size += 4 + fattr_value_len_for_response(attr);
     }

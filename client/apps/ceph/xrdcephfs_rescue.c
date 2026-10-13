@@ -27,6 +27,7 @@
  *     src/fs/backend/rados/sd_ceph_compat.c src/fs/backend/rados/cephfs_layout.c \
  *     src/fs/backend/rados/cephfs_denc.c -lrados -o xrdcephfs_rescue
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "sd.h"
 #include "rados/sd_ceph.h"
 
@@ -66,16 +67,16 @@ do_cat_or_get(const char *path, const char *local)
     int              err = 0, rc;
 
     o = DRV->open(&INST, path, BRIX_SD_O_READ, 0, &err);
-    if (o == NULL) { fprintf(stderr, "open %s: %s\n", path, strerror(err)); return 1; }
+    if (o == NULL) { BRIX_CLIENT_LOG("ERROR",  "open %s: %s\n", path, strerror(err)); return 1; }
 
     out = (local != NULL) ? fopen(local, "wb") : stdout;
-    if (out == NULL) { fprintf(stderr, "create %s: %s\n", local, strerror(errno));
+    if (out == NULL) { BRIX_CLIENT_LOG("ERROR",  "create %s: %s\n", local, strerror(errno));
                        DRV->close(o); return 1; }
 
     rc = copy_to_stream(o, out);
     if (local != NULL) { fclose(out); }
     DRV->close(o);
-    if (rc != 0) { fprintf(stderr, "read %s failed\n", path); return 1; }
+    if (rc != 0) { BRIX_CLIENT_LOG("ERROR",  "read %s failed\n", path); return 1; }
     return 0;
 }
 
@@ -87,7 +88,7 @@ do_ls(const char *path)
     int                err = 0;
 
     d = DRV->opendir(&INST, path, &err);
-    if (d == NULL) { fprintf(stderr, "opendir %s: %s\n", path, strerror(err)); return 1; }
+    if (d == NULL) { BRIX_CLIENT_LOG("ERROR",  "opendir %s: %s\n", path, strerror(err)); return 1; }
     while (DRV->readdir(d, &de) == NGX_OK) {
         printf("%s\n", de.name);
     }
@@ -101,7 +102,7 @@ do_stat(const char *path)
     brix_sd_stat_t sb;
 
     if (DRV->stat(&INST, path, &sb) != NGX_OK) {
-        fprintf(stderr, "stat %s: %s\n", path, strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "stat %s: %s\n", path, strerror(errno));
         return 1;
     }
     printf("path:  %s\n", path);
@@ -125,7 +126,7 @@ copy_tree(const char *src, const char *dst)
     int                err = 0, fails = 0;
 
     if (DRV->stat(&INST, src, &sb) != NGX_OK) {
-        fprintf(stderr, "stat %s: %s\n", src, strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "stat %s: %s\n", src, strerror(errno));
         return 1;
     }
     if (sb.is_reg) {
@@ -134,16 +135,16 @@ copy_tree(const char *src, const char *dst)
         return 0;
     }
     if (!sb.is_dir) {
-        fprintf(stderr, "  skip (not a file or dir): %s\n", src);
+        BRIX_CLIENT_LOG("INFO",  "  skip (not a file or dir): %s\n", src);
         return 0;
     }
 
     if (mkdir(dst, 0755) != 0 && errno != EEXIST) {
-        fprintf(stderr, "mkdir %s: %s\n", dst, strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "mkdir %s: %s\n", dst, strerror(errno));
         return 1;
     }
     d = DRV->opendir(&INST, src, &err);
-    if (d == NULL) { fprintf(stderr, "opendir %s: %s\n", src, strerror(err)); return 1; }
+    if (d == NULL) { BRIX_CLIENT_LOG("ERROR",  "opendir %s: %s\n", src, strerror(err)); return 1; }
     while (DRV->readdir(d, &de) == NGX_OK) {
         char csrc[4096], cdst[4096];
         snprintf(csrc, sizeof(csrc), "%s/%s", src, de.name);
@@ -180,7 +181,7 @@ main(int argc, char **argv)
     conf.assume_quiesced = 1;   /* the operator runs this against a quiesced fs */
 
     if (DRV->init(&INST, &conf) != NGX_OK) {
-        fprintf(stderr, "connect (meta=%s data=%s): %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "connect (meta=%s data=%s): %s\n",
                 argv[1], argv[2], strerror(errno));
         return 1;
     }
@@ -193,19 +194,19 @@ main(int argc, char **argv)
     } else if (strcmp(cmd, "cat") == 0) {
         rc = do_cat_or_get(argv[4], NULL);
     } else if (strcmp(cmd, "get") == 0) {
-        if (argc < 6) { fprintf(stderr, "get needs <path> <local_file>\n"); rc = 2; }
+        if (argc < 6) { BRIX_CLIENT_LOG("ERROR",  "get needs <path> <local_file>\n"); rc = 2; }
         else { rc = do_cat_or_get(argv[4], argv[5]); }
     } else if (strcmp(cmd, "cp") == 0) {
         /* "cp -r <path> <local_dir>" */
         if (argc < 7 || strcmp(argv[4], "-r") != 0) {
-            fprintf(stderr, "cp needs: cp -r <path> <local_dir>\n"); rc = 2;
+            BRIX_CLIENT_LOG("INFO",  "cp needs: cp -r <path> <local_dir>\n"); rc = 2;
         } else {
             path = argv[5];
             rc = copy_tree(path, argv[6]);
             if (rc == 0) { printf("recovered %s -> %s\n", path, argv[6]); }
         }
     } else {
-        fprintf(stderr, "unknown command '%s'\n", cmd);
+        BRIX_CLIENT_LOG("ERROR",  "unknown command '%s'\n", cmd);
         rc = 2;
     }
 

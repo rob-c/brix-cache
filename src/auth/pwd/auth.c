@@ -24,6 +24,7 @@
  * verification, so it is verified our-client ↔ our-server; full stock-XrdSecpwd
  * byte-interop (pre-shared srvpuk + 3-RT rtag) is a documented follow-on.
  */
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "protocols/root/session/registry.h"
 #include "auth/gsi/gsi_core.h"
@@ -100,7 +101,7 @@ pwd_send_credsreq(brix_ctx_t *ctx, ngx_connection_t *c, EVP_PKEY *srv)
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, g.p, g.len);
     brix_gbuf_free(&g);
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: pwd round 1 → credsreq (srv puk %uz B)", pub_len);
     return brix_queue_response(ctx, c, buf, total);
 }
@@ -246,7 +247,7 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
     OPENSSL_cleanse(hash, sizeof(hash));
 
     if (!verified) {
-        ngx_log_error(NGX_LOG_NOTICE, c->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, c->log, 0,
                       "brix: pwd auth denied for user (bad credential)");
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_PWD, 0);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "pwd",
@@ -285,9 +286,9 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ctx->login.session_slot_hint =
         brix_session_register(ctx->login.sessid, ctx->login.dn,
-                              ctx->login.vo_list, 0);
+                              ctx->login.vo_list, 0, 0);
 
-    ngx_log_error(NGX_LOG_INFO, c->log, 0, "brix: pwd auth OK user=\"%s\"",
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0, "brix: pwd auth OK user=\"%s\"",
                   ctx->login.dn);
     brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_PWD, 1);
     BRIX_RETURN_OK(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "pwd", 0);

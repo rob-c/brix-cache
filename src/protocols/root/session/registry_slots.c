@@ -200,6 +200,7 @@ void
 brix_session_fill_slot(brix_session_table_t *tbl, ngx_uint_t slot,
     const u_char sessid[BRIX_SESSION_ID_LEN],
     const char *dn, const char *vo_list, ngx_uint_t token_auth,
+    ngx_uint_t request_signing,
     const char *src_key, ngx_msec_t now)
 {
     brix_session_entry_t *e = &tbl->slots[slot];
@@ -211,6 +212,7 @@ brix_session_fill_slot(brix_session_table_t *tbl, ngx_uint_t slot,
     ngx_cpystrn((u_char *) e->src_key, (u_char *) src_key,
                 sizeof(e->src_key));
     e->token_auth = token_auth;
+    e->request_signing = request_signing;
     e->last_seen  = now;
     e->in_use     = 1;
     /* §1.4: the registering worker owns the primary connection — a kXR_bind
@@ -218,6 +220,7 @@ brix_session_fill_slot(brix_session_table_t *tbl, ngx_uint_t slot,
     e->owner_worker = (ngx_int_t) ngx_worker;
     /* A recycled slot must not inherit the previous session's bound paths. */
     ngx_memzero(e->pathid_map, sizeof(e->pathid_map));
+    e->next_pathid = 1;
 
     if (slot >= tbl->high_water) {
         tbl->high_water = slot + 1;         /* extend the live prefix */
@@ -315,5 +318,3 @@ brix_session_finish_eviction(const u_char victim[BRIX_SESSION_ID_LEN])
     }
     brix_session_handle_unpublish_all(victim);
 }
-
-

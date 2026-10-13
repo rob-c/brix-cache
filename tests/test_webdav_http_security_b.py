@@ -1,7 +1,46 @@
+import http.client
+from pathlib import Path
+import time
+from urllib.parse import urlparse
+
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_webdav_http_security_helpers")
 
 pytestmark = pytest.mark.registry_server("main")
+
+
+def _query_access_logs(test_env):
+    return [
+        Path(test_env["log_dir"]) / "http_webdav_access.log",
+        Path(test_env["log_dir"]) / "http_access.log",
+    ]
+
+
+def _log_offsets(logs):
+    return {log: log.stat().st_size if log.exists() else 0 for log in logs}
+
+
+def _raw_get(path, query, headers=None):
+    parsed = urlparse(_http_url(path))
+    connection = http.client.HTTPConnection(parsed.hostname, parsed.port,
+                                            timeout=10)
+    connection.request("GET", parsed.path + query, headers=headers or {})
+    response = connection.getresponse()
+    response.read()
+    connection.close()
+    return response
+
+
+def _assert_query_secret_redacted(logs, offsets, name, marker):
+    for access_log in logs:
+        logged = ""
+        for _ in range(100):
+            logged = access_log.read_text(errors="replace")[offsets[access_log]:]
+            if name in logged:
+                break
+            time.sleep(0.02)
+        assert marker not in logged
+        assert name + "x" * len(marker) in logged
 
 class TestPutContentRange:
     """Partial PUT (resumable upload) via Content-Range header."""
@@ -95,6 +134,78 @@ class TestHTTPWebDavPlain:
         r = self._hget(path, headers={"Range": "bytes=0-4"})
         assert r.status_code == 206
         assert r.content == b"ABCDE"
+
+    def test_http_benign_query_preserves_resource_lookup(self):
+        path = f"/{_PFX}http_query_ok.txt"
+        _make_file(path, b"query-boundary-ok")
+        r = self._hget(path + "?client-label=ordinary")
+        assert r.status_code == 200
+        assert r.content == b"query-boundary-ok"
+
+    def test_http_overlong_xrd_query_value_is_rejected(self):
+        path = f"/{_PFX}http_query_long.txt"
+        _make_file(path, b"must-not-be-routed")
+        r = self._hget(path + "?xrd.clnt.uuid=" + "x" * 4096)
+        assert r.status_code == 400
+
+    def test_http_duplicate_decoded_query_names_are_rejected(self):
+        path = f"/{_PFX}http_query_duplicate.txt"
+        _make_file(path, b"must-not-be-routed")
+        r = self._hget(path + "?xrd.opaque=first&xrd.%6Fpaque=second")
+        assert r.status_code == 400
+
+    def test_http_query_token_aliases_are_one_semantic_singleton(self):
+        path = f"/{_PFX}http_query_token_duplicate.txt"
+        _make_file(path, b"must-not-be-routed")
+        r = self._hget(path + "?authz=first&access_token=second")
+        assert r.status_code == 400
+
+    def test_http_options_query_token_is_redacted_before_logging(
+            self, test_env):
+        path = f"/{_PFX}http_query_token_options.txt"
+        marker = f"options-query-secret-{time.time_ns()}"
+        access_logs = _query_access_logs(test_env)
+        offsets = _log_offsets(access_logs)
+        response = requests.options(
+            _http_url(path + f"?access_token={marker}"), timeout=10)
+        assert response.status_code in (200, 204)
+        _assert_query_secret_redacted(
+            access_logs, offsets, "access_token=", marker)
+
+    def test_http_encoded_query_token_name_is_rejected_before_auth(
+            self, test_env):
+        path = f"/{_PFX}http_query_token_alias.txt"
+        marker = f"encoded-alias-secret-{time.time_ns()}"
+        access_logs = _query_access_logs(test_env)
+        offsets = _log_offsets(access_logs)
+        _make_file(path, b"must-not-be-routed")
+        response = _raw_get(
+            path, f"?auth%7A={marker}",
+            headers={"Origin": "https://debug.example.test"})
+        assert response.status == 400
+        assert response.getheader("Access-Control-Allow-Origin") == (
+            "https://debug.example.test")
+        _assert_query_secret_redacted(access_logs, offsets, "auth%7A=", marker)
+
+    def test_http_malformed_query_redacts_token_from_all_access_logs(
+            self, test_env):
+        path = f"/{_PFX}http_query_token_malformed.txt"
+        marker = f"malformed-query-secret-{time.time_ns()}"
+        access_logs = _query_access_logs(test_env)
+        offsets = _log_offsets(access_logs)
+        response = _raw_get(path, f"?authz={marker}&broken=%ZZ")
+        assert response.status == 400
+        _assert_query_secret_redacted(access_logs, offsets, "authz=", marker)
+
+    def test_http_malformed_token_name_redacts_value_from_all_access_logs(
+            self, test_env):
+        marker = f"malformed-name-secret-{time.time_ns()}"
+        access_logs = _query_access_logs(test_env)
+        offsets = _log_offsets(access_logs)
+        response = _raw_get(
+            f"/{_PFX}malformed_name.txt", f"?authz%ZZ={marker}")
+        assert response.status == 400
+        _assert_query_secret_redacted(access_logs, offsets, "authz%ZZ=", marker)
 
     def test_http_delete_removes_file(self):
         path = f"/{_PFX}http_del.txt"

@@ -74,10 +74,8 @@ def _rt54_if_none_match_matching_304(st0, body0, etag, lastmod, port, ta):
 
 def _rt54_if_match_matching_allowed(have_etag, port, ta, etag, FUTURE, PAST):
 
-    _conditional_header_matrix_p1(have_etag, s3port, port, ta, lastmod, adir, data, FUTURE, PAST, owned_alice, bp, etag, not_worker_root, base)
 
 
-def _conditional_header_matrix_p1(have_etag, s3port, port, ta, lastmod, adir, data, FUTURE, PAST, owned_alice, bp, etag, not_worker_root, base):
     # ================================================= If-Match MATCHING -> allowed
     if have_etag:
         st, b = http("GET", "/alice/chm_base.txt", port, ta,
@@ -87,7 +85,7 @@ def _conditional_header_matrix_p1(have_etag, s3port, port, ta, lastmod, adir, da
         # If-Match a structurally-valid but WRONG etag -> 412 (no body)
         st, b = http("GET", "/alice/chm_base.txt", port, ta,
                      hdrs={"If-Match": '"chm-stale-0000"'})
-        ok(all((st == 412, b'chm-validator-body-v1' not in any((b, b'')))),
+        ok(all((st == 412, b'chm-validator-body-v1' not in _rt_default(b, b''))),
            f"If-Match with a STALE ETag fails closed with 412 (HTTP {st})")
     else:
         ok(False, "If-Match-match skipped: no ETag captured")
@@ -133,10 +131,8 @@ def _rt54_if_range_with_the_real_etag(have_etag, port, ta, etag, lastmod, adir, 
            f"If-Range with the REAL Last-Modified date handled (HTTP {st})")
     else:
         ok(False, "If-Range Last-Modified skipped: no Last-Modified captured")
-    _conditional_header_matrix_p2(have_etag, s3port, port, ta, adir, lastmod, data, owned_alice, bp, not_worker_root, base, etag)
 
 
-def _conditional_header_matrix_p2(have_etag, s3port, port, ta, adir, lastmod, data, owned_alice, bp, not_worker_root, base, etag):
     # ============================ If-None-Match:* create-guard semantics (own file)
     # creating a NEW file with If-None-Match:* succeeds; repeating it -> 412.
     st1, _ = http("PUT", "/alice/chm_create.txt", port, ta, b"create-once\n",
@@ -193,10 +189,8 @@ def _rt54_webdav_if_etag_list_form_on(have_etag, port, ta, etag, owned_alice, bp
                  hdrs={"If": "(Not <opaquelocktoken:chm-never-issued-0000>)"})
     ok(all((st in (200, 201, 204), owned_alice(bp))),
        f"WebDAV If: (Not <bogus-token>) passes for the owner, owned alice (HTTP {st})")
-    _conditional_header_matrix_p3(s3port, data, port, ta, adir, owned_alice, base)
 
 
-def _conditional_header_matrix_p3(s3port, data, port, ta, adir, owned_alice, base):
     # ====================================== CROSS-TENANT: ETag/validator NON-ORACLE
     # alice must NOT be able to learn bob's 0600 ETag or Last-Modified via GET.
     bpriv = os.path.join(data, "bob", "private.txt")
@@ -207,7 +201,7 @@ def _conditional_header_matrix_p3(s3port, data, port, ta, adir, owned_alice, bas
 def _rt54_cross_tenant_writes_vs_satisfied_guards(stx, betag, bbody, bpriv, port, ta):
     ok(all((stx in (403, 404, 401), betag is None)),
        f"alice cannot capture bob's 0600 ETag (status {stx}, etag={betag!r})")
-    ok(b'BOB-PRIVATE-SECRET' not in any((bbody, b'')),
+    ok(b'BOB-PRIVATE-SECRET' not in _rt_default(bbody, b''),
        f"alice's GET of bob's 0600 leaks no body bytes (status {stx})")
 
     # ====================================== CROSS-TENANT WRITES vs SATISFIED GUARDS
@@ -271,10 +265,8 @@ def _rt54_positive_control_guarded_same_tenant_op(port, ta, adir, base, data):
                        "If-Match": "*"})
     ok(all((st not in (200, 201, 204), os.path.exists(msrc), not os.path.exists(os.path.join(data, 'bob', 'chm_movedest.txt')))),
        f"alice MOVE into bob's dir w/ If-Match:* DENIED, src survives (HTTP {st})")
-    _conditional_header_matrix_p4(s3port, port, ta, adir, owned_alice, base, data)
 
 
-def _conditional_header_matrix_p4(s3port, port, ta, adir, owned_alice, base, data):
     # ====================================== POSITIVE CONTROL: guarded same-tenant op
     # The same satisfied-precondition forms WORK inside alice's own space (proving
     # the cross-tenant denies above are DAC, not a blanket conditional rejection).
@@ -296,7 +288,7 @@ def _rt54_control_the_same_guarded_s3_put(port, ta, base, adir, owned_alice, s3p
         # are covered elsewhere; this is the ETag branch).
         sg, sgb = s3("GET", "bob/private.txt", s3port,
                      extra_hdrs={"If-None-Match": "*"})
-        ok(all((sg in (403, 404), b'BOB-PRIVATE-SECRET' not in any((sgb, b'')))),
+        ok(all((sg in (403, 404), b'BOB-PRIVATE-SECRET' not in _rt_default(sgb, b''))),
            f"S3 If-None-Match:* GET of bob's 0600 DENIED, no body (HTTP {sg})")
         # alice S3 PUT into bob's key guarded by If-None-Match:* -> DAC denies the
         # write regardless of the (satisfied) precondition; nothing is created.
@@ -312,10 +304,8 @@ def _rt54_control_the_same_guarded_s3_put(port, ta, base, adir, owned_alice, s3p
            f"control: S3 If-None-Match:* PUT into alice's own key works (HTTP {sok})")
     else:
         ok(True, "S3 plane down: ETag-conditional S3 cross-tenant checks skipped")
-    _conditional_header_matrix_p5(port, ta, adir, owned_alice)
 
 
-def _conditional_header_matrix_p5(port, ta, adir, owned_alice):
     # ====================================== WORKER-SURVIVAL after the matrix
     st, _ = http("PUT", "/alice/chm_survivor.txt", port, ta, b"chm-alive\n")
     return st

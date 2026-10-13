@@ -16,6 +16,7 @@
  * slice/partial machinery + partial byte slots (sd_cache_partial.c), and the
  * namespace/xattr/dir/staged-write forwarders (sd_cache_forward.c).
  */
+#include "core/compat/log_event.h"
 #include "sd_cache.h"
 #include "sd_cache_internal.h"    /* sd_cache_inst_state + SD_CACHE_ST/SRC */
 #include "sd_cache_policy.h"      /* admission + repo-metrics (split out) */
@@ -84,7 +85,7 @@ cache_open_serve_hit(sd_cache_inst_state *st, const char *path, int *err_out)
         && ci.filled_at != 0
         && (uint64_t) time(NULL) >= ci.filled_at + (uint64_t) st->policy.uvkeep)
     {
-        ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_CORE, st->log, 0,
             "sd_cache: uvkeep revalidate — unverified aged entry \"%s\"", path);
         return NULL;
     }
@@ -95,7 +96,7 @@ cache_open_serve_hit(sd_cache_inst_state *st, const char *path, int *err_out)
     if (ci.mode != 0) {
         obj->snap.mode = (mode_t) S_IFREG | (mode_t) (ci.mode & 0777);
     }
-    ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_CORE, st->log, 0,
         "sd_cache: hit \"%s\"", path);
     return obj;
 }
@@ -131,7 +132,7 @@ cache_open_recall_parked(sd_cache_inst_state *st, brix_sd_instance_t *src,
     if (rr != NGX_AGAIN) {
         return 0;      /* NGX_OK: already online - a normal fill follows */
     }
-    ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_CORE, st->log, 0,
         "sd_cache: nearline recall of \"%s\" in flight (staging)", path);
     if (err_out != NULL) {
         *err_out = EAGAIN;
@@ -165,7 +166,7 @@ cache_open_miss_serve(brix_sd_instance_t *inst, sd_cache_inst_state *st,
         obj = sd_cache_partial_open(inst, st, path, rq->cred, rq->hints,
                                     err_out);
         if (obj != NULL) {
-            ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
+            BRIX_LOG_DEBUG(NGX_LOG_DEBUG_CORE, st->log, 0,
                 "sd_cache: partial-serve \"%s\"", path);
             return obj;
         }
@@ -177,7 +178,7 @@ cache_open_miss_serve(brix_sd_instance_t *inst, sd_cache_inst_state *st,
      * NULL means no fill is in flight and we run our own below. */
     obj = sd_cache_follow_open(st, path, err_out);
     if (obj != NULL) {
-        ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_CORE, st->log, 0,
             "sd_cache: following in-flight fill of \"%s\"", path);
         return obj;
     }
@@ -185,7 +186,7 @@ cache_open_miss_serve(brix_sd_instance_t *inst, sd_cache_inst_state *st,
     if (sd_cache_fill(st, path, rq->cred, 0, NULL) == NGX_OK) {
         obj = brix_cstore_serve_open(&st->cstore, path, err_out);
         if (obj != NULL) {
-            ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
+            BRIX_LOG_DEBUG(NGX_LOG_DEBUG_CORE, st->log, 0,
                 "sd_cache: filled \"%s\"", path);
             return obj;
         }

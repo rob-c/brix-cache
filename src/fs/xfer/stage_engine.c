@@ -15,6 +15,7 @@
  * The three halves reach the mover (stage_engine_run) and each other only
  * through stage_engine_internal.h.
  */
+#include "core/compat/log_event.h"
 #include "stage_engine.h"
 #include "stage_engine_internal.h"
 #include "xfer.h"   /* brix_xfer_finish + the kind/result vocabulary (ledger) */
@@ -172,7 +173,7 @@ stage_move_copy_loop(const stage_move_ep_t *ep, brix_sd_obj_t *so,
                 continue;
             }
             oerr = errno ? errno : EIO;
-            ngx_log_error(NGX_LOG_ERR, ep->src->log, oerr,
+            BRIX_LOG(NGX_LOG_ERR, ep->src->log, oerr,
                 "stage move: source read failed at off=%O (%s key=\"%s\")",
                 off, ep->src->driver->name, ep->src_key);
             free(buf);
@@ -184,7 +185,7 @@ stage_move_copy_loop(const stage_move_ep_t *ep, brix_sd_obj_t *so,
         }
         if (ep->dst->driver->staged_write(ds, buf, (size_t) r, off) < 0) {
             oerr = errno ? errno : EIO;
-            ngx_log_error(NGX_LOG_ERR, ep->dst->log, oerr,
+            BRIX_LOG(NGX_LOG_ERR, ep->dst->log, oerr,
                 "stage move: dest write failed at off=%O (%s key=\"%s\")",
                 off, ep->dst->driver->name, ep->dst_key);
             free(buf);
@@ -228,7 +229,7 @@ stage_engine_move(const stage_move_ep_t *ep, const brix_sd_cred_t *cred,
     so = ep->src->driver->open(ep->src, ep->src_key, BRIX_SD_O_READ, 0, &oerr);
     if (so == NULL) {
         *err_out = oerr ? oerr : EIO;
-        ngx_log_error(NGX_LOG_ERR, ep->src->log, *err_out,
+        BRIX_LOG(NGX_LOG_ERR, ep->src->log, *err_out,
             "stage move: source open failed (%s key=\"%s\")",
             ep->src->driver->name, ep->src_key);
         return BRIX_XFER_SRC_ERR;
@@ -251,7 +252,7 @@ stage_engine_move(const stage_move_ep_t *ep, const brix_sd_cred_t *cred,
     if (ds == NULL) {
         brix_sd_obj_release(so);
         *err_out = oerr ? oerr : EIO;
-        ngx_log_error(NGX_LOG_ERR, ep->dst->log, *err_out,
+        BRIX_LOG(NGX_LOG_ERR, ep->dst->log, *err_out,
             "stage move: dest staged_open failed (%s key=\"%s\")",
             ep->dst->driver->name, ep->dst_key);
         return BRIX_XFER_DST_ERR;
@@ -266,7 +267,7 @@ stage_engine_move(const stage_move_ep_t *ep, const brix_sd_cred_t *cred,
 
     if (ep->dst->driver->staged_commit(ds, NULL) != NGX_OK) {
         oerr = errno ? errno : EIO;
-        ngx_log_error(NGX_LOG_ERR, ep->dst->log, oerr,
+        BRIX_LOG(NGX_LOG_ERR, ep->dst->log, oerr,
             "stage move: dest commit failed (%s key=\"%s\")",
             ep->dst->driver->name, ep->dst_key);
         ep->dst->driver->staged_abort(ds);     /* commit failed - drop the temp */
@@ -343,7 +344,7 @@ stage_select_cred(const brix_stage_cred_t *cred, brix_stage_kind_t kind,
     if (cred->deny) {
         /* Hard deny: missing or expired per-user credential; refuse to flush
          * under the service identity — the caller opted into strict mode. */
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "xrootd stage: %s of \"%s\" DENIED - per-user credential "
             "key=%s principal=\"%s\" %s (fallback=deny)",
             brix_stage_kind_str(kind), dst_key, cred->key,
@@ -355,7 +356,7 @@ stage_select_cred(const brix_stage_cred_t *cred, brix_stage_kind_t kind,
         return BRIX_XFER_DENIED;
     }
     /* Soft fallback: warn and continue under the service credential. */
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
         "xrootd stage: per-user credential key=%s %s - flushing "
         "\"%s\" with the service credential (fallback=allow)",
         cred->key, ru->expired ? "EXPIRED" : "missing", dst_key);

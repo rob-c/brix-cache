@@ -25,6 +25,7 @@
 #ifndef BRIX_CORE_CONFIG_EXPORT_GUARD_H
 #define BRIX_CORE_CONFIG_EXPORT_GUARD_H
 
+#include "core/compat/log_event.h"
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <stdlib.h>
@@ -55,7 +56,7 @@ brix_assert_dir_outside_export(ngx_conf_t *cf, const char *label,
     cmp = (realpath(dir, canon) != NULL) ? canon : dir;
 
     if (brix_beneath_strip_root(export_canon, cmp) != NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix: %s \"%s\" is at or beneath export root \"%s\" — internal "
             "metadata sidecars (.cinfo/.meta, upload temps) would be exposed in "
             "the client namespace; configure it outside every brix_export root",

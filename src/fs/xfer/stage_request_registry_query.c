@@ -20,6 +20,7 @@
  *       than re-scanning.
  */
 
+#include "core/compat/log_event.h"
 #include "stage_request_registry.h"
 #include "stage_request_registry_internal.h"
 
@@ -111,7 +112,7 @@ brix_stage_request_owner_check(brix_stage_registry_t *reg, const char *reqid,
     {
         return NGX_OK;
     }
-    ngx_log_error(NGX_LOG_INFO, log, 0,
+    BRIX_LOG(NGX_LOG_INFO, log, 0,
                   "stage-req: cancel of reqid \"%s\" denied — owned by a "
                   "different principal", reqid);
     return NGX_DECLINED;
@@ -183,6 +184,6 @@ brix_stage_request_pin_release(brix_stage_registry_t *reg,
     if (rc != NGX_OK) {
         return NGX_DECLINED;            /* not tracked / not pinned */
     }
-    ngx_log_error(NGX_LOG_INFO, log, 0, "stage-req: pin released \"%s\"", abs_path);
+    BRIX_LOG(NGX_LOG_INFO, log, 0, "stage-req: pin released \"%s\"", abs_path);
     return brix_stage_request_cancel(reg, reqid, log);
 }

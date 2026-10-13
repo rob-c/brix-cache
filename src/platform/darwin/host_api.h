@@ -149,39 +149,6 @@ int brix_apple_get_perf_cores(void);
 int brix_apple_get_eff_cores(void);
 
 /**
- * APFS clonefile - Copy-on-write file clone
- *
- * Creates an instantaneous metadata-only clone of a file on APFS.
- * Extremely fast (~100x faster than copy for large files).
- *
- * @param src Source file path
- * @param dst Destination file path
- * @param flags Clone flags (currently unused, pass 0)
- * @return 0 on success, -1 on error (errno set)
- *
- * Availability: macOS 10.12+ (Sierra)
- * Performance: ~100x faster than copy for large files
- *
- * Usage: Fast file copies, snapshots, backup operations
- */
-int brix_apple_clonefile(const char *src, const char *dst, int flags);
-
-/**
- * APFS clonefileat - Relative path version
- *
- * @param src_dirfd Source directory file descriptor
- * @param src Source file path (relative to src_dirfd)
- * @param dst_dirfd Destination directory file descriptor
- * @param dst Destination file path (relative to dst_dirfd)
- * @param flags Clone flags (currently unused, pass 0)
- * @return 0 on success, -1 on error (errno set)
- *
- * Usage: Clone files within directory trees
- */
-int brix_apple_clonefileat(int src_dirfd, const char *src,
-                           int dst_dirfd, const char *dst, int flags);
-
-/**
  * Allocate aligned memory for cache efficiency
  *
  * Allocates memory aligned to 128-byte cache line boundary

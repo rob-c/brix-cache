@@ -44,6 +44,7 @@ from brix_suite.fd_probe import (parse_identity, write_fd_probe,
                                  write_identity_probe)
 from server_registry import NginxInstanceSpec
 from official_interop_lib import worker_reachable
+from log_records import semantic_log_text
 
 import _test_session_bind_helpers as H
 from _test_release20_metrics_helpers import wait_port
@@ -89,7 +90,7 @@ stream {{ {servers} }}
     inject_nginx_runtime_paths(conf, root)
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
-    return p.returncode, p.stderr + p.stdout
+    return p.returncode, semantic_log_text(p.stderr + p.stdout)
 
 
 def _frm_on(root: Path) -> str:
@@ -197,7 +198,8 @@ def _launch(lifecycle, backend, server_directives, main="", env=None):
 
 
 def _error_log(ep) -> str:
-    return (Path(ep.pidfile).parent / "error.log").read_text(errors="replace")
+    raw = (Path(ep.pidfile).parent / "error.log").read_text(errors="replace")
+    return semantic_log_text(raw)
 
 
 def _wait_log(ep, needle, timeout=10.0) -> str:

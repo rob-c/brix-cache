@@ -15,6 +15,7 @@
 #define _GNU_SOURCE
 #endif
 
+#include "../../../shared/observability/log_stdio.h"
 #include "brix_fault_proxy_state.h"
 #include "brix_fault_priv.h"
 #include "brix_fault_oracle.h"
@@ -129,13 +130,13 @@ add_target(const char *spec)
     snprintf(tmp, sizeof(tmp), "%s", spec);
     for (char *tok = strtok(tmp, ","); tok != NULL; tok = strtok(NULL, ",")) {
         if (g_ntargets >= FP_MAX_TARGETS) {
-            fprintf(stderr, "brix-fault-proxy: too many --target (max %d)\n",
+            BRIX_CLIENT_LOG("ERROR",  "brix-fault-proxy: too many --target (max %d)\n",
                     FP_MAX_TARGETS);
             return -1;
         }
         const char *colon = strrchr(tok, ':');
         if (colon == NULL || colon == tok || colon[1] == '\0') {
-            fprintf(stderr, "brix-fault-proxy: invalid --target '%s' "
+            BRIX_CLIENT_LOG("ERROR",  "brix-fault-proxy: invalid --target '%s' "
                             "(expected HOST:PORT)\n", tok);
             return -1;
         }
@@ -145,7 +146,7 @@ add_target(const char *spec)
         }
         int p = atoi(colon + 1);
         if (p <= 0 || p > 65535) {
-            fprintf(stderr, "brix-fault-proxy: invalid target port in '%s'\n", tok);
+            BRIX_CLIENT_LOG("ERROR",  "brix-fault-proxy: invalid target port in '%s'\n", tok);
             return -1;
         }
         memcpy(g_targets[g_ntargets].host, tok, hlen);
@@ -305,13 +306,13 @@ fp_finalize_config(int argc, char **argv, fp_config *cfg)
         }
         cfg->control_port = atoi(argv[optind + 3]);
     } else if (npos != 0) {
-        fprintf(stderr, "brix-fault-proxy: unexpected argument '%s'\n", argv[optind]);
+        BRIX_CLIENT_LOG("ERROR",  "brix-fault-proxy: unexpected argument '%s'\n", argv[optind]);
         usage(stderr);
         return FP_USAGE;
     }
 
     if (cfg->listen_port <= 0 || cfg->control_port <= 0 || g_ntargets == 0) {
-        fprintf(stderr, "brix-fault-proxy: --listen, --target and --control "
+        BRIX_CLIENT_LOG("INFO",  "brix-fault-proxy: --listen, --target and --control "
                         "are all required\n");
         usage(stderr);
         return FP_USAGE;
@@ -419,7 +420,7 @@ fp_setup_bind(const char *bind_str, int insecure,
                      BRIX_RESOLVE_PASSIVE | BRIX_RESOLVE_NUMERIC, &a, 1, NULL)
         <= 0)
     {
-        fprintf(stderr, "brix-fault-proxy: invalid --bind address '%s'\n", bind_str);
+        BRIX_CLIENT_LOG("ERROR",  "brix-fault-proxy: invalid --bind address '%s'\n", bind_str);
         return FP_USAGE;
     }
     *bind_len = a.len;
@@ -427,13 +428,13 @@ fp_setup_bind(const char *bind_str, int insecure,
 
     /* Fail closed on a non-loopback bind unless the operator opts in. */
     if (!sa_is_loopback((struct sockaddr *) bind_ss) && !insecure) {
-        fprintf(stderr, "brix-fault-proxy: refusing to bind the unauthenticated "
+        BRIX_CLIENT_LOG("ERROR",  "brix-fault-proxy: refusing to bind the unauthenticated "
                         "control port to non-loopback '%s' without "
                         "--insecure-bind\n", bind_str);
         return FP_USAGE;
     }
     if (!sa_is_loopback((struct sockaddr *) bind_ss)) {
-        fprintf(stderr, "brix-fault-proxy: WARNING binding control port to %s — "
+        BRIX_CLIENT_LOG("WARN",  "brix-fault-proxy: WARNING binding control port to %s — "
                         "the control plane is UNAUTHENTICATED\n", bind_str);
     }
     return FP_CONTINUE;

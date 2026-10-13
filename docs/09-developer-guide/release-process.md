@@ -22,13 +22,17 @@ Everything else *derives* from that line:
 | Spec `%global upstream_version` literal fallback | **hand-maintained** | silent — a bare `rpmbuild` mislabels the RPM |
 | Spec `%changelog` newest entry | hand-maintained | silent |
 | `docs/10-reference/CHANGELOG.md` newest entry | hand-maintained | silent |
+| `Formula/brix-cache.rb` source tag | hand-maintained | source/bottle version mismatch |
+| `packaging/nix/package.nix` version | hand-maintained | Nix store path/version mismatch |
 | Git tag `vX.Y.Z` | hand-created | silent |
 
-The three "silent" rows are why `tools/ci/check_version_sync.py` exists: it
+The three RPM/changelog "silent" rows are why `tools/ci/check_version_sync.py` exists: it
 fails the build unless the spec fallback, the spec's newest `%changelog` entry
 and `docs/10-reference/CHANGELOG.md`'s newest entry all equal `ident.h`. It deliberately does
 **not** check the git tag — the tag is created after CI is green, so requiring
-it would deadlock the very push that introduces the bump.
+it would deadlock the very push that introduces the bump. The release-hygiene
+tests separately pin the Homebrew formula's source tag to the same version.
+The guard also checks the Nix derivation's version literal.
 
 ## Versioning
 
@@ -55,26 +59,40 @@ cut). Record the skip in `docs/10-reference/CHANGELOG.md` rather than back-filli
 4. **`docs/10-reference/CHANGELOG.md`** — add a `## vX.Y.Z — YYYY-MM-DD` section at the top,
    grouped Added / Changed / Fixed / Security. Write it for someone deciding
    whether to upgrade, not for someone reading the diff.
-5. **Verify**:
+5. **Homebrew formula** — update `Formula/brix-cache.rb` to fetch `vX.Y.Z`.
+6. **Nix package** — update `version` in `packaging/nix/package.nix`.
+7. **Verify**:
    ```sh
    tools/ci/check_version_sync.py --show   # all four rows equal
    $(tools/ci/guard_set.py --all)          # or push and let CI run them
    PYTHONPATH=tests pytest tests/test_release_hygiene.py -v
    ```
-6. **Build the RPM** at least once for the target distro — the spec fallback
+   Classify every remaining readiness row as **completed**, **deferred** or
+   **will-not-do**. A deferred row must name its dependency and must not be
+   described as validated in release notes.
+   If external GridFTP interoperability is claimed, validate the live lane's
+   preserved JUnit report; this is a strict 9/9 gate and skips do not pass it:
+   ```sh
+   python3 tools/ci/check_gridftp_interop_image.py evidence \
+     --junit custom.xml --implementation dcache --server-version 9.2.17 \
+     --endpoint door.example.org --output gridftp-interop-vX.Y.Z.json
+   ```
+   Without that JSON, classify independent Globus/dCache validation as
+   deferred and say so explicitly.
+8. **Build the RPM** at least once for the target distro — the spec fallback
    path is only exercised by a bare `rpmbuild`, so build that way *once*:
    ```sh
    packaging/rpm/build-rpm-container.sh          # derived version (normal path)
    rpmbuild -bs packaging/rpm/nginx-mod-brix-cache.spec   # fallback path
    ```
-7. **Commit** the bump on its own, message `release: vX.Y.Z`.
-8. **Tag**, annotated, after CI is green:
+9. **Commit** the bump on its own, message `release: vX.Y.Z`.
+10. **Tag**, annotated, after CI is green:
    ```sh
    git tag -a vX.Y.Z -m "BriX-Cache X.Y.Z"
    git push origin vX.Y.Z
    ```
 
-Steps 7 and 8 are git *write* commands: per `CLAUDE.md`, an agent must not run
+Steps 9 and 10 are git *write* commands: per `CLAUDE.md`, an agent must not run
 them without explicit approval in the current conversation.
 
 ## Tagging convention

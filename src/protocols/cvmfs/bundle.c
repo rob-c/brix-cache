@@ -18,6 +18,7 @@
  *       caps; integrity stays per-object (the client CAS-verifies each member
  *       against its path-derived hash — the frame carries no trust).
  */
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "cvmfs_module_internal.h"
 
@@ -385,7 +386,7 @@ cvmfs_bundle_body_ready(ngx_http_request_t *r)
 
     n = cvmfs_bundle_parse_want(r, body, body_len, want, &status);
     if (n < 0) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
             "cvmfs-bundle: reject client=%V cause=\"malformed want-list "
             "(non-CAS line, oversize line, or more than %ui items)\"",
             &r->connection->addr_text, (ngx_uint_t) CVMFS_BUNDLE_MAX_ITEMS);
@@ -397,7 +398,7 @@ cvmfs_bundle_body_ready(ngx_http_request_t *r)
                                                  : lcf->common.root_canon;
     sd = cvmfs_resolve_sd(r, lcf);
     if (sd == NULL) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
             "cvmfs: no storage backend registered for \"%s\" - check "
             "brix_storage_backend", root);
         ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
@@ -409,7 +410,7 @@ cvmfs_bundle_body_ready(ngx_http_request_t *r)
         hits += want[i].miss ? 0 : 1;
     }
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
         "cvmfs-bundle: served client=%V items=%ui hits=%ui misses=%ui "
         "bytes=%uz",
         &r->connection->addr_text, (ngx_uint_t) n, hits,

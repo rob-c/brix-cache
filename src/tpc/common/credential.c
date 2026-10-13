@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "credential.h"
 
 /*
@@ -250,7 +251,7 @@ brix_tpc_credential_parse(const ngx_str_t *raw_credential,
         return rc;
     }
 
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
                   "brix_tpc: unsupported credential format");
     return NGX_DECLINED;
 }
@@ -277,7 +278,7 @@ brix_tpc_credential_validate(const brix_tpc_credential_t *cred,
 
     case BRIX_TPC_CREDENTIAL_PROXY:
         if (cred->proxy_pem.data == NULL || cred->proxy_pem.len == 0) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_tpc: empty proxy credential");
             return NGX_DECLINED;
         }
@@ -285,14 +286,14 @@ brix_tpc_credential_validate(const brix_tpc_credential_t *cred,
 
     case BRIX_TPC_CREDENTIAL_TOKEN:
         if (cred->bearer.data == NULL || cred->bearer.len == 0) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_tpc: empty bearer credential");
             return NGX_DECLINED;
         }
         break;
 
     default:
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_tpc: invalid credential type %d",
                       (int) cred->type);
         return NGX_DECLINED;
@@ -301,7 +302,7 @@ brix_tpc_credential_validate(const brix_tpc_credential_t *cred,
     if (cred->expires_at != 0) {
         now = ngx_time();
         if (cred->expires_at <= now) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_tpc: %s credential expired",
                           brix_tpc_credential_type_name(cred->type));
             return NGX_DECLINED;
@@ -341,7 +342,7 @@ brix_tpc_proxy_pem_expired(const u_char *pem, size_t len, ngx_log_t *log)
     leaf = PEM_read_bio_X509(bio, NULL, NULL, NULL);
     BIO_free(bio);
     if (leaf == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_tpc: delegated proxy blob has no parseable leaf");
         return -1;
     }

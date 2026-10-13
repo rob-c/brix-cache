@@ -36,6 +36,7 @@ Run:
 
 import hashlib
 import os
+import socket
 import subprocess
 import time
 import uuid
@@ -304,6 +305,19 @@ def test_multiprotocol_s3up_webdavdown(tmp_path):
             "S3 in: a->b->f  |  davs out: f data-port handoff -> f WebDAV",
             {"a", "b", "f"},
             "S3 PUT 200 then WebDAV GET 200 via single-port handoff, bytes match")
+
+
+def test_http_handoff_idle_timeout_closes_stalled_client():
+    """Security negative: a partial HTTP prefix cannot retain a relay forever."""
+    with socket.create_connection((HOST, P["f_data"]), timeout=2) as client:
+        client.sendall(b"G")
+        time.sleep(2.5)
+        client.settimeout(1)
+        try:
+            closed = client.recv(1) == b""
+        except ConnectionResetError:
+            closed = True
+        assert closed, "stalled HTTP handoff remained open"
 
 
 # --------------------------------------------------------------------------- #

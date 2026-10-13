@@ -98,12 +98,15 @@ def _prepare_base_state(run, suite):
     time.sleep(0.5)
     payload = run.root / "ucred_payload.bin"
     payload.write_bytes(os.urandom(65536))
+    proxy = run.root / "proxy-std.pem"
+    shutil.copyfile(PROXY_STD, proxy)
+    proxy.chmod(0o600)
     state = SimpleNamespace(
         run=run, suite=suite, origin=origin, front=front, creds=creds,
         b_cert=b_cert, b_key=b_key, origin_port=origin_port,
         front_port=front_port, origin_log=origin / "logs/e.log",
         front_log=front / "logs/e.log", url=f"https://{HOST}:{front_port}",
-        payload=payload, credential_file=None)
+        payload=payload, proxy=proxy, credential_file=None)
     return None, state
 
 
@@ -116,7 +119,7 @@ def _base_values(state):
 def _base_front_start(state, fallback: str, flush: str) -> bool:
     conf = _base_front_conf(
         state.front, state.front_port, state.origin_port, state.creds,
-        fallback, flush, PROXY_STD)
+        fallback, flush, state.proxy)
     started, detail = _start_prefixed(state.run, state.front, conf)
     if not started:
         print(f"SKIP: frontend start failed ({fallback} {flush}): {detail}")
@@ -131,15 +134,15 @@ def _base_learn_credential(state):
     if not _base_front_start(state, "deny", "sync"):
         return SKIP, None
     _curl_code(
-        f"{state.url}/probe_key.bin", "-T", state.payload, cert=Path(PROXY_STD))
+        f"{state.url}/probe_key.bin", "-T", state.payload, cert=state.proxy)
     time.sleep(0.3)
-    derived_key = _learn_key(state.run, state.front_log, PROXY_STD)
+    derived_key = _learn_key(state.run, state.front_log, state.proxy)
     if not derived_key:
         state.suite.bad("could not derive key for user A")
         return state.suite.finish(), None
     print(f"  user-A credential stem: {derived_key}")
     credential_file = state.creds / f"{derived_key}.pem"
-    _install_cred(PROXY_STD, credential_file)
+    _install_cred(state.proxy, credential_file)
     _stop_prefixed(state.front)
     return None, credential_file
 
@@ -151,14 +154,14 @@ def _base_assert_user_a(state):
     _truncate(olog)
     if not _base_front_start(state, "deny", "sync"):
         return SKIP
-    code = _curl_code(f"{url}/a2.bin", "-T", payload, cert=Path(PROXY_STD))
+    code = _curl_code(f"{url}/a2.bin", "-T", payload, cert=state.proxy)
     suite.check(code in ("201", "204"), f"1a: A PUT accepted (code={code})", f"1a: A PUT -> {code} (want 201 or 204)")
     time.sleep(1)
     suite.check(_grep(olog, r"GSI auth OK dn="),
                 "1b: origin authenticated a user (GSI auth OK in origin log)",
                 "1b: no 'GSI auth OK' in origin log")
     back = run.root / "ucred_back.bin"
-    _curl_code(f"{url}/a2.bin", cert=Path(PROXY_STD), output=back)
+    _curl_code(f"{url}/a2.bin", cert=state.proxy, output=back)
     suite.check(back.exists() and back.read_bytes() == payload.read_bytes(),
                 "1c: A GET byte-exact", "1c: A GET differs from PUT")
     time.sleep(0.5)
@@ -222,11 +225,11 @@ def _base_assert_expired(state):
     else:
         if not _base_front_start(state, "deny", "sync"):
             return SKIP
-        code = _curl_code(f"{url}/a3.bin", "-T", payload, cert=Path(PROXY_STD))
+        code = _curl_code(f"{url}/a3.bin", "-T", payload, cert=state.proxy)
         suite.check(code == "403", "4a: expired cred denied (403)", f"4a: expired cred -> {code} (want 403)")
         suite.check(_grep(flog, r"EXPIRED"), "4b: EXPIRED named in frontend log", "4b: no EXPIRED in frontend log")
         _stop_prefixed(front)
-    _install_cred(PROXY_STD, cred_file)
+    _install_cred(state.proxy, cred_file)
 
     return None
 
@@ -238,7 +241,7 @@ def _base_assert_async(state):
     _truncate(olog)
     if not _base_front_start(state, "deny", "async"):
         return SKIP
-    _curl_code(f"{url}/a4.bin", "-T", payload, cert=Path(PROXY_STD))
+    _curl_code(f"{url}/a4.bin", "-T", payload, cert=state.proxy)
     new_auth = 0
     for _ in range(20):
         time.sleep(0.5)
@@ -265,7 +268,7 @@ def _base_assert_replay(state):
     _truncate(olog)
     conf = _base_front_conf(
         front, state.front_port, state.origin_port, creds,
-        "deny", "async", PROXY_STD)
+        "deny", "async", getattr(state, "proxy", PROXY_STD))
     launcher = subprocess.run(
         run._prepare_command(
             [str(run.nginx), "-p", str(front), "-c", str(conf)], cwd=None),
@@ -274,7 +277,7 @@ def _base_assert_replay(state):
     if launcher.returncode != 0:
         return _skip(f"frontend start failed for assertion 6: {launcher.stderr}")
     _base_wait_for_front(url)
-    _curl_code(f"{url}/a5.bin", "-T", payload, cert=Path(PROXY_STD))
+    _curl_code(f"{url}/a5.bin", "-T", payload, cert=state.proxy)
     _base_kill_front(front)
     time.sleep(0.5)
 

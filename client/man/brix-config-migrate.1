@@ -1,0 +1,102 @@
+.TH BRIX-CONFIG-MIGRATE 1 "2026-10-12" "BriX-Cache 2.0.0" "User Commands"
+.SH NAME
+brix-config-migrate \- suggest a BriX-Cache configuration from XRootD input
+.SH SYNOPSIS
+.B brix-config-migrate
+.RI [ options ] " xrootd.cfg"
+.SH DESCRIPTION
+.B brix-config-migrate
+is an offline migration assistant.  It parses one XRootD configuration file
+and writes a suggested nginx configuration using BriX-Cache directives.
+It recognizes common POSIX, PSS/PFC, XrdCeph/librados, GSI/VOMS, XrdAcc,
+TLS, CMS, TPC, and XrdHttp settings.
+.PP
+The output is a suggestion, not a semantic guarantee.  Ambiguous or unsupported
+input is preserved as
+.B REVIEW
+comments and in the optional JSON report.  The tool does not open include
+files, load plugins, expand environment variables, or contact origins.
+.SH OPTIONS
+.TP
+.BR \-o ", " \-\-output " " FILE
+Write the suggested nginx configuration to FILE instead of standard output.
+.TP
+.BR \-\-report " " FILE
+Write the per-directive conversion decisions as JSON.
+.TP
+.B \-\-strict
+Exit with status 3 when any review or unsupported item remains.
+.TP
+.BR \-\-ca-bundle " " PATH
+Supply the BriX trusted-CA bundle where the source only identifies a CA
+directory.
+.TP
+.BR \-\-authdb-input " " FILE
+Read this explicitly named XrdAcc authdb companion.  The source configuration's
+authdb path is never followed automatically.
+.TP
+.BR \-\-authdb-output " " FILE
+Write the BriX-compatible XrdAcc authdb and point the generated configuration
+at FILE.  Must be used with
+.BR \-\-authdb-input .
+.TP
+.BR \-\-vomsdir " " PATH
+Override the VOMS trust directory.
+.TP
+.BR \-\-voms-cert-dir " " PATH
+Set the VOMS issuer-certificate directory.
+.TP
+.BR \-\-require-vo " " PATH=VO
+Add a path-scoped VO requirement.  May be repeated.
+.TP
+.BR \-\-ceph-pool " " NAME
+Supply the librados pool when it cannot be inferred safely.
+.TP
+.BR \-\-ceph-conf " " PATH
+Supply the Ceph configuration path.
+.TP
+.BR \-\-ceph-key-prefix " " PREFIX
+Supply the object-key prefix for the librados backend.
+.TP
+.BR \-\-n2n-scheme " " SCHEME
+Select an explicit name-to-name mapping: identity, ral, or cephfs_path.
+.TP
+.BR \-\-n2n-pool " " NAME
+Supply the name-to-name pool.
+.TP
+.BR \-\-n2n-prefix " " PREFIX
+Supply the name-to-name path prefix.
+.TP
+.BR \-\-http-port " " PORT
+Select the WebDAV port. When XrdHttp and root share a source port, this is a
+private loopback listener behind
+.BR brix_http_handoff ;
+when omitted, the next numeric port is used.
+.TP
+.BR \-\-http-connect-timeout " " TIME
+Set the private WebDAV connection deadline emitted for a shared source port.
+The default is 5s.
+.TP
+.BR \-\-http-idle-timeout " " TIME
+Set the per-direction idle deadline emitted for an HTTP handoff. The default
+is 75s.
+.SH EXIT STATUS
+0 for a conversion (including review items without
+.BR \-\-strict ),
+2 for invalid input or an I/O error, and 3 for unresolved review items in
+strict mode.
+.SH EXAMPLES
+.EX
+brix-config-migrate --strict --report decisions.json xrootd.cfg > nginx.conf
+brix-config-migrate --authdb-input authdb --authdb-output brix-authdb xrootd.cfg
+brix-config-migrate --ceph-pool atlas --n2n-scheme cephfs_path xrootd-ceph.cfg
+nginx -t -c "$PWD/nginx.conf"
+.EE
+.SH SECURITY
+Input is treated strictly as data.  Includes and plugin paths are never
+followed or executed.  Generated arguments are nginx-quoted.  Always inspect
+every REVIEW item and validate the result with
+.BR nginx (8)
+before deployment.
+.SH SEE ALSO
+.BR nginx (8)

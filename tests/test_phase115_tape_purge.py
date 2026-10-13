@@ -35,6 +35,7 @@ import pytest
 
 from cmdscripts import hand_file_to_worker
 from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
+from log_records import semantic_log_text
 from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
 from settings import BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
@@ -127,7 +128,7 @@ def _wait_log(elog, pattern, timeout=20.0):
         try:
             with open(elog) as fh:
                 for line in fh:
-                    m = rx.search(line)
+                    m = rx.search(semantic_log_text(line))
                     if m:
                         return m
         except FileNotFoundError:
@@ -239,7 +240,7 @@ def test_held_purge_lock_defers_the_pass_until_released(lifecycle, tmp_path):
     fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o600)
     # The holder this case is imitating is another WORKER, so the lock has to
     # look like one the worker made: pytest runs as root, the de-escalated
-    # worker is `nobody`, and a root-owned 0600 lock answers its O_RDWR with
+    # packaged worker is unprivileged, and a root-owned 0600 lock answers O_RDWR with
     # EACCES — "tape purge cannot open lock ... (13: Permission denied)" once a
     # second forever, which is not "someone holds it" and never will be. The
     # flock stays ours regardless: it lives on this fd, not on the inode's
@@ -337,7 +338,7 @@ stream {{ server {{ listen {BIND_HOST}:{PARSE_PLACEHOLDER_PORT};
     inject_nginx_runtime_paths(conf, root)
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
-    return p.returncode, p.stderr + p.stdout
+    return p.returncode, semantic_log_text(p.stderr + p.stdout)
 
 
 def test_purge_max_bytes_parses_a_size(tmp_path):

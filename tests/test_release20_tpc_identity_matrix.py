@@ -50,6 +50,7 @@ from _test_audit15g_helpers import pattern
 from fleet_lifecycle_ports import SHARED_PARSE_PLACEHOLDER_PORT
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, NGINX_BIN
+from log_records import semantic_log_text
 
 pytestmark = [
     pytest.mark.serial,
@@ -376,7 +377,8 @@ class TestGrammar:
     def test_a_malformed_line_is_refused(self, lifecycle, tmp_path, line, needle):
         result = _render_and_test(lifecycle, tmp_path, line)
         assert result.returncode != 0, result.stdout
-        assert needle in result.stderr, result.stderr
+        diagnostics = semantic_log_text(result.stderr)
+        assert needle in diagnostics, diagnostics
 
     def test_none_is_not_an_authentication_method(self, lifecycle, tmp_path):
         """(security negative) `require ... none` is deliberately NOT in the
@@ -386,4 +388,4 @@ class TestGrammar:
         result = _render_and_test(lifecycle, tmp_path,
                                   "brix_tpc_require all none;")
         assert result.returncode != 0
-        assert "unknown authentication method" in result.stderr
+        assert "unknown authentication method" in semantic_log_text(result.stderr)

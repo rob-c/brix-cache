@@ -6,6 +6,7 @@ from pathlib import Path
 
 from cmdscripts import run
 from fleet_ports import cmdscript_ports
+from log_records import semantic_log_text
 from settings import BIND_HOST, NGINX_BIN
 
 WARN = 'brix_credential "origin" is defined more than once'
@@ -32,7 +33,8 @@ stream {{
 
 def nginx_test(nginx_bin: str, conf: Path) -> tuple[int, str]:
     result = run([nginx_bin, "-p", str(conf.parent), "-c", str(conf), "-t"])
-    return result.returncode, (result.stdout or "") + (result.stderr or "")
+    output = (result.stdout or "") + (result.stderr or "")
+    return result.returncode, semantic_log_text(output)
 
 
 def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]:

@@ -15,6 +15,7 @@
  */
 
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "core/http/http_headers.h"
 #include "auth/token/macaroon.h"
@@ -29,15 +30,15 @@
 /*
  * wt_validate_registry — run path+op-scoped registry validation for a token.
  *
- * WHAT: Copies the request URI into a bounded NUL-terminated buffer, populates a
+ * WHAT: Decodes the request URI into the logical WebDAV path, populates a
  * brix_token_registry_args_t from the location config + parsed macaroon secret,
  * and validates the token against the issuer registry, returning the validator
  * rc (0 = accepted) with verified claims in *claims.
  * WHY: registry authz (phase-59 W1) is path+op dependent and therefore MUST NOT
  * consult the token-keyed caches — it is split out so the orchestrator can route
  * a registry config straight here every request without cache branching.
- * HOW: bound the URI to sizeof(pathz)-1, build the args struct (secret only when
- * slen>0), derive the op class from the HTTP method, and call
+ * HOW: decode through the same helper used by VFS resolution, build the args
+ * struct (secret only when slen>0), derive the op class, and call
  * brix_token_validate_registry() with a throwaway bucket out-param.
  */
 static int
@@ -45,13 +46,14 @@ wt_validate_registry(const wt_validate_ctx_t *v)
 {
     ngx_http_request_t         *r = v->r;
     char                        pathz[WEBDAV_PATH_BUFFER_SIZE];
-    size_t                      plen;
+    ngx_int_t                   path_rc;
     int                         bucket = 0;
     brix_token_registry_args_t  ra;
 
-    plen = (r->uri.len < sizeof(pathz) - 1) ? r->uri.len : sizeof(pathz) - 1;
-    ngx_memcpy(pathz, r->uri.data, plen);
-    pathz[plen] = '\0';
+    path_rc = webdav_decode_request_path(r, pathz, sizeof(pathz));
+    if (path_rc != NGX_OK) {
+        return (int) path_rc;
+    }
 
     ra.log             = r->connection->log;
     ra.token           = v->token;
@@ -142,7 +144,7 @@ wt_grace_retry(const wt_validate_ctx_t *v, int via_registry, int prev_rc)
 
     rc = wt_validate_jwks(v, old_secret, old_slen);
     if (rc == 0) {
-        ngx_log_error(NGX_LOG_INFO, v->r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, v->r->connection->log, 0,
                       "brix_webdav: macaroon accepted via old secret "
                       "(grace-period key rotation)");
     }

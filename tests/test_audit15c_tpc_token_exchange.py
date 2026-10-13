@@ -115,12 +115,18 @@ def tpcx(lifecycle, tmp_path, token_mock):
     export — good endpoint, good+client-credentials, good+an explicit outbound
     scope, dead endpoint, and an endpoint answering junk.  Every instance can
     also serve as pull source."""
+    # A root-run packaged nginx drops workers to its compiled service account.
+    # Keep this synthetic credential tree traversable in that configuration;
+    # the token is deliberately inert test data, not a private production
+    # credential.  Source-tree runs normally keep the worker as the invoking
+    # user and exercise the same path without relying on that coincidence.
+    tmp_path.chmod(0o755)
     data = tmp_path / "data"
     data.mkdir()
     (data / "src.bin").write_bytes(SEED)
     bearer = tmp_path / "bearer.tok"
     bearer.write_text("subject-token-audit15c\n")
-    bearer.chmod(0o600)
+    bearer.chmod(0o644)
     base = f"http://{HOST}:{MOCK_PORT}"
     ports = {
         "good": _start_dest(lifecycle, "lc-audit15c-tpcx-good", data, bearer,

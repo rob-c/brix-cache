@@ -22,6 +22,7 @@
  *       helpers stay file-local.
  */
 
+#include "core/compat/log_event.h"
 #include "stage_engine.h"
 #include "stage_engine_internal.h"
 #include "xfer.h"   /* brix_xfer_finish + the kind/result vocabulary (ledger) */
@@ -375,7 +376,7 @@ stage_journal_move_to_deadletter(const char *journal_dir, const char *reqid,
     }
 
     if (mkdir(dl_dir, 0700) != 0 && errno != EEXIST) {
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
             "xrootd stage: dead-letter mkdir \"%s\" failed", dl_dir);
         return;
     }
@@ -449,7 +450,7 @@ stage_deny_terminal(const char *journal_dir, const char *reqid,
     }
 
     /* Both-or-either cap reached: move to deadletter and emit a loud tombstone. */
-    ngx_log_error(NGX_LOG_ERR, log, 0,
+    BRIX_LOG(NGX_LOG_ERR, log, 0,
         "xrootd stage: flush DEAD-LETTERED (reqid=%s principal=\"%s\" "
         "key=%s dst=\"%s\" attempts=%uD age=%lds) - "
         "credential permanently missing/expired in deny mode; "
@@ -474,7 +475,7 @@ stage_retry_terminal(const char *journal_dir, brix_sreq_t *rec,
     if (rec->attempts < stage_engine_state.max_attempts) {
         return 0;                  /* below brix_frm_fail_retries: keep FAILED */
     }
-    ngx_log_error(NGX_LOG_ERR, log, 0,
+    BRIX_LOG(NGX_LOG_ERR, log, 0,
         "xrootd stage: flush DEAD-LETTERED (reqid=%s key=%s dst=\"%s\" "
         "attempts=%uD errno=%d) - brix_frm_fail_retries reached while the "
         "origin stays unreachable; stage copy retained in deadletter/ for "

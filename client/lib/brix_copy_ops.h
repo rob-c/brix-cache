@@ -17,6 +17,8 @@ typedef struct {
     int         verbose;  /* -v/-d */
     int         pgrw;     /* --pgrw: use kXR_pgread/pgwrite (per-page CRC32c) */
     const char *cksum;    /* --cksum <type>[:source|:print|:<value>], or NULL */
+    int         verify_strict; /* --verify: UNVERIFIED is failure; explicit
+                                * --cksum retains best-effort query semantics */
     const char *compress; /* --compress <codec>: phase-42 W4 root:// inline read
                            * compression — request "?xrootd.compress=<codec>" on
                            * the read open; NULL = plaintext (default). */

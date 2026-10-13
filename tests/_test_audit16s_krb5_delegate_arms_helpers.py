@@ -116,6 +116,7 @@ the server records of it.
 
 import dataclasses
 import os
+import pwd
 import re
 import shutil
 import socket
@@ -126,6 +127,8 @@ import time
 from pathlib import Path
 
 import pytest
+
+from log_records import semantic_log_text
 import requests
 
 import kdc_helpers
@@ -136,8 +139,9 @@ from fleet_lifecycle_ports import (
     SHARED_PARSE_PLACEHOLDER_PORT,
 )
 from server_registry import NginxInstanceSpec
+from brix_suite.worker_identity import nginx_default_worker_user
 from settings import (
-    CRED_STORE_DEFAULT,
+    CRED_STORE_BASE,
     HOST,
     KRB5_CCACHE,
     KRB5_CLIENT_KEYTAB,
@@ -149,6 +153,16 @@ from settings import (
     url_host,
     worker_runtime_uid,
 )
+
+
+def _default_worker_uid():
+    """Resolve the owner used when nginx.conf omits the ``user`` directive."""
+    if os.geteuid() != 0:
+        return os.geteuid()
+    try:
+        return pwd.getpwnam(nginx_default_worker_user(NGINX_BIN)).pw_uid
+    except KeyError:
+        return worker_runtime_uid()
 
 def _expression_1(plane, mark, self):
     return (
@@ -214,7 +228,8 @@ CAPTURE_GLOB = "brix-krb5-fwd-*"
 #: cred_stage.c BRIX_CRED_STAGE_BASE, scoped to the uid the WORKER runs as —
 #: `.{os.geteuid()}` named the master's, so a root lane watched a store the
 #: de-escalated worker never writes to and read every capture as a missing one.
-DEFAULT_CAPTURE_DIR = Path(CRED_STORE_DEFAULT)
+DEFAULT_WORKER_UID = _default_worker_uid()
+DEFAULT_CAPTURE_DIR = Path(f"{CRED_STORE_BASE}.{DEFAULT_WORKER_UID}")
 
 MARKER = "krb5 delegation captured forwarded TGT"
 NOTICE = "brix: krb5 auth configured"
@@ -402,7 +417,7 @@ class _Planes:
 
     def errlog(self):
         """Instance logs are wiped at teardown, so failures quote them inline."""
-        return _read(os.path.join(self.logs, "error.log"))
+        return semantic_log_text(_read(os.path.join(self.logs, "error.log")))
 
     def accesslog(self, plane):
         return _read(os.path.join(self.logs, f"access-{plane}.log"))
@@ -607,4 +622,3 @@ def _captures(directory=DEFAULT_CAPTURE_DIR):
 # --------------------------------------------------------------------------- #
 # A. What the value says at config time                                        #
 # --------------------------------------------------------------------------- #
-

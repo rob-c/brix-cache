@@ -82,6 +82,9 @@ def _lines_containing(text, needle):
 
 
 def _notice_body(line):
+    match = re.search(r'message="(.*)" truncated=[01]', line)
+    if match:
+        return match.group(1)
     return line.split("#", 1)[-1].split(":", 1)[-1].strip()
 
 
@@ -202,6 +205,7 @@ def _gate(tmp_path, subject, *, arm=None, where="loc"):
                       flag if where == "loc" else "",
                       flag if where == "srv" else ""),
         http=flag if where == "http" else "")
+    result.stderr = semantic_log_text(result.stderr)
     return result, needle
 
 

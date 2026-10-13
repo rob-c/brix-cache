@@ -155,9 +155,8 @@ def test_m9_chmod(native_xrdfs, m9_dir):
     disk = os.path.join(DATA_ROOT, m9_dir, "c.bin")
     with open(disk, "wb") as fh:
         fh.write(b"x")
-    # The worker drops to `nobody` under the root harness and can only chmod a
-    # file it owns — chown the file to `nobody` so the chmod succeeds.
-    L.chown_stock(disk)
+    # chmod is owner-gated; packaged nginx can use a non-nobody account.
+    L.chown_brix(disk)
     rc, _, err = _fs(native_xrdfs, "chmod", f"/{m9_dir}/c.bin", "0640")
     assert rc == 0, f"chmod failed: {err}"
     assert (os.stat(disk).st_mode & 0o777) == 0o640, "mode not applied on disk"

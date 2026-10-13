@@ -367,17 +367,23 @@ def _gridftp_outbound(sel):
                 f"outbound.role.outbound.port={port}",
                 f"outbound.role.outbound.basePath={base}",
                 f"outbound.role.outbound.scheme={scheme}"]
+    results_pvc = os.environ.get("BRIX_GRIDFTP_RESULTS_PVC")
     if _dry():
+        evidence = ""
+        if results_pvc:
+            evidence = (f" results.pvc={results_pvc} testRunner.junit=true"
+                        " /results/custom.xml")
         return ["helm dependency build charts/gridftp-interop",
                 "helm upgrade --install gf charts/gridftp-interop -n "
                 + ns + " --set " + ",".join(settings),
                 f"helm upgrade --install run charts/test-runner -n {ns} "
-                f"TEST_OUTBOUND_HOST=gf-outbound -- pytest {sel}"]
+                f"TEST_OUTBOUND_HOST=gf-outbound -- pytest {sel}{evidence}"]
     subprocess.run(["kubectl", "create", "namespace", ns], capture_output=True)
     _helm("dependency", "build", str(_CHARTS / "gridftp-interop"))
     _helm("upgrade", "--install", "gf", str(_CHARTS / "gridftp-interop"), "-n", ns,
           "--set", ",".join(settings), "--wait", "--timeout", "5m")
-    _helm("upgrade", "--install", "run", str(_CHARTS / "test-runner"), "-n", ns,
+    runner = ["upgrade", "--install", "run", str(_CHARTS / "test-runner"),
+              "-n", ns,
           # plain brix-client: the reference grid stack is not needed here —
           # the thing under test is brix's OWN GridFTP client, driven over HTTP.
           "--set", "testRunner.tier=custom", "--set", f"testRunner.selection={sel}",
@@ -386,7 +392,11 @@ def _gridftp_outbound(sel):
           *_outbound_port_env(),
           "--set", "testRunner.env.PYTHONPATH=/opt/brix/tests",
           "--set", "testRunner.env.TEST_SKIP_SERVER_SETUP=1",
-          "--set", "testRunner.env.TEST_ROOT=/tmp/tr")
+          "--set", "testRunner.env.TEST_ROOT=/tmp/tr"]
+    if results_pvc:
+        runner.extend(["--set", "testRunner.junit=true",
+                       "--set", f"results.pvc={results_pvc}"])
+    _helm(*runner)
     return _collect(ns, ["gf", "run"])
 
 

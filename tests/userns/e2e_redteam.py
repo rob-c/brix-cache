@@ -86,6 +86,28 @@ def ok(cond, msg):
         print(f"FAIL: {msg}", flush=True)
 
 
+def _rt_default(value, fallback):
+    """Return ``fallback`` only when a response helper returned ``None``.
+
+    The red-team checks intentionally distinguish an empty response from a
+    missing one.  Keeping that normalization in one helper also prevents
+    boolean reducers such as ``any`` from accidentally converting response
+    bodies into booleans before content assertions inspect them.
+    """
+    return fallback if value is None else value
+
+
+def _rt_missing_or_stat(path, predicate, *, follow_symlinks=True):
+    """Safely accept an absent path or validate one stable metadata sample."""
+    try:
+        metadata = os.stat(path, follow_symlinks=follow_symlinks)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return bool(predicate(metadata))
+
+
 def _b64u(b):
     return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
 
@@ -93,8 +115,11 @@ def _b64u(b):
 def mint(key, sub, scope=WRITE_SCOPE, **over):
     now = int(time.time())
     hdr = {"alg": "ES256", "typ": "JWT", "kid": KID}
+    # The client and server can straddle a one-second boundary (and VM clocks
+    # need not be sub-second identical).  Backdate only the positive fixture's
+    # nbf slightly; explicit negative-test overrides still win below.
     pay = {"iss": ISSUER, "sub": sub, "aud": AUDIENCE, "exp": now + 3600,
-           "iat": now, "nbf": now, "scope": scope, "wlcg.ver": "1.0"}
+           "iat": now, "nbf": now - 5, "scope": scope, "wlcg.ver": "1.0"}
     pay.update(over)
     si = (_b64u(json.dumps(hdr, separators=(",", ":")).encode()) + "."
           + _b64u(json.dumps(pay, separators=(",", ":")).encode()))
@@ -119,7 +144,10 @@ def ensure_traversable(path):
     """Add +x to every ancestor so the unprivileged svc-uid worker can traverse
     to (and open) the export root — mirrors a correct production export layout
     (the worker user must be able to reach the data tree)."""
-    p = os.path.abspath(path)
+    # The pytest wrapper may pass a short symlink spelling so the broker's
+    # AF_UNIX socket stays below sockaddr_un.sun_path.  nginx canonicalises the
+    # export, so make the real ancestor chain traversable as well.
+    p = os.path.realpath(path)
     while p and p != "/":
         try:
             os.chmod(p, os.stat(p).st_mode | 0o111)
@@ -212,7 +240,10 @@ def raw_http(raw, port, read_timeout=4.0):
 def _read_socket(sock):
     buf = b""
     while True:
-        chunk = sock.recv(65536)
+        try:
+            chunk = sock.recv(65536)
+        except (OSError, socket.timeout):
+            return buf
         if not chunk:
             return buf
         buf += chunk
@@ -487,3 +518,7 @@ from split_continuation import load_numbered as _load_numbered_continuations
 _load_numbered_continuations(
     globals(), __file__, "e2e_redteam_part", 2, 91
 )
+
+
+if __name__ == "__main__":
+    sys.exit(main())

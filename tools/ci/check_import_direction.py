@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # WHAT: Fail CI when any module under brixtest/src/brixtest/ imports
 #       brix_suite — at module level, inside a function, or via importlib with
@@ -79,7 +84,7 @@ def _forbidden_literal(argument):
 
 def main() -> int:
     if not CORE.is_dir():
-        print(f"check_import_direction: FAIL — core tree missing: {CORE}",
+        _brix_diagnostic('ERROR', 'tools/ci/check_import_direction.py', 'main', f"check_import_direction: FAIL — core tree missing: {CORE}",
               file=sys.stderr)
         return 1
     failures = []

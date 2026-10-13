@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 
 #include <stddef.h>
@@ -85,7 +86,7 @@ adb_read_file(ngx_conf_t *cf, ngx_str_t *filename, u_char **out_buf,
 
     fd = ngx_open_file(filename->data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
     if (fd == NGX_INVALID_FILE) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            ngx_open_file_n " \"%s\" failed", filename->data);
         return NGX_ERROR;
     }
@@ -96,7 +97,7 @@ adb_read_file(ngx_conf_t *cf, ngx_str_t *filename, u_char **out_buf,
     file.log = cf->log;
 
     if (ngx_fd_info(fd, &fi) == NGX_FILE_ERROR) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            "fstat \"%s\" failed", filename->data);
         ngx_close_file(fd);
         return NGX_ERROR;
@@ -108,7 +109,7 @@ adb_read_file(ngx_conf_t *cf, ngx_str_t *filename, u_char **out_buf,
         return NGX_OK;                 /* empty file: nothing to parse */
     }
     if (buf_size > BRIX_AUTHDB_MAX_FILE_SIZE) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_authdb \"%s\" exceeds %d byte limit",
                            filename->data, BRIX_AUTHDB_MAX_FILE_SIZE);
         ngx_close_file(fd);

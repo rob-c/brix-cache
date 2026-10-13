@@ -304,6 +304,8 @@ def _config_paths(config_path):
     `prep_steps`' to permission, they are read by the root-run test CLIENTS as
     well as by the worker, and re-opening them on every start is what makes
     every roots:// handshake in the suite fail (`_session_artifact_roots`).
+    The service keytab is the exception: only the acceptor worker consumes it,
+    so an owner-only handoff follows the effective worker of each config.
     """
     from brix_suite.settings import TEST_ROOT  # noqa: PLC0415
 
@@ -316,7 +318,9 @@ def _config_paths(config_path):
     for directive, arguments in _DIRECTIVE.findall(text):
         for raw in arguments.split():
             path = _existing_path_in(raw.strip('"'), marker)
-            if path is not None and not _is_session_artifact(path, artifacts):
+            service_keytab = directive == "brix_krb5_keytab"
+            if path is not None and (
+                    service_keytab or not _is_session_artifact(path, artifacts)):
                 yield directive, path
 
 
@@ -359,7 +363,7 @@ def _existing_dir_in(token, marker):
     return path if path is not None and os.path.isdir(path) else None
 
 
-def _prepare_worker_paths(config_path):
+def _prepare_worker_paths(config_path, worker=None):
     """Make every path this config names usable by the worker that will read it.
 
     The de-escalation is unconditional (`src/auth/impersonate/lifecycle_worker.c`
@@ -392,16 +396,16 @@ def _prepare_worker_paths(config_path):
             # refuses a store that is group/other-accessible or not owned by
             # the writing worker, and answers 507.  Owner + 0700 is the whole
             # contract, which `handoff_credential_store` is written to.
-            handoff_credential_store(path)
+            handoff_credential_store(path, worker)
         elif os.path.isdir(path):
             _open_spec_tree(path)
         elif directive in _WORKER_CREDENTIAL_FILES:
-            hand_credential_file_to_worker(path)
+            hand_credential_file_to_worker(path, worker)
         else:
-            _open_worker_readable_file(path)
+            _open_worker_readable_file(path, worker)
 
 
-def _open_worker_readable_file(path):
+def _open_worker_readable_file(path, worker=None):
     """Let the worker read one file the config named — without leaking a key.
 
     An owner-only mode is a SECURITY STATEMENT, the same way `_open_if_still_default`
@@ -425,7 +429,7 @@ def _open_worker_readable_file(path):
     except OSError:
         return
     if not mode & 0o077:
-        hand_credential_file_to_worker(path)
+        hand_credential_file_to_worker(path, worker)
         return
     opened = mode | 0o444 | (0o111 if mode & stat.S_IXUSR else 0)
     if opened != mode:
@@ -443,7 +447,11 @@ def _prepare_nginx_permissions(launcher, spec, endpoint):
         _open_ancestors_within_test_root(endpoint.data_root)
     for directory in _spec_directories_within_test_root(spec):
         _open_spec_tree(directory)
-    _prepare_worker_paths(endpoint.config)
+    from brix_suite.worker_identity import nginx_worker_user  # noqa: PLC0415
+    from brix_suite.nginx_tools import _nginx_bin  # noqa: PLC0415
+
+    worker = nginx_worker_user(endpoint.config, _nginx_bin())
+    _prepare_worker_paths(endpoint.config, worker)
     logs_dir = os.path.join(endpoint.prefix, "logs")
     if os.path.isdir(logs_dir):
         launcher._chmod_add(logs_dir, 0o777)

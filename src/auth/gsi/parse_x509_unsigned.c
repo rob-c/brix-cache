@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "gsi_internal.h"
 #include "gsi_core.h"
 #include <string.h>
@@ -187,7 +188,7 @@ gsi_unsigned_decrypt_main(ngx_connection_t *c, EVP_CIPHER_CTX *dctx,
 
     if (EVP_DecryptUpdate(dctx, plain, &olen,
                           main_data, (int) main_len) != 1) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI kXGC_cert: EVP_DecryptUpdate failed");
         brix_evp_cipher_ctx_free(dctx);
         return NULL;
@@ -196,7 +197,7 @@ gsi_unsigned_decrypt_main(ngx_connection_t *c, EVP_CIPHER_CTX *dctx,
         char errstr[128];
 
         ERR_error_string_n(ERR_get_error(), errstr, sizeof(errstr));
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI kXGC_cert: EVP_DecryptFinal failed: %s",
                       errstr);
         brix_evp_cipher_ctx_free(dctx);
@@ -231,7 +232,7 @@ gsi_unsigned_build_peer(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (gsi_find_bucket(payload, plen, (uint32_t) kXRS_puk,
                         &cpub_data, &cpub_len) != 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: GSI kXGC_cert: kXRS_puk not found in outer buffer");
         return NULL;
     }
@@ -243,7 +244,7 @@ gsi_unsigned_build_peer(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (gsi_find_bucket(payload, plen, (uint32_t) kXRS_main,
                         main_data, main_len) != 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: GSI kXGC_cert: kXRS_main not found in outer buffer");
         BN_free(bnpub);
         return NULL;
@@ -290,7 +291,7 @@ brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
     char               cipher_log[128];
 
     if (ctx->gsi.dh_key == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: GSI kXGC_cert: no server DH key (kXGC_certreq skipped?)");
         return NULL;
     }
@@ -320,7 +321,7 @@ brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
         return NULL;
     }
 
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, log, 0,
                    "brix: GSI DH shared secret %uz bytes, cipher='%s'",
                    secret_len,
                    (brix_sanitize_log_string(cipher_name, cipher_log,
@@ -330,7 +331,7 @@ brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
     evp_cipher = EVP_get_cipherbyname(cipher_name);
     if (!evp_cipher) {
         brix_sanitize_log_string(cipher_name, cipher_log, sizeof(cipher_log));
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: GSI kXGC_cert: unknown cipher '%s'", cipher_log);
         OPENSSL_cleanse(secret, secret_len);
         return NULL;

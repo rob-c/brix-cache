@@ -1,15 +1,6 @@
-/*
- * lifecycle_worker.c — worker-side impersonation client glue (phase 40).
- * Split verbatim from lifecycle.c.
- *
- * Owns everything that runs in the nginx worker: hyper-hardening the worker by
- * shedding the privilege-escalation / DAC-bypass / identity capabilities (the
- * worker is a pure broker CLIENT), connecting the worker client to the broker
- * socket, and setting/clearing the broker's target principal around each
- * request.  Everything here is inert unless the mode is `map` (see
- * lifecycle_internal.h for the shared settings block).
- */
+/* Worker privilege hardening and identity transition (phase 40). */
 
+#include "core/compat/log_event.h"
 #include "lifecycle.h"
 #include "impersonate.h"
 #include "impersonate_proto.h"
@@ -25,6 +16,7 @@
 #include <pwd.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -34,37 +26,12 @@
 #include <sys/wait.h>
 
 
-/*
- * Hyper-harden the worker: shed the privilege-escalation / DAC-bypass / identity
- * capabilities so a compromised worker can never setfsuid/setgid or override DAC,
- * even if nginx was granted them via file/ambient capabilities to feed the broker.
- * Best-effort: clearing effective+permitted always succeeds; bounding-set drops
- * need CAP_SETPCAP and are skipped (with no error) when already unprivileged.  The
- * worker is a pure broker CLIENT and needs none of these.
- */
-/* True iff this process currently holds `cap` in its effective OR permitted set.
- * cap < 32 for every cap we test (SETUID=7, SETGID=6, DAC_OVERRIDE=1, SYS_ADMIN=21),
- * so word 0 suffices. Best-effort: a capget failure reports "not held". */
-int
-brix_imp_cap_held(int cap)
+/* Shed privilege-escalation, DAC-bypass and identity capabilities before the
+ * worker handles recovery state or requests. */
+static ngx_int_t
+imp_worker_prepare_drop(ngx_log_t *log)
 {
-    struct __user_cap_header_struct hdr;
-    struct __user_cap_data_struct   data[2];
-
-    ngx_memzero(&hdr, sizeof(hdr));
-    ngx_memzero(data, sizeof(data));
-    hdr.version = _LINUX_CAPABILITY_VERSION_3;
-    hdr.pid     = 0;
-    if (brix_plat_capget(&hdr, data) != 0) {
-        return 0;
-    }
-    return (data[0].effective & (1u << cap)) != 0
-        || (data[0].permitted & (1u << cap)) != 0;
-}
-
-static void
-imp_worker_drop_caps(ngx_log_t *log)
-{
+#if BRIX_HAS_CAPABILITIES
     struct __user_cap_header_struct hdr;
     struct __user_cap_data_struct   data[2];
     unsigned                        keep;
@@ -82,9 +49,30 @@ imp_worker_drop_caps(ngx_log_t *log)
         CAP_SETFCAP,
     };
     unsigned i;
+#endif
 
-    (void) brix_plat_prctl(PR_SET_NO_NEW_PRIVS, 1);
+#if BRIX_HAS_NO_NEW_PRIVS
+    if (brix_plat_prctl(PR_SET_NO_NEW_PRIVS, 1) != 0) {
+        if (log != NULL) {
+            BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
+                "impersonate: worker no-new-privileges unavailable; "
+                "refusing to start without the promised exec confinement");
+        }
+        return NGX_ERROR;
+    }
+#else
+    /* A host without no-new-privileges or capabilities may serve only when it
+     * arrived as an ordinary, untainted non-root process.  Root/set-id images
+     * are refused because this PAL cannot prove an irreversible transition. */
+    if (getuid() == 0 || geteuid() == 0 || brix_plat_process_tainted()) {
+        BRIX_LOG(NGX_LOG_EMERG, log, 0,
+            "impersonate: host cannot enforce no-new-privileges; refusing "
+            "a root or set-id worker");
+        return NGX_ERROR;
+    }
+#endif
 
+#if BRIX_HAS_CAPABILITIES
     ngx_memzero(&hdr, sizeof(hdr));
     ngx_memzero(data, sizeof(data));
     hdr.version = _LINUX_CAPABILITY_VERSION_3;
@@ -101,33 +89,266 @@ imp_worker_drop_caps(ngx_log_t *log)
     data[0].permitted = data[0].effective = keep;
 
     if (brix_plat_capset(&hdr, data) != 0) {
-        if (log) ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
-                               "impersonate: worker capset failed "
-                               "(continuing — worker is an unprivileged client)");
+        if (log != NULL) {
+            BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
+                "impersonate: worker capability shedding failed; refusing "
+                "to start with potentially retained privileges");
+        }
+        return NGX_ERROR;
     }
     /* Best-effort bounding-set drop of the dangerous caps (needs CAP_SETPCAP). */
     for (i = 0; i < sizeof(kill_caps) / sizeof(kill_caps[0]); i++) {
         (void) brix_plat_prctl(PR_CAPBSET_DROP, kill_caps[i]);
     }
+#endif
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Irreversibly clear every effective, permitted and inheritable worker
+ *       capability after the identity transition is complete.
+ * WHY:  The preparation pass retains SETUID/SETGID just long enough to reach
+ *       the confined uid.  An already-target worker or a securebits-enabled
+ *       post-setuid worker must not carry those transition capabilities into
+ *       request processing.
+ * HOW:  Submit two zeroed v3 capability words, then read them back.  Failure to
+ *       set or verify the terminal state aborts worker startup.
+ */
+static ngx_int_t
+imp_worker_drop_all_caps(ngx_log_t *log)
+{
+#if BRIX_HAS_CAPABILITIES
+    struct __user_cap_header_struct hdr;
+    struct __user_cap_data_struct   data[2];
+    unsigned                        i;
+
+    ngx_memzero(&hdr, sizeof(hdr));
+    ngx_memzero(data, sizeof(data));
+    hdr.version = _LINUX_CAPABILITY_VERSION_3;
+    hdr.pid = 0;
+    if (brix_plat_capset(&hdr, data) != 0) {
+        BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
+            "impersonate: terminal worker capability shedding failed; "
+            "refusing to serve");
+        return NGX_ERROR;
+    }
+    if (brix_plat_capget(&hdr, data) != 0) {
+        BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
+            "impersonate: terminal worker capability state cannot be verified; "
+            "refusing to serve");
+        return NGX_ERROR;
+    }
+    for (i = 0; i < sizeof(data) / sizeof(data[0]); i++) {
+        if (data[i].effective != 0 || data[i].permitted != 0
+            || data[i].inheritable != 0)
+        {
+            BRIX_LOG(NGX_LOG_EMERG, log, 0,
+                "impersonate: worker retained capabilities after terminal "
+                "shedding; refusing to serve");
+            return NGX_ERROR;
+        }
+    }
+    return NGX_OK;
+#else
+    (void) log;
+    return NGX_OK;
+#endif
+}
+
+/* Return 1 only when primary/effective and every supplementary group are the
+ * confined target gid; 0 for a mismatch and -1 when the group set is unreadable. */
+static int
+imp_worker_groups_allowed(const char *acct, gid_t target)
+{
+    gid_t *groups = NULL;
+    gid_t  allowed[256];
+    gid_t  rgid;
+    gid_t  egid;
+#if BRIX_HAS_SAVED_IDS
+    gid_t  sgid;
+#endif
+    int    count;
+    int    allowed_count = (int) (sizeof(allowed) / sizeof(allowed[0]));
+    int    i;
+    int    j;
+    int    found;
+    int    result = -1;
+
+#if BRIX_HAS_SAVED_IDS
+    if (brix_plat_getresgid(&rgid, &egid, &sgid) != 0
+        || rgid != target || egid != target || sgid != target)
+#else
+    rgid = getgid();
+    egid = getegid();
+    if (brix_plat_process_tainted()
+        || rgid != target || egid != target)
+#endif
+    {
+        return 0;
+    }
+    count = getgroups(0, NULL);
+    if (count < 0) {
+        return -1;
+    }
+    if (count > 0) {
+        groups = malloc((size_t) count * sizeof(groups[0]));
+    }
+    if (count > 0 && groups == NULL) {
+        errno = ENOMEM;
+        return -1;
+    }
+    if ((count > 0 && getgroups(count, groups) != count)
+        || brix_plat_getgrouplist(acct, target, allowed, &allowed_count) < 0)
+    {
+        free(groups);
+        return -1;
+    }
+    result = 1;
+    for (i = 0; i < count; i++) {
+        if (groups[i] == 0) {
+            result = 0;
+            break;
+        }
+        found = 0;
+        for (j = 0; j < allowed_count; j++) {
+            if (groups[i] == allowed[j]) {
+                found = 1;
+                break;
+            }
+        }
+        if (!found) {
+            result = 0;
+            break;
+        }
+    }
+    free(groups);
+    return result;
+}
+
+/* A capability-free nginx service identity may win when brix_worker_user was
+ * not explicitly set.  Saved ids must be inert and group 0 is never accepted. */
+static int
+imp_worker_current_identity_safe(void)
+{
+    uid_t  ruid;
+    uid_t  euid;
+#if BRIX_HAS_SAVED_IDS
+    uid_t  suid;
+#endif
+    gid_t  rgid;
+    gid_t  egid;
+#if BRIX_HAS_SAVED_IDS
+    gid_t  sgid;
+#endif
+    struct passwd *pw;
+
+#if BRIX_HAS_SAVED_IDS
+    if (brix_plat_getresuid(&ruid, &euid, &suid) != 0
+        || brix_plat_getresgid(&rgid, &egid, &sgid) != 0
+        || ruid == 0 || rgid == 0 || ruid != euid || ruid != suid
+        || rgid != egid || rgid != sgid)
+    {
+        return 0;
+    }
+#else
+    ruid = getuid();
+    euid = geteuid();
+    rgid = getgid();
+    egid = getegid();
+    if (brix_plat_process_tainted() || ruid == 0 || rgid == 0
+        || ruid != euid || rgid != egid)
+    {
+        return 0;
+    }
+#endif
+    pw = getpwuid(ruid);
+    if (pw == NULL || pw->pw_gid != rgid) {
+        return 0;
+    }
+    return imp_worker_groups_allowed(pw->pw_name, rgid) == 1;
+}
+
+static int
+imp_worker_uids_confined(uid_t target)
+{
+    uid_t ruid;
+    uid_t euid;
+#if BRIX_HAS_SAVED_IDS
+    uid_t suid;
+#endif
+
+#if BRIX_HAS_SAVED_IDS
+    return brix_plat_getresuid(&ruid, &euid, &suid) == 0
+        && ruid == target && euid == target && suid == target;
+#else
+    ruid = getuid();
+    euid = geteuid();
+    return !brix_plat_process_tainted()
+        && ruid == target && euid == target;
+#endif
+}
+
+/* Normalize an already-target uid's group identity before discarding CAP_SETGID. */
+static ngx_int_t
+imp_worker_finish_target(ngx_log_t *log, const char *acct, uid_t target_uid,
+    gid_t target_gid)
+{
+    int confined = imp_worker_groups_allowed(acct, target_gid);
+
+    if (confined < 0) {
+        BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
+            "brix_worker_user: cannot verify group identity for \"%s\"; "
+            "refusing to serve", acct);
+        return NGX_ERROR;
+    }
+    if (confined == 0) {
+        if (geteuid() != 0 && !brix_imp_cap_held(CAP_SETGID)) {
+            BRIX_LOG(NGX_LOG_EMERG, log, 0,
+                "brix_worker_user: uid matches \"%s\" but its group identity "
+                "cannot be confined; refusing to serve", acct);
+            return NGX_ERROR;
+        }
+        if (setgroups(1, &target_gid) != 0
+            || brix_plat_setresgid(target_gid, target_gid, target_gid) != 0
+            || imp_worker_groups_allowed(acct, target_gid) != 1)
+        {
+            BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
+                "brix_worker_user: failed to confine group identity for \"%s\"; "
+                "refusing to serve", acct);
+            return NGX_ERROR;
+        }
+    }
+    if (!imp_worker_uids_confined(target_uid)) {
+        if (!brix_imp_cap_held(CAP_SETUID)
+            || brix_plat_setresuid(target_uid, target_uid, target_uid) != 0
+            || !imp_worker_uids_confined(target_uid))
+        {
+            BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
+                "brix_worker_user: failed to confine saved uid for \"%s\"; "
+                "refusing to serve", acct);
+            return NGX_ERROR;
+        }
+    }
+    return imp_worker_drop_all_caps(log);
 }
 
 /* ---- brix_imp_worker_harden ----
  *
- * WHAT: Shed ALL worker capabilities + set NO_NEW_PRIVS, in EVERY impersonation
- *       mode (off/single/map). Idempotent.
+ * WHAT: Set NO_NEW_PRIVS and shed every capability except SETUID/SETGID needed
+ *       for the immediately following confined-identity transition.
  * WHY:  A worker never needs capabilities; a worker (mis)configured to run as
  *       root must not keep CAP_DAC_OVERRIDE/CAP_MKNOD/CAP_SETUID/… — a worker-code
  *       exploit would otherwise be root. The old code only dropped caps in `map`
  *       mode, leaving the default posture (and HTTP-only workers) fully privileged
  *       when the worker ran as root.
- * HOW:  Delegates to imp_worker_drop_caps(). Called from the per-worker init
+ * HOW:  Delegates to imp_worker_prepare_drop(). Called from per-worker init
  *       BEFORE the stream-config early-return so WebDAV/S3 (HTTP-only) workers are
  *       hardened too, not just stream/root:// workers.
  */
-void
+ngx_int_t
 brix_imp_worker_harden(ngx_log_t *log)
 {
-    imp_worker_drop_caps(log);
+    return imp_worker_prepare_drop(log);
 }
 
 /* ---- brix_worker_user: the confined account the worker is forced down to ----
@@ -177,6 +398,23 @@ brix_imp_worker_runtime_ids(ngx_uid_t conf_uid, ngx_gid_t conf_gid,
         *gid_out = (gid_t) conf_gid;
         return NGX_OK;
     }
+
+    /* nginx fills an omitted `user` directive from its compile-time
+     * --user/--group defaults only in the core module's init_conf, after
+     * location merges have already asked us to provision stage/credential
+     * stores.  At that earlier point ccf->user is still UNSET.  Resolve the
+     * same compiled account here so distro builds such as Fedora's
+     * --user=nginx do not get a nobody-owned 0700 store for an nginx worker.
+     * An explicitly root-capable worker must still take the fail-closed
+     * brix_worker_user/nobody path below. */
+    if (conf_uid == (ngx_uid_t) NGX_CONF_UNSET_UINT) {
+        pw = getpwnam(NGX_USER);
+        if (pw != NULL && pw->pw_uid != 0) {
+            *uid_out = pw->pw_uid;
+            *gid_out = pw->pw_gid;
+            return NGX_OK;
+        }
+    }
     acct = brix_worker_user[0] ? brix_worker_user : "nobody";
     pw   = getpwnam(acct);
     if (pw == NULL || pw->pw_uid == 0) {
@@ -206,13 +444,13 @@ imp_worker_resolve_target(ngx_log_t *log, const char **acct_out,
     errno = 0;
     pw = getpwnam(acct);
     if (pw == NULL) {
-        ngx_log_error(NGX_LOG_EMERG, log, errno,
+        BRIX_LOG(NGX_LOG_EMERG, log, errno,
             "brix_worker_user: account \"%s\" not found — refusing to serve "
             "(set brix_worker_user to an existing unprivileged account)", acct);
         return NGX_ERROR;
     }
     if (pw->pw_uid == 0 || pw->pw_gid == 0) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, log, 0,
             "brix_worker_user: \"%s\" is a uid/gid 0 account — refusing to serve "
             "(the worker must run as a confined, non-root account)", acct);
         return NGX_ERROR;
@@ -239,63 +477,34 @@ imp_worker_apply_drop(ngx_log_t *log, const char *acct, uid_t tgt_uid,
         || setgid(tgt_gid) != 0
         || setuid(tgt_uid) != 0)
     {
-        ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
             "brix_worker_user: FAILED to drop worker to \"%s\" — refusing to "
             "serve (pre-auth parsing must never run as a root-capable identity)",
             acct);
         return NGX_ERROR;
     }
-    if (getuid() != tgt_uid || geteuid() != tgt_uid) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
-            "brix_worker_user: privilege drop to \"%s\" did not stick — "
+    if (!imp_worker_uids_confined(tgt_uid)
+        || imp_worker_groups_allowed(acct, tgt_gid) != 1)
+    {
+        BRIX_LOG(NGX_LOG_EMERG, log, 0,
+            "brix_worker_user: identity drop to \"%s\" did not stick — "
             "refusing to serve", acct);
         return NGX_ERROR;
     }
 
-    brix_imp_worker_harden(log);
+    if (imp_worker_drop_all_caps(log) != NGX_OK) {
+        return NGX_ERROR;
+    }
     if (defaulted) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "brix_worker_user not set: dropped a root-capable worker to "
             "\"nobody\" (uid=%d); set a dedicated confined account instead",
             (int) tgt_uid);
     } else {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix_worker_user: worker dropped to \"%s\" (uid=%d); pre-auth "
             "parsing runs unprivileged", acct, (int) tgt_uid);
     }
-    return NGX_OK;
-}
-
-
-/*
- * WHAT: Validate a worker which lacks permission to change its uid.
- * WHY: Fail closed if hardening left any escalation capability behind.
- * HOW: Check the dangerous capability set, then report an explicit target
- *      mismatch or the normal rootless posture.
- */
-static ngx_int_t
-imp_worker_validate_rootless(ngx_log_t *log, int defaulted)
-{
-    if (brix_imp_cap_held(CAP_SETUID) || brix_imp_cap_held(CAP_SETGID)
-        || brix_imp_cap_held(CAP_DAC_OVERRIDE) || brix_imp_cap_held(CAP_SYS_ADMIN))
-    {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
-            "worker runs as uid=%d and still holds escalation capabilities that "
-            "could not be dropped — refusing to serve", (int) geteuid());
-        return NGX_ERROR;
-    }
-    if (!defaulted) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-            "brix_worker_user \"%s\" requested but the worker runs as uid=%d and "
-            "holds no CAP_SETUID to drop — run nginx as root (brix will drop) or "
-            "start it directly as \"%s\"", brix_worker_user, (int) geteuid(),
-            brix_worker_user);
-        return NGX_OK;
-    }
-    ngx_log_error(NGX_LOG_INFO, log, 0,
-        "worker runs unprivileged as uid=%d (no CAP_SETUID; NO_NEW_PRIVS set); "
-        "pre-auth parsing is unprivileged. For defense in depth ensure this account "
-        "has no passwordless sudo", (int) geteuid());
     return NGX_OK;
 }
 
@@ -316,9 +525,10 @@ imp_worker_validate_rootless(ngx_log_t *log, int defaulted)
  *       harden above, sticky + inherited) neutralizes the setuid-binary/sudo
  *       escalation path for the worker's own exec chain regardless of uid.
  * HOW:  Resolve the target account (fail-closed on missing / uid|gid 0). If already
- *       that uid, done. If we can change uid (root or CAP_SETUID): setgroups/setgid/
- *       setuid, verify it stuck, re-harden. If we CANNOT (plain non-root, no cap):
- *       refuse to serve if any escalation capability somehow survived; else warn.
+ *       that uid, normalize real/effective/saved ids and supplementary groups,
+ *       then shed all transition capabilities. If we can change uid (root or
+ *       CAP_SETUID), perform and verify the full identity drop. If we cannot
+ *       reach the configured identity, refuse to serve.
  * Returns NGX_OK to continue, NGX_ERROR to fail the worker closed.
  */
 ngx_int_t
@@ -329,9 +539,15 @@ brix_imp_worker_deescalate(ngx_log_t *log)
     gid_t          tgt_gid;
     int            defaulted;
 
-    /* Only real workers de-escalate. The master must stay privileged (bind
-     * privileged ports, fork the map-mode broker); single-process (dev) mode
-     * doubles as the master, so leave it alone too. */
+    /* Single-process mode serves requests in the privileged master without a
+     * safe pre-fork ownership/backend handoff. Refuse it rather than retain
+     * privileges or mutate root-composed state in place. */
+    if (ngx_process == NGX_PROCESS_SINGLE) {
+        BRIX_LOG(NGX_LOG_EMERG, log, 0,
+            "master_process off is unsupported: BriX requires a worker "
+            "privilege boundary; refusing to serve");
+        return NGX_ERROR;
+    }
     if (ngx_process != NGX_PROCESS_WORKER) {
         return NGX_OK;
     }
@@ -342,100 +558,28 @@ brix_imp_worker_deescalate(ngx_log_t *log)
         return NGX_ERROR;
     }
 
-    /* Already the confined target (e.g. nginx `user` already dropped us): done. */
+    /* nginx may already have selected the confined uid, including when its
+     * executable carried ambient/file SETUID.  End the transition explicitly;
+     * the preparation pass alone intentionally retained that capability. */
     if (getuid() == tgt_uid && geteuid() == tgt_uid) {
-        return NGX_OK;
+        return imp_worker_finish_target(log, acct, tgt_uid, tgt_gid);
     }
 
     if (geteuid() == 0 || brix_imp_cap_held(CAP_SETUID)) {
         return imp_worker_apply_drop(log, acct, tgt_uid, tgt_gid, defaulted);
     }
 
-    /* Cannot change uid (plain non-root, no CAP_SETUID). NO_NEW_PRIVS already
-     * blocks the setuid-binary/sudo escalation path for this worker. Refuse only
-     * if an escalation capability somehow survived the harden; otherwise serve,
-     * warning that the account itself must be sudo-free. */
-    return imp_worker_validate_rootless(log, defaulted);
-}
-
-ngx_int_t
-brix_imp_init_worker(ngx_cycle_t *cycle)
-{
-    char sockbuf[256];
-
-    /*
-     * P80.21: load the grid-mapfile worker-side for the authz gate, BEFORE the
-     * map-mode early-return, so DN->local-username mapping works under
-     * brix_idmap off|single|map alike (the broker owns a separate copy
-     * in its own process).  A load failure is fatal to the worker: silently
-     * running with an empty map would collapse a per-unix-group posture to
-     * default-deny for everyone.
-     */
-    if (imp_settings.gridmap.len > 0) {
-        char mapbuf[PATH_MAX];
-
-        ngx_snprintf((u_char *) mapbuf, sizeof(mapbuf), "%V%Z",
-                     &imp_settings.gridmap);
-        if (brix_idmap_gate_init(mapbuf, cycle->log) != NGX_OK) {
-            ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
-                          "impersonate: authz-gate grid-mapfile load failed "
-                          "(\"%s\")", mapbuf);
-            return NGX_ERROR;
-        }
+    if (defaulted && imp_worker_drop_all_caps(log) == NGX_OK
+        && imp_worker_current_identity_safe())
+    {
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
+            "worker already runs as a safe unprivileged nginx account uid=%d; "
+            "preserving that configured identity", (int) geteuid());
+        return NGX_OK;
     }
 
-    /* Cap-drop is now done earlier + unconditionally via brix_imp_worker_harden()
-     * (called before the stream-config early-return in ngx_stream_brix_init_process
-     * so HTTP-only workers are covered too). */
-    if (imp_settings.mode != BRIX_IMP_MAP) {
-        return NGX_OK;                    /* off/single: no broker client */
-    }
-
-    ngx_snprintf((u_char *) sockbuf, sizeof(sockbuf), "%V%Z",
-                 &imp_settings.socket);
-
-    if (brix_imp_client_connect(sockbuf, cycle->log) != NGX_OK) {
-        /* Broker may still be starting; the client retries lazily per op. */
-        ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
-                      "impersonate: broker not reachable yet at \"%s\" "
-                      "(will reconnect on first op)", sockbuf);
-    }
-    return NGX_OK;
-}
-
-
-/* Best principal string for impersonation: DN first, then token subject. */
-static const char *
-imp_principal_of(const brix_identity_t *id)
-{
-    const char *p = brix_identity_dn_cstr(id);
-
-    if (p != NULL && p[0] != '\0') {
-        return p;
-    }
-    p = brix_identity_subject_cstr(id);
-    return (p != NULL && p[0] != '\0') ? p : NULL;
-}
-
-void
-brix_imp_request_begin(const brix_identity_t *id)
-{
-    if (imp_settings.mode != BRIX_IMP_MAP) {
-        return;
-    }
-    /* Mark the request active BEFORE setting the principal: even if the identity
-     * yields no mappable principal (empty subject), confined ops must route to the
-     * broker (which denies) rather than fall back to the worker. */
-    brix_imp_mark_in_request(1);
-    brix_imp_set_principal(id != NULL ? imp_principal_of(id) : NULL);
-}
-
-void
-brix_imp_request_end(void)
-{
-    if (imp_settings.mode != BRIX_IMP_MAP) {
-        return;
-    }
-    brix_imp_clear_principal();
-    brix_imp_mark_in_request(0);
+    BRIX_LOG(NGX_LOG_EMERG, log, 0,
+        "brix_worker_user: worker uid=%d cannot transition to \"%s\" and has "
+        "no CAP_SETUID; refusing to serve", (int) geteuid(), acct);
+    return NGX_ERROR;
 }

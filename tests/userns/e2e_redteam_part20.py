@@ -55,10 +55,8 @@ def _rt20_segment_05(data):
 
 def _rt20_0770_staff_dir(propfind, port, key):
 
-    _group_dir_dac_p1(s3port, propfind, port, mkdir_chown, write_child, uid_gid, data, key, PF, TAG)
 
 
-def _group_dir_dac_p1(s3port, propfind, port, mkdir_chown, write_child, uid_gid, data, key, PF, TAG):
     # ============================================================ 0770 STAFF DIR
     # staffdir is 0770 alice:staff (alice,carol enter+list; bob is OTHER -> no x,
     # so bob cannot even STAT a child by name).  inside.txt is the 0640 child.
@@ -67,7 +65,7 @@ def _group_dir_dac_p1(s3port, propfind, port, mkdir_chown, write_child, uid_gid,
 
     # (1) carol (staff member) LISTS the 0770 staff dir via PROPFIND -> sees inside.txt.
     st, b = propfind("/staffdir/", "carol")
-    ok(all((st in (200, 207), INSIDE_NAME in any((b, b'')))),
+    ok(all((st in (200, 207), INSIDE_NAME in _rt_default(b, b''))),
        f"carol (staff) lists 0770 staffdir, sees child (HTTP {st})")
     # (2) carol READS the child file through the group-traversable dir.  An
     #     earlier batch (run_group_write_dac) legitimately rewrites this shared
@@ -84,7 +82,7 @@ def _rt20_3_bob_other_no_dir_x(st, b, propfind, INSIDE_NAME, port, key):
        f"carol (staff) reads child of 0770 staffdir (HTTP {st})")
     # (3) bob (OTHER, no dir x) cannot LIST the dir -> no child name leaks.
     st, b = propfind("/staffdir/", "bob")
-    leaked = (st in (200, 207) and INSIDE_NAME in (_gdd_orb(b)))
+    leaked = (st in (200, 207) and INSIDE_NAME in _rt_default(b, b""))
     ok(not leaked,
        f"bob (non-staff) PROPFIND of 0770 staffdir leaks no entries (HTTP {st}, leaked={leaked})")
     # (4) bob cannot even STAT/GET a known child by name (dir x is required to
@@ -94,28 +92,28 @@ def _rt20_3_bob_other_no_dir_x(st, b, propfind, INSIDE_NAME, port, key):
 
 
 def _rt20_5_dave_also_non_staff_second(INSIDE, b, st, port, key, PF, INSIDE_NAME):
-    ok(INSIDE not in any((b, b'')),
+    ok(INSIDE not in _rt_default(b, b''),
        f"bob (non-staff) denied known child of 0770 staffdir, no leak (HTTP {st})")
     st, b = http("PROPFIND", "/staffdir/inside.txt", port, mint(key, "bob"),
                  data=PF, hdrs={"Depth": "0", "Content-Type": "application/xml"})
-    ok(not all((st in (200, 207), INSIDE_NAME in any((b, b'')))),
+    ok(not all((st in (200, 207), INSIDE_NAME in _rt_default(b, b''))),
        f"bob (non-staff) cannot PROPFIND-stat a child of 0770 staffdir (HTTP {st})")
     # (5) dave (also non-staff) -> second independent non-member control.
     st, b = http("GET", "/staffdir/inside.txt", port, mint(key, "dave"))
-    ok(INSIDE not in any((b, b'')),
+    ok(INSIDE not in _rt_default(b, b''),
        f"dave (non-staff) denied child of 0770 staffdir, no leak (HTTP {st})")
 
 
 def _rt20_6_alice_owner_lists_reads_owner(propfind, INSIDE_NAME, INSIDE, mkdir_chown, TAG):
     # (6) alice (OWNER) lists + reads -> owner control.
     st, b = propfind("/staffdir/", "alice")
-    ok(all((st in (200, 207), INSIDE_NAME in any((b, b'')))),
+    ok(all((st in (200, 207), INSIDE_NAME in _rt_default(b, b''))),
        f"owner alice lists her 0770 staffdir (HTTP {st})")
 
     # staffdir leg over root:// (same kernel DAC, different protocol).
     if xrd_avail():
         rc, out, _e = xrd_fs(["ls", "/staffdir/"], "carol")
-        ok(all((rc == 0, 'inside.txt' in any((out, '')))),
+        ok(all((rc == 0, 'inside.txt' in _rt_default(out, ''))),
            f"carol lists 0770 staffdir via root:// (rc={rc})")
         rc, out, _e = xrd_fs(["cat", "/staffdir/inside.txt"], "carol")
         # content is rewritten by an earlier batch (shared fixture) — assert the
@@ -123,15 +121,13 @@ def _rt20_6_alice_owner_lists_reads_owner(propfind, INSIDE_NAME, INSIDE, mkdir_c
         ok(rc == 0,
            f"carol reads staffdir child via root:// (rc={rc})")
         rc, out, _e = xrd_fs(["ls", "/staffdir/"], "bob")
-        ok(any((rc != 0, 'inside.txt' not in any((out, '')))),
+        ok(any((rc != 0, 'inside.txt' not in _rt_default(out, ''))),
            f"bob (non-staff) root:// ls of 0770 staffdir leaks nothing (rc={rc})")
         rc, out, _e = xrd_fs(["cat", "/staffdir/inside.txt"], "bob")
-        ok(all((rc != 0, INSIDE.decode() not in any((out, '')))),
+        ok(all((rc != 0, INSIDE.decode() not in _rt_default(out, ''))),
            f"bob (non-staff) root:// cat of staffdir child denied (rc={rc})")
-    _group_dir_dac_p2(s3port, mkdir_chown, write_child, uid_gid, propfind, port, data, key, PF, TAG)
 
 
-def _group_dir_dac_p2(s3port, mkdir_chown, write_child, uid_gid, propfind, port, data, key, PF, TAG):
     # ===================================================== 0750 MEMBER-LIST DIR
     # A 0750 dir owned carol:proj (proj={carol,dave,erin}).  Group members LIST
     # (r+x); a non-member (bob/alice) has OTHER=0 -> denied entirely.
@@ -149,18 +145,18 @@ def _rt20_7_erin_proj_member_lists_the(write_child, TAG, LIST750, uid_gid, d750,
 
     # (7) erin (proj member) LISTS the 0750 dir -> sees child.
     st, b = propfind(f"/{TAG}_proj750/", "erin")
-    ok(all((st in (200, 207), (TAG + '_p750.txt').encode() in any((b, b'')))),
+    ok(all((st in (200, 207), (TAG + '_p750.txt').encode() in _rt_default(b, b''))),
        f"erin (proj) lists 0750 proj dir (HTTP {st})")
 
 
 def _rt20_8_dave_proj_member_via_supplementary(propfind, TAG, port, key, st, b):
     # (8) dave (proj member, via supplementary group) also LISTS -> setgroups proof.
     st, b = propfind(f"/{TAG}_proj750/", "dave")
-    ok(all((st in (200, 207), (TAG + '_p750.txt').encode() in any((b, b'')))),
+    ok(all((st in (200, 207), (TAG + '_p750.txt').encode() in _rt_default(b, b''))),
        f"dave (proj, supplementary) lists 0750 proj dir (HTTP {st})")
     # (9) bob (NOT in proj) cannot list -> no child name leaks.
     st, b = propfind(f"/{TAG}_proj750/", "bob")
-    ok(not all((st in (200, 207), (TAG + '_p750.txt').encode() in any((b, b'')))),
+    ok(not all((st in (200, 207), (TAG + '_p750.txt').encode() in _rt_default(b, b''))),
        f"bob (non-proj) PROPFIND of 0750 proj dir leaks nothing (HTTP {st})")
     # (10) bob cannot read the child (no dir x to resolve it) + no marker leak.
     st, b = http("GET", f"/{TAG}_proj750/{TAG}_p750.txt", port, mint(key, "bob"))
@@ -168,27 +164,25 @@ def _rt20_8_dave_proj_member_via_supplementary(propfind, TAG, port, key, st, b):
 
 
 def _rt20_11_alice_not_in_proj_also(LIST750, b, st, TAG, port, key):
-    ok(LIST750 not in any((b, b'')),
+    ok(LIST750 not in _rt_default(b, b''),
        f"bob (non-proj) denied 0750 proj child, no leak (HTTP {st})")
     # (11) alice (NOT in proj) also denied -> second non-member control.
     st, b = http("GET", f"/{TAG}_proj750/{TAG}_p750.txt", port, mint(key, "alice"))
-    ok(LIST750 not in any((b, b'')),
+    ok(LIST750 not in _rt_default(b, b''),
        f"alice (non-proj) denied 0750 proj child, no leak (HTTP {st})")
     # (12) erin (proj member) READS the child -> positive control for the deny.
     st, b = http("GET", f"/{TAG}_proj750/{TAG}_p750.txt", port, mint(key, "erin"))
-    ok(all((st == 200, LIST750 in any((b, b'')))),
+    ok(all((st == 200, LIST750 in _rt_default(b, b''))),
        f"erin (proj member) reads 0750 proj child (HTTP {st})")
 
 
 def _rt20_13_frank_in_no_test_group(TAG, port, key, LIST750):
     # (13) frank (in NO test group) -> belt-and-braces non-member deny.
     st, b = http("GET", f"/{TAG}_proj750/{TAG}_p750.txt", port, mint(key, "frank"))
-    ok(LIST750 not in any((b, b'')),
+    ok(LIST750 not in _rt_default(b, b''),
        f"frank (no group) denied 0750 proj child, no leak (HTTP {st})")
-    _group_dir_dac_p3(s3port, port, propfind, mkdir_chown, write_child, uid_gid, data, key, PF, TAG, LIST750)
 
 
-def _group_dir_dac_p3(s3port, port, propfind, mkdir_chown, write_child, uid_gid, data, key, PF, TAG, LIST750):
     # ============================================ 0710 EXEC-ONLY (TRAVERSE != LIST)
     # execonly is 0710 alice:staff (group --x, NO group r).  A staff MEMBER can
     # TRAVERSE to a KNOWN child (x) but a LISTING/PROPFIND of the dir must be
@@ -197,7 +191,7 @@ def _group_dir_dac_p3(s3port, port, propfind, mkdir_chown, write_child, uid_gid,
 
     # (14) carol (staff) GETs the KNOWN child by name (group --x permits traverse).
     st, b = http("GET", "/execonly/known.txt", port, mint(key, "carol"))
-    ok(all((st == 200, KNOWN in any((b, b'')))),
+    ok(all((st == 200, KNOWN in _rt_default(b, b''))),
        f"carol (staff) traverses 0710 execonly to KNOWN child (HTTP {st})")
     return KNOWN
 
@@ -205,38 +199,37 @@ def _group_dir_dac_p3(s3port, port, propfind, mkdir_chown, write_child, uid_gid,
 def _rt20_15_but_carol_s_propfind_list(propfind):
     # (15) but carol's PROPFIND/LIST of the dir must NOT enumerate it (no group r).
     st, b = propfind("/execonly/", "carol")
-    listed = (st in (200, 207) and b"known.txt" in (_gdd_orb(b)))
+    listed = (st in (200, 207) and b"known.txt" in _rt_default(b, b""))
     ok(not listed,
        f"carol (staff) cannot LIST 0710 execonly (group --x, no r) (HTTP {st}, listed={listed})")
     # (16) alice (OWNER, 0710 -> owner rwx) CAN list -> proves the dir is not just
     #      globally unreadable (the deny in 15 is bit-driven, not blanket).
     st, b = propfind("/execonly/", "alice")
-    ok(all((st in (200, 207), b'known.txt' in any((b, b'')))),
+    ok(all((st in (200, 207), b'known.txt' in _rt_default(b, b''))),
        f"owner alice lists her 0710 execonly dir (owner r) (HTTP {st})")
 
 
 def _rt20_17_bob_other_no_x_at(port, key, KNOWN, propfind):
     # (17) bob (OTHER, no x at all) cannot even traverse to the known child.
     st, b = http("GET", "/execonly/known.txt", port, mint(key, "bob"))
-    ok(KNOWN not in any((b, b'')),
+    ok(KNOWN not in _rt_default(b, b''),
        f"bob (non-staff) cannot traverse 0710 execonly to child, no leak (HTTP {st})")
     # (18) bob's PROPFIND likewise leaks nothing.
     st, b = propfind("/execonly/", "bob")
-    ok(not all((st in (200, 207), b'known.txt' in any((b, b'')))),
+    ok(not all((st in (200, 207), b'known.txt' in _rt_default(b, b''))),
        f"bob (non-staff) PROPFIND of 0710 execonly leaks nothing (HTTP {st})")
 
     # execonly traverse-vs-list over root:// (the ls vs cat distinction).
     if xrd_avail():
         rc, out, _e = xrd_fs(["cat", "/execonly/known.txt"], "carol")
-        ok(all((rc == 0, KNOWN.decode() in any((out, '')))),
+        ok(all((rc == 0, KNOWN.decode() in _rt_default(out, ''))),
            f"carol traverses 0710 execonly to KNOWN child via root:// cat (rc={rc})")
         rc, out, _e = xrd_fs(["ls", "/execonly/"], "carol")
-        ok(any((rc != 0, 'known.txt' not in any((out, '')))),
+        ok(any((rc != 0, 'known.txt' not in _rt_default(out, ''))),
            f"carol root:// ls of 0710 execonly denied/empty (no group r) (rc={rc})")
         rc, out, _e = xrd_fs(["cat", "/execonly/known.txt"], "bob")
-        ok(all((rc != 0, KNOWN.decode() not in any((out, '')))),
+        ok(all((rc != 0, KNOWN.decode() not in _rt_default(out, ''))),
            f"bob (non-staff) root:// cat of execonly child denied (rc={rc})")
-    _group_dir_dac_p4(s3port, mkdir_chown, write_child, uid_gid, propfind, port, data, key, PF, TAG, LIST750)
 
 
 def _rt20_0700_per_user_private(mkdir_chown, TAG, write_child):
@@ -266,10 +259,10 @@ def _rt20_19_carol_owner_lists_reads_her(propfind, TAG, port, key, PRIV_C, st, b
 
     # (19) carol (owner) lists + reads her own 0700 dir.
     st, b = propfind(f"/{TAG}_carol700/", "carol")
-    ok(all((st in (200, 207), (TAG + '_c.txt').encode() in any((b, b'')))),
+    ok(all((st in (200, 207), (TAG + '_c.txt').encode() in _rt_default(b, b''))),
        f"owner carol lists her 0700 private dir (HTTP {st})")
     st, b = http("GET", f"/{TAG}_carol700/{TAG}_c.txt", port, mint(key, "carol"))
-    ok(all((st == 200, PRIV_C in any((b, b'')))),
+    ok(all((st == 200, PRIV_C in _rt_default(b, b''))),
        f"owner carol reads child of her 0700 dir (HTTP {st})")
     # (20) dave (not owner, even though carol shares 'proj' with dave the DIR group
     #      is proj but mode 0700 grants NOTHING to group) -> denied listing.
@@ -278,53 +271,51 @@ def _rt20_19_carol_owner_lists_reads_her(propfind, TAG, port, key, PRIV_C, st, b
 
 
 def _rt20_21_dave_cannot_read_the_child(st, TAG, b, port, key, PRIV_C, PF):
-    ok(not all((st in (200, 207), (TAG + '_c.txt').encode() in any((b, b'')))),
+    ok(not all((st in (200, 207), (TAG + '_c.txt').encode() in _rt_default(b, b''))),
        f"dave (proj groupmate, but 0700 -> no group bits) cannot list carol's dir (HTTP {st})")
     # (21) dave cannot read the child + cannot metadata-stat it.
     st, b = http("GET", f"/{TAG}_carol700/{TAG}_c.txt", port, mint(key, "dave"))
-    ok(PRIV_C not in any((b, b'')),
+    ok(PRIV_C not in _rt_default(b, b''),
        f"dave denied child of carol's 0700 dir, no leak (HTTP {st})")
     st, b = http("PROPFIND", f"/{TAG}_carol700/{TAG}_c.txt", port, mint(key, "dave"),
                  data=PF, hdrs={"Depth": "0", "Content-Type": "application/xml"})
-    ok(not all((st in (200, 207), (TAG + '_c.txt').encode() in any((b, b'')))),
+    ok(not all((st in (200, 207), (TAG + '_c.txt').encode() in _rt_default(b, b''))),
        f"dave cannot PROPFIND-stat a child of carol's 0700 dir (HTTP {st})")
 
 
 def _rt20_22_alice_unrelated_denied_too(TAG, port, key, PRIV_C, PRIV_D, st, b):
     # (22) alice (unrelated) denied too.
     st, b = http("GET", f"/{TAG}_carol700/{TAG}_c.txt", port, mint(key, "alice"))
-    ok(PRIV_C not in any((b, b'')),
+    ok(PRIV_C not in _rt_default(b, b''),
        f"alice denied child of carol's 0700 dir, no leak (HTTP {st})")
     # (23) symmetric: dave OWNS his 0700 dir -> dave reads, carol denied.
     st, b = http("GET", f"/{TAG}_dave700/{TAG}_d.txt", port, mint(key, "dave"))
-    ok(all((st == 200, PRIV_D in any((b, b'')))),
+    ok(all((st == 200, PRIV_D in _rt_default(b, b''))),
        f"owner dave reads child of his 0700 dir (HTTP {st})")
     st, b = http("GET", f"/{TAG}_dave700/{TAG}_d.txt", port, mint(key, "carol"))
     return st, b
 
 
 def _rt20_it_must_still_list_a_dir(PRIV_D, b, st, propfind, TAG, PRIV_C, s3port, write_child, LIST750):
-    ok(PRIV_D not in any((b, b'')),
+    ok(PRIV_D not in _rt_default(b, b''),
        f"carol denied child of dave's 0700 dir, no leak (HTTP {st})")
     st, b = propfind(f"/{TAG}_dave700/", "carol")
-    ok(not all((st in (200, 207), (TAG + '_d.txt').encode() in any((b, b'')))),
+    ok(not all((st in (200, 207), (TAG + '_d.txt').encode() in _rt_default(b, b''))),
        f"carol cannot list dave's 0700 dir (HTTP {st})")
 
     # 0700 cross-owner deny over root:// (independent protocol confirmation).
     if xrd_avail():
         rc, out, _e = xrd_fs(["cat", f"/{TAG}_carol700/{TAG}_c.txt"], "carol")
-        ok(all((rc == 0, PRIV_C.decode() in any((out, '')))),
+        ok(all((rc == 0, PRIV_C.decode() in _rt_default(out, ''))),
            f"owner carol reads her 0700 child via root:// (rc={rc})")
         rc, out, _e = xrd_fs(["ls", f"/{TAG}_carol700/"], "dave")
-        ok(any((rc != 0, TAG + '_c.txt' not in any((out, '')))),
+        ok(any((rc != 0, TAG + '_c.txt' not in _rt_default(out, ''))),
            f"dave root:// ls of carol's 0700 dir denied/empty (rc={rc})")
         rc, out, _e = xrd_fs(["cat", f"/{TAG}_carol700/{TAG}_c.txt"], "dave")
-        ok(all((rc != 0, PRIV_C.decode() not in any((out, '')))),
+        ok(all((rc != 0, PRIV_C.decode() not in _rt_default(out, ''))),
            f"dave root:// cat of carol's 0700 child denied (rc={rc})")
-    _group_dir_dac_p5(s3port, port, data, uid_gid, write_child, key, PRIV_C, LIST750, TAG)
 
 
-def _group_dir_dac_p5(s3port, port, data, uid_gid, write_child, key, PRIV_C, LIST750, TAG):
     # ===================================================== S3 (alice leg) LISTING
     # S3 only has alice's access key.  alice is NOT in proj and NOT the owner of the
     # carol-private/proj dirs, so a ListObjects MUST NOT enumerate their children;
@@ -354,7 +345,6 @@ def _group_dir_dac_p5(s3port, port, data, uid_gid, write_child, key, PRIV_C, LIS
         ok(all((not _has(body, (TAG + '_c.txt').encode()), not _has(body, PRIV_C))),
            f"S3 prefixed ListObjects (alice) does not reveal carol's 0700 child "
            f"(HTTP {st})")
-    _group_dir_dac_p6(port, data, uid_gid, key, TAG)
 
 
 def _rt20_setgid_dir_2770(TAG, port, key, data, uid_gid):
@@ -378,11 +368,11 @@ def _rt20_setgid_dir_2770(TAG, port, key, data, uid_gid):
         # alice (also staff) can group-read the inherited-group file -> setgroups
         # for the SECOND identity over the inherited group.
         st, b = http("GET", f"/sgiddir/{TAG}_carol_new.txt", port, mint(key, "alice"))
-        ok(all((st == 200, b'carol-in-setgid' in any((b, b'')))),
+        ok(all((st == 200, b'carol-in-setgid' in _rt_default(b, b''))),
            f"alice (staff) group-reads carol's setgid-inherited file (HTTP {st})")
         # bob (non-staff) cannot read it (other bits clear on a 0664/0660 create).
         st, b = http("GET", f"/sgiddir/{TAG}_carol_new.txt", port, mint(key, "bob"))
-        ok(b'carol-in-setgid' not in any((b, b'')),
+        ok(b'carol-in-setgid' not in _rt_default(b, b''),
            f"bob (non-staff) denied carol's setgid file, no leak (HTTP {st})")
 
 
@@ -391,10 +381,8 @@ def _rt20_bob_cannot_create_in_the_2770(TAG, port, key, data, uid_gid, st):
     st, _ = http("PUT", f"/sgiddir/{TAG}_bob_evil.txt", port, mint(key, "bob"), b"x\n")
     ok(not os.path.exists(os.path.join(data, "sgiddir", f"{TAG}_bob_evil.txt")),
        f"bob (non-staff) cannot create in 2770 setgid staffdir (HTTP {st})")
-    _group_dir_dac_p7(port, data, uid_gid, key, TAG)
 
 
-def _group_dir_dac_p7(port, data, uid_gid, key, TAG):
     # ============================================================ WORKER SURVIVAL
     # After all the per-request identity churn + denials, a fresh legit op as the
     # OWNER must still succeed and land with correct ownership -> the worker did not

@@ -93,6 +93,17 @@ int brix_imp_rename(const char *s, const char *d) { (void) s; (void) d; abort();
 int brix_imp_rename_noreplace(const char *s, const char *d) { (void) s; (void) d; abort(); }
 int brix_imp_rename_exchange(const char *s, const char *d) { (void) s; (void) d; abort(); }
 int brix_imp_link(const char *s, const char *d) { (void) s; (void) d; abort(); }
+ssize_t brix_imp_getxattr(const char *p, const char *n, void *v, size_t z)
+{ (void) p; (void) n; (void) v; (void) z; abort(); }
+ssize_t brix_imp_listxattr(const char *p, void *v, size_t z)
+{ (void) p; (void) v; (void) z; abort(); }
+int brix_imp_setxattr(const char *p, const char *n, const void *v, size_t z, int f)
+{ (void) p; (void) n; (void) v; (void) z; (void) f; abort(); }
+int brix_imp_removexattr(const char *p, const char *n)
+{ (void) p; (void) n; abort(); }
+int brix_resolved_relative_to_root(ngx_log_t *l, const char *r,
+    const char *p, char *o, size_t z)
+{ (void) l; (void) r; (void) p; (void) o; (void) z; abort(); }
 
 int
 brix_chmod_confined_canon(ngx_log_t *log, const char *root_canon,

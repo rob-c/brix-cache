@@ -484,6 +484,64 @@ def test_py_complexity_guard_gates(tmp_path, monkeypatch):
 # readability.py — the gate-csv feed check_complexity consumes is well-formed #
 # --------------------------------------------------------------------------- #
 
+def test_readability_prefers_the_active_environment_analyzer(
+        tmp_path, monkeypatch):
+    """A same-named PATH binary cannot shadow the venv's Python lizard."""
+    readability = _load("tools/readability.py", "readability_selection")
+    bindir = tmp_path / "venv" / "bin"
+    bindir.mkdir(parents=True)
+    interpreter = bindir / "python"
+    analyzer = bindir / "lizard"
+    interpreter.write_text("")
+    analyzer.write_text("")
+    monkeypatch.setattr(readability.sys, "executable", str(interpreter))
+    monkeypatch.setattr(
+        readability.shutil, "which",
+        lambda candidate: "/external/lizard" if candidate == "lizard" else None,
+    )
+
+    assert readability.find_lizard() == str(analyzer)
+
+
+def test_readability_fails_closed_when_the_analyzer_rejects_its_cli(
+        monkeypatch):
+    """SECURITY-NEG: an incompatible PATH tool cannot yield a green scan."""
+    readability = _load("tools/readability.py", "readability_rejected_cli")
+    rejected = subprocess.CompletedProcess(
+        ["lizard"], 1, stdout="Usage: lizard [arg]\n",
+        stderr="Incorrect parameters\n",
+    )
+    monkeypatch.setattr(readability.subprocess, "run", lambda *a, **k: rejected)
+
+    with pytest.raises(RuntimeError, match="lizard failed with exit 1"):
+        list(readability.run_lizard("lizard", ["client"]))
+
+
+def test_duplication_scan_fails_closed_when_lizard_errors(
+        tmp_path, monkeypatch):
+    """The duplicate gate applies the same non-zero-exit contract."""
+    duplication = _load("tools/ci/check_duplication.py", "duplication_cli_error")
+    rejected = subprocess.CompletedProcess(
+        ["lizard"], 2, stdout="", stderr="unsupported extension\n",
+    )
+    monkeypatch.setattr(duplication.subprocess, "run", lambda *a, **k: rejected)
+
+    with pytest.raises(RuntimeError, match="duplicate scan failed with exit 2"):
+        duplication.list_duplicates("lizard", tmp_path)
+
+
+def test_duplication_scan_accepts_lizards_warning_exit(
+        tmp_path, monkeypatch):
+    """Exit 1 plus lizard's metric table is findings, not a tool failure."""
+    duplication = _load("tools/ci/check_duplication.py", "duplication_warning")
+    warning = subprocess.CompletedProcess(
+        ["lizard"], 1,
+        stdout="  NLOC CCN token PARAM length location\n", stderr="",
+    )
+    monkeypatch.setattr(duplication.subprocess, "run", lambda *a, **k: warning)
+
+    assert duplication.list_duplicates("lizard", tmp_path) == []
+
 def test_readability_gate_csv_is_stable(tmp_path):
     if not _have_lizard():
         pytest.skip("lizard not installed")

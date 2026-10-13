@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "config.h"
 #include "postconfiguration_internal.h"
 
@@ -43,7 +44,7 @@ postconf_proxy_protocol_host_acl(ngx_conf_t *cf,
             continue;
         }
 
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix: refusing insecure configuration — brix_host_allow "
             "on a \"listen %V proxy_protocol\" socket trusts the "
             "PROXY-header peer address, which the immediate client can "
@@ -94,7 +95,7 @@ postconf_proxy_protocol_host_acl(ngx_conf_t *cf,
                     continue;
                 }
 
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                     "brix: refusing insecure configuration — brix_host_allow "
                     "on a \"listen %V proxy_protocol\" socket trusts the "
                     "PROXY-header peer address, which the immediate client can "

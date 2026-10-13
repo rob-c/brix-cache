@@ -6,6 +6,7 @@
  * ending with a single kXR_ok frame to signal completion.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "core/aio/aio.h"
 #include "protocols/root/path/op_path.h"
@@ -256,7 +257,7 @@ brix_dirlist_alloc_chunk(brix_ctx_t *ctx, ngx_connection_t *c,
             > BRIX_MAX_CONN_POOL_BYTES)
     {
         brix_vfs_closedir(walk->dh, c->log);
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: dirlist pool limit reached (%uz bytes), "
                       "closing connection", ctx->login.pool_bytes_used);
         *rc = brix_send_error(ctx, c, kXR_NoMemory,

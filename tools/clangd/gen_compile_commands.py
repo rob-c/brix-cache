@@ -18,6 +18,11 @@ WHY:  `bear` is not installed on this host, so we reconstruct the commands from
 HOW:  python3 tools/clangd/gen_compile_commands.py  [--nginx /tmp/nginx-1.28.3]
       Writes compile_commands.json at the repo root (gitignored).
 """
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import argparse
 import json
@@ -86,7 +91,7 @@ def nginx_entries(nginx_dir):
     """Build entries for every src/ addon object from objs/Makefile."""
     mk = os.path.join(nginx_dir, "objs", "Makefile")
     if not os.path.isfile(mk):
-        print(f"warning: {mk} not found — skipping src/ (build nginx first)",
+        _brix_diagnostic('WARN', 'tools/clangd/gen_compile_commands.py', 'nginx_entries', f"warning: {mk} not found — skipping src/ (build nginx first)",
               file=sys.stderr)
         return []
     text = open(mk, encoding="utf-8", errors="replace").read()

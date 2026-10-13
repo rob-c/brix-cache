@@ -384,7 +384,7 @@ def test_s3_list_bucket_entry_and_byte_exact(mx):
     after = cx.mfetch(mx.metrics)
     assert st == 200
     entries = body.decode(errors="replace").count("<Contents>")
-    assert entries >= 1
+    assert entries >= 1, body[:1000]
     assert s.delta("brix_io_ops_total", {**S3, "op": "read", "status": "ok"},
                    after) == 1
     assert s.delta("brix_io_bytes_read", S3, after) == len(body)

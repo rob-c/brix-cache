@@ -17,7 +17,9 @@ Run:  sudo -E env PYTHONPATH=tests pytest tests/test_privilege_hardening_root.py
 from __future__ import annotations
 
 import os
+import pwd
 import shutil
+import subprocess
 import time
 
 import pytest
@@ -48,7 +50,8 @@ def _status(pid: int) -> "dict[str, str]":
     with open(f"/proc/{pid}/status", encoding="utf-8") as fh:
         for line in fh:
             key, _, val = line.partition(":")
-            if key in ("CapEff", "CapBnd", "CapPrm", "NoNewPrivs", "Seccomp", "Uid"):
+            if key in ("CapEff", "CapBnd", "CapPrm", "CapInh", "CapAmb",
+                       "NoNewPrivs", "Seccomp", "Uid"):
                 out[key] = val.strip()
     return out
 
@@ -110,6 +113,75 @@ def _master(ep) -> int:
         return int(fh.read().strip())
 
 
+def _required_tool(name: str, reason: str) -> str:
+    tool = shutil.which(name)
+    if tool is None:
+        pytest.skip(reason)
+    return tool
+
+
+def _probe_paths(name: str, binary_name: str):
+    probe = os.path.join(BASE, name)
+    return (
+        probe,
+        os.path.join(probe, "prefix"),
+        os.path.join(probe, binary_name),
+        os.path.join(os.path.dirname(__file__), "configs",
+                     "nginx_module_load_smoke.conf"),
+        os.path.join(probe, "nginx.log"),
+    )
+
+
+def _prepare_probe(prefix: str, binary: str, account) -> None:
+    logs = os.path.join(prefix, "logs")
+    os.makedirs(logs, exist_ok=True)
+    os.chown(prefix, account.pw_uid, account.pw_gid)
+    os.chown(logs, account.pw_uid, account.pw_gid)
+    shutil.copy2(settings.NGINX_BIN, binary)
+
+
+def _start_probe(command, log_path: str):
+    with open(log_path, "wb") as log:
+        return subprocess.Popen(
+            command, stdout=log, stderr=subprocess.STDOUT)
+
+
+def _wait_for_workers(proc) -> list[int]:
+    for _ in range(50):
+        workers = _worker_pids(proc.pid)
+        if workers or proc.poll() is not None:
+            return workers
+        time.sleep(0.1)
+    return []
+
+
+def _stop_probe(proc) -> None:
+    if proc is None or proc.poll() is not None:
+        return
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=5)
+
+
+def _assert_unprivileged_status(status, uid: int) -> None:
+    assert status.get("Uid", "").split()[:1] == [str(uid)], status
+    assert status.get("CapEff") == NO_CAPS, status
+    assert status.get("CapPrm") == NO_CAPS, status
+    assert status.get("CapInh") == NO_CAPS, status
+    assert status.get("CapAmb") == NO_CAPS, status
+    assert status.get("NoNewPrivs") == "1", status
+
+
+def _fail_without_workers(workers, log_path: str) -> None:
+    if workers:
+        return
+    with open(log_path, encoding="utf-8") as log:
+        pytest.fail(log.read())
+
+
 def test_root_configured_worker_deescalates_to_nobody(harness):
     """item 1 — DEFAULT posture (impersonation off, HTTP-only) with `user root;` and
     no brix_worker_user: brix FORCE-DROPS the root-capable worker down to `nobody` at
@@ -135,6 +207,100 @@ def test_root_configured_worker_deescalates_to_nobody(harness):
     assert st.get("CapPrm") == NO_CAPS, \
         f"de-escalated worker still holds permitted caps: {st}"
     assert st.get("NoNewPrivs") == "1", f"NO_NEW_PRIVS not set on worker: {st}"
+
+
+def test_already_target_worker_terminally_drops_file_capabilities():
+    """A worker executed as the target uid with file SETUID/SETGID capabilities
+    must not take the already-target shortcut while retaining those capabilities."""
+    setcap = _required_tool(
+        "setcap", "setcap and setpriv are required for the file-capability probe")
+    setpriv = _required_tool(
+        "setpriv", "setcap and setpriv are required for the file-capability probe")
+    nobody = pwd.getpwnam("nobody")
+    _probe, prefix, binary, config, log_path = _probe_paths(
+        "already-target-cap", "nginx-cap-probe")
+    proc = None
+    _prepare_probe(prefix, binary, nobody)
+    subprocess.run([setcap, "cap_setuid,cap_setgid+ep", binary], check=True)
+    try:
+        proc = _start_probe([
+            setpriv, f"--reuid={nobody.pw_uid}",
+            f"--regid={nobody.pw_gid}", "--init-groups", binary,
+            "-e", "stderr", "-p", prefix + "/", "-c", config,
+            "-g", "daemon off;",
+        ], log_path)
+        workers = _wait_for_workers(proc)
+        _fail_without_workers(workers, log_path)
+        _assert_unprivileged_status(_status(workers[0]), nobody.pw_uid)
+    finally:
+        _stop_probe(proc)
+        subprocess.run([setcap, "-r", binary], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def test_default_safe_nginx_identity_with_primary_group_starts():
+    """An ordinary capability-free service account remains usable by default."""
+    setpriv = _required_tool(
+        "setpriv", "setpriv is required for the supplementary-group probe")
+    account = pwd.getpwnam("daemon")
+    _probe, prefix, binary, config, log_path = _probe_paths(
+        "safe-service-groups", "nginx-group-probe")
+    proc = None
+    _prepare_probe(prefix, binary, account)
+    try:
+        proc = _start_probe([
+            setpriv, f"--reuid={account.pw_uid}",
+            f"--regid={account.pw_gid}", "--clear-groups", binary,
+            "-e", "stderr", "-p", prefix + "/", "-c", config,
+            "-g", "daemon off;",
+        ], log_path)
+        workers = _wait_for_workers(proc)
+        _fail_without_workers(workers, log_path)
+        _assert_unprivileged_status(_status(workers[0]), account.pw_uid)
+    finally:
+        _stop_probe(proc)
+
+
+def test_default_service_identity_rejects_unregistered_supplementary_group():
+    """An arbitrary non-root group is not assumed harmless (disk/docker/lxd)."""
+    setpriv = _required_tool(
+        "setpriv", "setpriv is required for the supplementary-group probe")
+    account = pwd.getpwnam("daemon")
+    extra = pwd.getpwnam("nobody").pw_gid
+    _probe, prefix, binary, config, log_path = _probe_paths(
+        "unsafe-service-groups", "nginx-group-probe")
+    _prepare_probe(prefix, binary, account)
+    proc = None
+    try:
+        proc = _start_probe([
+            setpriv, f"--reuid={account.pw_uid}",
+            f"--regid={account.pw_gid}", f"--groups={extra}", binary,
+            "-e", "stderr", "-p", prefix + "/", "-c", config,
+            "-g", "daemon off;",
+        ], log_path)
+        time.sleep(1)
+    finally:
+        _stop_probe(proc)
+    with open(log_path, encoding="utf-8") as log:
+        assert "cannot transition" in log.read()
+
+
+def test_single_process_mode_refuses_privileged_serving():
+    """`master_process off` must exit instead of serving in the root process."""
+    probe = os.path.join(BASE, "single-process-refusal")
+    prefix = os.path.join(probe, "prefix")
+    config = os.path.join(os.path.dirname(__file__), "configs",
+                          "nginx_module_load_smoke.conf")
+
+    os.makedirs(os.path.join(prefix, "logs"), exist_ok=True)
+    result = subprocess.run([
+        settings.NGINX_BIN, "-e", "stderr", "-p", prefix + "/",
+        "-c", config, "-g", "master_process off; daemon off;",
+    ], check=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+       text=True, timeout=10)
+    assert result.returncode != 0, \
+        "root single-process mode unexpectedly remained available"
+    assert "master_process off is unsupported" in result.stdout, result.stdout
 
 
 def test_http_only_worker_is_seccomp_filtered(harness):

@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "core/compat/alloc_guard.h"
 #include "protocols/root/connection/fd_table.h"   /* brix_free_fhandle */
@@ -122,7 +123,7 @@ brix_send_error_sid(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &ecode, sizeof(ecode));
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + sizeof(ecode), msg, msglen);
 
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
         "brix: sending error %d: %s", (int) errcode, msg);
 
     return brix_queue_response(ctx, c, buf, total);

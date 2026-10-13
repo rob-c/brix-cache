@@ -32,6 +32,7 @@
  *       callers pass keys, principals and numbers, never a brix_stage_cred_t.
  */
 
+#include "core/compat/log_event.h"
 #include "stage_events.h"
 
 #include <errno.h>
@@ -59,7 +60,7 @@ stage_events_fail(const char *what)
         return;
     }
     stage_events.reported = 1;
-    ngx_log_error(NGX_LOG_ERR, stage_events.log, errno,
+    BRIX_LOG(NGX_LOG_ERR, stage_events.log, errno,
         "brix: brix_frm_stagemsg \"%s\": %s failed; stage notifications are "
         "off in this worker until the file is writable again (staging "
         "itself is unaffected)", stage_events.path, what);

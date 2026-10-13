@@ -53,6 +53,8 @@ import re
 import subprocess
 import sys
 
+from log_records import semantic_log_text
+
 import pytest
 
 pytestmark = pytest.mark.xdist_group("cvmfs_srv_shared")
@@ -384,7 +386,8 @@ def test_reject_line_uri_field_is_exact(srv):
     # (method/HTTP-version/headers). Same fix at the cvmfs-neg reject line.
     _, lines, _, _ = _probe(srv, "GET", "/definitely/not/cvmfs")
     assert len(lines) == 1
-    assert 'uri="/definitely/not/cvmfs"' in lines[0], lines[0]
+    line = semantic_log_text(lines[0])
+    assert 'uri="/definitely/not/cvmfs"' in line, line
 
 
 # --------------------------------------------------------------------------- #
@@ -405,6 +408,12 @@ def _method_gate_expected(method, default, core_rejects_connect):
     return default or (method == "CONNECT" and not core_rejects_connect)
 
 
+def _assert_path_never_reached_storage(srv, path):
+    """Neither origin verb may observe a method rejected at the edge."""
+    assert not any(path in entry["path"] for entry in srv.get_log())
+    assert not any(path in entry["path"] for entry in srv.get_heads())
+
+
 @pytest.mark.parametrize("method,gated", [
     # gated=True: the request reaches the cvmfs gate, which 405s with its
     # WARN line; gated=False: nginx core refuses the method during request
@@ -418,12 +427,12 @@ def test_method_rejected_never_reaches_storage(srv, method, gated,
     gated = _method_gate_expected(method, gated, core_rejects_connect)
     path = _cas_unique(f"method-{method}")
     status, rej, _, _ = _probe(srv, method, path)
-    assert status == 405
+    expected_status = {400, 405} if method == "CONNECT" else {405}
+    assert status in expected_status
     assert len(rej) == (1 if gated else 0)
     # The origin mock logs every data GET and HEAD: this path must appear in
     # neither — a rejected method dies at the gate, not at storage.
-    assert not any(path in e["path"] for e in srv.get_log())
-    assert not any(path in e["path"] for e in srv.get_heads())
+    _assert_path_never_reached_storage(srv, path)
 
 
 def test_get_serves_manifest(srv, manifest_body):

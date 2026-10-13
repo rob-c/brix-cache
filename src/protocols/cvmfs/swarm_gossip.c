@@ -14,6 +14,7 @@
  *       through brix_sd_cache_ring_swap. Published rings are immutable and
  *       never freed (churn leaks ~4.5 KiB per swap by design).
  */
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "swarm_internal.h"
 #include "core/aio/aio.h"                  /* brix_task_bind */
@@ -133,7 +134,7 @@ cvmfs_swarm_member_inst(cvmfs_swarm_member_t *m, ngx_log_t *log)
     pcfg.configured = 1;
     m->inst = brix_tier_build(&pcfg, log);  /* cached forever; NULL = degrade */
     if (m->inst == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "cvmfs-swarm: fill source build failed for member %s - "
             "its keys fall through to the origin", m->label);
     }
@@ -165,7 +166,7 @@ cvmfs_swarm_ring_alive(cvmfs_swarm_ctx_t *sw, ngx_uint_t *alive,
         n++;
     }
     if (n > BRIX_SD_CACHE_MAX_PEERS) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "cvmfs-swarm (export %s): %ui live members exceed the ring "
             "cap %d - the lexicographic tail falls through to the origin",
             sw->reg->root, n, BRIX_SD_CACHE_MAX_PEERS);
@@ -240,7 +241,7 @@ cvmfs_swarm_ring_publish(cvmfs_swarm_ctx_t *sw, ngx_log_t *log)
     }
     brix_sd_cache_ring_swap(cache, ring);
     sw->pub_ring = ring;
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
         "cvmfs-swarm (export %s): published live ring of %ui member(s) "
         "(self=%s)", sw->reg->root, n, ring->peers[self_slot].label);
 }
@@ -259,7 +260,7 @@ cvmfs_swarm_done(ngx_event_t *ev)
         m->miss = 0;
         if (m->dead) {
             m->dead = 0;                   /* direct proof beats gossip */
-            ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, ev->log, 0,
                 "cvmfs-swarm (export %s): member %s answered a probe - "
                 "back alive", sw->reg->root, m->label);
         }
@@ -267,7 +268,7 @@ cvmfs_swarm_done(ngx_event_t *ev)
                                           ev->log);
     } else if (!m->dead && ++m->miss >= CVMFS_SWARM_MISS_DEAD) {
         m->dead = 1;
-        ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ev->log, 0,
             "cvmfs-swarm (export %s): member %s missed %d probe(s) - "
             "marked dead, its keys route around it", sw->reg->root,
             m->label, CVMFS_SWARM_MISS_DEAD);

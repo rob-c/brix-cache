@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "s3.h"
 #include "multipart_internal.h"
 #include "auth/impersonate/lifecycle.h"
@@ -124,7 +125,7 @@ s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *export_op
             if (errno == ENOENT) {
                 continue;           /* part not uploaded — skip */
             }
-            ngx_log_error(NGX_LOG_ERR, log, errno,
+            BRIX_LOG(NGX_LOG_ERR, log, errno,
                           "s3 complete_mpu: open part %d failed", part_num);
             close(final_fd);
             brix_vfs_export_unlink(export_op_ctx, final_tmp);
@@ -132,7 +133,7 @@ s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *export_op
         }
 
         if (fstat(part_fd, &pst) != 0) {
-            ngx_log_error(NGX_LOG_ERR, log, errno,
+            BRIX_LOG(NGX_LOG_ERR, log, errno,
                           "s3 complete_mpu: fstat part %d failed", part_num);
             close(part_fd);
             close(final_fd);
@@ -150,7 +151,7 @@ s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *export_op
                                  (size_t) pst.st_size, part_path,
                                  final_tmp) != NGX_OK)
         {
-            ngx_log_error(NGX_LOG_ERR, log, errno,
+            BRIX_LOG(NGX_LOG_ERR, log, errno,
                           "s3 complete_mpu: copy part %d failed", part_num);
             close(part_fd);
             close(final_fd);
@@ -162,7 +163,7 @@ s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *export_op
     }
 
     if (fstat(final_fd, st_out) != 0) {
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
                       "s3 complete_mpu: fstat temp file failed");
         close(final_fd);
         brix_vfs_export_unlink(export_op_ctx, final_tmp);

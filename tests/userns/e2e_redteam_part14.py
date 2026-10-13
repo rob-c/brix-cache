@@ -10,7 +10,7 @@ def _rt14_segment_01(key):
 def _rt14_parent_dirs_of_the_export_nothing(data):
 
     # parent dirs of the export — nothing our attacks create may land in them.
-    export_abs = os.path.abspath(data)
+    export_abs = os.path.realpath(data)
     parent1 = os.path.dirname(export_abs)
     parent2 = os.path.dirname(parent1)
     return export_abs, parent1, parent2
@@ -78,10 +78,8 @@ def _rt14_a_dot_segment_that_normalizes_back(port, ta, no_passwd, BOB, MARK):
     ok(all((st in (200, 404), no_passwd(body), not _has(body, BOB))),
        f"control: in-tenant normalizing dot-segments handled (HTTP {st})")
 
-    _confine_encoding_exhaustive_p1(s3port, out_marker, port, ta, data, outside_clean, tb, parent1, parent2, export_abs, no_passwd, BOB, SVC, MARK, PW)
 
 
-def _confine_encoding_exhaustive_p1(s3port, out_marker, port, ta, data, outside_clean, tb, parent1, parent2, export_abs, no_passwd, BOB, SVC, MARK, PW):
     # =============================================================================
     # WEBDAV GET — exhaustive traversal/encoding enumeration; NONE may read passwd
     # or escape to the outside marker.
@@ -110,10 +108,8 @@ def _confine_encoding_exhaustive_p1(s3port, out_marker, port, ta, data, outside_
         st, b = http("GET", p, port, ta)
         ok(all((no_passwd(b), not _has(b, MARK), not _has(b, BOB))),
            f"WebDAV GET traversal {p[:30]!r} no passwd/marker/tenant leak (HTTP {st})")
-    _confine_encoding_exhaustive_p2(s3port, out_marker, port, ta, data, outside_clean, tb, parent1, parent2, export_abs, no_passwd, BOB, SVC, MARK, PW)
 
 
-def _confine_encoding_exhaustive_p2(s3port, out_marker, port, ta, data, outside_clean, tb, parent1, parent2, export_abs, no_passwd, BOB, SVC, MARK, PW):
     # =============================================================================
     # WEBDAV PUT / MKCOL — traversal write escapes must create NOTHING outside.
     # =============================================================================
@@ -150,10 +146,8 @@ def _rt14_webdav_move_copy_destination_header_traversal(port, ta, outside_clean,
                      os.path.join(parent1, "CONF_WD_DIR2"),
                      os.path.join(parent2, "CONF_WD_DIR2")),
        f"WebDAV traversal MKCOL created no dir outside the export (HTTP {st})")
-    _confine_encoding_exhaustive_p3(s3port, out_marker, port, ta, data, outside_clean, tb, parent1, parent2, no_passwd, export_abs, BOB, SVC, MARK, PW)
 
 
-def _confine_encoding_exhaustive_p3(s3port, out_marker, port, ta, data, outside_clean, tb, parent1, parent2, no_passwd, export_abs, BOB, SVC, MARK, PW):
     # =============================================================================
     # WEBDAV MOVE / COPY Destination header — traversal + CRLF + absolute targets.
     # The Destination must be confined; nothing may land outside the export.
@@ -225,10 +219,8 @@ def _rt14_crlf_nul_in_the_request_path(port, ta, no_passwd, MARK, SVC, data):
         st, b = http("GET", p, port, ta)
         ok(all((no_passwd(b), not _has(b, MARK))),
            f"WebDAV GET CRLF/NUL-in-path {p[:28]!r} no leak/escape (HTTP {st})")
-    _confine_encoding_exhaustive_p4(s3port, out_marker, port, ta, data, tb, outside_clean, no_passwd, parent1, BOB, SVC, parent2, MARK, PW)
 
 
-def _confine_encoding_exhaustive_p4(s3port, out_marker, port, ta, data, tb, outside_clean, no_passwd, parent1, BOB, SVC, parent2, MARK, PW):
     # =============================================================================
     # WEBDAV PROPFIND on a traversal target must not enumerate outside the export.
     # =============================================================================
@@ -241,10 +233,8 @@ def _confine_encoding_exhaustive_p4(s3port, out_marker, port, ta, data, tb, outs
            f"WebDAV PROPFIND traversal {p!r} no outside/svc enumeration (HTTP {st})")
 
     # =============================================================================
-    _confine_encoding_exhaustive_p5(s3port, out_marker, port, ta, data, tb, outside_clean, no_passwd, pf, parent1, BOB, SVC, parent2, MARK, PW)
 
 
-def _confine_encoding_exhaustive_p5(s3port, out_marker, port, ta, data, tb, outside_clean, no_passwd, pf, parent1, BOB, SVC, parent2, MARK, PW):
     # SYMLINK-OUT: alice plants a symlink INSIDE HER OWN DIR pointing OUT; a
     # DIFFERENT identity (bob) — and alice herself — must NOT be able to follow it
     # out of the export via any protocol.  RESOLVE_BENEATH must refuse the symlink.
@@ -410,20 +400,20 @@ def _rt14_root_cat_alice_s_symlink_bob():
     ]
     for p in root_cat:
         rc, out, _e = xrd_fs(["cat", p], "alice")
-        ok(all((rc != 0, 'root:x:' not in any((out, '')))),
+        ok(all((rc != 0, 'root:x:' not in _rt_default(out, ''))),
            f"root:// cat traversal/symlink {p[:26]!r} DENIED, no passwd "
            f"(rc={rc})")
 
     # root:// cat alice's symlink -> bob's private must not leak bob's secret.
     rc, out, _e = xrd_fs(["cat", "/alice/cf_to_bobpriv"], "alice")
-    ok('BOB-PRIVATE-SECRET' not in any((out, '')),
+    ok('BOB-PRIVATE-SECRET' not in _rt_default(out, ''),
        f"root:// cat alice-symlink->bob/private no bob leak (rc={rc})")
     rc, out, _e = xrd_fs(["cat", "/alice/cf_to_svc"], "alice")
     return rc, out
 
 
 def _rt14_root_xrdcp_read_of_a_traversal(out, rc):
-    ok('svc-only-secret' not in any((out, '')),
+    ok('svc-only-secret' not in _rt_default(out, ''),
        f"root:// cat alice-symlink->svconly no svc leak (rc={rc})")
 
     # root:// xrdcp read of a traversal path must not download passwd.
@@ -500,10 +490,8 @@ def _rt14_otherwise_xrd_avail(outside_clean, parent1, parent2, data):
 def _rt14_s3_positive_control_alice_s_own(s3port, no_passwd, MARK, BOB, parent1, parent2, outside_clean, data, PW):
 
     # =============================================================================
-    _confine_encoding_exhaustive_p6(s3port, out_marker, links, port, ta, data, outside_clean, parent1, parent2, MARK, no_passwd, BOB, PW)
 
 
-def _confine_encoding_exhaustive_p6(s3port, out_marker, links, port, ta, data, outside_clean, parent1, parent2, MARK, no_passwd, BOB, PW):
     # S3 — object key + copy-source traversal/encoding enumeration (signed as alice).
     # =============================================================================
     s3_get_keys = [
@@ -524,20 +512,16 @@ def _confine_encoding_exhaustive_p6(s3port, out_marker, links, port, ta, data, o
     # =============================================================================
     # root:// (stream) — stat/cat/mkdir/cp traversal + symlink-follow under map.
     # =============================================================================
-    _confine_encoding_exhaustive_p7(out_marker, links, port, ta, data, outside_clean, parent1, parent2, MARK)
 
 
-def _confine_encoding_exhaustive_p7(out_marker, links, port, ta, data, outside_clean, parent1, parent2, MARK):
     if not xrd_avail():
         ok(True, "root:// confinement matrix skipped (native client absent)")
     else:
         _rt14_otherwise_xrd_avail(outside_clean, parent1, parent2, data)
 
     # =============================================================================
-    _confine_encoding_exhaustive_p8(out_marker, links, port, ta, data, outside_clean, parent1, MARK)
 
 
-def _confine_encoding_exhaustive_p8(out_marker, links, port, ta, data, outside_clean, parent1, MARK):
     # FINAL INVARIANTS — nothing escaped anywhere + the worker SURVIVES the battery.
     # =============================================================================
     grand_outside = [

@@ -19,6 +19,7 @@
  *       real work. No behaviour change from the split.
  */
 
+#include "core/compat/log_event.h"
 #include "config.h"
 #include "process_internal.h"
 #include <sys/stat.h>                        /* struct stat, S_ISREG (CRL handler) */
@@ -67,7 +68,7 @@ brix_crl_reload_handler(ngx_event_t *ev)
                    && S_ISREG(st.st_mode));
 
     if (is_reg_file && xcf->crl_mtime != 0 && st.st_mtime == xcf->crl_mtime) {
-        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                        "brix: CRL \"%s\" unchanged — skipping reload",
                        xcf->crl.data);
         if (xcf->crl_reload > 0 && !ngx_exiting) {
@@ -76,7 +77,7 @@ brix_crl_reload_handler(ngx_event_t *ev)
         return;
     }
 
-    ngx_log_error(NGX_LOG_INFO, ev->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, ev->log, 0,
                   "brix: CRL reload timer fired, rebuilding store "
                   "from \"%s\"", xcf->crl.data);
 
@@ -117,7 +118,7 @@ brix_pending_reap_handler(ngx_event_t *ev)
     ngx_uint_t  reaped = brix_pending_reap_expired();
 
     if (reaped > 0) {
-        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                        "brix: pending-locate reaper freed %ui expired slot(s)",
                        reaped);
     }
@@ -161,7 +162,7 @@ brix_stage_reap_handler(ngx_event_t *ev)
 {
     ngx_uint_t n = brix_stage_reap_all(ev->log);
     if (n > 0) {
-        ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ev->log, 0,
                       "brix: stage-out reaper completed %ui pending commit(s)",
                       n);
     }
@@ -208,7 +209,7 @@ brix_cache_reap_handler(ngx_event_t *ev)
     ngx_uint_t                    n = brix_cache_reap_dirty(xcf, ev->log);
 
     if (n > 0) {
-        ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ev->log, 0,
                       "brix: cache stale-dirty reaper removed %ui file(s)", n);
     }
     if (!ngx_exiting) {
@@ -287,12 +288,12 @@ brix_csi_scrub_handler(ngx_event_t *ev)
             (void) ngx_atomic_fetch_add(&m->csi_scrub_mismatch_total,
                                         (ngx_atomic_int_t) st.mismatches);
         }
-        ngx_log_error(NGX_LOG_ERR, ev->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, ev->log, 0,
                       "brix: CSI scrub of \"%s\" found %uL corrupt block(s) "
                       "across %uL tagged file(s)",
                       root, st.mismatches, st.files_tagged);
     } else {
-        ngx_log_debug3(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                        "brix: CSI scrub of \"%s\" clean "
                        "(%uL files, %uL blocks verified)",
                        root, st.files_scanned, st.blocks_verified);

@@ -385,7 +385,15 @@ def section_journal(s: Session) -> None:
 
     jbase = f"/tmp/{s.tag}-jrn"
     rdst = f"{s.url}/{jbase}"
-    s.fs("mkdir", jbase)
+    # A standalone scenario starts with an empty export; the full scenario set
+    # happened to inherit /tmp from earlier cases and hid this dependency.
+    # Establish the shared scratch parent first (EEXIST is harmless), then make
+    # setup failure explicit instead of misreporting it as a journal failure.
+    s.fs("mkdir", "/tmp")
+    setup = s.fs("mkdir", jbase)
+    if not s.check("journal setup: remote destination exists",
+                   setup.returncode == 0 or s.fs_stat_ok(jbase)):
+        return
 
     _phase_section_journal_2(j)
     manifest = j / "manifest.txt"

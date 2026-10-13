@@ -463,6 +463,10 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
     # #26 statable as an equivalence rather than a bare wrong-answer pin: on
     # the cleartext-GSI leg this destination and -rogueca behave identically.
     "lc-audit15h-tpcgsitls-noca": {"port": 30680},
+    # Phase-118 OPN-012 read-only policy ordering: one token-authenticated
+    # read-only endpoint and an otherwise identical writable control.
+    "lc-phase118-open-readonly": {"port": 30681,
+                                    "extra": {"PORT_WRITABLE": 30682}},
     # TPC x sss (test_audit15h_tpc_sss.py, §C).  Three plain single-face
     # instances: the sss-guarded source the destination cannot pull from, the
     # anonymous source it can (the attribution control), and the destination

@@ -62,13 +62,15 @@ brix_inflate_frame(uint8_t codec, const uint8_t *comp, size_t comp_len,
 
 static ssize_t
 file_read_frames(brix_conn *c, brix_file *f, int64_t offset, void *buf,
-                 size_t len, brix_status *st)
+                 size_t len, unsigned *partial_frames, brix_status *st)
 {
     ClientReadRequest req;
     uint16_t          sid, status;
     size_t            total = 0;
     uint8_t          *comp = NULL;   /* accumulated codec frame (compressed only) */
     size_t            comp_cap = 0;
+
+    *partial_frames = 0;
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_read);
@@ -138,6 +140,7 @@ file_read_frames(brix_conn *c, brix_file *f, int64_t offset, void *buf,
         if (status == kXR_ok) {
             break;
         }
+        (*partial_frames)++;
     }
 
     if (f->read_codec == 0) {
@@ -162,8 +165,21 @@ brix_file_read(brix_conn *c, brix_file *f, int64_t offset, void *buf, size_t len
                brix_status *st)
 {
     ssize_t rc;
+    unsigned partial_frames;
     brix_io_stall_arm(&c->io);
-    rc = file_read_frames(c, f, offset, buf, len, st);
+    rc = file_read_frames(c, f, offset, buf, len, &partial_frames, st);
+    brix_io_stall_disarm(&c->io);
+    return rc;
+}
+
+ssize_t
+brix_file_read_profile(brix_conn *c, brix_file *f, int64_t offset, void *buf,
+                       size_t len, unsigned *partial_frames, brix_status *st)
+{
+    ssize_t rc;
+
+    brix_io_stall_arm(&c->io);
+    rc = file_read_frames(c, f, offset, buf, len, partial_frames, st);
     brix_io_stall_disarm(&c->io);
     return rc;
 }
@@ -309,12 +325,14 @@ brix_file_write(brix_conn *c, brix_file *f, int64_t offset, const void *buf,
  */
 static int
 brix_readv_accumulate(brix_conn *c, uint16_t sid, uint8_t **out_acc,
-                      size_t *out_len, brix_status *st)
+                      size_t *out_len, unsigned *partial_frames,
+                      brix_status *st)
 {
     uint8_t *acc = NULL;
     size_t   acc_len = 0, acc_cap = 0;
     uint16_t status;
 
+    if (partial_frames != NULL) *partial_frames = 0;
     for (;;) {                          /* accumulate kXR_oksofar* then kXR_ok */
         uint8_t *body = NULL;
         uint32_t blen = 0;
@@ -348,6 +366,8 @@ brix_readv_accumulate(brix_conn *c, uint16_t sid, uint8_t **out_acc,
         if (status == kXR_ok) {
             break;
         }
+        if (partial_frames != NULL && status == kXR_oksofar)
+            (*partial_frames)++;
     }
     *out_acc = acc;
     *out_len = acc_len;
@@ -394,7 +414,12 @@ brix_readv_scatter(const uint8_t *acc, size_t acc_len,
             brix_status_set(st, XRDC_EPROTO, 0, "readv: truncated segment data");
             return -1;
         }
-        cp = (rl <= segs[i].len) ? rl : segs[i].len;
+        if (rl > segs[i].len) {
+            brix_status_set(st, XRDC_EPROTO, 0,
+                            "readv: segment exceeds requested length");
+            return -1;
+        }
+        cp = rl;
         memcpy(segs[i].buf, acc + cursor, cp);
         segs[i].got = cp;            /* actual bytes for this segment (≤ len) */
         total += (ssize_t) cp;
@@ -411,9 +436,10 @@ brix_readv_scatter(const uint8_t *acc, size_t acc_len,
  * possibly split across kXR_oksofar frames. We accumulate the whole reply, then walk
  * the segments in request order into each seg.buf. Returns total bytes read.
  */
-static ssize_t
-file_readv_frames(brix_conn *c, brix_file *f, brix_file *const *files,
-                  brix_readv_seg *segs, size_t nseg, brix_status *st)
+ssize_t
+brix_readv_frames(brix_conn *c, brix_file *f, brix_file *const *files,
+                  brix_readv_seg *segs, size_t nseg,
+                  unsigned *partial_frames, brix_status *st)
 {
     ClientRequestHdr req;
     uint8_t         *payload;
@@ -453,7 +479,8 @@ file_readv_frames(brix_conn *c, brix_file *f, brix_file *const *files,
     }
     free(payload);
 
-    if (brix_readv_accumulate(c, sid, &acc, &acc_len, st) != 0) {
+    if (brix_readv_accumulate(c, sid, &acc, &acc_len, partial_frames, st)
+        != 0) {
         return -1;
     }
 
@@ -461,35 +488,6 @@ file_readv_frames(brix_conn *c, brix_file *f, brix_file *const *files,
     free(acc);
     return total;
 }
-
-/* Slow-drip guard around the whole scatter-gather reply (accumulate spans many
- * frames). See brix_file_read()'s wrapper. */
-ssize_t
-brix_file_readv(brix_conn *c, brix_file *f, brix_readv_seg *segs,
-                size_t nseg, brix_status *st)
-{
-    ssize_t rc;
-    brix_io_stall_arm(&c->io);
-    rc = file_readv_frames(c, f, NULL, segs, nseg, st);
-    brix_io_stall_disarm(&c->io);
-    return rc;
-}
-
-/* §7.15: scatter-gather read where each segment reads from its OWN open handle
- * (files[i]) — stock's per-segment fhandle, one kXR_readv across many files.
- * files must have nseg entries. See brix_file_readv for the seg contract. */
-ssize_t
-brix_file_readv_multi(brix_conn *c, brix_file *const *files,
-                      brix_readv_seg *segs, size_t nseg, brix_status *st)
-{
-    ssize_t rc;
-    brix_io_stall_arm(&c->io);
-    rc = file_readv_frames(c, (nseg > 0) ? files[0] : NULL, files,
-                           segs, nseg, st);
-    brix_io_stall_disarm(&c->io);
-    return rc;
-}
-
 
 /*
  * kXR_writev (3031) — scatter-gather write. Wire framing (stock

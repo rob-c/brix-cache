@@ -168,24 +168,14 @@ def test_an_unparseable_cksum_type_silently_skips_verification(plane, tmp_path):
     assert b"unsupported --cksum type" in done.stderr, done.stderr[-400:]
 
 
-def test_a_stdio_destination_reports_success_having_verified_nothing(plane):
-    """DEFECT PIN — the `--verify` strict-mode gap, stdio half, and the quieter
-    of the two: cksum_verify returns OK (not UNVERIFIED) for a stdio endpoint,
-    so `download_reconcile_cksum` has nothing to warn about and the status is
-    clean.  `xrdcp --verify src - | consumer` is the shape of every streaming
-    pipeline, and it carries a verification flag that cannot do anything.
-
-    INVERT WHEN A STRICT MODE LANDS: `--verify` with no local file to digest is
-    a usage refusal (non-zero, no bytes moved) rather than a skipped check."""
+def test_a_stdio_destination_refuses_unverifiable_strict_mode(plane):
+    """`--verify` is strict: a pipe has no local file to digest, so the command
+    must return non-zero instead of blessing an unchecked stream as verified."""
     url, _data = plane
 
     done = _xrdcp("--verify", url, "-")
 
-    assert done.returncode == 0, done.stderr.decode(errors="replace")
+    assert done.returncode != 0
     assert hashlib.sha256(done.stdout).hexdigest() == \
-        hashlib.sha256(SEED).hexdigest(), "the pipe did not get the file"
-    # INVERT WHEN FIXED: this is the whole finding — the flag was accepted, the
-    # transfer reported success, and the check was skipped.
-    assert b"skipped for stdin/stdout" in done.stderr, done.stderr[-400:]
-    assert b"NOT verified" not in done.stderr, \
-        "the stdio skip now warns like an UNVERIFIED query — narrow this pin"
+        hashlib.sha256(SEED).hexdigest(), "the transfer failed before streaming"
+    assert b"needs a file destination" in done.stderr, done.stderr[-400:]

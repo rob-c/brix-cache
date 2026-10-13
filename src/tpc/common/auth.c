@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "auth.h"
 
 /*
@@ -36,7 +37,7 @@ brix_tpc_check_scope_path(const brix_identity_t *identity,
     }
 
     if (path->len >= sizeof(local_path)) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_tpc: authorization path is too long");
         return NGX_DECLINED;
     }
@@ -47,7 +48,7 @@ brix_tpc_check_scope_path(const brix_identity_t *identity,
     if (brix_identity_check_token_scope(identity, local_path, need_write)
         != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_tpc: token scope denied %s access to \"%s\"",
                       need_write ? "write" : "read", local_path);
         return NGX_DECLINED;
@@ -67,7 +68,7 @@ brix_tpc_check_authz(const brix_identity_t *identity,
     const ngx_str_t *src_path, const ngx_str_t *dst_path, ngx_log_t *log)
 {
     if (identity != NULL && (identity->auth_method & BRIX_AUTHN_S3KEY)) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_tpc: S3 SigV4 identities cannot initiate TPC");
         return NGX_DECLINED;
     }

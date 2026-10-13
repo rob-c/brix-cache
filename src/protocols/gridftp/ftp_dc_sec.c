@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "ftp_dc_sec.h"
 
 #include "auth/crypto/gsi_verify.h"
@@ -37,7 +38,7 @@ brix_ftp_dc_load_deleg(const brix_ftp_dc_sec_t *sec, SSL *ssl)
     EVP_PKEY  *key;
 
     if (sec->deleg_proxy.len == 0) {
-        ngx_log_error(NGX_LOG_ERR, sec->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, sec->log, 0,
                       "brix: gsiftp PROT P needs a delegated credential (none)");
         return NGX_ERROR;
     }
@@ -103,7 +104,7 @@ brix_ftp_dc_load_deleg(const brix_ftp_dc_sec_t *sec, SSL *ssl)
     brix_evp_pkey_free(key);
 
     if (SSL_check_private_key(ssl) != 1) {
-        ngx_log_error(NGX_LOG_ERR, sec->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, sec->log, 0,
                       "brix: gsiftp delegated cred cert/key mismatch");
         return NGX_ERROR;
     }
@@ -149,13 +150,13 @@ brix_ftp_dc_gsi_check(const brix_ftp_dc_sec_t *sec, SSL *ssl)
                                0, &res, 0);
     X509_free(leaf);
     if (rc != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, sec->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, sec->log, 0,
                       "brix: gsiftp data-channel proxy chain verify failed");
         return NGX_ERROR;
     }
 
     if (!brix_ftp_dc_dn_matches(res.dn_buf, sec->ctrl_dn.data, sec->ctrl_dn.len)) {
-        ngx_log_error(NGX_LOG_ERR, sec->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, sec->log, 0,
                       "brix: gsiftp data-channel DN \"%s\" != control DN \"%V\"",
                       res.dn_buf, &sec->ctrl_dn);
         return NGX_ERROR;

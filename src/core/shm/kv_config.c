@@ -19,6 +19,7 @@
  *       only on a fresh zone; the registry array records every configured zone
  *       so consumer directives and the Prometheus exporter can resolve them.
  */
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"   /* full ngx core + stream (NGX_STREAM_MAIN_CONF) */
 #include "kv.h"
 #include "kv_internal.h"
@@ -145,7 +146,7 @@ brix_kv_configure(ngx_conf_t *cf, brix_kv_t *kv, ngx_str_t *name,
     uint32_t cap;
 
     if (brix_kv_nzones >= BRIX_KV_MAX_ZONES) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "too many brix_kv_zone zones (max %d)",
                            BRIX_KV_MAX_ZONES);
         return NGX_ERROR;
@@ -165,7 +166,7 @@ brix_kv_configure(ngx_conf_t *cf, brix_kv_t *kv, ngx_str_t *name,
     avail       = size - sizeof(brix_kv_header_t);
     cap         = brix_kv_floor_pow2(avail / stride);
     if (cap < 1) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_kv_zone \"%V\": size too small for one entry",
                            name);
         return NGX_ERROR;
@@ -185,7 +186,7 @@ brix_kv_configure(ngx_conf_t *cf, brix_kv_t *kv, ngx_str_t *name,
         return NGX_ERROR;
     }
     if (kv->zone->data != NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "duplicate brix_kv_zone \"%V\"", name);
         return NGX_ERROR;
     }
@@ -291,7 +292,7 @@ kv_zone_parse_args(ngx_conf_t *cf, ngx_str_t *value, ngx_str_t *name,
             u_char   *colon = ngx_strlchr(spec.data, spec.data + spec.len, ':');
 
             if (colon == NULL) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                     "brix_kv_zone: expected zone=name:size");
                 return NGX_CONF_ERROR;
             }
@@ -304,7 +305,7 @@ kv_zone_parse_args(ngx_conf_t *cf, ngx_str_t *value, ngx_str_t *name,
         } else if (value[i].len > 4 && ngx_strncmp(value[i].data, "val=", 4) == 0) {
             *val_max = ngx_atoi(value[i].data + 4, value[i].len - 4);
         } else {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_kv_zone: unexpected parameter \"%V\" — expected "
                 "zone=name:size key=<bytes> val=<bytes>", &value[i]);
             return NGX_CONF_ERROR;
@@ -336,14 +337,14 @@ brix_kv_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     if (name.len == 0 || sizestr.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_kv_zone: missing zone=name:size");
         return NGX_CONF_ERROR;
     }
 
     size = ngx_parse_size(&sizestr);
     if (size == NGX_ERROR || size <= 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "invalid brix_kv_zone size \"%V\"", &sizestr);
         return NGX_CONF_ERROR;
     }
@@ -351,14 +352,14 @@ brix_kv_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (key_max == 0 || key_max == (size_t) NGX_ERROR
         || val_max == 0 || val_max == (size_t) NGX_ERROR)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_kv_zone \"%V\" requires key=<bytes> and val=<bytes>",
             &name);
         return NGX_CONF_ERROR;
     }
 
     if (brix_kv_find(&name) != NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "duplicate brix_kv_zone \"%V\"", &name);
         return NGX_CONF_ERROR;
     }

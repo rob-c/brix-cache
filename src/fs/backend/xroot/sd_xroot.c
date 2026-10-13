@@ -14,6 +14,7 @@
  * credential copied into the fill task.
  */
 
+#include "core/compat/log_event.h"
 #include "sd_xroot.h"
 #include "sd_xroot_internal.h"    /* obj_state + machinery + cross-file ops */
 #include "fs/cache/cache_internal.h"   /* origin wire client + fill-task ctx */
@@ -186,7 +187,7 @@ sd_xroot_origin_open(const sd_xroot_origin_open_req_t *req)
     if (brix_cache_origin_connect(t, &st->oc) != 0
         || brix_cache_origin_bootstrap(t, &st->oc) != 0)
     {
-        ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, ngx_cycle->log, 0,
             "brix sd_xroot: origin open \"%s\" failed: %s (kXR %d)",
             req->path, (t->err_msg[0] != '\0') ? t->err_msg : "(no detail)",
             t->xrd_error);
@@ -478,7 +479,7 @@ sd_xroot_origin_build_ca_store(sd_xroot_inst_state *is,
             X509_V_FLAG_ALLOW_PROXY_CERTS, &crl_count, &pol);
     }
     if (synth->gsi_store == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix: gsi origin CA store build failed for \"%s\" — GSI to this "
             "origin will be refused", ca_dir);
     }

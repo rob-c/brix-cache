@@ -14,7 +14,10 @@ NGX_SRC = Path(os.environ.get(
     "/tmp/nginx-1.28.3" if Path("/tmp/nginx-1.28.3/src/core/ngx_config.h").exists()
     else "/tmp/nginx-1.24.0",
 ))
-OBJS = NGX_SRC / "objs"
+_configured_nginx = Path(os.environ.get("BRIX_NGINX_BUILD_DIR", ""))
+OBJS = (_configured_nginx / "modules"
+        if (_configured_nginx / "modules/ngx_auto_headers.h").is_file()
+        else NGX_SRC / "objs")
 
 
 def run_krb5_deleg_capture(base: Path) -> list[tuple[bool, str]]:
@@ -38,6 +41,7 @@ def run_krb5_deleg_capture(base: Path) -> list[tuple[bool, str]]:
             "-I", "shared",
             "-I", str(NGX_SRC / "src/core"),
             "-I", str(NGX_SRC / "src/event"),
+            "-I", str(NGX_SRC / "src/event/quic"),
             "-I", str(NGX_SRC / "src/os/unix"),
             "-I", str(NGX_SRC / "src/stream"),
             "-I", str(OBJS),

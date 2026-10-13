@@ -2,6 +2,7 @@
  * xrd_mount.c - extracted concern
  * Phase-38 split of xrd.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrd_internal.h"
 #include "core/progname.h"  /* brix_prog_prefix(): exec the brix-<driver> sibling */
 #include "platform/platform.h"   /* PAL: brix_plat_mounts_walk */
@@ -26,7 +27,7 @@ xrd_login(int argc, char **argv)
         } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
             verbose = 1;
         } else {
-            fprintf(stderr, "xrd login: unknown argument '%s'\n", argv[i]);
+            BRIX_CLIENT_LOG("ERROR",  "xrd login: unknown argument '%s'\n", argv[i]);
             return 50;
         }
     }
@@ -66,11 +67,11 @@ xrd_ping(int argc, char **argv)
     brix_crypto_init();
     brix_status_clear(&st);
     if (brix_endpoint_parse(endpoint, &u, &st) != 0) {
-        fprintf(stderr, "xrd ping: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrd ping: %s\n", st.msg);
         return 50;
     }
     if (brix_connect(&c, &u, &o, &st) != 0) {
-        fprintf(stderr, "xrd ping: connect %s:%d: %s\n", u.host, u.port, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrd ping: connect %s:%d: %s\n", u.host, u.port, st.msg);
         return brix_shellcode(&st);
     }
     printf("PING %s:%d  (%d stat round-trips to /)\n", u.host, u.port, count);
@@ -144,10 +145,10 @@ xrd_whoami(int argc, char **argv)
     brix_crypto_init();
     brix_status_clear(&st);
     if (brix_endpoint_parse(endpoint, &u, &st) != 0) {
-        fprintf(stderr, "xrd whoami: %s\n", st.msg); return 50;
+        BRIX_CLIENT_LOG("ERROR",  "xrd whoami: %s\n", st.msg); return 50;
     }
     if (brix_connect(&c, &u, &o, &st) != 0) {
-        fprintf(stderr, "xrd whoami: connect %s:%d: %s\n", u.host, u.port, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrd whoami: connect %s:%d: %s\n", u.host, u.port, st.msg);
         return brix_shellcode(&st);
     }
     printf("endpoint:   %s:%d\n", u.host, u.port);
@@ -184,10 +185,10 @@ xrd_caps(int argc, char **argv)
     brix_crypto_init();
     brix_status_clear(&st);
     if (brix_endpoint_parse(endpoint, &u, &st) != 0) {
-        fprintf(stderr, "xrd caps: %s\n", st.msg); return 50;
+        BRIX_CLIENT_LOG("ERROR",  "xrd caps: %s\n", st.msg); return 50;
     }
     if (brix_connect(&c, &u, &o, &st) != 0) {
-        fprintf(stderr, "xrd caps: connect %s:%d: %s\n", u.host, u.port, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrd caps: connect %s:%d: %s\n", u.host, u.port, st.msg);
         return brix_shellcode(&st);
     }
     printf("server %s:%d  role=%s  tls=%s\n", u.host, u.port,
@@ -294,7 +295,7 @@ xrd_list_mounts(void)
 
     if (brix_plat_mounts_walk(getenv("XRD_MOUNTINFO_PATH"), xrd_mount_emit,
                               &header) < 0) {
-        fprintf(stderr, "xrd mount: cannot read mount table: %s\n", strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "xrd mount: cannot read mount table: %s\n", strerror(errno));
         return 1;
     }
     return 0;
@@ -336,7 +337,7 @@ xrd_mount_parse_selectors(int argc, char **argv, int *legacy, int *list, int *ou
             if (strcmp(d, "legacy") == 0) { *legacy = 1; }
             else if (strcmp(d, "aio") == 0 || strcmp(d, "resilient") == 0) { *legacy = 0; }
             else {
-                fprintf(stderr, "xrd mount: unknown driver '%s' (aio|legacy)\n", d);
+                BRIX_CLIENT_LOG("ERROR",  "xrd mount: unknown driver '%s' (aio|legacy)\n", d);
                 return 50;
             }
             i += 2;
@@ -428,7 +429,7 @@ xrd_mount(int argc, char **argv)
     }
     nv = xrd_mount_build_argv(argc, argv, i, driver, legacy, endpoint, sizeof(endpoint));
     if (nv == NULL) {
-        fprintf(stderr, "xrd: out of memory\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrd: out of memory\n");
         return 51;
     }
     exec_tool(pfx, driver, nv);   /* does not return on success */
@@ -453,7 +454,7 @@ xrd_unmount(int argc, char **argv)
         } else if (mp == NULL && argv[i][0] != '-') {
             mp = argv[i];
         } else {
-            fprintf(stderr, "xrd unmount: unexpected argument '%s'\n", argv[i]);
+            BRIX_CLIENT_LOG("ERROR",  "xrd unmount: unexpected argument '%s'\n", argv[i]);
             return 50;
         }
     }
@@ -465,7 +466,7 @@ xrd_unmount(int argc, char **argv)
     for (i = 0; rc == 126; i++) {
         char *c[BRIX_PLAT_UMOUNT_ARGV_MAX];
         if (brix_plat_fuse_umount_argv(mp, lazy, i, c) == 0) {
-            fprintf(stderr, "xrd unmount: no unmount tool found on PATH\n");
+            BRIX_CLIENT_LOG("INFO",  "xrd unmount: no unmount tool found on PATH\n");
             return 127;
         }
         rc = run_cmd(c);   /* 126: this tier's tool is not installed */

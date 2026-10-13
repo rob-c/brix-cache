@@ -24,6 +24,7 @@
  *       retry-after so a cold or tiny repo cannot be used to hammer the
  *       sampler. Every failure path is fail-open to identity serving.
  */
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "cvmfs_module_internal.h"
 
@@ -203,7 +204,7 @@ cvmfs_dict_train_repo(ngx_http_request_t *r,
     sd = cvmfs_resolve_sd(r, lcf);
     cs = (sd != NULL) ? brix_sd_cache_cstore(sd) : NULL;
     if (cs == NULL) {
-        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
             "cvmfs-dict: repo=%*s not trained (no cache tier to sample)",
             repo_len, repo);
         return;
@@ -226,7 +227,7 @@ cvmfs_dict_train_repo(ngx_http_request_t *r,
     arena_used = sc.arena_used;
 
     if (n < CVMFS_DICT_TRAIN_MIN) {
-        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
             "cvmfs-dict: repo=%*s not trained (resident samples=%ui < %ui)",
             repo_len, repo, (ngx_uint_t) n, (ngx_uint_t) CVMFS_DICT_TRAIN_MIN);
         return;
@@ -236,7 +237,7 @@ cvmfs_dict_train_repo(ngx_http_request_t *r,
                          CVMFS_DICT_TARGET_BYTES, &dict_len) != 0
         || cvmfs_dict_id(dict_tmp, dict_len, e->id) != 0)
     {
-        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
             "cvmfs-dict: repo=%*s training failed (samples=%ui bytes=%uz)",
             repo_len, repo, (ngx_uint_t) n, arena_used);
         return;
@@ -250,7 +251,7 @@ cvmfs_dict_train_repo(ngx_http_request_t *r,
     e->len      = dict_len;
     e->retry_at = 0;
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
         "cvmfs-dict: repo=%*s trained id=%s bytes=%uz samples=%ui "
         "corpus=%uz", repo_len, repo, e->id, dict_len, (ngx_uint_t) n,
         arena_used);
@@ -421,7 +422,7 @@ cvmfs_dict_emit(ngx_http_request_t *r, time_t mtime, const char *id,
     chain.buf  = b;
     chain.next = NULL;
 
-    ngx_log_error(NGX_LOG_DEBUG, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_DEBUG, r->connection->log, 0,
         "cvmfs-dict: coded serve %uz -> %uz id=%s", srclen, outlen, id);
 
     rc = ngx_http_send_header(r);

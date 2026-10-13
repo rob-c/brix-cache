@@ -50,7 +50,12 @@
 #define BRIX_HAS_COPY_FILE_RANGE 1
 #define BRIX_HAS_IPV6_FLOWLABEL 1        /* IPV6_FLOWLABEL_MGR socket option */
 #define BRIX_HAS_TCP_INFO 1              /* TCP_INFO byte/RTT counters */
+#define BRIX_HAS_NO_NEW_PRIVS 1          /* prctl(PR_SET_NO_NEW_PRIVS) */
+#define BRIX_HAS_WORKER_EXEC 1            /* exec is policy-controlled by seccomp */
+#define BRIX_HAS_CAPABILITIES 1           /* capget/capset + bounding set */
+#define BRIX_HAS_SAVED_IDS 1              /* getresuid/getresgid are authoritative */
 #define BRIX_HAS_GSS_KRB5_IMPORT_CRED 1  /* MIT gss_krb5_import_cred */
+#define BRIX_XATTR_NAME_MAX 255u          /* Linux XATTR_NAME_MAX */
 #define BRIX_PLAT_SHM_DIR "/dev/shm"     /* RAM-backed sticky scratch root */
 
 /* An optional symbol a binary may be linked without: ELF resolves an

@@ -10,6 +10,7 @@
  *       kXR_authmore (feed the body back to module.more) or kXR_ok (done). Rounds
  *       are capped to defend against a server that never finishes.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "sec/sec.h"
 #include "protocols/root/protocol/sec_protocol.h"   /* shared "&P=" security-list parser */
 #include "protocols/root/protocol/codec/wire_codec.h" /* shared per-opcode wire-body codec */
@@ -69,6 +70,9 @@ run_module(brix_conn *c, const brix_sec_module *m, const char *parms,
         }
         if (status == kXR_ok) {
             free(body);
+            if (strcmp(m->name, "gsi") == 0
+                && c->gsi_round2_response_built)
+                c->gsi_server_key_persisted = 1;
             if (m->cleanup != NULL) {
                 m->cleanup(c);
             }
@@ -188,7 +192,7 @@ module_candidate(brix_conn *c, const brix_sec_module *m, const brix_opts *o,
 static void
 auth_warn_fallback(const brix_sec_module *m, const brix_status *st)
 {
-    fprintf(stderr,
+    BRIX_CLIENT_LOG("WARN",
             "brix: warning: '%s' authentication failed (%s); "
             "falling back to the next offered protocol\n",
             m->name, st->msg[0] ? st->msg : "no detail");

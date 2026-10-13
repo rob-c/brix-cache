@@ -24,6 +24,9 @@ REPO = Path(__file__).resolve().parents[1]
 SPIKE = REPO / "docs" / "refactor" / "phase-117-erasure-coding-design-spike.md"
 GAPS = REPO / "docs" / "10-reference" / "protocol-gaps-vs-xrootd.md"
 FLAGS = REPO / "src" / "protocols" / "root" / "protocol" / "flags.h"
+CONFORM_OPTIONS = REPO / "client" / "apps" / "diag" / "xrd_conform_options.c"
+CONFORM_SCOPE = REPO / "client" / "lib" / "conform" / "scope.c"
+PHASE118 = REPO / "docs" / "refactor" / "phase-118-security-assessment-toolkit.md"
 
 # A path in backticks, e.g. `src/fs/backend/csi_verify.c` — optionally with one
 # brace group naming several siblings: `csi_{tagstore,verify,scrub}.c`.
@@ -178,3 +181,23 @@ def test_the_flag_comment_gives_the_real_reason_it_is_unset():
     text = FLAGS.read_text()
     assert "NEVER SET" in text
     assert "phase-117" in text
+
+
+def test_phase118_does_not_offer_a_stripe_free_ec_profile():
+    """Success: an internal-EC deployment uses the ordinary data profile."""
+    options = CONFORM_OPTIONS.read_text()
+    assert '"tls", "ec", "tpc"' not in options
+    assert '"tls", "tpc", "full"' in options
+
+
+def test_phase118_scope_has_no_hidden_ec_alias():
+    """Error: profile validation and family scope cannot disagree about EC."""
+    scope = CONFORM_SCOPE.read_text()
+    assert '{ "ec", data }' not in scope
+
+
+def test_phase118_explains_why_ec_is_rejected():
+    """Security-negative: never imply a shard contract the client cannot audit."""
+    text = PHASE118.read_text()
+    assert "former `ec` profile is intentionally retired" in text
+    assert "Accepting `--profile ec` today would pretend" in text

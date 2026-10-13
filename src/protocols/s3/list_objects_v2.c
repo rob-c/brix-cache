@@ -19,7 +19,7 @@
  *   from the beginning exactly as before.
  *
  * HOW:
- *   1. Fetch each string argument via brix_http_query_get() into a bounded buffer.
+ *   1. Fetch each string argument from the shared parsed query into a bounded buffer.
  *   2. Set fetch_owner and url_encode from their canonical "true" / "url" values.
  *   3. Resolve max_keys through s3_list_parse_max_keys() (clamped to config).
  *   4. If a continuation token is present, b64url-decode it into start_after;
@@ -36,11 +36,11 @@ s3_list_decode_params(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     u_char  fetch_owner_buf[8]       = { 0 };
     u_char  encoding_type_buf[8]     = { 0 };
 
-    brix_http_query_get(r->args, "prefix",             (char *) prefix_buf,        prefix_sz,                 S3_LIST_QUERY_FLAGS);
-    brix_http_query_get(r->args, "delimiter",          (char *) delimiter_buf,     delimiter_sz,              S3_LIST_QUERY_FLAGS);
-    brix_http_query_get(r->args, "continuation-token", (char *) token_buf,         sizeof(token_buf),         S3_LIST_QUERY_FLAGS);
-    brix_http_query_get(r->args, "fetch-owner",        (char *) fetch_owner_buf,   sizeof(fetch_owner_buf),   S3_LIST_QUERY_FLAGS);
-    brix_http_query_get(r->args, "encoding-type",      (char *) encoding_type_buf, sizeof(encoding_type_buf), S3_LIST_QUERY_FLAGS);
+    s3_get_query_param_flags(r, "prefix",             (char *) prefix_buf,        prefix_sz,                 S3_LIST_QUERY_FLAGS);
+    s3_get_query_param_flags(r, "delimiter",          (char *) delimiter_buf,     delimiter_sz,              S3_LIST_QUERY_FLAGS);
+    s3_get_query_param_flags(r, "continuation-token", (char *) token_buf,         sizeof(token_buf),         S3_LIST_QUERY_FLAGS);
+    s3_get_query_param_flags(r, "fetch-owner",        (char *) fetch_owner_buf,   sizeof(fetch_owner_buf),   S3_LIST_QUERY_FLAGS);
+    s3_get_query_param_flags(r, "encoding-type",      (char *) encoding_type_buf, sizeof(encoding_type_buf), S3_LIST_QUERY_FLAGS);
 
     *fetch_owner = (ngx_strcasecmp(fetch_owner_buf, (u_char *) "true") == 0) ? 1 : 0;
     *url_encode  = (ngx_strcasecmp(encoding_type_buf, (u_char *) "url") == 0) ? 1 : 0;

@@ -1,0 +1,51 @@
+# Container-based .deb builder for Ubuntu 26.04 (resolute).
+# Use through packaging/deb/build-deb-container.sh -d ubuntu26.
+
+FROM ubuntu:26.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Packaging toolchain plus every Build-Depends from debian/control.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential debhelper dpkg-dev pkg-config \
+        curl ca-certificates gnupg \
+        libssl-dev libpcre2-dev zlib1g-dev libxml2-dev libjansson-dev \
+        libcurl4-openssl-dev libkrb5-dev comerr-dev libcrypt-dev \
+        libsqlite3-dev libfuse3-dev libseccomp-dev libzstd-dev \
+        libbrotli-dev liblz4-dev liburing-dev \
+        librados-dev libradospp-dev libradosstriper-dev libcephfs-dev
+
+ARG NGINX_FLAVOR=org
+
+# Resolve org builds from nginx.org and distro builds from the Ubuntu archive.
+RUN set -e; \
+    if [ "$NGINX_FLAVOR" = "org" ]; then \
+        curl -fsSL https://nginx.org/keys/nginx_signing.key \
+            | gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg; \
+        . /etc/os-release; \
+        echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/ubuntu ${VERSION_CODENAME} nginx" \
+            > /etc/apt/sources.list.d/nginx.list; \
+    fi; \
+    apt-get update; \
+    if [ "$NGINX_FLAVOR" = "distro" ]; then \
+        apt-get install -y --no-install-recommends nginx-dev; \
+    fi
+
+ARG VERSION=""
+ARG NGINX_VERSION=""
+
+WORKDIR /build/src
+COPY . .
+
+RUN packaging/deb/build-deb.sh \
+        -f "$NGINX_FLAVOR" \
+        ${VERSION:+-v "$VERSION"} \
+        ${NGINX_VERSION:+-n "$NGINX_VERSION"} \
+        -o /artifacts
+
+
+FROM ubuntu:26.04 AS final
+
+COPY --from=builder /artifacts /artifacts
+
+CMD ["find", "/artifacts", "-name", "*.deb"]

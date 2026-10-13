@@ -12,6 +12,7 @@
  * The three probe/pick/load helpers are single-file static; both public
  * setters are prototyped in webdav.h.
  */
+#include "core/compat/log_event.h"
 #include "webdav_module_internal.h"
 #include "core/config/config.h"  /* brix_copy_conf_string */
 
@@ -33,7 +34,7 @@ webdav_conf_load_leaf_cert(ngx_conf_t *cf, ngx_str_t *path)
 
     bio = BIO_new_file((const char *) path->data, "r");
     if (bio == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            "brix_client_certificate_folder: cannot open "
                            "ssl_certificate \"%V\"", path);
         return NULL;
@@ -43,7 +44,7 @@ webdav_conf_load_leaf_cert(ngx_conf_t *cf, ngx_str_t *path)
     BIO_free(bio);
 
     if (cert == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_client_certificate_folder: no PEM certificate "
                            "found in ssl_certificate \"%V\"", path);
     }
@@ -63,7 +64,7 @@ webdav_conf_load_leaf_cert(ngx_conf_t *cf, ngx_str_t *path)
  */
 static ngx_int_t
 webdav_conf_probe_issuer_file(ngx_conf_t *cf, ngx_str_t *folder,
-                              X509_NAME *issuer, ngx_str_t *found)
+                              const X509_NAME *issuer, ngx_str_t *found)
 {
     u_char         *buf, *p;
     BIO            *bio;
@@ -142,7 +143,7 @@ webdav_conf_client_cert_folder(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_str_t                *value, folder, certpath, found;
     ngx_file_info_t           fi;
     X509                     *leaf;
-    X509_NAME                *issuer;
+    const X509_NAME          *issuer;
     ngx_int_t                 rc;
     char                      dn[512];
 
@@ -157,7 +158,7 @@ webdav_conf_client_cert_folder(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     if (ngx_file_info(folder.data, &fi) != 0 || !ngx_is_dir(&fi)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            "brix_client_certificate_folder \"%V\" is not an "
                            "accessible directory", &folder);
         return NGX_CONF_ERROR;
@@ -170,7 +171,7 @@ webdav_conf_client_cert_folder(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         || sslcf->certificates == NULL
         || sslcf->certificates->nelts == 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_client_certificate_folder needs the server's "
                            "own certificate to resolve its issuer: place it "
                            "AFTER ssl_certificate in the same server block");
@@ -178,7 +179,7 @@ webdav_conf_client_cert_folder(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     if (sslcf->client_certificate.len != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_client_certificate_folder conflicts with an "
                            "ssl_client_certificate already set for this "
                            "server (or is itself a duplicate) — configure "
@@ -189,7 +190,7 @@ webdav_conf_client_cert_folder(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     certpath = ((ngx_str_t *) sslcf->certificates->elts)[0];
 
     if (ngx_strlchr(certpath.data, certpath.data + certpath.len, '$') != NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_client_certificate_folder cannot resolve a "
                            "variable ssl_certificate \"%V\" at config time",
                            &certpath);
@@ -212,7 +213,7 @@ webdav_conf_client_cert_folder(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (rc == NGX_DECLINED) {
         X509_NAME_oneline(issuer, dn, sizeof(dn));
         X509_free(leaf);
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_client_certificate_folder: no <hash>.N file "
                            "in \"%V\" matches the issuer of \"%V\" (%s)",
                            &folder, &certpath, dn);
@@ -227,7 +228,7 @@ webdav_conf_client_cert_folder(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     sslcf->client_certificate = found;
 
-    ngx_conf_log_error(NGX_LOG_INFO, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_INFO, cf, 0,
                        "brix_client_certificate_folder: using \"%V\" as "
                        "ssl_client_certificate", &found);
 
@@ -287,7 +288,7 @@ webdav_conf_pick_ca_file(ngx_conf_t *cf, ngx_str_t *folder, ngx_str_t *picked)
     size_t      len;
 
     if (ngx_open_dir(folder, &dir) != NGX_OK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            "brix_backend_ca_dir: cannot open \"%V\"", folder);
         return NGX_ERROR;
     }
@@ -390,7 +391,7 @@ webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     if (ngx_file_info(folder.data, &fi) != 0 || !ngx_is_dir(&fi)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            "brix_backend_ca_dir \"%V\" is not an "
                            "accessible directory", &folder);
         return NGX_CONF_ERROR;
@@ -398,7 +399,7 @@ webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     rc = webdav_conf_pick_ca_file(cf, &folder, &picked);
     if (rc == NGX_DECLINED) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_backend_ca_dir \"%V\" contains no "
                            "<hash>.N CA files", &folder);
         return NGX_CONF_ERROR;
@@ -416,7 +417,7 @@ webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         }
     }
     if (pcmd == NULL || pcmd->name.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_backend_ca_dir requires the http proxy "
                            "module with SSL support");
         return NGX_CONF_ERROR;
@@ -438,7 +439,7 @@ webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     cf->args = saved;
 
     if (rv != NGX_CONF_OK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_backend_ca_dir conflicts with an explicit "
                            "proxy_ssl_trusted_certificate in the same "
                            "location (proxy_ssl_trusted_certificate %s) — "
@@ -448,7 +449,7 @@ webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     wlcf->proxy_ssl_capath = folder;
 
-    ngx_conf_log_error(NGX_LOG_INFO, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_INFO, cf, 0,
                        "brix_backend_ca_dir: trusted-certificate seed "
                        "\"%V\"; hashed dir added at postconfiguration",
                        &picked);

@@ -197,7 +197,7 @@ def _rt45_deleteobjects_of_alice_s_own_key(s3port, TAG, data, RESERVED, BADMAP):
         # never svc — many configs surface the in-progress marker file)
         st, mbody = s3("POST", f"alice/{TAG}_s3_mpu.bin", s3port,
                        params={"uploads": ""})
-        ok(all((st in (200,), b'<UploadId>' in any((mbody, b'')))),
+        ok(all((st in (200,), b'<UploadId>' in _rt_default(mbody, b''))),
            f"S3 multipart-initiate (alice) accepted (HTTP {st})")
 
         # CopyObject self -> new key, owned alice
@@ -327,7 +327,7 @@ def _rt45_segment_23(owner_of, TAG, st, port, key):
     ok(all((st in (200, 201, 204), ex, u == UID_FLOOR)),
        f"worker survives edge storm: floor1000 PUT still owned 1000 (HTTP {st}, uid={u})")
     st, b = http("GET", f"/pub/{TAG}_survive_floor.txt", port, mint(key, "floor1000"))
-    ok(all((st == 200, b'SURVIVE' in any((b, b'')))),
+    ok(all((st == 200, b'SURVIVE' in _rt_default(b, b''))),
        f"worker survives edge storm: floor1000 GET reads back its file (HTTP {st})")
     st, _ = http("PUT", f"/pub/{TAG}_survive_alice.txt", port,
                  mint(key, "alice"), b"ALICE-SURVIVE\n")

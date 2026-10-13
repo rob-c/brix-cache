@@ -25,11 +25,13 @@ Run:
 """
 
 import os
+import json
 import re
 import socket
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import pytest
 
@@ -122,6 +124,31 @@ def _build_cluster(lifecycle):
         reason="Cluster data server serving the shared DATA_ROOT, registers '/' with the redirector.",
     ))
     return f"root://{H}:{redir.port}"
+
+
+def _build_redundant_cluster(lifecycle):
+    """Two managers receiving registrations from the same data server."""
+    from ephemeral_port import free_ports
+
+    ports = free_ports(5)
+    managers = []
+    for index, suffix in enumerate(("a", "b")):
+        managers.append(lifecycle.start(NginxInstanceSpec(
+            name=f"lc-ct-red-{suffix}",
+            template="nginx_conformance_topo_cluster_redir.conf",
+            port=ports[index * 2], protocol="root", readiness="tcp",
+            extra_ports={"CMS_PORT": ports[index * 2 + 1]},
+            reason="Redundant CMS manager for Phase-118 holder-set comparison.",
+        )))
+    manager_authorities = " ".join(
+        f"{HOST}:{manager.extra_ports['CMS_PORT']}" for manager in managers)
+    lifecycle.start(NginxInstanceSpec(
+        name="lc-ct-red-ds", template="nginx_conformance_topo_cluster_ds.conf",
+        port=ports[4], protocol="root", readiness="tcp", data_root=DATA_ROOT,
+        template_values={"CMS_MANAGER": manager_authorities},
+        reason="One data server registered with both redundant CMS managers.",
+    ))
+    return tuple(f"root://{H}:{manager.port}" for manager in managers)
 
 
 def _build_mirror(lifecycle, name="mirror"):
@@ -228,6 +255,7 @@ def probe_file():
     """A known file in DATA_ROOT used to confirm a front is serving."""
     name = f"_conf_topo_probe_{os.getpid()}.bin"
     path = os.path.join(DATA_ROOT, name)
+    os.makedirs(DATA_ROOT, exist_ok=True)
     with open(path, "wb") as fh:
         fh.write(b"conformance-topology-probe\n" * 16)
     yield "/" + name
@@ -381,6 +409,58 @@ def test_cluster_nonexistent_returns_not_found(lifecycle):
     st, _ = client.FileSystem(front_url).stat(
         "//definitely_absent_redirect_loop_probe.bin")
     _assert_not_found_status(st)
+
+
+def test_phase118_manager_holder_and_empty_set_oracles(
+        lifecycle, probe_file, tmp_path):
+    """The deployable assessor verifies all holders and exact empty-set errno."""
+    from XRootD import client
+
+    front_url = _build_cluster(lifecycle)
+    if not _wait_cluster_registered(client, front_url):
+        pytest.skip("cluster data server did not register in time")
+    _wait_front_serves(front_url, probe_file)
+    output = tmp_path / "phase118-cms"
+    target = f"{front_url}/{probe_file.lstrip('/')}"
+    proc = subprocess.run(
+        [str(Path(__file__).resolve().parents[1] / "client/bin/xrd"),
+         "conform", "accept", target, "--profile", "manager",
+         "--families", "CMS,LOC", "--fail-on", "divergent",
+         "--wall-seconds", "30", "--request-limit", "96",
+         "--byte-limit", "1048576", "--out", str(output)],
+        cwd=Path(__file__).resolve().parents[1], capture_output=True,
+        text=True, timeout=45, check=False)
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    report = json.loads((output / "report.json").read_text(encoding="utf-8"))
+    rows = {row["id"]: row for row in report["results"]}
+    assert rows["CMS-001"]["verdict"] == "conformant"
+    assert rows["CMS-002"]["verdict"] == "conformant"
+
+
+def test_phase118_redundant_managers_agree(lifecycle, probe_file, tmp_path):
+    """CMS-005 compares sets, not the order of locate reply tokens."""
+    from XRootD import client
+
+    first, second = _build_redundant_cluster(lifecycle)
+    for manager in (first, second):
+        if not _wait_cluster_registered(client, manager):
+            pytest.skip("redundant cluster data server did not register")
+        _wait_front_serves(manager, probe_file)
+    output = tmp_path / "phase118-redundant-cms"
+    path = "/" + probe_file.lstrip("/")
+    proc = subprocess.run(
+        [str(Path(__file__).resolve().parents[1] / "client/bin/xrd"),
+         "conform", "accept", first + path, "--also", second + path,
+         "--profile", "manager", "--families", "CMS",
+         "--fail-on", "divergent", "--wall-seconds", "30",
+         "--request-limit", "128", "--byte-limit", "2097152",
+         "--out", str(output)],
+        cwd=Path(__file__).resolve().parents[1], capture_output=True,
+        text=True, timeout=45, check=False)
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    report = json.loads((output / "report.json").read_text(encoding="utf-8"))
+    rows = {row["id"]: row for row in report["results"]}
+    assert rows["CMS-005"]["verdict"] == "conformant"
 
 
 # ---------------------------------------------------------------------------

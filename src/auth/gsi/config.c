@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/config/config.h"
 #include "auth/protbind/protbind.h"   /* brix_protbind_any_names */
 #include "auth/crypto/pki_build.h"
@@ -54,7 +55,7 @@ brix_rebuild_gsi_store(ngx_stream_brix_srv_conf_t *xcf, ngx_log_t *log,
     }
 
     if (xcf->crl.len > 0) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                       "brix: loaded %d CRL(s) from \"%s\"",
                       crl_count, xcf->crl.data);
     }
@@ -159,7 +160,7 @@ brix_gsi_require_trust_inputs(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     if (xcf->common.certificate.len == 0 || xcf->common.certificate_key.len == 0
         || xcf->common.trusted_ca.len == 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_auth gsi requires brix_certificate, "
             "brix_certificate_key and brix_trusted_ca");
         return NGX_ERROR;
@@ -201,7 +202,7 @@ brix_gsi_load_certificate(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
     FILE *fp = fopen((char *) xcf->common.certificate.data, "r");
     if (fp == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
             "brix: cannot open certificate \"%s\"",
             xcf->common.certificate.data);
         return NGX_ERROR;
@@ -210,7 +211,7 @@ brix_gsi_load_certificate(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     xcf->gsi_cert = PEM_read_X509(fp, NULL, NULL, NULL);
     (void) fclose(fp); /* phase74-fp: read-only stream, close failure cannot lose data */
     if (xcf->gsi_cert == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix: cannot parse certificate \"%s\"",
             xcf->common.certificate.data);
         return NGX_ERROR;
@@ -248,7 +249,7 @@ brix_gsi_cache_cert_pem(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 
     if (!PEM_write_bio_X509(bio, xcf->gsi_cert)) {
         BIO_free(bio);
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix: cannot serialize certificate \"%s\"",
             xcf->common.certificate.data);
         return NGX_ERROR;
@@ -288,7 +289,7 @@ brix_gsi_load_private_key(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
     FILE *fp = fopen((char *) xcf->common.certificate_key.data, "r");
     if (fp == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
             "brix: cannot open private key \"%s\"",
             xcf->common.certificate_key.data);
         return NGX_ERROR;
@@ -297,7 +298,7 @@ brix_gsi_load_private_key(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     xcf->gsi_key = PEM_read_PrivateKey(fp, NULL, NULL, NULL);
     (void) fclose(fp); /* phase74-fp: read-only stream, close failure cannot lose data */
     if (xcf->gsi_key == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix: cannot parse private key \"%s\"",
             xcf->common.certificate_key.data);
         return NGX_ERROR;
@@ -337,7 +338,7 @@ brix_gsi_build_trust_store(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
          * failed" and has to go looking.  2.0 F22 made an unreadable CRL
          * inside a CRL DIRECTORY reach here rather than fail open, which is
          * exactly the case where an operator needs to be pointed at the log. */
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix: cannot build the GSI trust store from trusted_ca \"%V\" "
             "(CRL path \"%V\") - see the preceding brix_pki errors in the "
             "error log", &xcf->common.trusted_ca, &xcf->crl);
@@ -346,7 +347,7 @@ brix_gsi_build_trust_store(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 
     (void) brix_check_pki_consistency_stream(cf->log, xcf);
 
-    ngx_log_error(NGX_LOG_NOTICE, cf->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cf->log, 0,
                   "brix: GSI trust store built from \"%V\" in %uLus",
                   &xcf->common.trusted_ca,
                   (brix_phase_now_ns() - t0) / 1000ull);
@@ -414,7 +415,7 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 
     brix_gsi_compute_ca_hashes(xcf);
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: GSI auth configured - cert=%s ca_hashes=%s",
         xcf->common.certificate.data, xcf->gsi_ca_hashes);
 

@@ -141,7 +141,7 @@ def _rt32_segment_10(stolen_fs, stolen_rel, BOB_PRIV, _content, TAG):
 
 
 def _rt32_the_source_secret_must_not_have(BOB_PRIV, out, err, TAG, stolen_fs, _content, _owner, data):
-    ok(all((BOB_PRIV not in any((out, '')).encode(), BOB_PRIV not in any((err, '')).encode())),
+    ok(all((BOB_PRIV not in _rt_default(out, '').encode(), BOB_PRIV not in _rt_default(err, '').encode())),
        "%s(b): bob private secret bytes absent from TPC stdout/stderr" % TAG)
     # The source secret must not have ended up anywhere alice-readable; if any file
     # was created it must NOT be a bob-owned secret smuggled in.
@@ -320,7 +320,7 @@ def _rt32_f_forged_non_mappable_principal_tpc(TAG, data, a_src_rel, _gone, out, 
 
 
 def _rt32_same_forged_principal_cannot_pull_bob(MARK_A, out, err, TAG, _gone, forged_fs, _owner, data):
-    ok(all((MARK_A not in any((out, '')).encode(), MARK_A not in any((err, '')).encode())),
+    ok(all((MARK_A not in _rt_default(out, '').encode(), MARK_A not in _rt_default(err, '').encode())),
        "%s(f): unmapped-principal TPC leaked no alice source bytes" % TAG)
     ok(any((_gone(forged_fs), _owner(forged_fs) not in (UID_SVC, 0))),
        "%s(f): unmapped-principal TPC produced no svc/root artifact" % TAG)

@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include <netinet/tcp.h>   /* Phase 39: TCP_USER_TIMEOUT / TCP_KEEPIDLE etc. */
 #include "netopt.h"        /* Phase 50: shared dead-peer setsockopt helper */
@@ -102,7 +103,7 @@ static ngx_int_t
 conn_init_slots_and_sessid(ngx_connection_t *c, brix_ctx_t *ctx)
 {
     if (RAND_bytes(ctx->login.sessid, BRIX_SESSION_ID_LEN) != 1) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                       "brix: RAND_bytes failed minting session id — "
                       "refusing connection (CSPRNG unavailable)");
         return NGX_ERROR;
@@ -366,7 +367,7 @@ conn_register_metrics(ngx_stream_session_t *s, ngx_connection_t *c,
            >= mconf->max_connections)
     {
         ngx_atomic_fetch_add(&srv->connections_rejected_total, 1);
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                       "brix: connection refused — listener at "
                       "brix_max_connections (%ui)",
                       mconf->max_connections);

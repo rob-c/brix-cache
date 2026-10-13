@@ -56,7 +56,7 @@ def _rt71_check_when_have_etag(have_etag, s3port, etag, OWN_BODY):
         # (s3_send_precondition_failed), NOT the core filter's bodyless 412.
         st, b = s3("GET", "alice/cond_own.txt", s3port,
                    extra_hdrs={"If-Match": '"c0ffee-0"'})
-        ok(all((st == 412, b'<Error' in any((b, b'')), b'PreconditionFailed' in any((b, b'')), OWN_BODY not in any((b, b'')))),
+        ok(all((st == 412, b'<Error' in _rt_default(b, b''), b'PreconditionFailed' in _rt_default(b, b''), OWN_BODY not in _rt_default(b, b''))),
            f"S3 If-Match STALE ETag -> 412 with S3 XML PreconditionFailed body (HTTP {st})")
         # any-match token on an existing representation.
         st, b = s3("GET", "alice/cond_own.txt", s3port, extra_hdrs={"If-None-Match": "*"})
@@ -86,7 +86,7 @@ def _rt71_a_own_object(have_etag, s3port, etag, OWN_BODY, FUTURE, PAST):
 def _rt71_if_unmodified_since_a_past_date(s3port, PAST, OWN_BODY, FUTURE, etag):
     # If-Unmodified-Since: a PAST date means "was modified after it" -> 412.
     st, b = s3("GET", "alice/cond_own.txt", s3port, extra_hdrs={"If-Unmodified-Since": PAST})
-    ok(all((st == 412, OWN_BODY not in any((b, b'')))),
+    ok(all((st == 412, OWN_BODY not in _rt_default(b, b''))),
        f"S3 If-Unmodified-Since PAST date -> 412 PreconditionFailed (HTTP {st})")
     st, b = s3("GET", "alice/cond_own.txt", s3port, extra_hdrs={"If-Unmodified-Since": FUTURE})
     ok(all((st == 200, b == OWN_BODY)),
@@ -114,14 +114,14 @@ def _rt71_per_file_dac_control_the_same(cross_cases, s3port, SECRET):
         # A correct denial is 403/404 (DAC) or NoSuchKey.  A 200 (any body) OR a 304
         # (object-was-served confirmation) on bob's 0600 would mean the conditional
         # short-circuited the DAC-gated open -- the bug we hunt.  Secret bytes never leak.
-        ok(all((st in (403, 404), SECRET not in any((b, b'')))),
+        ok(all((st in (403, 404), SECRET not in _rt_default(b, b''))),
            f"S3 alice GET bob 0600 + {lbl} -> denied by impersonated open, no 200/304/leak (HTTP {st})")
 
     # HEAD oracle: alice CAN stat bob's 0600 (parent 0755) so HEAD-conditional may
     # surface a 412/304/200 etag-oracle (POSIX-equivalent to a HEAD) -- but HEAD
     # carries NO body, so the security invariant (no content leak) still holds.
     sthd, b = s3("HEAD", "bob/private.txt", s3port, extra_hdrs={"If-Match": "*"})
-    ok(SECRET not in any((b, b'')),
+    ok(SECRET not in _rt_default(b, b''),
        f"S3 alice HEAD bob 0600 + If-Match:* leaks no body bytes (oracle is POSIX-ok) (HTTP {sthd})")
 
     # Per-file-DAC control: the SAME conditional on bob's 0644 world-readable file IS
@@ -158,7 +158,7 @@ def _rt71_c_response_overrides(bread_etag, s3port, OWN_BODY):
 
 
 def _rt71_crlf_control_byte_injection_in_an(hO, s3port, OWN_BODY):
-    ok('attachment' in any((hO.get('content-disposition'), '')),
+    ok('attachment' in _rt_default(hO.get('content-disposition'), ''),
        f"S3 response-content-disposition override reflected (cd={hO.get('content-disposition')!r})")
 
     # response-content-encoding override must not relabel/garble the served bytes.
@@ -186,7 +186,7 @@ def _rt71_response_overrides_must_not_enable_a(sti, ibody, OWN_BODY, rawhead, hI
 
     # response-* overrides must NOT enable a cross-tenant read: bob's 0600 stays denied.
     stx, b = s3("GET", "bob/private.txt", s3port, params=ov)
-    ok(all((stx in (403, 404), SECRET not in any((b, b'')))),
+    ok(all((stx in (403, 404), SECRET not in _rt_default(b, b''))),
        f"S3 alice GET bob 0600 + response-* overrides STILL DAC-denied, no secret (HTTP {stx})")
 
 
@@ -200,7 +200,7 @@ def _rt71_presigned_url_variant_the_response_hook(s3port, OWN_BODY, SECRET):
     # NOTE: appending an unsigned response-* param may invalidate the SigV4 presign
     # (extra signed param) -> a 403 SignatureDoesNotMatch is an ACCEPTABLE outcome; the
     # security point is that it is NEVER a corrupted body and NEVER a cross-tenant leak.
-    ok(all((stp in (200, 403), any((pbody == OWN_BODY, SECRET not in any((pbody, b'')))))),
+    ok(all((stp in (200, 403), any((pbody == OWN_BODY, SECRET not in _rt_default(pbody, b''))))),
        f"S3 presigned GET own object + response-override: byte-exact or cleanly rejected (HTTP {stp})")
     ppb = s3_presign("GET", "bob/private.txt", s3port)
     return ppb
@@ -208,7 +208,7 @@ def _rt71_presigned_url_variant_the_response_hook(s3port, OWN_BODY, SECRET):
 
 def _rt71_d_conditional_put_precondition(ppb, s3port, SECRET, absp):
     stpb, pbb = http("GET", ppb, s3port)
-    ok(all((stpb in (403, 404), SECRET not in any((pbb, b'')))),
+    ok(all((stpb in (403, 404), SECRET not in _rt_default(pbb, b''))),
        f"S3 presigned GET bob 0600 -> denied, no secret bytes (HTTP {stpb})")
 
     # ============================================== (D) conditional PUT precondition ===

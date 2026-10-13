@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "uring.h"
 #include <sys/stat.h>
@@ -153,7 +154,7 @@ brix_uring_panic_mirror(ngx_log_t *log)
     prev = brix_uring_killswitch_get();
     if (prev != (ngx_int_t) exists) {
         brix_uring_killswitch_set(exists);
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: io_uring %s via panic-file \"%s\"",
             exists ? "DISABLED" : "re-enabled",
             (char *) brix_uring_panic_path);
@@ -204,7 +205,7 @@ brix_uring_panicfile_arm(ngx_cycle_t *cycle, ngx_str_t *path)
         return NGX_OK;
     }
     if (path->len >= sizeof(brix_uring_panic_path)) {
-        ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, cycle->log, 0,
             "brix: io_uring panic-file path too long; ignoring");
         return NGX_OK;
     }

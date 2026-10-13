@@ -25,6 +25,7 @@ from brix_suite.client_build import client_make
 import pytest
 
 import kdc_helpers
+from lib_py.util import linked_libraries
 from server_registry import NginxInstanceSpec
 from settings import (
     BIND_HOST,
@@ -89,7 +90,7 @@ def _client_has_krb5():
     ldd = subprocess.run([XRDFS, "-h"], capture_output=True, text=True).stderr
     if "krb5" not in ldd:
         return False
-    linked = subprocess.run(["ldd", XRDFS], capture_output=True, text=True).stdout
+    linked = linked_libraries(XRDFS)
     return "libkrb5" in linked
 
 
@@ -170,10 +171,10 @@ def test_krb5_compiled_and_clean():
         proc = client_make(CLIENT_DIR, "xrdfs", capture_output=True, text=True, timeout=180)
         if proc.returncode != 0 or not os.path.exists(XRDFS):
             pytest.skip("native client build failed")
-    ldd = subprocess.run(["ldd", XRDFS], capture_output=True, text=True).stdout
-    if "libkrb5" not in ldd:
+    linked = linked_libraries(XRDFS)
+    if "libkrb5" not in linked:
         pytest.skip("client built without -DBRIX_HAVE_KRB5 (no libkrb5 dev)")
-    _check_test_krb5_compiled_and_clean_1(ldd)
+    _check_test_krb5_compiled_and_clean_1(linked)
     help_txt = subprocess.run([XRDFS, "-h"], capture_output=True, text=True).stderr
     _check_test_krb5_compiled_and_clean_2(help_txt)
 

@@ -195,18 +195,39 @@ def chown_stock(*paths):
         _phase_chown_stock_1(path, uid, gid)
 
 
-def worker_reachable(*dirs):
-    """Make each directory usable by the de-escalated `nobody` worker.
+def chown_brix(*paths):
+    """Best-effort ownership handoff to the active nginx worker account.
 
-    Since the always-on worker privilege drop (brix_imp_worker_deescalate), a
-    root-launched worker serves as `nobody`.  Test dirs created under pytest's
-    tmp_path sit below root-0700 `pytest-of-root/pytest-N` parents, so the
-    worker cannot even TRAVERSE to them, let alone write.  chown_stock each
-    leaf to `nobody`, then add o+x/g+x up the parent chain to /tmp so the
-    worker can reach it (traversal only — no read bit added).  Best-effort,
-    no-op unprivileged."""
+    Distribution nginx builds commonly use ``nginx`` while source builds use
+    ``nobody``.  Resolve the compiled account through the same helper as the
+    launcher so owner-gated differential operations exercise both servers
+    under their real service identities.
+    """
+    from brix_suite.worker_identity import nginx_default_worker_user
+    from settings import NGINX_BIN
+
+    try:
+        worker = pwd.getpwnam(nginx_default_worker_user(str(NGINX_BIN)))
+    except (KeyError, OSError):
+        return
+    for path in paths:
+        if _expression_1(path):
+            continue
+        _phase_chown_stock_1(path, worker.pw_uid, worker.pw_gid)
+
+
+def worker_reachable(*dirs):
+    """Make each directory usable by packaged and source-build workers.
+
+    Source builds commonly use ``nobody`` while distro nginx packages commonly
+    compile in an ``nginx`` account.  Chowning only to ``nobody`` therefore
+    makes a root-run fixture unusable by the packaged worker.  Keep the stock
+    server ownership handoff, mirror the owner's intended permissions onto the
+    other triads for the nginx worker, then add traversal on ancestors.  Tests
+    that need a denial apply their restrictive mode after this helper."""
     for d in dirs:
         chown_stock(str(d))
+        _mirror(str(d))
     for d in dirs:
         p = os.path.abspath(str(d))
         while p not in ("/", "/tmp"):

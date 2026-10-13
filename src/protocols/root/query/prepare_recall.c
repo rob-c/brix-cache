@@ -28,6 +28,7 @@
  *       recorded) fires in prepare_dispatch_special BEFORE the scan; the
  *       policy kernel inside the VFS verbs is the belt behind that edge gate.
  */
+#include "core/compat/log_event.h"
 #include "query_internal.h"
 #include "prepare_internal.h"
 #include "protocols/root/path/op_path.h"   /* brix_root_vfs_bind_session */
@@ -94,7 +95,7 @@ prepare_recall_record(brix_ctx_t *ctx, ngx_connection_t *c,
     if (brix_stage_request_add(reg, &v, rq, BRIX_STAGE_REQID_LEN, c->log)
         != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                       "brix: stage request add failed for \"%s\"",
                       out_resolved);
         rq[0] = '\0';
@@ -201,7 +202,7 @@ brix_prepare_recall_one(brix_ctx_t *ctx, ngx_connection_t *c,
     if (have_record) {
         (void) brix_stage_request_delete(reg, rq, c->log);
     }
-    ngx_log_error(NGX_LOG_ERR, c->log, e,
+    BRIX_LOG(NGX_LOG_ERR, c->log, e,
                   "brix: prestage recall failed for \"%s\"", out_resolved);
     return NGX_OK;                     /* best-effort per path, like the
                                         * pre-W6 staging-command launch */
@@ -262,8 +263,44 @@ brix_prepare_evict_one(brix_ctx_t *ctx, ngx_connection_t *c,
          * residency truth, not a stale DONE. */
         (void) brix_stage_request_delete(reg, rq, c->log);
     }
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "brix: prepare evict \"%s\": %uL bytes released",
                   out_resolved, bytes);
+    return NGX_OK;
+}
+
+/*
+ * Accept one authorized, resolved prepare path through its selected VFS arms.
+ *
+ * WHAT: Runs evict, recall, or eviction followed by recall for stage+fresh;
+ * returns NGX_OK to continue the scan or the first terminal response result.
+ *
+ * WHY: Fresh must retire both the resident bytes and their live registry
+ * record before recall checks for a JOIN, otherwise a stale DONE record makes
+ * the supposedly fresh request an immediate no-op.
+ *
+ * HOW: Fresh composes the existing ownership-checked eviction and recall arms
+ * in order. Plain evict and stage dispatch to one arm; an advisory request with
+ * neither mutation succeeds without storage work.
+ */
+ngx_int_t
+brix_prepare_accept_resolved(brix_ctx_t *ctx, ngx_connection_t *c,
+    prepare_scan_t *sc, char *out_resolved)
+{
+    if (sc->do_fresh) {
+        ngx_int_t rc;
+
+        rc = brix_prepare_evict_one(ctx, c, sc, out_resolved);
+        if (rc != NGX_OK) {
+            return rc;
+        }
+        return brix_prepare_recall_one(ctx, c, sc, out_resolved);
+    }
+    if (sc->do_evict) {
+        return brix_prepare_evict_one(ctx, c, sc, out_resolved);
+    }
+    if (sc->do_stage) {
+        return brix_prepare_recall_one(ctx, c, sc, out_resolved);
+    }
     return NGX_OK;
 }

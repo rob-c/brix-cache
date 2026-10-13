@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "open.h"
 #include "fs/vfs/vfs.h"   /* VFS confined open/probe seam */
 #include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_session (phase-70) */
@@ -273,7 +274,7 @@ brix_open_decide_writethrough(brix_open_args_t *a)
 
 			brix_sanitize_log_string(resolved, wt_log_path,
 			                           sizeof(wt_log_path));
-			ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+			BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
 			               "brix: wt decision=%s path=%s",
 			               decision == BRIX_WT_DECISION_DENY ? "DENY" :
 			               decision == BRIX_WT_DECISION_ALLOW_SYNC ? "ALLOW_SYNC" : "ALLOW_ASYNC",
@@ -465,7 +466,7 @@ brix_open_finalize_handle(brix_open_args_t *a)
 		char log_path[512];
 
 		brix_sanitize_log_string(a->resolved, log_path, sizeof(log_path));
-		ngx_log_debug4(NGX_LOG_DEBUG_STREAM, c->log, 0,
+		BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
 					   "brix: kXR_open handle=%d path=%s mode=%s retstat=%d",
 					   a->idx, log_path, a->is_write ? "wr" : "rd",
 					   (int) a->want_stat);

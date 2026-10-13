@@ -2,6 +2,7 @@
  * lifecycle.c — kXR_ping / kXR_endsess opcode handlers (session liveness + teardown).
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "net/proxy/proxy.h"
 #include "net/proxy/proxy_internal.h"
@@ -24,7 +25,7 @@ brix_handle_endsess(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     ClientEndsessRequest *req = (ClientEndsessRequest *) ctx->recv.hdr_buf;
 
-    ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXR_endsess received");
 
     /*
@@ -45,7 +46,7 @@ brix_handle_endsess(brix_ctx_t *ctx, ngx_connection_t *c)
      */
     if (ngx_memcmp(req->sessid, ctx->login.sessid, BRIX_SESSION_ID_LEN) != 0) {
         brix_session_unregister(req->sessid);
-        ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "brix: kXR_endsess for a different session — "
                        "released it, this connection stays authenticated");
         return brix_send_ok(ctx, c, NULL, 0);

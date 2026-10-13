@@ -19,6 +19,7 @@
  *       fails the fill; the per-attempt state travels in sd_cache_fill_state_t
  *       (sd_cache_fill_internal.h).
  */
+#include "core/compat/log_event.h"
 #include "sd_cache.h"
 #include "sd_cache_internal.h"    /* sd_cache_inst_state + SD_CACHE_ST/SRC */
 #include "sd_cache_policy.h"      /* admission + repo-metrics (split out) */
@@ -126,7 +127,7 @@ sd_cache_guard_tamper(sd_cache_inst_state *st, brix_sd_instance_t *actor,
     }
 
     if (guard_audit_format(&req, reason, ts, line, sizeof(line)) > 0) {
-        ngx_log_error(NGX_LOG_WARN, st->log, 0, "%s", line);
+        BRIX_LOG(NGX_LOG_WARN, st->log, 0, "%s", line);
     }
 }
 
@@ -198,7 +199,7 @@ cache_fill_verify_reject(sd_cache_inst_state *st, const char *key,
          * penalty — a false tamper signal would feed the maxretry=1 fail2ban
          * jail over a local disk fault. Drop the corrupt cold copy so the
          * origin-fallback refill repopulates both tiers cleanly. */
-        ngx_log_error(NGX_LOG_NOTICE, st->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, st->log, 0,
             "sd_cache: cold-tier object failed verification for \"%s\" - "
             "removing the cold copy and refilling from the origin", key);
         if (fs->src != NULL && fs->src->driver->unlink != NULL) {
@@ -210,7 +211,7 @@ cache_fill_verify_reject(sd_cache_inst_state *st, const char *key,
          * sibling's authority — but no origin WAN accounting and no origin
          * penalty (the origin never served these bytes; the orchestrator
          * refetches from it next). */
-        ngx_log_error(NGX_LOG_WARN, st->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, st->log, 0,
             "sd_cache: mesh-sibling object failed verification for \"%s\" - "
             "refetching from the origin", key);
         sd_cache_guard_tamper(st, fs->src, key);
@@ -273,7 +274,7 @@ cache_fill_verify_selfaddr(sd_cache_inst_state *st, const char *key,
         return cache_fill_verify_reject(st, key, fs, pp);
     }
     if (vr == BRIX_CACHE_VERIFY_ERROR) {
-        ngx_log_error(NGX_LOG_ERR, st->log, errno,
+        BRIX_LOG(NGX_LOG_ERR, st->log, errno,
             "sd_cache: %s verify could not run for \"%s\" - "
             "failing the fill closed", mode, key);
         brix_cstore_fill_abort(fs->staged);
@@ -329,7 +330,7 @@ cache_fill_verify_origin(sd_cache_inst_state *st, const char *key,
 
     if (fs->origin_alg[0] == '\0' || fs->origin_hex[0] == '\0') {
         if (require) {
-            ngx_log_error(NGX_LOG_ERR, st->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, st->log, 0,
                 "sd_cache: verify=require but the origin advertised no usable "
                 "digest for \"%s\" - refusing to cache unverifiable bytes", key);
             brix_cstore_fill_abort(fs->staged);
@@ -339,7 +340,7 @@ cache_fill_verify_origin(sd_cache_inst_state *st, const char *key,
         return NGX_OK;                 /* best-effort: nothing to verify against */
     }
     if (pp == NULL) {
-        ngx_log_error(NGX_LOG_ERR, st->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, st->log, 0,
             "sd_cache: cannot locate the staged part to verify \"%s\" - "
             "failing the fill closed", key);
         brix_cstore_fill_abort(fs->staged);
@@ -349,7 +350,7 @@ cache_fill_verify_origin(sd_cache_inst_state *st, const char *key,
 
     fd = open(pp, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NOCTTY);
     if (fd < 0) {
-        ngx_log_error(NGX_LOG_ERR, st->log, errno,
+        BRIX_LOG(NGX_LOG_ERR, st->log, errno,
             "sd_cache: verify open of staged part failed for \"%s\"", key);
         brix_cstore_fill_abort(fs->staged);
         errno = EIO;
@@ -362,7 +363,7 @@ cache_fill_verify_origin(sd_cache_inst_state *st, const char *key,
     if (rc == NGX_DECLINED) {
         /* We do not implement the algorithm the origin advertised. */
         if (require) {
-            ngx_log_error(NGX_LOG_ERR, st->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, st->log, 0,
                 "sd_cache: verify=require but origin algorithm \"%s\" is "
                 "unsupported for \"%s\" - failing closed", fs->origin_alg, key);
             brix_cstore_fill_abort(fs->staged);
@@ -372,7 +373,7 @@ cache_fill_verify_origin(sd_cache_inst_state *st, const char *key,
         return NGX_OK;                 /* best-effort: cannot check, commit */
     }
     if (rc != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, st->log, errno,
+        BRIX_LOG(NGX_LOG_ERR, st->log, errno,
             "sd_cache: verify checksum computation failed for \"%s\" - "
             "failing closed", key);
         brix_cstore_fill_abort(fs->staged);
@@ -381,7 +382,7 @@ cache_fill_verify_origin(sd_cache_inst_state *st, const char *key,
     }
 
     if (!sd_cache_hex_ieq(hex, fs->origin_hex)) {
-        ngx_log_error(NGX_LOG_ERR, st->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, st->log, 0,
             "sd_cache: origin-digest MISMATCH for \"%s\" (%s: origin=%s local=%s)"
             " - quarantining and failing the fill", key,
             norm[0] ? norm : fs->origin_alg, fs->origin_hex, hex);

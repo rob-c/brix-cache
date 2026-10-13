@@ -92,6 +92,44 @@ class TestProppatch:
         assert "beam-spot" in r.text
         ET.fromstring(r.text)
 
+    def test_long_dead_property_round_trips_within_host_xattr_limit(self):
+        path, _, _ = _existing_file()
+        namespace = "urn:" + "n" * 40
+        local = "p" * 30
+        body = (
+            '<?xml version="1.0"?>'
+            f'<D:propertyupdate xmlns:D="DAV:" xmlns:X="{namespace}">'
+            f'<D:set><D:prop><X:{local}>compact</X:{local}></D:prop></D:set>'
+            '</D:propertyupdate>'
+        )
+        r = _proppatch(path, body)
+        assert r.status_code == 207
+        assert "HTTP/1.1 200 OK" in r.text
+
+        prop_body = (
+            '<?xml version="1.0"?>'
+            f'<D:propfind xmlns:D="DAV:" xmlns:X="{namespace}">'
+            f'<D:prop><X:{local}/></D:prop></D:propfind>'
+        )
+        r = _propfind(path, depth="0", body=prop_body)
+        assert r.status_code == 207
+        assert "compact" in r.text
+        ET.fromstring(r.text)
+
+    def test_dead_property_too_long_for_compact_key_is_refused(self):
+        path, _, _ = _existing_file()
+        namespace = "urn:" + "n" * 100
+        local = "p" * 100
+        body = (
+            '<?xml version="1.0"?>'
+            f'<D:propertyupdate xmlns:D="DAV:" xmlns:X="{namespace}">'
+            f'<D:set><D:prop><X:{local}>oversize</X:{local}></D:prop></D:set>'
+            '</D:propertyupdate>'
+        )
+        r = _proppatch(path, body)
+        assert r.status_code == 207
+        assert "HTTP/1.1 507 Insufficient Storage" in r.text
+
     def test_proppatch_invalid_xml_400(self):
         path, _, _ = _existing_file()
         r = _proppatch(path, "<D:propertyupdate>")

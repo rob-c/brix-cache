@@ -13,6 +13,44 @@ from pathlib import Path
 import pytest
 
 from cmdscripts import fwd_matrix_live
+from cmdscripts import _fwd_matrix_live_part2_mixinb as helpers
+
+
+@pytest.mark.parametrize("relay_log,expected", [
+    ('xrootd tap: {"op":"open"}', (True, False)),
+    (r'message="xrootd tap: {\x22op\x22:\x22stat\x22}" truncated=0',
+     (False, True)),
+    (r'message="xrootd tap: {\x22op\x22:\x22read\x22}" truncated=0',
+     (False, False)),
+])
+def test_relay_log_checks_accept_semantic_structured_records(
+        tmp_path, relay_log, expected):
+    from log_records import semantic_log_text
+
+    payload = tmp_path / "payload"
+    got = tmp_path / "got"
+    payload.write_bytes(b"relay")
+    got.write_bytes(b"relay")
+    stat = type("Result", (), {"returncode": 0})()
+    checks = fwd_matrix_live._relay_checks(
+        got, payload, stat, semantic_log_text(relay_log))
+    assert (checks[2][0], checks[3][0]) == expected
+
+
+@pytest.mark.parametrize("record,identity,expected", [
+    (r'message="GSI auth OK dn=\x22/C=UK/CN=Fwd\x20User\x20A\x22" truncated=0',
+     "Fwd User A", True),
+    (r'message="valid token sub=\x22fwd-user-a\x22" truncated=0',
+     "fwd-user-a", True),
+    (r'message="GSI auth OK dn=\x22/CN=localhost\x22" truncated=0',  # net-literal-allow: service identity is the negative-control subject
+     "Fwd User A", False),
+])
+def test_backend_identity_accepts_structured_log_encoding(
+        tmp_path, record, identity, expected):
+    log = tmp_path / "error.log"
+    log.write_text(record)
+    assert helpers._ForwardHarnessMixinB.assert_backend_identity(
+        "brix", log, identity) is expected
 
 pytestmark = pytest.mark.xdist_group("cmd-fwd_matrix_live")
 
@@ -34,8 +72,6 @@ def test_fwd_matrix_live_is_importable():
 ])
 def test_token_origin_checks_namespace_access(monkeypatch, available, returncode, expected):
     from types import SimpleNamespace
-    from cmdscripts import _fwd_matrix_live_part2_mixinb as helpers
-
     monkeypatch.setattr(helpers.shutil, "which", lambda name: "/usr/bin/bwrap" if available else None)
     calls = []
 

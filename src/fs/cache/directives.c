@@ -3,6 +3,7 @@
  * directives (called during startup when reading the configuration file).
  */
 
+#include "core/compat/log_event.h"
 #include "core/config/config.h"
 
 #include <errno.h>
@@ -73,7 +74,7 @@ brix_conf_set_posc_persist(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     } else if (ngx_strcmp(value[1].data, "off") == 0) {
         mode = BRIX_POSC_PERSIST_OFF;
     } else {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_posc_persist: invalid mode \"%V\", must be auto, manual or off",
             &value[1]);
         return NGX_CONF_ERROR;
@@ -86,14 +87,14 @@ brix_conf_set_posc_persist(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         ngx_int_t secs;
 
         if (ngx_strcmp(value[2].data, "hold") != 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_posc_persist: expected \"hold\" before a grace time, got "
                 "\"%V\"", &value[2]);
             return NGX_CONF_ERROR;
         }
         secs = ngx_parse_time(&value[3], 1 /* seconds */);
         if (secs == NGX_ERROR) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_posc_persist: invalid hold time \"%V\"", &value[3]);
             return NGX_CONF_ERROR;
         }
@@ -101,7 +102,7 @@ brix_conf_set_posc_persist(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     brix_tmp_reap_set_policy(mode, hold);
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: posc persist=%V hold=%T", &value[1], hold);
     return NGX_CONF_OK;
 }
@@ -129,7 +130,7 @@ brix_conf_set_fsoverload_redirect(ngx_conf_t *cf, ngx_command_t *cmd, void *conf
         return "host must not be empty";
     }
     if (value[2].len == 0 || value[2].len >= sizeof(portbuf)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_fsoverload_redirect: invalid port \"%V\"", &value[2]);
         return NGX_CONF_ERROR;
     }
@@ -137,7 +138,7 @@ brix_conf_set_fsoverload_redirect(ngx_conf_t *cf, ngx_command_t *cmd, void *conf
     portbuf[value[2].len] = '\0';
     pnum = strtol(portbuf, &endp, 10);
     if (*endp != '\0' || pnum < BRIX_VFS_PORT_MIN || pnum > BRIX_VFS_PORT_MAX) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_fsoverload_redirect: invalid port \"%V\" (1-65535)", &value[2]);
         return NGX_CONF_ERROR;
     }
@@ -146,7 +147,7 @@ brix_conf_set_fsoverload_redirect(ngx_conf_t *cf, ngx_command_t *cmd, void *conf
         return NGX_CONF_ERROR;
     }
     xcf->fsoverload_redirect_port = (in_port_t) pnum;
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: fsoverload redirect -> %V:%l", &value[1], pnum);
     return NGX_CONF_OK;
 }
@@ -180,7 +181,7 @@ brix_conf_set_cache_eviction_threshold(ngx_conf_t *cf, ngx_command_t *cmd,
     errno = 0;
     ratio = strtod(copy, &endp);
     if (endp == copy || errno != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_eviction_threshold: invalid value \"%V\"",
             &value[1]);
         return NGX_CONF_ERROR;
@@ -194,7 +195,7 @@ brix_conf_set_cache_eviction_threshold(ngx_conf_t *cf, ngx_command_t *cmd,
     }
 
     if (*endp != '\0' || ratio <= 0.0 || ratio >= 1.0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_eviction_threshold must be greater than 0 "
             "and less than 1.0 (or 1%% and 100%%)");
         return NGX_CONF_ERROR;
@@ -202,7 +203,7 @@ brix_conf_set_cache_eviction_threshold(ngx_conf_t *cf, ngx_command_t *cmd,
 
     ppm = (ngx_uint_t) (ratio * BRIX_PPM_MULTIPLIER + 0.5);
     if (ppm == 0 || ppm >= BRIX_CACHE_PPM_FULL_SCALE) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_eviction_threshold is out of range");
         return NGX_CONF_ERROR;
     }
@@ -242,7 +243,7 @@ brix_conf_set_cache_watermark(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     errno = 0;
     ratio = strtod(copy, &endp);
     if (endp == copy || errno != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "%V: invalid value \"%V\"", &cmd->name, &value[1]);
         return NGX_CONF_ERROR;
     }
@@ -255,7 +256,7 @@ brix_conf_set_cache_watermark(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     if (*endp != '\0' || ratio <= 0.0 || ratio >= 1.0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "%V must be greater than 0 and less than 1.0 (or 1%% and 100%%)",
             &cmd->name);
         return NGX_CONF_ERROR;
@@ -263,7 +264,7 @@ brix_conf_set_cache_watermark(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     ppm = (ngx_uint_t) (ratio * BRIX_PPM_MULTIPLIER + 0.5);
     if (ppm == 0 || ppm >= BRIX_CACHE_PPM_FULL_SCALE) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "%V is out of range", &cmd->name);
         return NGX_CONF_ERROR;
     }
@@ -297,7 +298,7 @@ brix_conf_set_cache_max_file_size(ngx_conf_t *cf, ngx_command_t *cmd,
     if (value[1].len == 0
         || brix_str_cbuf(copy, sizeof(copy), &value[1]) == NULL)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_max_file_size: invalid value \"%V\"", &value[1]);
         return NGX_CONF_ERROR;
     }
@@ -305,7 +306,7 @@ brix_conf_set_cache_max_file_size(ngx_conf_t *cf, ngx_command_t *cmd,
     errno = 0;
     raw = strtoull(copy, &endp, 10);
     if (endp == copy || errno != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_max_file_size: invalid number \"%V\"", &value[1]);
         return NGX_CONF_ERROR;
     }
@@ -316,14 +317,14 @@ brix_conf_set_cache_max_file_size(ngx_conf_t *cf, ngx_command_t *cmd,
     case 'g': case 'G': raw *= 1024ULL * 1024 * 1024; endp++; break;
     case '\0': break;
     default:
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_max_file_size: unknown suffix in \"%V\" "
             "(use k/m/g)", &value[1]);
         return NGX_CONF_ERROR;
     }
 
     if (*endp != '\0') {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_max_file_size: trailing garbage in \"%V\"",
             &value[1]);
         return NGX_CONF_ERROR;
@@ -331,7 +332,7 @@ brix_conf_set_cache_max_file_size(ngx_conf_t *cf, ngx_command_t *cmd,
 
     bytes = (off_t) raw;
     if (bytes < 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_max_file_size: value \"%V\" overflows off_t",
             &value[1]);
         return NGX_CONF_ERROR;
@@ -339,7 +340,7 @@ brix_conf_set_cache_max_file_size(ngx_conf_t *cf, ngx_command_t *cmd,
 
     xcf->cache_max_file_size = bytes;
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: cache admission limit: %llu bytes",
         (unsigned long long) bytes);
 
@@ -376,7 +377,7 @@ brix_conf_set_cache_include_regex(ngx_conf_t *cf, ngx_command_t *cmd,
     rc = regcomp(&xcf->include_regex.re, pattern, REG_EXTENDED | REG_NOSUB);
     if (rc != 0) {
         regerror(rc, &xcf->include_regex.re, errbuf, sizeof(errbuf));
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_include_regex: invalid pattern \"%V\": %s",
             &value[1], errbuf);
         return NGX_CONF_ERROR;
@@ -386,7 +387,7 @@ brix_conf_set_cache_include_regex(ngx_conf_t *cf, ngx_command_t *cmd,
     xcf->include_regex.str.len  = value[1].len;
     xcf->include_regex.set      = 1;
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: cache include regex: \"%V\"", &value[1]);
 
     return NGX_CONF_OK;
@@ -410,7 +411,7 @@ brix_cache_verify_digest_parse(ngx_conf_t *cf, ngx_str_t *value, ngx_str_t *out)
     if (brix_checksum_parse((const char *) value->data, value->len,
                             &alg, norm, sizeof(norm)) != NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_verify_digest: unknown algorithm \"%V\"", value);
         return NGX_CONF_ERROR;
     }
@@ -421,7 +422,7 @@ brix_cache_verify_digest_parse(ngx_conf_t *cf, ngx_str_t *value, ngx_str_t *out)
         return NGX_CONF_ERROR;
     }
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: cache verify preferred digest: %s", norm);
     return NGX_CONF_OK;
 }
@@ -509,7 +510,7 @@ brix_conf_push_prefix(ngx_conf_t *cf, ngx_array_t **target,
     entry->prefix.data = (u_char *) prefix_copy;
     entry->prefix.len  = value[1].len;
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0, "%s: \"%V\"", log_label, &value[1]);
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0, "%s: \"%V\"", log_label, &value[1]);
     return NGX_CONF_OK;
 }
 
@@ -570,7 +571,7 @@ brix_conf_set_cache_advertise_federation(ngx_conf_t *cf, ngx_command_t *cmd,
     if (ngx_parse_url(cf->pool, &url) != NGX_OK
         || url.host.len == 0 || url.port == 0 || url.uri.len > 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cache_advertise_federation: expected host[:port] "
             "(no scheme, no path) in \"%V\"%s%s", &value[1],
             url.err ? ": " : "", url.err ? url.err : "");

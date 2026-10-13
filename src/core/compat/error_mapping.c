@@ -29,6 +29,13 @@
  * WHY: write-side opcodes (rm, chmod, mv, rmdir, truncate) each had their own
  *      inline chain; centralising here ensures consistent error codes across
  *      all handlers and makes future adjustments apply everywhere at once.
+ *      Phase 118 treats this table as the exhaustive external error contract,
+ *      including its deliberate many-to-one mappings and default arm.
+ *
+ * HOW: Scan the native errno entries defined by this host. Errnos absent from
+ *      a host cannot be raised there and are compiled out; the protocol code
+ *      remains host-independent. An unmatched errno is a generic filesystem
+ *      failure, not an internal bug or a data-transfer-specific I/O error.
  */
 
 uint16_t
@@ -38,32 +45,76 @@ brix_kxr_from_errno(int err)
         int      err;
         uint16_t kxr;
     } table[] = {
-        { ENOENT,    kXR_NotFound },
-        { EACCES,    kXR_NotAuthorized },
-        /* phase-105: a read-only endpoint is a property of the SERVER, not
-         * of the caller's identity — kXR_fsReadOnly says "this export does
-         * not accept writes" where kXR_NotAuthorized would tell the client
-         * to go find better credentials. The reverse table already carries
-         * kXR_fsReadOnly → EROFS; this closes the round trip. */
-        { EROFS,     kXR_fsReadOnly },
-        { EPERM,     kXR_NotAuthorized },
-        { EXDEV,     kXR_NotAuthorized },
-        { ELOOP,     kXR_NotAuthorized },
-        { ENOTEMPTY, kXR_ItExists },
-        { EEXIST,    kXR_ItExists },
-        { ENOTDIR,   kXR_FSError },
-        { ENOMEM,    kXR_NoMemory },
-        { ENOSPC,    kXR_NoSpace },
+        { ENOENT,        kXR_NotFound },
+        { EINVAL,        kXR_ArgInvalid },
+        { EPERM,         kXR_NotAuthorized },
+        { EACCES,        kXR_NotAuthorized },
+        { EROFS,         kXR_fsReadOnly },
+        { EEXIST,        kXR_ItExists },
+        { ENOTEMPTY,     kXR_ItExists },
+        { EISDIR,        kXR_isDirectory },
+        { ENAMETOOLONG,  kXR_ArgTooLong },
+        { EIO,           kXR_IOError },
+        { ENOMEM,        kXR_NoMemory },
+        { ENOBUFS,       kXR_NoMemory },
+        { ENOSPC,        kXR_NoSpace },
 #ifdef EDQUOT
-        { EDQUOT,    kXR_NoSpace },
+        { EDQUOT,        kXR_overQuota },
 #endif
-        { EINVAL,    kXR_ArgInvalid },
-        { EBUSY,     kXR_FileLocked },
-        { ENOTSUP,   kXR_Unsupported },
-        { ENOSYS,    kXR_Unsupported },
+        { ENOTSUP,       kXR_Unsupported },
+        { ENOSYS,        kXR_Unsupported },
 #if defined(EOPNOTSUPP) && (EOPNOTSUPP != ENOTSUP)
         { EOPNOTSUPP, kXR_Unsupported },
 #endif
+        { EBADF,         kXR_FileNotOpen },
+        { ETIMEDOUT,     kXR_ReqTimedOut },
+#ifdef ETIME
+        { ETIME,         kXR_TimerExpired },
+#endif
+        { ECANCELED,     kXR_Cancelled },
+        { ETXTBSY,       kXR_inProgress },
+#ifdef EBADRQC
+        { EBADRQC,       kXR_InvalidRequest },
+#endif
+#ifdef ENOTBLK
+        { ENOTBLK,       kXR_NotFile },
+#endif
+        { ENODEV,        kXR_FSError },
+        { EFAULT,        kXR_ServerError },
+        { EDOM,          kXR_ChkSumErr },
+        { EILSEQ,        kXR_SigVerErr },
+        { ERANGE,        kXR_DecryptErr },
+#ifdef EUSERS
+        { EUSERS,        kXR_Overloaded },
+#endif
+#ifdef ENOATTR
+        { ENOATTR,       kXR_AttrNotFound },
+#elif defined(ENODATA)
+        { ENODATA,       kXR_AttrNotFound },
+#endif
+#ifdef EPROTOTYPE
+        { EPROTOTYPE,    kXR_TLSRequired },
+#endif
+        { EADDRNOTAVAIL, kXR_noReplicas },
+#ifdef EAUTH
+        { EAUTH,         kXR_AuthFailed },
+#endif
+#ifdef EIDRM
+        { EIDRM,         kXR_Impossible },
+#endif
+        { ENOTTY,        kXR_Conflict },
+#ifdef ETOOMANYREFS
+        { ETOOMANYREFS,  kXR_TooManyErrs },
+#endif
+        { ENETUNREACH,   kXR_noserver },
+        { EHOSTUNREACH,  kXR_noserver },
+        { ECONNREFUSED,  kXR_noserver },
+        /* BriX confinement policy: path escapes remain authorization
+         * failures even though neither errno belongs to stock mapError(). */
+        { EXDEV,         kXR_NotAuthorized },
+        { ELOOP,         kXR_NotAuthorized },
+        /* BriX lock policy: this is an explicit extension to mapError(). */
+        { EBUSY,         kXR_FileLocked },
     };
     size_t i;
 
@@ -71,7 +122,7 @@ brix_kxr_from_errno(int err)
         if (table[i].err == err)
             return table[i].kxr;
     }
-    return kXR_IOError;
+    return kXR_FSError;
 }
 
 /*
@@ -212,6 +263,10 @@ static const struct {
      * server fault — never a 500. */
     { EXDEV,        403 },
     { ELOOP,        403 },
+    { EINVAL,       400 },
+    { EIO,          500 },
+    { ENOMEM,       507 },
+    { ENOBUFS,      507 },
     { ENOSPC,       507 },
 #ifdef EDQUOT
     { EDQUOT,       507 },

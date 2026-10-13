@@ -326,12 +326,11 @@ def _is_sanitized_binary(path: str) -> bool:
     return b"libasan.so" in data or b"libtsan.so" in data or b"__asan_init" in data
 
 
-def _refuse_static_modules(nginx_bin, requested):
+def _refuse_static_stream_module(nginx_bin, requested):
     print(
         f"ERROR: {nginx_bin} is a STATIC nginx build (stream compiled in) but "
-        f"{len(requested)} --nginx-load-module were given. A static binary must "
-        f"load NO modules — injecting a dynamic ngx_stream_module.so double-"
-        f"registers stream and can dlopen-fail. Keep the static and dynamic "
+        f"a dynamic ngx_stream_module.so was given. Loading that core module "
+        f"double-registers stream and can dlopen-fail. Keep the static and dynamic "
         f"builds in separate trees: use the dynamic (--with-stream=dynamic) build "
         f"for module testing, or drop --nginx-load-module here.",
         file=sys.stderr)
@@ -360,19 +359,31 @@ def _refuse_foreign_stream_modules(nginx_bin, requested):
     return not foreign
 
 
+def _requests_stream_core(requested):
+    """Return whether the caller explicitly named nginx's dynamic core."""
+    return any(Path(value).name == "ngx_stream_module.so"
+               for value in requested)
+
+
+def _module_plane_is_valid(nginx_bin, requested, plane):
+    """Validate static/dynamic stream-core ownership for one nginx binary."""
+    if plane == "static" and _requests_stream_core(requested):
+        return _refuse_static_stream_module(nginx_bin, requested)
+    if plane == "dynamic":
+        return _refuse_foreign_stream_modules(nginx_bin, requested)
+    return True
+
+
 def _configure_nginx_modules(nginx_bin: str, requested: list[str]) -> bool:
     """Validate modules and discover the dynamic stream dependency.
 
-    Enforces static/dynamic build separation: a STATIC binary (stream compiled in)
-    must not have any module injected — mixing a dynamic `ngx_stream_module.so`
-    into it double-registers stream and/or fails dlopen. Modules are only for the
-    `--with-stream=dynamic` build, resolved from ITS OWN objs/ dir.
+    Enforces static/dynamic core separation: a STATIC binary (stream compiled in)
+    must not load a dynamic `ngx_stream_module.so`, which double-registers stream
+    and/or fails dlopen. Add-on modules remain valid with a compatible static core.
+    A dynamic core is resolved from its selected binary's OWN objs/ directory.
     """
     plane = _nginx_stream_probe(nginx_bin) if requested else "unknown"
-    if plane == "static":
-        return _refuse_static_modules(nginx_bin, requested)
-    if plane == "dynamic" and not _refuse_foreign_stream_modules(nginx_bin,
-                                                                 requested):
+    if not _module_plane_is_valid(nginx_bin, requested, plane):
         return False
     resolved = _resolve_modules(_module_candidates(nginx_bin, requested))
     if resolved is None:

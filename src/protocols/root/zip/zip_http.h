@@ -27,6 +27,7 @@
  * traversal → caller returns 400).
  */
 int brix_zip_http_member_arg(ngx_http_request_t *r, char *out, size_t outsz);
+int brix_zip_http_member_validate(const char *member);
 
 /*
  * Serve `member` of the archive at `archive_full` (a root_canon-prefixed absolute

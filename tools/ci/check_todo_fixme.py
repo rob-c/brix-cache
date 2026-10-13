@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # WHAT: Fail CI when a source file under src/, client/, or shared/ carries more
 #       TODO/FIXME/XXX/HACK markers than it did at freeze time (QUALITY_ROADMAP
@@ -106,7 +111,7 @@ def run(root: Path = ROOT) -> tuple[bool, list[str]]:
 
 def check() -> int:
     if not BACKLOG.is_file():
-        print(f"check_todo_fixme: FAIL — backlog missing: {BACKLOG}", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_todo_fixme.py', 'check', f"check_todo_fixme: FAIL — backlog missing: {BACKLOG}", file=sys.stderr)
         return 1
 
     ok, msgs = run()
@@ -116,7 +121,7 @@ def check() -> int:
     if ok:
         print("check_todo_fixme: OK (no new or growing TODO/FIXME markers)")
         return 0
-    print("check_todo_fixme: to accept a deliberate reduction, run: "
+    _brix_diagnostic('ERROR', 'tools/ci/check_todo_fixme.py', 'check', "check_todo_fixme: to accept a deliberate reduction, run: "
           "tools/ci/check_todo_fixme.py --regen", file=sys.stderr)
     return 1
 

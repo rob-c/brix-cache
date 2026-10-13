@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # guard_set.py — which tools/ci guards run where. One source of truth.
 #
@@ -97,11 +102,11 @@ def main(argv: list[str]) -> int:
         "--all": guard_scripts,
     }.get(mode)
     if chooser is None:
-        print(f"guard_set: unknown mode {mode!r}", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/guard_set.py', 'main', f"guard_set: unknown mode {mode!r}", file=sys.stderr)
         return 2
 
     if not guard_scripts(ROOT):
-        print(
+        _brix_diagnostic('ERROR', 'tools/ci/guard_set.py', 'main',
             f"guard_set: no check_*.py under {CI_DIR} — the guard fleet is "
             f"missing, not empty",
             file=sys.stderr,

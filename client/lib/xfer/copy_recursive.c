@@ -2,6 +2,7 @@
  * copy_recursive.c - extracted concern
  * Phase-38 split of copy.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "copy_internal.h"
 
 
@@ -191,11 +192,11 @@ mirror_local_remove(const char *lchild, const brix_copy_opts *o)
     }
     if (lstat(lchild, &csb) == 0 && S_ISDIR(csb.st_mode)) {
         if (local_rmtree(lchild) != 0) {
-            fprintf(stderr, "xrdcp: --delete: cannot remove %s: %s\n",
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: --delete: cannot remove %s: %s\n",
                     lchild, strerror(errno));
         }
     } else if (unlink(lchild) != 0) {
-        fprintf(stderr, "xrdcp: --delete: cannot remove %s: %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: --delete: cannot remove %s: %s\n",
                 lchild, strerror(errno));
     }
 }
@@ -221,7 +222,7 @@ mirror_delete_local(const char *lpath, const brix_dirent *ents, size_t nents,
 
     d = opendir(lpath);
     if (d == NULL) {
-        fprintf(stderr, "xrdcp: --delete: opendir %s: %s\n", lpath, strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: --delete: opendir %s: %s\n", lpath, strerror(errno));
         return;
     }
     while ((de = readdir(d)) != NULL) {
@@ -238,7 +239,7 @@ mirror_delete_local(const char *lpath, const brix_dirent *ents, size_t nents,
         /* Build relative and absolute paths for the filter check and deletion. */
         if (rel_join(rel, de->d_name, relc, sizeof(relc)) != 0
             || path_join(lpath, de->d_name, lchild, sizeof(lchild)) != 0) {
-            fprintf(stderr, "xrdcp: --delete: path too long under %s\n", lpath);
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: --delete: path too long under %s\n", lpath);
             continue;
         }
         /* Excluded entries are outside the sync scope — never delete them. */
@@ -274,7 +275,7 @@ remote_entry_is_dir(brix_conn *c, const brix_dirent *e, const char *rchild,
         *is_dir = (si.flags & kXR_isDir) ? 1 : 0;
         return 0;
     }
-    fprintf(stderr, "xrdcp: --delete: cannot stat %s, skipping\n", rchild);
+    BRIX_CLIENT_LOG("ERROR",  "xrdcp: --delete: cannot stat %s, skipping\n", rchild);
     return -1;
 }
 
@@ -298,11 +299,11 @@ mirror_remote_remove(brix_conn *c, const char *rchild, int is_dir,
     brix_status_clear(&st);
     if (is_dir) {
         if (brix_rmtree(c, rchild, 0, NULL, NULL, &st) != 0) {
-            fprintf(stderr, "xrdcp: --delete: cannot remove %s: %s\n",
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: --delete: cannot remove %s: %s\n",
                     rchild, st.msg);
         }
     } else if (brix_rm(c, rchild, &st) != 0) {
-        fprintf(stderr, "xrdcp: --delete: cannot remove %s: %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: --delete: cannot remove %s: %s\n",
                 rchild, st.msg);
     }
 }
@@ -335,7 +336,7 @@ mirror_delete_remote(brix_conn *c, const char *rpath, const char *lpath,
 
     brix_status_clear(&st);
     if (brix_dirlist(c, rpath, 1, &ents, &n, &st) != 0) {
-        fprintf(stderr, "xrdcp: --delete: dirlist %s: %s\n", rpath, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: --delete: dirlist %s: %s\n", rpath, st.msg);
         return;
     }
     for (i = 0; i < n; i++) {
@@ -351,7 +352,7 @@ mirror_delete_remote(brix_conn *c, const char *rpath, const char *lpath,
         if (rel_join(rel, ents[i].name, relc, sizeof(relc)) != 0
             || path_join(rpath, ents[i].name, rchild, sizeof(rchild)) != 0
             || path_join(lpath, ents[i].name, lchild, sizeof(lchild)) != 0) {
-            fprintf(stderr, "xrdcp: --delete: path too long under %s\n", rpath);
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: --delete: path too long under %s\n", rpath);
             continue;
         }
         /* Keep the remote entry if the local counterpart exists. */

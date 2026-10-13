@@ -25,6 +25,7 @@
  *      like a failed async connect().
  */
 
+#include "core/compat/log_event.h"
 #include "proxy_internal.h"
 #include "net/dns/dns.h"
 
@@ -141,7 +142,7 @@ pc_start_resolve(brix_proxy_ctx_t *proxy, ngx_connection_t *client_conn,
     if (brix_dns_resolve(req) != NGX_OK) {
         proxy->dns_inflight = 0;
         proxy->dns_inline   = 0;
-        ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, client_conn->log, 0,
                       "xrootd proxy: cannot start resolving \"%V\"",
                       tgt->host);
         return NGX_ERROR;
@@ -321,14 +322,14 @@ pc_arm_events(brix_proxy_ctx_t *proxy, ngx_connection_t *client_conn,
 {
     ngx_int_t rc;
 
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, client_conn->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, client_conn->log, 0,
                   "xrootd proxy: connect() to %s:%d",
                   tgt->host->data, (int) tgt->port);
 
     rc = connect(tgt->fd, (struct sockaddr *)(void *) &tgt->addr,
                  tgt->addrlen);
     if (rc == -1 && ngx_socket_errno != NGX_EINPROGRESS) {
-        ngx_log_error(NGX_LOG_ERR, client_conn->log, ngx_socket_errno,
+        BRIX_LOG(NGX_LOG_ERR, client_conn->log, ngx_socket_errno,
                       "xrootd proxy: connect to %s:%d failed",
                       tgt->host->data, (int) tgt->port);
         BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
@@ -368,7 +369,7 @@ pc_arm_events(brix_proxy_ctx_t *proxy, ngx_connection_t *client_conn,
         }
     }
 
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, client_conn->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, client_conn->log, 0,
                    "xrootd proxy: connecting to %s:%d",
                    tgt->host->data, (int) tgt->port);
     return NGX_OK;
@@ -404,7 +405,7 @@ pc_connect_resolved(brix_proxy_ctx_t *proxy)
     tgt.fd   = (int) NGX_INVALID_FILE;
 
     if (req->rc != NGX_OK || req->naddrs == 0) {
-        ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, client_conn->log, 0,
                       "xrootd proxy: cannot resolve \"%V\": %s", &req->name,
                       req->error != NULL ? req->error : "no address");
         return NGX_ERROR;
@@ -414,7 +415,7 @@ pc_connect_resolved(brix_proxy_ctx_t *proxy)
         tgt.fd = pc_socket_for(&req->addrs[i], &tgt);
     }
     if (tgt.fd == (int) NGX_INVALID_FILE) {
-        ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, client_conn->log, 0,
                       "xrootd proxy: no usable address for \"%V\"",
                       &req->name);
         BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);

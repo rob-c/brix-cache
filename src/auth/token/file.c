@@ -23,6 +23,7 @@
  *      Returns NGX_OK on success, NGX_ERROR on any failure with log message populated.
  */
 
+#include "core/compat/log_event.h"
 #include "file.h"
 
 #include <ctype.h>
@@ -80,7 +81,7 @@ brix_token_validate_args(const ngx_str_t *path, const u_char *buf,
         || buf == NULL || buf_sz < 2)
     {
         if (diag->log != NULL) {
-            ngx_log_error(NGX_LOG_ERR, diag->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, diag->log, 0,
                           "%s token file path missing or too long",
                           brix_token_label(diag));
         }
@@ -114,7 +115,7 @@ brix_token_slurp(const char *pathz, u_char *buf, size_t buf_sz, size_t *n_out,
     fp = fopen(pathz, "rb");
     if (fp == NULL) {
         if (diag->log != NULL) {
-            ngx_log_error(NGX_LOG_ERR, diag->log, ngx_errno,
+            BRIX_LOG(NGX_LOG_ERR, diag->log, ngx_errno,
                           "%s cannot open token file \"%s\"",
                           brix_token_label(diag), pathz);
         }
@@ -128,7 +129,7 @@ brix_token_slurp(const char *pathz, u_char *buf, size_t buf_sz, size_t *n_out,
         (void) fclose(fp); /* phase74-fp: read-only stream, ferror already latched the read failure being reported */
         errno = saved;
         if (diag->log != NULL) {
-            ngx_log_error(NGX_LOG_ERR, diag->log, ngx_errno,
+            BRIX_LOG(NGX_LOG_ERR, diag->log, ngx_errno,
                           "%s cannot read token file \"%s\"",
                           brix_token_label(diag), pathz);
         }
@@ -187,7 +188,7 @@ brix_token_read_file(const ngx_str_t *path, u_char *buf, size_t buf_sz,
 
     if (n == 0) {
         if (diag.log != NULL) {
-            ngx_log_error(NGX_LOG_ERR, diag.log, 0,
+            BRIX_LOG(NGX_LOG_ERR, diag.log, 0,
                           "%s token file \"%s\" is empty",
                           brix_token_label(&diag), pathz);
         }

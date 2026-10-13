@@ -21,6 +21,7 @@
  *       the shared merge having allocated nothing (J.2).
  */
 
+#include "core/compat/log_event.h"
 #include "oci.h"
 #include "oci_module_internal.h"
 
@@ -115,21 +116,21 @@ oci_reject_mirror(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf,
     const brix_oci_url_t *url)
 {
     if (conf->common.allow_write == 1) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_allow_write on: an OCI pull-through mirror is read-only "
             "by construction; use brix_oci_registry for a push surface");
         return NGX_CONF_ERROR;
     }
 
     if (conf->common.stage_store.len > 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_stage_store: an OCI pull-through mirror never stages "
             "writes; remove it from this block");
         return NGX_CONF_ERROR;
     }
 
     if (!url->tls && !conf->insecure) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_mirror \"%V\": a cleartext upstream would hand every "
             "pulled token to the network; use https, or brix_oci_mirror_"
             "insecure on for a test fixture", &conf->mirror_url);
@@ -137,7 +138,7 @@ oci_reject_mirror(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf,
     }
 
     if ((conf->mirror_user.len == 0) != (conf->mirror_pwfile.len == 0)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_mirror_auth needs both a user and a password file");
         return NGX_CONF_ERROR;
     }
@@ -147,7 +148,7 @@ oci_reject_mirror(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf,
      * then it is burned. Refuse at load, where the operator is looking —
      * the request path re-checks per connection for mixed listeners. */
     if (conf->delegate && !conf->deleg_insecure && !oci_ssl_terminates(cf)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_mirror_delegate on a server with no TLS certificate: "
             "a delegated credential on cleartext is already compromised; add "
             "ssl, or state a test fixture with brix_oci_delegate_insecure on");
@@ -205,7 +206,7 @@ static char *
 oci_reject_surfaces(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf)
 {
     if (conf->mirror && conf->registry) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_mirror and brix_oci_registry are different locations: "
             "one caches somebody else's registry, the other IS a registry");
         return NGX_CONF_ERROR;
@@ -219,7 +220,7 @@ oci_reject_surfaces(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf)
      * one location underneath is writing a correct config, and the outer
      * block's copy is simply inert. */
     if (conf->gc_interval > 0 && conf->mirror) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_gc_interval: there is nothing for a registry sweep to "
             "collect on a pull-through mirror; the cache tier owns eviction "
             "there");
@@ -234,7 +235,7 @@ oci_reject_surfaces(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf)
      * overlap into a busy loop over the disk rather than maintenance, and the
      * timer would spend the worker on nothing else. */
     if (conf->gc_interval > 0 && conf->gc_interval < BRIX_OCI_GC_MIN_INTERVAL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_gc_interval: %M ms is a busy loop over the store, not "
             "maintenance; use %M ms or more", conf->gc_interval,
             (ngx_msec_t) BRIX_OCI_GC_MIN_INTERVAL);
@@ -248,7 +249,7 @@ oci_reject_surfaces(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf)
     if (conf->token_issuers.len == 0 && !conf->registry_anon
         && !oci_ssl_verifies_client(cf))
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_registry on without an authenticated context: add "
             "brix_oci_token_issuers <scitokens.cfg>, enable ssl_verify_client, "
             "or state the intent with brix_oci_registry_allow_anonymous on");
@@ -286,21 +287,21 @@ oci_read_pwfile(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf,
 
     f = fopen(path, "re");
     if (f == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
             "brix_oci_mirror_auth: cannot open password file \"%V\"",
             &conf->mirror_pwfile);
         return NGX_CONF_ERROR;
     }
 
     if (fstat(fileno(f), &st) != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
             "brix_oci_mirror_auth: cannot stat \"%V\"", &conf->mirror_pwfile);
         (void) fclose(f);
         return NGX_CONF_ERROR;
     }
 
     if (st.st_mode & OCI_PWFILE_MODE_MASK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_mirror_auth: password file \"%V\" is mode %04o - "
             "group/world access must be removed (chmod 0600)",
             &conf->mirror_pwfile, (unsigned) (st.st_mode & BRIX_OCI_MIRROR_PWFILE_MODE_MASK));
@@ -309,7 +310,7 @@ oci_read_pwfile(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf,
     }
 
     if (fgets(line, sizeof(line), f) == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_mirror_auth: password file \"%V\" is empty",
             &conf->mirror_pwfile);
         (void) fclose(f);
@@ -320,7 +321,7 @@ oci_read_pwfile(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf,
     n = strcspn(line, "\r\n");
     line[n] = '\0';
     if (n == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_mirror_auth: password file \"%V\" first line is blank",
             &conf->mirror_pwfile);
         return NGX_CONF_ERROR;
@@ -331,7 +332,7 @@ oci_read_pwfile(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf,
                           line)
         >= sizeof(up->basic))
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_mirror_auth: user and password exceed %uz bytes",
             sizeof(up->basic));
         return NGX_CONF_ERROR;
@@ -355,7 +356,7 @@ oci_build_upstream(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf)
     size_t                len;
 
     if (conf->mirror_url.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_mirror requires an upstream base URL");
         return NGX_CONF_ERROR;
     }
@@ -363,7 +364,7 @@ oci_build_upstream(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf)
     if (brix_oci_url_parse((const char *) conf->mirror_url.data,
                            conf->mirror_url.len, &url) != 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_mirror \"%V\" is not an absolute http(s) URL with a "
             "plain host and path", &conf->mirror_url);
         return NGX_CONF_ERROR;
@@ -398,7 +399,7 @@ oci_build_upstream(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf)
                             strchr(url.host, ':') ? "]" : "",
                             url.port, url.path);
     if (len >= sizeof(up->base_url)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_mirror \"%V\" is too long", &conf->mirror_url);
         return NGX_CONF_ERROR;
     }
@@ -414,7 +415,7 @@ oci_build_upstream(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf)
      * brix_storage_backend in the same block is a second answer to a question
      * that already has one. */
     if (conf->common.storage_backend.len > 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_storage_backend and brix_oci_mirror both name the upstream "
             "for this location; brix_oci_mirror is the OCI spelling - "
             "configure exactly one");
@@ -486,7 +487,7 @@ oci_bind_token_zone(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf)
     }
 
     if (conf->token_zone_set) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oci_mirror: token zone \"%V\" is not declared - add "
             "brix_oci_token_zone %V <size> to the http block",
             &conf->token_zone_name, &conf->token_zone_name);

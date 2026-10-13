@@ -48,6 +48,7 @@ from _cache_partial_helpers import read_range
 from fleet_lifecycle_ports import SHARED_PARSE_PLACEHOLDER_PORT
 from server_registry import NginxInstanceSpec
 from settings import HOST, BIND_HOST, NGINX_BIN
+from log_records import semantic_log_text
 from test_opaque_strict import _login, _errcode, KXR_ERROR
 from test_phase25_ratelimit import _xrd_open, KXR_OK
 
@@ -81,7 +82,7 @@ def _render(lifecycle, tmp_path, name, fwd_lines):
     proc = subprocess.run(
         [NGINX_BIN, "-t", "-p", endpoint.prefix, "-c", "conf/nginx.conf"],
         capture_output=True, text=True, timeout=30)
-    return proc.returncode, proc.stdout + proc.stderr
+    return proc.returncode, semantic_log_text(proc.stdout + proc.stderr)
 
 
 # ===========================================================================

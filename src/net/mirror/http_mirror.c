@@ -25,6 +25,7 @@
  * Cross-file symbols (the body-method predicate and the five upstream callbacks)
  * plus the shared MIR_HTTP_INC macro live in http_mirror_internal.h.
  */
+#include "core/compat/log_event.h"
 #include "http_mirror.h"
 #include "http_mirror_internal.h"
 #include "core/http/http_body.h"
@@ -79,7 +80,7 @@ brix_http_mirror_proxy(ngx_http_request_t *r,
     }
 
     if (brix_mirror_target_addr(t, &tss, &tlen) != NGX_OK) {
-        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
                       "brix mirror: %V not yet resolved; skipping", &t->host);
         return NGX_HTTP_BAD_GATEWAY;       /* phase-116: unresolved target */
     }

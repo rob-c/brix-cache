@@ -14,6 +14,7 @@
  *      recursive callback walk with depth limit.
  */
 
+#include "core/compat/log_event.h"
 #include "fs_walk.h"
 
 #include <errno.h>
@@ -250,7 +251,7 @@ brix_fs_walk_handle_entry(ngx_log_t *log, const char *dir,
 
     if (lstat(child, &st) != 0) {
         if (errno != ENOENT) {
-            ngx_log_error(NGX_LOG_WARN, log, errno,
+            BRIX_LOG(NGX_LOG_WARN, log, errno,
                           "brix: lstat failed \"%s\"", child);
             return BRIX_FS_WALK_MARK_ERROR;
         }
@@ -310,7 +311,7 @@ brix_fs_walk_dir(ngx_log_t *log, const char *dir,
 
     dp = opendir(dir);
     if (dp == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, errno,
+        BRIX_LOG(NGX_LOG_WARN, log, errno,
                       "brix: cannot open directory \"%s\"", dir);
         return NGX_ERROR;
     }

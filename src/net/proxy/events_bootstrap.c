@@ -6,6 +6,7 @@
  *                to the bootstrap handler or to the client relay.
  */
 
+#include "core/compat/log_event.h"
 #include "proxy_internal.h"
 #include "protocols/root/connection/handler.h"
 #include "auth/token/file.h"
@@ -140,7 +141,7 @@ proxy_bs_adopt_conn(brix_proxy_ctx_t *proxy)
         proxy->reconnect_left = (int) proxy->conf->proxy.reconnect_attempts;
     }
 
-    ngx_log_debug0(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
                    "xrootd proxy: upstream bootstrap done");
 
     /* If a request was queued during bootstrap, forward it now.

@@ -24,6 +24,7 @@
  * catalog is synthesized, so a FUSE client mounting the virtual name sees
  * member[0]'s namespace plus whatever CAS objects the others contribute.
  */
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "cvmfs_module_internal.h"
 
@@ -126,7 +127,7 @@ brix_cvmfs_virtual_advance(ngx_http_request_t *r)
     ngx_str_null(&ctx->origin_used);
     ctx->repo = NULL;                        /* re-mapped by the gate pass */
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, r->connection->log, 0,
         "cvmfs-virt: virtual=%V event=member-miss-advance member=%ui/%ui",
         &ctx->virt->fqrn, ctx->virt_idx + 1,
         (ngx_uint_t) ctx->virt->members->nelts);
@@ -157,14 +158,14 @@ cvmfs_virt_conf_check_name(ngx_conf_t *cf,
 
     for (i = 0; i < c->virtual_repos->nelts; i++) {
         if (cvmfs_virt_str_eq(&e[i].fqrn, name)) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "duplicate brix_cvmfs_virtual_repo \"%V\"", name);
             return NGX_CONF_ERROR;
         }
         pm = e[i].members->elts;
         for (j = 0; j < e[i].members->nelts; j++) {
             if (cvmfs_virt_str_eq(&pm[j], name)) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                     "brix_cvmfs_virtual_repo \"%V\" is already a member of "
                     "\"%V\" — virtual repos cannot nest", name,
                     &e[i].fqrn);
@@ -188,14 +189,14 @@ cvmfs_virt_conf_add_member(ngx_conf_t *cf,
     ngx_uint_t            j;
 
     if (cvmfs_virt_str_eq(&entry->fqrn, name)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_virtual_repo \"%V\" cannot be its own member",
             &entry->fqrn);
         return NGX_CONF_ERROR;
     }
     for (j = 0; j + 1 < c->virtual_repos->nelts; j++) {
         if (cvmfs_virt_str_eq(&e[j].fqrn, name)) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cvmfs_virtual_repo member \"%V\" is itself a "
                 "virtual repo — virtual repos cannot nest", name);
             return NGX_CONF_ERROR;
@@ -204,7 +205,7 @@ cvmfs_virt_conf_add_member(ngx_conf_t *cf,
     m = entry->members->elts;
     for (j = 0; j < entry->members->nelts; j++) {
         if (cvmfs_virt_str_eq(&m[j], name)) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "duplicate brix_cvmfs_virtual_repo member \"%V\"", name);
             return NGX_CONF_ERROR;
         }

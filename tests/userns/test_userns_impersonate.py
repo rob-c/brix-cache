@@ -56,6 +56,7 @@ NGINX_SRC = os.environ.get("TEST_NGINX_SRC", "/tmp/nginx-1.28.3")
 CC = os.environ.get("CC", "cc")
 
 IMP = os.path.join(REPO, "src", "auth", "impersonate")
+PLATFORM = os.path.join(REPO, "src", "platform", "linux")
 # broker.c was split into broker.c (dispatch) + broker_creds.c (become/restore/
 # drop_caps + the svc-user uid/gid globals) + broker_ops.c (imp_do_op) +
 # broker_ops_ns.c (the imp_op_* namespace op handlers); idmap.c into idmap.c +
@@ -77,6 +78,11 @@ SRCS = [
     os.path.join(IMP, "idmap.c"),
     os.path.join(IMP, "idmap_gridmap.c"),
     os.path.join(IMP, "idmap_denylist.c"),
+    os.path.join(PLATFORM, "process_wrapper.c"),
+    os.path.join(PLATFORM, "priv_wrapper.c"),
+    os.path.join(PLATFORM, "path_wrapper.c"),
+    os.path.join(PLATFORM, "posix_wrapper.c"),
+    os.path.join(REPO, "tests", "c", "brix_log_link_stubs.c"),
 ]
 
 
@@ -118,7 +124,7 @@ def test_userns_impersonation_end_to_end(tmp_path):
 
     out_bin = str(tmp_path / "userns_broker_test.bin")
     cmd = [CC, "-O2", "-D_GNU_SOURCE", "-Wall", *_inc_flags(),
-           "-o", out_bin, *SRCS]
+           "-o", out_bin, *SRCS, "-lcrypt"]
     build = subprocess.run(cmd, capture_output=True, text=True)
     _check_test_userns_impersonation_end_to_end_1(build)
 

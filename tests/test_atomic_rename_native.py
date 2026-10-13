@@ -51,6 +51,7 @@ static struct test_cycle cycle = { NULL };
 #define ngx_cycle (&cycle)
 #define NGX_LOG_WARN 1
 #define ngx_log_error(level, log, err, ...) ((void)(log))
+#define BRIX_LOG(level, log, err, ...) ((void)(log))
 static int noreplace_degraded, noreplace_warned;
 static int forced_errno, rename_calls, syscall_calls;
 long __real_syscall(long number, ...);

@@ -123,16 +123,15 @@ def _mk_scratch(pair, name, builder):
             _rmtree(d)
         os.makedirs(d, exist_ok=True)
         builder(d)
-        # BOTH servers run their workers as `nobody` (nginx's compiled-in default
-        # user; the stock xrootd via its -R nobody drop). chmod(2)/chown(2) require
-        # OWNERSHIP, not a mode bit, so a nobody worker can only mutate a
-        # nobody-owned file. The scratch is created here by the root pytest process,
-        # so unless we hand it to `nobody` the worker gets EPERM and parity with
-        # stock diverges — this was the whole "27 chmod failures under root" cluster.
-        # Give BOTH scratch subtrees to `nobody` (best-effort; a no-op unprivileged,
-        # where the invoking user already owns everything) so the two nobody workers
-        # enforce identical ownership/permission semantics.
-        L.chown_stock(d)
+        # chmod(2)/chown(2) require ownership, not a mode bit.  Stock xrootd
+        # drops to nobody; a packaged nginx commonly drops to nginx, while the
+        # source build commonly uses nobody.  Hand each independent tree to
+        # the account that actually serves it so this remains a protocol
+        # differential instead of a packaging-account differential.
+        if tag == "our":
+            L.chown_brix(d)
+        else:
+            L.chown_stock(d)
     return logical
 
 

@@ -1,5 +1,6 @@
 /* _xrd_part2.c — fragment 2 of xrd.c (auto-split).
- * Do not compile directly; it is #included by xrd.c. */
+ * Do not compile directly; it is #include "../../../shared/observability/log_stdio.h"
+#included by xrd.c. */
 #ifndef _XRD_PART2_C_INC
 #define _XRD_PART2_C_INC
 #ifndef __XRD_C_COMPILED__
@@ -35,12 +36,12 @@ cmd_fs_verb(int argc, char **argv)
     int         i, k = 0, split;
 
     if (argc < 3) {
-        fprintf(stderr, "xrd %s: needs an <endpoint>\n", cmd);
+        BRIX_CLIENT_LOG("ERROR",  "xrd %s: needs an <endpoint>\n", cmd);
         return 50;
     }
     split = fs_find_endpoint(argc, argv, &sp);
     nv = (char **) malloc((size_t) (argc + 3) * sizeof(char *));
-    if (nv == NULL) { fprintf(stderr, "xrd: out of memory\n"); return 51; }
+    if (nv == NULL) { BRIX_CLIENT_LOG("ERROR",  "xrd: out of memory\n"); return 51; }
     nv[k++] = (char *) "xrdfs";
     if (split) {
         nv[k++] = sp.endpoint;         /* connect endpoint (host:port) */

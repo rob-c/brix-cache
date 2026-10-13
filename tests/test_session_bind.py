@@ -339,6 +339,48 @@ class TestReadPathidValidation:
         finally:
             primary.close()
 
+    def test_read_partial_args_are_refused_without_desync(self, bind_nginx):
+        """(security negative) A truncated read_args never becomes pathid 0;
+        the same connection remains aligned and serves the next valid read."""
+        content = b"partial-read-args"
+        _write_data_file("read-args-short.bin", content)
+        primary, sessid, stream = _establish_primary(bind_nginx)
+        try:
+            fh = _open_read(primary, stream, "/read-args-short.bin")
+            status, body = _read_payload(primary, stream, fh, 1, b"\x00\x00\x00")
+            assert status == kXR_error
+            assert struct.unpack(">I", body[:4])[0] == kXR_ArgInvalid
+            status, data = _read_handle(primary, stream, fh, len(content))
+            assert status in (kXR_ok, kXR_oksofar)
+            assert data == content
+        finally:
+            primary.close()
+
+    def test_read_negative_length_is_refused(self, bind_nginx):
+        """(error) Signed rlen must be validated before its uint32_t widening."""
+        content = b"negative-read-length"
+        _write_data_file("read-negative.bin", content)
+        primary, sessid, stream = _establish_primary(bind_nginx)
+        try:
+            fh = _open_read(primary, stream, "/read-negative.bin")
+            status, body = _read_handle(primary, stream, fh, -1)
+            assert status == kXR_error
+            assert struct.unpack(">I", body[:4])[0] == kXR_ArgInvalid
+        finally:
+            primary.close()
+
+    def test_read_range_overflow_is_argument_error(self, bind_nginx):
+        """(boundary) INT64_MAX plus a nonzero rlen is rejected before I/O."""
+        _write_data_file("read-overflow.bin", b"range-overflow")
+        primary, sessid, stream = _establish_primary(bind_nginx)
+        try:
+            fh = _open_read(primary, stream, "/read-overflow.bin")
+            status, body = _read_handle(primary, stream, fh, 1, (1 << 63) - 1)
+            assert status == kXR_error
+            assert struct.unpack(">I", body[:4])[0] == kXR_ArgInvalid
+        finally:
+            primary.close()
+
     # A read carrying a VALID bound pathid is accepted (not kXR_ArgInvalid) and
     # its response is routed over the secondary channel — that success path is
     # exercised end-to-end by TestReadResponseOffload below (slice 2b), which

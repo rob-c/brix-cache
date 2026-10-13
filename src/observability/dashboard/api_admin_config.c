@@ -2,6 +2,7 @@
  * api_admin_config.c - extracted concern
  * Phase-38 split of api_admin.c; behavior-identical.
  */
+#include "core/compat/log_event.h"
 #include "dashboard_api_admin_internal.h"
 #include "core/compat/crypto.h"   /* brix_secret_page_guard (F3) */
 
@@ -94,13 +95,13 @@ brix_admin_set_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         }
         rc = ngx_ptocidr(&value[i], cidr);
         if (rc == NGX_ERROR) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                                "invalid CIDR \"%V\" in brix_admin_allow",
                                &value[i]);
             return NGX_CONF_ERROR;
         }
         if (rc == NGX_DONE) {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
                 "low address bits of \"%V\" in brix_admin_allow were ignored",
                 &value[i]);
         }
@@ -144,7 +145,7 @@ brix_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     file.log  = cf->log;
     file.fd   = ngx_open_file(path.data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
     if (file.fd == NGX_INVALID_FILE) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            "brix_admin_secret: cannot open \"%V\"", &path);
         return NGX_CONF_ERROR;
     }
@@ -152,7 +153,7 @@ brix_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     n = ngx_read_file(&file, rbuf, sizeof(rbuf), 0);
     ngx_close_file(file.fd);
     if (n <= 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_admin_secret: \"%V\" is empty or unreadable",
                            &path);
         return NGX_CONF_ERROR;
@@ -166,7 +167,7 @@ brix_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
     if (len == 0) {
         OPENSSL_cleanse(rbuf, sizeof(rbuf));
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_admin_secret: \"%V\" contains no token",
                            &path);
         return NGX_CONF_ERROR;
@@ -174,7 +175,7 @@ brix_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     /* W6/E2 — reject trivially short secrets that invite brute force. */
     if (len < ADMIN_SECRET_MIN) {
         OPENSSL_cleanse(rbuf, sizeof(rbuf));
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_admin_secret: \"%V\" token is too short "
                            "(%uz bytes; need >= %d)", &path, len,
                            (int) ADMIN_SECRET_MIN);
@@ -193,7 +194,7 @@ brix_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     /* F3/P90-28.1 — the pool copy lives for the process lifetime: keep its
      * pages out of core dumps and off swap.  Best-effort, never fatal. */
     if (brix_secret_page_guard(lcf->admin_secret.data, len) != 0) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, ngx_errno,
                            "brix_admin_secret: could not fully page-guard the "
                            "secret (madvise/mlock); continuing unguarded");
     }

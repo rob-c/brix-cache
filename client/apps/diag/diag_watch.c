@@ -2,6 +2,7 @@
  * diag_watch.c - extracted concern
  * Phase-38 split of xrddiag.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "diag_internal.h"
 
 
@@ -18,17 +19,17 @@ do_status(const diag_args *a)
 
     brix_status_clear(&st);
     if (brix_endpoint_parse(a->url, &u, &st) != 0) {
-        fprintf(stderr, "xrddiag: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: %s\n", st.msg);
         return 50;
     }
     body = malloc(1u << 20);
     if (body == NULL) {
-        fprintf(stderr, "xrddiag: out of memory\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: out of memory\n");
         return 51;
     }
     if (brix_http_get(u.host, a->metrics_port, "/metrics", 5000, &http, body,
                       1u << 20, NULL, &st) != 0) {
-        fprintf(stderr, "xrddiag: GET %s:%d/metrics: %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: GET %s:%d/metrics: %s\n",
                 u.host, a->metrics_port, st.msg);
         free(body);
         return 51;
@@ -354,7 +355,7 @@ do_watch(const diag_args *a)
                 brix_status wst;
                 brix_status_clear(&wst);
                 if (watch_write_prom_atomic(a->prom_path, samples, a->nurls, &wst) != 0) {
-                    fprintf(stderr, "xrddiag: %s\n", wst.msg);
+                    BRIX_CLIENT_LOG("ERROR",  "xrddiag: %s\n", wst.msg);
                 }
             } else {
                 watch_emit_prom(samples, a->nurls, stdout);

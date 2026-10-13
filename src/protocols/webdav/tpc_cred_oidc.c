@@ -12,6 +12,7 @@
  * once the token is returned.
  */
 
+#include "core/compat/log_event.h"
 #include "tpc_cred_internal.h"
 #include "tpc_config.h"
 #include "webdav.h"
@@ -300,7 +301,7 @@ oidc_reap_child(ngx_http_request_t *r, ngx_pid_t pid, const sigset_t *old_mask)
     sigprocmask(SIG_SETMASK, old_mask, NULL);
 
     if (!WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "tpc_cred(oidc): helper exited with status %d",
                       WIFEXITED(wstatus) ? WEXITSTATUS(wstatus) : -1);
         return NGX_ERROR;
@@ -337,7 +338,7 @@ oidc_finalize_token(ngx_http_request_t *r, char *buf, ssize_t nread,
     token_out->len = (size_t) nread;
     token_out->data = ngx_pnalloc(r->pool, nread + 1);
     if (token_out->data == NULL) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
                       "tpc_cred(oidc): pnalloc failed for token");
         return NGX_ERROR;
     }
@@ -387,7 +388,7 @@ tpc_cred_oidc_agent_fetch(ngx_http_request_t *r,
 
     /* Create a pipe for the child's stdout → parent's read end. */
     if (pipe(pipefd) == -1) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, errno,
                       "tpc_cred(oidc): pipe() failed");
         sigprocmask(SIG_SETMASK, &old_mask, NULL);
         return NGX_ERROR;
@@ -395,7 +396,7 @@ tpc_cred_oidc_agent_fetch(ngx_http_request_t *r,
 
     pid = fork();
     if (pid == -1) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, errno,
                       "tpc_cred(oidc): fork() failed");
         close(pipefd[0]);
         close(pipefd[1]);

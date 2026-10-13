@@ -31,10 +31,10 @@ admin_parse_proxy_uri(ngx_http_request_t *r, uint32_t *id_out,
      * is the action (truncated at any further '/'), and the id is the part
      * before — NUL the '/' so ngx_atoi below sees only the id. */
     action_out[0] = '\0';
-    slash = ngx_strchr(tail, '/');
+    slash = strchr(tail, '/');
     if (slash != NULL) {
         char *act = slash + 1;
-        char *p2  = ngx_strchr(act, '/');
+        char *p2  = strchr(act, '/');
         if (p2 != NULL) { *p2 = '\0'; }   /* drop any trailing slash */
         *slash = '\0';
         if (ngx_strlen(act) < action_size) {

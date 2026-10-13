@@ -36,6 +36,7 @@
  *     - Arms read event for login response
  */
 
+#include "core/compat/log_event.h"
 #include "upstream_internal.h"
 
 #if (NGX_SSL)
@@ -82,7 +83,7 @@ brix_outbound_start_tls(ngx_ssl_t *ssl_ctx, ngx_connection_t *c,
     SSL_set_tlsext_host_name(c->ssl->connection, sni);
     c->ssl->handler = handler;
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: outbound starting TLS handshake (sni=%s)", sni);
 
     if (ngx_ssl_handshake(c) != NGX_AGAIN) {
@@ -164,7 +165,7 @@ brix_upstream_tls_handshake_done(ngx_connection_t *uconn)
         return;
     }
 
-    ngx_log_debug0(NGX_LOG_DEBUG_STREAM, up->client_conn->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, up->client_conn->log, 0,
                    "brix: upstream TLS handshake done; resending kXR_login");
 
     /* Restore normal event handlers (TLS handshake replaces them). */

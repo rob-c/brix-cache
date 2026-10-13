@@ -21,6 +21,7 @@
  *       brix_kv table (invariant #10: spin+yield, no I/O under the lock).
  */
 
+#include "core/compat/log_event.h"
 #include "oci.h"
 #include "oci_module_internal.h"
 
@@ -162,7 +163,7 @@ oci_token_leg(const brix_oci_upstream_t *up, oci_token_leg_t *leg,
                     hdrs[0] ? hdrs : NULL, NULL, 0, BRIX_OCI_TOKEN_TIMEOUT_MS,
                     &resp, errbuf, sizeof(errbuf)) != 0)
     {
-        ngx_log_error(NGX_LOG_ERR, up->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, up->log, 0,
             "oci: token endpoint unreachable host=%s: %s", leg->host, errbuf);
         return -1;
     }
@@ -173,7 +174,7 @@ oci_token_leg(const brix_oci_upstream_t *up, oci_token_leg_t *leg,
 
         tr->resp_free(&resp);
         if (rc != 0 || oci_token_follow(leg, loc) != 0) {
-            ngx_log_error(NGX_LOG_ERR, up->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, up->log, 0,
                 "oci: token endpoint host=%s redirected without a usable "
                 "Location", leg->host);
             return -1;
@@ -208,7 +209,7 @@ oci_token_leg_init(brix_oci_upstream_t *up, const brix_oci_challenge_t *ch,
     u_char          enc_svc[768];
 
     if (brix_oci_url_parse(ch->realm, strlen(ch->realm), &realm) != 0) {
-        ngx_log_error(NGX_LOG_ERR, up->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, up->log, 0,
             "oci: challenge realm is not an absolute http(s) URL");
         return -1;
     }
@@ -216,7 +217,7 @@ oci_token_leg_init(brix_oci_upstream_t *up, const brix_oci_challenge_t *ch,
     /* THE gate: an upstream may only send us to its own token service, or to
      * a host the operator named with brix_oci_upstream_auth_realm (§D15.11). */
     if (!brix_oci_url_realm_allowed_ex(up->host, realm.host, &up->realms)) {
-        ngx_log_error(NGX_LOG_ERR, up->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, up->log, 0,
             "oci: refusing token realm host=%s for upstream=%s "
             "signal=oci_realm_refused", realm.host, up->host);
         return -1;
@@ -226,7 +227,7 @@ oci_token_leg_init(brix_oci_upstream_t *up, const brix_oci_challenge_t *ch,
      * dance is cached per scope, so this is rare, and it is the audit record
      * that the widened boundary is the one actually being used. */
     if (up->realms.n > 0 && !brix_oci_url_realm_allowed(up->host, realm.host)) {
-        ngx_log_error(NGX_LOG_INFO, up->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, up->log, 0,
             "oci: token realm host=%s is off-domain for upstream=%s and was "
             "honoured by brix_oci_upstream_auth_realm", realm.host, up->host);
     }
@@ -271,7 +272,7 @@ oci_token_run(brix_oci_upstream_t *up, oci_token_leg_t *leg,
             return status;
         }
         if (!brix_oci_url_realm_allowed_ex(up->host, leg->host, &up->realms)) {
-            ngx_log_error(NGX_LOG_ERR, up->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, up->log, 0,
                 "oci: refusing token redirect host=%s for upstream=%s "
                 "signal=oci_realm_refused", leg->host, up->host);
             return -1;
@@ -282,7 +283,7 @@ oci_token_run(brix_oci_upstream_t *up, oci_token_leg_t *leg,
      * would hand the caller a redirect as though it were the token endpoint's
      * answer; an unterminated chain is a failure, and the only status the
      * contract above admits for one is -1. */
-    ngx_log_error(NGX_LOG_ERR, up->log, 0,
+    BRIX_LOG(NGX_LOG_ERR, up->log, 0,
         "oci: token redirect chain exceeded %d hops for upstream=%s "
         "signal=oci_token_redirect_loop", OCI_TOKEN_MAX_HOPS, up->host);
     return -1;
@@ -302,7 +303,7 @@ oci_token_parse(brix_oci_upstream_t *up, const char *host, const char *body,
     if (!brix_json_get_str(body, body_len, "token", tok, toklen)
         && !brix_json_get_str(body, body_len, "access_token", tok, toklen))
     {
-        ngx_log_error(NGX_LOG_ERR, up->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, up->log, 0,
             "oci: token response from %s carried no token", host);
         return -1;
     }
@@ -348,7 +349,7 @@ oci_token_fetch(brix_oci_upstream_t *up, const brix_oci_challenge_t *ch,
     status = oci_token_run(up, &leg, body, sizeof(body), &body_len);
     if (status != NGX_HTTP_OK || body_len == 0) {
         if (status >= 0) {
-            ngx_log_error(NGX_LOG_ERR, up->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, up->log, 0,
                 "oci: token endpoint host=%s answered %d", leg.host, status);
         }
         if (denied != NULL
@@ -490,6 +491,6 @@ brix_oci_bind_bearer(ngx_http_brix_oci_loc_conf_t *lcf,
     sd_http_set_bearer_provider(inst, oci_bearer_provider, lcf->up);
     lcf->bearer_bound = 1;
 
-    ngx_log_error(NGX_LOG_INFO, log, 0,
+    BRIX_LOG(NGX_LOG_INFO, log, 0,
         "oci: bearer supplier bound to upstream %s", lcf->up->base_url);
 }

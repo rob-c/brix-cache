@@ -8,6 +8,7 @@
  * part file); no event-loop calls.
  */
 
+#include "core/compat/log_event.h"
 #include "verify.h"
 
 #include "core/compat/checksum.h"
@@ -116,7 +117,7 @@ brix_cache_verify_unsupported(brix_cache_fill_t *t,
         return BRIX_CACHE_VERIFY_ERROR;
     }
     if (log != NULL) {
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
             "brix: cache verify: origin checksum \"%s\" not supported "
             "locally; committing \"%s\" unverified",
             origin->alg, part_path);
@@ -153,7 +154,7 @@ brix_cache_verify_report_mismatch(brix_cache_fill_t *t, ngx_log_t *log,
         alg_used, origin->hex, hex);
     brix_cache_set_error(t, kXR_ChkSumErr, 0, msg);
     if (log != NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix: cache verify FAILED for \"%s\": %s — discarding fill",
             part_path, msg);
     }
@@ -284,7 +285,7 @@ brix_cache_verify_cvmfs_cas(const char *part_path, const char *key,
 
     if (!brix_cache_hex_ieq(hex, info.cas_hex)) {
         if (log != NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, 0,
+            BRIX_LOG(NGX_LOG_ERR, log, 0,
                 "brix: cvmfs-cas verify FAILED for \"%s\" "
                 "(name=%.40s computed=%.40s)\n"
                 "  cause: origin transfer failed CAS verification — network "
@@ -347,7 +348,7 @@ brix_cache_verify_oci_digest(const char *part_path, const char *key,
 
     if (!brix_cache_hex_ieq(hex, req.digest.hex)) {
         if (log != NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, 0,
+            BRIX_LOG(NGX_LOG_ERR, log, 0,
                 "brix: oci-digest verify FAILED for \"%s\" "
                 "(named=%.64s computed=%.64s)\n"
                 "  cause: the registry (or its CDN) served bytes that are not "
@@ -411,7 +412,7 @@ brix_cache_verify_rpm_repodata(const char *part_path, const char *key,
 
     if (!brix_cache_hex_ieq(hex, want)) {
         if (log != NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, 0,
+            BRIX_LOG(NGX_LOG_ERR, log, 0,
                 "brix: rpm-repodata verify FAILED for \"%s\" "
                 "(named=%.128s computed=%.128s)\n"
                 "  cause: the upstream repository served metadata that is not "
@@ -457,7 +458,7 @@ brix_cache_quarantine_part(const char *part_path,
         return;
     }
     if (log != NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "brix: cvmfs-cas: corrupt fill quarantined at \"%s\"", dst);
     }
 }

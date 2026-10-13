@@ -5,6 +5,7 @@
  * Split VERBATIM from vfs_backend_registry.c (file-size split); the entry
  * table, decorator composition, and resolve entry points stay there.
  */
+#include "core/compat/log_event.h"
 #include "vfs_backend_internal.h"
 #include "core/types/tunables.h"  /* BRIX_VFS_BUSY_TIMEOUT_DEFAULT_MS */
 #include "fs/backend/xroot/sd_xroot.h"   /* remote root:// backend (brix_sd_xroot_create) */
@@ -38,11 +39,11 @@ static void
 brix_vfs_http_health_note(const char *host, int port, int healthy)
 {
     if (healthy) {
-        ngx_log_error(NGX_LOG_NOTICE, ngx_cycle->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ngx_cycle->log, 0,
             "xrootd-origin: event=recovered host=%s port=%d — endpoint "
             "answering again; rank-preferred routing resumes", host, port);
     } else {
-        ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ngx_cycle->log, 0,
             "xrootd-origin: event=degraded host=%s port=%d — transport "
             "failures pushed this endpoint's fail score over threshold; "
             "reads prefer alternates until a half-open probe succeeds",
@@ -83,7 +84,7 @@ brix_vbr_build_posix(brix_vfs_backend_entry_t *e, ngx_log_t *log)
     inst = brix_sd_instance_create(log, "posix",
                                      (void *) e->root_canon, &err);
     if (inst == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, err,
+        BRIX_LOG(NGX_LOG_ERR, log, err,
             "brix: posix source init failed for export \"%s\"",
             e->root_canon);
     }
@@ -109,11 +110,11 @@ brix_vbr_build_mirage(brix_vfs_backend_entry_t *e, ngx_log_t *log)
 
     inst = brix_sd_instance_create(log, "mirage", &conf, &sderr);
     if (inst == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, sderr,
+        BRIX_LOG(NGX_LOG_ERR, log, sderr,
             "brix: mirage backend init failed for export \"%s\"",
             e->root_canon);
     } else {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: mirage synthetic backend ready at \"%s\" (size=%L)",
             e->root_canon, (int64_t) e->block_size);
     }
@@ -133,11 +134,11 @@ brix_vbr_build_block(brix_vfs_backend_entry_t *e, ngx_log_t *log)
 
     inst = brix_sd_instance_create(log, "block", &conf, &sderr);
     if (inst == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, sderr,
+        BRIX_LOG(NGX_LOG_ERR, log, sderr,
             "brix: block backend init failed for export \"%s\" (device \"%s\")",
             e->root_canon, e->origin_path);
     } else {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: block storage backend ready at \"%s\" (device \"%s\", "
             "extent_size=%uz)", e->root_canon, e->origin_path,
             (size_t) e->block_size);
@@ -191,11 +192,11 @@ brix_vbr_build_xroot(brix_vfs_backend_entry_t *e, ngx_log_t *log)
     brix_vbr_xroot_origin_cfg(e, &cfg);
     inst = brix_sd_xroot_create_origin(&cfg, log);
     if (inst == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
             "brix: remote root:// backend init failed for export \"%s\"",
             e->root_canon);
     } else {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: remote root:// storage backend ready at \"%s\"",
             e->root_canon);
     }
@@ -218,11 +219,11 @@ brix_vbr_build_xroot_fwd(brix_vfs_backend_entry_t *e, ngx_log_t *log)
 
     inst = brix_sd_xroot_fwd_create(&cfg, log);
     if (inst == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
             "brix: forwarding root:// backend init failed for export \"%s\"",
             e->root_canon);
     } else {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: forwarding root:// storage backend ready at \"%s\" "
             "(permit: %s)", e->root_canon, e->origin_fwd_permit);
     }
@@ -251,11 +252,11 @@ brix_vbr_build_ceph(brix_vfs_backend_entry_t *e, ngx_log_t *log)
     inst = brix_sd_instance_create(log, e->backend,
                                      &conf, &sderr);
     if (inst == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, sderr,
+        BRIX_LOG(NGX_LOG_ERR, log, sderr,
             "brix: %s backend init failed for export \"%s\" (pool=%s)",
             e->backend, e->root_canon, e->ceph_pool);
     } else {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: %s storage backend ready at \"%s\" (pool=%s)",
             e->backend, e->root_canon, e->ceph_pool);
     }
@@ -280,12 +281,12 @@ brix_vbr_build_cephfsro(brix_vfs_backend_entry_t *e, ngx_log_t *log)
     inst = brix_sd_instance_create(log, "cephfsro",
                                      &conf, &sderr);
     if (inst == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, sderr,
+        BRIX_LOG(NGX_LOG_ERR, log, sderr,
             "brix: cephfsro backend init failed for export \"%s\" "
             "(meta=%s data=%s)", e->root_canon, e->ceph_pool,
             e->ceph_data_pool);
     } else {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: cephfsro (read-only CephFS) backend ready at \"%s\" "
             "(meta=%s data=%s)", e->root_canon, e->ceph_pool,
             e->ceph_data_pool);
@@ -308,12 +309,12 @@ brix_vbr_build_tape(brix_vfs_backend_entry_t *e, ngx_log_t *log)
         (e->origin_host[0] != '\0') ? e->origin_host : NULL,
         e->origin_path, &opts, log);
     if (inst == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
             "brix: tape (frm) backend init failed for export \"%s\"",
             e->root_canon);
     } else {
         brix_sd_frm_set_export_root(inst, e->root_canon);  /* 2.0 F3 anchor */
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: nearline (tape) storage backend ready at \"%s\" "
             "(adapter=%s base=%s arc=%ud)", e->root_canon,
             (e->origin_host[0] != '\0') ? e->origin_host : "stub",
@@ -364,14 +365,14 @@ brix_vbr_build_http(brix_vfs_backend_entry_t *e, ngx_log_t *log)
 
     inst = brix_sd_http_create(&cfg, log);
     if (inst == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
             "brix: http backend init failed for export \"%s\"",
             e->root_canon);
     } else {
         if (e->has_http_ranks) {
             sd_http_set_ranks(inst, e->http_ranks, 8);   /* T19 geo/static */
         }
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: http storage backend ready at \"%s\"", e->root_canon);
     }
     return inst;
@@ -417,11 +418,11 @@ brix_vbr_build_s3(brix_vfs_backend_entry_t *e, ngx_log_t *log)
 
     inst = brix_sd_remote_create(&cfg, log);
     if (inst == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
             "brix: s3 backend init failed for export \"%s\" (bucket=%s)",
             e->root_canon, e->origin_path);
     } else {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: s3 storage backend ready at \"%s\" (host=%s bucket=%s)",
             e->root_canon, e->origin_host, e->origin_path);
     }
@@ -452,12 +453,12 @@ brix_vbr_build_pblock(brix_vfs_backend_entry_t *e, ngx_log_t *log)
     inst = brix_sd_instance_create(log, "pblock",
                                      &conf, &sderr);
     if (inst == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, sderr,
+        BRIX_LOG(NGX_LOG_ERR, log, sderr,
             "brix: pblock backend init failed for export \"%s\"",
             e->root_canon);
     } else {
         brix_tier_pblock_hand_to_worker(e->root_canon, log);
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: pblock storage backend ready at \"%s\" "
             "(block_size=%uz)", e->root_canon, (size_t) e->block_size);
     }

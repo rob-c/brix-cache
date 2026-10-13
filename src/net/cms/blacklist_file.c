@@ -7,6 +7,7 @@
  * storage, so it is read with plain stdio below the VFS seam.
  */
 
+#include "core/compat/log_event.h"
 #include "blacklist_file.h"
 #include "net/manager/registry.h"
 #include "auth/protbind/protbind.h"   /* §2.13: XrdOucNList `*` host matching */
@@ -379,7 +380,7 @@ blfile_reload(brix_cms_blfile_t *bl, const char *path, ngx_log_t *log)
     size_t  got, pos;
 
     if (f == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                       "brix: cms blacklist file \"%s\" unreadable; "
                       "keeping previous %ui entries", path, bl->nentries);
         return;
@@ -400,7 +401,7 @@ blfile_reload(brix_cms_blfile_t *bl, const char *path, ngx_log_t *log)
         }
 
         if (bl->nentries >= BRIX_CMS_BLFILE_MAX_ENTRIES) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix: cms blacklist file \"%s\": more than %d "
                           "entries; rest ignored", path,
                           BRIX_CMS_BLFILE_MAX_ENTRIES);
@@ -410,7 +411,7 @@ blfile_reload(brix_cms_blfile_t *bl, const char *path, ngx_log_t *log)
         if (brix_cms_blfile_parse_line(buf + start, end - start,
                                        &bl->entries[bl->nentries]) != 0)
         {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix: cms blacklist file \"%s\": skipping "
                           "malformed line \"%*s\"", path,
                           (int) (end - start), buf + start);
@@ -419,7 +420,7 @@ blfile_reload(brix_cms_blfile_t *bl, const char *path, ngx_log_t *log)
         bl->nentries++;
     }
 
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                   "brix: cms blacklist file \"%s\" loaded: %ui entries",
                   path, bl->nentries);
 }
@@ -454,7 +455,7 @@ blfile_refresh(brix_cms_blfile_t *bl, const ngx_str_t *path,
     pathbuf[path->len] = '\0';
 
     if (stat(pathbuf, &st) != 0) {  /* vfs-seam-allow: DOMAIN_CONFIG — operator config file, not managed storage */
-        ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                       "brix: cms blacklist file \"%s\" stat failed; "
                       "keeping previous %ui entries", pathbuf, bl->nentries);
     } else if (st.st_mtime != bl->mtime) {

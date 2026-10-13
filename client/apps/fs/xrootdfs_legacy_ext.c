@@ -4,6 +4,7 @@
  */
 #define FUSE_USE_VERSION 31
 
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "xrootdfs_legacy_internal.h"
 #include "xrootdfs_argsplit.h"
@@ -324,17 +325,17 @@ lg_xfs_root_mount(int fuse_argc, char **fuse_argv, const char *endpoint)
 
     brix_status_clear(&st);
     if (brix_endpoint_parse(endpoint, &lg_url, &st) != 0) {
-        fprintf(stderr, "xrootdfs: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrootdfs: %s\n", st.msg);
         return 2;
     }
     /* The pool connects one conn eagerly, so a bad endpoint/auth fails here. */
     lg_pool = brix_pool_create(&lg_url, &lg_opts, lg_max_conns, &st);
     if (lg_pool == NULL) {
-        fprintf(stderr, "xrootdfs: connect %s:%d: %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrootdfs: connect %s:%d: %s\n",
                 lg_url.host, lg_url.port, st.msg);
         return brix_shellcode(&st);
     }
-    fprintf(stderr, "xrootdfs: mounted %s:%d (pool=%d, multi-threaded)\n",
+    BRIX_CLIENT_LOG("INFO",  "xrootdfs: mounted %s:%d (pool=%d, multi-threaded)\n",
             lg_url.host, lg_url.port, lg_max_conns);
 
     rc = fuse_main(fuse_argc, fuse_argv, &lg_xfs_ops, NULL);

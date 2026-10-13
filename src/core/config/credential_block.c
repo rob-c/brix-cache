@@ -2,6 +2,7 @@
  * credential_block.c — the `brix_credential <name> { … }` block (phase-63 §14).
  * See credential_block.h for the WHAT/WHY/HOW.
  */
+#include "core/compat/log_event.h"
 #include "credential_block.h"
 #include "core/compat/cstr.h"
 #include "fs/vfs/vfs_backend_registry.h"   /* brix_vfs_backend_cred_t */
@@ -111,13 +112,13 @@ brix_credential_line(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
         ngx_int_t m;
 
         if (cf->args->nelts != 2) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_credential: \"mode\" takes exactly one argument");
             return NGX_CONF_ERROR;
         }
         m = brix_credential_mode_token(&value[1]);
         if (m < 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_credential: unknown mode \"%V\" (want select|passthrough|"
                 "exchange|delegate|mint|auto)", &value[1]);
             return NGX_CONF_ERROR;
@@ -134,7 +135,7 @@ brix_credential_line(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
         }
 
         if (cf->args->nelts != 2) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_credential: \"%V\" takes exactly one argument",
                 &value[0]);
             return NGX_CONF_ERROR;
@@ -149,7 +150,7 @@ brix_credential_line(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
                        && ngx_strncmp(value[1].data, "off", 3) == 0) {
                 *flag = 0;
             } else {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                     "brix_credential: \"%V\" expects on|off", &value[0]);
                 return NGX_CONF_ERROR;
             }
@@ -168,7 +169,7 @@ brix_credential_line(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
         return NGX_CONF_OK;
     }
 
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
         "brix_credential: unknown directive \"%V\"", &value[0]);
     return NGX_CONF_ERROR;
 }
@@ -205,7 +206,7 @@ brix_conf_credential_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             cred = (brix_credential_t *) existing;
             dup_in_this_config = (existing->last_def_cycle == (void *) cf->cycle);
         } else if (brix_credential_count >= BRIX_CREDENTIAL_MAX) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_credential: too many credential blocks (max %d)",
                 BRIX_CREDENTIAL_MAX);
             return NGX_CONF_ERROR;
@@ -215,7 +216,7 @@ brix_conf_credential_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     if (dup_in_this_config) {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix_credential \"%V\" is defined more than once in this "
             "configuration. brix_credential is a single global name-keyed "
             "registry (shared across stream{} and http{}), so the LAST "
@@ -339,7 +340,7 @@ brix_credential_bearer(const brix_credential_t *cred, char *out, size_t cap,
     fd = open((const char *) cred->token_file.data,    /* vfs-seam-allow: DOMAIN_CONFIG — config-domain bearer token file (not export storage) */
               O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
     if (fd < 0) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
             "brix_credential: cannot open token_file \"%V\"",
             &cred->token_file);
         return NGX_ERROR;
@@ -347,7 +348,7 @@ brix_credential_bearer(const brix_credential_t *cred, char *out, size_t cap,
     n = read(fd, out, cap - 1);
     close(fd);
     if (n < 0) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno,
             "brix_credential: cannot read token_file \"%V\"",
             &cred->token_file);
         out[0] = '\0';

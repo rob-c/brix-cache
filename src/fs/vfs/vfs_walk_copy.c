@@ -19,6 +19,7 @@
  *       (lstat-nofollow) and dispatches to a subdir recursion or a file copy;
  *       BRIX_FS_TREE_MAX_DEPTH bounds the C-stack recursion.
  */
+#include "core/compat/log_event.h"
 #include "vfs_internal.h"
 #include "fs/path/path.h"            /* confined-canon open/lstat/mkdir/opendir   */
 #include "core/compat/fs_walk.h"       /* brix_fs_is_dot_entry, TREE_MAX_DEPTH     */
@@ -188,7 +189,7 @@ vfs_copytree_run(const vfs_copy_ctx_t *ctx, const char *src, const char *dst,
     /* D-6/T2: bound the independent C-stack recursion so a hostile deep source
      * tree aborts cleanly instead of overflowing the worker stack. */
     if (depth > BRIX_FS_TREE_MAX_DEPTH) {
-        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, ctx->log, 0,
                       "brix: copytree depth cap (%d) exceeded at \"%s\"",
                       BRIX_FS_TREE_MAX_DEPTH, src);
         errno = ELOOP;

@@ -7,6 +7,7 @@
 
 #include "brix.h"   
 #include "core/compat/crypto.h"  
+#include "../../../shared/observability/log_stdio.h"
 #include <ctype.h>      
 #include <errno.h>
 #include <fcntl.h>      
@@ -134,5 +135,6 @@ int run_cmd(char *const cmd_argv[]);
 int xrd_list_mounts(void);
 int xrd_mount(int argc, char **argv);
 int xrd_unmount(int argc, char **argv);
+int xrd_conform(int argc, char **argv);
 
 #endif /* BRIX_XRD_INTERNAL_H */

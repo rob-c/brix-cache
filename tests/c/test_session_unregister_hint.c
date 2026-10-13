@@ -164,7 +164,7 @@ reg(unsigned n, const char *dn)
     u_char sessid[BRIX_SESSION_ID_LEN];
 
     mksess(sessid, n);
-    return brix_session_register(sessid, dn, "", 0);
+    return brix_session_register(sessid, dn, "", 0, 0);
 }
 
 static void
@@ -339,16 +339,88 @@ test_security_stale_hint_cannot_clear_a_reregistration(void)
     CHECK(live_count() == 0, "table drained");
 }
 
+/* A bound stream must inherit the primary's signing posture atomically with
+ * its identity lookup, while an ordinary session remains advisory. */
+static void
+test_request_signing_posture_round_trip(void)
+{
+    u_char sessid[BRIX_SESSION_ID_LEN];
+    char dn[32];
+    char vo[32];
+    ngx_uint_t token_auth = 9;
+    ngx_uint_t request_signing = 9;
+    int slot;
+
+    mksess(sessid, 30);
+    slot = brix_session_register(sessid, "signed", "vo", 0, 1);
+    CHECK(slot == 0, "signing-capable session registered");
+    CHECK(brix_session_lookup(sessid, dn, sizeof(dn), vo, sizeof(vo),
+              &token_auth, &request_signing)
+          && strcmp(dn, "signed") == 0 && strcmp(vo, "vo") == 0,
+          "identity and signing posture are retrieved in one lookup");
+    CHECK(token_auth == 0 && request_signing == 1,
+          "bound lookup preserves the signing-required bit");
+
+    CHECK(brix_session_register(sessid, "signed", "vo", 0, 0) == slot,
+          "re-register keeps the same slot");
+    request_signing = 9;
+    CHECK(brix_session_lookup(sessid, dn, sizeof(dn), vo, sizeof(vo),
+              &token_auth, &request_signing) && request_signing == 0,
+          "re-register cannot leave a stale signing posture");
+    unreg_hinted(30, slot);
+    CHECK(live_count() == 0, "signing posture test drained the table");
+}
+
+/* Path IDs are connection-generation identifiers, not reusable slot numbers.
+ * Exercise success, refusal, and wrap-around under the real registry lock. */
+static void
+test_pathid_claim_rotation(void)
+{
+    u_char   sessid[BRIX_SESSION_ID_LEN];
+    unsigned pathid = 0;
+    int      slot;
+
+    mksess(sessid, 40);
+    slot = brix_session_register(sessid, "paths", "", 0, 0);
+    CHECK(slot == 0, "path-id session registered");
+
+    CHECK(brix_session_pathid_claim(sessid, 2, &pathid) == 1 && pathid == 1,
+          "first claim starts at path ID 1");
+    brix_session_pathid_unbind(sessid, pathid);
+    CHECK(brix_session_pathid_claim(sessid, 2, &pathid) == 1 && pathid == 2,
+          "a disconnected path ID is not immediately reused");
+    CHECK(brix_session_pathid_claim(sessid, 1, &pathid) == 0,
+          "the live-path limit still refuses an additional claim");
+
+    brix_session_pathid_unbind(sessid, 2);
+    g_tbl->slots[slot].next_pathid = 253;
+    CHECK(brix_session_pathid_claim(sessid, 2, &pathid) == 1 && pathid == 253,
+          "the rotation can allocate the final valid path ID");
+    brix_session_pathid_unbind(sessid, pathid);
+    CHECK(brix_session_pathid_claim(sessid, 2, &pathid) == 1 && pathid == 1,
+          "the rotation wraps without producing reserved path ID 0 or 254");
+
+    brix_session_pathid_unbind(sessid, pathid);
+    unreg_hinted(40, slot);
+    CHECK(live_count() == 0, "path-id rotation test drained the table");
+}
+
 int
 main(void)
 {
     /* The default registry is 1024 × ~1.2 KB entries; size the zone for it
      * even though ngx_slab_alloc is a calloc spy here. */
     static u_char   zonebuf[4 * 1024 * 1024] __attribute__((aligned(16)));
+    ngx_cycle_t     cycle;
+    ngx_log_t       log;
     ngx_shm_zone_t  zone;
     ngx_slab_pool_t *sp;
 
     ngx_pagesize = 4096;
+    memset(&cycle, 0, sizeof(cycle));
+    memset(&log, 0, sizeof(log));
+    cycle.log = &log;
+    ngx_cycle = &cycle;
     memset(zonebuf, 0, sizeof(zonebuf));
     memset(&zone, 0, sizeof(zone));
 
@@ -375,6 +447,8 @@ main(void)
     test_success();
     test_error();
     test_security_stale_hint_cannot_clear_a_reregistration();
+    test_request_signing_posture_round_trip();
+    test_pathid_claim_rotation();
 
     printf("%d passed, %d failed\n", g_pass, g_fail);
     return g_fail == 0 ? 0 : 1;

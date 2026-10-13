@@ -2,6 +2,7 @@
  * copy_cksum_verify.c - --cksum spec parse + local/remote/literal digest verify.
  * Phase-38 split of copy_remote.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "copy_internal.h"
 
 
@@ -191,7 +192,7 @@ cksum_verify(brix_conn *c, const char *remote_path, const char *local_path,
     if (local_path == NULL) {
         /* stdio endpoint — nothing on disk to digest; skip rather than lie. */
         if (!silent) {
-            fprintf(stderr, "xrdcp: --cksum skipped for stdin/stdout\n");
+            BRIX_CLIENT_LOG("WARN",  "xrdcp: --cksum skipped for stdin/stdout\n");
         }
         return XRDC_CK_OK;
     }

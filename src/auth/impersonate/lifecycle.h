@@ -62,15 +62,20 @@ ngx_int_t brix_imp_init_module(ngx_cycle_t *cycle);
 /* Worker, at init_process: in `map` mode, connect the broker client.  No-op
  * otherwise.  A not-yet-ready broker is a soft warning (lazy reconnect). */
 ngx_int_t brix_imp_init_worker(ngx_cycle_t *cycle);
-void brix_imp_worker_harden(ngx_log_t *log);
+/* Prepare the worker's irreversible privilege floor: enforce NO_NEW_PRIVS and
+ * shed all capabilities except SETUID/SETGID needed by the immediately
+ * following brix_imp_worker_deescalate(), which establishes and verifies the
+ * terminal zero-capability state. Returns NGX_ERROR on any enforcement failure. */
+ngx_int_t brix_imp_worker_harden(ngx_log_t *log);
 
 /* True iff this process currently holds `cap` (effective or permitted). */
 int brix_imp_cap_held(int cap);
 
 /* Force a root-capable worker (uid 0, or a non-root account holding CAP_SETUID)
  * down to the confined `brix_worker_user` account (default "nobody" + a warning),
- * fail-closed. No-op if already the target, or in the master/single process.
- * Returns NGX_ERROR to fail the worker closed. */
+ * fail-closed. A safe capability-free nginx service account wins when no target
+ * was explicit. Master processes are untouched; serving single-process mode is
+ * refused because it has no safe pre-fork privilege boundary. */
 ngx_int_t brix_imp_worker_deescalate(ngx_log_t *log);
 
 /* `brix_worker_user <account>` setter + its process-global (empty => "nobody"). */
@@ -82,8 +87,10 @@ extern char brix_worker_user[64];
  * else the confined brix_worker_user (default "nobody") a root-capable worker
  * is forced down to. Config-time helper for provisioning worker-writable
  * directories (credential store, default stage spool). conf_uid/conf_gid are
- * the core-conf `user` ids (NGX_CONF_UNSET_UINT when unset). NGX_ERROR when
- * no unprivileged account resolves. */
+ * the core-conf `user` ids (NGX_CONF_UNSET_UINT before nginx applies its
+ * compiled --user default); the unset case resolves NGX_USER so provisioning
+ * agrees with nginx on distro builds. NGX_ERROR when no unprivileged account
+ * resolves. */
 ngx_int_t brix_imp_worker_runtime_ids(ngx_uid_t conf_uid, ngx_gid_t conf_gid,
     uid_t *uid_out, gid_t *gid_out);
 

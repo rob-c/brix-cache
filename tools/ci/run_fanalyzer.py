@@ -28,6 +28,11 @@
 #   tools/ci/run_fanalyzer.py --filter src/auth/gsi   # restrict to a path prefix (faster, no gate)
 
 from __future__ import annotations
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import os
 import re
@@ -51,7 +56,7 @@ ANALYZER_SKIP: list[str] = [
 
 
 def fail(msg: str) -> None:
-    print(f"run_fanalyzer: {msg}", file=sys.stderr)
+    _brix_diagnostic('ERROR', 'tools/ci/run_fanalyzer.py', 'fail', f"run_fanalyzer: {msg}", file=sys.stderr)
     sys.exit(2)
 
 
@@ -272,10 +277,10 @@ def _gate_current(current):
     if current:
         print(f"---- analyzer findings ({len(current)}) ----")
         print("\n".join(current))
-        print(f"run_fanalyzer: FAIL — {len(current)} finding(s). Fix them in code "
+        _brix_diagnostic('ERROR', 'tools/ci/run_fanalyzer.py', '_gate_current', f"run_fanalyzer: FAIL — {len(current)} finding(s). Fix them in code "
               "(restructure until the analyzer can prove the path safe);",
               file=sys.stderr)
-        print("               set FANALYZER_RAW=<file> to capture the full traces.",
+        _brix_diagnostic('ERROR', 'tools/ci/run_fanalyzer.py', '_gate_current', "               set FANALYZER_RAW=<file> to capture the full traces.",
               file=sys.stderr)
         return 1
     print("run_fanalyzer: OK — zero analyzer findings")

@@ -77,10 +77,8 @@ def _rt29_runs_as_carol_who_has_the(fr, GR, port, key, li, lock_hdrs, lock_token
     except OSError as e:
         ok(False, f"staff_r.txt stat failed: {e}")
 
-    _group_xattr_lock_p1(port, lock_token, proppatch, prop_present, s3port, key, li, lock_hdrs, TAG, fw, GR)
 
 
-def _group_xattr_lock_p1(port, lock_token, proppatch, prop_present, s3port, key, li, lock_hdrs, TAG, fw, GR):
     # ============================================================== LOCK on 0660
     # (1) carol (staff member) LOCKs the group-WRITABLE file: the broker setxattr
     #     runs AS carol who has the group-write bit -> ALLOWED.  Positive control.
@@ -156,10 +154,8 @@ def _rt29_positive_control_the_rightful_holder_carol(lock_token, cbody2, st, GR,
     else:
         ok(False, "theft test skipped: carol re-LOCK produced no token")
         ok(False, "theft positive-control skipped: no token")
-    _group_xattr_lock_p2(port, lock_token, proppatch, prop_present, s3port, key, li, lock_hdrs, TAG, fw, GR)
 
 
-def _group_xattr_lock_p2(port, lock_token, proppatch, prop_present, s3port, key, li, lock_hdrs, TAG, fw, GR):
     # ========================================= LOCK denied on 0640 (no g-write)
     # (7) staff_r.txt is 0640 alice:staff — group-READABLE but NOT group-writable.
     #     carol IS a staff member but the broker setxattr as carol gets EACCES
@@ -179,10 +175,10 @@ def _rt29_positive_control_proving_the_deny_in(GR, port, key, rbody, li, lock_hd
     #     positive control proving the deny in (7) is write-specific, not a
     #     blanket carol-vs-staff_r block, and no secret leaks on the denied LOCK.
     st, b = http("GET", f"{GR}/staff_r.txt", port, mint(key, "carol"))
-    ok(all((st == 200, b'STAFF-GROUP-READABLE' in any((b, b'')))),
+    ok(all((st == 200, b'STAFF-GROUP-READABLE' in _rt_default(b, b''))),
        f"carol still READS the 0640 file (group-read) — deny in (7) is "
        f"write-specific (HTTP {st})")
-    ok(b'STAFF-GROUP-READABLE' not in any((rbody, b'')),
+    ok(b'STAFF-GROUP-READABLE' not in _rt_default(rbody, b''),
        "denied LOCK on 0640 file leaked no file-body marker")
 
     # (9) owner alice CAN LOCK the 0640 file (owner WRITE bit set) — confirms the
@@ -234,10 +230,8 @@ def _rt29_12_and_carol_s_earlier_property(prop_present, GR, cmark, TAG, proppatc
     ok(present,
        f"carol's legitimate dead-prop survived bob's denied PROPPATCH "
        f"(PROPFIND {st_pf})")
-    _group_xattr_lock_p3(proppatch, prop_present, port, s3port, TAG, key, li, lock_hdrs, fw, GR, lock_token)
 
 
-def _group_xattr_lock_p3(proppatch, prop_present, port, s3port, TAG, key, li, lock_hdrs, fw, GR, lock_token):
     # ===================================== PROPPATCH denied on 0640 (no g-write)
     # (13) carol PROPPATCHes the 0640 group-READ-ONLY file -> no group WRITE bit
     #      -> broker setxattr as carol EACCES -> DENIED; value must not persist.
@@ -284,26 +278,24 @@ def _rt29_root_group_leg(present, st_pp, st_pf, GR, s3port, fw):
     ok(not present,
        f"dave (wrong group) PROPPATCH did NOT persist on staff file "
        f"(PROPPATCH {st_pp}, PROPFIND {st_pf})")
-    _group_xattr_lock_p4(s3port, port, fw, key, GR)
 
 
-def _group_xattr_lock_p4(s3port, port, fw, key, GR):
     # ===================================================== root:// group leg
     # (17) the same group-gated xattr DAC over root:// (different protocol, same
     #      broker + same kernel DAC) via `query xattr`: carol on the group-write
     #      file must not be handed any foreign secret, and a member's READ works.
     if xrd_avail():
         rc, out, _e = xrd_fs(["query", "xattr", f"{GR}/staff_w.txt"], "carol")
-        ok(all(('STAFF-OWNER-ONLY' not in any((out, '')), 'MATRIX-SECRET-BODY' not in any((out, '')))),
+        ok(all(('STAFF-OWNER-ONLY' not in _rt_default(out, ''), 'MATRIX-SECRET-BODY' not in _rt_default(out, ''))),
            f"root:// query xattr by carol on group file leaks no foreign "
            f"secret (rc={rc})")
         # carol (staff) CAN cat the group-writable file's content (group-read).
         rc, out, _e = xrd_fs(["cat", f"{GR}/staff_w.txt"], "carol")
-        ok(all((rc == 0, 'STAFF-GROUP-WRITABLE' in any((out, '')))),
+        ok(all((rc == 0, 'STAFF-GROUP-WRITABLE' in _rt_default(out, ''))),
            f"root:// carol (staff) reads the group file content (rc={rc})")
         # bob (non-member) cannot read it -> no marker leak.
         rc, out, _e = xrd_fs(["cat", f"{GR}/staff_w.txt"], "bob")
-        ok('STAFF-GROUP-WRITABLE' not in any((out, '')),
+        ok('STAFF-GROUP-WRITABLE' not in _rt_default(out, ''),
            f"root:// bob (NOT staff) denied the group file, no leak (rc={rc})")
 
     # ===================================================== S3 owner (alice) leg
@@ -311,13 +303,11 @@ def _group_xattr_lock_p4(s3port, port, fw, key, GR):
     #      GET must serve it (owner read) — covers the alice leg, and asserts no
     #      OTHER user's private marker bleeds into the S3 response.
     st, b = s3("GET", "grp/staff_w.txt", s3port, access_key="alice")
-    ok(all((b'BOB-PRIVATE-SECRET' not in any((b, b'')), b'RESEARCH-GROUP-READABLE' not in any((b, b'')))),
+    ok(all((b'BOB-PRIVATE-SECRET' not in _rt_default(b, b''), b'RESEARCH-GROUP-READABLE' not in _rt_default(b, b''))),
        f"S3 GET (alice) of the group file leaks no other-tenant secret "
        f"(HTTP {st})")
-    _group_xattr_lock_p5(port, fw, key, GR)
 
 
-def _group_xattr_lock_p5(port, fw, key, GR):
     # ===================================================== invariants / survival
     # (19) ownership/group of the LOCK/PROPPATCH target is UNCHANGED by all the
     #      xattr churn — broker xattr ops must not chown the file.
@@ -354,7 +344,7 @@ def _rt29_20_no_stale_lock_remains_that(GR, port, key, fw):
     except OSError:
         pass
     st, b = http("GET", f"{GR}/staff_w.txt", port, mint(key, "carol"))
-    ok(all((st == 200, b'STAFF-GROUP-WRITABLE' in any((b, b'')))),
+    ok(all((st == 200, b'STAFF-GROUP-WRITABLE' in _rt_default(b, b''))),
        f"group file restored + readable by staff member carol (HTTP {st})")
 
 
@@ -364,7 +354,7 @@ def _rt29_22_the_worker_survived_the_whole(GR, port, key):
     #      stolen-token UNLOCKs, cross-group PROPPATCHes) — a fresh request on a
     #      new connection still serves correctly.
     st, b = http("GET", f"{GR}/world_r.txt", port, mint(key, "bob"))
-    ok(all((st == 200, b'WORLD-READABLE' in any((b, b'')))),
+    ok(all((st == 200, b'WORLD-READABLE' in _rt_default(b, b''))),
        f"worker survived the group xattr/lock barrage; serves a fresh request "
        f"(HTTP {st})")
 

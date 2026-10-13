@@ -58,6 +58,7 @@ import time
 
 import pytest
 import requests
+from log_records import semantic_log_text
 
 from _test_audit15f_helpers import CapturingSource, gets, mint_localhost_cert, serve
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS
@@ -254,7 +255,7 @@ def _log_tail(ep, offset):
     try:
         with open(_errlog_path(ep), "r", errors="replace") as fh:
             fh.seek(offset)
-            return fh.read()
+            return semantic_log_text(fh.read())
     except OSError:
         return ""
 

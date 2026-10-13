@@ -1,12 +1,13 @@
 #!/usr/bin/make -f
 # debian/rules for nginx-mod-brix-cache — the deb counterpart of
 # packaging/rpm/nginx-mod-brix-cache.spec (%build/%install).  Driven by
-# packaging/deb/build-deb.sh, which stages the source tree, unpacks the
-# matching nginx source, and exports:
+# packaging/deb/build-deb.sh, which stages the source tree, prepares the
+# matching nginx source/SDK, and exports:
 #
-#   NGINX_SRC_DIR      unpacked nginx source tree of the EXACT version the
-#                      target host runs (nginx refuses dynamic modules built
-#                      against any other version)
+#   NGINX_SRC_DIR      nginx.org source for org builds, or the exact patched
+#                      nginx-dev SDK for distro builds.  Version equality alone
+#                      is insufficient when a vendor patch changes public
+#                      request structures without changing nginx's signature.
 #   BRIX_NGINX_FLAVOR  org    — nginx.org packages for Ubuntu (stream compiled
 #                               in statically; default, mirrors the RPM
 #                               builders' nginx.org repo)
@@ -20,6 +21,7 @@
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 include /usr/share/dpkg/architecture.mk
 include /usr/share/dpkg/buildflags.mk
+include /usr/share/dpkg/pkg-info.mk
 
 BRIX_NGINX_FLAVOR ?= org
 NGINX_SRC_DIR ?=
@@ -51,10 +53,9 @@ nginx-src-check:
 	    exit 1; }
 
 override_dh_auto_configure: nginx-src-check
-	# Same module-relevant flags as the spec's %nginx_modconfigure call;
-	# --with-compat normalises the module signature so the .so loads into
-	# any --with-compat nginx of the same version (both Ubuntu-archive and
-	# nginx.org builds are --with-compat).
+	# Same module-relevant flags as the spec's %nginx_modconfigure call.
+	# --with-compat normalises supported upstream layout differences, while
+	# build-deb.sh supplies the vendor's exact SDK for Ubuntu distro builds.
 	cd $(NGINX_SRC_DIR) && ./configure \
 	    --with-compat \
 	    --with-threads \
@@ -67,7 +68,13 @@ override_dh_auto_configure: nginx-src-check
 	    --add-dynamic-module=$(CURDIR)
 
 override_dh_auto_build:
-	$(MAKE) -j$(JOBS) -C $(NGINX_SRC_DIR) modules
+	# nginx-dev's pruned SDK emits objs/Makefile but intentionally omits the
+	# nginx core .c files and top-level Makefile.  Build only BriX's two addon
+	# targets: the aggregate `modules` target also requests Ubuntu's separate
+	# ngx_stream_module.so and therefore cannot work from a header SDK.
+	$(MAKE) -j$(JOBS) -C $(NGINX_SRC_DIR) -f objs/Makefile \
+	    objs/ngx_stream_brix_module.so \
+	    objs/ngx_http_brix_xrdhttp_filter_module.so
 	# Native client tools: build from clean so every object carries the
 	# dpkg-buildflags (PIE/RELRO/BIND_NOW parity with the RPM's optflags +
 	# build_ldflags).  The shared protocol core is built first, explicitly,
@@ -75,10 +82,13 @@ override_dh_auto_build:
 	$(MAKE) -C client clean
 	$(MAKE) -C shared/xrdproto clean
 	$(MAKE) -j$(JOBS) -C shared/xrdproto CFLAGS="$(CFLAGS) $(CPPFLAGS)"
-	$(MAKE) -j$(JOBS) -C client CFLAGS="$(CFLAGS) $(CPPFLAGS)" LDFLAGS="$(LDFLAGS)"
+	$(MAKE) -j$(JOBS) -C client BRIX_CLIENT_VERSION="$(DEB_VERSION_UPSTREAM)" \
+	    CFLAGS="$(CFLAGS) $(CPPFLAGS)" LDFLAGS="$(LDFLAGS)"
 	# Build-time assertion that no Ceph operator tool was silently
 	# gate-skipped (the Build-Depends guarantee the Ceph dev packages).
-	$(MAKE) -j$(JOBS) -C client ceph-tools CFLAGS="$(CFLAGS) $(CPPFLAGS)" LDFLAGS="$(LDFLAGS)"
+	$(MAKE) -j$(JOBS) -C client ceph-tools \
+	    BRIX_CLIENT_VERSION="$(DEB_VERSION_UPSTREAM)" \
+	    CFLAGS="$(CFLAGS) $(CPPFLAGS)" LDFLAGS="$(LDFLAGS)"
 	for t in xrdceph_striper_migrate xrdceph_cephfs_to_striper \
 	         xrdrados_rescue xrdcephfs_rescue xrdceph_migrate; do \
 	    test -x client/bin/$$t || exit 1; \

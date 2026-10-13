@@ -7,6 +7,7 @@
  * WHY:  A thin front-end over the client library's brix_prepare. libXrdCl-free.
  * HOW:  brix_endpoint_parse → brix_connect → brix_prepare(options, optionX, prty).
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "core/compat/crypto.h"
 #include "core/version.h"
@@ -210,7 +211,7 @@ xrdprep_run(char **argv, const xrdprep_args *args)
     }
     if (brix_prepare(&c, args->paths, args->np, args->options, args->optionX,
                      args->prty, reply, sizeof(reply), &st) != 0) {
-        fprintf(stderr, "%s: %s\n", argv[0], st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "%s: %s\n", argv[0], st.msg);
         brix_close(&c);
         return brix_shellcode(&st);
     }

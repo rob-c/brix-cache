@@ -25,6 +25,7 @@ class TestMkdirConformance:
         try:
             st = _fs(NGINX_URL).mkdir(child, MkDirFlags.MAKEPATH)
             assert st[0].ok, f"nginx mkdir -p failed: {st[0].message}"
+            L.harmonize_perms(os.path.join(DATA_DIR, parent.lstrip("/")))
 
             assert _exists_on(NGINX_URL, parent), "parent not visible after mkdir -p"
             assert _exists_on(REF_URL,   parent), "parent not on ref after mkdir -p"
@@ -209,6 +210,7 @@ class TestChmodConformance:
         with open(fs_path, "wb") as fh:
             fh.write(b"chmod_test")
         os.chmod(fs_path, 0o644)
+        L.chown_brix(fs_path)
 
         try:
             new_mode = AccessMode.UR | AccessMode.UW | AccessMode.GR | AccessMode.OR

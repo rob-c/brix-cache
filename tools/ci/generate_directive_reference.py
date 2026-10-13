@@ -8,6 +8,11 @@ the same fragment headers and X-macros as the directive drift guard.
 """
 
 from __future__ import annotations
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import os
 import sys
@@ -146,7 +151,7 @@ def main(argv: list[str]) -> int:
         if current == expected:
             print(f"directive reference: current ({len(collect())} registrations)")
             return 0
-        print("directive reference: generated registry is stale", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/generate_directive_reference.py', 'main', "directive reference: generated registry is stale", file=sys.stderr)
         return 1
     DOC.write_text(expected)
     print(f"directive reference: wrote {DOC}")

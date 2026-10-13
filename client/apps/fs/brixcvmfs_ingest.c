@@ -23,6 +23,7 @@
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L         /* nanosleep/mkdir & co under -std=c11 */
 #endif
+#include "../../../shared/observability/log_stdio.h"
 #include "brixcvmfs_ingest_internal.h"
 #include "cvmfs/publish/publish.h"
 
@@ -112,7 +113,7 @@ int bci_lock_acquire(const char *repo_dir, int no_wait) {
             /* A crashed ingest leaves a lock with nothing behind it; a repo
              * transaction always has its durable upper — never broken. */
             if (lstat(upper, &st) != 0 && brixcvmfs_tx_lock_stale(lock)) {
-                fprintf(stderr,
+                BRIX_CLIENT_LOG("INFO",
                         "brixcvmfs ingest: breaking stale lock (holder gone)\n");
                 unlink(lock);
                 continue;
@@ -122,7 +123,7 @@ int bci_lock_acquire(const char *repo_dir, int no_wait) {
             if (no_wait)
                 return bci_fail(ING_BUSY, "transaction lock is held", who);
             if (!waited) {
-                fprintf(stderr,
+                BRIX_CLIENT_LOG("INFO",
                         "brixcvmfs ingest: waiting for transaction lock (%s)\n",
                         who);
                 waited = 1;
@@ -364,14 +365,14 @@ int brixcvmfs_ingest_main(int argc, char **argv) {
         return ing_dir_main(argc - 1, argv + 1);
     if (strcmp(cmd, "image") == 0) {
         if (bci_image_main == NULL) {
-            fprintf(stderr, "brixcvmfs ingest: image verb not linked in this build\n");
+            BRIX_CLIENT_LOG("ERROR",  "brixcvmfs ingest: image verb not linked in this build\n");
             return ING_USAGE;
         }
         return bci_image_main(argc - 1, argv + 1);
     }
     if (strcmp(cmd, "prune") == 0) {
         if (bci_prune_main == NULL) {
-            fprintf(stderr, "brixcvmfs ingest: prune verb not linked in this build\n");
+            BRIX_CLIENT_LOG("ERROR",  "brixcvmfs ingest: prune verb not linked in this build\n");
             return ING_USAGE;
         }
         return bci_prune_main(argc - 1, argv + 1);

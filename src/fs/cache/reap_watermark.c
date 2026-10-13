@@ -2,6 +2,7 @@
  * reap_watermark.c — proactive watermark-driven LRU reaper. See the header.
  */
 
+#include "core/compat/log_event.h"
 #include "reap_watermark.h"
 #include "evict_internal.h"   /* fs_usage sampler + purge_to_target + the lock */
 #include "observability/metrics/unified.h"   /* dedicated watermark-reaper telemetry */
@@ -98,7 +99,7 @@ watermark_fs_over(ngx_stream_brix_srv_conf_t *conf, const char *phys_root,
     brix_cache_fs_usage_t *usage, ngx_log_t *log)
 {
     if (brix_cache_fs_usage_sampled((char *) phys_root, BRIX_VFS_MSEC_PER_SEC, usage) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, log, errno,
+        BRIX_LOG(NGX_LOG_WARN, log, errno,
             "brix: watermark reaper could not stat cache root \"%s\"", phys_root);
         return 0;
     }
@@ -187,7 +188,7 @@ brix_cache_watermark_purge(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log)
 
     if (evicted_files > 0) {
         brix_metric_cache_watermark_purge(evicted_files, evicted_bytes);
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                       "brix: watermark reaper purged %ui file(s), %uL bytes "
                       "from \"%s\"",
                       evicted_files, (uint64_t) evicted_bytes, phys_root);

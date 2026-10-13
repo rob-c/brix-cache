@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # WHAT: Build the brix module (objs/nginx) + client with gcov instrumentation,
 #       run the test suite against that instrumented binary, and emit an lcov
@@ -98,7 +103,7 @@ def _collect(root: str, nginx_src: str, out_dir: str, test_cmd: str) -> int:
     print(f"          $COVERAGE_TEST_CMD = {test_cmd}")
     suite_rc = subprocess.run(test_cmd, shell=True, cwd=f"{root}/tests").returncode
     if suite_rc != 0:
-        print(f"coverage: FAIL — test command exited {suite_rc}; "
+        _brix_diagnostic('ERROR', 'tools/ci/coverage.py', '_collect', f"coverage: FAIL — test command exited {suite_rc}; "
               "capturing partial counters for diagnostics", file=sys.stderr)
 
     print("coverage: 3/4 capturing counters with lcov…")
@@ -155,11 +160,11 @@ def _enforce_floor(pct: str, coverage_min) -> int:
     if not coverage_min:
         return 0
     if not pct:
-        print(f"coverage: FAIL — COVERAGE_MIN={coverage_min} set but line rate "
+        _brix_diagnostic('ERROR', 'tools/ci/coverage.py', '_enforce_floor', f"coverage: FAIL — COVERAGE_MIN={coverage_min} set but line rate "
               "could not be parsed", file=sys.stderr)
         return 1
     if float(pct) < float(coverage_min):
-        print(f"coverage: FAIL — line coverage {pct}% < floor {coverage_min}%",
+        _brix_diagnostic('ERROR', 'tools/ci/coverage.py', '_enforce_floor', f"coverage: FAIL — line coverage {pct}% < floor {coverage_min}%",
               file=sys.stderr)
         return 1
     print(f"coverage: OK — line coverage {pct}% >= floor {coverage_min}%")

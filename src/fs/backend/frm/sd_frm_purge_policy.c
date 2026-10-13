@@ -33,6 +33,7 @@
  * (invariant 12), working on the backend's private buffer directory.
  */
 
+#include "core/compat/log_event.h"
 #include "sd_frm_purge_internal.h"
 #include "core/compat/subprocess.h"    /* shared SIGCHLD-safe reparented runner */
 
@@ -362,7 +363,7 @@ frm_purge_policy_consult(frm_purge_policy_t *pp,
                                sizeof(decision)) != 0)
     {
         pp->polprog = FRM_POLPROG_FAILED;
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
             "brix: tape purge \"%s\": policy program paths do not fit", online);
         return;
     }
@@ -371,7 +372,7 @@ frm_purge_policy_consult(frm_purge_policy_t *pp,
     (void) unlink(decision);
     if (rc != 0) {
         pp->polprog = FRM_POLPROG_FAILED;
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix: tape purge \"%s\": policy program \"%s\" failed (%s); its "
             "groups release nothing this pass", online, pol->polprog, why);
         return;
@@ -421,7 +422,7 @@ frm_purge_policy_log(const frm_purge_policy_t *pp,
         time_t hold = (r->hold_s > pol->min_age_s) ? r->hold_s : pol->min_age_s;
 
         level = st->evicted ? NGX_LOG_NOTICE : NGX_LOG_INFO;
-        ngx_log_error(level, log, 0,
+        BRIX_LOG(level, log, 0,
             "brix: tape purge \"%s\" policy \"%s\": owned %uL -> %uL bytes "
             "(hi=%uL lo=%uL hold=%T s%s), released %ui file(s), %uL bytes",
             online, r->name, st->owned, st->owned - st->released, r->hi_bytes,
@@ -429,7 +430,7 @@ frm_purge_policy_log(const frm_purge_policy_t *pp,
             st->released);
     }
     level = (pp->polprog == FRM_POLPROG_FAILED) ? NGX_LOG_ERR : NGX_LOG_INFO;
-    ngx_log_error(level, log, 0,
+    BRIX_LOG(level, log, 0,
         "brix: tape purge \"%s\" policy pass: rules=%uz held=%ui "
         "unapproved=%ui polprog=%s approved=%ui ignored=%ui",
         online, pp->n, rep->held, rep->unapproved, state[pp->polprog],

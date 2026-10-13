@@ -24,6 +24,7 @@
  *       is the legacy zlib-window_bits wrapper.
 */
 
+#include "core/compat/log_event.h"
 #include "http_body.h"
 #include "http_body_internal.h"
 #include "core/compat/codec_core.h"
@@ -113,7 +114,7 @@ codec_feed(codec_ctx_t *cx, const u_char *in, size_t in_len, int finish,
                                &op, finish);
         if (rc < 0) {
             cx->worst_rc = rc;
-            ngx_log_error(NGX_LOG_ERR, cx->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, cx->log, 0,
                           "brix_http_body: decode error %d for %s",
                           (int) rc, cx->log_path ? cx->log_path : "-");
             return NGX_ERROR;
@@ -168,7 +169,7 @@ codec_decode_spooled_buf(codec_ctx_t *cx, ngx_buf_t *b, int *ended)
         if (brix_vfs_pread_full(b->file->fd, cx->inbuf, want, file_off,
                                   &got) != NGX_OK || got < want)
         {
-            ngx_log_error(NGX_LOG_ERR, cx->log, errno,
+            BRIX_LOG(NGX_LOG_ERR, cx->log, errno,
                           "brix_http_body: decode pread failed for %s",
                           cx->log_path ? cx->log_path : "-");
             return NGX_ERROR;
@@ -228,7 +229,7 @@ codec_decode_bufs(codec_ctx_t *cx, ngx_http_request_t *r)
     if (!ended) {
         /* All input consumed + finish, but no end-of-stream: truncated input. */
         cx->worst_rc = BRIX_CODEC_ERR_DATA;
-        ngx_log_error(NGX_LOG_ERR, cx->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, cx->log, 0,
                       "brix_http_body: truncated compressed body for %s",
                       cx->log_path ? cx->log_path : "-");
         return NGX_ERROR;
@@ -287,7 +288,7 @@ codec_ctx_setup(codec_ctx_t *cx, brix_codec_id_t codec, uint64_t max_output,
         if (http_status_out) {
             *http_status_out = NGX_HTTP_UNSUPPORTED_MEDIA_TYPE;
         }
-        ngx_log_error(NGX_LOG_ERR, cx->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, cx->log, 0,
                       "brix_http_body: codec %d unavailable for %s",
                       (int) codec, cx->log_path ? cx->log_path : "-");
         return NGX_ERROR;

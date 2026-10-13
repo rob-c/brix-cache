@@ -21,6 +21,7 @@
  * worker running the CMS client, which is worker 0 — cms_start.c).
  */
 
+#include "core/compat/log_event.h"
 #include "cms_internal.h"
 #include "perf_pgm.h"
 #include "platform/platform_api.h"
@@ -177,7 +178,7 @@ perf_read_handler(ngx_event_t *ev)
     for ( ;; ) {
         got = read(c->fd, chunk, sizeof(chunk));
         if (got == 0) {
-            ngx_log_error(NGX_LOG_WARN, pf->cycle->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, pf->cycle->log, 0,
                 "brix: cms perf pgm exited (EOF) — respawning in 5s");
             perf_teardown(pf);
             return;
@@ -186,7 +187,7 @@ perf_read_handler(ngx_event_t *ev)
             if (ngx_errno == NGX_EAGAIN) {
                 return;
             }
-            ngx_log_error(NGX_LOG_WARN, pf->cycle->log, ngx_errno,
+            BRIX_LOG(NGX_LOG_WARN, pf->cycle->log, ngx_errno,
                 "brix: cms perf pgm read failed — respawning in 5s");
             perf_teardown(pf);
             return;
@@ -203,7 +204,7 @@ perf_read_handler(ngx_event_t *ev)
                     pf->updated = ngx_current_msec;
                     pf->have_vals = 1;
                 } else if (pf->line_pos > 0) {
-                    ngx_log_error(NGX_LOG_INFO, pf->cycle->log, 0,
+                    BRIX_LOG(NGX_LOG_INFO, pf->cycle->log, 0,
                         "brix: cms perf pgm: malformed line ignored");
                 }
                 pf->line_pos = 0;
@@ -241,7 +242,7 @@ perf_spawn(brix_cms_perf_t *pf)
     int                          rc;
 
     if (brix_plat_pipe2(fds, BRIX_PIPE_CLOEXEC) != 0) {
-        ngx_log_error(NGX_LOG_ERR, pf->cycle->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, pf->cycle->log, ngx_errno,
                       "brix: cms perf pgm: pipe2 failed");
         perf_teardown(pf);
         return;
@@ -263,7 +264,7 @@ perf_spawn(brix_cms_perf_t *pf)
         posix_spawn_file_actions_destroy(&fa);
         close(fds[0]);
         close(fds[1]);
-        ngx_log_error(NGX_LOG_ERR, pf->cycle->log, rc,
+        BRIX_LOG(NGX_LOG_ERR, pf->cycle->log, rc,
                       "brix: cms perf pgm: close inherited fds failed");
         perf_teardown(pf);
         return;
@@ -280,7 +281,7 @@ perf_spawn(brix_cms_perf_t *pf)
     close(fds[1]);
 
     if (rc != 0) {
-        ngx_log_error(NGX_LOG_ERR, pf->cycle->log, rc,
+        BRIX_LOG(NGX_LOG_ERR, pf->cycle->log, rc,
                       "brix: cms perf pgm: spawn of \"%V\" failed",
                       &pf->pgm);
         close(fds[0]);
@@ -290,7 +291,7 @@ perf_spawn(brix_cms_perf_t *pf)
     pf->child = pid;
 
     if (fcntl(fds[0], F_SETFL, O_NONBLOCK) != 0) {
-        ngx_log_error(NGX_LOG_ERR, pf->cycle->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ERR, pf->cycle->log, ngx_errno,
                       "brix: cms perf pgm: O_NONBLOCK failed");
         close(fds[0]);
         perf_teardown(pf);
@@ -316,7 +317,7 @@ perf_spawn(brix_cms_perf_t *pf)
     }
     pf->line_pos = 0;
 
-    ngx_log_error(NGX_LOG_NOTICE, pf->cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, pf->cycle->log, 0,
                   "brix: cms perf pgm started: \"%V\" (pid %P)",
                   &pf->pgm, pid);
 }

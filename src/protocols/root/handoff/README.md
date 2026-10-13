@@ -17,6 +17,9 @@ unreachable over WebDAV. With it, one registered port serves both protocols.
 `brix_http_handoff_start()` dials `conf->http_handoff_addr`, replays the
 already-read prefix bytes, then runs a small bidirectional buffered TCP
 relay (no XRootD framing) until either side closes or the relay idles out.
+`brix_http_handoff_connect_timeout` bounds establishment of the private relay
+(default 5 seconds), while `brix_http_handoff_idle_timeout` bounds a blocked
+read or write in either direction (default 75 seconds).
 
 ## Files
 
@@ -33,6 +36,8 @@ relay (no XRootD framing) until either side closes or the relay idles out.
    connection never returns to the XRootD state machine.
 3. The relay buffers are pool-allocated per connection; teardown must go
    through the single disconnect path (no leaked upstream sockets).
+4. The target should be a numeric loopback listener. Exposing it on a wildcard
+   address would provide a second path around the public listener.
 
 ## See also
 

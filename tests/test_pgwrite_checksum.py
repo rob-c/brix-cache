@@ -211,6 +211,22 @@ class TestPgWriteChecksumVerification:
     and checks the server's response code.
     """
 
+    def test_zero_length_is_defined_noop(self):
+        """A payload-free pgwrite succeeds without changing the open file."""
+        remote = "_pgwrite_zero.bin"
+        disk_path = os.path.join(_DATA_DIR, remote)
+        sock = _handshake_login(_ANON_HOST, _ANON_PORT)
+        try:
+            fhandle = _open_for_write(sock, f"/{remote}".encode())
+            status, _ = _send_pgwrite(sock, fhandle, 0, b"")
+            assert status == kXR_status
+            _close(sock, fhandle)
+        finally:
+            sock.close()
+        assert os.path.exists(disk_path)
+        assert os.path.getsize(disk_path) == 0
+        os.unlink(disk_path)
+
     def test_good_checksum_accepted(self):
         """A single-page pgwrite with a correct CRC32c must succeed."""
         data = b"correct checksum payload " * 20   # 500 bytes, fits in one page

@@ -23,6 +23,7 @@
  *       once. No goto; early-return throughout.
  */
 
+#include "core/compat/log_event.h"
 #include "xfer.h"
 
 #include <ngx_event.h>
@@ -121,7 +122,7 @@ xfer_agent_spawn(const brix_xfer_agent_ops_t *ops, ngx_log_t *log)
     pid_t    inter;
 
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno, "xfer: %s socketpair failed",
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno, "xfer: %s socketpair failed",
                       ops->name);
         return -1;
     }
@@ -135,7 +136,7 @@ xfer_agent_spawn(const brix_xfer_agent_ops_t *ops, ngx_log_t *log)
         sigprocmask(SIG_SETMASK, &prev, NULL);
         close(sv[0]);
         close(sv[1]);
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno, "xfer: %s agent fork failed",
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno, "xfer: %s agent fork failed",
                       ops->name);
         return -1;
     }
@@ -170,11 +171,11 @@ xfer_agent_respawn(brix_xfer_agent_t *a)
 {
     brix_xfer_agent_teardown(a);
     if (brix_xfer_agent_attach(a, a->ops, a->log) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, a->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, a->log, 0,
                       "xfer: %s agent respawn failed — transfers paused until "
                       "the next reload", a->ops->name);
     } else {
-        ngx_log_error(NGX_LOG_NOTICE, a->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, a->log, 0,
                       "xfer: %s agent respawned after exit", a->ops->name);
     }
 }
@@ -193,7 +194,7 @@ xfer_agent_on_reply(ngx_event_t *rev)
         if (n == 0) {
             /* Agent exited (EOF): respawn frees this connection, so return
              * immediately — c/rev must not be touched afterward. */
-            ngx_log_error(NGX_LOG_ERR, c->log, 0, "xfer: %s agent exited",
+            BRIX_LOG(NGX_LOG_ERR, c->log, 0, "xfer: %s agent exited",
                           a->ops->name);
             xfer_agent_respawn(a);
             return;
@@ -205,7 +206,7 @@ xfer_agent_on_reply(ngx_event_t *rev)
             if (ngx_errno == NGX_EINTR) {
                 continue;
             }
-            ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno, "xfer: %s agent recv",
+            BRIX_LOG(NGX_LOG_ERR, c->log, ngx_errno, "xfer: %s agent recv",
                           a->ops->name);
             xfer_agent_respawn(a);
             return;
@@ -223,7 +224,7 @@ xfer_agent_on_reply(ngx_event_t *rev)
     }
 
     if (ngx_handle_read_event(rev, 0) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0, "xfer: %s agent read-event re-arm",
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0, "xfer: %s agent read-event re-arm",
                       a->ops->name);
     }
     if (a->ops->after_drain != NULL) {
@@ -251,7 +252,7 @@ brix_xfer_agent_attach(brix_xfer_agent_t *a,
     if (a->rep_buf == NULL) {
         a->rep_buf = malloc(ops->rep_size);
         if (a->rep_buf == NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, 0, "xfer: %s reply-buf alloc failed",
+            BRIX_LOG(NGX_LOG_ERR, log, 0, "xfer: %s reply-buf alloc failed",
                           ops->name);
             return NGX_ERROR;
         }
@@ -273,7 +274,7 @@ brix_xfer_agent_attach(brix_xfer_agent_t *a,
     a->conn->read->log     = log;
     a->conn->recv          = ngx_recv;
     if (ngx_handle_read_event(a->conn->read, 0) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "xfer: %s cannot arm agent read event",
+        BRIX_LOG(NGX_LOG_ERR, log, 0, "xfer: %s cannot arm agent read event",
                       ops->name);
         brix_xfer_agent_teardown(a);
         return NGX_ERROR;

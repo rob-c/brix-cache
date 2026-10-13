@@ -377,6 +377,7 @@ It is off by default and cannot be otherwise: no door and no grid credential
 ships with this repository. You supply both.
 
 ```
+kubectl create namespace brix-gridftp --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n brix-gridftp create secret generic outbound-proxy \
     --from-file=user_proxy.pem=$X509_USER_PROXY
 kubectl -n brix-gridftp create configmap outbound-ca \
@@ -386,6 +387,29 @@ BRIX_OUTBOUND_DOOR=door.example.org \
 BRIX_OUTBOUND_PATH=/pnfs/example.org/brix-interop \
     xrd-lab test gridftp-outbound
 ```
+
+For v2.0 release evidence, give the runner a pre-created PVC in the
+`brix-gridftp` namespace. The chart writes `/results/custom.xml`; the PVC
+survives teardown of the test-runner Job:
+
+```bash
+BRIX_OUTBOUND_DOOR=door.example.org \
+BRIX_OUTBOUND_PATH=/pnfs/example.org/brix-interop \
+BRIX_GRIDFTP_RESULTS_PVC=brix-release-evidence \
+    xrd-lab test gridftp-outbound
+
+# Copy custom.xml from that PVC using a trusted site administration pod, then:
+python3 tools/ci/check_gridftp_interop_image.py evidence \
+    --junit custom.xml --implementation dcache --server-version 9.2.17 \
+    --endpoint door.example.org --output gridftp-interop-v2.0.json
+```
+
+The validator requires the exact nine-cell inventory and 9/9 passes. A failure,
+error, missing/duplicate cell, or skip refuses certification. In particular, a
+door refusing PROT P demonstrates fail-closed behaviour but does not establish
+protected-channel interoperability. Keep the raw XML access-controlled: it may
+contain captured site output. The JSON deliberately contains no captured
+output, credential path, proxy, certificate or token.
 
 Without `BRIX_OUTBOUND_DOOR` the scenario refuses to deploy rather than
 defaulting to a placeholder host — a lane pointed at a host that does not

@@ -190,7 +190,7 @@ brix_gsi_build_certreq_from_parms(const char *parms,
     if (crypto[0] == '\0') {
         memcpy(crypto, "ssl", 4);
     }
-    if (!brix_gsi_rand(rtag_out, BRIX_GSI_RTAG_LEN)) {
+    if (!brix_gsi_rand_tag(rtag_out)) {
         return NULL;
     }
     return brix_gsi_build_certreq(crypto, 10600u, ca, 0x80u, rtag_out,

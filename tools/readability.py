@@ -45,9 +45,16 @@ W_CCN, W_LEN, W_PARAM, W_DENS = 1.0, 0.10, 2.0, 0.5
 
 
 def find_lizard() -> str:
-    """Find lizard on PATH, in the active virtualenv, or in a user install."""
+    """Find the Python lizard paired with this interpreter before PATH.
+
+    Homebrew also ships an unrelated C++ program named ``lizard``.  It accepts
+    neither this tool's CSV arguments nor its output contract, so selecting it
+    from PATH can otherwise turn a failed analyzer invocation into an empty,
+    falsely-green guard result.
+    """
     active_venv_lizard = Path(sys.executable).parent / "lizard"
-    for c in ("lizard", str(active_venv_lizard), os.path.expanduser("~/.local/bin/lizard")):
+    for c in (str(active_venv_lizard), "lizard",
+              os.path.expanduser("~/.local/bin/lizard")):
         if shutil.which(c) or os.path.exists(c):
             return c
     sys.exit("lizard not found. Install: pip install --user lizard")
@@ -64,10 +71,16 @@ def func_score(ccn: int, length: int, param: int, dens: float) -> float:
 
 def run_lizard(lizard: str, paths: list[str],
                lang: str = "c") -> Iterator[dict[str, Any]]:
-    out = subprocess.run(
+    result = subprocess.run(
         [lizard, "--csv", "-l", lang, *paths],
         capture_output=True, text=True,
-    ).stdout
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise RuntimeError(
+            f"lizard failed with exit {result.returncode}: {detail}"
+        )
+    out = result.stdout
     # CSV: nloc, ccn, token, param, length, location, file, name, longname, start, end
     for row in csv.reader(io.StringIO(out)):
         if len(row) < 8:

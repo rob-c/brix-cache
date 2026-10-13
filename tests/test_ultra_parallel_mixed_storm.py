@@ -33,6 +33,7 @@ Run:
 """
 
 import os
+import socket
 import threading
 import time
 
@@ -60,6 +61,19 @@ TRANSFER_EVERY = 4          # 1 in 4 clients is a transfer; the rest metadata
 STACK = 512 * 1024          # per-thread stack: 16k threads must stay cheap
 
 stock_xrootd = U.stock_xrootd
+
+
+def _require_source_spread():
+    """The 16k ladder needs several loopback source addresses for 4-tuples."""
+    probe = socket.socket()
+    try:
+        from ephemeral_port import free_port
+        alternate = "127.0.0.2"  # net-literal-allow: probe the routed 127/8 range
+        probe.bind((alternate, free_port(alternate)))
+    except OSError:
+        pytest.skip("16k storm requires a routed 127/8 loopback range")
+    finally:
+        probe.close()
 
 
 # --------------------------------------------------------------------------- #
@@ -239,6 +253,7 @@ class TestUltraParallelMixedStorm:
         every rung (top rung 16384 clients) with no dirty failures, BOTH
         client classes make progress at every rung, and the server serves a
         byte-exact transfer immediately afterwards."""
+        _require_source_spread()
         port = U._start(lifecycle, tmp_path)
         rows = _mix_ladder("brix mixed storm", port)
         base = rows[0]

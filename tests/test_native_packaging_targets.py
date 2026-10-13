@@ -1,0 +1,164 @@
+"""Static contracts for the native packaging target matrix."""
+
+from pathlib import Path
+
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+RPM = ROOT / "packaging/rpm"
+
+
+def test_rpm_driver_exposes_every_supported_target() -> None:
+    driver = (RPM / "build-rpm-container.sh").read_text()
+    for target in (
+        "alma8",
+        "alma9",
+        "alma10",
+        "fedora43",
+        "fedora44",
+        "fedora-rawhide",
+        "centos-stream9",
+        "centos-stream10",
+    ):
+        assert target in driver, f"RPM build driver omits {target}"
+    for dockerfile in ("Dockerfile.fedora", "Dockerfile.centos-stream"):
+        assert (RPM / dockerfile).is_file()
+
+
+def test_el8_target_is_explicitly_client_only_and_uses_openssl3() -> None:
+    dockerfile = (RPM / "Dockerfile.alma8").read_text()
+    spec = (RPM / "brix-cache-client-el8.spec").read_text()
+    assert "openssl3-devel" in dockerfile
+    assert "RPM_SPEC=/build/src/packaging/rpm/brix-cache-client-el8.spec" in dockerfile
+    assert "Requires:       openssl3-libs" in spec
+    assert "nginx-mod-devel" not in dockerfile
+    assert "%{nginx_moddir}" not in spec
+
+
+def test_alma_rpms_carry_one_shared_rocky_platform_notice() -> None:
+    builder = (RPM / "build-rpm.sh").read_text()
+    spec = (RPM / "nginx-mod-brix-cache.spec").read_text()
+    el8_spec = (RPM / "brix-cache-client-el8.spec").read_text()
+    warning = RPM / "alma-platform-warning.sh"
+
+    assert 'platform_id" == "almalinux"' in builder
+    assert 'brix_vendor_alma 1' in builder
+    assert "%package -n brix-cache-alma-platform-warning" in spec
+    assert "%post -n brix-cache-alma-platform-warning" in spec
+    assert "Rocky Linux is NOT supported" in warning.read_text()
+    assert "%post" in el8_spec
+    assert "alma-platform-warning" in el8_spec
+    for release in ("9", "10", "11"):
+        dockerfile = (RPM / f"Dockerfile.alma{release}").read_text()
+        assert '--define "brix_vendor_alma 1"' in dockerfile
+
+
+def test_release_workflow_builds_all_targets_without_asset_name_collisions() -> None:
+    workflow_path = ROOT / ".github/workflows/packages.yml"
+    if not workflow_path.exists():
+        pytest.skip("release workflow metadata is not shipped in native source archives")
+    workflow = workflow_path.read_text()
+    for target in (
+        "alma8",
+        "alma9",
+        "alma10",
+        "fedora43",
+        "fedora44",
+        "fedora-rawhide",
+        "centos-stream9",
+        "centos-stream10",
+    ):
+        assert f"- {target}" in workflow
+    assert "brix-cache-${{ matrix.distro }}-arm64.tar.gz" in workflow
+    assert "flake check path:/src" in workflow
+
+
+def test_nix_flake_has_pinned_supported_system_outputs() -> None:
+    flake = (ROOT / "flake.nix").read_text()
+    lock = (ROOT / "flake.lock").read_text()
+    assert 'nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05"' in flake
+    assert '"aarch64-linux"' in flake
+    assert '"x86_64-linux"' in flake
+    assert '"locked"' in lock
+    assert "nginx-brix-cache" in flake
+
+
+def test_rpm_test_package_bundles_its_brixtest_runtime() -> None:
+    spec = (RPM / "nginx-mod-brix-cache.spec").read_text()
+    assert "cp -a brixtest/src" in spec
+    assert "%{_datadir}/brix/brixtest" in spec
+
+
+def test_rpm_test_package_documented_command_exposes_brixtest() -> None:
+    spec = (RPM / "nginx-mod-brix-cache.spec").read_text()
+    assert "PYTHONPATH=tests:brixtest/src python3 -m pytest" in spec
+    assert "TEST_SKIP_SERVER_SETUP=1" in spec
+
+
+def test_rpm_test_package_keeps_brixtest_noarch_payload_data_only() -> None:
+    spec = (RPM / "nginx-mod-brix-cache.spec").read_text()
+    cleanup = spec[spec.index("# Never ship the prebuilt test nginx binary"):]
+    assert "%{_datadir}/brix/brixtest -name '__pycache__'" in cleanup
+    assert "%{_datadir}/brix/brixtest -name '*.pyc'" in cleanup
+    assert "%{_datadir}/brix/brixtest -type f" in cleanup
+
+
+def test_native_source_archives_keep_required_migration_tools() -> None:
+    """Package staging keeps runtime scripts while still excluding VCS data."""
+    for builder in (RPM / "build-rpm.sh",
+                    ROOT / "packaging/deb/build-deb.sh"):
+        text = builder.read_text()
+        assert "--exclude='./tools'" not in text
+        assert ("--exclude-vcs" in text or "--exclude=.git" in text
+                or "--exclude='./.git'" in text)
+        assert "--exclude='./.github'" not in text
+        assert "--exclude='./dist'" in text
+
+
+def test_native_source_archives_exclude_host_client_artifacts() -> None:
+    """A source archive made on macOS must never seed Linux with Mach-O tools."""
+    for builder in (RPM / "build-rpm.sh",
+                    ROOT / "packaging/deb/build-deb.sh"):
+        text = builder.read_text()
+        assert "--exclude='./client/bin'" in text
+        assert "--exclude='./client/*.dylib'" in text
+        assert "--exclude='*.o'" in text
+        assert "--exclude='*.a'" in text
+
+
+def test_webdav_curl_default_is_resolved_by_the_build() -> None:
+    config = (ROOT / "config").read_text()
+    source = (ROOT / "src/protocols/webdav/tpc_config.c").read_text()
+    assert 'command -v curl' in config
+    assert '-DBRIX_DEFAULT_CURL_PATH=' in config
+    assert "BRIX_DEFAULT_CURL_PATH);" in source
+
+
+def test_webdav_curl_default_requires_an_absolute_path() -> None:
+    config = (ROOT / "config").read_text()
+    assert 'BRIX_CURL_BIN="${BRIX_CURL_BIN:-' in config
+    assert 'curl executable not found at build time' in config
+    assert '/*)' in config
+
+
+def test_webdav_curl_default_rejects_compiler_metacharacters() -> None:
+    config = (ROOT / "config").read_text()
+    assert "contains characters unsafe for a compiled path" in config
+    assert "*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_./+-]*" in config
+
+
+def test_ubuntu_distro_modules_use_the_exact_patched_nginx_sdk() -> None:
+    builder = (ROOT / "packaging/deb/build-deb.sh").read_text()
+    rules = (ROOT / "packaging/deb/debian/rules").read_text()
+    assert 'sdk_source="/usr/share/nginx/src"' in builder
+    assert 'dpkg-query -W -f \'${Version}\' nginx-dev' in builder
+    assert 'sdk_version" != "$distro_package_version' in builder
+    assert 'cp -a "$sdk_source/." "$nginx_src/"' in builder
+    assert "-f objs/Makefile" in rules
+    assert "objs/ngx_stream_brix_module.so" in rules
+    assert "objs/ngx_http_brix_xrdhttp_filter_module.so" in rules
+
+    for release in ("22", "24", "26"):
+        dockerfile = (ROOT / f"packaging/deb/Dockerfile.ubuntu{release}").read_text()
+        assert 'apt-get install -y --no-install-recommends nginx-dev' in dockerfile

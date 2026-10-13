@@ -260,6 +260,30 @@ def test_s3_09_no_token_reject():
         f"got HTTP {code}")
 
 
+@pytest.mark.registry_server("s3-token")
+def test_s3_presigned_credential_cannot_bypass_token_only_mode():
+    url = (f"http://{SERVER_HOST}:{NGINX_S3_TOKEN_PORT}/{S3_BUCKET}/test.txt"
+           "?X-Amz-Signature=")
+
+    response = requests.get(url, timeout=5)
+
+    assert response.status_code == 403
+    assert "bearer token required" in response.text
+
+
+@pytest.mark.registry_server("s3-token")
+def test_s3_bearer_and_presigned_credentials_are_rejected(forge):
+    token = forge.scope("storage.read:/")
+    url = (f"http://{SERVER_HOST}:{NGINX_S3_TOKEN_PORT}/{S3_BUCKET}/test.txt"
+           "?X-Amz-Signature=deadbeef")
+
+    response = requests.get(
+        url, headers={"Authorization": f"Bearer {token}"}, timeout=5)
+
+    assert response.status_code == 400
+    assert "both Bearer and SigV4 credentials present" in response.text
+
+
 # ---------------------------------------------------------------------------
 # S3-10: anonymous port still works (non-enforcing port 9001).
 # ---------------------------------------------------------------------------

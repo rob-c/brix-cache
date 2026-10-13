@@ -6,6 +6,7 @@
 /*       endpoint gets its own login + heartbeat link and locate requests rotate */
 /*       across the live links, so one dead manager no longer stalls discovery. */
 
+#include "core/compat/log_event.h"
 #include "core/config/config.h"
 #include "core/compat/alloc_guard.h"
 
@@ -21,7 +22,7 @@ cms_manager_add(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf,
     brix_cms_manager_ent_t  *ent, *ents;
 
     if (xcf->cms.managers->nelts >= NGX_BRIX_CMS_MAX_MANAGERS) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cms_manager: more than %d managers", NGX_BRIX_CMS_MAX_MANAGERS);
         return NGX_CONF_ERROR;
     }
@@ -42,14 +43,14 @@ cms_manager_add(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf,
 
     if (ngx_parse_url(cf->pool, &url) != NGX_OK) {
         if (url.err != NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cms_manager: %s in \"%V\"", url.err, value);
         }
         return NGX_CONF_ERROR;
     }
 
     if (url.no_port || url.port == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cms_manager: missing or invalid port in \"%V\"", value);
         return NGX_CONF_ERROR;
     }
@@ -66,7 +67,7 @@ cms_manager_add(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf,
     ents = xcf->cms.managers->elts;
     for (i = 0; i + 1 < xcf->cms.managers->nelts; i++) {
         if (ents[i].dns == t) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cms_manager: duplicate manager \"%V\"", value);
             return NGX_CONF_ERROR;
         }
@@ -111,7 +112,7 @@ brix_conf_set_cms_manager(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     xcf->cms.manager = ents[0].raw;
     xcf->cms.addr = ents[0].addr;
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: CMS manager configured: %V (%ui total)",
         &xcf->cms.manager, xcf->cms.managers->nelts);
 
@@ -141,7 +142,7 @@ brix_conf_set_cms_sched(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     (void) cmd;
 
     if ((cf->args->nelts - 1) % 2 != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cms_sched: expects key/value pairs");
         return NGX_CONF_ERROR;
     }
@@ -164,14 +165,14 @@ brix_conf_set_cms_sched(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         } else if (ngx_strcmp(value[i].data, "maxload") == 0) {
             slot = &xcf->cms.sched_maxload;
         } else {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cms_sched: unknown key \"%V\"", &value[i]);
             return NGX_CONF_ERROR;
         }
 
         n = ngx_atoi(value[i + 1].data, value[i + 1].len);
         if (n == NGX_ERROR || n < 0 || n > 100) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cms_sched: \"%V %V\" — value must be 0-100",
                 &value[i], &value[i + 1]);
             return NGX_CONF_ERROR;
@@ -205,7 +206,7 @@ brix_conf_set_cms_altds(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     port = ngx_atoi(value[1].data, value[1].len);
     if (port == NGX_ERROR || port < 1 || port > BRIX_CMS_MAX_PORT) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cms_altds: invalid port \"%V\"", &value[1]);
         return NGX_CONF_ERROR;
     }
@@ -214,7 +215,7 @@ brix_conf_set_cms_altds(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     if (cf->args->nelts == 3) {
         if (ngx_strcmp(value[2].data, "monitor") != 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_cms_altds: expected \"monitor\", got \"%V\"", &value[2]);
             return NGX_CONF_ERROR;
         }

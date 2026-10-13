@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "dashboard_http.h"
 #include "module_internal.h"
 
@@ -107,7 +108,7 @@ ngx_http_brix_dashboard_set_users(ngx_conf_t *cf,
     value = cf->args->elts;
     fp = fopen((const char *) value[1].data, "r");
     if (fp == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            "brix_dashboard_users \"%V\" is not readable",
                            &value[1]);
         return NGX_CONF_ERROR;

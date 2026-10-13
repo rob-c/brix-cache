@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "writethrough.h"
 #include "cache_admit.h"   /* shared admission filter (read+write parity) */
 
@@ -85,7 +86,7 @@ ngx_int_t brix_wt_config_init_prefixes(ngx_conf_t *cf,
         entry->prefix = src[i];
     }
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
                        "wt: configured %ui prefix entries for %s",
                        (*out_array)->nelts, directive_name);
     return NGX_OK;

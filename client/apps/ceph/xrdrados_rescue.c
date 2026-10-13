@@ -25,6 +25,7 @@
  *     src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph_compat.c \
  *     -lrados -o xrdrados_rescue
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "sd.h"
 #include "rados/sd_ceph.h"
 
@@ -112,10 +113,10 @@ cp_one(const char *key, void *ctx)
     flatten_key(key, name, sizeof(name));
     snprintf(path, sizeof(path), "%s/%s", cc->dst, name);
     out = fopen(path, "wb");
-    if (out == NULL) { fprintf(stderr, "create %s: %s\n", path, strerror(errno));
+    if (out == NULL) { BRIX_CLIENT_LOG("ERROR",  "create %s: %s\n", path, strerror(errno));
                        cc->fails++; return 0; }
     if (extract_object(cc->c, key, out) != 0) {
-        fprintf(stderr, "extract %s failed\n", key); cc->fails++;
+        BRIX_CLIENT_LOG("ERROR",  "extract %s failed\n", key); cc->fails++;
     } else {
         printf("  %s -> %s\n", key, path);
     }
@@ -140,7 +141,7 @@ static int
 cmd_ls(sd_ceph_conn_t *c, int argc, char **argv)
 {
     int rc = for_each_object(c, (argc > 3) ? argv[3] : NULL, print_key, NULL);
-    if (rc != 0) { fprintf(stderr, "list failed: %s\n", strerror(errno)); rc = 1; }
+    if (rc != 0) { BRIX_CLIENT_LOG("ERROR",  "list failed: %s\n", strerror(errno)); rc = 1; }
     return rc;
 }
 
@@ -161,9 +162,9 @@ static int
 cmd_stat(sd_ceph_conn_t *c, int argc, char **argv)
 {
     uint64_t sz = 0; time_t mt = 0;
-    if (argc < 4) { fprintf(stderr, "stat needs <key>\n"); return 2; }
+    if (argc < 4) { BRIX_CLIENT_LOG("ERROR",  "stat needs <key>\n"); return 2; }
     if (sd_ceph_oid_stat(c, argv[3], &sz, &mt) != 0) {
-        fprintf(stderr, "stat %s: %s\n", argv[3], strerror(errno)); return 1;
+        BRIX_CLIENT_LOG("ERROR",  "stat %s: %s\n", argv[3], strerror(errno)); return 1;
     }
     printf("key:   %s\nsize:  %llu\nmtime: %lld\n",
            argv[3], (unsigned long long) sz, (long long) mt);
@@ -188,9 +189,9 @@ cmd_get(sd_ceph_conn_t *c, int argc, char **argv)
 {
     FILE *out;
     int   rc;
-    if (argc < 5) { fprintf(stderr, "get needs <key> <local_file>\n"); return 2; }
+    if (argc < 5) { BRIX_CLIENT_LOG("ERROR",  "get needs <key> <local_file>\n"); return 2; }
     out = fopen(argv[4], "wb");
-    if (out == NULL) { fprintf(stderr, "create %s: %s\n", argv[4], strerror(errno)); return 1; }
+    if (out == NULL) { BRIX_CLIENT_LOG("ERROR",  "create %s: %s\n", argv[4], strerror(errno)); return 1; }
     rc = (extract_object(c, argv[3], out) == 0) ? 0 : 1;
     fclose(out);
     return rc;
@@ -216,10 +217,10 @@ cmd_cp(sd_ceph_conn_t *c, int argc, char **argv)
 {
     cp_ctx_t cc;
     int      rc;
-    if (argc < 5) { fprintf(stderr, "cp needs <prefix> <local_dir>\n"); return 2; }
+    if (argc < 5) { BRIX_CLIENT_LOG("ERROR",  "cp needs <prefix> <local_dir>\n"); return 2; }
     cc.c = c; cc.dst = argv[4]; cc.fails = 0;
     if (mkdir(argv[4], 0755) != 0 && errno != EEXIST) {
-        fprintf(stderr, "mkdir %s: %s\n", argv[4], strerror(errno)); return 1;
+        BRIX_CLIENT_LOG("ERROR",  "mkdir %s: %s\n", argv[4], strerror(errno)); return 1;
     }
     rc = for_each_object(c, argv[3], cp_one, &cc);
     return (rc == 0 && cc.fails == 0) ? 0 : 1;
@@ -245,7 +246,7 @@ run_command(sd_ceph_conn_t *c, const char *cmd, int argc, char **argv)
     if (strcmp(cmd, "stat") == 0) { return cmd_stat(c, argc, argv); }
     if (strcmp(cmd, "get") == 0)  { return cmd_get(c, argc, argv); }
     if (strcmp(cmd, "cp") == 0)   { return cmd_cp(c, argc, argv); }
-    fprintf(stderr, "unknown command '%s'\n", cmd);
+    BRIX_CLIENT_LOG("ERROR",  "unknown command '%s'\n", cmd);
     return 2;
 }
 
@@ -266,7 +267,7 @@ main(int argc, char **argv)
     conf.conf_file = getenv("CEPH_CONF") ? getenv("CEPH_CONF") : "/etc/ceph/ceph.conf";
 
     c = sd_ceph_conn_create(&conf, NULL, &err);
-    if (c == NULL) { fprintf(stderr, "connect %s: %s\n", argv[1], strerror(err)); return 1; }
+    if (c == NULL) { BRIX_CLIENT_LOG("ERROR",  "connect %s: %s\n", argv[1], strerror(err)); return 1; }
 
     rc = run_command(c, argv[2], argc, argv);
 

@@ -16,6 +16,7 @@
  *       brix_report_err accepts a nullable brix_url* to enable WS-3 (double-slash
  *       hint) and WS-7 (doctor referral) on the same error line (spec P3).
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "cli/cli_hint.h"   /* brix_hint_url_double_slash, brix_hint_doctor_referral */
 
@@ -29,11 +30,11 @@ brix_cli_connect(const char *endpoint, const brix_opts *o,
 
     brix_status_clear(st);
     if (brix_endpoint_parse(endpoint, &u, st) != 0) {
-        fprintf(stderr, "%s: %s\n", prog, st->msg);
+        BRIX_CLIENT_LOG("ERROR",  "%s: %s\n", prog, st->msg);
         return XRDC_EXIT_USAGE;
     }
     if (brix_connect_resilient(c, &u, o, st) != 0) {
-        fprintf(stderr, "%s: connect: %s\n", prog, st->msg);
+        BRIX_CLIENT_LOG("ERROR",  "%s: connect: %s\n", prog, st->msg);
         return brix_shellcode(st);
     }
     return 0;

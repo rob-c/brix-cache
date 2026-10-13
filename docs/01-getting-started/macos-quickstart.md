@@ -98,30 +98,37 @@ resolves them through `kdc_helpers.krb5_tool()`; Apple's `klist` has no `-f`).
 
 ## Build Instructions
 
-### Standard Build
+### Standard Homebrew-derived build
 
-The module is built into an upstream nginx source tree, exactly as on Linux
-(BUILD.md §1d). There is no `./configure` at the repository root.
+Install Homebrew nginx as the version and option authority. The BriX dynamic
+modules must be built with the source archive and configure arguments shipped
+by that exact formula; a module built against an arbitrary upstream release is
+not assumed ABI-compatible with the Homebrew bottle. There is no `./configure`
+at the BriX repository root.
 
 ```bash
-# 1. Fetch an nginx source tree (1.28.x is the validated series)
-curl -fsSLO https://nginx.org/download/nginx-1.28.3.tar.gz
-tar -xzf nginx-1.28.3.tar.gz -C /tmp
-cd /tmp/nginx-1.28.3
+# 1. Install nginx and extract the exact formula-provided source
+brew install nginx
+repo=/absolute/path/to/brix-cache
+nginx_prefix="$(brew --prefix nginx)"
+build_dir="$(mktemp -d /tmp/brix-nginx.XXXXXX)"
+tar -xJf "$nginx_prefix/share/nginx/src/src.tar.xz" -C "$build_dir"
+cd "$build_dir"
 
 # 2. Point pkg-config at Homebrew's keg-only krb5 (see above)
 export PKG_CONFIG_PATH="$(brew --prefix krb5)/lib/pkgconfig"
 
-# 3. Configure with the module (same option set as the Linux dev flow)
-./configure --with-stream --with-stream_ssl_module --with-http_ssl_module \
-  --with-http_dav_module --with-http_auth_request_module --with-threads \
-  --add-module=/path/to/brix-cache
+# 3. Reuse every Homebrew option, adding threads and the BriX modules
+args=()
+while IFS= read -r arg; do args+=("$arg"); done \
+  < "$nginx_prefix/share/nginx/src/configure_args.txt"
+./configure "${args[@]}" --with-threads --add-dynamic-module="$repo"
 
 # 4. Build with every core
 make -j"$(sysctl -n hw.ncpu)"
 
-# 5. Test configuration
-objs/nginx -t
+# 5. Load-test the two matched modules (or run the verifier below)
+objs/nginx -V
 ```
 
 Build the native client tools from the repository root with the same
@@ -204,10 +211,12 @@ Expected output should include platform information.
 ### Run Verification Script
 
 ```bash
-./verify_macos_support.sh
+tools/ci/verify_platform_builds.sh --platform=darwin --arch="$(uname -m)"
 ```
 
-This checks that all platform files are present and correctly configured.
+This rebuilds the Homebrew-derived nginx and both real BriX modules with
+`-Werror`, loads them, starts a non-root worker, fetches real bytes through the
+BriX WebDAV handler, and builds/tests the native client and Darwin PAL probes.
 
 ### Test Module Load
 
@@ -237,27 +246,28 @@ that change. See BUILD.md §12e for the full list.
 
 | Feature | Linux | macOS | Impact |
 |---------|-------|-------|--------|
-| io_uring async I/O | ✅ Full support | ❌ Thread pool fallback | ~15-20% throughput reduction on large reads |
-| seccomp-bpf | ✅ Full support | ❌ Phase 4 (sandbox_exec) | Relies on macOS SIP/Gatekeeper |
+| io_uring async I/O | ✅ Full support | ✅ Bounded pthread worker pool | Different scheduler; benchmark on the deployment hardware |
+| seccomp / no-new-privileges | ✅ seccomp + `NO_NEW_PRIVS` | ✅ deny-`process-exec` sandbox floor | Workers cannot exec; subprocess-backed directives are rejected and dynamic token modes fail explicitly |
+| Worker subprocess features | ✅ Available, subject to seccomp policy | ❌ Deliberately unavailable | Do not configure prepare, FRM stage/purge, CMS perf/fsxeq programs; OIDC-agent and token-exchange helper modes are unsupported |
 | CephFS backend | ✅ Full support | ❌ Not available | Use S3 backend or Ceph NFS gateway |
 | splice() zero-copy | ✅ Full support | ⚠️ Buffered copy | ~30-40% reduction for large proxy transfers |
-| posix_fadvise | ✅ Full support | ⚠️ No-op (XNU lacks API) | Minimal - kernel uses adaptive readahead |
+| posix_fadvise | ✅ Full support | ⚠️ Mapped to `F_RDAHEAD`, `F_RDADVISE`, and `F_NOCACHE` | Unsupported advice values remain advisory no-ops |
 | sendfile() | ✅ Standard | ✅ With translation | Equivalent performance (wrapper handles signature differences) |
 | clonefile() | ❌ Not available | ✅ APFS fast clone | Faster than copy when available |
 
 ### Performance Considerations
 
-1. **Async I/O**: macOS uses nginx thread pool instead of io_uring
-   - Impact: ~15-20% reduction in throughput for large sequential reads
-   - Mitigation: Increase thread pool size in nginx.conf
+1. **Async I/O**: macOS uses a bounded pthread worker pool instead of io_uring
+   - Impact depends on storage and CPU topology; do not infer a fixed percentage
+   - Submission, finite waits, callbacks, and drain-on-destroy are covered by the native Darwin contract test
 
 2. **Zero-Copy Proxy**: macOS uses buffered copy instead of splice()
    - Impact: ~30-40% reduction for large transfers (>100MB)
    - Mitigation: Use sendfile() for file-to-socket transfers (handled by nginx core)
 
-3. **File Access Hints**: posix_fadvise() is a no-op
-   - Impact: Minimal - macOS XNU kernel uses adaptive readahead
-   - No action needed
+3. **File Access Hints**: common sequential, random, and no-reuse advice is translated to Darwin `fcntl` operations
+   - Advice remains non-binding, as on Linux
+   - Unknown advice values safely degrade to an advisory no-op
 
 ## Configuration Example
 
@@ -429,13 +439,11 @@ make -j$(sysctl -n hw.ncpu)
    - APFS supports fast clone operations
    - Better performance for copy operations
 
-## Next Steps
+## Remaining platform limits
 
-### Phase 2 Implementation (Coming Soon)
-
-- Filesystem monitoring (FSEvents integration)
-- Improved async I/O handling
-- Security wrapper (sandbox_exec stub)
+- There is no recursive FSEvents implementation; descriptor watches use kqueue `EVFILT_VNODE`.
+- Linux seccomp-BPF, capability bounding, and splice have no Darwin PAL equivalent. The Darwin no-new-privileges floor is a deny-`process-exec` sandbox; incompatible subprocess-backed features are rejected rather than silently enabled.
+- Clone sharing statistics are unavailable and return `ENOTSUP`; the metrics layer must not publish fabricated zero values.
 
 ### Testing
 

@@ -2,6 +2,7 @@
  * copy_web_download.c - recursive web/S3 GET download + SigV4/bearer auth headers.
  * Phase-38 split of copy_recursive.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "copy_internal.h"
 
 /* web transfer (davs:// / http(s):// / s3://) — production GET/PUT over  */
@@ -204,7 +205,7 @@ copy_web_download(const web_dl_req *rq, brix_status *st)
         return rc;
     }
     if (o && !o->silent) {
-        fprintf(stderr, "xrdcp: downloaded %lld bytes (HTTP %d)\n",
+        BRIX_CLIENT_LOG("INFO",  "xrdcp: downloaded %lld bytes (HTTP %d)\n",
                 io.blen, io.status);
     }
     return 0;

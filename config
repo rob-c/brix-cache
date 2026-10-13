@@ -36,7 +36,16 @@ if echo | ${CC:-cc} $CFLAGS -dM -E -x c - 2>/dev/null \
     echo " + xrootd: _FORTIFY_SOURCE already defined (compiler default or --with-cc-opt); not overriding"
 fi
 
-CFLAGS="$CFLAGS -D_GNU_SOURCE $brix_fortify_flag -fstack-protector-strong -fstack-clash-protection -fcf-protection=full -Wformat -Werror=format-security -Wvla -Wstrict-prototypes -Wold-style-definition"
+CFLAGS="$CFLAGS -D_GNU_SOURCE $brix_fortify_flag -fstack-protector-strong -Wformat -Werror=format-security -Wvla -Wstrict-prototypes -Wold-style-definition"
+
+# RHEL/AlmaLinux 10 carries an nginx downstream extension that adds a
+# passphrase-dialog argument to ngx_ssl_certificate().  Detect the extended
+# declaration from the nginx source tree rather than keying this to an nginx or
+# distribution version: upstream nginx 1.28 still uses the five-argument API.
+if grep -q 'ngx_ssl_ppdialog_conf_t' src/event/ngx_event_openssl.h 2>/dev/null; then
+    CFLAGS="$CFLAGS -DBRIX_NGX_SSL_CERTIFICATE_HAS_PPDIALOG=1"
+    echo " + xrootd: nginx SSL certificate passphrase-dialog API detected"
+fi
 
 # Additional exploit-mitigation flags that are NOT universally supported by the
 # compiler in $CC, so they are probed one-by-one and appended only when the
@@ -59,7 +68,8 @@ brix_cc_supports() {
     fi
     return 1
 }
-for _brix_hflag in -fzero-call-used-regs=used-gpr -ftrivial-auto-var-init=zero; do
+for _brix_hflag in -fstack-clash-protection -fcf-protection=full \
+        -fzero-call-used-regs=used-gpr -ftrivial-auto-var-init=zero; do
     if brix_cc_supports "$_brix_hflag"; then
         CFLAGS="$CFLAGS $_brix_hflag"
         echo " + xrootd: hardening flag accepted: $_brix_hflag"
@@ -236,7 +246,7 @@ if [ "$BRIX_ARCH_ARM64" = "1" ]; then
     case "${BRIX_OPTIMIZE:-auto}" in
         auto)
             # Auto-detect ARM64 CPU features
-            if echo "" | $CC -march=armv8-a+crc -xc - -o /dev/null 2>/dev/null; then
+            if echo "" | $CC -march=armv8-a+crc -xc - -c -o /dev/null 2>/dev/null; then
                 CFLAGS="$CFLAGS -march=armv8-a+crc -O3"
                 echo " + xrootd: ARM64 CRC32 hardware acceleration enabled (-march=armv8-a+crc)"
             else
@@ -253,8 +263,8 @@ if [ "$BRIX_ARCH_ARM64" = "1" ]; then
             echo " + xrootd: Ampere Altra optimization (-march=armv8.2-a+fp+simd+crypto)"
             ;;
         apple_silicon)
-            CFLAGS="$CFLAGS -march=armv8.3-a+crypto -mtune=apple-m1 -O3"
-            echo " + xrootd: Apple Silicon optimization (-march=armv8.3-a+crypto -mtune=apple-m1)"
+            CFLAGS="$CFLAGS -march=armv8.3-a+crypto+crc -mtune=apple-m1 -O3"
+            echo " + xrootd: Apple Silicon optimization (-march=armv8.3-a+crypto+crc -mtune=apple-m1)"
             ;;
         generic)
             CFLAGS="$CFLAGS -march=armv8-a -O3"
@@ -266,7 +276,7 @@ if [ "$BRIX_ARCH_ARM64" = "1" ]; then
         *)
             echo "WARNING: unknown BRIX_OPTIMIZE='$BRIX_OPTIMIZE' for ARM64"
             echo "         (use auto|graviton|ampere|apple_silicon|generic|none); defaulting to auto" >&2
-            if echo "" | $CC -march=armv8-a+crc -xc - -o /dev/null 2>/dev/null; then
+            if echo "" | $CC -march=armv8-a+crc -xc - -c -o /dev/null 2>/dev/null; then
                 CFLAGS="$CFLAGS -march=armv8-a+crc -O3"
                 echo " + xrootd: ARM64 CRC32 hardware acceleration enabled (-march=armv8-a+crc)"
             else
@@ -351,6 +361,25 @@ else
          "Install libcurl-devel (RHEL/CentOS) or libcurl4-openssl-dev (Debian/Ubuntu)." >&2
     exit 1
 fi
+
+# The token-exchange helper is executed by absolute path and validated during
+# nginx configuration.  Resolve that path once in the trusted build
+# environment: FHS systems retain /usr/bin/curl, while Nix/Darwin builds embed
+# their immutable store/Homebrew path instead of becoming unstartable or
+# PATH-resolving an operator-controlled binary at runtime.
+BRIX_CURL_BIN="${BRIX_CURL_BIN:-$(command -v curl 2>/dev/null)}"
+case "$BRIX_CURL_BIN" in
+    /*) ;;
+    *) echo "ERROR: curl executable not found at build time; set BRIX_CURL_BIN to an absolute path." >&2
+       exit 1 ;;
+esac
+case "$BRIX_CURL_BIN" in
+    *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_./+-]*)
+        echo "ERROR: BRIX_CURL_BIN contains characters unsafe for a compiled path." >&2
+        exit 1 ;;
+esac
+CFLAGS="$CFLAGS -DBRIX_DEFAULT_CURL_PATH=\\\"$BRIX_CURL_BIN\\\""
+echo " + xrootd WebDAV: curl helper default $BRIX_CURL_BIN"
 
 # Kerberos 5 is optional at build time. If unavailable, brix_auth krb5
 # remains a config-time error via src/auth/krb5/config.c.
@@ -1041,7 +1070,12 @@ $ngx_addon_dir/src/fs/vfs/vfs_deleg.h \
 xrd_dyn_srcs=""
 xrd_dyn_deps=""
 xrd_dyn_libs=""
+# Header-only diagnostic adapters must participate in incremental rebuilds.
+brix_log_deps="$ngx_addon_dir/src/core/compat/log_event.h \
+               $ngx_addon_dir/shared/observability/log_stdio.h \
+               $ngx_addon_dir/shared/observability/log_fields.h"
 xrd_emit_module() {
+    ngx_module_deps="$ngx_module_deps $brix_log_deps"
     if [ "$ngx_module_link" = DYNAMIC ]; then
         xrd_dyn_srcs="$xrd_dyn_srcs $ngx_module_srcs"
         xrd_dyn_deps="$xrd_dyn_deps $ngx_module_deps"
@@ -1198,6 +1232,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/compat/async_job.c \
     $ngx_addon_dir/src/core/compat/error_mapping.c \
     $ngx_addon_dir/src/core/http/http_query.c \
+    $ngx_addon_dir/src/core/http/http_query_parsed.c \
     $ngx_addon_dir/src/core/http/http_xml.c \
     $ngx_addon_dir/src/core/compat/copy_range.c \
     $ngx_addon_dir/src/core/compat/staged_file.c \
@@ -1614,6 +1649,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/token/exchange_cache.c \
     $ngx_addon_dir/src/auth/token/aud_match.c \
     $ngx_addon_dir/src/protocols/root/fattr/helpers.c \
+    $ngx_addon_dir/src/protocols/root/fattr/storage.c \
     $ngx_addon_dir/src/protocols/root/fattr/dispatch.c \
     $ngx_addon_dir/src/protocols/root/fattr/get.c \
     $ngx_addon_dir/src/protocols/root/fattr/set.c \
@@ -1676,6 +1712,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/impersonate/lifecycle.c \
     $ngx_addon_dir/src/auth/impersonate/lifecycle_broker.c \
     $ngx_addon_dir/src/auth/impersonate/lifecycle_worker.c \
+    $ngx_addon_dir/src/auth/impersonate/lifecycle_worker_caps.c \
+    $ngx_addon_dir/src/auth/impersonate/lifecycle_worker_request.c \
     $ngx_addon_dir/src/protocols/root/path/op_path.c \
     $ngx_addon_dir/src/protocols/root/path/op_path_vfs.c \
     $ngx_addon_dir/src/fs/path/beneath.c \
@@ -2025,6 +2063,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/write/write_stream.c \
     $ngx_addon_dir/src/protocols/root/write/writev.c \
     $ngx_addon_dir/src/protocols/root/write/writev_aio.c \
+    $ngx_addon_dir/src/protocols/root/write/writev_staged.c \
     $ngx_addon_dir/src/protocols/root/dirlist/handler.c \
     $ngx_addon_dir/src/protocols/root/dirlist/handler_stream.c \
     $ngx_addon_dir/src/protocols/root/dirlist/dcksm.c \
@@ -2183,9 +2222,11 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                  $ngx_addon_dir/src/protocols/shared/proto_exclusive.c \
                  $ngx_addon_dir/src/protocols/dig/dig.c \
                  $ngx_addon_dir/src/protocols/webdav/access.c \
+                 $ngx_addon_dir/src/protocols/webdav/access_query.c \
                  $ngx_addon_dir/src/protocols/webdav/access_auth.c \
                  $ngx_addon_dir/src/protocols/webdav/access_vfs_ctx.c \
                  $ngx_addon_dir/src/protocols/webdav/dispatch.c \
+                 $ngx_addon_dir/src/protocols/webdav/dispatch_tls.c \
                  $ngx_addon_dir/src/protocols/webdav/path.c \
                  $ngx_addon_dir/src/protocols/webdav/util/uri.c \
                  $ngx_addon_dir/src/protocols/webdav/util/xml.c \
@@ -2281,7 +2322,7 @@ xrd_emit_module
 ngx_module_type=HTTP_AUX_FILTER
 ngx_module_name=ngx_http_brix_xrdhttp_filter_module
 ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/xrdhttp_filter.c"
-ngx_module_deps="$ngx_brix_webdav_deps"
+ngx_module_deps="$ngx_brix_webdav_deps $brix_log_deps"
 # Set explicitly (do not inherit the previous module's ngx_module_libs); the
 # filter only needs OpenSSL, with shared brix_* symbols resolved at load time
 # against the stream module (RTLD_GLOBAL, loaded first).
@@ -2329,6 +2370,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/s3/module.c \
                  $ngx_addon_dir/src/protocols/s3/auth_sigv4_verify_time.c \
                  $ngx_addon_dir/src/protocols/s3/auth_sigv4_verify_crypto.c \
                  $ngx_addon_dir/src/protocols/s3/auth_bearer.c \
+                 $ngx_addon_dir/src/protocols/s3/query.c \
                  $ngx_addon_dir/src/protocols/s3/auth_acc.c \
                  $ngx_addon_dir/src/protocols/s3/multipart_helpers.c \
                  $ngx_addon_dir/src/protocols/s3/multipart_initiate.c \

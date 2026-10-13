@@ -16,7 +16,7 @@ def _notice_values(text):
             continue
         for field in line.split():
             if field.startswith("ip_check="):
-                values.append(field.split("=", 1)[1])
+                values.append(field.split("=", 1)[1].rstrip('"'))
     return values
 
 

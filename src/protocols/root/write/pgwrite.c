@@ -2,6 +2,7 @@
  * pgwrite.c — kXR_pgwrite opcode.  See each function's docblock below.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "wrts_journal.h"
@@ -106,7 +107,7 @@ pgwrite_parse_validate(brix_ctx_t *ctx, ngx_connection_t *c, pgw_state_t *st,
 		return 1;
 	}
 
-	if (st->offset < 0 || st->dlen <= XRD_PGWRITE_CKSZ) {
+	if (st->offset < 0 || (st->dlen > 0 && st->dlen <= XRD_PGWRITE_CKSZ)) {
 		pgw_fmt_detail(write_detail, sizeof(write_detail), st->offset,
 		               st->dlen);
 		brix_log_access(ctx, c, "WRITE", ctx->files[st->idx].path,
@@ -114,6 +115,10 @@ pgwrite_parse_validate(brix_ctx_t *ctx, ngx_connection_t *c, pgw_state_t *st,
 		                  "invalid pgwrite payload", 0);
 		BRIX_OP_ERR(ctx, BRIX_OP_WRITE);
 		*rc = brix_send_error(ctx, c, kXR_ArgInvalid, "invalid pgwrite payload");
+		return 1;
+	}
+	if (st->dlen == 0) {
+		*rc = brix_send_pgwrite_status(ctx, c, st->offset);
 		return 1;
 	}
 
@@ -135,7 +140,7 @@ pgwrite_parse_validate(brix_ctx_t *ctx, ngx_connection_t *c, pgw_state_t *st,
 		page_dlen = st->dlen - XRD_PGWRITE_CKSZ;
 		if (!brix_pgw_fob_has(&ctx->files[st->idx], st->offset,
 		                        (uint32_t) page_dlen)) {
-			ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+			BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
 			    "brix: pgwrite retry %zu@%lld not in error — normal write",
 			    page_dlen, (long long) st->offset);
 			st->is_retry = 0;
@@ -241,7 +246,7 @@ pgwrite_decode_collect(brix_ctx_t *ctx, ngx_connection_t *c, pgw_state_t *st,
 	    brix_wrts_is_replay(&ctx->files[st->idx], st->offset,
 	                          (uint32_t) st->flat_sz))
 	{
-		ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+		BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
 		    "brix: pgwrite recovery replay skip offset=%lld len=%zu",
 		    (long long) st->offset, st->flat_sz);
 		BRIX_OP_OK(ctx, BRIX_OP_WRITE);

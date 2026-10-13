@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # WHAT: Fail CI when the project's OWN namespace regresses to a pre-rebrand
 #       spelling — server `xrootd_`/`XROOTD_`/`ngx_xrootd*`, client `xrdc_`/
@@ -92,10 +97,10 @@ def _file_residuals(engine, exclude, scope, pattern, path):
 def main():
     hits = residuals()
     if hits:
-        print("RESIDUAL pre-rebrand namespace tokens (see 2026-07-03-brix-symbol-rebrand.md):",
+        _brix_diagnostic('ERROR', 'tools/ci/check_brix_namespace.py', 'main', "RESIDUAL pre-rebrand namespace tokens (see 2026-07-03-brix-symbol-rebrand.md):",
               file=sys.stderr)
         for scope, rel, lineno, line in hits[:50]:
-            print(f"  [{scope}] {rel}:{lineno}: {line[:100]}", file=sys.stderr)
+            _brix_diagnostic('ERROR', 'tools/ci/check_brix_namespace.py', 'main', f"  [{scope}] {rel}:{lineno}: {line[:100]}", file=sys.stderr)
         return 1
     print("check_brix_namespace: OK (server + client namespace clean)")
     return 0

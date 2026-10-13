@@ -30,6 +30,7 @@ from dataclasses import dataclass
 
 import pytest
 from cryptography import x509
+from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from split_continuation import reexport as _reexport
@@ -154,10 +155,11 @@ def sha1_verifiable(tmp_path_factory):
 
     Red Hat's DEFAULT crypto policy sets ``rh-allow-sha1-signatures = no``, so
     EL9 libcrypto refuses one outright and the native verifier answers
-    ``signature``. Minting is unaffected: python-cryptography ships its own
-    unpatched OpenSSL, so a SHA-1 AC is still produced on such a host — it
-    simply cannot verify there. macOS and policy-relaxed hosts verify it fine,
-    which is why `sig_sha1` must ask rather than assume.
+    ``signature``. Some cryptography builds carry a private OpenSSL and can
+    still create the probe signature; system-OpenSSL builds may refuse it at
+    signing time. Both outcomes mean SHA-1 is unavailable. macOS and
+    policy-relaxed hosts verify it fine, which is why `sig_sha1` must ask
+    rather than assume.
 
     Probed the same way the harness would: sign with the bundled OpenSSL, then
     hand the signature to the system `openssl` CLI, which shares libcrypto and
@@ -168,8 +170,11 @@ def sha1_verifiable(tmp_path_factory):
     public = directory / "probe.pub"
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     data.write_bytes(b"voms sha1 policy probe")
-    signature.write_bytes(
-        key.sign(data.read_bytes(), padding.PKCS1v15(), hashes.SHA1()))
+    try:
+        signed = key.sign(data.read_bytes(), padding.PKCS1v15(), hashes.SHA1())
+    except UnsupportedAlgorithm:
+        return False
+    signature.write_bytes(signed)
     public.write_bytes(key.public_key().public_bytes(
         serialization.Encoding.PEM,
         serialization.PublicFormat.SubjectPublicKeyInfo))

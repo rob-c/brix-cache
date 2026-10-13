@@ -22,6 +22,7 @@
  *   - sts_http.c   — libcurl transport + libxml2 response parsing
  *   - sts_internal.h — the structs, size cap and seam entry points they share
  */
+#include "core/compat/log_event.h"
 #include "core/types/tunables.h"
 #include "sts_internal.h"
 
@@ -224,7 +225,7 @@ sts_validate(ngx_pool_t *pool, const brix_s3_sts_conf_t *cf,
     if (cf->endpoint.len == 0 || cf->region.len == 0
         || cf->svc_ak.len == 0 || cf->svc_sk.len == 0)
     {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix_sts: incomplete STS config (endpoint/region/service key)");
         return NGX_ERROR;
     }
@@ -261,11 +262,11 @@ sts_prep_common(ngx_pool_t *pool, sts_req_t *req, ngx_log_t *log)
     req->ttl = sts_clamp_ttl(cf->ttl_secs);
 
     if (sts_now(req->amzdate, req->datestamp) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "brix_sts: clock read failed");
+        BRIX_LOG(NGX_LOG_ERR, log, 0, "brix_sts: clock read failed");
         return NGX_ERROR;
     }
     if (sts_host_from_url(pool, &cf->endpoint, &host) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix_sts: malformed STS endpoint");
         return NGX_ERROR;
     }
@@ -295,25 +296,25 @@ sts_prepare(ngx_pool_t *pool, sts_req_t *req, char *url, size_t urlsz,
             &cf->svc_ak, req->datestamp, &cf->region)
         - (u_char *) req->credential;
     if (n <= 0 || (size_t) n >= sizeof(req->credential)) {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "brix_sts: credential too long");
+        BRIX_LOG(NGX_LOG_ERR, log, 0, "brix_sts: credential too long");
         return NGX_ERROR;
     }
 
     if (sts_build_action_qs(req, action_qs, sizeof(action_qs)) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "brix_sts: query build overflow");
+        BRIX_LOG(NGX_LOG_ERR, log, 0, "brix_sts: query build overflow");
         return NGX_ERROR;
     }
 
     if (sts_sign_query(req, action_qs, signed_qs, sizeof(signed_qs)) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "brix_sts: SigV4 signing failed");
+        BRIX_LOG(NGX_LOG_ERR, log, 0, "brix_sts: SigV4 signing failed");
         return NGX_ERROR;
     }
 
     n = ngx_snprintf((u_char *) url, urlsz, "%V?%s%Z",
             &cf->endpoint, signed_qs) - (u_char *) url;
     if (n <= 0 || (size_t) n >= urlsz) {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "brix_sts: URL too long");
+        BRIX_LOG(NGX_LOG_ERR, log, 0, "brix_sts: URL too long");
         return NGX_ERROR;
     }
     return NGX_OK;
@@ -346,7 +347,7 @@ sts_perform(ngx_pool_t *pool, const sts_req_t *req, const char *url,
         return NGX_ERROR;
     }
     if (http_status != 200) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix_sts: STS AssumeRole for \"%s\" returned HTTP %l",
             req->rsn, http_status);
         return NGX_ERROR;
@@ -370,7 +371,7 @@ sts_prepare_minio(ngx_pool_t *pool, sts_req_t *req, sts_post_t *pd,
         return NGX_ERROR;
     }
     if (sts_build_post(req, pd) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "brix_sts: POST build/sign failed");
+        BRIX_LOG(NGX_LOG_ERR, log, 0, "brix_sts: POST build/sign failed");
         return NGX_ERROR;
     }
     return NGX_OK;
@@ -405,7 +406,7 @@ sts_perform_post(ngx_pool_t *pool, const sts_req_t *req, const char *url,
         return NGX_ERROR;
     }
     if (http_status != 200) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix_sts: STS AssumeRole for \"%s\" returned HTTP %l",
             req->rsn, http_status);
         return NGX_ERROR;
@@ -488,7 +489,7 @@ brix_s3_sts_assume(ngx_pool_t *pool, const brix_identity_t *id,
         return NGX_ERROR;
     }
 
-    ngx_log_error(NGX_LOG_INFO, log, 0,
+    BRIX_LOG(NGX_LOG_INFO, log, 0,
         "brix_sts: exchanged service cred for temp cred (session=\"%s\", "
         "ttl=%d, ak=%V)", req.rsn, req.ttl, out->ak);
     return NGX_OK;

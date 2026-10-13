@@ -85,6 +85,37 @@ def test_exhausted_registry_preserves_existing_leases(tmp_path, monkeypatch):
     assert path.read_text() == original
 
 
+def test_bind_port_returns_the_successful_lease(monkeypatch):
+    monkeypatch.setattr(ports, "free_port", lambda _host: 41001)
+    assert ports.bind_port(lambda port: f"listener-{port}") == \
+        (41001, "listener-41001")
+
+
+def test_bind_port_retries_one_ephemeral_collision(monkeypatch):
+    leases = iter((41001, 41002))
+    monkeypatch.setattr(ports, "free_port", lambda _host: next(leases))
+
+    def factory(port):
+        if port == 41001:
+            raise OSError("address already in use")
+        return "listener"
+
+    assert ports.bind_port(factory) == (41002, "listener")
+
+
+def test_bind_port_fails_closed_after_its_bound(monkeypatch):
+    calls = []
+    monkeypatch.setattr(ports, "free_port", lambda _host: 41001 + len(calls))
+
+    def collision(port):
+        calls.append(port)
+        raise OSError("address already in use")
+
+    with pytest.raises(OSError, match="address already in use"):
+        ports.bind_port(collision, attempts=3)
+    assert calls == [41001, 41002, 41003]
+
+
 def test_unix_lock_excludes_a_second_process_until_release(tmp_path):
     pytest.importorskip("fcntl")
     path = tmp_path / "registry"

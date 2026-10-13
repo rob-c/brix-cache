@@ -92,12 +92,15 @@
 #define kXR_ableTLS  0x02u  /* client supports in-protocol TLS upgrade;
                                server may respond with kXR_gotoTLS */
 #define kXR_wantTLS  0x04u  /* client requires TLS — abort if unavailable */
+#define kXR_bifreqs  0x08u  /* client requests optional bind-preference data */
 
 /* ClientProtocolRequest.expect — what the client will send next. The only value
  * used in practice is kXR_ExpLogin, which tells the server a kXR_login follows the
  * protocol negotiation. Single source of truth so both the module's bootstrap
  * packers and the native client reference the name, not a bare 0x03. */
 #define kXR_ExpLogin 0x03
+#define kXR_ExpTPC   0x04
+#define kXR_ExpMask  0x0f
 
 /* ------------------------------------------------------------------ */
 /* Protocol response flags  (ServerProtocolBody.flags, uint32)         */
@@ -191,6 +194,7 @@
  * names, not bare 0/1. */
 #define kXR_FinalResult   0
 #define kXR_PartialResult 1
+#define kXR_ProgressInfo  2
 
 /* ------------------------------------------------------------------ */
 /* Per-request option flags                                             */
@@ -243,7 +247,11 @@
 /* ------------------------------------------------------------------ */
 
 #define BRIX_READV_SEGSIZE  16    /* bytes per readahead_list struct */
+#define BRIX_READ_ARGS_LEN  8     /* pathid plus seven reserved bytes */
 #define BRIX_READV_MAXSEGS  1024  /* max segments per kXR_readv request */
+
+/* kXR_bind — maximum live secondary data paths per primary session. */
+#define BRIX_BIND_MAX  15
 
 /* ------------------------------------------------------------------ */
 /* kXR_pgwrite — paged write with CRC32 integrity                      */

@@ -21,6 +21,7 @@
  * to cms_srv_frame_unknown for codes we do not act on.
  */
 
+#include "core/compat/log_event.h"
 #include "server.h"
 #include "server_recv_internal.h"
 #include "router.h"                       /* table-driven opcode routing */
@@ -66,7 +67,7 @@ brix_cms_srv_ping_timer(ngx_event_t *ev)
     cms_srv_blfile_tick(ctx, 0, ev->log);
 
     if (brix_cms_srv_send_ping(ctx) != NGX_OK) {
-        ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ev->log, 0,
                       "brix: CMS server: ping to %s failed, closing",
                       ctx->host);
         cms_srv_set_end_hint(ctx, BRIX_SESS_END_ERROR);
@@ -119,7 +120,7 @@ cms_srv_login_admission(brix_cms_srv_ctx_t *ctx)
             brix_cms_blfile_find(&ctx->conf->blfile, ctx->host, ctx->port);
 
         if (e != NULL && e->has_redirect) {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                 "brix: CMS server: login from blacklisted %s:%d "
                 "redirected to %s:%d", ctx->host, (int) ctx->port,
                 e->redirect_host, (int) e->redirect_port);
@@ -139,7 +140,7 @@ cms_srv_login_admission(brix_cms_srv_ctx_t *ctx)
         && brix_cms_blfile_find(&ctx->conf->wlfile, ctx->host,
                                   ctx->port) == NULL)
     {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: CMS server: login from %s:%d refused — not on the "
             "whitelist", ctx->host, (int) ctx->port);
         brix_cms_log_action_hp(log, "login", ctx->host, (int) ctx->port,
@@ -163,7 +164,7 @@ cms_srv_login_admission(brix_cms_srv_ctx_t *ctx)
         if (brix_srv_find_supervisor(sup_host, sizeof(sup_host),
                                        &sup_port))
         {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                 "brix: CMS server: direct-server cap (%i) reached — "
                 "offloading %s:%d to supervisor %s:%d",
                 (int) ctx->conf->max_direct, ctx->host, (int) ctx->port,
@@ -237,7 +238,7 @@ cms_srv_complete_login(brix_cms_srv_ctx_t *ctx)
         u_char  detail[160];
         u_char *dp;
 
-        ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, ctx->c->log, 0,
                       "brix: CMS server: registered %s:%d role=%s paths=[%s] "
                       "free_mb=%uD util_pct=%uD",
                       ctx->host, (int) ctx->port,
@@ -274,11 +275,11 @@ cms_srv_frame_unknown(brix_cms_srv_ctx_t *ctx, u_char code)
     const brix_cms_route_t *r =
         brix_cms_route_lookup(XRDCMS_ROLE_MANAGER, code);
     if (r != NULL) {
-        ngx_log_debug2(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
                        "brix: CMS server: unhandled opcode '%s' from %s",
                        r->name, ctx->host);
     } else {
-        ngx_log_debug2(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
                        "brix: CMS server: unknown rrCode=%ui from %s",
                        (ngx_uint_t) code, ctx->host);
     }

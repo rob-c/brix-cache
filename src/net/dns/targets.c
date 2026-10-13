@@ -18,6 +18,7 @@
  *       IP literals are published immediately and never scheduled.  Timers
  *       are per worker; the request state machine is brix_dns_resolve().
  */
+#include "core/compat/log_event.h"
 #include "core/types/tunables.h"
 #include <ngx_thread_pool.h>
 
@@ -119,7 +120,7 @@ brix_dns_target_register(ngx_conf_t *cf, const char *directive,
         return t;
     }
     if (dns_registry.n >= DNS_TARGETS_MAX) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "%s: more than %d distinct DNS targets", directive,
             DNS_TARGETS_MAX);
         return NULL;
@@ -154,7 +155,7 @@ brix_dns_target_register(ngx_conf_t *cf, const char *directive,
     }
 #endif
     if (!t->literal) {
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "%s: \"%V:%d\" will be resolved at runtime", directive, host,
             (int) port);
     }
@@ -257,7 +258,7 @@ dns_target_on_success(brix_dns_target_t *t, const brix_dns_req_t *req)
     t->expires = ngx_time() + (req->ttl > 0 ? req->ttl : BRIX_DNS_THREAD_TTL);
 
     if (prev_state != BRIX_DNS_STATE_RESOLVED || t->resolutions == 1) {
-        ngx_log_error(NGX_LOG_NOTICE, t->req.log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, t->req.log, 0,
             "brix dns: %s \"%V:%d\" resolved (%ui address%s, ttl %Ts%s)",
             t->directive, &t->host, (int) t->port, t->naddrs,
             t->naddrs == 1 ? "" : "es", (time_t) (t->expires - ngx_time()),
@@ -289,7 +290,7 @@ dns_target_on_failure(brix_dns_target_t *t, const brix_dns_req_t *req)
     level = (t->failures == 1 || t->failures % 10 == 0)
             ? NGX_LOG_WARN : NGX_LOG_INFO;
 
-    ngx_log_error(level, t->req.log, 0,
+    BRIX_LOG(level, t->req.log, 0,
         "brix dns: %s \"%V:%d\" not resolved: %s (attempt %ui, retry in %Mms%s)",
         t->directive, &t->host, (int) t->port, t->last_error, t->failures,
         next, t->naddrs ? ", keeping the last answer" : "");

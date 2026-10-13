@@ -5,6 +5,11 @@ The command preserves the JSON and GitHub Actions key=value formats. Probe
 families live in platform_detect_* modules; public detection functions remain
 importable here for existing tooling.
 """
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import argparse
 import json
@@ -70,22 +75,22 @@ def _write_output(output, arguments):
     with open(arguments.output, 'w') as stream:
         stream.write(output + "\n")
     if arguments.verbose:
-        print(f"Output written to {arguments.output}", file=sys.stderr)
+        _brix_diagnostic('INFO', 'tools/ci/detect_platform_features.py', '_write_output', f"Output written to {arguments.output}", file=sys.stderr)
 
 
 def _summary(result):
-    print("\n=== Platform Detection Summary ===", file=sys.stderr)
-    print(f"Platform: {result['platform']['name']} "
+    _brix_diagnostic('INFO', 'tools/ci/detect_platform_features.py', '_summary', "\n=== Platform Detection Summary ===", file=sys.stderr)
+    _brix_diagnostic('INFO', 'tools/ci/detect_platform_features.py', '_summary', f"Platform: {result['platform']['name']} "
           f"({result['platform']['release']})", file=sys.stderr)
-    print(f"Architecture: {result['architecture']['normalized']} "
+    _brix_diagnostic('INFO', 'tools/ci/detect_platform_features.py', '_summary', f"Architecture: {result['architecture']['normalized']} "
           f"({result['architecture']['family']})", file=sys.stderr)
-    print(f"Compiler: {result['compiler']['name']} "
+    _brix_diagnostic('INFO', 'tools/ci/detect_platform_features.py', '_summary', f"Compiler: {result['compiler']['name']} "
           f"{result['compiler']['version']}", file=sys.stderr)
-    print(f"CPU Cores: {result['runtime']['cpu_count']}", file=sys.stderr)
+    _brix_diagnostic('INFO', 'tools/ci/detect_platform_features.py', '_summary', f"CPU Cores: {result['runtime']['cpu_count']}", file=sys.stderr)
     if result['runtime']['total_memory_mb']:
-        print(f"Memory: {result['runtime']['total_memory_mb']} MB", file=sys.stderr)
-    print(f"LTO Support: {result['compiler']['supports_lto']}", file=sys.stderr)
-    print(f"Recommended march: {' '.join(result['optimization_flags']['march'])}",
+        _brix_diagnostic('INFO', 'tools/ci/detect_platform_features.py', '_summary', f"Memory: {result['runtime']['total_memory_mb']} MB", file=sys.stderr)
+    _brix_diagnostic('INFO', 'tools/ci/detect_platform_features.py', '_summary', f"LTO Support: {result['compiler']['supports_lto']}", file=sys.stderr)
+    _brix_diagnostic('INFO', 'tools/ci/detect_platform_features.py', '_summary', f"Recommended march: {' '.join(result['optimization_flags']['march'])}",
           file=sys.stderr)
 
 

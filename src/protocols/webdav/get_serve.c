@@ -6,6 +6,7 @@
  * cleartext-sendfile split inside the shared helpers) are unchanged.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "xrdhttp.h"
 #include "core/compat/error_mapping.h"
@@ -128,7 +129,7 @@ get_open_map_error(ngx_http_request_t *r, int vfs_err, const char *path)
         return ngx_http_send_special(r, NGX_HTTP_LAST);
     }
 
-    ngx_log_error(NGX_LOG_ERR, r->connection->log, vfs_err,
+    BRIX_LOG(NGX_LOG_ERR, r->connection->log, vfs_err,
                   ngx_open_file_n " \"%s\" failed", path);
     return (ngx_int_t) brix_http_errno_to_status(vfs_err);
 }

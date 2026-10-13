@@ -2,6 +2,7 @@
  * login.c — kXR_login opcode handler + login-success metric.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "registry.h"
 #include "core/compat/alloc_guard.h"
@@ -105,7 +106,7 @@ brix_login_precheck_and_parse(brix_ctx_t *ctx, ngx_connection_t *c,
     ctx->login.ability2 = req.ability2;
     brix_sanitize_log_string(user, user_log, 64);
 
-    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: login user=\"%s\" pid=%d auth=%s",
                    user_log, (int) req.pid,
                    (conf->auth == BRIX_AUTH_GSI) ? "gsi" :
@@ -156,7 +157,7 @@ brix_login_respond_anon(brix_ctx_t *ctx, ngx_connection_t *c, const char *user)
     brix_sess_auth_once(ctx->sess, BRIX_SESS_AM_ANON, "-", "-");
     ctx->login.session_slot_hint =
         brix_session_register(ctx->login.sessid, ctx->login.dn,
-                              ctx->login.vo_list, 0);
+                              ctx->login.vo_list, 0, 0);
     brix_log_access(ctx, c, "LOGIN", "-", user, 1, 0, NULL, 0);
     brix_count_login_ok(ctx);
 
@@ -378,7 +379,7 @@ brix_login_respond_authenticated(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + BRIX_SESSION_ID_LEN,
                parms, parms_len);
 
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: login->kXGS_init parms=\"%s\" ca_hashes=%s",
                    parms, conf->gsi_ca_hashes);
 

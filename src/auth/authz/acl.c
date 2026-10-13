@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 
 #include <stddef.h>
@@ -81,7 +82,7 @@ brix_check_vo_acl(ngx_log_t *log, const char *resolved_path,
     brix_sanitize_log_string((const char *) rule->vo.data, safe_vo,
                                sizeof(safe_vo));
 
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
                   "brix: VO ACL denied path=\"%s\" required_vo=\"%s\" "
                   "client_vos=\"%s\"",
                   safe_path, safe_vo, (vo_list && vo_list[0]) ? vo_list : "-");

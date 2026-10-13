@@ -9,6 +9,7 @@
  *
  * Returns NGX_DECLINED to proceed with normal dispatch.
  */
+#include "core/compat/log_event.h"
 #include "ratelimit.h"
 #include "protocols/root/response/response.h"          /* brix_send_wait */
 #include "observability/metrics/metrics_macros.h"
@@ -141,7 +142,7 @@ rl_enforce_req_rate(brix_ctx_t *ctx, ngx_connection_t *c,
         && brix_rl_check(rule, key, &wait_sec) == NGX_AGAIN)
     {
         BRIX_RL_METRIC_INC(rl_throttled_stream_total);
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
             "xrootd rate limit: kXR_wait %uD for op 0x%04xd (key=%s)",
             wait_sec, (int) ctx->recv.cur_reqid, key);
         *out_rc = brix_send_wait(ctx, c, wait_sec);
@@ -178,7 +179,7 @@ rl_enforce_bw_rate(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (brix_rl_bw_check(rule, key, &wait_sec) == NGX_AGAIN) {
         BRIX_RL_METRIC_INC(rl_throttled_stream_total);
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
             "xrootd rate limit: kXR_wait %uD (bandwidth, key=%s)",
             wait_sec, key);
         *out_rc = brix_send_wait(ctx, c, wait_sec);
@@ -221,7 +222,7 @@ rl_enforce_conc(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (brix_rl_conc_acquire(rule, key) == NGX_AGAIN) {
         BRIX_RL_METRIC_INC(rl_throttled_stream_total);
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
             "xrootd rate limit: kXR_wait (concurrency cap, key=%s)",
             key);
         *out_rc = brix_send_wait(ctx, c, 1);

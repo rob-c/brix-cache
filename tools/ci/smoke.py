@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # WHAT: Prove the artefacts this build produced actually RUN — boot one brix
 #       nginx from the repo's own config template on an ephemeral port, pull a
@@ -72,7 +77,7 @@ def _resolve_binaries() -> tuple[str, str]:
     xrdcp = os.environ.get("TEST_XRDCP_BIN") or str(REPO / "client" / "bin" / "xrdcp")
     for label, path in (("nginx", nginx), ("xrdcp", xrdcp)):
         if not os.access(path, os.X_OK):
-            print(
+            _brix_diagnostic('ERROR', 'tools/ci/smoke.py', '_resolve_binaries',
                 f"smoke: FAIL — {label} is not executable at {path}\n"
                 f"        this lane runs AFTER the build; a missing artefact "
                 f"means the build did not produce it",
@@ -170,10 +175,10 @@ def main() -> int:
     try:
         _serve_and_fetch(nginx, xrdcp, root)
     except Exception as exc:  # noqa: BLE001 — the verdict is the exit code
-        print(f"smoke: FAIL — {type(exc).__name__}: {exc}", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/smoke.py', 'main', f"smoke: FAIL — {type(exc).__name__}: {exc}", file=sys.stderr)
         errlog = root / "registry"
         for log in sorted(errlog.glob("*/logs/error.log")):
-            print(f"---- {log} (tail) ----\n{log.read_text()[-4000:]}", file=sys.stderr)
+            _brix_diagnostic('ERROR', 'tools/ci/smoke.py', 'main', f"---- {log} (tail) ----\n{log.read_text()[-4000:]}", file=sys.stderr)
         return 1
     finally:
         if os.environ.get("BRIX_SMOKE_KEEP") != "1":

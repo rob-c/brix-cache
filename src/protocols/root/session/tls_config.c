@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/config/config.h"
 #include "auth/crypto/ocsp.h"
 #include "protocols/root/session/tls_session.h"   /* §5.10 tlsreuse policy */
@@ -67,7 +68,7 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     }
 
     if (xcf->common.certificate.len == 0 || xcf->common.certificate_key.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_tls requires brix_certificate and "
             "brix_certificate_key");
         return NGX_ERROR;
@@ -86,10 +87,17 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         return NGX_ERROR;
     }
 
+#if defined(BRIX_NGX_SSL_CERTIFICATE_HAS_PPDIALOG)
+    if (ngx_ssl_certificate(cf, xcf->tls_ctx,
+                            &xcf->common.certificate,
+                            &xcf->common.certificate_key,
+                            NULL, NULL) != NGX_OK)
+#else
     if (ngx_ssl_certificate(cf, xcf->tls_ctx,
                             &xcf->common.certificate,
                             &xcf->common.certificate_key,
                             NULL) != NGX_OK)
+#endif
     {
         return NGX_ERROR;
     }
@@ -109,12 +117,12 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         if (SSL_CTX_set_cipher_list(xcf->tls_ctx->ctx,
                                     (char *) xcf->tls_ciphers.data) == 0)
         {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_tls_ciphers \"%V\" matched no ciphers this build can offer",
                 &xcf->tls_ciphers);
             return NGX_ERROR;
         }
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix: root:// TLS cipher list pinned to \"%V\"", &xcf->tls_ciphers);
     }
 
@@ -122,12 +130,12 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         if (SSL_CTX_set_ciphersuites(xcf->tls_ctx->ctx,
                                      (char *) xcf->tls_ciphersuites.data) == 0)
         {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_tls_ciphersuites \"%V\" matched no TLSv1.3 suites this "
                 "build can offer", &xcf->tls_ciphersuites);
             return NGX_ERROR;
         }
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix: root:// TLSv1.3 cipher suites pinned to \"%V\"",
             &xcf->tls_ciphersuites);
     }
@@ -139,7 +147,7 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
      */
     brix_tls_apply_session_reuse(xcf->tls_ctx->ctx, xcf->tls_reuse);
     if (!xcf->tls_reuse) {
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix: root:// TLS session resumption disabled "
             "(brix_tls_reuse off) - every connection full-handshakes");
     }
@@ -157,7 +165,7 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 #ifdef SSL_OP_ENABLE_KTLS
     if (xcf->tls_ktls) {
         SSL_CTX_set_options(xcf->tls_ctx->ctx, SSL_OP_ENABLE_KTLS);
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix: kernel-TLS (kTLS) requested for root:// TLS context "
             "(brix_ktls on - opt-in, HW-offload-only; software kTLS regresses) "
             "- engages per-connection when the negotiated cipher is "
@@ -169,11 +177,11 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     if (xcf->ocsp.stapling) {
         SSL_CTX_set_tlsext_status_cb(xcf->tls_ctx->ctx, brix_ocsp_stapling_cb);
         SSL_CTX_set_tlsext_status_arg(xcf->tls_ctx->ctx, xcf);
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix: OCSP stapling enabled for TLS context");
     }
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: kXR_ableTLS enabled - cert=%s",
         xcf->common.certificate.data);
 

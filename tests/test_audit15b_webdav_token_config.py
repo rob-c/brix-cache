@@ -51,13 +51,19 @@ def dav(lifecycle, tmp_path):
     cfg = mint / "scitokens.cfg"
     write_scitokens_cfg(str(cfg), [{
         "name": "dav-parity", "issuer": forge.issuer,
-        "audience": forge.audience, "base_paths": ["/"],
+        "audience": forge.audience, "base_paths": ["/allowed"],
+        "restricted_paths": ["/allowed/restricted"],
         "jwks_path": forge.jwks_path, "strategy": "capability",
     }])
 
     data = tmp_path / "data"
     data.mkdir()
-    (data / "test.txt").write_text(SEED_BODY)
+    allowed = data / "allowed"
+    allowed.mkdir()
+    (allowed / "test.txt").write_text(SEED_BODY)
+    restricted = allowed / "restricted"
+    restricted.mkdir()
+    (restricted / "secret.txt").write_text("must stay restricted\n")
     cadir = tmp_path / "cadir"
     cadir.mkdir()
 
@@ -72,9 +78,9 @@ def dav(lifecycle, tmp_path):
     return ep.port, forge
 
 
-def _get(port, token=None):
+def _get(port, token=None, path="/allowed/test.txt"):
     headers = {"Authorization": f"Bearer {token}"} if token else {}
-    return requests.get(f"http://{HOST}:{port}/test.txt",
+    return requests.get(f"http://{HOST}:{port}{path}",
                         headers=headers, timeout=10)
 
 
@@ -100,3 +106,42 @@ def test_missing_token_rejected(dav):
     r = _get(port)
     assert r.status_code in (401, 403), \
         f"anonymous request served under brix_webdav_auth required: {r.status_code}"
+
+
+def test_malformed_double_encoded_nul_is_rejected(dav):
+    """The shared authorization/storage decode rejects an in-band NUL."""
+    port, forge = dav
+    token = forge.generate(sub="alice", scope="storage.read:/")
+    r = _get(port, token, "/allowed/test.txt%2500tail")
+    assert r.status_code == 400, \
+        f"double-encoded NUL was not rejected: {r.status_code}"
+
+    alive = _get(port, token)
+    assert alive.status_code == 200 and alive.text == SEED_BODY
+
+
+def test_double_encoded_base_path_uses_logical_path(dav):
+    """A legitimate encoded base path remains authorized after one decode."""
+    port, forge = dav
+    token = forge.generate(sub="alice", scope="storage.read:/allowed")
+    r = _get(port, token, "/%2561llowed/test.txt")
+    assert r.status_code == 200 and r.text == SEED_BODY
+
+
+@pytest.mark.parametrize("encoded", [
+    "/allowed/%2572estricted/secret.txt",
+    "/allowed/restricted%252Fsecret.txt",
+    "/allowed/%252Frestricted/secret.txt",
+])
+def test_double_encoded_path_cannot_bypass_restricted_path(dav, encoded):
+    """Policy and storage must authorize the same twice-normalized path."""
+    port, forge = dav
+    token = forge.generate(sub="alice", scope="storage.read:/")
+
+    direct = _get(port, token, "/allowed/restricted/secret.txt")
+    assert direct.status_code in (401, 403), \
+        f"restricted_path baseline unexpectedly allowed: {direct.status_code}"
+
+    bypass = _get(port, token, encoded)
+    assert bypass.status_code in (401, 403), \
+        f"double-encoded restricted_path bypassed policy: {bypass.status_code}"

@@ -186,11 +186,12 @@ def wait_ready(host, port, readiness):
     raise RuntimeError(f"server did not become ready on {host}:{port}")
 
 
-def _port_released(port):
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+def _port_released(host, port):
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    probe = socket.socket(family, socket.SOCK_STREAM)
     probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
-        probe.bind(("0.0.0.0", port))  # net-literal-allow: availability probe
+        probe.bind((host, port))
         return True
     except OSError:
         return False
@@ -198,17 +199,20 @@ def _port_released(port):
         probe.close()
 
 
-def _wait_port_released(port, deadline):
+def _wait_port_released(host, port, deadline):
     while True:
-        if _port_released(port) or time.time() >= deadline:
+        if _port_released(host, port) or time.time() >= deadline:
             return
         time.sleep(0.05)
 
 
 def wait_ports_released(spec, timeout, declared_ports):
+    from brix_suite.settings import BIND_HOST
+
     deadline = time.time() + timeout
+    host = spec.host or BIND_HOST
     for port in declared_ports(spec):
-        _wait_port_released(port, deadline)
+        _wait_port_released(host, port, deadline)
 
 
 def _stop_external(spec):

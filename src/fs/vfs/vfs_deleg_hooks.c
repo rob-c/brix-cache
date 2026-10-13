@@ -12,6 +12,7 @@
  *       note); keeping them out of the hot materialiser file keeps that file
  *       within the size budget while the hooks stay buildable and unit-linkable.
  */
+#include "core/compat/log_event.h"
 #include "vfs_internal.h"
 #include "auth/s3/sts.h"                 /* brix_s3_sts_assume  (§5.5) */
 #include "auth/krb5/forward.h"           /* brix_krb5_deleg_to_origin (§5.7) */
@@ -60,7 +61,7 @@ brix_vfs_deleg_sts_cred(brix_vfs_ctx_t *ctx, const brix_s3_sts_conf_t *cf,
 
     if (brix_s3_sts_assume(ctx->pool, ctx->identity, cf, &out, ctx->log)
         != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, ctx->log, 0,
             "brix: S3 STS exchange failed - denying (no service-cred fallback "
             "for EXCHANGE)");
         return brix_vfs_deleg_deny(ctx, use_cred, err_out,
@@ -113,7 +114,7 @@ brix_vfs_deleg_krb5_token(brix_vfs_ctx_t *ctx, void *deleg_gss_cred,
     }
 
     if (!brix_krb5_forward_available()) {
-        ngx_log_error(NGX_LOG_INFO, ctx->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, ctx->log, 0,
             "brix: krb5 credential forwarding unavailable - falling back to "
             "SELECT");
         return NGX_ERROR;

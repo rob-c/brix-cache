@@ -21,6 +21,7 @@
  *   drained), a full write arms the read event directly.
  */
 
+#include "core/compat/log_event.h"
 #include "upstream_internal.h"
 #include "auth/token/file.h"
 #include "core/compat/alloc_guard.h"
@@ -78,7 +79,7 @@ brix_upstream_send_auth_frame(brix_upstream_t *up, const char credtype[4],
     up->resp_body     = NULL;
     up->resp_body_pos = 0;
 
-    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, up->conn->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, up->conn->log, 0,
                    "brix: upstream sending kXR_auth %*s (%uz payload bytes)",
                    (size_t) 3, credtype, plen);
 

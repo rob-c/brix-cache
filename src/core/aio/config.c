@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/config/config.h"
 
 
@@ -47,19 +48,19 @@ brix_configure_thread_pools(ngx_conf_t *cf,
         xcf->common.thread_pool = ngx_thread_pool_get(cf->cycle, pool_name);
         if (xcf->common.thread_pool == NULL) {
             if (xcf->cache) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                     "brix_cache requires a working thread pool "
                     "(configure brix_thread_pool or nginx's default "
                     "thread_pool)");
                 return NGX_ERROR;
             }
 
-            ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
                 "brix: thread pool \"%V\" not found - "
                 "async file I/O disabled (add a thread_pool directive)",
                 pool_name);
         } else {
-            ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
                 "brix: using thread pool \"%V\" for async file I/O",
                 pool_name);
         }

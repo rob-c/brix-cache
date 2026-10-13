@@ -46,6 +46,7 @@
  *       clients when kXR_haveTLS response has been flushed and the server is
  *       ready to negotiate secure transport.
  */
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "disconnect.h"
 #include "fd_table.h"
@@ -108,7 +109,7 @@ ngx_stream_brix_send(ngx_event_t *wev)
     conf = ngx_stream_get_module_srv_conf(s, ngx_stream_brix_module);
 
     if (wev->timedout) {
-        ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
+        BRIX_LOG(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
                       "brix: write timed out");
         /* Phase 39: the response-drain deadline fired — the consumer made no
          * progress for brix_send_timeout (slow / half-open reader).  Attribute
@@ -140,6 +141,20 @@ ngx_stream_brix_send(ngx_event_t *wev)
         return;
     }
 
+    /* A framing refusal may be recoverable enough to answer but not to parse
+     * another request: the advertised payload bytes remain unread, so the
+     * connection must close only after its typed error has reached the peer. */
+    if (ctx->out.close_after_flush) {
+        ctx->out.close_after_flush = 0;
+        if (brix_defer_teardown_if_writing(ctx, c, NGX_STREAM_OK)) {
+            return;
+        }
+        brix_on_disconnect(ctx, c);
+        brix_close_all_files(ctx);
+        ngx_stream_finalize_session(s, NGX_STREAM_OK);
+        return;
+    }
+
     if (ctx->state != XRD_ST_SENDING) {
         return;
     }
@@ -157,7 +172,7 @@ ngx_stream_brix_send(ngx_event_t *wev)
 
     ctx->state = XRD_ST_REQ_HEADER;
     ctx->recv.hdr_pos = 0;
-    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                   "brix: send_done avail=%d ready=%d active=%d",
                   c->read->available, (int) c->read->ready,
                   (int) c->read->active);

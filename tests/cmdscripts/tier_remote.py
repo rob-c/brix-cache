@@ -10,12 +10,14 @@ own acceptance sequence and assertions.
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 import shutil
 import stat
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
@@ -32,12 +34,36 @@ def _expression_2(size, cache):
         cache.stat().st_blocks * 512 if cache.exists() else size
     )
 
-def _expression_3(status, expected, allocated, full_status, got, cache, size, first, block, full, source):
+def _sparse_extents_visible(directory: Path, size: int, block: int) -> bool:
+    """Return whether st_blocks distinguishes a one-block sparse file here."""
+    probe_name = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=directory, prefix="sparse-probe-", delete=False) as probe:
+            probe_name = probe.name
+            probe.truncate(size)
+            probe.seek(size // 2)
+            probe.write(b"x" * block)
+        return os.stat(probe_name).st_blocks * 512 < size // 4
+    finally:
+        if probe_name is not None:
+            Path(probe_name).unlink(missing_ok=True)
+
+
+def _expression_3(status, expected, allocated, full_status, got, cache, size,
+                  first, block, full, source, sparse_extents_visible):
+    sparse_cache_ok = cache.exists() and (
+        not sparse_extents_visible or allocated < size // 4
+    )
+    sparse_message = (
+        "first range created a sparse cache object"
+        if sparse_extents_visible
+        else "first range created a cache object on a filesystem without observable sparse extents"
+    )
     return (
         _result([
                     (status in (200, 206), f"middle range accepted ({status})"),
                     (got.read_bytes() == expected, "middle range byte-exact"),
-                    (cache.exists() and allocated < size // 4, "first range created a sparse cache object"),
+                    (sparse_cache_ok, sparse_message),
                     (first.read_bytes() == source.read_bytes()[:block], "second range byte-exact"),
                     (full_status == 200 and sha256(full) == sha256(source), "full GET completes byte-exact object"),
                 ])
@@ -257,6 +283,7 @@ def slice_fill(nginx: Path | None = None) -> int:
         source = topology.origin / "root/big.bin"
         random_file(source, size)
         source.chmod(stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
+        sparse_extents_visible = _sparse_extents_visible(run.root, size, block)
         topology.start(directives, include_store=False)
         middle = size // 2
         got = run.root / "middle.bin"
@@ -269,7 +296,9 @@ def slice_fill(nginx: Path | None = None) -> int:
         response = run.call(["curl", "-sS", "-o", first, "-w", "%{http_code}", "-r", f"0-{block - 1}", f"{topology.url}/big.bin"], check=False)
         full = run.root / "full.bin"
         full_status = topology.download("big.bin", full)
-        return _expression_3(status, expected, allocated, full_status, got, cache, size, first, block, full, source)
+        return _expression_3(status, expected, allocated, full_status, got, cache,
+                             size, first, block, full, source,
+                             sparse_extents_visible)
 
 
 SCENARIOS = {"remote-stage": remote_stage, "remote-evict": remote_evict, "remote-store": remote_store, "sidecar-meta": lambda nginx: remote_store(nginx, sidecar=True), "slice-fill": slice_fill}

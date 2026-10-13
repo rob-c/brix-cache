@@ -36,6 +36,7 @@
  *     is bounded to the high-water-mark of concurrent requests).
  */
 
+#include "core/compat/log_event.h"
 #include "stage_request_registry.h"
 #include "stage_request_registry_internal.h"
 
@@ -132,11 +133,11 @@ srq_pread_all(int fd, void *buf, size_t len, off_t off, ngx_log_t *log)
         ssize_t n = obj.driver->pread(&obj, p, len, off);
         if (n < 0) {
             if (errno == EINTR) { continue; }
-            ngx_log_error(NGX_LOG_ERR, log, ngx_errno, "stage-req: pread failed");
+            BRIX_LOG(NGX_LOG_ERR, log, ngx_errno, "stage-req: pread failed");
             return NGX_ERROR;
         }
         if (n == 0) {
-            ngx_log_error(NGX_LOG_ERR, log, 0, "stage-req: short pread");
+            BRIX_LOG(NGX_LOG_ERR, log, 0, "stage-req: short pread");
             return NGX_ERROR;
         }
         p += n; len -= (size_t) n; off += n;
@@ -155,7 +156,7 @@ srq_pwrite_all(int fd, const void *buf, size_t len, off_t off, ngx_log_t *log)
         ssize_t n = obj.driver->pwrite(&obj, p, len, off);
         if (n < 0) {
             if (errno == EINTR) { continue; }
-            ngx_log_error(NGX_LOG_ERR, log, ngx_errno, "stage-req: pwrite failed");
+            BRIX_LOG(NGX_LOG_ERR, log, ngx_errno, "stage-req: pwrite failed");
             return NGX_ERROR;
         }
         p += n; len -= (size_t) n; off += n;
@@ -176,7 +177,7 @@ srq_hdr_read(brix_stage_registry_t *reg, srq_hdr_t *hdr, ngx_log_t *log)
         || hdr->rec_size != SRQ_REC_SIZE
         || hdr->hdr_crc32c != srq_hdr_compute_crc(hdr))
     {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, log, 0,
                       "stage-req: \"%s\" is not a valid request store "
                       "(bad magic/version/crc)", reg->path);
         return NGX_ERROR;
@@ -195,7 +196,7 @@ srq_hdr_write(brix_stage_registry_t *reg, srq_hdr_t *hdr, ngx_log_t *log)
         return NGX_ERROR;
     }
     if (fsync(reg->fd) != 0) {          /* the commit point — make it durable */
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno, "stage-req: header fsync");
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno, "stage-req: header fsync");
         return NGX_ERROR;
     }
     return NGX_OK;
@@ -224,7 +225,7 @@ srq_rec_write(brix_stage_registry_t *reg, int64_t off, srq_rec_t *rec,
         return NGX_ERROR;
     }
     if (fdatasync(reg->fd) != 0) {      /* body durable before the header (WAL) */
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno, "stage-req: record fdatasync");
+        BRIX_LOG(NGX_LOG_ERR, log, ngx_errno, "stage-req: record fdatasync");
         return NGX_ERROR;
     }
     return NGX_OK;
@@ -417,7 +418,7 @@ brix_stage_registry_init(const char *journal_dir, ngx_log_t *log)
     }
     dlen = ngx_strlen(journal_dir);
     if (dlen == 0 || dlen + sizeof("/stage_requests.dat") >= sizeof(reg->path)) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0, "stage-req: journal dir too long");
+        BRIX_LOG(NGX_LOG_EMERG, log, 0, "stage-req: journal dir too long");
         return NGX_ERROR;
     }
     *ngx_snprintf((u_char *) reg->path, sizeof(reg->path) - 1,
@@ -431,7 +432,7 @@ brix_stage_registry_init(const char *journal_dir, ngx_log_t *log)
 
     reg->fd = open(reg->path, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
     if (reg->fd < 0) {
-        ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
                       "stage-req: cannot open \"%s\"", reg->path);
         return NGX_ERROR;
     }
@@ -439,14 +440,14 @@ brix_stage_registry_init(const char *journal_dir, ngx_log_t *log)
                   "%s.lock", reg->path) = '\0';
     reg->lock_fd = open(lockpath, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
     if (reg->lock_fd < 0) {
-        ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno,
                       "stage-req: cannot open \"%s\"", lockpath);
         close(reg->fd);
         reg->fd = -1;
         return NGX_ERROR;
     }
     if (fstat(reg->fd, &st) != 0) {
-        ngx_log_error(NGX_LOG_EMERG, log, ngx_errno, "stage-req: fstat");
+        BRIX_LOG(NGX_LOG_EMERG, log, ngx_errno, "stage-req: fstat");
         close(reg->fd); close(reg->lock_fd); reg->fd = reg->lock_fd = -1;
         return NGX_ERROR;
     }

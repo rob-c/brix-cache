@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "config.h"
 #include "net/manager/redir_cache.h"
 #include "net/manager/loc_cache.h"
@@ -35,7 +36,7 @@ brix_auth_mode_name(ngx_uint_t auth)
 static void
 brix_log_startup_summary(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
 {
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
         "brix: root:// endpoint ready — export \"%V\" (%s), auth: %s",
         &xcf->common.root,
         xcf->common.allow_write ? "read-write" : "read-only",
@@ -43,11 +44,11 @@ brix_log_startup_summary(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
 
     if (xcf->crl.len > 0) {
         if (xcf->crl_reload > 0) {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                 "brix:   revocation: CRL \"%V\", reloaded every %T s",
                 &xcf->crl, (time_t) xcf->crl_reload);
         } else {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                 "brix:   revocation: CRL \"%V\", loaded once at startup "
                 "(set brix_crl_reload for periodic refresh)",
                 &xcf->crl);
@@ -55,34 +56,34 @@ brix_log_startup_summary(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
     }
 
     if (xcf->jwks_key_count > 0) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix:   token validation: %d JWKS key(s) loaded",
             xcf->jwks_key_count);
     }
 
     if (xcf->manager_mode) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix:   mode: cluster manager — redirects clients to data "
             "servers (does not serve local files)");
     }
     if (xcf->proxy.enable) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix:   mode: proxy — forwards client traffic to a backend");
     }
     if (xcf->cache) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix:   mode: read-through cache in front of an origin");
     }
 
     /* Valid-but-noteworthy settings a first-time admin should see explicitly. */
     if (xcf->auth == BRIX_AUTH_NONE) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix:   NOTE: no authentication required — this endpoint is "
             "OPEN to anonymous clients (set brix_auth to require "
             "credentials)");
     }
     if (xcf->auth == BRIX_AUTH_PWD) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "brix:   NOTE: password (pwd) authentication is enabled — do "
             "NOT rely on password auth in production, it is poor practice "
             "(prefer GSI/x509 or bearer tokens, and run pwd only behind "
@@ -91,13 +92,13 @@ brix_log_startup_summary(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
     if ((xcf->auth == BRIX_AUTH_GSI || xcf->auth == BRIX_AUTH_BOTH)
         && xcf->crl.len == 0)
     {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "brix:   NOTE: GSI auth is enabled but no CRL is configured — "
             "REVOKED certificates will be ACCEPTED (set brix_crl to a CRL "
             "file/dir, e.g. /etc/grid-security/certificates)");
     }
     if (xcf->common.allow_write) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix:   NOTE: write access is enabled — authorized clients can "
             "create, modify and delete files under the export root");
     }
@@ -281,7 +282,7 @@ cta_journal_pick(ngx_conf_t *cf, ngx_str_t *chosen, ngx_str_t *cand)
     {
         return;
     }
-    ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
         "brix: brix_ssi_cta_journal \"%V\" is ignored — the CTA queue is one "
         "shared zone with one journal, and \"%V\" was declared first",
         cand, chosen);
@@ -457,7 +458,7 @@ ngx_stream_brix_postconfiguration(ngx_conf_t *cf)
      * environment to the `env` whitelist: the cached value crosses the fork,
      * so kXR_locate prefname tokens and cms.d registrations agree without an
      * `env XRDNET_IDENTITY;` line in every configuration. */
-    ngx_log_error(NGX_LOG_NOTICE, cf->log, 0, "brix: node identity \"%s\"",
+    BRIX_LOG(NGX_LOG_NOTICE, cf->log, 0, "brix: node identity \"%s\"",
                   brix_host_identity());
 
     /* E-2: reject brix_host_allow layered over a proxy_protocol listener

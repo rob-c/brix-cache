@@ -42,8 +42,10 @@ def run_webdav_method_state(key, data, port, s3port):
     not_worker_root = _wms_not_worker_root
     lock_file = partial(_wms_lock_file, port, LI_EXCL)
 
-    _wms_lock_security(data, port, base, ta, tb, adir, owned_alice, lock_file, ALLPROP)
-    _wms_unlock_controls(port, ta, tb, adir, owned_alice, lock_file)
+    lock_token = _wms_lock_security(
+        data, port, base, ta, tb, adir, owned_alice, lock_file, ALLPROP
+    )
+    _wms_unlock_controls(port, ta, tb, adir, owned_alice, lock_file, lock_token)
     _wms_lock_variants(port, ta, tb, adir, owned_alice, lock_file, LI_SHARED)
     _wms_own_conditionals(port, ta, adir, owned_alice)
     _wms_private_conditionals(data, port, ta)
@@ -185,10 +187,8 @@ def _wms_lock_security(data, port, base, ta, tb, adir, owned_alice, lock_file, A
                  hdrs=_wms_if_headers(ltok))
     ok(all((st not in (200, 204), os.path.exists(p1))),
        f"bob DELETE with stolen lock token DENIED, file survives (HTTP {st})")
-    _webdav_method_state_p2(ltok, port, tb, ta, adir, lock_file, data, ALLPROP, LI_SHARED, not_worker_root, PROPNAME, p1, owned_alice, base)
 
 
-def _webdav_method_state_p2(ltok, port, tb, ta, adir, lock_file, data, ALLPROP, LI_SHARED, not_worker_root, PROPNAME, p1, owned_alice, base):
     # (6) bob MOVE of alice's locked file with the stolen token -> denied, no steal.
     st, _ = http("MOVE", "/alice/wms_lk1.txt", port, tb,
                  hdrs={"Destination": f"{base}/bob/wms_stolen.txt",
@@ -211,17 +211,15 @@ def _webdav_method_state_p2(ltok, port, tb, ta, adir, lock_file, data, ALLPROP, 
 
     # (8) UNLOCK by NON-owner bob (stolen token) -> denied (removexattr as bob).
     _wms_nonowner_unlock(port, tb, ltok)
+    return ltok
 
 
-def _wms_unlock_controls(port, ta, tb, adir, owned_alice, lock_file):
+def _wms_unlock_controls(port, ta, tb, adir, owned_alice, lock_file, lock_token):
     # (9) owner UNLOCK with the real token -> succeeds (control proving (8) is a
     #     real per-identity deny, not a blanket UNLOCK block).  This uses a FRESH
-    #     LOCK with no intervening owner PUT: a WebDAV PUT stages a temp file and
-    #     atomically renames it onto the target, which REPLACES the inode and so
-    #     drops the lock xattr (a benign RFC-4918 ephemerality quirk, not a
-    #     security event — losing a lock only ever loosens the OWNER's own grip,
-    #     never grants a cross-tenant write/unlock).  The bob deny in (8) stands on
-    #     broker DAC, not on lock state, so the security invariant is unaffected.
+    #     LOCK with no intervening owner PUT. The owner PUT in (2) must preserve
+    #     the original lock across its atomic inode replacement (RFC 4918 §7.4),
+    #     so that original token is explicitly unlocked below as a second control.
     http("PUT", "/alice/wms_lk9.txt", port, ta, b"unlock control\n")
     p1 = adir("wms_lk1.txt")
     p9 = adir("wms_lk9.txt")
@@ -242,11 +240,13 @@ def _wms_unlock_controls(port, ta, tb, adir, owned_alice, lock_file):
     else:
         ok(False, "owner UNLOCK skipped: no lock token captured")
         ok(False, "non-owner UNLOCK control skipped: no lock token captured")
-    _webdav_method_state_p3(port, ta, lock_file, adir, tb, data, LI_SHARED, not_worker_root, ALLPROP, PROPNAME, owned_alice, p1, base)
 
+    st_u1, _ = http("UNLOCK", "/alice/wms_lk1.txt", port, ta,
+                    hdrs={"Lock-Token": f"<{lock_token}>"})
+    ok(st_u1 in (200, 204),
+       f"owner UNLOCK after lock-preserving PUT succeeds (HTTP {st_u1})")
 
-def _webdav_method_state_p3(port, ta, lock_file, adir, tb, data, LI_SHARED, not_worker_root, ALLPROP, PROPNAME, owned_alice, p1, base):
-    # (10) after unlock, a plain owner PUT (no token) succeeds again.
+    # (10) after unlocking the original resource, a plain owner PUT succeeds.
     st, _ = http("PUT", "/alice/wms_lk1.txt", port, ta, b"post-unlock\n")
     ok(all((st in (200, 201, 204), owned_alice(p1))),
        f"owner PUT after UNLOCK succeeds, still alice-owned (HTTP {st})")
@@ -295,10 +295,8 @@ def _wms_lock_variants(port, ta, tb, adir, owned_alice, lock_file, LI_SHARED):
              hdrs={"Lock-Token": f"<{stok}>"})
     else:
         ok(True, f"shared LOCK unsupported cleanly (HTTP {st_s})")
-    _webdav_method_state_p4(lock_file, ta, adir, tb, port, data, not_worker_root, ALLPROP, PROPNAME, owned_alice, base)
 
 
-def _webdav_method_state_p4(lock_file, ta, adir, tb, port, data, not_worker_root, ALLPROP, PROPNAME, owned_alice, base):
     # (16) LOCK on a NON-existent path creates a 0-byte resource owned by alice.
     st_l, ltok4, _ = lock_file("/alice/wms_lk_new.txt", ta)
     np = adir("wms_lk_new.txt")
@@ -313,7 +311,6 @@ def _webdav_method_state_p4(lock_file, ta, adir, tb, port, data, not_worker_root
     ok(all((st_b not in (200, 201),
             not os.path.exists(adir("wms_bob_new.txt")))),
        f"bob LOCK-create inside alice's dir DENIED, no file (HTTP {st_b})")
-    _webdav_method_state_p5(port, ta, adir, data, tb, not_worker_root, ALLPROP, PROPNAME, owned_alice, base)
 
 
 from split_continuation import load as _load_webdav_state

@@ -28,12 +28,14 @@ environment collision, not a server bug; see phase-33 doc + run_load_test.sh hea
 
 import multiprocessing as mp
 import os
+import shutil
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import pytest
 
-from settings import SERVER_HOST, NGINX_GSI_PORT, NGINX_GSI_TLS_PORT, DATA_ROOT
+from settings import (CA_DIR, DATA_ROOT, NGINX_GSI_PORT, NGINX_GSI_TLS_PORT,
+                      PROXY_STD, SERVER_HOST)
 
 GSI_URL     = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
 GSI_TLS_URL = f"roots://{SERVER_HOST}:{NGINX_GSI_TLS_PORT}"
@@ -43,13 +45,36 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(scope="module", autouse=True)
-def _seed_probe_file():
+def _seed_probe_file(tmp_path_factory):
     """Write the small probe file (conftest has already started the servers and
-    seeded/wiped DATA_ROOT at session start)."""
+    seeded/wiped DATA_ROOT at session start).
+
+    The handshake workers use ``spawn`` and inherit this worker's environment.
+    Keep their trust store and proxy in this module's own temporary directory:
+    full-suite PKI lifecycle tests can otherwise replace the shared tree while
+    a burst is starting, which makes every child report "No protocols left".
+    """
+    client_pki = tmp_path_factory.mktemp("gsi-concurrency-client")
+    client_ca = client_pki / "ca"
+    client_proxy = client_pki / "proxy.pem"
+    shutil.copytree(CA_DIR, client_ca)
+    shutil.copy2(PROXY_STD, client_proxy)
+    old_ca = os.environ.get("X509_CERT_DIR")
+    old_proxy = os.environ.get("X509_USER_PROXY")
+    os.environ["X509_CERT_DIR"] = str(client_ca)
+    os.environ["X509_USER_PROXY"] = str(client_proxy)
     os.makedirs(DATA_ROOT, exist_ok=True)
     with open(os.path.join(DATA_ROOT, PROBE_FILE), "wb") as f:
         f.write(b"gsi-handshake-burst-probe\n" * 64)
     yield
+    if old_ca is None:
+        os.environ.pop("X509_CERT_DIR", None)
+    else:
+        os.environ["X509_CERT_DIR"] = old_ca
+    if old_proxy is None:
+        os.environ.pop("X509_USER_PROXY", None)
+    else:
+        os.environ["X509_USER_PROXY"] = old_proxy
 
 
 def _gsi_handshake_worker(worker_id, base_url, path):

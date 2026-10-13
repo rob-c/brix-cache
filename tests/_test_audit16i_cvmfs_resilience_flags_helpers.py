@@ -168,6 +168,7 @@ import pytest
 import requests
 
 from config_parse import nginx_t
+from log_records import semantic_log_text
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS, PARSE_PLACEHOLDER_PORT
 from lib_py.util import pids_on_port
 from server_registry import NginxInstanceSpec
@@ -517,7 +518,7 @@ def _errlog(endpoint):
     """Instance logs are wiped at teardown, so failures quote them inline."""
     try:
         with open(os.path.join(endpoint.prefix, "logs", "error.log")) as handle:
-            return handle.read()
+            return semantic_log_text(handle.read())
     except OSError:
         return "(error log unavailable)"
 

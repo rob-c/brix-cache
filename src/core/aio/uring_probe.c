@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "aio.h"
 #include "uring.h"
@@ -190,7 +191,7 @@ uring_probe_features(ngx_cycle_t *cycle, brix_uring_scan_t *scan)
     /* AUTO blocks need the per-process probe (seccomp-accurate); ON blocks
      * already passed it at config time but re-checking is cheap + memoized. */
     if (!scan->mode_on && !brix_uring_runtime_available()) {
-        ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
             "brix: io_uring unavailable on this host; using the thread pool");
         return NGX_DECLINED;
     }
@@ -232,7 +233,7 @@ brix_uring_validate_conf(ngx_conf_t *cf)
     }
 
 #if !(BRIX_HAVE_LIBURING)
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
         "\"brix_io_uring on\" requires a build with liburing, but this binary "
         "was compiled WITHOUT it. Rebuild with BRIX_ENABLE_IO_URING=1 and "
         "liburing-devel installed, or set \"brix_io_uring auto\" to allow "
@@ -240,7 +241,7 @@ brix_uring_validate_conf(ngx_conf_t *cf)
     return NGX_ERROR;
 #else
     if (!brix_uring_runtime_available()) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "\"brix_io_uring on\" requested but io_uring is unavailable on "
             "this host (io_uring_setup/opcode probe failed). This is typically a "
             "seccomp policy (Docker/containerd default profiles block io_uring) "

@@ -280,10 +280,11 @@ class TestNodeLegEsotericManager:
         a '..' escape path are refused by the kernel-confined open and answered
         kYR_error — nothing is created outside the export root."""
         for op in (CMS_RR_MKDIR, CMS_RR_MKPATH, CMS_RR_CHMOD):
-            hostile_node.send_to_node(
+            before = hostile_node.send_to_node(
                 _SID | 0x40 | op, op, 0,
                 _fwd_a_payload(b"mgr", b"493", b"/../pwn_%d" % op))
-            fr = hostile_node.collect_reply(CMS_RSP_ERROR, timeout=6)
+            fr = hostile_node.collect_reply(
+                CMS_RSP_ERROR, timeout=6, after=before)
             assert fr is not None, \
                 f"forwarded op {op} traversal was not refused with kYR_error"
         assert _node_alive(hostile_node)

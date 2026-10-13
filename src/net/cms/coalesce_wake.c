@@ -2,6 +2,7 @@
  * cms/coalesce_wake.c — locate-answer wake (contract in coalesce_wake.h).
  */
 
+#include "core/compat/log_event.h"
 #include <ngx_config.h>
 #include <ngx_core.h>
 
@@ -35,7 +36,7 @@ brix_cms_wake_locate_answer(ngx_log_t *log, const char *path,
     }
 
     if (n > 0) {
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
                       "brix: CMS locate coalesce: one kYR_state wave for "
                       "\"%s\" settled %ui coalesced client(s) -> %s:%d",
                       path, n, host, (int) port);

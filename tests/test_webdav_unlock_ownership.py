@@ -25,6 +25,8 @@ import uuid
 
 import pytest
 
+pytestmark = pytest.mark.xdist_group("webdav-unlock-ownership")
+
 try:
     import requests
     _HAVE_REQUESTS = True

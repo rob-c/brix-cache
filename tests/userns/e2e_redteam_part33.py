@@ -189,7 +189,7 @@ def _rt33_segment_02_5(gst, gb, PAT_A, MARK_B):
     ok(all((gst == 200, gb == PAT_A)),
        "S3 GET reads the 256K back BYTE-EXACT (HTTP %s, len=%d)"
        % (gst, len(gb or b"")))
-    ok(MARK_B not in any((gb, b'')),
+    ok(MARK_B not in _rt_default(gb, b''),
        "S3 GET of alice/big carries NO bob block signature")
 
 
@@ -213,7 +213,7 @@ def _rt33_1b_s3_put_large_s3_get(gst, gb, PAT_A, MARK_B, have_s3, TAG, s3port, r
     ok(all((gst == 200, gb == PAT_A)),
        "WebDAV GET reads the 256K back BYTE-EXACT through sendfile (HTTP %s, "
        "len=%d)" % (gst, len(gb or b"")))
-    ok(MARK_B not in any((gb, b'')),
+    ok(MARK_B not in _rt_default(gb, b''),
        "WebDAV GET of alice/big carries NO bob block signature (no cross-buffer)")
 
     # (1b) S3 PUT large -> S3 GET byte-exact, owned alice.
@@ -377,10 +377,10 @@ def _rt33_section_3_partial_range_reads_byte(size_of, bpath, SZ, body_of, PAT_B,
 
 def _rt33_head_of_bob_s_0600_file(wd_rel, PAT_A, bob_rel):
     rc, out, _e = xrd_fs(["head", "-c", "32", "/" + wd_rel], "alice")
-    ok(any((rc != 0, PAT_A[:32].decode('latin-1') in any((out, '')), out == '')),
+    ok(any((rc != 0, PAT_A[:32].decode('latin-1') in _rt_default(out, ''), out == '')),
        "root:// head -c 32 of own 256K exact-or-unsupported (rc=%s)" % rc)
     rc, out, _e = xrd_fs(["tail", "-c", "32", "/" + wd_rel], "alice")
-    ok(any((rc != 0, PAT_A[-32:].decode('latin-1') in any((out, '')), out == '')),
+    ok(any((rc != 0, PAT_A[-32:].decode('latin-1') in _rt_default(out, ''), out == '')),
        "root:// tail -c 32 of own 256K exact-or-unsupported (rc=%s)" % rc)
     # head of bob's 0600 file: DENY or unsupported, never a bob block.
     rc, out, _e = xrd_fs(["head", "-c", "64", "/" + bob_rel], "alice")
@@ -388,7 +388,7 @@ def _rt33_head_of_bob_s_0600_file(wd_rel, PAT_A, bob_rel):
 
 
 def _rt33_segment_02_6(MARK_B, out, rc):
-    ok(MARK_B.decode() not in any((out, '')),
+    ok(MARK_B.decode() not in _rt_default(out, ''),
        "root:// head -c of bob's 0600 256K leaks NO bob block (rc=%s)" % rc)
 
 
@@ -417,7 +417,7 @@ def _rt33_assert_final_byte_range(wd_rel, port, ta, size, pattern):
 def _rt33_assert_beyond_eof_range(wd_rel, port, ta, size, foreign_marker):
     st, b = http("GET", "/" + wd_rel, port, ta,
                  hdrs={"Range": "bytes=%d-%d" % (size + 10, size + 99)})
-    ok(all((st in (200, 206, 416), foreign_marker not in any((b, b'')))),
+    ok(all((st in (200, 206, 416), foreign_marker not in _rt_default(b, b''))),
        "WebDAV Range beyond EOF handled, no foreign bytes (HTTP %s)" % st)
 
 
@@ -493,7 +493,7 @@ def _rt33_accept_whatever_algo_the_server_emits(zlib, ck_data, rc, out_l, adler,
 
 
 def _rt33_segment_04_2(rc, MARK_B, out):
-    ok(all((rc != 0, MARK_B.decode() not in any((out, '')))),
+    ok(all((rc != 0, MARK_B.decode() not in _rt_default(out, ''))),
        "root:// query checksum of bob's 0600 DENIED + no leak (rc=%s)" % rc)
 
 
@@ -541,10 +541,10 @@ def _rt33_section_6_overwrite_leaves_no_stale(have_root, tr_rel, size_of, trp, p
            "root:// truncate-to-%d -> on-disk size EXACTLY %d (rc=%s, size=%s)"
            % (N, N, rc, size_of(trp)))
         st, gb = http("GET", "/" + tr_rel, port, ta)
-        ok(all((st == 200, len(any((gb, b''))) == N, gb == PAT_A[:N])),
+        ok(all((st == 200, len(_rt_default(gb, b'')) == N, gb == PAT_A[:N])),
            "read after truncate returns EXACTLY %d byte-exact head bytes (HTTP %s, "
            "len=%d)" % (N, st, len(gb or b"")))
-        ok(all((MARK_B not in any((gb, b'')), PAT_A[N:N + 16] not in any((gb, b'')))),
+        ok(all((MARK_B not in _rt_default(gb, b''), PAT_A[N:N + 16] not in _rt_default(gb, b''))),
            "read after truncate has NO stale tail beyond N and no foreign bytes")
     else:
         ok(True, "truncate size skipped (native client absent)")
@@ -577,7 +577,7 @@ def _rt33_section_7_0_byte_file_round(st, gb, small, TAG, port, ta, rel):
     ok(all((st == 200, gb == small)),
        "overwrite read-back == new content exactly, zero stale bytes (HTTP %s, "
        "len=%d)" % (st, len(gb or b"")))
-    ok(all((b'%08d|' % 1000 not in any((gb, b'')), len(any((gb, b''))) == len(small))),
+    ok(all((b'%08d|' % 1000 not in _rt_default(gb, b''), len(_rt_default(gb, b'')) == len(small))),
        "overwrite read carries NO leftover block from the 256K baseline")
 
     # =====================================================================
@@ -623,7 +623,7 @@ def _rt33_segment_28(st, zp, size_of, owned_alice, uid_of, z_rel, port, ta, have
        "0-byte PUT -> exists, size 0, owned alice not svc (HTTP %s, size=%s, uid=%s)"
        % (st, size_of(zp), uid_of(zp)))
     st, gb = http("GET", "/" + z_rel, port, ta)
-    ok(all((st in (200, 204), any((gb, b'')) == b'')),
+    ok(all((st in (200, 204), _rt_default(gb, b'') == b'')),
        "0-byte GET returns exactly empty body, no fabricated/leaked bytes (HTTP %s, "
        "len=%d)" % (st, len(gb or b"")))
     if have_s3 and z_rel:
@@ -631,7 +631,7 @@ def _rt33_segment_28(st, zp, size_of, owned_alice, uid_of, z_rel, port, ta, have
         st, _ = s3("PUT", zs_rel, s3port, data=b"")
         zsp = rel(*zs_rel.split("/"))
         st2, gb = s3("GET", zs_rel, s3port)
-        ok(all((st in (200, 201), size_of(zsp) == 0, any((gb, b'')) == b'', owned_alice(zsp))),
+        ok(all((st in (200, 201), size_of(zsp) == 0, _rt_default(gb, b'') == b'', owned_alice(zsp))),
            "S3 0-byte object round-trips empty + owned alice (PUT %s, GET %s)"
            % (st, st2))
     else:

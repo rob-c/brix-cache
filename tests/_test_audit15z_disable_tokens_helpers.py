@@ -154,6 +154,7 @@ from pathlib import Path
 import pytest
 
 from config_parse import nginx_t
+from log_records import semantic_log_text
 from fleet_lifecycle_ports import (
     LIFECYCLE_SHARED_PORTS, PARSE_PLACEHOLDER_PORT, SHARED_PARSE_PLACEHOLDER_PORT,
 )
@@ -179,7 +180,8 @@ FILTER_ACTIVE = "worker syscall filter active"
 # does not need this test edited too.
 FILTER_LINE = re.compile(
     r"brix_seccomp: worker syscall filter active "
-    r"\(mode=audit, exec=allowed, \d+ allowed, \d+ denied\)$")
+    r"\(mode=audit, exec=allowed, \d+ allowed, \d+ denied\)"
+    r"(?=\" truncated=[01]$|$)")
 
 # (directive, disabling token, the field it writes, the merge unit, the default
 #  constant that unit merges to).  min_sec_level merges to a bare 0 because its
@@ -309,7 +311,7 @@ def _errlog(endpoint):
     """Instance logs are wiped at teardown, so failures quote them inline."""
     try:
         with open(os.path.join(endpoint.prefix, "logs", "error.log")) as handle:
-            return handle.read()
+            return semantic_log_text(handle.read())
     except OSError:
         return "(error log unavailable)"
 
@@ -363,4 +365,3 @@ def _parse(tmp_path, knobs="", second="", http_lines="", outer=""):
                      KNOBS=knobs, SECOND=second,
                      HTTP_LINES=http_lines, OUTER=outer)
     return result.returncode, ((result.stdout or "") + (result.stderr or ""))
-

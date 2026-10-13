@@ -38,6 +38,7 @@ import pytest
 
 from ephemeral_port import free_port
 from settings import DATA_ROOT
+from log_records import semantic_log_text
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _XRDCP = os.path.join(_REPO, "client", "bin", "xrdcp")
@@ -52,8 +53,8 @@ pytestmark = [
                        reason="brix-xrdcp not built (client/bin/xrdcp)"),
 ]
 
-_DEBUG_RE = re.compile(
-    r"xcp sources=(\d+) blocks=(\d+) per-source=\[([\d,]+)\] steals=(\d+)")
+_DEBUG_RE = re.compile(r"xcp sources=(\d+) blocks=(\d+) steals=(\d+)")
+_WORKER_RE = re.compile(r"xcp worker=(\d+) blocks=(\d+)")
 
 
 def _det(n, seed=0):
@@ -169,11 +170,14 @@ def _run_xcp(args, timeout=180, block=65536):
 
 
 def _xcp_line(stderr):
-    m = _DEBUG_RE.search(stderr)
+    diagnostics = semantic_log_text(stderr)
+    m = _DEBUG_RE.search(diagnostics)
     assert m is not None, f"no xcp debug line in stderr:\n{stderr}"
-    sources, blocks, per_source, steals = m.groups()
-    return (int(sources), int(blocks),
-            [int(x) for x in per_source.split(",")], int(steals))
+    sources, blocks, steals = (int(value) for value in m.groups())
+    workers = {int(worker): int(count)
+               for worker, count in _WORKER_RE.findall(diagnostics)}
+    per_source = [workers.get(index, 0) for index in range(sources)]
+    return sources, blocks, per_source, steals
 
 
 @pytest.fixture(scope="module")

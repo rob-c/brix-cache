@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/config/config.h"
 #include "auth/protbind/protbind.h"   /* brix_protbind_any_names */
 #include "issuer_registry.h"
@@ -33,7 +34,7 @@ brix_token_configure_registry(ngx_conf_t *cf,
     if (xcf->common.token_issuer.len || xcf->common.token_audience.len
         || xcf->common.token_jwks.len)
     {
-        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_WARN, cf, 0,
             "brix_token_config supersedes brix_token_issuer/"
             "_audience/_jwks (single-issuer directives ignored)");
     }
@@ -70,7 +71,7 @@ brix_token_require_single_issuer_fields(ngx_conf_t *cf,
     if (xcf->common.token_jwks.len == 0 || xcf->common.token_issuer.len == 0
         || xcf->common.token_audience.len == 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_auth token/both requires "
             "brix_token_jwks, "
             "brix_token_issuer and brix_token_audience");
@@ -123,7 +124,7 @@ brix_token_load_and_register_jwks(ngx_conf_t *cf,
         xcf->jwks_keys, BRIX_MAX_JWKS_KEYS);
 
     if (xcf->jwks_key_count < 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix: failed to load JWKS from \"%s\"",
             xcf->common.token_jwks.data);
         return NGX_ERROR;
@@ -158,7 +159,7 @@ brix_token_load_and_register_jwks(ngx_conf_t *cf,
 static void
 brix_token_log_summary(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix: token auth configured - jwks=%s issuer=%s "
         "audience=%s keys=%d",
         xcf->common.token_jwks.data, xcf->common.token_issuer.data,

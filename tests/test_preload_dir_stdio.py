@@ -48,6 +48,7 @@ MAKEFILE = os.path.join(REPO, "client", "Makefile")
 
 pytestmark = [
     pytest.mark.timeout(120),
+    pytest.mark.xdist_group("preload-dir-stdio"),
     pytest.mark.skipif(not os.path.exists(PRELOAD),
                        reason="preload shim not built"),
 ]
@@ -226,7 +227,7 @@ class TestPreloadReaddir:
             import os
             print(" ".join(sorted(os.listdir("/xrd/{lab}"))))
         """))
-        r = _run(["python3", str(drv)])
+        r = _run([preload_shim.interposable_python(), str(drv)])
         assert r.returncode == 0, r.stderr
         assert sorted(names) == sorted(r.stdout.split()), r.stdout
 

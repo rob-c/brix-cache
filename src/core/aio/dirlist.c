@@ -46,6 +46,7 @@
  * kXR_IOError.  The operator can increase the limit or rely on the sync path.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "protocols/root/dirlist/dcksm.h"
 #include "fs/path/path.h"
@@ -133,7 +134,7 @@ brix_dirlist_aio_done(ngx_event_t *ev)
 
         snprintf(msg, sizeof(msg), "dirlist: %s",
                  t->err_msg[0] ? t->err_msg : strerror(t->io_errno));
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                       "brix: dirlist AIO failed: %s", msg);
         brix_log_access(ctx, c, "DIRLIST", t->resolved, "-",
                           0, xrd_err, msg, 0);

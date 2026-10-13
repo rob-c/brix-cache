@@ -307,10 +307,8 @@ def _rt38_check_link_targets(link_specs, rel_fs, rm_quiet, root_ln_s, lexists,
 
 def _rt38_section_1_symlink_planted_via_root(BOB_SECRET, PASSWD_MARK, TAG, rel_fs, rm_quiet, root_ln_s, lexists, luid_of, follow_wd, ta, leaked, tb, follow_s3, follow_root, mk_file):
 
-    _combo_symlink_crossproto_toctou_p1(have_root, have_s3, rel_fs, mk_file, rm_quiet, root_ln_s, lexists, luid_of, body_of, TAG, root_ln_hard, follow_wd, ta, mk_dir, port, tb, follow_s3, follow_root, relname, s3port, BOB_SECRET, PASSWD_MARK, GRP_SECRET, leaked)
 
 
-def _combo_symlink_crossproto_toctou_p1(have_root, have_s3, rel_fs, mk_file, rm_quiet, root_ln_s, lexists, luid_of, body_of, TAG, root_ln_hard, follow_wd, ta, mk_dir, port, tb, follow_s3, follow_root, relname, s3port, BOB_SECRET, PASSWD_MARK, GRP_SECRET, leaked):
     # =====================================================================
     # SECTION 1 — SYMLINK planted via root:// (ln -s) to FOREIGN/SECRET targets,
     # then FOLLOWED via WebDAV + S3 + root://.  Planting protocol (root) differs
@@ -333,7 +331,6 @@ def _combo_symlink_crossproto_toctou_p1(have_root, have_s3, rel_fs, mk_file, rm_
         follow_s3, follow_root, TAG, leaked, luid_of)
 
 
-def _combo_symlink_crossproto_toctou_p2(have_root, have_s3, rel_fs, mk_file, rm_quiet, root_ln_s, lexists, luid_of, body_of, TAG, root_ln_hard, follow_wd, ta, mk_dir, port, follow_s3, tb, follow_root, relname, s3port, BOB_SECRET, GRP_SECRET, leaked, PASSWD_MARK):
     # POSITIVE CONTROL for SECTION 1: a symlink to alice's OWN benign file may resolve
     # (own bytes) or be refused (secure default) — but NEVER yields foreign bytes, and
     # cross-protocol follow agrees.  Proves the denies above are not a blanket "all
@@ -388,7 +385,6 @@ def _rt38_segment_18(rel_fs, TAG, rm_quiet, root_ln_s, lexists, follow_wd, ta, l
         ok(True, "control own-link planting skipped (handled)")
         ok(True, "control own-link S3 follow skipped (handled)")
         ok(True, "control own-link no-foreign-bytes skipped (handled)")
-    _combo_symlink_crossproto_toctou_p3(have_root, have_s3, rel_fs, luid_of, body_of, rm_quiet, lexists, TAG, root_ln_hard, root_ln_s, follow_wd, ta, mk_file, mk_dir, port, tb, follow_root, relname, follow_s3, s3port, BOB_SECRET, GRP_SECRET, leaked, PASSWD_MARK)
 
 
 def _rt38_section_2_link_planted_via_webdav(rel_fs, luid_of, body_of, TAG, rm_quiet):
@@ -464,10 +460,8 @@ def _rt38_control_bob_the_owner_overwriting_his(wlink, lexists, TAG, port, ta, b
         ok(True, "PUT-clobber S3 body skipped (handled)")
         ok(True, "PUT-clobber control skipped (handled)")
     rm_quiet(wlink)
-    _combo_symlink_crossproto_toctou_p4(have_root, have_s3, rel_fs, TAG, rm_quiet, root_ln_hard, lexists, root_ln_s, follow_wd, ta, mk_file, mk_dir, port, follow_root, tb, relname, follow_s3, s3port, GRP_SECRET, leaked, BOB_SECRET, PASSWD_MARK, body_of, luid_of)
 
 
-def _combo_symlink_crossproto_toctou_p4(have_root, have_s3, rel_fs, TAG, rm_quiet, root_ln_hard, lexists, root_ln_s, follow_wd, ta, mk_file, mk_dir, port, follow_root, tb, relname, follow_s3, s3port, GRP_SECRET, leaked, BOB_SECRET, PASSWD_MARK, body_of, luid_of):
     # =====================================================================
     # SECTION 3 — HARD LINK alias + GROUP DAC across protocols.  A hard link planted
     # (via root:// or host) in alice's tree to a 0640 group file owned bob:research

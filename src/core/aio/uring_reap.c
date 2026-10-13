@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "aio.h"
 #include "uring.h"
@@ -298,7 +299,7 @@ uring_complete_one(brix_uring_t *u, struct io_uring_cqe *cqe)
         task->handler = brix_pgread_aio_crc_thread;
 
         if (ngx_thread_task_post(slot->pool, task) != NGX_OK) {
-            ngx_log_error(NGX_LOG_WARN, u->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, u->log, 0,
                 "brix: io_uring pgread CRC hop: thread-pool post failed; "
                 "computing CRC32c inline on the event thread (last resort)");
             brix_pgread_aio_crc_thread(task->ctx, u->log);
@@ -355,7 +356,7 @@ brix_uring_eventfd_handler(ngx_event_t *ev)
         if (n == -1 && (ngx_errno == NGX_EAGAIN || ngx_errno == NGX_EINTR)) {
             return;
         }
-        ngx_log_error(NGX_LOG_ALERT, evc->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_ALERT, evc->log, ngx_errno,
                       "brix: io_uring eventfd read() failed");
         return;
     }

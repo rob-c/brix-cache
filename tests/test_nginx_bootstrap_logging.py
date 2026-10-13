@@ -54,6 +54,19 @@ def _config_body(data, invalid):
                          DATA=data, REFUSAL=refusal)
 
 
+def _assert_endpoint_record(body):
+    endpoint_record = next(line for line in body.splitlines()
+                           if "endpoint ready" in line)
+    for fragment in (
+        "level=INFO service=brix role=server",
+        'source="src/',
+        'event="',
+        'message="',
+        "truncated=0",
+    ):
+        assert fragment in endpoint_record
+
+
 
 def test_merge_notices_reach_the_owned_error_log(config_check):
     result, log = config_check("accepted")
@@ -61,6 +74,7 @@ def test_merge_notices_reach_the_owned_error_log(config_check):
     assert result.returncode == 0
     assert "brix: read_only on - the export is read-only" in body
     assert "endpoint ready" in body and "(read-only)" in body
+    _assert_endpoint_record(body)
     assert "endpoint ready" not in result.stderr
 
 

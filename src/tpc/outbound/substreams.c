@@ -18,6 +18,7 @@
  *      the pathid (1-253) that kXR_read read_args name to steer a reply out of
  *      that channel. Each sub-stream is registered in t->sub[] BEFORE its
  *      bootstrap so the fd-keyed TLS lookups in io.c/tls.c see it. */
+#include "core/compat/log_event.h"
 #include "tpc/engine/tpc_internal.h"
 #include "protocols/root/protocol/frame_hdr.h"   /* xrd_error_body_decode */
 
@@ -122,7 +123,7 @@ tpc_substreams_open(brix_tpc_pull_t *t, ngx_log_t *log)
         want = TPC_SUBSTREAMS_MAX;
     }
     if (!t->sessid_known) {
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
                       "brix: TPC multi-stream: source %s returned no session "
                       "id; pulling single-stream", t->src_host);
         return 0;
@@ -137,7 +138,7 @@ tpc_substreams_open(brix_tpc_pull_t *t, ngx_log_t *log)
         }
     }
 
-    ngx_log_error(NGX_LOG_INFO, log, 0,
+    BRIX_LOG(NGX_LOG_INFO, log, 0,
                   "brix: TPC multi-stream: %d of %d requested sub-streams "
                   "bound to %s%s%s", t->nsub, want, t->src_host,
                   reason[0] != '\0' ? " - " : "", reason);

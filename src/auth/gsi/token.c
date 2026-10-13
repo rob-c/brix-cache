@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "gsi_internal.h"
 #include "protocols/root/session/registry.h"
 #include "auth/token/macaroon.h"
@@ -302,7 +303,7 @@ tokenauth_grace_retry(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
     tokenauth_fill_va(&va, c, conf, st);
     rc = brix_token_validate(&va);
     if (rc == 0) {
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+        BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                       "brix: macaroon accepted via old secret "
                       "(grace-period key rotation)");
     }
@@ -488,14 +489,14 @@ tokenauth_bind_session(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ctx->login.session_slot_hint =
         brix_session_register(ctx->login.sessid, ctx->login.dn,
-                              ctx->login.vo_list, 1);
+                              ctx->login.vo_list, 1, 0);
 
     ctx->token.scope_count = claims->scope_count;
     for (i = 0; i < claims->scope_count && i < BRIX_MAX_TOKEN_SCOPES; i++) {
         ctx->token.scopes[i] = claims->scopes[i];
     }
 
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, c->log, 0,
                   "brix: token auth ok sub=\"%s\" scopes=%d groups=\"%s\"",
                   claims->sub, claims->scope_count, claims->groups);
 }

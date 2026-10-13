@@ -41,6 +41,8 @@ usage_fp(FILE *out, const char *prog)
         "    xrd doctor [endpoint] [--rw] [--also URL]... [--insecure] [--json]\n"
         "       full endpoint health: creds/TLS/cert/clock/caps + a functional method\n"
         "       battery (--rw adds write tests; --also adds protocols; --json dumps all)\n"
+        "    xrd conform plan|plant|adopt|verify ...  offline corpus oracle\n"
+        "    xrd conform accept|full|watch URL ...    deployed-endpoint assessment\n"
         "    xrd login [--oidc-account N] [--read]  acquire/refresh a token and/or GSI proxy\n\n"
         "  backend storage (-> xrdstorascan; lists/verifies what the backend physically holds,\n"
         "                    incl. the Ceph/RADOS object catalog over librados):\n"

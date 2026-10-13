@@ -28,6 +28,7 @@
  * endpoint that has never heard of `.ocimeta`.
  */
 
+#include "core/compat/log_event.h"
 #include "oci.h"
 
 #include <limits.h>
@@ -135,7 +136,7 @@ brix_oci_meta_load(const char *body_path, off_t size, time_t mtime,
     }
 
     if (ferror(fp)) {
-        ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                       "oci: unreadable sidecar \"%s\"", path);
         (void) fclose(fp);
         return NGX_ERROR;
@@ -174,7 +175,7 @@ brix_oci_meta_store(const char *body_path, off_t size, time_t mtime,
          * a memo, and its absence costs one derivation per hit, not an
          * error. Log once at INFO so the condition is visible without
          * turning a healthy cache into a noisy one. */
-        ngx_log_error(NGX_LOG_INFO, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_INFO, log, ngx_errno,
                       "oci: sidecar not written \"%s\"", tmp);
         return NGX_DECLINED;
     }
@@ -205,7 +206,7 @@ brix_oci_meta_store(const char *body_path, off_t size, time_t mtime,
     }
 
     if (rename(tmp, final) != 0) {         /* vfs-seam-allow: DOMAIN_REGISTRY — sidecar publish, not object data */
-        ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+        BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
                       "oci: sidecar rename failed \"%s\"", final);
         (void) unlink(tmp);                /* vfs-seam-allow: DOMAIN_REGISTRY — sidecar staging file, not object data */
         return NGX_ERROR;

@@ -13,6 +13,7 @@
  *       parse_and_validate_args → build_and_preflight_credentials →
  *       dispatch_transfer. No goto; early-return throughout.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdcp_internal.h"
 #include "core/version.h"
 #include "core/progname.h"  /* brix_prog_base(): argv[0]-derived identity + footer */
@@ -222,7 +223,7 @@ merge_alias_auth(const char *arg, brix_copy_opts *o)
     if (!brix_alias_lookup(name, &info)) { return; }
 
     if (info.token_file_failed) {
-        fprintf(stderr, "xrdcp: alias %s: token_file %s missing or empty\n",
+        BRIX_CLIENT_LOG("INFO",  "xrdcp: alias %s: token_file %s missing or empty\n",
                 name, info.token_file);
     }
     fold_alias_creds(&info, o);
@@ -270,7 +271,7 @@ read_manifest(const char *file, char ***list, size_t *n, size_t *cap)
     char  line[XRDC_PATH_MAX];
 
     if (f == NULL) {
-        fprintf(stderr, "xrdcp: cannot open manifest %s: %s\n", file, strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: cannot open manifest %s: %s\n", file, strerror(errno));
         return -1;
     }
     while (fgets(line, sizeof(line), f) != NULL) {
@@ -386,7 +387,7 @@ xrdcp_progress(void *arg, long long done, long long total)
         fprintf(stderr, "\r%-28s  %.1f MiB  %.1f MiB/s   ", p->label, mb, rate);
     }
     if (final) {
-        fprintf(stderr, "\n");
+        fprintf(stderr, "\n"); /* Terminal progress presentation, not a record. */
     }
     fflush(stderr);
 }
@@ -424,13 +425,13 @@ build_and_preflight_credentials(xrdcp_opts_t *o, xrdcp_lists_t *l)
     for (i = 0; i < l->srcs.n; i++) {
         if (expand_source(l->srcs.items[i], o->conn,
                           &l->exp.items, &l->exp.n, &l->exp.cap) != 0) {
-            fprintf(stderr, "xrdcp: out of memory\n");
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: out of memory\n");
             xrdcp_lists_free(l);
             return NULL;
         }
     }
     if (l->exp.n == 0) {
-        fprintf(stderr, "xrdcp: no sources after expansion\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: no sources after expansion\n");
         xrdcp_lists_free(l);
         return NULL;
     }
@@ -439,7 +440,7 @@ build_and_preflight_credentials(xrdcp_opts_t *o, xrdcp_lists_t *l)
     if (opts->remove_source) {
         for (i = 0; i < l->exp.n; i++) {
             if (brix_is_web_url(l->exp.items[i])) {
-                fprintf(stderr, "xrdcp: --remove-source supports local and "
+                BRIX_CLIENT_LOG("INFO",  "xrdcp: --remove-source supports local and "
                                 "root:// sources only\n");
                 xrdcp_lists_free(l);
                 return NULL;

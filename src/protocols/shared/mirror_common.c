@@ -1,5 +1,6 @@
 /* mirror_common.c — see mirror_common.h for WHAT/WHY/HOW. */
 
+#include "core/compat/log_event.h"
 #include "protocols/shared/mirror_common.h"
 
 #include "core/config/config.h"                 /* brix_metrics_ensure_zone */
@@ -66,7 +67,7 @@ brix_http_mirror_postconf(ngx_conf_t *cf, ngx_uint_t ctx_index,
 
         common->thread_pool = ngx_thread_pool_get(cf->cycle, pool_name);
         if (common->thread_pool == NULL) {
-            ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
                 "%s: thread pool \"%V\" not found - async cache fills "
                 "disabled (add a thread_pool directive)", directive,
                 pool_name);

@@ -15,6 +15,39 @@ MODULE_NAMES = {
 }
 
 
+def _empty_ast_field(node, name, value):
+    """Normalize optional AST fields added by newer Python releases."""
+    if isinstance(node, (ast.Import, ast.ImportFrom)) and name == "is_lazy":
+        return value == 0
+    if value == []:
+        return True
+    if value is not None:
+        return False
+    return not (isinstance(node, ast.Constant) and name == "value")
+
+
+def _stable_dump(node):
+    """Render ASTs identically across the supported Python releases.
+
+    Python 3.13 stopped displaying empty optional fields by default, and 3.15
+    added ``Import.is_lazy=0``. The TS-5 move pins describe source structure,
+    so interpreter-only AST schema changes must not invalidate them.
+    """
+    if isinstance(node, ast.AST):
+        fields = []
+        for name, value in ast.iter_fields(node):
+            # Constant(value=None) represents source ``None`` and is not an
+            # absent optional field.  All other empty fields follow 3.13's
+            # ``show_empty=False`` rendering.
+            if _empty_ast_field(node, name, value):
+                continue
+            fields.append(f"{name}={_stable_dump(value)}")
+        return f"{node.__class__.__name__}({', '.join(fields)})"
+    if isinstance(node, list):
+        return f"[{', '.join(_stable_dump(value) for value in node)}]"
+    return repr(node)
+
+
 def _definition_rows(node, prefix):
     rows = []
     for child in node.body:
@@ -22,7 +55,7 @@ def _definition_rows(node, prefix):
             continue
         name = prefix + child.name
         body = "".join(
-            ast.dump(item, include_attributes=False) for item in child.body
+            _stable_dump(item) for item in child.body
         )
         rows.append((name, hashlib.sha256(body.encode()).hexdigest()))
         if isinstance(child, ast.ClassDef):
@@ -42,7 +75,7 @@ def top_level_body_hashes(path: Path) -> dict[str, str]:
         if not isinstance(node, DEFINITIONS):
             continue
         body = "".join(
-            ast.dump(item, include_attributes=False) for item in node.body
+            _stable_dump(item) for item in node.body
         )
         rows.append((node.name, hashlib.sha256(body.encode()).hexdigest()))
     return dict(rows)

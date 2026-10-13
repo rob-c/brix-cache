@@ -18,6 +18,7 @@
  *       access log and the metric family still cannot disagree.
  */
 
+#include "core/compat/log_event.h"
 #include "oci.h"
 #include "oci_module_internal.h"
 
@@ -205,14 +206,14 @@ oci_conf_token_zone(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     size = ngx_parse_size(&value[2]);
     if (size == NGX_ERROR || size <= 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "invalid brix_oci_token_zone size \"%V\"",
                            &value[2]);
         return NGX_CONF_ERROR;
     }
 
     if (brix_kv_find(&name) != NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "duplicate brix_oci_token_zone \"%V\"", &name);
         return NGX_CONF_ERROR;
     }

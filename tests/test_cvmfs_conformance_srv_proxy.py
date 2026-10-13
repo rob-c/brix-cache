@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cvmfs_conformance_srv_proxy_helpers")
 
+from log_records import semantic_log_text
+
 pytestmark = [*pytestmark, pytest.mark.xdist_group("test_cvmfs_conformance_srv_proxy")]
 
 def test_valid_absolute_form_serves_cas_bytes(psrv):
@@ -68,7 +70,7 @@ _REJECTS = [
     ("scheme_wss", lambda m: f"wss://127.0.0.1:{m}{MPATH}", {403}),  # net-literal-allow: absolute-form request-target payload under test
     ("empty_host", lambda m: f"http://{MPATH}", {400, 403}),
     ("single_slash", lambda m: f"http:/127.0.0.1:{m}{MPATH}", {400}),  # net-literal-allow: absolute-form request-target payload under test
-    ("missing_path", lambda m: f"http://127.0.0.1:{m}", {403}),  # net-literal-allow: absolute-form request-target payload under test
+    ("missing_path", lambda m: f"http://127.0.0.1:{m}", {400, 403}),  # net-literal-allow: nginx versions may reject the missing path before the module gate
     ("root_path_only", lambda m: f"http://127.0.0.1:{m}/", {403}),  # net-literal-allow: absolute-form request-target payload under test
 ]
 
@@ -157,7 +159,7 @@ def test_disallowed_host_header_does_not_break_allowed_target(psrv):
 def test_allowlist_reject_is_logged(psrv):
     st, _, _ = af(psrv, tgt(psrv.mock_ports[0], MPATH, host="not-allowed.invalid"))
     assert st == 403
-    log = psrv.error_log.read_text(errors="replace")
+    log = semantic_log_text(psrv.error_log.read_text(errors="replace"))
     assert "cvmfs-reject:" in log
     assert "upstream authority not allowlisted" in log
 
@@ -176,7 +178,7 @@ def test_proxyabuse_guard_signal_on_disallowed_authority(psrv):
     # authority in the path field.
     st, _, _ = af(psrv, tgt(psrv.mock_ports[0], MPATH, host="ssrf.invalid"))
     assert st == 403
-    log = psrv.error_log.read_text(errors="replace")
+    log = semantic_log_text(psrv.error_log.read_text(errors="replace"))
     # the error log is shared across this module's tests (the reject corpus
     # also emits proxyabuse lines), so select this probe's line by authority
     line = next((ln for ln in log.splitlines()

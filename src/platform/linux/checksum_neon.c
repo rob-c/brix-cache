@@ -16,9 +16,17 @@
 
 #if BRIX_PLATFORM_LINUX && BRIX_ARCH_ARM64
 
+#include "core/compat/crc32c.h"
+#include "core/types/tunables_core.h"
+
 #include <arm_neon.h>
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+
+#if defined(__ARM_FEATURE_CRC32)
+#include <arm_acle.h>
+#endif
 
 /*
  * NEON-accelerated Adler-32 checksum
@@ -191,23 +199,23 @@ uint32_t brix_memcpy_crc32_neon(void *dest, const void *src, size_t len, uint32_
 {
 #if defined(__ARM_FEATURE_CRC32)
     uint8_t *dst = (uint8_t *)dest;
-    const uint8_t *sr c = (const uint8_t *)src;
+    const uint8_t *source = (const uint8_t *)src;
     
     size_t qwords = len / 16;
     
     while (qwords > 0) {
         /* Load from source */
-        uint8x16_t v = vld1q_u8(src);
+        uint8x16_t v = vld1q_u8(source);
         
         /* Store to destination */
         vst1q_u8(dst, v);
         
         /* Compute CRC on the data */
-        const uint64_t *src64 = (const uint64_t *)src;
+        const uint64_t *src64 = (const uint64_t *)source;
         crc = __crc32cd(crc, src64[0]);
         crc = __crc32cd(crc, src64[1]);
         
-        src += 16;
+        source += 16;
         dst += 16;
         qwords--;
     }
@@ -215,14 +223,14 @@ uint32_t brix_memcpy_crc32_neon(void *dest, const void *src, size_t len, uint32_
     /* Handle remaining bytes */
     size_t remaining = len % 16;
     for (size_t i = 0; i < remaining; i++) {
-        dst[i] = src[i];
+        dst[i] = source[i];
     }
     
     return crc;
 #else
     /* Fallback: separate memcpy and CRC */
     memcpy(dest, src, len);
-    return brix_crc32c((const uint8_t *)src, len, crc);
+    return brix_crc32c_extend(crc, src, len);
 #endif
 }
 

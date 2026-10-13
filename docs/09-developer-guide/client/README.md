@@ -23,6 +23,11 @@ link librados directly (still libXrdCl-free).
 | `tests/` | Unit and integration tests driven by `make test`. |
 | `bin/` | Built binaries and test executables (generated; not committed). |
 
+The distribution also installs `brix-config-migrate`, an offline Python
+assistant sourced from `tools/brix_config_migrate.py`. It suggests a BriX
+nginx configuration from common XRootD/VOMS/PFC/XrdCeph input; see the
+[operator migration guide](../../03-configuration/xrootd-config-migration.md).
+
 ## Build
 
 ```bash

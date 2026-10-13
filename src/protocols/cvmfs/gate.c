@@ -13,6 +13,7 @@
  *       log-phase classifier and the fail2ban filter (T17) both key on,
  *       with the URI sanitized before logging.
  */
+#include "core/compat/log_event.h"
 #include "cvmfs.h"
 #include "fs/path/path.h"
 #include "net/guard/guard.h"
@@ -94,7 +95,7 @@ cvmfs_reject(ngx_http_request_t *r, ngx_uint_t status, const char *cause)
     ngx_memcpy(raw, r->uri.data, n);
     raw[n] = '\0';
     brix_sanitize_log_string(raw, safe_uri, sizeof(safe_uri));
-    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+    BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
         "cvmfs-reject: method=%V uri=\"%s\" client=%V class=reject "
         "cause=\"%s\" "
         "fix=\"only /cvmfs/<repo>/{data/…,.cvmfspublished,.cvmfswhitelist,"
@@ -146,7 +147,7 @@ cvmfs_guard_emit(ngx_http_request_t *r, guard_reason_t reason,
     ts[ts_len] = '\0';
 
     if (guard_audit_format(&req, reason, ts, line, sizeof(line)) > 0) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "%s", line);
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0, "%s", line);
     }
 }
 
@@ -253,7 +254,7 @@ cvmfs_gate_cas(ngx_http_request_t *r,
         ngx_memcpy(raw, r->uri.data, n);
         raw[n] = '\0';
         brix_sanitize_log_string(raw, neg_uri, sizeof(neg_uri));
-        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, r->connection->log, 0,
             "cvmfs-neg: event=absorbed-404 client=%V uri=\"%s\" "
             "hint=\"repeated lines from one client = it is retrying a "
             "missing object instead of backing off\"",

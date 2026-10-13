@@ -23,11 +23,13 @@ Run:
 import os
 import shutil
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from lib_py.util import linked_libraries
 from settings import (
     HOST,
     PKI_DIR as PKI_DIR_STR,
@@ -81,6 +83,26 @@ def _guard_tpc_nginx_2(ok, port):
 def _guard_reference_xrd_http_3(path):
     if not path.exists():
         pytest.skip(f"test PKI file not found: {path}")
+
+
+def _reference_tpc_pull_unsafe(reference):
+    """Detect the Homebrew XrdHttpTPC TLS-library mix that crashes on COPY."""
+    if sys.platform != "darwin":
+        return False
+    config = reference.workdir / "conf" / "xrdhttp.cfg"
+    if not config.exists():
+        config = Path(TEST_ROOT) / "registry" / "xrdhttp" / "conf" / "xrdhttp.cfg"
+    try:
+        handler = next(
+            line.split()[2]
+            for line in config.read_text(encoding="utf-8").splitlines()
+            if line.strip().startswith("http.exthandler xrdtpc ")
+        )
+    except (OSError, IndexError, StopIteration):
+        return False
+    linked = linked_libraries(handler)
+    return all(("/usr/lib/libcurl" in linked,
+                "/opt/homebrew" in linked, "libssl" in linked))
 
 
 pytestmark = [pytest.mark.serial]

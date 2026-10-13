@@ -20,6 +20,7 @@
  *      and brix_fs_join_path() from fs_walk.h (both public API).
  */
 
+#include "core/compat/log_event.h"
 #include "fs_walk.h"
 #include "fs/path/path.h"
 #include "fs/path/beneath.h"
@@ -82,7 +83,7 @@ brix_fs_remove_tree_entry(ngx_log_t *log, const char *root_canon, int rootfd,
         if (errno == ENOENT) {
             return NGX_OK;
         }
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
                       "brix: remove-tree lstat failed \"%s\"", child);
         return NGX_ERROR;
     }
@@ -92,7 +93,7 @@ brix_fs_remove_tree_entry(ngx_log_t *log, const char *root_canon, int rootfd,
     }
 
     if (brix_unlink_beneath(rootfd, child_rel, 0) != 0) {
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
                       "brix: remove-tree unlink failed \"%s\"", child);
         return NGX_ERROR;
     }
@@ -130,7 +131,7 @@ brix_fs_remove_tree_at(ngx_log_t *log, const char *root_canon,
     /* D-6/T2: independent C-stack recursion — bound it so a hostile deep tree
      * aborts cleanly instead of overflowing the worker stack. */
     if (depth > BRIX_FS_TREE_MAX_DEPTH) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix: remove-tree depth cap (%d) exceeded at \"%s\"",
                       BRIX_FS_TREE_MAX_DEPTH, path);
         errno = ELOOP;
@@ -150,7 +151,7 @@ brix_fs_remove_tree_at(ngx_log_t *log, const char *root_canon,
      */
     rootfd = brix_beneath_open_root(root_canon);
     if (rootfd < 0) {
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
                       "brix: remove-tree cannot open root for \"%s\"", path);
         return NGX_ERROR;
     }
@@ -171,7 +172,7 @@ brix_fs_remove_tree_at(ngx_log_t *log, const char *root_canon,
         if (errno == ENOENT) {
             return NGX_OK;
         }
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
                       "brix: remove-tree opendir failed \"%s\"", path);
         return NGX_ERROR;
     }
@@ -192,7 +193,7 @@ brix_fs_remove_tree_at(ngx_log_t *log, const char *root_canon,
     if (rc == NGX_OK
         && brix_unlink_beneath(rootfd, path_rel, 1) != 0)
     {
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
                       "brix: remove-tree rmdir failed \"%s\"", path);
         rc = NGX_ERROR;
     }

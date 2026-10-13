@@ -154,6 +154,7 @@ import requests
 import urllib3
 
 from config_parse import nginx_t
+from log_records import semantic_log_text
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS, PARSE_PLACEHOLDER_PORT
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, NGINX_BIN, url_host
@@ -380,7 +381,8 @@ class _Arms:
     def errlog(self):
         """Instance prefixes are wiped at teardown, so failures quote inline."""
         try:
-            return (self.logs / "error.log").read_text(errors="replace")
+            return semantic_log_text(
+                (self.logs / "error.log").read_text(errors="replace"))
         except OSError:                          # pragma: no cover - diagnostic
             return "(error log unavailable)"
 
@@ -413,7 +415,8 @@ class _Arms:
         launcher's `nginx -t` and the start itself are two passes over the same
         configuration.
         """
-        return {line.split(ARMED_MARK, 1)[1].strip()
+        return {line.split(ARMED_MARK, 1)[1]
+                .removesuffix('" truncated=0').strip()
                 for line in self.errlog().splitlines() if ARMED_MARK in line}
 
     def summary_groups(self):
@@ -484,4 +487,3 @@ def arms(lifecycle, creds, tmp_path):
 # --------------------------------------------------------------------------- #
 # §A — the grid                                                               #
 # --------------------------------------------------------------------------- #
-

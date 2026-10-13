@@ -16,6 +16,7 @@
  *     transfers without excessive stack usage.
  */
 
+#include "core/compat/log_event.h"
 #include "copy_range.h"
 #include "fs/backend/sd.h"   /* copy_file_range fast path via the SD driver */
 #include "fs/vfs/vfs.h"          /* brix_vfs_pread_full / pwrite_full */
@@ -56,7 +57,7 @@ brix_copy_range_fallback(ngx_log_t *log, int src_fd, off_t src_off,
         /* pread_full loops over EINTR/short reads through the storage seam,
          * filling `want` bytes unless the source ends early. */
         if (brix_vfs_pread_full(src_fd, buf, want, src_off, &got) != NGX_OK) {
-            ngx_log_error(NGX_LOG_ERR, log, errno,
+            BRIX_LOG(NGX_LOG_ERR, log, errno,
                           "brix: copy_range pread failed %s",
                           src_path ? src_path : "-");
             return NGX_ERROR;
@@ -66,14 +67,14 @@ brix_copy_range_fallback(ngx_log_t *log, int src_fd, off_t src_off,
          * the requested range, which is a hard error for a fixed-length copy. */
         if (got < want) {
             errno = EIO;
-            ngx_log_error(NGX_LOG_ERR, log, 0,
+            BRIX_LOG(NGX_LOG_ERR, log, 0,
                           "brix: copy_range pread unexpected EOF %s",
                           src_path ? src_path : "-");
             return NGX_ERROR;
         }
 
         if (brix_vfs_pwrite_full(dst_fd, buf, got, dst_off) != NGX_OK) {
-            ngx_log_error(NGX_LOG_ERR, log, errno,
+            BRIX_LOG(NGX_LOG_ERR, log, errno,
                           "brix: copy_range pwrite failed %s",
                           dst_path ? dst_path : "-");
             return NGX_ERROR;
@@ -150,7 +151,7 @@ brix_copy_range_cfr(ngx_log_t *log, int src_fd, off_t *src_off,
 
         if (n == 0) {
             errno = EIO;
-            ngx_log_error(NGX_LOG_ERR, log, 0,
+            BRIX_LOG(NGX_LOG_ERR, log, 0,
                           "brix: copy_file_range unexpected EOF %s -> %s",
                           src_path ? src_path : "-",
                           dst_path ? dst_path : "-");
@@ -167,7 +168,7 @@ brix_copy_range_cfr(ngx_log_t *log, int src_fd, off_t *src_off,
             return NGX_AGAIN;
         }
 
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
                       "brix: copy_file_range failed %s -> %s",
                       src_path ? src_path : "-",
                       dst_path ? dst_path : "-");

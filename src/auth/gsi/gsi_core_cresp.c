@@ -285,7 +285,7 @@ gsi_cresp_build_inner(gsi_cresp_state_t *st)
 {
     uint8_t newrtag[8];
 
-    if (!brix_gsi_rand(newrtag, sizeof(newrtag))) {
+    if (!brix_gsi_rand_tag(newrtag)) {
         OPENSSL_cleanse(st->aeskey, BRIX_GSI_MAX_KEY);
         return gsi_cresp_state_fail(st, "gsi: RNG failed");
     }

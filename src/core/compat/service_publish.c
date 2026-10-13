@@ -8,6 +8,7 @@
  * file that arrives without a held fd.
  */
 
+#include "core/compat/log_event.h"
 #include <ngx_config.h>
 #include <ngx_core.h>
 
@@ -73,7 +74,7 @@ service_fsync_stage(ngx_log_t *log, const char *root_canon,
     }
     if (fsync(fd) != 0) {
         e = errno;
-        ngx_log_error(NGX_LOG_ERR, log, e,
+        BRIX_LOG(NGX_LOG_ERR, log, e,
                       "brix: service publish fsync of staged \"%s\" failed — "
                       "not publishing", stage_path);
         close(fd);
@@ -100,7 +101,7 @@ service_seal_fd(const brix_service_publish_req_t *req,
 
     if (service_domain_durable(req->domain) && fsync(fd) != 0) {
         e = errno;
-        ngx_log_error(NGX_LOG_ERR, req->log, e,
+        BRIX_LOG(NGX_LOG_ERR, req->log, e,
                       "brix: service publish fsync failed — not publishing "
                       "\"%s\"", req->final_path);
         close(fd);
@@ -118,7 +119,7 @@ service_seal_fd(const brix_service_publish_req_t *req,
      * close a fd we no longer own; treat only a genuine error as a failure. */
     if (close(fd) != 0 && errno != EINTR) {
         e = errno;
-        ngx_log_error(NGX_LOG_ERR, req->log, e,
+        BRIX_LOG(NGX_LOG_ERR, req->log, e,
                       "brix: service publish close failed — not publishing "
                       "\"%s\"", req->final_path);
         staged->fd = NGX_INVALID_FILE;
@@ -211,7 +212,7 @@ brix_service_publish_bytes(const brix_service_publish_req_t *req,
                 continue;
             }
             e = errno;
-            ngx_log_error(NGX_LOG_ERR, req->log, e,
+            BRIX_LOG(NGX_LOG_ERR, req->log, e,
                           "brix: service publish write to \"%s\" failed",
                           req->final_path);
             brix_staged_abort(req->log, req->root_canon, &staged, 1);

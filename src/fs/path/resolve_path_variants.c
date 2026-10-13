@@ -20,6 +20,7 @@
  *       and any non-OK status maps to a 0 (false) return. _noexist() sets
  *       allow_missing_parents + is_write_operation before delegating.
  */
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 
 #include <limits.h>
@@ -42,7 +43,7 @@ brix_resolve_with_opts(ngx_log_t *log, const ngx_str_t *root,
     rc = brix_path_resolve_cstr(log, root_canon, reqpath, opts,
                                   resolved, resolvsz, NULL);
     if (rc == BRIX_PATH_STATUS_TOO_LONG) {
-        ngx_log_error(NGX_LOG_WARN, log, 0, "brix: path too long");
+        BRIX_LOG(NGX_LOG_WARN, log, 0, "brix: path too long");
     }
 
     return rc == BRIX_PATH_STATUS_OK;

@@ -13,6 +13,7 @@
  *      EINTR retry. Hex encoding converts binary digests to lowercase ASCII.
 */
 
+#include "core/compat/log_event.h"
 #include "checksum.h"
 #include "checksum_core.h"   /* shared (ngx-free) fd→checksum compute kernels */
 #include "core/compat/checksum_plugin.h"   /* site plugins (2.0 F8) */
@@ -253,7 +254,7 @@ brix_checksum_log_read_error(ngx_log_t *log, ngx_err_t err,
     char safe[512];
 
     brix_sanitize_log_string(path ? path : "-", safe, sizeof(safe));
-    ngx_log_error(NGX_LOG_ERR, log, err,
+    BRIX_LOG(NGX_LOG_ERR, log, err,
                   "brix: %s read(\"%s\") failed", algo, safe);
 }
 

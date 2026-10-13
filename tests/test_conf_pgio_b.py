@@ -365,6 +365,18 @@ def test_pgread_negative_len_parity(srv, rlen):
         f"pgread negative-len status diverges: ours={st_o} stock={st_f}")
 
 
+@pytest.mark.parametrize("offset", [-1, -(1 << 63)])
+def test_pgread_negative_offset_is_argument_error(srv, offset):
+    our, _stock = _open_both_read(srv, "sz_65536.bin")
+    try:
+        status, body = pgread(our.sock, our.fh, offset, 1)
+    finally:
+        our.close()
+        _stock.close()
+    assert status == kXR_error
+    assert struct.unpack("!I", body[:4])[0] == kXR_ArgInvalid_code
+
+
 # ===========================================================================
 # 19) pgread request args (parity-audit §1.2): the OPTIONAL payload carries
 #     pathid (byte 0, dlen >= 1) + reqflags (byte 1, dlen >= 2).  Stock
@@ -433,6 +445,21 @@ def test_pgread_args_invalid_pathid_refused(srv):
         our.close()
         off_h.close()
     assert st_o == ("error", kXR_ArgInvalid_code), st_o
+    assert st_f == ("error", kXR_ArgInvalid_code), st_f
+
+
+def test_pgread_args_any_path_records_stock_divergence(srv):
+    """(strict success, calibrated divergence) the in-repo specification
+    reserves AnyPath for server selection. BriX accepts it; stock 5.6.9 was
+    observed to treat it as an unbound id and return kXR_ArgInvalid."""
+    our, off_h = _open_both_read(srv, "data.bin")
+    try:
+        st_o = _pgread_payload(our.sock, our.fh, 0, 4096, b"\xff")
+        st_f = _pgread_payload(off_h.sock, off_h.fh, 0, 4096, b"\xff")
+    finally:
+        our.close()
+        off_h.close()
+    assert st_o[0] == "status", st_o
     assert st_f == ("error", kXR_ArgInvalid_code), st_f
 
 

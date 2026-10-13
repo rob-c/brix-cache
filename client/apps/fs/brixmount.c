@@ -15,6 +15,7 @@
  *       drivers; main() wires the real ones (xrootdfs is weak-linked so a
  *       cvmfs-only build still links).
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "cvmfs/client/client.h"   /* not required, keeps include-path uniform */
 #include "core/version.h"
 #include "core/progname.h"  /* brix_prog_base(): argv[0] personality dispatch */
@@ -105,7 +106,7 @@ int brixmount_dispatch(int argc, char **argv, const brix_driver_t *drv, size_t n
         }
         type_names[nt] = NULL;
 
-        fprintf(stderr, "brixMount: unknown type '%s'\n", type);
+        BRIX_CLIENT_LOG("ERROR",  "brixMount: unknown type '%s'\n", type);
         suggestion = brix_suggest(type, type_names);
         if (suggestion != NULL) {
             brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
@@ -114,7 +115,7 @@ int brixmount_dispatch(int argc, char **argv, const brix_driver_t *drv, size_t n
         return 2;
     }
     if (sel->fn == NULL) {
-        fprintf(stderr, "brixMount: type '%s' (%s) is not available in this build\n",
+        BRIX_CLIENT_LOG("ERROR",  "brixMount: type '%s' (%s) is not available in this build\n",
                 type, sel->brand);
         return 2;
     }

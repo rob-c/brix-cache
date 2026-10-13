@@ -36,6 +36,7 @@ Coverage (success · error · security-negative):
 """
 
 import functools
+import json
 import os
 from pathlib import Path
 import re
@@ -121,6 +122,10 @@ pytestmark = [pytest.mark.serial, pytest.mark.timeout(300),
 # create/modify on the destination.  The gateway credential only ever reads.
 CLIENT_SUB = "tpc-client"
 CLIENT_SCOPE = "storage.read:/ storage.create:/ storage.modify:/"
+SCOPED_SCOPE = (
+    "storage.read:/phase118-tpc-scratch/brix-conform-tpc-source "
+    "storage.create:/ storage.modify:/"
+)
 GATEWAY_SUB = "tpc-gateway"
 GATEWAY_SCOPE = "storage.read:/"
 
@@ -240,6 +245,9 @@ def node(tmp_path_factory):
     readonly_token = _write_token(
         creds / "readonly.jwt",
         issuer.generate(sub=CLIENT_SUB, scope="storage.read:/"))
+    scoped_token = _write_token(
+        creds / "scoped.jwt",
+        issuer.generate(sub=CLIENT_SUB, scope=SCOPED_SCOPE))
 
     roots = {key: tmp_path_factory.mktemp(f"tpc_token_{key}")
              for key in ("src", "dst", "bfile", "nopass")}
@@ -279,6 +287,7 @@ def node(tmp_path_factory):
             "expired_token": str(expired_token),
             "wrong_aud_token": str(wrong_aud_token),
             "readonly_token": str(readonly_token),
+            "scoped_token": str(scoped_token),
         }
     finally:
         harness.close()
@@ -305,6 +314,56 @@ def _dest_path(node, dest_key, dst_name):
     return node["roots"][dest_key] / dst_name
 
 
+def _prepare_scoped_conform(node, seed_allowed):
+    source_root = node["roots"]["src"] / "phase118-tpc-scratch"
+    destination_root = node["roots"]["dst"] / "phase118-tpc-scratch"
+    source_root.mkdir(exist_ok=True)
+    destination_root.mkdir(exist_ok=True)
+    allowed = source_root / "brix-conform-tpc-source"
+    outside = source_root / "brix-conform-tpc-outside-scope"
+    paths = (
+        allowed,
+        outside,
+        destination_root / "brix-conform-tpc-destination",
+        destination_root / "brix-conform-tpc-denied-destination",
+    )
+    for path in paths:
+        path.unlink(missing_ok=True)
+    if seed_allowed:
+        allowed.write_bytes(bytes(range(251)) * 32 + bytes(range(160)))
+    outside.write_bytes(bytes(range(255, -1, -1)) * 32)
+
+
+def _extend_negative_verification(command, verify):
+    if verify:
+        command.extend(["--verify-negative", "TPC-005"])
+
+
+def _run_scoped_conform(node, tmp_path, token_file, seed_allowed=True,
+                        verify=False):
+    """Run TPC-005 against the real token/passthrough topology."""
+    _prepare_scoped_conform(node, seed_allowed)
+    output = tmp_path / f"tpc005-{time.monotonic_ns()}"
+    command = [
+        str(Path(__file__).parents[1] / "client" / "bin" / "xrd"),
+        "conform", "accept", f"{node['src_url']}//fixture",
+        "--also", f"{node['dst_url']}//fixture", "--profile", "tpc",
+        "--only", "TPC-005", "--allow-mutate",
+        "--scratch", "/phase118-tpc-scratch", "--budget", "boundary",
+        "--fail-on", "divergent", "--wall-seconds", "30",
+        "--request-limit", "128", "--byte-limit", "1048576",
+        "--tpc-fixture", "scoped-delegation", "--out", str(output),
+    ]
+    _extend_negative_verification(command, verify)
+    result = subprocess.run(
+        command, env=_anon_env(token_file), text=True, capture_output=True,
+        timeout=60, check=False,
+    )
+    report = json.loads((output / "report.json").read_text(encoding="utf-8"))
+    rows = {item["id"]: item for item in report["results"]}
+    return result, rows["TPC-005"]
+
+
 # --------------------------------------------------------------------------- #
 # success
 # --------------------------------------------------------------------------- #
@@ -320,6 +379,38 @@ def test_passthrough_destination_copies_with_the_client_token(node):
         f"destination: {result.stderr.decode(errors='replace')}")
     assert _dest_path(node, "dst", dst_name).read_bytes() == PAYLOAD, \
         "the passthrough copy committed a file that is not byte-exact"
+
+
+def test_conform_scoped_delegation_is_confined_to_selected_source(node,
+                                                                  tmp_path):
+    """TPC-005 succeeds in scope and refuses the prepared sibling exactly."""
+    result, row = _run_scoped_conform(
+        node, tmp_path, node["scoped_token"],
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert row["verdict"] == "conformant"
+    assert row["reason"] == \
+        "delegated-credential-confined-to-transfer-scope"
+
+
+def test_conform_scoped_delegation_detects_an_overbroad_token(node, tmp_path):
+    """Security-negative: a token that reads the sibling must never pass."""
+    result, row = _run_scoped_conform(
+        node, tmp_path, node["client_token"], verify=True,
+    )
+    assert result.returncode == 1
+    assert row["verdict"] == "divergent"
+    assert row["reason"] == "delegated-credential-escaped-transfer-scope"
+
+
+def test_conform_scoped_delegation_requires_prepared_source(node, tmp_path):
+    """Error: an absent controlled source is explicit, not a false pass."""
+    result, row = _run_scoped_conform(
+        node, tmp_path, node["scoped_token"], seed_allowed=False,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert row["verdict"] == "inconclusive"
+    assert row["reason"] == "fixture-required:scoped-source-objects"
 
 
 def test_bearer_file_destination_copies_with_the_service_token(node):
@@ -436,7 +527,8 @@ def test_read_only_token_cannot_write_at_the_destination(node):
 def _decoy_pki(tmp_path, leaf_days):
     """A self-signed CA and one leaf it issued, valid for `leaf_days` days.
 
-    `leaf_days=0` yields a cert whose validity window has already closed, which
+    `leaf_days=0` yields a zero-length validity window; callers wait past its
+    second-resolution boundary to obtain an expired certificate. This
     is how the clock-step case is reproduced without touching the host clock.
     Returns `(ca_pem, leaf_pem)` as strings."""
     tmp_path.mkdir(parents=True, exist_ok=True)
@@ -486,6 +578,7 @@ def test_tls_pki_fault_names_the_clock_when_the_window_is_wrong(monkeypatch,
     an unclassified message would send the reader to look for a CA mismatch
     that is not there."""
     ca, expired = _decoy_pki(tmp_path, leaf_days=0)
+    time.sleep(1.1)
     monkeypatch.setattr(sys.modules[__name__], "CA_CERT", ca)
     monkeypatch.setattr(sys.modules[__name__], "SERVER_CERT", expired)
 

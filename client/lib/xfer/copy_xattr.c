@@ -18,6 +18,7 @@
  *       remote name without a user. prefix lands locally under
  *       "user.<name>". Values are bounded by the fattr wire caps (64 KiB).
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "copy_internal.h"
 
 #include "platform/platform.h"   /* PAL: Linux-shaped xattr calls on every host */
@@ -92,11 +93,11 @@ xattr_pull(brix_conn *c, const char *rpath, const char *lpath, int silent)
             snprintf(localname, sizeof(localname),
                      strncmp(name, "user.", 5) == 0 ? "%s" : "user.%s", name);
             if (setxattr(lpath, localname, val, vlen, 0) != 0 && !silent) {
-                fprintf(stderr, "xrdcp: --xattr: could not set %s on %s: %s\n",
+                BRIX_CLIENT_LOG("ERROR",  "xrdcp: --xattr: could not set %s on %s: %s\n",
                         localname, lpath, strerror(errno));
             }
         } else if (!silent) {
-            fprintf(stderr, "xrdcp: --xattr: could not read %s from %s: %s\n",
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: --xattr: could not read %s from %s: %s\n",
                     name, rpath, st.msg);
         }
         free(val);
@@ -137,7 +138,7 @@ xattr_push(brix_conn *c, const char *lpath, const char *rpath, int silent)
             if (brix_fattr_set(c, rpath, name, val, (size_t) vlen,
                                0 /* overwrite ok */, &st) != 0
                 && !silent) {
-                fprintf(stderr, "xrdcp: --xattr: could not set %s on %s: %s\n",
+                BRIX_CLIENT_LOG("ERROR",  "xrdcp: --xattr: could not set %s on %s: %s\n",
                         name, rpath, st.msg);
             }
         }

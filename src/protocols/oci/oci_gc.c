@@ -21,6 +21,7 @@
  *       pass is off unless `brix_oci_gc_interval` says otherwise.
  */
 
+#include "core/compat/log_event.h"
 #include "oci.h"
 
 #include "core/aio/aio.h"        /* brix_task_bind (thread offload)  */
@@ -99,7 +100,7 @@ static void
 oci_gc_report(const brix_oci_gc_t *c, int rc, const char *err, ngx_log_t *log)
 {
     if (rc != BRIX_OCI_GC_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix oci: registry gc over \"%s\" failed: %s",
                       c->root, err);
         return;
@@ -107,7 +108,7 @@ oci_gc_report(const brix_oci_gc_t *c, int rc, const char *err, ngx_log_t *log)
     if (c->st.blobs_swept == 0 && c->st.marks == 0 && c->st.refs == 0) {
         return;
     }
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                   "brix oci: registry gc over \"%s\" swept %ui blob(s) "
                   "(%uL bytes), %ui layer mark(s), %ui referrer(s); "
                   "kept %ui live, %ui within grace",

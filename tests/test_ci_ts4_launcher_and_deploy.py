@@ -88,6 +88,11 @@ _DEVIATIONS = {"__init__"}
 #: local-import move looks like.  Kept per-module so an exemption earned by
 #: `internals.py` cannot quietly cover the same method name elsewhere.
 _MODULE_DEVIATIONS = {
+    "start.py": {
+        # The packaged launcher now refreshes its process snapshot before
+        # deciding whether a registered child survived shutdown.
+        "stop_registered",
+    },
     "internals.py": {
         # The flat shard is exec'd into a namespace it does not own, so it
         # reaches `process_cmdline` / `_process_exited_without_procfs` through
@@ -96,7 +101,7 @@ _MODULE_DEVIATIONS = {
         # the macOS-port comment in prose rather than around an import — the
         # ps(1) fallback it guards is identical (and is why stop-all used to
         # leave the reference xrootd daemons running on Darwin).
-        "_kill_pidfile", "_process_exited",
+        "_kill_pidfile", "_process_exited", "_wait_ports_released",
     },
 }
 

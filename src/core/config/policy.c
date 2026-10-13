@@ -3,6 +3,7 @@
  * inherit_parent_group) and their postconfiguration finalization.
  */
 
+#include "core/compat/log_event.h"
 #include "config.h"
 #include "auth/protbind/protbind.h"
 #include "core/compat/checksum.h"   /* brix_checksum_parse (tpc_verify_checksum) */
@@ -97,7 +98,7 @@ brix_vo_rules_append(ngx_conf_t *cf, ngx_str_t *value, ngx_array_t **slot)
     ngx_memzero(rule, sizeof(*rule));
 
     if (brix_normalize_policy_path(cf->pool, &value[1], &rule->path) != NGX_OK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_require_vo: invalid path \"%V\"", &value[1]);
         return NGX_CONF_ERROR;
     }
@@ -147,7 +148,7 @@ brix_conf_set_tpc_verify_checksum(ngx_conf_t *cf, ngx_command_t *cmd, void *conf
     if (brix_checksum_parse((const char *) value[1].data, value[1].len,
                             &alg, norm, sizeof(norm)) != NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_tpc_verify_checksum: expected on, off, or a checksum algorithm "
             "(adler32, crc32, crc32c, md5, sha1, sha256, crc64), got \"%V\"",
             &value[1]);
@@ -245,7 +246,7 @@ brix_conf_set_inherit_parent_group(ngx_conf_t *cf, ngx_command_t *cmd,
     ngx_memzero(rule, sizeof(*rule));
 
     if (brix_normalize_policy_path(cf->pool, &value[1], &rule->path) != NGX_OK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_inherit_parent_group: invalid path \"%V\"", &value[1]);
         return NGX_CONF_ERROR;
     }
@@ -264,14 +265,14 @@ brix_config_finalize_policy(ngx_conf_t *cf,
         && xcf->auth != BRIX_AUTH_TOKEN
         && xcf->auth != BRIX_AUTH_BOTH)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_require_vo requires brix_auth gsi, token or both");
         return NGX_ERROR;
     }
 
     if (xcf->common.vo_rules != NULL) {
         if (xcf->common.vomsdir.len == 0 || xcf->common.voms_cert_dir.len == 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_require_vo requires brix_vomsdir and brix_voms_cert_dir");
             return NGX_ERROR;
         }
@@ -287,7 +288,7 @@ brix_config_finalize_policy(ngx_conf_t *cf,
             return NGX_ERROR;
         }
         if (brix_voms_warm(cf->log, &xcf->common.voms_cert_dir) != NGX_OK) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_voms_cert_dir \"%V\": cannot load the CA directory",
                 &xcf->common.voms_cert_dir);
             return NGX_ERROR;
@@ -297,7 +298,7 @@ brix_config_finalize_policy(ngx_conf_t *cf,
                                xcf->common.vo_rules)
         != NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix: failed to finalize brix_require_vo rules for root \"%V\"",
             &xcf->common.root);
         return NGX_ERROR;
@@ -306,7 +307,7 @@ brix_config_finalize_policy(ngx_conf_t *cf,
     if (brix_finalize_authdb_rules(cf->log, &xcf->common.root, xcf->authdb_rules)
         != NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix: failed to finalize brix_authdb rules for root \"%V\"",
             &xcf->common.root);
         return NGX_ERROR;
@@ -315,7 +316,7 @@ brix_config_finalize_policy(ngx_conf_t *cf,
     if (brix_finalize_group_rules(cf->log, &xcf->common.root,
                                     xcf->group_rules) != NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix: failed to finalize brix_inherit_parent_group rules for root \"%V\"",
             &xcf->common.root);
         return NGX_ERROR;

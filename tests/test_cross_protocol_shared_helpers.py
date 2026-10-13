@@ -56,14 +56,64 @@ def test_copy_and_http_file_response_helpers_are_shared():
     )
 
 
-def test_query_xml_and_base64url_helpers_are_shared():
-    for relpath in (
-        "src/protocols/s3/list_objects_v2.c",
-        "src/protocols/s3/multipart_helpers.c",
-        "src/protocols/webdav/xrdhttp.c",
-    ):
-        _assert_markers(relpath, ["brix_http_query_"])
+def _assert_query_parser_is_shared():
+    _assert_markers("src/protocols/s3/list_objects_v2.c",
+                    ["s3_get_query_param_flags("])
+    for relpath in ("src/protocols/s3/multipart_helpers.c",
+                    "src/protocols/webdav/xrdhttp.c"):
+        _assert_markers(relpath, ["brix_http_query_parsed_"])
 
+    _assert_markers("src/protocols/s3/handler.c", [
+        "brix_http_query_has_decoded_name(r->args, \"X-Amz-Signature\"",
+        "brix_http_redact_request_query_tokens(r)",
+    ])
+    _assert_markers("src/protocols/webdav/dispatch.c", [
+        "brix_http_query_has_decoded_name(r->args, \"authz\"",
+        "brix_http_query_has_decoded_name(r->args, \"access_token\"",
+    ])
+    _assert_markers("src/protocols/s3/auth_sigv4_verify.c", [
+        "brix_http_query_parsed_has(&ctx->query",
+        '"X-Amz-Signature"',
+    ])
+
+
+def _assert_s3_query_gate_order():
+    s3_handler = _read("src/protocols/s3/handler.c")
+    handler_start = s3_handler.index("ngx_http_s3_handler(")
+    handler_body = s3_handler[handler_start:]
+    assert handler_body.index("s3_rate_limit(r, cf)") < handler_body.index(
+        "s3_tls_gate(r, cf)"), "rate limiting must precede the S3 TLS log gate"
+    s3_tls_start = s3_handler.index("s3_tls_gate(")
+    s3_tls_body = s3_handler[s3_tls_start:handler_start]
+    assert s3_tls_body.index(
+        "brix_http_redact_request_query_tokens(r)") < s3_tls_body.index(
+            "BRIX_LOG(")
+    verify_pos = handler_body.index("s3_verify_sigv4(r, cf, s3ctx->identity)")
+    acc_pos = handler_body.index("s3_acc_check(r, cf, s3ctx->identity)")
+    assert "if (r->header_sent)" in handler_body[verify_pos:acc_pos]
+
+
+def _assert_webdav_query_gate_order():
+    webdav_access = _read("src/protocols/webdav/access.c")
+    pregate_start = webdav_access.index("access_preauth_gate(")
+    pregate_body = webdav_access[pregate_start:webdav_access.index(
+        "ngx_http_brix_webdav_access_handler(")]
+    assert pregate_body.index("access_rate_limit(r, conf)") < pregate_body.index(
+        "webdav_tls_require_gate(r, conf)")
+    access_start = webdav_access.index("ngx_http_brix_webdav_access_handler(")
+    access_body = webdav_access[access_start:]
+    assert access_body.index("access_preauth_gate(r, conf)") < access_body.index(
+        "access_parse_query_boundary(r)")
+    assert "webdav_tls_require_gate(r, conf)" not in _read(
+        "src/protocols/webdav/dispatch.c").split(
+            "ngx_http_brix_webdav_handler(", 1)[1]
+    tls_dispatch = _read("src/protocols/webdav/dispatch_tls.c")
+    tls_body = tls_dispatch[tls_dispatch.index("webdav_tls_require_gate("):]
+    assert tls_body.index(
+        "brix_http_redact_request_query_tokens(r)") < tls_body.index("BRIX_LOG(")
+
+
+def _assert_xml_and_base64_helpers_are_shared():
     # propfind was split into propfind_props.c / propfind_walk.c with a shared
     # propfind_internal.h; the http_xml include lives in the header, the chain
     # builder is used by the props unit.
@@ -86,6 +136,13 @@ def test_query_xml_and_base64url_helpers_are_shared():
         "src/protocols/s3/list_objects_v2.c",
         ["static const signed char inv", "s3_b64url_"],
     )
+
+
+def test_query_xml_and_base64url_helpers_are_shared():
+    _assert_query_parser_is_shared()
+    _assert_s3_query_gate_order()
+    _assert_webdav_query_gate_order()
+    _assert_xml_and_base64_helpers_are_shared()
 
 
 def test_iso8601_and_hex_helpers_are_shared():
@@ -342,7 +399,7 @@ def test_phase1_http_status_header_and_query_helpers_are_shared():
         "src/protocols/s3/handler.c",
         [
             "core/http/http_query.h",
-            "brix_http_query_get(",
+            "s3_query_prepare(",
             "brix_http_find_header(",
         ],
     )

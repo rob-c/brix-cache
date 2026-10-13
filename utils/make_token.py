@@ -205,7 +205,10 @@ class TokenIssuer:
             "aud": audience or self.audience,
             "exp": now + lifetime,
             "iat": now,
-            "nbf": now,
+            # Leave a small margin for the issuer and nginx to observe
+            # adjacent wall-clock seconds (notably across Lima's host/guest
+            # clock boundary).  Tests for future nbf values mint explicitly.
+            "nbf": now - 5,
             "scope": scope,
             "wlcg.ver": "1.0",
         }

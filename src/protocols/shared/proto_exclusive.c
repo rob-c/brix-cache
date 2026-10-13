@@ -26,6 +26,7 @@
  *       walker reads the finalised structures instead.
  */
 
+#include "core/compat/log_event.h"
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
@@ -103,7 +104,7 @@ brix_proto_add_level(ngx_conf_t *cf, void **loc_conf, ngx_str_t *name,
 
     mask = brix_proto_mask(loc_conf);
     if (mask & (mask - 1)) {                 /* more than one bit set */
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "two brix protocols enabled in location \"%V\" - "
             "one brix protocol per location", name);
         return NGX_ERROR;
@@ -295,7 +296,7 @@ brix_http_proto_exclusive_check(ngx_conf_t *cf)
         }
 
         if (port_mask & (port_mask - 1)) {   /* more than one bit set */
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "%s and %s both enabled under listen port %ui - "
                 "one brix protocol per port",
                 brix_proto_name(port_mask & (port_mask - 1)),

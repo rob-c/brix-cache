@@ -12,6 +12,7 @@
  * HOW:  no goto; early-return throughout; shared helpers come from
  *       xrdcp_internal.h exactly as before the split.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdcp_internal.h"
 #include "xrdcp_parse_internal.h"
 
@@ -28,12 +29,12 @@ static int
 xrdcp_validate_delete_matrix(const brix_copy_opts *opts, int sync_mode)
 {
     if (opts->sync_delete && opts->remove_source) {
-        fprintf(stderr, "xrdcp: --delete and --remove-source are contradictory "
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: --delete and --remove-source are contradictory "
                         "(mirror vs move)\n");
         return 50;
     }
     if (opts->sync_delete && !(opts->recursive && sync_mode)) {
-        fprintf(stderr, "xrdcp: --delete requires -r and --sync\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: --delete requires -r and --sync\n");
         return 50;
     }
     return 0;
@@ -49,18 +50,18 @@ xrdcp_validate_continue_matrix(const brix_copy_opts *opts)
         return 0;
     }
     if (opts->force) {
-        fprintf(stderr, "xrdcp: --continue and --force are contradictory "
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: --continue and --force are contradictory "
                         "(resume vs truncate)\n");
         return 50;
     }
     if (opts->pgrw || (opts->compress != NULL && opts->compress[0])) {
-        fprintf(stderr, "xrdcp: --continue cannot combine with --pgrw or "
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: --continue cannot combine with --pgrw or "
                         "--compress (byte-offset resume needs a plain "
                         "byte stream)\n");
         return 50;
     }
     if (opts->zip || opts->zip_append) {
-        fprintf(stderr, "xrdcp: --continue cannot combine with --zip "
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: --continue cannot combine with --zip "
                         "modes\n");
         return 50;
     }
@@ -96,6 +97,7 @@ xrdcp_validate_flag_matrix(brix_copy_opts *opts, int sync_mode, int verify)
     if (verify && opts->cksum == NULL) {
         opts->cksum = "adler32:source";
     }
+    opts->verify_strict = verify;
 
     rc = xrdcp_validate_continue_matrix(opts);
     if (rc != 0) {
@@ -105,7 +107,7 @@ xrdcp_validate_flag_matrix(brix_copy_opts *opts, int sync_mode, int verify)
     /* --xrate paces the serial pump; the striped/multi-source engines bypass
      * it entirely, so the combination would silently run unpaced. */
     if (opts->xrate_bps > 0 && (opts->parallel || opts->sources >= 2)) {
-        fprintf(stderr, "xrdcp: --xrate applies to the serial path and cannot "
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: --xrate applies to the serial path and cannot "
                         "combine with --parallel/--sources\n");
         return 50;
     }
@@ -130,7 +132,7 @@ xrdcp_collect_sources(const xrdcp_strlist *pos, const char *from,
         return 51;
     }
     if (oom) {
-        fprintf(stderr, "xrdcp: out of memory\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: out of memory\n");
         return 51;
     }
 
@@ -147,13 +149,13 @@ xrdcp_finalize_journal(xrdcp_opts_t *o)
         return 0;
     }
     if (o->from == NULL || strcmp(o->from, "-") == 0) {
-        fprintf(stderr, "xrdcp: --resume needs --from <file> (not stdin) "
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: --resume needs --from <file> (not stdin) "
                         "or an explicit --journal <path>\n");
         return 50;
     }
     if ((size_t) snprintf(jbuf, sizeof(jbuf), "%s.journal", o->from)
             >= sizeof(jbuf)) {
-        fprintf(stderr, "xrdcp: journal path too long\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: journal path too long\n");
         return 50;
     }
     o->journal_path = jbuf;
@@ -213,7 +215,7 @@ xrdcp_validate_and_finalize_args(xrdcp_opts_t *o, xrdcp_lists_t *l, const char *
     /* --continue vs the journal family: two different resume systems; running
      * both would double-account progress.  One or the other. */
     if (o->copt->cont && (o->resume || o->journal_path != NULL)) {
-        fprintf(stderr, "xrdcp: --continue and --journal/--resume are "
+        BRIX_CLIENT_LOG("INFO",  "xrdcp: --continue and --journal/--resume are "
                         "different resume modes — pick one\n");
         return 50;
     }
@@ -225,7 +227,7 @@ xrdcp_validate_and_finalize_args(xrdcp_opts_t *o, xrdcp_lists_t *l, const char *
         return rc;
     }
     if (l->srcs.n == 0) {
-        fprintf(stderr, "xrdcp: no source given\n");
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: no source given\n");
         usage(prog);
         return 50;
     }

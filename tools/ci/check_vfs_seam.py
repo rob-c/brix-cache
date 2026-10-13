@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # check_vfs_seam.py — enforce "the VFS is the sole source of data-plane truth".
 #
@@ -107,6 +112,7 @@ PAL_OWNER_RE = re.compile(
     r"^client/lib/platform/(?:linux|darwin)/posix\.c:"
     r"|^src/platform/(?:"
     r"(?:linux|darwin)/posix_wrapper|(?:linux|darwin)/storage_wrapper"
+    r"|darwin/aio_wrapper"
     r"|(?:linux|darwin)/copy_range"
     r"|darwin/(?:clonefile_optimized|apple_silicon)"
     r"|windows/(?:copy_range(?:_unittest)?|copy_fallback|xattr_list"
@@ -486,7 +492,7 @@ def regen():
 
 def check():
     if not os.path.isfile(BACKLOG):
-        print(f"check_vfs_seam: missing {BACKLOG} (run with --regen to seed it)", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_seam.py', 'check', f"check_vfs_seam: missing {BACKLOG} (run with --regen to seed it)", file=sys.stderr)
         return 2
     for checker in (_check_raw_tier1, _check_bypasses, _check_raw_tier3,
                     _check_raw_client, _check_domains):
@@ -530,7 +536,7 @@ def _check_bypasses():
 
 def _check_raw_tier3():
     if not os.path.isfile(BACKLOG_NS):
-        print(f"check_vfs_seam: missing {BACKLOG_NS} (run with --regen to seed it)", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_seam.py', '_check_raw_tier3', f"check_vfs_seam: missing {BACKLOG_NS} (run with --regen to seed it)", file=sys.stderr)
         return 2
     ns_violations = _subtract_backlog(current_raw_tier3(), BACKLOG_NS)
     if not ns_violations:
@@ -549,7 +555,7 @@ def _check_raw_tier3():
 
 def _check_raw_client():
     if not os.path.isfile(BACKLOG_CLIENT):
-        print(f"check_vfs_seam: missing {BACKLOG_CLIENT} (run with --regen to seed it)", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_seam.py', '_check_raw_client', f"check_vfs_seam: missing {BACKLOG_CLIENT} (run with --regen to seed it)", file=sys.stderr)
         return 2
     client_violations = _subtract_backlog(current_raw_client(), BACKLOG_CLIENT)
     if not client_violations:
@@ -587,14 +593,14 @@ def _check_domains():
 
 
 def _print_violation(violations, heading, explanation, guidance):
-    print(heading, file=sys.stderr)
+    _brix_diagnostic('ERROR', 'tools/ci/check_vfs_seam.py', '_print_violation', heading, file=sys.stderr)
     for line in explanation:
-        print(line, file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_seam.py', '_print_violation', line, file=sys.stderr)
     for line in violations:
-        print("    " + line, file=sys.stderr)
-    print("", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_seam.py', '_print_violation', "    " + line, file=sys.stderr)
+    _brix_diagnostic('ERROR', 'tools/ci/check_vfs_seam.py', '_print_violation', "", file=sys.stderr)
     for line in guidance:
-        print(line, file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_vfs_seam.py', '_print_violation', line, file=sys.stderr)
 
 
 def _print_success():

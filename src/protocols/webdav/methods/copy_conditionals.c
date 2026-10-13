@@ -14,6 +14,7 @@
  *      that logs destination context.
  */
 
+#include "core/compat/log_event.h"
 #include "copy_conditionals.h"
 #include "core/http/etag.h"
 #include "core/http/http_conditionals.h"
@@ -42,7 +43,7 @@ webdav_check_copy_conditionals(ngx_http_request_t *r,
     rc = brix_http_check_etag_preconditions(
         r, dst_exists, dst_sb, BRIX_ETAG_WEAK, 0);
     if (rc != NGX_OK) {
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "brix_webdav COPY: conditional failed for %s",
                        dst_path);
     }

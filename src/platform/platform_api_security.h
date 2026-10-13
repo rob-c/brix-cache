@@ -15,7 +15,8 @@
  * Initialize security context
  *
  * Linux: seccomp_init() + profile loading
- * macOS: sandbox_init() (stub - relies on system security)
+ * macOS: unavailable; explicit off succeeds, every requested profile fails
+ *        with ENOTSUP (there is no silently successful sandbox stub)
  * Windows: Job Objects (stub)
  *
  * Windows Implementation:

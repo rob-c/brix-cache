@@ -5,6 +5,11 @@
 # from it automatically; the literal fallback below is only for a bare
 # rpmbuild invocation and must be kept in sync with ident.h.
 %global upstream_version %{?version_override}%{!?version_override:2.0.0}
+%if 0%{?brix_vendor_alma}
+%global alma_platform_requires Requires: brix-cache-alma-platform-warning = %{version}-%{release}
+%else
+%global alma_platform_requires %{nil}
+%endif
 
 # --- phase-42 compression codecs (gzip/deflate, zstd, and Brotli are always on) ---
 # zstd and Brotli are required by ./configure and must remain available to every
@@ -45,7 +50,7 @@ Provides:       nginx-mod-xrootd = %{version}-%{release}
 Obsoletes:      nginx-mod-xrootd < 0.1.0-5
 
 License:        AGPL-3.0-only
-URL:            https://github.com/HEP-x/nginx-xrootd
+URL:            https://github.com/rob-c/brix-cache
 Source0:        %{url}/archive/refs/tags/v%{version}/%{upstream_name}-%{version}.tar.gz
 
 # --- toolchain ---
@@ -65,6 +70,9 @@ BuildRequires:  krb5-devel
 BuildRequires:  libcom_err-devel
 BuildRequires:  libxcrypt-devel
 BuildRequires:  sqlite-devel
+# brix_seccomp audit|enforce is part of the packaged server surface; do not
+# silently ship the configure-time stub on Linux package builds.
+BuildRequires:  libseccomp-devel
 # %%systemd_post/preun/postun + %%systemd_requires (brix-cvmfs-automount)
 BuildRequires:  systemd-rpm-macros
 # --- phase-42 compression codecs. zstd and Brotli are mandatory; optional
@@ -100,6 +108,8 @@ BuildRequires:  libcephfs-devel
 Requires:       nginx-mod-stream%{?_isa}
 Requires:       openssl-libs%{?_isa}
 Requires:       curl
+Requires:       logrotate
+%{alma_platform_requires}
 # Ceph storage backends (sd_ceph / sd_cephfs_ro) are always compiled in.
 # find-requires already turns the linked sonames (librados.so.2,
 # libradosstriper.so.1) into deps, but the library packages are listed
@@ -118,11 +128,23 @@ BriX-Cache: dynamic nginx modules that serve files over the native XRootD
 stream protocol, WebDAV over HTTPS, and an S3-compatible HTTP subset, with CMS
 management-listener and Prometheus metrics support.
 
+%if 0%{?brix_vendor_alma}
+%package -n brix-cache-alma-platform-warning
+Summary:        Platform notice for AlmaLinux BriX-Cache RPMs
+BuildArch:      noarch
+
+%description -n brix-cache-alma-platform-warning
+Shared installation notice for AlmaLinux-built BriX-Cache packages. It is
+silent on AlmaLinux and warns when an AlmaLinux package is installed on Rocky
+Linux, which is not a supported BriX-Cache target.
+%endif
+
 # ---------------------------------------------------------------------------
 # Subpackage 2: native clean-room client tools (CLI + FUSE + LD_PRELOAD shim)
 # ---------------------------------------------------------------------------
 %package -n brix-cache-client
 Summary:        BriX-Cache clean-room native XRootD client tools (xrdcp, xrdfs, ...)
+%{alma_platform_requires}
 Provides:       nginx-xrootd-client = %{version}-%{release}
 Obsoletes:      nginx-xrootd-client < 0.1.0-5
 # 1.1.1-23: the two FUSE mounts split out into their own subpackages
@@ -132,6 +154,7 @@ Obsoletes:      nginx-xrootd-client < 0.1.0-5
 # (or a plain rpm -e) gives the slim CLI-only install.
 Recommends:     brix-xrootdfs-fuse = %{version}-%{release}
 Recommends:     brix-cvmfs-fuse = %{version}-%{release}
+Requires:       python3
 
 %description -n brix-cache-client
 Native command-line XRootD clients built clean-room on the in-tree protocol
@@ -139,7 +162,8 @@ core (libbrix + libxrdproto) with NO libXrdCl / libXrdSec dependency:
 xrdcp, xrdfs, xrd, xrdcksum and checksum personalities, xrdqstats, xrdprep,
 xrdgsiproxy, xrddiag, xrdmapc, xrdgsitest, xrdstorascan, mpxstats-brix,
 xrdsssadmin-brix and wait41-brix, plus brix-fault-proxy (a root-free TCP
-fault-injection proxy for resilience testing) and the libbrixposix_preload.so
+fault-injection proxy for resilience testing), brix-config-migrate (an offline
+XRootD-to-BriX configuration assistant), and the libbrixposix_preload.so
 LD_PRELOAD POSIX shim.  The FUSE mounts live in the brix-xrootdfs-fuse and
 brix-cvmfs-fuse subpackages (installed by default via weak deps).
 
@@ -158,6 +182,7 @@ brix-cvmfs-fuse subpackages (installed by default via weak deps).
 # ---------------------------------------------------------------------------
 %package -n brix-cache-client-compat
 Summary:        BriX-Cache native XRootD client tools under a brix- prefix (co-installable)
+%{alma_platform_requires}
 
 %description -n brix-cache-client-compat
 The brix-cache-client tool set installed under a "brix-" prefix so it
@@ -176,6 +201,7 @@ FUSE mounts are never prefixed and stay in brix-xrootdfs-fuse/brix-cvmfs-fuse.
 # ---------------------------------------------------------------------------
 %package -n brix-xrootdfs-fuse
 Summary:        BriX-Cache xrootdfs FUSE mount — a root:// endpoint as a local filesystem
+%{alma_platform_requires}
 # fuse3: xrootdfs forks/execs fusermount3 at mount/unmount time — a runtime
 # dependency that find-requires (which only sees libfuse3.so) misses.
 Requires:       fuse3
@@ -197,6 +223,7 @@ test it without the full CLI suite.
 # ---------------------------------------------------------------------------
 %package -n brix-cvmfs-fuse
 Summary:        BriX-Cache brixMount FUSE client for cvmfs:// repositories
+%{alma_platform_requires}
 # fuse3: brixMount forks/execs fusermount3 at mount/unmount time (same
 # find-requires blind spot as xrootdfs above).  sqlite backs the CVMFS
 # catalog reader but is linked, so find-requires picks it up.
@@ -223,6 +250,7 @@ brixMount as symlinks to it.
 # ---------------------------------------------------------------------------
 %package -n brix-cvmfs-automount
 Summary:        Automount /cvmfs via the brixMount autofs umbrella daemon
+%{alma_platform_requires}
 Requires:       brix-cvmfs-fuse = %{version}-%{release}
 Requires:       fuse3
 # The stock cvmfs RPM owns /sbin/mount.cvmfs, /etc/auto.cvmfs and the same
@@ -245,6 +273,7 @@ a brixcvmfs@.service template for static per-repo mounts.  Enable with:
 %package -n brix-cvmfs-config
 Summary:        Default CVMFS configuration and master keys for CVMFS-brix
 BuildArch:      noarch
+%{alma_platform_requires}
 # Standard mutually-exclusive-providers pattern: the stock config packages
 # provide the same virtual and lay the same /etc/cvmfs files.
 Provides:       cvmfs-config = %{version}-%{release}
@@ -265,11 +294,16 @@ and rotated keys survive upgrades.
 %package -n brix-cache-tests
 Summary:        Integration and conformance test-suite for BriX-Cache
 BuildArch:      noarch
+%{alma_platform_requires}
 Provides:       nginx-xrootd-tests = %{version}-%{release}
 Obsoletes:      nginx-xrootd-tests < 0.1.0-5
 # The system under test:
 Requires:       nginx-mod-brix-cache = %{version}-%{release}
-Requires:       brix-cache-client = %{version}-%{release}
+# The prefixed client co-installs with the independent stock XRootD client used
+# by differential/conformance tests.  Requiring the unprefixed BriX package
+# makes that supported test configuration transactionally impossible because
+# both packages own /usr/bin/xrdcp, /usr/bin/xrdfs, and related names.
+Requires:       brix-cache-client-compat = %{version}-%{release}
 Requires:       nginx
 # Python packages the suite imports / drives pytest with:
 Requires:       python3-pytest
@@ -278,10 +312,23 @@ Requires:       python3-pytest-xdist
 Requires:       python3-cryptography
 Requires:       python3-requests
 Requires:       python3-urllib3
+Requires:       python3-pyyaml
+Requires:       python3-packaging
+# Fleet preparation invokes the OpenSSL CLI and the reference XRootD daemon;
+# the library-only dependency closure does not provide either executable.
+Requires:       openssl
+Requires:       xrootd-server
 # python3-xrootd (official XRootD python bindings, from EPEL/WLCG) is only used
 # by the cross-backend / reference-daemon comparison tests; recommend rather than
 # hard-require it so the package installs where that repo is not enabled.
 Recommends:     python3-xrootd
+Recommends:     xrootd-client
+Recommends:     krb5-server
+Recommends:     krb5-workstation
+Recommends:     haproxy
+Recommends:     bubblewrap
+Recommends:     openssh-clients
+Recommends:     openssh-server
 # The SELinux policy verification suite (tests/test_selinux_rpm.py, run as
 # root on a host with the -selinux subpackage installed) drives semodule/
 # restorecon (policycoreutils), matchpathcon (libselinux-utils), semanage
@@ -295,13 +342,14 @@ Recommends:     setools-console
 The full pytest integration, conformance, and adversarial test-suite for
 BriX-Cache (root://, WebDAV, S3, CMS, metrics, FRM, TPC, ...), installed under
 %{_datadir}/brix.  Run with, e.g.:
-    cd %{_datadir}/brix && PYTHONPATH=tests python3 -m pytest tests/ -v
+    cd %{_datadir}/brix && PYTHONPATH=tests:brixtest/src python3 -m pytest tests/ -v
 
 # ---------------------------------------------------------------------------
 # Subpackage 4: Ceph/XrdCeph migration operator tools
 # ---------------------------------------------------------------------------
 %package -n brix-tools
 Summary:        XrdCeph/CephFS migration + rescue operator tools for BriX-Cache
+%{alma_platform_requires}
 Provides:       brix-cache-ceph-tools = %{version}-%{release}
 Obsoletes:      brix-cache-ceph-tools <= %{version}-%{release}
 # The compiled tools link the Ceph client libraries directly; find-requires
@@ -334,6 +382,7 @@ client/apps/ceph/ (build: make -C client ceph-tools).
 # ---------------------------------------------------------------------------
 %package -n brix-tools-compat
 Summary:        BriX-Cache XrdCeph/CephFS operator tools under a brix- prefix (co-installable)
+%{alma_platform_requires}
 Requires:       librados2%{?_isa}
 Requires:       libradosstriper1%{?_isa}
 Requires:       libcephfs2%{?_isa}
@@ -353,6 +402,7 @@ prefixed and remain in brix-tools.
 %package selinux
 Summary:        SELinux policy module (targeted) for the BriX-Cache gateway
 BuildArch:      noarch
+%{alma_platform_requires}
 %{?selinux_requires}
 # semanage(8) for the brix_port_t port labelling in %%post/%%postun —
 # %%selinux_requires only pulls policycoreutils, which does not carry it.
@@ -381,7 +431,12 @@ extra listener ports: `semanage port -a -t brix_port_t -p tcp <port>`.
 # The io_uring backend is double-gated in ./config: the env opt-in below plus a
 # liburing pkg-config probe (BuildRequires above guarantees it when with_uring).
 %{?with_uring:export BRIX_ENABLE_IO_URING=1}
-%nginx_modconfigure --with-threads --with-stream=dynamic --with-stream_ssl_module --with-http_ssl_module --with-http_dav_module
+# The module reads NGX_USER/NGX_GROUP while provisioning worker-owned private
+# stores before nginx core init_conf applies its defaults.  Match the Fedora/EL
+# nginx package's compiled service identity; otherwise the separately configured
+# module defaults to nobody while the host binary runs workers as nginx, leaving
+# every 0700 default stage/credential store inaccessible.
+%nginx_modconfigure --user=nginx --group=nginx --with-threads --with-stream=dynamic --with-stream_ssl_module --with-http_ssl_module --with-http_dav_module
 %nginx_modbuild
 
 # --- native client tools ---
@@ -394,7 +449,8 @@ extra listener ports: `semanage port -a -t brix_port_t -p tcp <port>`.
 make -C client clean
 make -C shared/xrdproto clean
 make -C shared/xrdproto %{?_smp_mflags} CFLAGS="%{optflags}"
-make -C client %{?_smp_mflags} CFLAGS="%{optflags}" LDFLAGS="%{build_ldflags}"
+make -C client %{?_smp_mflags} BRIX_CLIENT_VERSION="%{version}" \
+    CFLAGS="%{optflags}" LDFLAGS="%{build_ldflags}"
 
 # --- Ceph/XrdCeph migration + rescue operator tools ---
 # Built by the client Makefile's dep-gated ceph-tools target (source of truth:
@@ -402,7 +458,8 @@ make -C client %{?_smp_mflags} CFLAGS="%{optflags}" LDFLAGS="%{build_ldflags}"
 # libcephfs are present, so all five tools build). The main client make above
 # already covers them via OPT_EXES; the explicit target plus the test loop is a
 # build-time assertion that none were silently gate-skipped.
-make -C client ceph-tools %{?_smp_mflags} CFLAGS="%{optflags}" LDFLAGS="%{build_ldflags}"
+make -C client ceph-tools %{?_smp_mflags} BRIX_CLIENT_VERSION="%{version}" \
+    CFLAGS="%{optflags}" LDFLAGS="%{build_ldflags}"
 for t in xrdceph_striper_migrate xrdceph_cephfs_to_striper \
          xrdrados_rescue xrdcephfs_rescue xrdceph_migrate; do
     test -x client/bin/$t
@@ -492,17 +549,28 @@ make -C client install-automount \
 # --- test-suite (brix-cache-tests, noarch data) ---
 install -d %{buildroot}%{_datadir}/brix
 cp -a tests %{buildroot}%{_datadir}/brix/tests
+install -d %{buildroot}%{_datadir}/brix/brixtest
+cp -a brixtest/src %{buildroot}%{_datadir}/brix/brixtest/src
 # Never ship the prebuilt test nginx binary, any python bytecode caches, or
 # stray compiled test helpers (e.g. tests/fuzz/*) — the package is noarch, so
 # any ELF object in the payload fails the build.
 rm -f %{buildroot}%{_datadir}/brix/tests/nginx-bin
-find %{buildroot}%{_datadir}/brix/tests -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || :
-find %{buildroot}%{_datadir}/brix/tests -name '*.pyc' -delete
-find %{buildroot}%{_datadir}/brix/tests -type f \
+find %{buildroot}%{_datadir}/brix/tests \
+     %{buildroot}%{_datadir}/brix/brixtest -name '__pycache__' \
+     -type d -exec rm -rf {} + 2>/dev/null || :
+find %{buildroot}%{_datadir}/brix/tests \
+     %{buildroot}%{_datadir}/brix/brixtest -name '*.pyc' -delete
+find %{buildroot}%{_datadir}/brix/tests \
+     %{buildroot}%{_datadir}/brix/brixtest -type f \
     -exec sh -c 'head -c4 "$1" | od -An -tx1 | grep -q "7f 45 4c 46"' _ {} \; -delete
 install -Dpm0644 conftest.py      %{buildroot}%{_datadir}/brix/conftest.py
 install -Dpm0644 pytest.ini       %{buildroot}%{_datadir}/brix/pytest.ini
 install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/brix/requirements.txt
+
+%if 0%{?brix_vendor_alma}
+install -Dpm0755 packaging/rpm/alma-platform-warning.sh \
+    %{buildroot}%{_libexecdir}/brix/alma-platform-warning
+%endif
 
 # --- Ceph/XrdCeph migration + rescue operator tools (brix-tools) ---
 # Already staged by `make -C client install-bin` above: the compiled tools via
@@ -523,6 +591,11 @@ getent passwd brix-broker >/dev/null || \
     useradd -r -g brix-broker -M -d /nonexistent -s /usr/sbin/nologin \
             -c "BriX-Cache impersonation broker (non-root)" brix-broker
 exit 0
+
+%if 0%{?brix_vendor_alma}
+%post -n brix-cache-alma-platform-warning
+%{_libexecdir}/brix/alma-platform-warning
+%endif
 
 %if %{with selinux}
 %pre selinux
@@ -594,6 +667,7 @@ fi
 %{_bindir}/xrdadler32
 %{_bindir}/xrdckverify
 %{_bindir}/xrdcinfo
+%{_bindir}/xrdcks
 %{_bindir}/xrdqstats
 %{_bindir}/wait41-brix
 %{_bindir}/xrdprep
@@ -605,6 +679,13 @@ fi
 %{_bindir}/xrdsssadmin-brix
 %{_bindir}/xrdstorascan
 %{_bindir}/brix-fault-proxy
+%{_bindir}/brix-config-migrate
+%{_libexecdir}/brix/brix_config_migrate.py
+%{_libexecdir}/brix/brix_config_migrate_core.py
+%{_libexecdir}/brix/brix_config_migrate_render.py
+%{_libexecdir}/brix/brix_config_migrate_runtime.py
+%{_libexecdir}/brix/logging_support.py
+%dir %{_libexecdir}/brix
 %{_libdir}/libbrixposix_preload.so
 %{_mandir}/man1/mpxstats-brix.1*
 %{_mandir}/man1/wait41-brix.1*
@@ -626,6 +707,7 @@ fi
 %{_mandir}/man1/xrdsssadmin-brix.1*
 %{_mandir}/man1/xrdstorascan.1*
 %{_mandir}/man1/brix-fault-proxy.1*
+%{_mandir}/man1/brix-config-migrate.1*
 %{_mandir}/man7/brix-env.7*
 %{_datadir}/bash-completion/completions/xrd
 %{_datadir}/bash-completion/completions/xrdcp
@@ -637,6 +719,7 @@ fi
 %{_datadir}/bash-completion/completions/xrdsssadmin-brix
 %{_datadir}/bash-completion/completions/xrdstorascan
 %{_datadir}/bash-completion/completions/brix-fault-proxy
+%{_datadir}/bash-completion/completions/brix-config-migrate
 %{_datadir}/zsh/site-functions/_brix-client
 
 %files -n brix-xrootdfs-fuse
@@ -690,6 +773,7 @@ fi
 %license LICENSE
 %dir %{_datadir}/brix
 %{_datadir}/brix/tests
+%{_datadir}/brix/brixtest
 %{_datadir}/brix/conftest.py
 %{_datadir}/brix/pytest.ini
 %{_datadir}/brix/requirements.txt
@@ -739,6 +823,7 @@ fi
 %{_bindir}/brix-xrdadler32
 %{_bindir}/brix-xrdckverify
 %{_bindir}/brix-xrdcinfo
+%{_bindir}/brix-xrdcks
 %{_bindir}/brix-xrdqstats
 %{_bindir}/brix-wait41
 %{_bindir}/brix-xrdprep
@@ -802,6 +887,13 @@ fi
 %{_datadir}/bash-completion/completions/brix-xrdrados_rescue
 %{_datadir}/bash-completion/completions/brix-xrdcephfs_rescue
 %{_datadir}/bash-completion/completions/brix-xrdceph_migrate
+
+%if 0%{?brix_vendor_alma}
+%files -n brix-cache-alma-platform-warning
+%license LICENSE
+%dir %{_libexecdir}/brix
+%{_libexecdir}/brix/alma-platform-warning
+%endif
 
 %if %{with selinux}
 %files selinux
@@ -923,7 +1015,8 @@ fi
 - SELinux policy verification suite: tests/test_selinux_rpm.py (ships in
   brix-cache-tests) — run as root on an SELinux host with the -selinux
   subpackage installed:
-      cd /usr/share/brix && sudo python3 -m pytest tests/test_selinux_rpm.py
+      cd /usr/share/brix && sudo env TEST_SKIP_SERVER_SETUP=1 \
+        PYTHONPATH=tests:brixtest/src python3 -m pytest tests/test_selinux_rpm.py
   Asserts the brix module is loaded in the module store, the file-context
   database and on-disk labels for /var/{lib,cache}/brix-cache (+ legacy
   nginx-xrootd spellings), /etc/brix-cache and /etc/grid-security, the

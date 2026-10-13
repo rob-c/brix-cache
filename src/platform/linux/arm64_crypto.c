@@ -19,6 +19,7 @@
 #include "../platform_api.h"
 #include <sys/auxv.h>
 #include <asm/hwcap.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 

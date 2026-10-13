@@ -96,6 +96,9 @@ def test_unknown_reqcode_rejected(srv, bad):
     assert status == kXR_error, (
         f"OUR accepted unknown query reqcode {bad} (BUG): status={status} "
         f"{body!r}")
+    assert len(body) >= 4 and struct.unpack("!I", body[:4])[0] == 3000, (
+        f"OUR mapped unknown query reqcode {bad} to the wrong wire error: "
+        f"{body!r}")
 
 
 @pytest.mark.parametrize("bad", [0, 99, 1000])

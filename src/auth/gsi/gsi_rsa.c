@@ -14,6 +14,44 @@ brix_gsi_rand(uint8_t *out, size_t n)
 }
 
 
+/* ---- Generate one serialized-buffer-safe GSI random challenge tag ----
+ *
+ * WHAT: Fills out[8] with unbiased cryptographically random ASCII letters and
+ *       digits. Returns 1 on success and 0 when the RNG fails.
+ *
+ * WHY: XrdSecgsi carries this challenge through its serialized-buffer parser;
+ *      ':' is a field delimiter there and makes an otherwise valid handshake
+ *      fail intermittently. Raw random bytes also include NUL. Alphanumeric
+ *      bytes are opaque to that grammar while retaining 62 choices per byte.
+ *
+ * HOW: Draw bytes in batches, reject values >= 248 (the largest multiple of 62
+ *      below 256), and map accepted bytes modulo the 62-character alphabet.
+ */
+int
+brix_gsi_rand_tag(uint8_t out[8])
+{
+    static const uint8_t alphabet[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    uint8_t random[8];
+    size_t  produced = 0;
+    size_t  i;
+
+    while (produced < sizeof(random)) {
+        if (!brix_gsi_rand(random, sizeof(random))) {
+            OPENSSL_cleanse(random, sizeof(random));
+            return 0;
+        }
+        for (i = 0; i < sizeof(random) && produced < sizeof(random); i++) {
+            if (random[i] < 248) {
+                out[produced++] = alphabet[random[i] % 62];
+            }
+        }
+    }
+    OPENSSL_cleanse(random, sizeof(random));
+    return 1;
+}
+
+
 /*
  * RSA private-key signature, byte-exact with XrdCryptosslRSA::EncryptPrivate:
  * EVP_PKEY_sign over the RAW input (no message digest) with RSA PKCS#1 v1.5

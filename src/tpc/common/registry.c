@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "registry.h"
 
 /*
@@ -230,7 +231,7 @@ brix_tpc_registry_reap_stale(ngx_log_t *log)
     ngx_shmtx_unlock(&brix_tpc_registry_mutex);
 
     if (reaped > 0 && log != NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_tpc: reaped %ui abandoned transfer slot(s) "
                       "(no progress for >%T s)",
                       reaped, brix_tpc_registry_max_age);
@@ -287,7 +288,7 @@ brix_tpc_registry_add(const brix_tpc_transfer_t *transfer, ngx_log_t *log,
 
     tbl = brix_tpc_registry_table();
     if (tbl == NULL || transfer == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_tpc: transfer registry is unavailable");
         return 0;
     }
@@ -308,7 +309,7 @@ brix_tpc_registry_add(const brix_tpc_transfer_t *transfer, ngx_log_t *log,
         in_use = tpc_scan_slots(tbl, &free_slot);
         if (in_use >= max_active) {
             ngx_shmtx_unlock(&brix_tpc_registry_mutex);
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_tpc: at the configured concurrency cap "
                           "(%ui active) — refusing new transfer", max_active);
             return 0;
@@ -334,7 +335,7 @@ brix_tpc_registry_add(const brix_tpc_transfer_t *transfer, ngx_log_t *log,
 
     if (free_slot == BRIX_TPC_REGISTRY_SLOTS) {
         ngx_shmtx_unlock(&brix_tpc_registry_mutex);
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_tpc: transfer registry is full");
         return 0;
     }
@@ -412,7 +413,7 @@ brix_tpc_registry_update_core(uint64_t id, off_t bytes_done, off_t bytes_total,
 
     ngx_shmtx_unlock(&brix_tpc_registry_mutex);
     if (log != NULL) {
-        ngx_log_debug1(NGX_LOG_DEBUG_CORE, log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_CORE, log, 0,
                        "brix_tpc: transfer id %uL not found for update",
                        id);
     }

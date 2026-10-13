@@ -14,6 +14,7 @@
  *       points return an owned reference the caller frees.
  */
 
+#include "core/compat/log_event.h"
 #include "voms_internal.h"
 #include "auth/crypto/pki_build.h"
 #include "auth/crypto/store_policy.h"
@@ -28,7 +29,7 @@ brix_voms_available(void)
 ngx_int_t
 brix_voms_init(ngx_log_t *log)
 {
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                   "brix: native VOMS attribute-certificate verifier enabled");
     return NGX_OK;
 }
@@ -75,7 +76,7 @@ brix_voms_trust_store(ngx_log_t *log, const ngx_str_t *cert_dir)
     store = brix_build_ca_store_cached((void *) 1, log, dir, NULL, NULL, 0,
                                        &crl_count, &pol);
     if (store == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix: VOMS trust store: cannot load CA directory \"%s\"", dir);
     }
     return store;
@@ -99,7 +100,7 @@ brix_voms_warm(ngx_log_t *log, const ngx_str_t *cert_dir)
         return NGX_ERROR;
     }
     X509_STORE_free(store);   /* the cache holds its own reference */
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                   "brix: VOMS trust store ready for \"%s\" (%d CRL(s))",
                   dir, crl_count);
     return NGX_OK;

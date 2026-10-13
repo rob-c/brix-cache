@@ -17,6 +17,7 @@
  *       No signature work — the front door validated the token before capture.
  *       Fail-closed on any decode failure once a gate is configured.
  */
+#include "core/compat/log_event.h"
 #include "aud_match.h"
 #include "b64url.h"
 #include "json.h"
@@ -50,7 +51,7 @@ brix_token_backend_aud_ok(const ngx_str_t *bearer,
     }
 
     if (xrdjwt_split((const char *) bearer->data, bearer->len, seg) != 0) {
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
             "brix: backend audience gate: bearer is not a compact JWS - "
             "not forwarding");
         return 0;
@@ -58,7 +59,7 @@ brix_token_backend_aud_ok(const ngx_str_t *bearer,
 
     plen = b64url_decode(seg[1].p, seg[1].n, payload, sizeof(payload));
     if (plen <= 0) {
-        ngx_log_error(NGX_LOG_INFO, log, 0,
+        BRIX_LOG(NGX_LOG_INFO, log, 0,
             "brix: backend audience gate: token payload undecodable - "
             "not forwarding");
         return 0;
@@ -82,7 +83,7 @@ brix_token_backend_aud_ok(const ngx_str_t *bearer,
 
     /* Configured gate, no match (or no aud claim at all): fail closed. The
      * claim values are not logged — they can carry user-identifying URLs. */
-    ngx_log_error(NGX_LOG_INFO, log, 0,
+    BRIX_LOG(NGX_LOG_INFO, log, 0,
         "brix: backend audience gate: token aud does not accept this "
         "backend - not forwarding");
     return 0;

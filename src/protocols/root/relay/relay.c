@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "core/config/config.h"
 #include "relay.h"
@@ -76,7 +77,7 @@ relay_audit_sink(void *ctx, const brix_tap_frame_t *f, brix_tap_dir_t dir,
     (void) payload_len;
 
     if (brix_tap_audit_format(f, dir, line, sizeof(line)) > 0) {
-        ngx_log_error(NGX_LOG_INFO, log, 0, "xrootd tap: %s", line);
+        BRIX_LOG(NGX_LOG_INFO, log, 0, "xrootd tap: %s", line);
     }
 }
 
@@ -265,7 +266,7 @@ relay_connect_done(ngx_event_t *ev)
     socklen_t         len = sizeof(err);
 
     if (ev->timedout) {
-        ngx_log_error(NGX_LOG_ERR, r->client->log, NGX_ETIMEDOUT,
+        BRIX_LOG(NGX_LOG_ERR, r->client->log, NGX_ETIMEDOUT,
                       "xrootd relay: connect to %V timed out", r->peer.name);
         relay_close(r);
         return;
@@ -273,7 +274,7 @@ relay_connect_done(ngx_event_t *ev)
     if (getsockopt(u->fd, SOL_SOCKET, SO_ERROR, (void *) &err, &len) == -1
         || err != 0)
     {
-        ngx_log_error(NGX_LOG_ERR, r->client->log, err,
+        BRIX_LOG(NGX_LOG_ERR, r->client->log, err,
                       "xrootd relay: connect to upstream failed");
         relay_close(r);
         return;
@@ -344,7 +345,7 @@ brix_relay_start(ngx_stream_session_t *s, ngx_connection_t *c, void *srv_conf)
     ctx->relay = r;
 
     if (conf->relay_addr->socklen == 0) {   /* phase-116: unresolved */
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                       "xrootd relay: %V not yet resolved", &conf->relay_name);
         return NGX_ERROR;
     }
@@ -358,7 +359,7 @@ brix_relay_start(ngx_stream_session_t *s, ngx_connection_t *c, void *srv_conf)
 
     rc = ngx_event_connect_peer(&r->peer);
     if (rc == NGX_ERROR || rc == NGX_BUSY || rc == NGX_DECLINED) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                       "xrootd relay: cannot connect to %V", &conf->relay_name);
         return NGX_ERROR;
     }

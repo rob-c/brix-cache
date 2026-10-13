@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "server.h"
 #include "protocols/root/connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
 #include "core/compat/log_diag.h"
@@ -258,7 +259,7 @@ brix_cms_srv_handler(ngx_stream_session_t *s)
     if (conf->max_connections > 0
         && brix_cms_srv_conn_count() >= (ngx_uint_t) conf->max_connections)
     {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: CMS server: connection from %s refused — "
                       "max_connections (%i) reached",
                       ctx->host, conf->max_connections);
@@ -275,7 +276,7 @@ brix_cms_srv_handler(ngx_stream_session_t *s)
         && brix_cms_srv_ip_count(ctx->host)
            >= (ngx_uint_t) conf->max_connections_per_ip)
     {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                       "brix: CMS server: connection from %s refused — "
                       "max_connections_per_ip (%i) reached",
                       ctx->host, conf->max_connections_per_ip);
@@ -353,7 +354,7 @@ brix_cms_srv_handler(ngx_stream_session_t *s)
         ngx_add_timer(c->read, ctx->login_timeout_ms);
     }
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: CMS server accepted from %s", ctx->host);
 
     brix_cms_srv_read(c->read);

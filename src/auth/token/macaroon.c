@@ -17,6 +17,7 @@
  * cid==identifier (macaroon_candidate_matches_cid uses brix_macaroon_packet_len), decrypt vid, parse discharge with
  * recovered key, intersect claims. brix_macaroon_validate() is the single-root wrapper. */
 
+#include "core/compat/log_event.h"
 #include "core/types/tunables.h"
 #include "token_internal.h"
 #include "macaroon.h"
@@ -229,7 +230,7 @@ macaroon_validate_one_discharge(ngx_log_t *log,
 
     d_bin_len = macaroon_find_discharge(bundle, tp, d_bin, sizeof(d_bin));
     if (d_bin_len < 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "brix_macaroon: no discharge Macaroon provided for "
             "third-party caveat #%d", caveat_index);
         return -1;
@@ -237,7 +238,7 @@ macaroon_validate_one_discharge(ngx_log_t *log,
 
     if (macaroon_decrypt_vid(tp->vid, tp->vid_len, tp->sig_before, d_key)
         != 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "brix_macaroon: cannot decrypt vid for caveat #%d "
             "(unsupported vid format?)", caveat_index);
         OPENSSL_cleanse(d_key, sizeof(d_key));
@@ -253,14 +254,14 @@ macaroon_validate_one_discharge(ngx_log_t *log,
     /* tp_arr/n_tp/max_tp stay NULL/0: discharge parse, no nested capture */
     if (macaroon_parse_core(&d_in, d_bin, (size_t)d_bin_len) != 0) {
         OPENSSL_cleanse(d_key, sizeof(d_key));
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "brix_macaroon: discharge Macaroon #%d is invalid",
             caveat_index);
         return -1;
     }
     OPENSSL_cleanse(d_key, sizeof(d_key));
 
-    ngx_log_error(NGX_LOG_DEBUG, log, 0,
+    BRIX_LOG(NGX_LOG_DEBUG, log, 0,
         "brix_macaroon: discharge #%d valid sub=\"%s\" scope=\"%s\"",
         caveat_index, d_claims.sub, d_claims.scope_raw);
     macaroon_intersect_discharge_claims(log, claims, &d_claims);
@@ -278,7 +279,7 @@ macaroon_validate_discharges(ngx_log_t *log, const macaroon_bundle_t *bundle,
         return 0;
     }
     if (bundle->n_tokens < 2) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "brix_macaroon: root has %d third-party caveat(s) "
             "but no discharge Macaroons were provided", n_tp);
         return -1;
@@ -339,7 +340,7 @@ brix_macaroon_validate_bundle(ngx_log_t *log,
 
     if (macaroon_bundle_tokenize(token, token_len, tokens, tlens, &n_tokens)
         != 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_macaroon: empty token bundle");
         return -1;
     }
@@ -348,7 +349,7 @@ brix_macaroon_validate_bundle(ngx_log_t *log,
     root_bin_len = b64url_decode(tokens[0], tlens[0],
                                  root_bin, sizeof(root_bin));
     if (root_bin_len < 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_macaroon: root token base64url decode failed");
         return -1;
     }
@@ -374,7 +375,7 @@ brix_macaroon_validate_bundle(ngx_log_t *log,
         return -1;
         }
 
-    ngx_log_error(NGX_LOG_INFO, log, 0,
+    BRIX_LOG(NGX_LOG_INFO, log, 0,
                   "brix_macaroon: valid Macaroon bundle sub=\"%s\" "
                   "iss=\"%s\" scope=\"%s\" exp=%L "
                   "(third-party: %d, discharges: %d)",

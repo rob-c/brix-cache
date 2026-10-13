@@ -39,7 +39,12 @@ s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
      * evaluation in s3_put_precondition remains the fast path that spares a
      * doomed request the body upload; the storage's decision here is the one
      * that counts. */
-    brix_http_write_precond(r, &pre);
+    if (rx != NULL && rx->is_upload_part) {
+        ngx_memzero(&pre, sizeof(pre));
+        pre.kind = BRIX_SD_PRECOND_NONE;
+    } else {
+        brix_http_write_precond(r, &pre);
+    }
     if (pre.kind == BRIX_SD_PRECOND_NONE
         && rx != NULL && rx->exclusive_create)
     {

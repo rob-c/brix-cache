@@ -13,6 +13,7 @@
  * HOW: pure move — same includes, same helpers, same control flow as before.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "auth/crypto/store_policy.h"      /* BRIX_SP_MODE_*, BRIX_CRL_MODE_* defaults */
 #include "core/compat/integrity_info.h"   /* §8.x checksum xattr write format */
@@ -181,7 +182,7 @@ webdav_finalize_authz_rules(ngx_conf_t *cf,
     if (conf->common.vomsdir.len > 0 && conf->common.voms_cert_dir.len > 0
         && brix_voms_warm(cf->log, &conf->common.voms_cert_dir) != NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_voms_cert_dir \"%V\": cannot load the CA directory",
             &conf->common.voms_cert_dir);
         return NGX_CONF_ERROR;
@@ -190,7 +191,7 @@ webdav_finalize_authz_rules(ngx_conf_t *cf,
         && brix_finalize_authdb_rules(cf->log, &conf->common.root,
                                         conf->common.authdb_rules) != NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_authdb: failed to finalize rules for root \"%V\"",
             &conf->common.root);
         return NGX_CONF_ERROR;
@@ -199,7 +200,7 @@ webdav_finalize_authz_rules(ngx_conf_t *cf,
         && brix_finalize_vo_rules(cf->log, &conf->common.root,
                                     conf->common.vo_rules) != NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_require_vo: failed to finalize rules for root \"%V\"",
             &conf->common.root);
         return NGX_CONF_ERROR;
@@ -265,7 +266,7 @@ webdav_run_lock_startup_sweep(ngx_conf_t *cf,
     {
         ngx_uint_t removed = webdav_lock_startup_sweep(
             cf->pool, cf->log, conf->common.root_canon);
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix_webdav: lock startup sweep removed %ui persisted "
             "lock(s) under \"%s\"", removed, conf->common.root_canon);
     }
@@ -292,7 +293,7 @@ webdav_require_verifier(ngx_conf_t *cf,
         && conf->common.token_macaroon_secret.len == 0 && conf->common.pwd_file.len == 0
         && conf->http_secretkey.len == 0)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_webdav: auth optional/required needs a credential verifier "
             "— brix_trusted_ca / brix_trusted_ca_dir, brix_token_jwks / "
             "brix_token_config / brix_macaroon_secret, or brix_pwd_file");
@@ -374,7 +375,7 @@ webdav_build_ca_store_once(ngx_conf_t *cf,
     }
     store = webdav_build_ca_store(cf->log, conf, &crl_count);
     if (store == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_webdav: failed to build cached CA store");
         return NGX_CONF_ERROR;
     }
@@ -387,7 +388,7 @@ webdav_build_ca_store_once(ngx_conf_t *cf,
     cln->handler = webdav_x509_store_cleanup;
     cln->data = store;
     conf->ca_store = store;
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
                        "brix_webdav: cached CA store built for root=\"%V\" crls=%d",
                        &conf->common.root, crl_count);
     return NGX_CONF_OK;
@@ -401,7 +402,7 @@ webdav_validate_token_jwks_path(ngx_conf_t *cf,
         return NGX_CONF_OK;
     }
     if (conf->common.token_issuer.len == 0 || conf->common.token_audience.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_webdav: brix_token_jwks requires brix_token_issuer and brix_token_audience");
         return NGX_CONF_ERROR;
     }

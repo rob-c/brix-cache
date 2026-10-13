@@ -115,7 +115,15 @@ brix_tls_upgrade(brix_conn *c, int verify_peer, int verify_host,
         brix_tls_err(st, XRDC_ESOCK, "SSL_CTX_new");
         return -1;
     }
-    SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
+    if (c->opts.tls_max_version != 0) {
+        /* Conformance-only legacy ClientHello: lower OpenSSL's local policy so
+         * the peer, rather than the client library, makes the refusal. */
+        SSL_CTX_set_security_level(ctx, 0);
+        SSL_CTX_set_min_proto_version(ctx, TLS1_VERSION);
+        SSL_CTX_set_max_proto_version(ctx, c->opts.tls_max_version);
+    } else {
+        SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
+    }
 
     if (verify_peer) {
         SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
@@ -153,6 +161,15 @@ brix_tls_upgrade(brix_conn *c, int verify_peer, int verify_host,
     }
     SSL_set_fd(ssl, c->io.fd);
     SSL_set_connect_state(ssl);
+    if (c->opts.tls_resume_session != NULL
+        && SSL_set_session(ssl,
+            (SSL_SESSION *) c->opts.tls_resume_session) != 1)
+    {
+        brix_tls_err(st, XRDC_ESOCK, "SSL_set_session");
+        SSL_free(ssl);
+        SSL_CTX_free(ctx);
+        return -1;
+    }
 
     if (tls_do_connect(ssl, &c->io, verify_peer, st) != 0) {
         SSL_free(ssl);
@@ -162,7 +179,57 @@ brix_tls_upgrade(brix_conn *c, int verify_peer, int verify_host,
 
     c->io.ssl = ssl;     /* struct ssl_st* == SSL* */
     c->ssl_ctx = ctx;
+    c->tls_session_reused = SSL_session_reused(ssl) ? 1 : 0;
     return 0;
+}
+
+int
+brix_tls_probe_renegotiate(brix_conn *c, brix_status *st)
+{
+    SSL *ssl;
+    int attempts;
+
+    if (c == NULL || c->io.ssl == NULL) return -1;
+    ssl = (SSL *) c->io.ssl;
+    if (SSL_version(ssl) != TLS1_2_VERSION) return -1;
+    ERR_clear_error();
+    if (SSL_renegotiate(ssl) != 1) {
+        brix_tls_err(st, XRDC_ESOCK, "TLS renegotiation unavailable locally");
+        return -1;
+    }
+    for (attempts = 0; attempts < 32; attempts++) {
+        int rc = SSL_do_handshake(ssl);
+        int error;
+        short events;
+
+        if (rc == 1) return 1;
+        error = SSL_get_error(ssl, rc);
+        if (error != SSL_ERROR_WANT_READ && error != SSL_ERROR_WANT_WRITE) {
+            brix_tls_err(st, XRDC_ESOCK, "TLS renegotiation refused");
+            return 0;
+        }
+        events = error == SSL_ERROR_WANT_READ ? POLLIN : POLLOUT;
+        if (brix_tls_wait_io(c->io.fd, events, c->io.timeout_ms) <= 0) {
+            brix_status_set(st, XRDC_ESOCK, ETIMEDOUT,
+                "TLS renegotiation response unavailable");
+            return -1;
+        }
+    }
+    brix_status_set(st, XRDC_ESOCK, 0, "TLS renegotiation did not terminate");
+    return -1;
+}
+
+void *
+brix_tls_session_get(const brix_conn *c)
+{
+    if (c == NULL || c->io.ssl == NULL) return NULL;
+    return SSL_get1_session((SSL *) c->io.ssl);
+}
+
+void
+brix_tls_session_free(void *session)
+{
+    SSL_SESSION_free((SSL_SESSION *) session);
 }
 
 
@@ -321,4 +388,3 @@ brix_tls_info(const brix_conn *c, const char **ver, const char **cipher)
     }
     return 1;
 }
-

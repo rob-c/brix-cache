@@ -1,7 +1,8 @@
 /*
  * registry.c — SHM-backed session registry for cross-worker coordination.
  *
- * Stores each session's metadata (sessid, DN, VO list, token_auth) in a shared-
+ * Stores each session's metadata (sessid, DN, VO list, token_auth and the
+ * signing-required posture) in a shared-
  * memory table so any worker can resolve a session it did not itself create —
  * needed because kXR_bind secondaries and proxied requests may land on a
  * different worker than the primary login.  All slot access is mutex-protected
@@ -236,6 +237,54 @@ brix_session_pathid_bind(const u_char sessid[BRIX_SESSION_ID_LEN],
     brix_session_pathid_set(sessid, pathid, 1);
 }
 
+int
+brix_session_pathid_claim(const u_char sessid[BRIX_SESSION_ID_LEN],
+    unsigned limit, unsigned *pathid_out)
+{
+    brix_session_table_t *tbl = session_table();
+    brix_session_entry_t *e;
+    unsigned bound = 0;
+    unsigned candidate;
+    unsigned start;
+    unsigned pathid;
+    unsigned step;
+    unsigned occupied;
+
+    if (pathid_out == NULL || tbl == NULL || limit == 0 || limit > 253) {
+        return -1;
+    }
+    *pathid_out = 0;
+    ngx_shmtx_lock(&session_registry_state.session_mutex);
+    e = brix_session_find_locked(tbl, sessid);
+    if (e == NULL) {
+        ngx_shmtx_unlock(&session_registry_state.session_mutex);
+        return -1;
+    }
+    candidate = 0;
+    start = (e->next_pathid >= 1 && e->next_pathid <= 253)
+            ? e->next_pathid : 1;
+    for (step = 0; step < 253; step++) {
+        pathid = 1 + ((start - 1 + step) % 253);
+        occupied = (e->pathid_map[pathid / 8] >> (pathid % 8)) & 1u;
+
+        if (occupied) {
+            bound++;
+        } else if (candidate == 0) {
+            candidate = pathid;
+        }
+    }
+    if (bound >= limit || candidate == 0) {
+        ngx_shmtx_unlock(&session_registry_state.session_mutex);
+        return 0;
+    }
+    e->pathid_map[candidate / 8] |=
+        (u_char) (1u << (candidate % 8));
+    e->next_pathid = (u_char) ((candidate == 253) ? 1 : candidate + 1);
+    ngx_shmtx_unlock(&session_registry_state.session_mutex);
+    *pathid_out = candidate;
+    return 1;
+}
+
 void
 brix_session_pathid_unbind(const u_char sessid[BRIX_SESSION_ID_LEN],
     unsigned pathid)
@@ -267,14 +316,15 @@ brix_session_pathid_bound(const u_char sessid[BRIX_SESSION_ID_LEN],
     return bound;
 }
 
-/* Store a session's metadata (sessid, DN, VO list, token_auth) in the first free
+/* Store session metadata (identity plus signing-required posture) in the first free
  * SHM slot at login completion; a no-op if the sessid is already present.
  * W5/P90-27.2: an identity at its per-source soft cap recycles its OWN LRU slot
  * first (self-eviction), so the F4 global reap only ever fires for genuinely
  * diverse load.  Mutex-protected (cross-worker). */
 int
 brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
-    const char *dn, const char *vo_list, ngx_uint_t token_auth)
+    const char *dn, const char *vo_list, ngx_uint_t token_auth,
+    ngx_uint_t request_signing)
 {
     brix_session_table_t *tbl;
     brix_session_scan_t     sc;
@@ -311,10 +361,11 @@ brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
     }
 
     if (found) {
+        tbl->slots[sc.match_slot].request_signing = request_signing;
         slot = (int) sc.match_slot;          /* already registered, same slot */
     } else if (sc.free_slot < tbl->capacity) {
         brix_session_fill_slot(tbl, sc.free_slot, sessid, dn, vo_list,
-                               token_auth, src_key, now);
+                               token_auth, request_signing, src_key, now);
         slot = (int) sc.free_slot;
     }
 
@@ -331,14 +382,14 @@ brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
     return slot;
 }
 
-/* Look a session up by sessid, copying its DN / VO list / token_auth out (used
+/* Look a session up by sessid, copying identity and signing posture out (used
  * by kXR_bind secondaries and proxy mode).  Returns 1 on hit, 0 on miss.
  * Mutex-protected. */
 int
 brix_session_lookup(const u_char sessid[BRIX_SESSION_ID_LEN],
     char *dn_out, size_t dn_size,
     char *vo_out, size_t vo_size,
-    ngx_uint_t *token_auth_out)
+    ngx_uint_t *token_auth_out, ngx_uint_t *request_signing_out)
 {
     brix_session_table_t *tbl;
     brix_session_entry_t *e;
@@ -362,6 +413,9 @@ brix_session_lookup(const u_char sessid[BRIX_SESSION_ID_LEN],
             ngx_cpystrn((u_char *) dn_out, (u_char *) e->dn, dn_size);
             ngx_cpystrn((u_char *) vo_out, (u_char *) e->vo_list, vo_size);
             *token_auth_out = e->token_auth;
+            if (request_signing_out != NULL) {
+                *request_signing_out = e->request_signing;
+            }
             e->last_seen = ngx_current_msec;  /* F4: activity keeps it off the LRU */
             found = 1;
             break;

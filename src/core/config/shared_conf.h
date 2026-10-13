@@ -5,6 +5,7 @@
 #ifndef NGX_HTTP_BRIX_SHARED_CONF_H
 #define NGX_HTTP_BRIX_SHARED_CONF_H
 
+#include "core/compat/log_event.h"
 #include <ngx_thread_pool.h>
 
 #include <regex.h>
@@ -218,7 +219,7 @@ brix_shared_apply_read_only(ngx_http_brix_shared_conf_t *common,
     if (common->read_only_public == 1 && common->read_only != 1) {
         common->read_only = 1;
         if (log != NULL) {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                 "brix: read_only_public on - implies read_only; the export is "
                 "read-only and server-introspection queries are refused");
         }
@@ -228,7 +229,7 @@ brix_shared_apply_read_only(ngx_http_brix_shared_conf_t *common,
         return;
     }
     if (common->allow_write == 1 && log != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
             "brix: read_only on - the export is read-only; all write "
             "operations are rejected at the protocol edge (overrides allow_write)");
     }
@@ -260,7 +261,7 @@ static inline ngx_int_t
 brix_shared_security_gate(ngx_conf_t *cf, ngx_flag_t strict,
     const char *what, const char *remedy)
 {
-    ngx_conf_log_error(strict ? NGX_LOG_EMERG : NGX_LOG_WARN, cf, 0,
+    BRIX_CONF_LOG(strict ? NGX_LOG_EMERG : NGX_LOG_WARN, cf, 0,
         "brix: insecure configuration — %s; set %s to close it%s",
         what, remedy,
         strict ? " (refused: brix_strict_security on)" : "");

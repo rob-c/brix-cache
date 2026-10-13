@@ -29,6 +29,7 @@
  *       it and tests/test_phase115_ram_tier.py pins it.
  */
 
+#include "core/compat/log_event.h"
 #include "sd_ram_internal.h"
 
 #include "fs/backend/sd_registry.h"
@@ -80,7 +81,7 @@ sd_ram_init(brix_sd_instance_t *inst, void *driver_conf)
     /* Say PER WORKER out loud. `ram:8g` on a 16-worker server is 128 GB of
      * resident memory, and the size in the directive is the one number an
      * operator reads as the answer — the log is where that gets corrected. */
-    ngx_log_error(NGX_LOG_NOTICE, inst->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, inst->log, 0,
                   "brix: ram cache store ready, capacity=%uL bytes PER WORKER",
                   (uint64_t) st->capacity);
     return NGX_OK;

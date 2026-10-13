@@ -2,6 +2,7 @@
  * broker.c - (kept) routing + shared helpers
  * Phase-38 split of broker.c; behavior-identical.
  */
+#include "core/compat/log_event.h"
 #include "broker_internal.h"
 #include "impersonate_state.h"
 #include "platform/platform_api.h"
@@ -179,7 +180,7 @@ imp_fatal_priv_refused(int conn_fd, imp_rep_t *rep,
 {
     rep->status = IMP_STATUS_PRIV_REFUSED;
     (void) imp_send_reply(conn_fd, rep, -1, NULL, 0);
-    if (log) ngx_log_error(NGX_LOG_CRIT, log, 0,
+    if (log) BRIX_LOG(NGX_LOG_CRIT, log, 0,
                            "impersonate broker: FATAL — refused RESERVED "
                            "credential at the setfsuid edge (uid=%d gid=%d, "
                            "floor=%d); terminating broker to guarantee no "
@@ -221,7 +222,7 @@ imp_dispatch_op(int conn_fd, imp_op_ctx_t *op_ctx,
     }
     if (rc != 0) {
         imp_restore();
-        if (log) ngx_log_error(NGX_LOG_ERR, log, 0,
+        if (log) BRIX_LOG(NGX_LOG_ERR, log, 0,
                                "impersonate broker: could not become uid=%d",
                                (int) creds->uid);
         return -EPERM;
@@ -355,7 +356,7 @@ imp_broker_accept(int listen_fd, struct pollfd *pfds, nfds_t *nfds,
         return;
     }
     if (!imp_peer_allowed(c)) {
-        if (log) ngx_log_error(NGX_LOG_ERR, log, 0,
+        if (log) BRIX_LOG(NGX_LOG_ERR, log, 0,
                                "impersonate broker: rejected peer "
                                "(SO_PEERCRED uid mismatch)");
         close(c);

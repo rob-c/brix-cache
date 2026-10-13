@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "pki_check.h"
 
 #include <ngx_config.h>
@@ -59,7 +60,7 @@ brix_pki_log_name_error(ngx_log_t *log, const char *log_prefix,
     char *name_text;
 
     name_text = brix_pki_name_to_str(name);
-    ngx_log_error(NGX_LOG_ERR, log, 0,
+    BRIX_LOG(NGX_LOG_ERR, log, 0,
                   "%s: PKI check: %s %s",
                   log_prefix, message, name_text ? name_text : "<unknown>");
 
@@ -80,8 +81,8 @@ brix_pki_log_name_error(ngx_log_t *log, const char *log_prefix,
 static ngx_flag_t
 brix_pki_crl_matches_ca(X509_CRL *crl, X509 *ca_cert)
 {
-    X509_NAME *crl_issuer;
-    X509_NAME *ca_subject;
+    const X509_NAME *crl_issuer;
+    const X509_NAME *ca_subject;
 
     crl_issuer = CRL_GET_ISSUER(crl);
     ca_subject = X509_get_subject_name(ca_cert);
@@ -103,7 +104,7 @@ brix_pki_crl_signature_valid(ngx_log_t *log, X509_CRL *crl,
     X509 *issuer_ca, const char *log_prefix)
 {
     EVP_PKEY  *issuer_public_key;
-    X509_NAME *issuer_subject;
+    const X509_NAME *issuer_subject;
     int        verify_ok;
 
     issuer_subject = X509_get_subject_name(issuer_ca);
@@ -163,7 +164,7 @@ brix_pki_verify_crls(ngx_log_t *log, STACK_OF(X509) *ca_certs,
 
     for (crl_index = 0; crl_index < crl_count; crl_index++) {
         X509_CRL  *crl;
-        X509_NAME *crl_issuer;
+        const X509_NAME *crl_issuer;
         ngx_flag_t issuer_found;
         int        ca_index;
 

@@ -105,6 +105,7 @@ from pathlib import Path
 import pytest
 
 from cmdscripts.live_common import inject_nginx_load_modules
+from log_records import semantic_log_text
 from server_registry import NginxInstanceSpec
 from settings import HOST, NGINX_BIN, BIND_HOST
 from _test_proxy_mode_helpers import (_read_resp, _stat, _open, _fh, _read,
@@ -310,8 +311,9 @@ def _redirect_target(body):
 def _errlog(endpoint):
     """Instance logs are wiped at teardown, so failures quote them inline."""
     try:
-        return (Path(endpoint.prefix) / "logs" / "error.log").read_text(
-            errors="replace")
+        return semantic_log_text(
+            (Path(endpoint.prefix) / "logs" / "error.log").read_text(
+                errors="replace"))
     except FileNotFoundError:
         return ""
 

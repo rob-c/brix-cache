@@ -23,8 +23,9 @@ from cmdscripts.gsi_trust_live import ensure_shared_pki
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from fleet_ports import cmdscript_ports
 from lib_py.util import wait_tcp
+from log_records import semantic_log_text
 from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, SERVER_CERT, SERVER_HOST, SERVER_KEY, TEST_ROOT
-from cmdscripts.compile_run import LZ4_LINK_FLAGS
+from cmdscripts.compile_run import LZ4_LINK_FLAGS, PLATFORM_HOST_FLAGS
 
 _PORTS = cmdscript_ports("tap_proxy_live")
 
@@ -47,7 +48,9 @@ def _skip(reason: str) -> int:
 
 
 def _grep(path: Path, needle: str) -> bool:
-    return path.exists() and needle in path.read_text(errors="replace")
+    if not path.exists():
+        return False
+    return needle in semantic_log_text(path.read_text(errors="replace"))
 
 
 def _same_bytes(left: Path, right: Path) -> bool:

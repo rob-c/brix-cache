@@ -86,7 +86,7 @@ def _trace_protos(srv, needle="cvmfs-trace: upstream GET"):
     out = []
     for line in srv.error_log.read_text(errors="replace").splitlines():
         if needle in line and "proto=" in line:
-            out.append(line.rsplit("proto=", 1)[1].split()[0])
+            out.append(line.rsplit("proto=", 1)[1].split()[0].rstrip('"'))
     return out
 
 
@@ -170,8 +170,14 @@ def test_unsupported_and_garbage_versions_refused(tmp_path):
     per-fill runtime failure), and a garbage value is a parse error — an
     operator cannot deploy a version the transport cannot speak."""
     r = _nginx_t(tmp_path, "3")
-    assert r.returncode != 0
-    assert "libcurl lacks" in r.stderr
+    curl_has_http3 = "HTTP3" in subprocess.run(
+        ["curl", "--version"], capture_output=True, text=True, check=True,
+    ).stdout
+    if curl_has_http3:
+        assert r.returncode == 0, r.stderr
+    else:
+        assert r.returncode != 0
+        assert "libcurl lacks" in r.stderr
 
     r = _nginx_t(tmp_path, "h9")
     assert r.returncode != 0

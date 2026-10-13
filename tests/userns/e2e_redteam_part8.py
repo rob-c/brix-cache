@@ -290,6 +290,16 @@ def _root_checksum_denied():
     ok(rc != 0, f"root:// query checksum of bob's 0600 DENIED (rc={rc})")
 
 
+def _rootdeep_ns_ops(data, local_file, server_file, bob_readable, bob_private):
+    """Run the split namespace mutation checks in their dependency order."""
+    _root_directory_ops(data, local_file)
+    _root_move_denied(data, bob_readable)
+    _root_truncate_denied(bob_readable)
+    _root_chmod_denied(bob_private)
+    _root_checksum_denied()
+    _root_remove_ops(bob_readable, server_file)
+
+
 def run_root_deep(key, data, port):
     """Per-subcommand root:// (stream) matrix under impersonation: every metadata
     + data op as the mapped user, each in a self-success and a cross-tenant-deny

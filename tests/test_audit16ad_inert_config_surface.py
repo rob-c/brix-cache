@@ -2,6 +2,7 @@
 _test_audit16ad_inert_config_surface_helpers.py; reexported below so pytest resolves fixtures in
 this module's namespace (split for the 600 logical-line file cap)."""
 from split_continuation import reexport as _reexport
+from log_records import semantic_log_text
 _reexport(globals(), "_test_audit16ad_inert_config_surface_helpers")
 
 
@@ -215,7 +216,7 @@ def _diagnostics(out):
     """Only the lines nginx itself flagged: a tmp_path name can contain the
     token under test, so a substring search over the whole output would match
     the temp directory rather than a diagnostic."""
-    return [ln for ln in out.splitlines()
+    return [ln for ln in semantic_log_text(out).splitlines()
             if any(tag in ln for tag in ("[warn]", "[error]", "[crit]",
                                          "[emerg]"))]
 

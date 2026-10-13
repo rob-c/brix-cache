@@ -484,3 +484,89 @@ brix_crc32c_copy_hw3(const unsigned char *src, unsigned char *dst, size_t len)
 }
 
 #endif /* __x86_64__ */
+
+#if defined(BRIX_ARCH_ARM64) && BRIX_ARCH_ARM64 \
+    && defined(__ARM_FEATURE_CRC32)
+
+#include <arm_acle.h>
+
+/* ARMv8 CRC32C serial path. Apple Silicon always implements this ISA when the
+ * translation unit is compiled with +crc; generic ARM builds only select it
+ * when their build profile makes the same guarantee. */
+uint32_t
+brix_crc32c_arm64_extend(uint32_t crc, const unsigned char *p, size_t len)
+{
+    uint32_t state = crc ^ 0xFFFFFFFFu;
+
+    while (len >= 8) {
+        uint64_t word;
+
+        memcpy(&word, p, sizeof(word));
+        state = __crc32cd(state, word);
+        p += sizeof(word);
+        len -= sizeof(word);
+    }
+    if (len >= 4) {
+        uint32_t word;
+
+        memcpy(&word, p, sizeof(word));
+        state = __crc32cw(state, word);
+        p += sizeof(word);
+        len -= sizeof(word);
+    }
+    if (len >= 2) {
+        uint16_t word;
+
+        memcpy(&word, p, sizeof(word));
+        state = __crc32ch(state, word);
+        p += sizeof(word);
+        len -= sizeof(word);
+    }
+    if (len != 0) state = __crc32cb(state, *p);
+    return state ^ 0xFFFFFFFFu;
+}
+
+/* Fused ARMv8 copy + CRC path used by paged reads and writes. */
+uint32_t
+brix_crc32c_arm64_copy(const unsigned char *src, unsigned char *dst, size_t len)
+{
+    uint32_t state = 0xFFFFFFFFu;
+
+    while (len >= 8) {
+        uint64_t word;
+
+        memcpy(&word, src, sizeof(word));
+        memcpy(dst, &word, sizeof(word));
+        state = __crc32cd(state, word);
+        src += sizeof(word);
+        dst += sizeof(word);
+        len -= sizeof(word);
+    }
+    if (len >= 4) {
+        uint32_t word;
+
+        memcpy(&word, src, sizeof(word));
+        memcpy(dst, &word, sizeof(word));
+        state = __crc32cw(state, word);
+        src += sizeof(word);
+        dst += sizeof(word);
+        len -= sizeof(word);
+    }
+    if (len >= 2) {
+        uint16_t word;
+
+        memcpy(&word, src, sizeof(word));
+        memcpy(dst, &word, sizeof(word));
+        state = __crc32ch(state, word);
+        src += sizeof(word);
+        dst += sizeof(word);
+        len -= sizeof(word);
+    }
+    if (len != 0) {
+        *dst = *src;
+        state = __crc32cb(state, *src);
+    }
+    return state ^ 0xFFFFFFFFu;
+}
+
+#endif

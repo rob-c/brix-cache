@@ -18,6 +18,7 @@
  *       record-marshalling helpers for add() are kept local and side-effect-free.
  */
 
+#include "core/compat/log_event.h"
 #include "stage_request_registry.h"
 #include "stage_request_registry_internal.h"
 
@@ -135,7 +136,7 @@ srq_add_validate_args(brix_stage_registry_t *reg,
         return NGX_ERROR;
     }
     if (ngx_strlen(view->lfn) >= SRQ_LFN_LEN) {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "stage-req: lfn exceeds %d bytes",
+        BRIX_LOG(NGX_LOG_ERR, log, 0, "stage-req: lfn exceeds %d bytes",
                       SRQ_LFN_LEN);
         return NGX_ERROR;
     }

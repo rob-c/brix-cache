@@ -104,8 +104,8 @@ mv_parse_paths(brix_ctx_t *ctx, ngx_connection_t *c, mv_req_t *mv)
 		src_len = (int16_t)(sp - ctx->recv.payload);
 	}
 
-	/* Separator byte at src_len must be a space, with a non-empty dst after it. */
-	if ((uint32_t)(src_len + 1) >= ctx->recv.cur_dlen
+	/* The separator must exist; classify an absent destination separately. */
+	if ((uint32_t) src_len >= ctx->recv.cur_dlen
 		|| ctx->recv.payload[src_len] != ' ') {
 		ctx->write_rc = brix_send_error(ctx, c, kXR_ArgInvalid,
 										  "mv payload separator not a space");
@@ -113,7 +113,7 @@ mv_parse_paths(brix_ctx_t *ctx, ngx_connection_t *c, mv_req_t *mv)
 	}
 	dst_len = (size_t) ctx->recv.cur_dlen - (size_t) src_len - 1;
 	if (dst_len == 0) {
-		ctx->write_rc = brix_send_error(ctx, c, kXR_ArgInvalid,
+		ctx->write_rc = brix_send_error(ctx, c, kXR_ArgMissing,
 										  "missing destination path");
 		return NGX_ERROR;
 	}
@@ -285,7 +285,7 @@ mv_errno_kxr(int err)
     case ENOTEMPTY:    return kXR_ItExists;
     case ENOSPC:       return kXR_NoSpace;
 #ifdef EDQUOT
-    case EDQUOT:       return kXR_NoSpace;
+    case EDQUOT:       return kXR_overQuota;
 #endif
     case ENAMETOOLONG: return kXR_ArgTooLong;
     default:           return brix_kxr_from_errno(err);

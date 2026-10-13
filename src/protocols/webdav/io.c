@@ -2,6 +2,7 @@
  * io.c - blocking file write helpers shared by PUT handlers.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "core/http/http_body.h"
 #include "fs/backend/sd.h"   /* route the byte write through the SD backend */
@@ -94,7 +95,7 @@ webdav_fadvise_willneed(ngx_log_t *log, ngx_fd_t fd, off_t offset, size_t len)
         && obj.driver->read_advise(&obj, offset, len, BRIX_SD_ADV_WILLNEED)
            != NGX_OK)
     {
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, errno,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_HTTP, log, errno,
                        "brix_webdav: WILLNEED read-ahead hint ignored: %s",
                        strerror(errno));
     }

@@ -24,8 +24,14 @@
 
 
 /* ops_file_pg.c */
-int read_status_frame(brix_conn *c, uint16_t want_sid, uint8_t *resptype, uint32_t *pgdlen, int64_t *foff, brix_status *st);
+int read_status_frame(brix_conn *c, uint16_t want_sid, uint8_t request_delta,
+                      uint8_t *resptype, uint32_t *pgdlen, int64_t *foff,
+                      brix_status *st);
 ssize_t decode_pages(const uint8_t *pg, uint32_t pglen, int64_t file_off, uint8_t *dst, size_t dstcap, brix_status *st);
 int pgwrite_retry_one(brix_conn *c, brix_file *f, const uint8_t *buf, int64_t base, size_t len, int64_t pgoff, brix_status *st);
+ssize_t brix_readv_frames(brix_conn *c, brix_file *f,
+                          brix_file *const *files, brix_readv_seg *segs,
+                          size_t nseg, unsigned *partial_frames,
+                          brix_status *st);
 
 #endif /* BRIX_OPS_INTERNAL_H */

@@ -21,6 +21,7 @@
  *       whole session exactly like stock.
  */
 
+#include "core/compat/log_event.h"
 #include "vfs_secgate.h"
 
 /* token → bit; "all"/"none" are handled structurally in the parser. */
@@ -142,7 +143,7 @@ brix_conf_set_tls_require(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (brix_tls_require_parse(value + 1, cf->args->nelts - 1, field)
         != NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "invalid brix_tls_require capability; expected "
             "\"none\" or [all|login|session|data|tpc|-<cap>]...");
         return NGX_CONF_ERROR;

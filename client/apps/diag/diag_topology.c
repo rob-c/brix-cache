@@ -2,6 +2,7 @@
  * diag_topology.c - extracted concern
  * Phase-38 split of xrddiag.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "diag_internal.h"
 #include "cli/jsonout.h"
 
@@ -12,11 +13,11 @@ diag_dial(const diag_args *a, brix_url *u, brix_conn *c, brix_status *st)
 {
     brix_status_clear(st);
     if (brix_endpoint_parse(a->url, u, st) != 0) {
-        fprintf(stderr, "xrddiag: %s\n", st->msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: %s\n", st->msg);
         return 50;
     }
     if (brix_connect(c, u, &a->conn, st) != 0) {
-        fprintf(stderr, "xrddiag: connect %s:%d: %s\n", u->host, u->port, st->msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: connect %s:%d: %s\n", u->host, u->port, st->msg);
         return brix_shellcode(st);
     }
     return 0;
@@ -233,11 +234,11 @@ do_topology(const diag_args *a)
 
     brix_status_clear(&st);
     if (brix_endpoint_parse(a->url, &u, &st) != 0) {
-        fprintf(stderr, "xrddiag: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: %s\n", st.msg);
         return 50;
     }
     if (brix_connect(&c, &u, &a->conn, &st) != 0) {
-        fprintf(stderr, "xrddiag: connect %s:%d: %s\n", u.host, u.port, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrddiag: connect %s:%d: %s\n", u.host, u.port, st.msg);
         return brix_shellcode(&st);
     }
 

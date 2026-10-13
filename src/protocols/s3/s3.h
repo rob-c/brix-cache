@@ -56,6 +56,7 @@
 #include "core/http/etag.h"
 #include "core/compat/error_mapping.h"
 #include "core/http/http_xml.h"
+#include "core/http/http_query.h"
 #include "core/compat/log.h"
 #include "core/compat/range.h"
 #include "core/compat/time.h"
@@ -122,6 +123,9 @@ typedef struct {
 typedef struct {
     char               fs_path[PATH_MAX];
     brix_identity_t *identity;
+    /* Parsed once before authentication.  SigV4 and every operation consume
+     * this same immutable representation. */
+    brix_http_query_t  query;
     /* Raw JWT bytes captured verbatim for backend PASSTHROUGH (phase-70 §5.4);
      * borrowed into r->pool by s3_verify_bearer, valid for the request. Empty
      * unless bearer auth succeeded. Never logged. */
@@ -134,6 +138,7 @@ typedef struct {
     /* W6b: PutObject with `If-None-Match: *` — commit must be atomic
      * create-if-absent (renameat2 RENAME_NOREPLACE); EEXIST → 412. */
     unsigned           exclusive_create:1;
+    unsigned           is_upload_part:1;
     /* W6a: SigV4 material retained from auth so the aws-chunked decoder can
      * verify each chunk's signature.  Set only when a signed request was
      * authenticated (have_sigv4=1); the streaming verifier needs the seed

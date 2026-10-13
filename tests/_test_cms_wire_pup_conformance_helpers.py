@@ -291,17 +291,31 @@ class CmsManagerPeer:
         # tear down only on real EOF (empty recv) or hard error.  Partial frames
         # are preserved in `buf` across timeouts so a split frame is never lost.
         buf = bytearray()
-        while not self._stop:
-            self._drain_frames(buf)
+        try:
+            while not self._stop:
+                self._drain_frames(buf)
+                try:
+                    chunk = conn.recv(4096)
+                except socket.timeout:
+                    continue
+                except OSError:
+                    return
+                if not chunk:
+                    return
+                buf.extend(chunk)
+        finally:
+            # A reconnect is accepted by this same thread after the old read
+            # loop returns.  Do not leave the closed socket advertised as live
+            # during that handoff: under a loaded test run sendall() can appear
+            # to succeed on the stale descriptor, losing every liveness PING
+            # until the reconnect races through accept().
+            with self._lock:
+                if self.conn is conn:
+                    self.conn = None
             try:
-                chunk = conn.recv(4096)
-            except socket.timeout:
-                continue
+                conn.close()
             except OSError:
-                return
-            if not chunk:
-                return
-            buf.extend(chunk)
+                pass
 
     # -- assertions / queries -------------------------------------------------
 
@@ -328,18 +342,21 @@ class CmsManagerPeer:
     def send_to_node(self, streamid, code, modifier, payload=b""):
         with self._lock:
             conn = self.conn
+            before = len(self.frames)
         assert conn is not None, "no live node connection to send to"
         conn.sendall(_build_frame(streamid, code, modifier, payload))
+        return before
 
-    def collect_reply(self, code, timeout=8.0):
+    def collect_reply(self, code, timeout=8.0, after=None):
         """Wait for a node-originated reply with the given code that arrived
-        AFTER the current frame count; return it or None."""
-        with self._lock:
-            start = len(self.frames)
+        after the supplied pre-send frame count (or the current count)."""
+        if after is None:
+            with self._lock:
+                after = len(self.frames)
         deadline = time.time() + timeout
         while time.time() < deadline:
             with self._lock:
-                for fr in self.frames[start:]:
+                for fr in self.frames[after:]:
                     if fr[1] == code:
                         return fr
             time.sleep(0.1)

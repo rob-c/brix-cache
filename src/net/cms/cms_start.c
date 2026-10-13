@@ -12,6 +12,7 @@
  *       connect.c owns the event handlers; this owns the boot decision.
  */
 
+#include "core/compat/log_event.h"
 #include "cms_internal.h"
 #include "perf_pgm.h"      /* §2.11: external load feed */
 #include "altds.h"         /* §2.12: foreign-DS liveness monitor */
@@ -151,7 +152,7 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
     conf->cms.ctxs = ngx_pcalloc(cycle->pool,
                                  nmgrs * sizeof(ngx_brix_cms_ctx_t *));
     if (conf->cms.ctxs == NULL) {
-        ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, cycle->log, 0,
                       "brix: CMS heartbeat allocation failed");
         return;
     }
@@ -159,7 +160,7 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
     for (i = 0; i < nmgrs; i++) {
         conf->cms.ctxs[i] = cms_ctx_create(cycle, conf, &ents[i], i, nmgrs);
         if (conf->cms.ctxs[i] == NULL) {
-            ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, cycle->log, 0,
                           "brix: CMS heartbeat allocation failed");
             conf->cms.ctxs = NULL;
             conf->cms.nctxs = 0;
@@ -177,7 +178,7 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
      * brix_cms_altds ... monitor). */
     brix_cms_altds_start(cycle, conf);
 
-    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
                   "brix: CMS heartbeat starting for manager %V (%ui manager(s))",
                   &conf->cms.manager, nmgrs);
 }
@@ -299,7 +300,7 @@ brix_cms_role_worker_init(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
 
     if (ngx_worker == 0) {
         if (has_upstream) {
-            ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
                           "brix: cmsd role: this node is a %s "
                           "(listen :%d, upstream_manager=%V (+%ui more), "
                           "accepts_downstream=%s, aggregates_up=%s)",
@@ -309,7 +310,7 @@ brix_cms_role_worker_init(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
                           manager_capable ? "yes" : "no",
                           role == BRIX_CMS_NODEROLE_SUBMANAGER ? "yes" : "no");
         } else {
-            ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+            BRIX_LOG(NGX_LOG_NOTICE, cycle->log, 0,
                           "brix: cmsd role: this node is a %s "
                           "(listen :%d, upstream_manager=none, "
                           "accepts_downstream=%s, aggregates_up=no)",

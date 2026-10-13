@@ -36,6 +36,7 @@ from _test_sss_helpers import (SSS_TYPE_CRED, SSS_TYPE_ENDO, SSS_TYPE_GRPS,
 from fleet_lifecycle_ports import SHARED_PARSE_PLACEHOLDER_PORT
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, NGINX_BIN
+from log_records import semantic_log_text
 from test_phase25_ratelimit import KXR_OK, _xrd_login, _xrd_open, _xrd_read
 
 pytestmark = [
@@ -295,4 +296,5 @@ class TestGrammar:
     def test_anything_else_is_refused(self, lifecycle, tmp_path, line, needle):
         result = _render_and_test(lifecycle, tmp_path, line)
         assert result.returncode != 0, result.stdout
-        assert needle in result.stderr, result.stderr
+        diagnostics = semantic_log_text(result.stderr)
+        assert needle in diagnostics, diagnostics

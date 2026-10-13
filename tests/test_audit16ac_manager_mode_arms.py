@@ -2,6 +2,7 @@
 _test_audit16ac_manager_mode_arms_helpers.py; reexported below so pytest resolves fixtures in
 this module's namespace (split for the 600 logical-line file cap)."""
 from split_continuation import reexport as _reexport
+from log_records import semantic_log_text
 _reexport(globals(), "_test_audit16ac_manager_mode_arms_helpers")
 
 
@@ -265,7 +266,8 @@ def _parse(tmp_path, **slots):
               "LOC_KNOBS": "", "OUTER": "", "EXTRA": ""}
     values.update(slots)
     result = nginx_t("nginx_audit16jparse.conf", str(tmp_path), **values)
-    return result.returncode, (result.stdout or "") + (result.stderr or "")
+    return result.returncode, semantic_log_text(
+        (result.stdout or "") + (result.stderr or ""))
 
 
 def _diagnostics(out):

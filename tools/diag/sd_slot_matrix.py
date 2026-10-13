@@ -22,6 +22,11 @@ HOW:  run from any directory:
       verdict code for a cell the source actually implements — the second is what
       catches a verdict left behind after the slot it excused was written.
 """
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 import difflib
 import os
 import pathlib
@@ -261,8 +266,8 @@ for _d in order:
 miss = [(d, s) for d in order for s in slots if s not in drv[d] and (d, s) not in V]
 extra = [(d, s) for (d, s) in V if s in drv[d]]
 if miss or extra:
-    print("UNCODED:", miss, file=sys.stderr)
-    print("CODED-BUT-PRESENT:", extra, file=sys.stderr)
+    _brix_diagnostic('ERROR', 'tools/diag/sd_slot_matrix.py', 'main', "UNCODED:", miss, file=sys.stderr)
+    _brix_diagnostic('ERROR', 'tools/diag/sd_slot_matrix.py', 'main', "CODED-BUT-PRESENT:", extra, file=sys.stderr)
     sys.exit(1)
 
 GAP = "**⚠**"
@@ -297,7 +302,7 @@ def _check_document():
     try:
         actual = _document_matrix(DOC.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
-        print(f"sd_slot_matrix: FAIL — {DOC}: {exc}", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/diag/sd_slot_matrix.py', '_check_document', f"sd_slot_matrix: FAIL — {DOC}: {exc}", file=sys.stderr)
         return 1
     if actual == rendered:
         print("sd_slot_matrix: OK — checked-in matrix matches source")
@@ -305,8 +310,8 @@ def _check_document():
     diff = difflib.unified_diff(
         actual.splitlines(), rendered.splitlines(),
         fromfile=str(DOC), tofile="generated-from-source", lineterm="")
-    print("\n".join(diff), file=sys.stderr)
-    print("sd_slot_matrix: FAIL — checked-in matrix is stale", file=sys.stderr)
+    _brix_diagnostic('ERROR', 'tools/diag/sd_slot_matrix.py', '_check_document', "\n".join(diff), file=sys.stderr)
+    _brix_diagnostic('ERROR', 'tools/diag/sd_slot_matrix.py', '_check_document', "sd_slot_matrix: FAIL — checked-in matrix is stale", file=sys.stderr)
     return 1
 
 
@@ -316,7 +321,7 @@ def _update_document():
         text = DOC.read_text(encoding="utf-8")
         _document_matrix(text)
     except (OSError, ValueError) as exc:
-        print(f"sd_slot_matrix: FAIL — {DOC}: {exc}", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/diag/sd_slot_matrix.py', '_update_document', f"sd_slot_matrix: FAIL — {DOC}: {exc}", file=sys.stderr)
         return 1
     start = text.index(BEGIN) + len(BEGIN)
     finish = text.index(END, start)
@@ -335,7 +340,7 @@ def main(argv):
         pathlib.Path(argv[0]).write_text(rendered, encoding="utf-8")
         print("\n".join(rows[-2:]))
         return 0
-    print("usage: sd_slot_matrix.py --check | --update | OUTPUT.md",
+    _brix_diagnostic('ERROR', 'tools/diag/sd_slot_matrix.py', 'main', "usage: sd_slot_matrix.py --check | --update | OUTPUT.md",
           file=sys.stderr)
     return 2
 

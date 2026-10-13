@@ -116,6 +116,7 @@ from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS, PARSE_PLACEHOLDER_PORT
 from server_registry import NginxInstanceSpec
 from settings import HOST, BIND_HOST, NGINX_BIN
 from config_parse import nginx_t
+from log_records import semantic_log_text
 from utils.make_token import TokenIssuer
 # The capturing origin is the shared one: PacedSource already answers
 # HEAD/ranged-GET/PUT and records every request, so this file adds a witness
@@ -272,7 +273,7 @@ def _errlog(endpoint):
     """Instance logs are wiped at teardown, so failures quote them inline."""
     try:
         with open(os.path.join(endpoint.prefix, "logs", "error.log")) as fh:
-            return fh.read()
+            return semantic_log_text(fh.read())
     except OSError:
         return "(error log unavailable)"
 
@@ -329,4 +330,3 @@ SELECT_USER = 'brix_cred_select_user_total{proto="webdav"}'
 # --------------------------------------------------------------------------- #
 # §A — what the origin is shown                                                #
 # --------------------------------------------------------------------------- #
-

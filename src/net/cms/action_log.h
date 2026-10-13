@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #pragma once
 /*
  * cms/action_log.h — one uniform, greppable NOTICE line per CMS control-plane
@@ -28,7 +29,7 @@ static ngx_inline void
 brix_cms_log_action(ngx_log_t *log, const char *op, const char *peer,
     const char *dir, const char *path, ngx_int_t ok, const char *detail)
 {
-    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                   "brix: cmsd-action op=%s peer=%s dir=%s path=%s "
                   "result=%s detail=%s",
                   op, (peer && *peer) ? peer : "-", dir,

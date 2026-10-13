@@ -12,6 +12,7 @@
  * declared in both an http{} and a stream{} block resolves to ONE shared zone
  * (cross-plane principal accounting).
  */
+#include "core/compat/log_event.h"
 #include "ratelimit.h"
 #include "observability/metrics/metrics_macros.h"
 #include "core/compat/alloc_guard.h"
@@ -193,7 +194,7 @@ brix_rl_zone_add(ngx_conf_t *cf, ngx_str_t *name, size_t size,
     }
 
     if (brix_rl_nzones >= BRIX_RL_MAX_ZONES) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "too many brix_rate_limit_zone zones (max %d)",
                            BRIX_RL_MAX_ZONES);
         return NGX_ERROR;

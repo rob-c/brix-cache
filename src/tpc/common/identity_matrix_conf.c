@@ -10,6 +10,7 @@
  * confinement control that silently ignores a line it could not parse is a
  * control that quietly permits everything the operator meant to forbid.
  */
+#include "core/compat/log_event.h"
 #include "tpc/common/identity_matrix.h"
 #include "core/config/shared_conf_types.h"
 
@@ -78,7 +79,7 @@ brix_tpc_conf_allow_identity(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     (void) cmd;
 
     if ((cf->args->nelts - 1) % 2 != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_tpc_allow_identity: expects <selector> <pattern> pairs "
             "(dn, group, host, vo)");
         return NGX_CONF_ERROR;
@@ -96,7 +97,7 @@ brix_tpc_conf_allow_identity(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     for (i = 1; i < cf->args->nelts; i += 2) {
         why = tpc_allow_assign(rule, &value[i], &value[i + 1]);
         if (why != NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_tpc_allow_identity: %s \"%V\" (known: dn, group, host, "
                 "vo)", why, &value[i]);
             return NGX_CONF_ERROR;
@@ -177,7 +178,7 @@ brix_tpc_conf_require(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     party = tpc_require_party(&value[1]);
     if (party < 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_tpc_require: unknown party \"%V\" (known: all, client, dest)",
             &value[1]);
         return NGX_CONF_ERROR;
@@ -185,7 +186,7 @@ brix_tpc_conf_require(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     auth = tpc_require_auth(&value[2]);
     if (auth == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_tpc_require: unknown authentication method \"%V\" (known: "
             "gsi, token (ztn), sss, s3key, krb5, unix, host, pwd)", &value[2]);
         return NGX_CONF_ERROR;
@@ -229,13 +230,13 @@ brix_tpc_conf_restrict(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     for (i = 1; i < cf->args->nelts; i++) {
         if (value[i].len == 0 || value[i].data[0] != '/') {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_tpc_restrict: \"%V\" must be an absolute path",
                 &value[i]);
             return NGX_CONF_ERROR;
         }
         if (sc->tpc_restrict->nelts >= BRIX_TPC_RESTRICT_MAX) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix_tpc_restrict: at most %d prefixes",
                 BRIX_TPC_RESTRICT_MAX);
             return NGX_CONF_ERROR;

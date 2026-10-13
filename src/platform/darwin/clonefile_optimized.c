@@ -131,10 +131,9 @@ brix_plat_clonefile(const char *src_path, const char *dst_path, int flags)
 }
 
 /*
- * brix_plat_copy_range() for Darwin lives in posix_wrapper.c (ENOSYS stub:
- * macOS has no copy_file_range(2); callers fall back to buffered copy).
- * clonefile(2) needs paths, not descriptors, so it cannot back that API —
- * use brix_plat_clonefile()/brix_plat_supports_clonefile() below instead.
+ * brix_plat_copy_range() lives in storage_wrapper.c and implements arbitrary
+ * descriptor ranges with a bounded positional loop. clonefile(2) needs paths,
+ * so whole-file path copies use this API instead.
  */
 
 /*
@@ -159,7 +158,6 @@ brix_plat_supports_clonefile(const char *path)
 
 /*
  * Get clonefile statistics
- * Phase 3 stub - returns 0 clones
  * 
  * @param path File path
  * @param clone_count Output: number of clones
@@ -169,22 +167,11 @@ brix_plat_supports_clonefile(const char *path)
 int
 brix_plat_get_clone_stats(const char *path, uint32_t *clone_count, uint64_t *shared_bytes)
 {
-    struct stat st;
-    
-    if (stat(path, &st) < 0) { /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
-        return -1;
-    }
-    
-    /* Phase 3 stub - no clone statistics available */
-    if (clone_count) {
-        *clone_count = 0;
-    }
-    
-    if (shared_bytes) {
-        *shared_bytes = 0;
-    }
-    
-    return 0;
+    (void) path;
+    (void) clone_count;
+    (void) shared_bytes;
+    errno = ENOTSUP;
+    return -1;
 }
 
 #endif /* BRIX_PLATFORM_DARWIN */

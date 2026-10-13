@@ -26,10 +26,18 @@ from typing import Callable, Iterable
 
 from brix_suite.settings import TESTS_DIR
 
+def _worker_subprocess_supported() -> bool:
+    """Match BRIX_HAS_WORKER_EXEC in the server PAL host headers."""
+    return sys.platform != "darwin" and not sys.platform.startswith("win")
+
+
 #: (directive substring, human reason, probe) — a template containing the
-#: directive is unavailable when the probe is False.  Empty today; the
-#: template scan stays so a future host-bound directive is a one-line entry.
-_DIRECTIVE_NEEDS: tuple[tuple[str, str, Callable[[], bool]], ...] = ()
+#: directive is unavailable when the probe is False.
+_DIRECTIVE_NEEDS: tuple[tuple[str, str, Callable[[], bool]], ...] = (
+    ("brix_prepare_command",
+     "hardened workers cannot execute subprocesses on this host",
+     _worker_subprocess_supported),
+)
 
 
 @functools.lru_cache(maxsize=None)
@@ -63,8 +71,20 @@ def kind_unavailable_reason(kind: str) -> str | None:
     return None
 
 
+def _external_unavailable_reason(spec) -> str | None:
+    """Probe external orchestrators whose prerequisite is not one executable."""
+    if spec.name != "krb5-kdc":
+        return None
+    from brix_suite.security.kdc import krb5_tools_available  # noqa: PLC0415
+
+    if not krb5_tools_available():
+        return "MIT KDC tooling is not installed on this host"
+    return None
+
+
 def _direct_reason(spec) -> str | None:
     return (kind_unavailable_reason(spec.kind)
+            or _external_unavailable_reason(spec)
             or template_unavailable_reason(spec.template))
 
 

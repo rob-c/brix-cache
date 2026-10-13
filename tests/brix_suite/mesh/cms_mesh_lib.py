@@ -26,6 +26,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import sys
 from brix_suite.client_build import client_make
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -133,6 +134,31 @@ PORTS = {
 # orchestrator receives its runtime ports from the central per-run ladder.
 from port_ladder import rebase_named_ports
 PORTS = rebase_named_ports(PORTS, category="cms-mesh")
+
+# Homebrew XRootD 6.2 on Darwin can launch its data and manager processes, but
+# its cmsd outbound connector fails every all.manager dial with EINVAL.  Keep
+# the pure BriX cells of the mixed mesh runnable while callers skip only cells
+# that depend on that broken connector.  A custom XRootD build can opt back in.
+_STOCK_CMS_ENDPOINT_NAMES = (
+    "a_mgr", "b_mgr", "b_rds", "c_rds", "d_meta", "prm_mgr", "pnm_mgr",
+    "pnm_r1", "pnm_r2", "wrm_mgr", "wnm_mgr", "wnm_rds", "sl_mgr",
+    "sl_rds", "neg_mgr", "neg_rds", "fo_mgr", "fo_rds", "lg_mgr", "lg_rds",
+    "bl_mgr", "bl_rds", "mrl_meta", "mrl_leaf", "tri_real", "w_r1",
+    "w_r2", "rh_mgr", "rh_real", "sss_mgr", "sss_rds",
+)
+STOCK_CMS_ENDPOINT_PORTS = frozenset(PORTS[name]
+                                     for name in _STOCK_CMS_ENDPOINT_NAMES)
+
+
+def stock_cms_interop_supported():
+    """Whether stock cmsd can participate in the live mesh on this host."""
+    override = os.environ.get("TEST_STOCK_CMS_INTEROP")
+    if override in ("0", "1"):
+        return override == "1"
+    bins = (BRIX_BIN or "", CMSD_BIN or "")
+    homebrew = any(os.path.realpath(path).startswith("/opt/homebrew/")
+                   for path in bins)
+    return not (sys.platform == "darwin" and homebrew)
 
 # Lowest port whose listener marks a mesh as "up" (used by force-stop too).
 PORT_MIN, PORT_MAX = min(PORTS.values()), max(PORTS.values())
@@ -464,6 +490,26 @@ def cfg_manager(data_port, cms_port):
 XRDSSSADMIN_BIN = os.path.join(CLIENT_DIR, "bin", "xrdsssadmin-brix")
 
 
+def _sssadmin_launchable(path):
+    """Return whether *path* is executable by this host.
+
+    A shared checkout can retain client binaries built on another host (most
+    commonly Mach-O binaries when a Linux Lima guest consumes the macOS tree).
+    Existence and execute bits do not detect that case; a side-effect-free help
+    probe does, because ``subprocess`` reports the foreign image as ``ENOEXEC``.
+    The tool's help exit status is deliberately irrelevant -- reaching its
+    ``main`` function is the capability being tested here.
+    """
+    if not path or not os.path.isfile(path) or not os.access(path, os.X_OK):
+        return False
+    try:
+        subprocess.run([path, "--help"], stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, timeout=5, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return True
+
+
 def _find_sssadmin():
     """Locate ``xrdsssadmin-brix`` WITHOUT building it, or return ``None``.
 
@@ -473,10 +519,14 @@ def _find_sssadmin():
     RPM-installed ``xrdsssadmin-brix`` on PATH (brix-cache-client)."""
     override = os.environ.get("TEST_XRDSSSADMIN_BIN")
     if override:
-        return override if os.path.exists(override) else None
-    if os.path.exists(XRDSSSADMIN_BIN):
+        return override if _sssadmin_launchable(override) else None
+    if _sssadmin_launchable(XRDSSSADMIN_BIN):
         return XRDSSSADMIN_BIN
-    return shutil.which("xrdsssadmin-brix")
+    for name in ("xrdsssadmin-brix", "brix-xrdsssadmin"):
+        installed = shutil.which(name)
+        if _sssadmin_launchable(installed):
+            return installed
+    return None
 
 
 def _ensure_sssadmin():
@@ -494,8 +544,12 @@ def _ensure_sssadmin():
         return None
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         return None
-    client_make(CLIENT_DIR, "xrdsssadmin-brix", capture_output=True, text=True)
-    return XRDSSSADMIN_BIN if os.path.exists(XRDSSSADMIN_BIN) else None
+    # Force the target when an executable exists but belongs to another host;
+    # ordinary make timestamp checks cannot distinguish Mach-O from ELF.
+    force = ("-B",) if os.path.exists(XRDSSSADMIN_BIN) else ()
+    client_make(CLIENT_DIR, *force, "xrdsssadmin-brix",
+                capture_output=True, text=True)
+    return XRDSSSADMIN_BIN if _sssadmin_launchable(XRDSSSADMIN_BIN) else None
 
 
 def gen_sss_keytab(path):

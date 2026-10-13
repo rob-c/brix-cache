@@ -4,6 +4,7 @@
  * net/admin/admin_unix.h for the transport and the security boundary.
  */
 
+#include "core/compat/log_event.h"
 #include "cms_admin.h"
 #include "net/admin/admin_unix.h"
 #include "net/manager/registry.h"
@@ -35,7 +36,7 @@ brix_conf_set_cms_admin_socket(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     (void) conf;
 
     if (value[1].len == 0 || value[1].len >= sizeof(s_cms_admin_path)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_cms_admin_socket: path empty or longer than a unix socket "
             "path (%uz max)", sizeof(s_cms_admin_path) - 1);
         return NGX_CONF_ERROR;
@@ -57,7 +58,7 @@ static void
 cms_admin_audit(const char *action, const char *host, uint16_t port,
     const char *result)
 {
-    ngx_log_error(NGX_LOG_NOTICE, ngx_cycle->log, 0,
+    BRIX_LOG(NGX_LOG_NOTICE, ngx_cycle->log, 0,
                   "brix: cms admin: %s target=%s:%d result=%s",
                   action, host, (int) port, result);
 }

@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from log_records import semantic_log_text
 def _phase_test_concurrent_substream_reads_threaded_1(threads):
     for t in threads:
         t.join(timeout=30)
@@ -377,10 +378,13 @@ class TestClientUploadFanout:
         assert _read_export_file(name) == content, "client upload not byte-exact"
 
         # the diagnostic line proves the secondaries carried chunks
-        dbg = [l for l in res.stderr.splitlines() if "upload substreams=" in l]
+        diagnostics = semantic_log_text(res.stderr)
+        dbg = [line for line in diagnostics.splitlines()
+               if "upload substreams=" in line]
         assert dbg, f"no substream diagnostic emitted: {res.stderr}"
         # e.g. "brix: upload substreams=3 chunks-on-secondaries=96"
         n_sec = int(dbg[-1].split("substreams=")[1].split()[0])
-        on_sec = int(dbg[-1].split("chunks-on-secondaries=")[1].split()[0])
+        value = dbg[-1].split("chunks-on-secondaries=")[1].split()[0]
+        on_sec = int(value.rstrip('"'))
         assert n_sec >= 1, "client did not establish any bound secondary by default"
         assert on_sec > 0, "no chunks were carried by a secondary (silent fallback?)"

@@ -7,6 +7,7 @@
  * live in dirlist_handler_internal.h.
  */
 
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "core/aio/aio.h"
 #include "protocols/root/path/op_path.h"
@@ -91,7 +92,7 @@ brix_dirlist_entry_skip(ngx_log_t *log, const char *name)
 
     if (brix_dirlist_name_is_unsafe(name)) {
         brix_sanitize_log_string(name, safe_name, sizeof(safe_name));
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix: dirlist skipping entry with control bytes \"%s\"",
                       safe_name);
         return 1;
@@ -314,7 +315,7 @@ brix_dirlist_send_final(brix_ctx_t *ctx, ngx_connection_t *c,
                           (uint32_t) final_len,
                           (ServerResponseHdr *) walk->chunk);
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXR_dirlist final chunk %uz bytes",
                    walk->chunk_pos);
 

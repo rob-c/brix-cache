@@ -5,6 +5,7 @@ On macOS that is ``daemon_timeout``: macFUSE's default is 60 s and it governs
 shutdown too, so a mount helper that exits on SIGTERM lingers for the full
 minute (measured exactly 60.0 s) before its session tears down.
 """
+import subprocess
 import sys
 from unittest import mock
 
@@ -42,3 +43,20 @@ def test_this_host_matches_its_platform():
         assert "daemon_timeout=5" in fuse_host.HOST_MOUNT_OPTS
     else:
         assert fuse_host.HOST_MOUNT_OPTS == ()
+
+
+def test_darwin_requires_an_active_macfuse_extension():
+    """An installed but unloaded macFUSE bundle is not mount-capable."""
+    stopped = subprocess.CompletedProcess(["kextstat"], 0, "apple.kpi\n", "")
+    loaded = subprocess.CompletedProcess(["kextstat"], 0,
+                                         "io.macfuse.filesystems.macfuse\n", "")
+    def exists(path):
+        return path == fuse_host.MACFUSE_MOUNT
+    with mock.patch.object(fuse_host.os.path, "exists", side_effect=exists), \
+            mock.patch.object(fuse_host.shutil, "which", return_value="/usr/sbin/kextstat"), \
+            mock.patch.object(fuse_host.subprocess, "run", return_value=stopped):
+        assert not fuse_host._darwin_ready()
+    with mock.patch.object(fuse_host.os.path, "exists", side_effect=exists), \
+            mock.patch.object(fuse_host.shutil, "which", return_value="/usr/sbin/kextstat"), \
+            mock.patch.object(fuse_host.subprocess, "run", return_value=loaded):
+        assert fuse_host._darwin_ready()

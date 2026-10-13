@@ -10,6 +10,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <spawn.h>
@@ -53,9 +54,27 @@ brix_plat_anon_fd(const char *name, const char *dir)
 int
 brix_plat_fadvise(int fd, off_t offset, off_t len, int advice)
 {
-    /* macOS lacks posix_fadvise - no-op */
-    (void)fd; (void)offset; (void)len; (void)advice;
-    return 0;
+    struct radvisory ra;
+
+    if (advice == BRIX_FADV_NORMAL) {
+        return fcntl(fd, F_NOCACHE, 0);
+    }
+    if (advice == BRIX_FADV_RANDOM) {
+        return fcntl(fd, F_RDAHEAD, 0);
+    }
+    if (advice == BRIX_FADV_SEQUENTIAL) {
+        return fcntl(fd, F_RDAHEAD, 1);
+    }
+    if (advice == BRIX_FADV_DONTNEED || advice == BRIX_FADV_NOREUSE) {
+        return fcntl(fd, F_NOCACHE, 1);
+    }
+    if (advice != BRIX_FADV_WILLNEED || offset < 0 || len < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    ra.ra_offset = offset;
+    ra.ra_count = len > INT_MAX ? INT_MAX : (int) len;
+    return fcntl(fd, F_RDADVISE, &ra);
 }
 
 /* Whether to force the drive's write cache to media (F_FULLFSYNC, the Linux
@@ -94,10 +113,7 @@ brix_plat_sync(void)
 int
 brix_plat_sync_tree(int dirfd)
 {
-    /* macOS lacks syncfs - use global sync() */
-    (void)dirfd;
-    sync();
-    return 0;
+    return fcntl(dirfd, F_FULLFSYNC);
 }
 
 /* ==========================================================================
@@ -324,4 +340,3 @@ brix_plat_execvpe(const char *file, char *const argv[], char *const envp[])
     /* If we get here, child exited - mimic execvpe behavior */
     _exit(WEXITSTATUS(status));
 }
-

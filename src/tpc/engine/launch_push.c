@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "tpc_internal.h"
 #include "core/compat/host_format.h"      /* brix_format_host_port — IPv6 bracketing */
 #include "observability/sesslog/sesslog_ngx.h"
@@ -92,7 +93,7 @@ tpc_push_egress_signal(brix_ctx_t *ctx, ngx_connection_t *c, const char *host)
     req.status_code  = kXR_NotAuthorized;
 
     if (guard_audit_format(&req, GUARD_R_TPCEGRESS, ts, line, sizeof(line)) > 0) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0, "%s", line);
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0, "%s", line);
     }
 }
 
@@ -207,7 +208,7 @@ brix_tpc_prepare_push(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ctx->tpc_push_pending = pend;
 
-    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: TPC push parked dst=%s:%d lfn=%s",
                    pend->host, (int) (pend->port ? pend->port : TPC_DEFAULT_PORT),
                    pend->lfn);

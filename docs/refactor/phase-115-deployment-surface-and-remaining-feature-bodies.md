@@ -2,8 +2,9 @@
 
 **Status:** IMPLEMENTED (register created 2026-09-05; every `[ ]` row below is
 now `[x]`, W1 through W9, landed 2026-09-05/07 and uncommitted). Four rows
-closed with a stated limit rather than a green local run — W5.5's live lab
-needs real grid endpoints, W6 is a research spike that deliberately writes no
+closed with a stated limit rather than a green local run — W5.5's implementation
+is delivered but release interoperability acceptance is deferred until a site
+supplies a real GridFTP endpoint and a 9/9 evidence report; W6 is a research spike that deliberately writes no
 production code, and W5.2's ESTO / W5.3's SPOR are deferred by design with the
 refusal pinned; each says so in its own row.
 **Source:** the 2026-09-05 whole-repository scope review — "what large features are
@@ -1187,7 +1188,7 @@ Not scheduled" row of `phase-91-gsiftp-storage-backend.md`:
     driver sees it rather than as "same hostname"; byte-exactness is asserted
     together with the source surviving, because a copy implemented as a rename
     would satisfy the first alone and this driver already has a rename).
-- [x] **W5.5 Live-lab lane — DELIVERED, AND IT CANNOT RUN HERE.** The
+- [x] **W5.5 Live-lab lane — DELIVERED; EXTERNAL ACCEPTANCE DEFERRED.** The
   `gridftp-outbound` scenario (`k8s-tests/labtools/lab_suite.py`, chart
   `k8s-tests/charts/gridftp-interop` + role config
   `k8s-tests/charts/topology-role/configs/gridftp_outbound.conf`, suite
@@ -1237,10 +1238,14 @@ Not scheduled" row of `phase-91-gsiftp-storage-backend.md`:
     loader opens proxies `O_NOFOLLOW` and refuses a Secret's `..data/` symlink
     farm, which fails at load time with a permission-shaped error and no hint
     why. Reusing that plumbing is why this lane adds no new mounts.
-  * **HONEST STATUS — unrun, and not runnable from this tree.** No cell of
-    `test_gridftp_outbound_interop.py` has ever executed: it needs a door, a
-    proxy and trust anchors that only a site can supply. What IS verified here
-    is the wiring, which is the part that rots silently — see below.
+  * **HONEST STATUS — no independent-door evidence is checked in.** The suite
+    needs a door, proxy and trust anchors that only a site can supply. What is
+    verified in-tree is the wiring. For v2.0 certification, preserve pytest's
+    JUnit XML and run `tools/ci/check_gridftp_interop_image.py evidence`: all nine named
+    cells must pass, with zero skips, failures or errors. The emitted JSON
+    excludes captured output and records the raw report's SHA-256. Until such
+    evidence exists, external Globus/dCache interoperability is **deferred**,
+    not silently claimed.
   * Tests: `k8s-tests/pytests/test_gridftp_outbound_wiring.py` (12 static rows
     pinning the three files that describe the same four fronts against each
     other: the runner's `_OUTBOUND_PORTS` against the chart's port list — a

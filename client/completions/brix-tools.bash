@@ -102,10 +102,38 @@ _xrd() {
       cat head tail wc grep hexdump dd cmp cksum xattr
       touch chmod ln readlink stage evict locate query statvfs prepare explain
       diag ping certinfo clockskew whoami caps doctor login
+      conform
       mount mounts unmount
       inventory verify drift inspect replicas
       version help" \
       -- "${COMP_WORDS[COMP_CWORD]}"))
+    return
+  fi
+  if [[ "${COMP_WORDS[1]}" == "conform" ]]; then
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    local prev="${COMP_WORDS[COMP_CWORD-1]}"
+    if [[ $COMP_CWORD -eq 2 ]]; then
+      COMPREPLY=($(compgen -W "plan plant adopt verify accept full watch" -- "$cur"))
+      return
+    fi
+    case "$prev" in
+      --budget) COMPREPLY=($(compgen -W "exhaustive pairwise boundary" -- "$cur")); return ;;
+      --profile) COMPREPLY=($(compgen -W "data manager cache proxy tape s3 http tls tpc full" -- "$cur")); return ;;
+      --reference) COMPREPLY=($(compgen -W "strict ecosystem both" -- "$cur")); return ;;
+      --fail-on) COMPREPLY=($(compgen -W "divergent inconclusive any" -- "$cur")); return ;;
+      --scratch|--out|--baseline) COMPREPLY=($(compgen -f -- "$cur")); return ;;
+    esac
+    _brix_opts_filter "--print-cases --large --profile --reference --budget
+      --fail-on --families --exclude --only --verify-negative --also
+      --error-fixture --readonly-fixture --auth-fixture
+      --tls-cleartext-fixture --token-fixture --denied-fixture
+      --mutation-fixture --open-fixture --locate-fixture --move-fixture
+      --quota-target --capacity-target --webdav-outside-fixture
+      --cache-fixture --tpc-fixture --scratch --allow-mutate
+      --allow-disrupt --confirm-target --adv-observer --adv-fixture
+      --run-key --out --baseline --wall-seconds --request-limit
+      --byte-limit --http-request-line-limit --watch-interval-seconds
+      --watch-cycles" && return
   fi
 }
 
@@ -246,6 +274,19 @@ _brixfaultproxy() {
   COMPREPLY=()
 }
 
+_brix_config_migrate() {
+  local opts="--output --report --strict --ca-bundle --authdb-input --authdb-output --vomsdir --voms-cert-dir
+    --require-vo --ceph-pool --ceph-conf --ceph-key-prefix --n2n-scheme
+    --n2n-pool --n2n-prefix --http-port --http-connect-timeout --http-idle-timeout --help -o -h"
+  _brix_opts_filter "$opts" && return
+  local prev="${COMP_WORDS[COMP_CWORD-1]}"
+  case "$prev" in
+    --n2n-scheme) COMPREPLY=($(compgen -W "identity ral cephfs_path" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+    --require-vo|--ceph-pool|--ceph-key-prefix|--n2n-pool|--n2n-prefix|--http-port|--http-connect-timeout|--http-idle-timeout) COMPREPLY=(); return ;;
+    *) COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+  esac
+}
+
 _xrdrados_rescue() {
   if [[ $COMP_CWORD -eq 2 ]]; then
     COMPREPLY=($(compgen -W "ls stat get cp" -- "${COMP_WORDS[COMP_CWORD]}"))
@@ -275,6 +316,7 @@ complete -F _brixmount brixMount
 complete -F _brixcvmfs brixcvmfs
 complete -F _xrdstorascan xrdstorascan
 complete -F _brixfaultproxy brix-fault-proxy
+complete -F _brix_config_migrate brix-config-migrate
 complete -F _xrdceph_striper_migrate xrdceph_striper_migrate xrdceph_striper_migrate.py
 complete -F _xrdceph_cephfs_to_striper xrdceph_cephfs_to_striper xrdceph_cephfs_to_striper.py
 complete -F _xrdrados_rescue xrdrados_rescue

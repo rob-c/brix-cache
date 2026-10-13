@@ -15,6 +15,7 @@
  *
  * NOTE: this is the ONLY nginx-coupled file in src/scan/.
  */
+#include "core/compat/log_event.h"
 #include "scan_engine.h"
 #include "scan_record.h"
 
@@ -434,7 +435,7 @@ ngx_http_brix_dashboard_scan_handler(ngx_http_request_t *r)
         if (res.buf != NULL) {
             ngx_free(res.buf);
         }
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                       "scan %s %s: %s", req.mode_raw, req.relpath, err.msg);
         return scan_err_http(err.code);
     }

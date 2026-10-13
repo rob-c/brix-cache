@@ -2,6 +2,7 @@
  * xrd_clockskew.c - extracted concern
  * Phase-38 split of xrd.c; behavior-identical.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrd_internal.h"
 
 
@@ -156,7 +157,7 @@ xrd_clockskew(int argc, char **argv)
     memset(&p, 0, sizeof(p));
     brix_crypto_init();
     if (xrd_measure_clock_skew(endpoint, &o, &p, err, sizeof(err)) != 0 || !p.clock_have) {
-        fprintf(stderr, "xrd clockskew: %s\n", err[0] ? err : "unavailable");
+        BRIX_CLIENT_LOG("ERROR",  "xrd clockskew: %s\n", err[0] ? err : "unavailable");
         return 1;
     }
     ao = xrd_fabs(p.offset_s);

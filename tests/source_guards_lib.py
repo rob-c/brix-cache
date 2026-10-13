@@ -498,7 +498,8 @@ def todo_fixme(root: Path = ROOT) -> tuple[bool, list[str]]:
 def find_lizard() -> str | None:
     """Mirror readability.find_lizard, including an active virtualenv."""
     active_venv_lizard = Path(sys.executable).parent / "lizard"
-    for c in ("lizard", str(active_venv_lizard), os.path.expanduser("~/.local/bin/lizard")):
+    for c in (str(active_venv_lizard), "lizard",
+              os.path.expanduser("~/.local/bin/lizard")):
         if shutil.which(c) or os.path.exists(c):
             return c
     return None
@@ -511,13 +512,19 @@ def lizard_available() -> bool:
 def _gate_rows(lizard: str, root: Path) -> list[tuple[str, str, int]]:
     """Replicate readability.py --gate-csv: (file, func, ccn) for funcs over the
     CCN cap. lizard --csv columns: nloc,ccn,token,param,length,location,file,name,…"""
-    out = subprocess.run(
+    result = subprocess.run(
         [lizard, "--csv", "-l", "c", "src", "client", "shared"],
         cwd=root,
         capture_output=True,
         text=True,
         check=False,
-    ).stdout
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise RuntimeError(
+            f"lizard failed with exit {result.returncode}: {detail}"
+        )
+    out = result.stdout
     rows: list[tuple[str, str, int]] = []
     for row in csv.reader(io.StringIO(out)):
         if len(row) < 8:

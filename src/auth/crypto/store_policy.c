@@ -42,7 +42,7 @@ struct brix_sp_table_s {
 /* -- shared DN canonicaliser ---------------------------------------------- */
 
 char *
-brix_x509_oneline(X509_NAME *name, char *buf, size_t buflen)
+brix_x509_oneline(const X509_NAME *name, char *buf, size_t buflen)
 {
     char *s;
 
@@ -296,4 +296,3 @@ brix_sp_table_check(const brix_sp_table_t *t, brix_sp_mode_t mode,
     brix_x509_oneline(X509_get_subject_name(subject), subj_dn, sizeof(subj_dn));
     return brix_sp_subject_allowed(e->policy, ca_dn, subj_dn) ? 1 : 0;
 }
-

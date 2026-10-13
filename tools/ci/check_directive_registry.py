@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # WHAT: Census every brix ngx_command_t directive registration across src/ —
 #       including the #included directives_*.h fragment headers AND the
@@ -454,7 +459,7 @@ def _report(findings, fail_mode):
               "R11", "R12", "R13", "R14", "R15", "ALLOWLIST")
     hard = [f for f in findings if f[0] in gating]
     if fail_mode and hard:
-        print(f"\ncheck_directive_registry: FAIL — {len(hard)} gating finding(s)",
+        _brix_diagnostic('ERROR', 'tools/ci/check_directive_registry.py', '_report', f"\ncheck_directive_registry: FAIL — {len(hard)} gating finding(s)",
               file=sys.stderr)
         return 1
     print("\ncheck_directive_registry: WARN — findings reported, not gating "

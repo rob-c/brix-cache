@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "recv_frame.h"
 #include "recv_frame_bounds.h"   /* brix_max_payload_for_request — carved pure (C-2) */
 #include "disconnect.h"
@@ -82,6 +83,27 @@ brix_recv_should_defer(brix_ctx_t *ctx)
     }
     return ctx->out.count > 0 || ctx->out.wr_inflight > 0
         || ctx->rd.aio_inflight > 0;
+}
+
+/* Answer a header-level framing refusal before closing.  The peer may already
+ * have sent bytes belonging to the rejected body, so this connection cannot be
+ * safely resynchronized; a stalled response is therefore marked for teardown
+ * by the send handler after the complete typed error has drained. */
+static brix_recv_step_t
+brix_recv_reject_oversized(brix_ctx_t *ctx, ngx_connection_t *c)
+{
+    ngx_int_t rc;
+
+    BRIX_LOG(NGX_LOG_WARN, c->log, 0,
+        "brix: request payload exceeds opcode limit reqid=%d dlen=%uz",
+        (int) ctx->recv.cur_reqid, (size_t) ctx->recv.cur_dlen);
+    BRIX_SRV_METRIC_INC(ctx, oversized_payloads_total);
+    rc = brix_send_error(ctx, c, kXR_ArgTooLong,
+        "request payload exceeds opcode limit");
+    if (rc != NGX_OK) return BRIX_RECV_STEP_BREAK;
+    if (ctx->out.count == 0) return BRIX_RECV_STEP_BREAK;
+    ctx->out.close_after_flush = 1;
+    return BRIX_RECV_STEP_RETURN;
 }
 
 /*
@@ -329,7 +351,7 @@ brix_recv_after_header(ngx_stream_session_t *s, ngx_connection_t *c,
     BRIX_SRV_METRIC_INC(ctx, request_frames_total);
     BRIX_SRV_METRIC_ADD(ctx, request_payload_bytes_total, ctx->recv.cur_dlen);
 
-    ngx_log_debug6(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                   "brix: req sid=[%02xd%02xd] reqid=%04xd dlen=%uz"
                   " avail=%d ready=%d",
                   (int) ctx->recv.cur_streamid[0],
@@ -352,11 +374,7 @@ brix_recv_after_header(ngx_stream_session_t *s, ngx_connection_t *c,
     /* dlen is untrusted client input — reject before any allocation. */
     max_pl = brix_max_payload_for_request(ctx->recv.cur_reqid);
     if (ctx->recv.cur_dlen > max_pl) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "brix: payload too large (%uz), closing",
-                      (size_t) ctx->recv.cur_dlen);
-        BRIX_SRV_METRIC_INC(ctx, oversized_payloads_total);
-        return BRIX_RECV_STEP_BREAK;
+        return brix_recv_reject_oversized(ctx, c);
     }
 
     /*
@@ -375,7 +393,7 @@ brix_recv_after_header(ngx_stream_session_t *s, ngx_connection_t *c,
         if (!brix_write_stream_begin(ctx, c, conf)
             && ctx->recv.cur_dlen > BRIX_MAX_WRITE_PAYLOAD)
         {
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, c->log, 0,
                           "brix: unstreamable write payload too large (%uz),"
                           " closing", (size_t) ctx->recv.cur_dlen);
             BRIX_SRV_METRIC_INC(ctx, oversized_payloads_total);

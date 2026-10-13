@@ -29,6 +29,7 @@
  * untrusted value that reaches the error log.
  */
 
+#include "core/compat/log_event.h"
 #include "token_internal.h"
 #include "validate_internal.h"
 #include "issuer_registry.h"
@@ -54,7 +55,7 @@ brix_token_validate_registry_authn(const brix_token_registry_args_t *a,
     *out_issuer = NULL;
 
     if (brix_token_peek_iss(a->token, a->token_len, iss, sizeof(iss)) != 0) {
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                       "brix_token: cannot read iss for issuer selection");
         return -1;
     }
@@ -62,7 +63,7 @@ brix_token_validate_registry_authn(const brix_token_registry_args_t *a,
     if (is == NULL) {
         char safe[512];
         token_sanitize_for_log(iss, safe, sizeof(safe));
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                       "brix_token: unknown issuer \"%s\"", safe);
         return -1;
     }
@@ -102,7 +103,7 @@ brix_token_validate_registry_authn(const brix_token_registry_args_t *a,
             ok = (strcmp(a->claims->aud, a->reg->global_audiences[i]) == 0);
         }
         if (!ok) {
-            ngx_log_error(NGX_LOG_WARN, a->log, 0,
+            BRIX_LOG(NGX_LOG_WARN, a->log, 0,
                 "brix_token: audience not accepted for issuer \"%s\"",
                 is->name);
             return -1;
@@ -185,7 +186,7 @@ brix_token_validate_registry(const brix_token_registry_args_t *a,
         return -1;
     }
     if (!brix_token_authz_strategy(is, a->claims, req_path, op)) {
-        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, a->log, 0,
             "brix_token: issuer \"%s\" did not authorize path", is->name);
         return -1;
     }

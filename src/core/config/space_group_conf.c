@@ -16,6 +16,7 @@
  *       created lazily in the config pool. Lookups are linear (tables are a
  *       handful of VOs); longest prefix wins so nested groups nest naturally.
  */
+#include "core/compat/log_event.h"
 #include "space_group_conf.h"
 #include "core/ngx_brix_module.h"   /* ngx_stream_brix_srv_conf_t.oss_spaces */
 
@@ -79,7 +80,7 @@ space_parse_quota(ngx_conf_t *cf, const ngx_str_t *arg, off_t *quota)
     ngx_str_t v;
 
     if (arg->len < 6 || ngx_strncmp(arg->data, "quota=", 6) != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oss_space: \"%V\": expected quota=<size> or quota=-1", arg);
         return NGX_CONF_ERROR;
     }
@@ -91,7 +92,7 @@ space_parse_quota(ngx_conf_t *cf, const ngx_str_t *arg, off_t *quota)
     }
     *quota = ngx_parse_offset(&v);
     if (*quota == (off_t) NGX_ERROR || *quota < 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oss_space: quota \"%V\" is not a non-negative size or -1", &v);
         return NGX_CONF_ERROR;
     }
@@ -105,14 +106,14 @@ space_check_unique(ngx_conf_t *cf, const ngx_array_t *spaces,
     const brix_oss_space_t *dup;
 
     if (brix_oss_space_by_name(spaces, name->data, name->len) != NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oss_space: group \"%V\" is declared twice", name);
         return NGX_CONF_ERROR;
     }
     dup = brix_oss_space_for_path(spaces, (const char *) prefix->data,
                                   prefix->len);
     if (dup != NULL && dup->prefix.len == prefix->len) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oss_space: prefix \"%V\" already belongs to group \"%V\"",
             prefix, &dup->name);
         return NGX_CONF_ERROR;
@@ -131,14 +132,14 @@ brix_conf_set_oss_space(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     (void) cmd;
 
     if (!brix_oss_space_name_ok(&value[1])) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oss_space: group name \"%V\" is empty or carries a byte that "
             "would break the oss.* CGI report grammar (no & = space or "
             "control chars)", &value[1]);
         return NGX_CONF_ERROR;
     }
     if (!space_prefix_ok(&value[2])) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oss_space: prefix \"%V\" must be an absolute export-relative "
             "path with no empty or dot segments and no trailing slash (the "
             "export root itself is the default group: brix_oss_cgroup / "

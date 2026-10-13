@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "recv_frame.h"
 #include "disconnect.h"
 #include "fd_table.h"
@@ -177,7 +178,7 @@ brix_recv_handle_nonxrootd(ngx_stream_session_t *s, ngx_connection_t *c,
     {
         return BRIX_RECV_STEP_RETURN;   /* the relay owns the connection now */
     }
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: non-XRootD client (first byte 0x%02xd)"
                    " closing immediately",
                    (unsigned) ctx->recv.hdr_buf[0]);
@@ -319,7 +320,7 @@ brix_recv_read_frame(ngx_stream_session_t *s, ngx_connection_t *c,
         n = brix_recv_buffered(ctx, c, conf, dest, need);
 
         if (n == NGX_AGAIN) {
-            ngx_log_debug5(NGX_LOG_DEBUG_STREAM, c->log, 0,
+            BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                           "brix: recv AGAIN st=%d hdr_pos=%uz avail=%d"
                           " ready=%d active=%d",
                           (int) ctx->state, ctx->recv.hdr_pos,
@@ -337,7 +338,7 @@ brix_recv_read_frame(ngx_stream_session_t *s, ngx_connection_t *c,
         }
 
         if (n == NGX_ERROR || n == 0) {
-            ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+            BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                            "brix: client disconnected");
             if (brix_defer_teardown_if_writing(ctx, c, NGX_STREAM_OK)) {
                 return BRIX_RECV_STEP_RETURN;

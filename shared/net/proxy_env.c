@@ -1,4 +1,5 @@
 /* proxy_env.c — resolve an HTTP(S) proxy from the environment. See proxy_env.h. */
+#include "../observability/log_stdio.h"
 #include "net/proxy_env.h"
 
 #include <stdio.h>
@@ -92,7 +93,7 @@ void brix_proxy_report(const brix_proxy_t *p, const char *host, int port) {
     static int reported = 0;
     if (reported || p == NULL || !p->active) return;
     reported = 1;
-    fprintf(stderr,
+    BRIX_CLIENT_LOG("INFO",
         "brix: using HTTP proxy %s:%d (from $%s) for external connectivity (e.g. %s:%d)\n",
         p->host, p->port, p->source, host ? host : "?", port);
 }

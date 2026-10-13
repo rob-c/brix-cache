@@ -2,6 +2,7 @@
  * module_directives.c - extracted concern
  * Phase-38 split of module.c; behavior-identical.
  */
+#include "core/compat/log_event.h"
 #include "webdav_module_internal.h"
 #include "fs/path/path.h"        /* brix_parse_authdb, brix_normalize_policy_path, rule types */
 #include "core/config/config.h"  /* brix_copy_conf_string */
@@ -95,7 +96,7 @@ webdav_conf_dig_export(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     value = cf->args->elts;   /* value[1]=name value[2]=dir */
 
     if (realpath((const char *) value[2].data, rp) == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, ngx_errno,
                            "brix_webdav_dig_export: cannot resolve \"%V\"",
                            &value[2]);
         return NGX_CONF_ERROR;
@@ -179,7 +180,7 @@ webdav_conf_open_file_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         if (webdav_open_file_cache_arg(&value[i], &max, &inactive, &off)
             != NGX_OK)
         {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                                "invalid \"brix_webdav_open_file_cache\" "
                                "parameter \"%V\"", &value[i]);
             return NGX_CONF_ERROR;
@@ -196,7 +197,7 @@ webdav_conf_open_file_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     if (max == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                         "\"brix_webdav_open_file_cache\" must have the \"max\" parameter");
         return NGX_CONF_ERROR;
     }

@@ -490,3 +490,10 @@ brix_web_readdir_pooled(brix_cpool *pool, const char *path,
     brix_cpool_checkin(pool, m, rc == 0 ? 1 : brix_fuse_conn_healthy(st));
     return rc;
 }
+
+int
+brix_webdav_parse_dirents(const char *body, size_t body_len, const char *self,
+    brix_dirent **ents, size_t *n, brix_status *status)
+{
+    return webdav_parse_multi(body, body_len, self, ents, n, status);
+}

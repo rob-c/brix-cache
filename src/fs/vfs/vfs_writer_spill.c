@@ -23,6 +23,7 @@
  *       never zero-filled — the filesystem zero-fills sub-block holes
  *       silently, so SEEK_HOLE could not see them. No goto; early-return.
  */
+#include "core/compat/log_event.h"
 #include "vfs_writer_internal.h"
 #include "vfs_backend_registry.h"
 #include "core/compat/tmp_path.h"
@@ -37,7 +38,7 @@
 static ngx_int_t
 spill_fail(brix_vfs_writer_t *w, int err, const char *what)
 {
-    ngx_log_error(NGX_LOG_ERR, w->log, err,
+    BRIX_LOG(NGX_LOG_ERR, w->log, err,
                   "brix: vfs writer: spill failed (%s) — upload refused",
                   what);
     brix_metric_vfs_spill_refused(brix_vfs_metrics_proto(w->ctx));
@@ -197,7 +198,7 @@ brix_vfs_writer_spill_enter(brix_vfs_writer_t *w, off_t off, size_t len)
          * staged session (heap PUT body, multipart part) and cannot be read
          * back or patched — no scratch can serve this write. Stay SEQUENTIAL:
          * an in-order continuation still succeeds. */
-        ngx_log_error(NGX_LOG_ERR, w->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, w->log, 0,
             "brix: vfs writer: write at %O rewinds below the %O bytes "
             "already staged — a whole-object upload cannot be patched",
             off, w->staged_cursor);
@@ -208,7 +209,7 @@ brix_vfs_writer_spill_enter(brix_vfs_writer_t *w, off_t off, size_t len)
 
     (void) brix_vfs_backend_spill(w->ctx->root_canon, &root, &max);
     if (root == NULL || root[0] == '\0') {
-        ngx_log_error(NGX_LOG_ERR, w->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, w->log, 0,
             "brix: vfs writer: out-of-order write at %O (expected %O) on a "
             "staged-only backend and no spill scratch is configured — set "
             "brix_vfs_spill_path (or brix_stage_dir)",
@@ -224,7 +225,7 @@ brix_vfs_writer_spill_enter(brix_vfs_writer_t *w, off_t off, size_t len)
     }
     if (spill_create(w, root) != NGX_OK) {
         ce = errno;
-        ngx_log_error(NGX_LOG_ERR, w->log, ce,
+        BRIX_LOG(NGX_LOG_ERR, w->log, ce,
             "brix: vfs writer: cannot create spill scratch under \"%s\"",
             root);
         brix_metric_vfs_spill_refused(brix_vfs_metrics_proto(w->ctx));
@@ -237,7 +238,7 @@ brix_vfs_writer_spill_enter(brix_vfs_writer_t *w, off_t off, size_t len)
     w->spill.max        = max;
     w->mode             = BRIX_VFS_WRITER_SPILL;
     brix_metric_vfs_spill_active(1);
-    ngx_log_error(NGX_LOG_INFO, w->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, w->log, 0,
         "brix: vfs writer: entering spill mode (write at %O, %O bytes "
         "already staged) — scratch \"%s\"",
         off, w->staged_cursor, w->spill.path);
@@ -251,7 +252,7 @@ brix_vfs_writer_spill_put(brix_vfs_writer_t *w, const void *buf, size_t len,
     off_t  end = off + (off_t) len;
 
     if (off < w->spill.base) {
-        ngx_log_error(NGX_LOG_ERR, w->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, w->log, 0,
             "brix: vfs writer: spill write at %O rewinds below the %O bytes "
             "already staged", off, w->spill.base);
         brix_metric_vfs_spill_refused(brix_vfs_metrics_proto(w->ctx));
@@ -263,7 +264,7 @@ brix_vfs_writer_spill_put(brix_vfs_writer_t *w, const void *buf, size_t len,
     }
     if (spill_ext_add(w, off, end) != NGX_OK) {
         if (errno == EINVAL) {
-            ngx_log_error(NGX_LOG_ERR, w->log, 0,
+            BRIX_LOG(NGX_LOG_ERR, w->log, 0,
                 "brix: vfs writer: spill extent [%O,%O) overlaps bytes "
                 "already written — refused", off, end);
             brix_metric_vfs_spill_refused(brix_vfs_metrics_proto(w->ctx));
@@ -298,7 +299,7 @@ brix_vfs_writer_spill_drain(brix_vfs_writer_t *w)
         || w->spill.ext[0].start != w->spill.base
         || w->spill.ext[0].end != w->spill.high_water)
     {
-        ngx_log_error(NGX_LOG_ERR, w->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, w->log, 0,
             "brix: vfs writer: spill covers %O of %O bytes in %ui runs — the "
             "client left holes; refusing to publish bytes it never sent",
             w->spill.written, size, w->spill.n_ext);

@@ -6,6 +6,7 @@
  * one-line phase summaries are always available, with no per-request cost.
  */
 
+#include "core/compat/log_event.h"
 #include "lifecycle_timing.h"
 #include "../types/tunables.h"  /* BRIX_CORE_NSEC_PER_SEC, BRIX_CORE_NSEC_PER_USEC */
 #include <time.h>
@@ -106,7 +107,7 @@ brix_phase_timer_log(brix_phase_timer_t *t, ngx_log_t *log,
 
     total_us = us_since(t->start_ns, brix_phase_now_ns());
 
-    ngx_log_error(NGX_LOG_NOTICE, log, 0, "%s: %stotal=%uLus",
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0, "%s: %stotal=%uLus",
                   context != NULL ? context : "xrootd lifecycle",
                   t->summary, total_us);
 }

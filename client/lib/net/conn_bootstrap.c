@@ -8,6 +8,7 @@
  * wire: ServerProtocolBody — pval[4] flags[4]; flags carry server caps.
  * wire: ServerLoginBody — sessid[16] [+ "&P=..." security list].
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "conn_internal.h"
 #include "protocols/root/protocol/frame_hdr.h"      /* shared resp-hdr codec (libxrdproto) */
@@ -106,7 +107,7 @@ brix_conn_handshake(brix_conn *c, uint16_t proto_sid, int want_tls,
         return -1;
     }
     if (c->diag.wire_trace) {   /* §15: the 20B init has no streamid/requestid */
-        fprintf(stderr, "> handshake-init (20B) + kXR_protocol sid=%u\n", proto_sid);
+        BRIX_CLIENT_LOG("DEBUG",  "> handshake-init (20B) + kXR_protocol sid=%u\n", proto_sid);
     }
 
     /* Expect up to two frames: a handshake reply (streamid {0,0}) and the
@@ -134,7 +135,10 @@ brix_conn_handshake(brix_conn *c, uint16_t proto_sid, int want_tls,
                 return -1;
             }
             /* ServerProtocolBody = pval[4] flags[4]; capabilities in flags. */
+            c->server_protocol = xrd_get_u32_be(body);
             c->server_flags = xrd_get_u32_be(body + 4);   /* unaligned-safe */
+            c->protocol_body_len = blen;
+            memcpy(c->protocol_body, body, blen);
             /* Optional signing trailer (present because we set kXR_secreqs):
              * ServerResponseReqs_Protocol immediately after the 8-byte body —
              * theTag 'S', rsvd, secver, secopt, seclvl, secvsz (then secvsz*2
@@ -148,6 +152,8 @@ brix_conn_handshake(brix_conn *c, uint16_t proto_sid, int want_tls,
                 c->sec_level = body[12];
             }
             saw_proto = 1;
+        } else {
+            c->handshake_body_len = blen;
         }
         /* else: handshake reply (streamid {0,0}); keep reading for the protocol. */
     }
@@ -192,6 +198,7 @@ brix_conn_login(brix_conn *c, const brix_opts *o, brix_status *st)
         free(body);
         return -1;
     }
+    c->login_body_len = blen;
     if (blen < BRIX_SESSION_ID_LEN) {
         brix_status_set(st, XRDC_EPROTO, 0,
                         "login reply too short (%u bytes)", blen);
@@ -216,4 +223,3 @@ brix_conn_login(brix_conn *c, const brix_opts *o, brix_status *st)
     free(body);
     return 0;
 }
-

@@ -2,6 +2,7 @@
  * frame_roundtrip.c - resilient roundtrip: redirect/wait following over brix_send/brix_recv.
  * Phase-38 split of frame.c; behavior-identical.
  */
+#include "../../../../shared/observability/log_stdio.h"
 #include "brix.h"
 
 #include <arpa/inet.h>
@@ -293,12 +294,12 @@ rt_handle_redirect(brix_conn *c, rt_req_t *rq, uint8_t *bd, uint32_t bl,
     }
     free(bd);
     if (c->diag.redir_trace) {   /* §15.4: surface each hop on stderr */
-        fprintf(stderr, "redirect[%d] -> %s:%d%s\n", c->redir_depth + 1,
+        BRIX_CLIENT_LOG("DEBUG", "redirect[%d] -> %s:%d%s\n", c->redir_depth + 1,
                 t.host, t.port, t.opaque[0] ? " (+opaque)" : "");
     }
     if (++c->redir_depth > XRDC_REDIR_MAX) {
         if (c->diag.redir_trace) {
-            fprintf(stderr, "redirect: budget exhausted (>%d hops)\n",
+            BRIX_CLIENT_LOG("ERROR",  "redirect: budget exhausted (>%d hops)\n",
                     XRDC_REDIR_MAX);
         }
         brix_status_set(st, XRDC_EREDIRECT, 0,
@@ -312,7 +313,7 @@ rt_handle_redirect(brix_conn *c, rt_req_t *rq, uint8_t *bd, uint32_t bl,
      * the loop until the connect timeout — up to 15s per hop). */
     if (t.port == c->port && strcmp(t.host, c->host) == 0) {
         if (c->diag.redir_trace) {
-            fprintf(stderr, "redirect: self-loop to %s\n", hp);
+            BRIX_CLIENT_LOG("ERROR",  "redirect: self-loop to %s\n", hp);
         }
         brix_status_set(st, XRDC_EREDIRECT, 0,
                         "redirect loop: server redirected to itself (%s)",
@@ -321,7 +322,7 @@ rt_handle_redirect(brix_conn *c, rt_req_t *rq, uint8_t *bd, uint32_t bl,
     }
     if (tried_seen(c, hp)) {
         if (c->diag.redir_trace) {
-            fprintf(stderr, "redirect: LOOP to already-tried %s\n", hp);
+            BRIX_CLIENT_LOG("ERROR",  "redirect: LOOP to already-tried %s\n", hp);
         }
         brix_status_set(st, XRDC_EREDIRECT, 0,
                         "redirect loop to already-tried %s", hp);

@@ -11,6 +11,7 @@
  * HOW: Called once during nginx startup after all configuration directives parsed. First initializes SSL fd-cache index via webdav_auth_init_ssl_indices() for connection reuse optimization (already documented in fd_cache.c). Second, retrieves NGX_HTTP_CORE_MAIN_CONF and pushes ngx_http_brix_webdav_handler into content phase handler array — this is the entry point for all WebDAV HTTP requests after authentication routing. Third, iterates CMCF servers to find SSL contexts with proxy_certs=on flag, then sets X509_V_FLAG_ALLOW_PROXY_CERTS via SSL_CTX_get0_param + X509_VERIFY_PARAM_set_flags enabling GSI proxy cert chains. Fourth reinitializes fd-cache SSL index for connection tracking (per fd_cache.c). Finally iterates servers again under NGX_THREADS macro to locate thread pool via ngx_thread_pool_get() — uses wdcf->common.thread_pool_name if configured, otherwise defaults to "default" pool name defined in nginx.conf directive `thread_pool default threads=4 max_queue=65536`. Logs NOTICE-level message when pool not found (async I/O disabled) or successfully allocated.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "postconfig_internal.h"
 #include "protocols/shared/proto_exclusive.h"
@@ -176,14 +177,14 @@ webdav_postconf_load_client_capath(ngx_conf_t *cf,
     X509_STORE      *store;
 
     if (ngx_file_info(capath->data, &fi) != 0) {
-        ngx_log_error(NGX_LOG_EMERG, cf->log, ngx_errno,
+        BRIX_LOG(NGX_LOG_EMERG, cf->log, ngx_errno,
                       "brix_client_ca_store \"%V\" is not accessible",
                       capath);
         return NGX_ERROR;
     }
 
     if (!ngx_is_dir(&fi)) {
-        ngx_log_error(NGX_LOG_EMERG, cf->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, cf->log, 0,
                       "brix_client_ca_store \"%V\" is not a directory "
                       "(for a bundle file use ssl_client_certificate)",
                       capath);
@@ -195,13 +196,13 @@ webdav_postconf_load_client_capath(ngx_conf_t *cf,
         || X509_STORE_load_locations(store, NULL,
                                      (const char *) capath->data) != 1)
     {
-        ngx_log_error(NGX_LOG_EMERG, cf->log, 0,
+        BRIX_LOG(NGX_LOG_EMERG, cf->log, 0,
                       "brix_client_ca_store \"%V\": cannot add hashed "
                       "CA-directory lookup to the TLS trust store", capath);
         return NGX_ERROR;
     }
 
-    ngx_log_error(NGX_LOG_INFO, cf->log, 0,
+    BRIX_LOG(NGX_LOG_INFO, cf->log, 0,
                   "brix_webdav: added hashed CA dir \"%V\" to the client-"
                   "verify trust store for server %V",
                   capath, &cscf->server_name);
@@ -277,7 +278,7 @@ webdav_postconf_setup_ssl_ctx(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf)
         param = SSL_CTX_get0_param(sslcf->ssl.ctx);
         if (param) {
             X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_ALLOW_PROXY_CERTS);
-            ngx_log_error(NGX_LOG_INFO, cf->log, 0,
+            BRIX_LOG(NGX_LOG_INFO, cf->log, 0,
                           "brix_webdav: enabled X509_V_FLAG_ALLOW_PROXY_CERTS"
                           " on SSL context for server %V",
                           &cscf->server_name);
@@ -292,7 +293,7 @@ webdav_postconf_setup_ssl_ctx(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf)
                 SSL_CTX_set_cert_verify_callback(sslcf->ssl.ctx,
                                                  webdav_legacy_cert_verify_cb,
                                                  (void *) (uintptr_t) mode);
-                ngx_log_error(NGX_LOG_INFO, cf->log, 0,
+                BRIX_LOG(NGX_LOG_INFO, cf->log, 0,
                               "brix_webdav: legacy (GT2) proxies admitted at the"
                               " TLS handshake for server %V (brix_gsi_legacy_proxy)",
                               &cscf->server_name);
@@ -361,12 +362,12 @@ webdav_postconf_setup_thread_pool(ngx_conf_t *cf,
 
     wdcf->common.thread_pool = ngx_thread_pool_get(cf->cycle, pool_name);
     if (wdcf->common.thread_pool == NULL) {
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix_webdav: thread pool \"%V\" not found - "
             "async file I/O disabled (add a thread_pool directive)",
             pool_name);
     } else {
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
             "brix_webdav: using thread pool \"%V\" for async file I/O",
             pool_name);
     }

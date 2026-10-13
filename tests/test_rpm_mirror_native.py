@@ -40,11 +40,13 @@ from mirror_lane import (                                      # noqa: E402
     missing_tools, package_uris, repodata_names, reset,
     spawn_mock, start_mirror, stop_mocks,
 )
+import make_fixtures                                            # noqa: E402
 
 sys.path.insert(0, os.path.join(HERE, "cvmfs"))
 
 from config_templates import render_config_to_path              # noqa: E402
 from conformance_common import NGINX_BIN                        # noqa: E402
+from log_records import semantic_log_text                       # noqa: E402
 from settings import HOST                                       # noqa: E402
 
 MOCK_PORT = 14170
@@ -184,9 +186,8 @@ def test_dnf_installs_through_the_native_mirror(mirror: Mirror, origin,
         capture_output=True, text=True, timeout=300)
 
     assert done.returncode == 0, (done.stdout + done.stderr)[-2000:]
-    for want in ("brixtest-app-0.9-4", "brixtest-lib-2:2.0-1",
-                 "brixtest-tools-1.2-3"):
-        assert want in done.stdout, done.stdout
+    installed = make_fixtures.installed_nevras(root)
+    assert make_fixtures.expected_nevras() <= installed, installed
 
 
 # ------------------------------------------------------------------ error ---
@@ -252,7 +253,7 @@ def test_tampered_metadata_is_refused_never_cached_and_audited(
     assert status == 502
     assert uri.lstrip("/") not in cache_files(mirror.cache)
 
-    audit = error_log(mirror.endpoint)
+    audit = semantic_log_text(error_log(mirror.endpoint))
     assert "signal=rpm_tamper" in audit
     assert 'path="%s"' % uri in audit
 
@@ -276,7 +277,7 @@ def test_write_methods_are_refused_and_audited(mirror: Mirror, origin, method):
         {"GET", "HEAD"}
     assert hits(base, path_suffix="evil.rpm") == [], "a write reached upstream"
 
-    audit = error_log(mirror.endpoint)
+    audit = semantic_log_text(error_log(mirror.endpoint))
     assert "signal=rpmwrite" in audit
     assert 'path="%s"' % target in audit
 

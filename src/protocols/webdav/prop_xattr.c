@@ -8,6 +8,7 @@
  * workers race on the same unlocked path, exactly one setxattr(XATTR_CREATE)
  * succeeds and the other gets EEXIST → NGX_DECLINED → 423 Locked.
  */
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "fs/path/path.h"
 #include "fs/vfs/vfs.h"
@@ -76,7 +77,7 @@ webdav_lock_xattr_write(ngx_http_request_t *r, const char *path,
     char              buf[WEBDAV_LOCK_XATTR_MAXLEN];
 
     if (brix_lock_record_encode(e, buf, sizeof(buf)) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_webdav: lock xattr encode failed for \"%s\"", path);
         return NGX_ERROR;
     }
@@ -89,7 +90,7 @@ webdav_lock_xattr_write(ngx_http_request_t *r, const char *path,
         if (errno == EEXIST) {
             return NGX_DECLINED;   /* XATTR_CREATE race — another worker won */
         }
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
                       "brix_webdav: setxattr lock on \"%s\" failed", path);
         return NGX_ERROR;
     }
@@ -127,7 +128,7 @@ webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
         {
             return NGX_DECLINED;
         }
-        ngx_log_error(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, log, errno,
                       "brix_webdav: getxattr lock on \"%s\" failed", path);
         return NGX_ERROR;
     }
@@ -149,7 +150,7 @@ webdav_lock_xattr_delete(ngx_http_request_t *r, const char *path)
         {
             return NGX_OK;   /* idempotent (incl. backends without xattr) */
         }
-        ngx_log_error(NGX_LOG_WARN, log, errno,
+        BRIX_LOG(NGX_LOG_WARN, log, errno,
                       "brix_webdav: removexattr lock on \"%s\" failed", path);
         return NGX_ERROR;
     }

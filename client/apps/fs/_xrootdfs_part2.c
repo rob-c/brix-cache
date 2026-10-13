@@ -1,5 +1,6 @@
 /* _xrootdfs_part2.c — fragment 2 of xrootdfs.c (auto-split).
- * Do not compile directly; it is #included by xrootdfs.c. */
+ * Do not compile directly; it is #include "../../../shared/observability/log_stdio.h"
+#included by xrootdfs.c. */
 #ifndef _XROOTDFS_PART2_C_INC
 #define _XROOTDFS_PART2_C_INC
 #ifndef __XROOTDFS_C_COMPILED__
@@ -46,12 +47,12 @@ aio_web_mount(int fuse_argc, char **fuse_argv, size_t fuse_argv_cap,
 
     brix_status_clear(&st);
     if (brix_weburl_parse(endpoint, &g_weburl) != 0) {
-        fprintf(stderr, "xrootdfs: bad web URL: %s\n", endpoint);
+        BRIX_CLIENT_LOG("ERROR",  "xrootdfs: bad web URL: %s\n", endpoint);
         xfs_daemon_ready(2);
         return 2;
     }
     if (g_weburl.is_s3) {
-        fprintf(stderr, "xrootdfs: s3:// is not supported as a FUSE mount "
+        BRIX_CLIENT_LOG("ERROR",  "xrootdfs: s3:// is not supported as a FUSE mount "
                         "(use http/https/dav/davs)\n");
         xfs_daemon_ready(2);
         return 2;
@@ -68,13 +69,13 @@ aio_web_mount(int fuse_argc, char **fuse_argv, size_t fuse_argv_cap,
     /* fail the mount up front if the export root is unreachable/denied. */
     if (brix_web_stat(&g_weburl, g_base[0] ? g_base : "/", g_bearer,
                       g_web_verify, g_web_ca, g_web_proxy, &si, &st) != 0) {
-        fprintf(stderr, "xrootdfs: %s://%s:%d%s: %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrootdfs: %s://%s:%d%s: %s\n",
                 g_weburl.tls ? "https" : "http", g_weburl.host, g_weburl.port,
                 g_weburl.path, st.msg);
         xfs_daemon_ready((unsigned char) brix_shellcode(&st));
         return brix_shellcode(&st);
     }
-    fprintf(stderr,
+    BRIX_CLIENT_LOG("INFO",
             "xrootdfs: mounted %s:%d via %s%s (read-only WebDAV; "
             "verify=%d, auth=%s, meta-pool=%d)\n",
             g_weburl.host, g_weburl.port, g_weburl.tls ? "HTTPS" : "HTTP",
@@ -88,7 +89,7 @@ aio_web_mount(int fuse_argc, char **fuse_argv, size_t fuse_argv_cap,
     brix_status_clear(&st);
     g_web_pool = brix_cpool_create(&WEB_VT, &g_web_tmpl, g_max_conns, &st);
     if (g_web_pool == NULL) {
-        fprintf(stderr, "xrootdfs: web pool: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrootdfs: web pool: %s\n", st.msg);
         xfs_daemon_ready((unsigned char) brix_shellcode(&st));
         return brix_shellcode(&st);
     }
@@ -140,7 +141,7 @@ aio_root_mount(int fuse_argc, char **fuse_argv, size_t fuse_argv_cap,
 
     brix_status_clear(&st);
     if (brix_endpoint_parse(endpoint, &g_url, &st) != 0) {
-        fprintf(stderr, "xrootdfs: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrootdfs: %s\n", st.msg);
         xfs_daemon_ready(2);
         return 2;
     }
@@ -152,7 +153,7 @@ aio_root_mount(int fuse_argc, char **fuse_argv, size_t fuse_argv_cap,
 
     g_pool = brix_pool_create(&g_url, &g_opts, g_max_conns, &st);
     if (g_pool == NULL) {
-        fprintf(stderr, "xrootdfs: connect %s:%d: %s\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrootdfs: connect %s:%d: %s\n",
                 g_url.host, g_url.port, st.msg);
         xfs_daemon_ready((unsigned char) brix_shellcode(&st));
         return brix_shellcode(&st);
@@ -164,7 +165,7 @@ aio_root_mount(int fuse_argc, char **fuse_argv, size_t fuse_argv_cap,
                             g_lazy_streams ? 1 : g_streams,
                             g_max_stall, g_keepalive, g_max_retries, &st);
     if (g_mgr == NULL) {
-        fprintf(stderr, "xrootdfs: async manager: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrootdfs: async manager: %s\n", st.msg);
         brix_pool_destroy(g_pool);
         xfs_daemon_ready((unsigned char) brix_shellcode(&st));
         return brix_shellcode(&st);
@@ -179,7 +180,7 @@ aio_root_mount(int fuse_argc, char **fuse_argv, size_t fuse_argv_cap,
 
     aio_probe_ext(&st);
 
-    fprintf(stderr,
+    BRIX_CLIENT_LOG("INFO",
             "xrootdfs: mounted %s:%d (meta-pool=%d, data-streams=%d, "
             "max-stall=%dms; network-resilient; ext: setattr=%d symlink=%d "
             "readlink=%d link=%d)\n",

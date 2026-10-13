@@ -245,21 +245,4 @@ brix_arm64_has_crc32_hw(void)
 #endif
 }
 
-/*
- * CRC32C Wrapper with Auto-Selection
- * 
- * Automatically uses hardware acceleration if available,
- * falls back to software implementation otherwise.
- * 
- * @param buf Input buffer
- * @param len Buffer length
- * @param crc Initial CRC value
- * @return Final CRC32C value
- */
-uint32_t
-brix_crc32c(const uint8_t *buf, size_t len, uint32_t crc)
-{
-    return brix_crc32c_hw(buf, len, crc);
-}
-
 #endif /* BRIX_PLATFORM_LINUX && BRIX_ARCH_ARM64 */

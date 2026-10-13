@@ -16,6 +16,7 @@
  *   the edges.
  */
 
+#include "core/compat/log_event.h"
 #include "impersonate.h"
 #include "core/compat/cstr.h"
 #include "idmap_internal.h"
@@ -370,13 +371,13 @@ idmap_init_denylists(const brix_idmap_conf_t *conf, ngx_log_t *log)
         idmap_forbid_uid(conf->worker_uid);
     }
     if (log != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        BRIX_LOG(NGX_LOG_NOTICE, log, 0,
                       "impersonate: deny-lists loaded (%d forbidden uids, %d "
                       "forbidden gids)", idmap_forbidden_uids_n,
                       idmap_forbidden_gids_n);
         if (idmap_forbidden_uids_n >= IDMAP_FORBID_MAX
             || idmap_forbidden_gids_n >= IDMAP_FORBID_MAX) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "impersonate: forbidden deny-list hit the %d-entry cap; "
                           "names beyond it were NOT enforced — reduce the list or "
                           "raise IDMAP_FORBID_MAX", IDMAP_FORBID_MAX);

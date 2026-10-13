@@ -15,6 +15,7 @@
  *       Unsupported keys are WARN-logged, never silently dropped (R4).
  */
 
+#include "core/compat/log_event.h"
 #include "core/types/tunables.h"
 #include "issuer_registry.h"
 #include "ini.h"
@@ -241,7 +242,7 @@ reg_kv_issuer(brix_token_registry_t *reg, brix_token_issuer_t *is,
     if (reg_kv_issuer_flag(is, key, val)) {
         return;
     }
-    ngx_log_error(NGX_LOG_WARN, reg->log, 0,
+    BRIX_LOG(NGX_LOG_WARN, reg->log, 0,
         "scitokens: unsupported issuer key \"%s\" (ignored)", key);
 }
 
@@ -265,7 +266,7 @@ reg_kv_global(brix_token_registry_t *reg, const char *key, const char *val)
             sizeof(reg->global_audiences[0]),
             &reg->global_audience_count, BRIX_TOKEN_MAX_AUDIENCES, val);
     } else {
-        ngx_log_error(NGX_LOG_WARN, reg->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, reg->log, 0,
             "scitokens: unsupported [Global] key \"%s\" (ignored)", key);
     }
 }
@@ -373,7 +374,7 @@ brix_token_registry_build(ngx_conf_t *cf, const char *cfg_path,
     if (brix_token_registry_load(reg, cfg_path, default_strategy,
                                    err, sizeof(err)) != NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_token_config: %s", err);
         return NGX_ERROR;
     }
@@ -388,7 +389,7 @@ brix_token_registry_build(ngx_conf_t *cf, const char *cfg_path,
         }
     }
 
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
         "brix_token_config: loaded %d issuer(s) from %s", reg->count, cfg_path);
     *out = reg;
     return NGX_OK;

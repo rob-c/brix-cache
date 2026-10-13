@@ -14,6 +14,7 @@
  * back to the exec/stub transport. The symbol ABI is sd_frm_lib_abi.h.
  */
 
+#include "core/compat/log_event.h"
 #include "sd_frm_mss.h"
 #include "sd_frm_lib_abi.h"
 
@@ -115,7 +116,7 @@ brix_mss_lib_create(const char *location, const char *libpath, ngx_log_t *log)
 
     c->dl = dlopen(libpath, RTLD_NOW | RTLD_LOCAL);
     if (c->dl == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "xrootd frm: cannot dlopen HSM library \"%s\": %s",
             libpath, dlerror());
         free(c);
@@ -128,7 +129,7 @@ brix_mss_lib_create(const char *location, const char *libpath, ngx_log_t *log)
     c->fn_purge   = (brix_frm_hsm_purge_fn)   dlsym(c->dl, BRIX_FRM_HSM_SYM_PURGE);
 
     if (c->fn_exists == NULL || c->fn_recall == NULL || c->fn_migrate == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
             "xrootd frm: HSM library \"%s\" is missing a required symbol "
             "(need %s, %s, %s)", libpath, BRIX_FRM_HSM_SYM_EXISTS,
             BRIX_FRM_HSM_SYM_RECALL, BRIX_FRM_HSM_SYM_MIGRATE);

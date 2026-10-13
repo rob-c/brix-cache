@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 
 import settings
+from brix_suite.launcher import internal_operations
+from brix_suite.launcher import control_operations
 from settings import HOST
 
 from config_templates import render_config_to_path
@@ -16,6 +18,7 @@ from server_launcher import (
     RegistryLauncher,
     _inject_nginx_load_modules,
     _inject_nginx_runtime_paths,
+    launch_fleet_nginx,
 )
 from server_registry import (
     CommandSpec,
@@ -110,6 +113,43 @@ def test_dynamic_module_injection_is_idempotent(monkeypatch, tmp_path):
     assert config.read_text(encoding="utf-8").count("load_module ") == 1
 
 
+@pytest.mark.parametrize("mode", ["cwd", "prefix", "config"])
+def test_raw_fleet_nginx_routes_bootstrap_log_to_test_tree(monkeypatch,
+                                                           tmp_path, mode):
+    """Packaged nginx must not touch its compiled-in system error log before
+    the generated config's error_log directive becomes active."""
+    from brix_suite import nginx_tools
+
+    cwd, prefix, config, config_arg = _raw_launch_paths(tmp_path, mode)
+    config.write_text("events {}\n", encoding="utf-8")
+
+    seen = {}
+    monkeypatch.setattr("server_launcher._nginx_bin", lambda: "/test/nginx")
+    monkeypatch.setattr(subprocess, "run",
+                        lambda argv, **kwargs: seen.update(argv=argv, kwargs=kwargs))
+
+    launch_fleet_nginx(config_arg, prefix=prefix, cwd=cwd)
+
+    expected = nginx_tools.fleet_nginx_bootstrap_log(config_arg, prefix, cwd)
+    assert seen["argv"][-2:] == ["-e", expected]
+    assert expected.startswith(str(tmp_path))
+    assert Path(expected).parent.is_dir()
+
+
+def _raw_launch_paths(tmp_path, mode):
+    """Build the three supported raw-launch path shapes."""
+    if mode == "cwd":
+        cwd = tmp_path / "cwd"
+        cwd.mkdir()
+        return str(cwd), None, cwd / "nginx.conf", "nginx.conf"
+    if mode == "prefix":
+        prefix = tmp_path / "prefix"
+        prefix.mkdir()
+        return None, str(prefix), prefix / "nginx.conf", "nginx.conf"
+    config = tmp_path / "nginx.conf"
+    return None, None, config, str(config)
+
+
 def test_stop_registered_visits_every_spec_after_one_stop_failure(monkeypatch):
     specs = [
         NginxInstanceSpec(name="first", template="unused", port=12341),
@@ -192,16 +232,103 @@ def test_disk_teardown_treats_a_zombie_as_exited() -> None:
     deadline = time.monotonic() + 3.0
     try:
         while time.monotonic() < deadline:
+            if RegistryLauncher._process_exited(proc.pid):
+                break
             try:
                 stat = Path(f"/proc/{proc.pid}/stat").read_text(encoding="utf-8")
             except OSError:
-                break
+                time.sleep(0.01)
+                continue
             if stat.rsplit(")", 1)[1].lstrip().startswith("Z"):
                 break
             time.sleep(0.01)
         assert RegistryLauncher._process_exited(proc.pid)
     finally:
         proc.wait(timeout=3)
+
+
+def test_master_wait_returns_immediately_for_a_reaped_or_zombie_process(monkeypatch):
+    launcher = type("Launcher", (), {"_process_exited": lambda self, pid: True})()
+    monkeypatch.setattr(
+        control_operations.time, "sleep",
+        lambda seconds: pytest.fail("an exited master must not sleep"),
+    )
+    monkeypatch.setattr(
+        control_operations, "_kill_master",
+        lambda pid: pytest.fail("an exited master must not be killed"),
+    )
+
+    control_operations._wait_master_exit(launcher, 705)
+
+
+def test_master_wait_polls_until_the_process_exits(monkeypatch):
+    states = iter((False, True))
+    launcher = type(
+        "Launcher", (), {"_process_exited": lambda self, pid: next(states)},
+    )()
+    sleeps = []
+    monkeypatch.setattr(control_operations.time, "sleep", sleeps.append)
+
+    control_operations._wait_master_exit(launcher, 706)
+
+    assert sleeps == [0.05]
+
+
+def test_master_wait_force_kills_only_after_the_deadline(monkeypatch):
+    launcher = type("Launcher", (), {"_process_exited": lambda self, pid: False})()
+    clock = iter((100.0, 100.0, 111.0))
+    killed = []
+    monkeypatch.setattr(control_operations.time, "time", lambda: next(clock))
+    monkeypatch.setattr(control_operations.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(control_operations, "_kill_master", killed.append)
+
+    control_operations._wait_master_exit(launcher, 707)
+
+    assert killed == [707]
+
+
+def test_owned_master_group_accepts_the_instances_private_group(monkeypatch):
+    endpoint = type("Endpoint", (), {"prefix": "/tmp/owned-nginx"})()
+    monkeypatch.setattr(
+        "lib_py.util.process_cmdline",
+        lambda pid: b"nginx: master process -p /tmp/owned-nginx",
+    )
+    monkeypatch.setattr(control_operations.os, "getpgid", lambda pid: pid)
+
+    assert control_operations._owned_master_group(701, endpoint) == 701
+
+
+def test_owned_master_group_rejects_a_foreign_process(monkeypatch):
+    endpoint = type("Endpoint", (), {"prefix": "/tmp/owned-nginx"})()
+    monkeypatch.setattr(
+        "lib_py.util.process_cmdline",
+        lambda pid: b"nginx: master process -p /tmp/someone-elses-nginx",
+    )
+
+    assert control_operations._owned_master_group(702, endpoint) is None
+
+
+def test_owned_master_group_rejects_a_shared_process_group(monkeypatch):
+    endpoint = type("Endpoint", (), {"prefix": "/tmp/owned-nginx"})()
+    monkeypatch.setattr(
+        "lib_py.util.process_cmdline",
+        lambda pid: b"nginx: master process -p /tmp/owned-nginx",
+    )
+    monkeypatch.setattr(control_operations.os, "getpgid", lambda pid: 99)
+
+    assert control_operations._owned_master_group(703, endpoint) is None
+
+
+def test_owned_group_finalizer_uses_non_ignorable_signal(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        control_operations.os, "killpg",
+        lambda group, sig: calls.append((group, sig)),
+    )
+
+    control_operations._terminate_owned_group(704)
+
+    assert calls == [(704, control_operations.signal.SIGKILL)]
 
 
 def test_orphan_worker_reaper_uses_only_declared_ports(monkeypatch, tmp_path):
@@ -215,6 +342,11 @@ def test_orphan_worker_reaper_uses_only_declared_ports(monkeypatch, tmp_path):
 
     monkeypatch.setattr("lib_py.util.pids_on_port", lambda port: [701, 702])
     monkeypatch.setattr("lib_py.util.kill_pid_list", lambda pids: killed.extend(pids))
+    monkeypatch.setattr(
+        "lib_py.util.process_cmdline",
+        lambda pid: (b"nginx: worker process" if pid == 701
+                     else b"unrelated-server"),
+    )
     real_path = Path
 
     def fake_path(value):
@@ -226,8 +358,66 @@ def test_orphan_worker_reaper_uses_only_declared_ports(monkeypatch, tmp_path):
     # the reaper lives in brix_suite.launcher.control_operations, whose
     # _process_title resolves Path through the server_launcher seam
     monkeypatch.setattr("server_launcher.Path", fake_path)
-    RegistryLauncher._reap_orphan_nginx_workers(spec)
+    RegistryLauncher()._reap_orphan_nginx_workers(spec)
     assert killed == [701]
+
+
+def test_port_release_probe_uses_the_configured_ipv4_host(monkeypatch):
+    calls = []
+
+    class Probe:
+        def setsockopt(self, *args):
+            pass
+
+        def bind(self, address):
+            calls.append(address)
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(internal_operations.socket, "socket",
+                        lambda family, kind: Probe())
+    assert internal_operations._port_released(HOST, 12343)
+    assert calls == [(HOST, 12343)]
+
+
+def test_port_release_probe_reports_a_live_listener(monkeypatch):
+    class BusyProbe:
+        def setsockopt(self, *args):
+            pass
+
+        def bind(self, address):
+            raise OSError("busy")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(internal_operations.socket, "socket",
+                        lambda family, kind: BusyProbe())
+    assert not internal_operations._port_released(HOST, 12343)
+
+
+def test_port_release_probe_selects_ipv6_for_an_ipv6_host(monkeypatch):
+    families = []
+
+    class Probe:
+        def setsockopt(self, *args):
+            pass
+
+        def bind(self, address):
+            pass
+
+        def close(self):
+            pass
+
+    def socket_for(family, kind):
+        families.append((family, kind))
+        return Probe()
+
+    monkeypatch.setattr(internal_operations.socket, "socket", socket_for)
+    assert internal_operations._port_released(settings.HOST6, 12343)
+    assert families == [(internal_operations.socket.AF_INET6,
+                         internal_operations.socket.SOCK_STREAM)]
 
 
 def test_packaged_nginx_defaults_are_confined_to_instance_prefix(tmp_path):

@@ -44,6 +44,8 @@ def test_the_krb5_keg_is_put_on_pkg_config_path_once(tmp_path):
     keg.mkdir()
     with mock.patch.object(host_env.sys, "platform", "darwin"), \
             mock.patch.object(host_env, "_KRB5_PKGCONFIG_DIRS", (str(keg),)), \
+            mock.patch.object(host_env, "_OPENSSL_PREFIXES", ()), \
+            mock.patch.object(host_env, "_HOMEBREW_PREFIXES", ()), \
             mock.patch.dict(os.environ, {"PKG_CONFIG_PATH": "/x/pkgconfig"}, clear=True):
         host_env.install()
         host_env.install()
@@ -54,6 +56,27 @@ def test_a_missing_keg_leaves_pkg_config_path_alone(tmp_path):
     """error path: a keg that is not installed is not invented."""
     with mock.patch.object(host_env.sys, "platform", "darwin"), \
             mock.patch.object(host_env, "_KRB5_PKGCONFIG_DIRS", (str(tmp_path / "absent"),)), \
+            mock.patch.object(host_env, "_OPENSSL_PREFIXES", ()), \
+            mock.patch.object(host_env, "_HOMEBREW_PREFIXES", ()), \
             mock.patch.dict(os.environ, {"PKG_CONFIG_PATH": "/x/pkgconfig"}, clear=True):
         host_env.install()
         assert os.environ["PKG_CONFIG_PATH"] == "/x/pkgconfig"
+
+
+def test_openssl_keg_is_exposed_to_child_compilers_once(tmp_path):
+    """Darwin's SDK has no OpenSSL headers; direct C harness builds inherit the
+    Homebrew include/library paths without losing operator-provided entries."""
+    prefix = tmp_path / "openssl@3"
+    (prefix / "include").mkdir(parents=True)
+    (prefix / "lib" / "pkgconfig").mkdir(parents=True)
+    with mock.patch.object(host_env.sys, "platform", "darwin"), \
+            mock.patch.object(host_env, "_OPENSSL_PREFIXES", (str(prefix),)), \
+            mock.patch.object(host_env, "_HOMEBREW_PREFIXES", ()), \
+            mock.patch.object(host_env, "_KRB5_PKGCONFIG_DIRS", ()), \
+            mock.patch.dict(os.environ, {"CPATH": "/x/include",
+                                         "LIBRARY_PATH": "/x/lib"}, clear=True):
+        host_env.install()
+        host_env.install()
+        assert os.environ["CPATH"] == f"{prefix / 'include'}{os.pathsep}/x/include"
+        assert os.environ["LIBRARY_PATH"] == f"{prefix / 'lib'}{os.pathsep}/x/lib"
+        assert os.environ["PKG_CONFIG_PATH"] == str(prefix / "lib" / "pkgconfig")

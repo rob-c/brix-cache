@@ -11,6 +11,7 @@
  *       NDJSON renderer. No goto; a minimal field extractor over controlled
  *       server output (no full JSON parser needed).
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "storascan_internal.h"
 #include "brix.h"
 #include "brix_net.h"
@@ -402,11 +403,11 @@ scan_fetch(const char *mode, const scan_ep *ep, const scan_args_t *sa,
     if (brix_http_req(ep->host, ep->port, ep->tls, "GET", fullpath, hdr,
                       NULL, 0, 120000, sa->insecure ? 0 : 1, NULL, NULL, resp, &st) != 0)
     {
-        fprintf(stderr, "xrdstorascan: %s: %s\n", mode, st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdstorascan: %s: %s\n", mode, st.msg);
         return brix_shellcode(&st);
     }
     if (resp->status != 200) {
-        fprintf(stderr, "xrdstorascan: %s: server returned HTTP %d%s\n",
+        BRIX_CLIENT_LOG("INFO",  "xrdstorascan: %s: server returned HTTP %d%s\n",
                 mode, resp->status,
                 resp->status == 404 ? " (scan disabled? — set brix_scan_root)"
                 : resp->status == 401 ? " (auth — check password)" : "");
@@ -445,18 +446,18 @@ cmd_scan(const char *mode, int argc, char **argv, const char *prog)
         return usage(prog, SX_USAGE);
     }
     if (scan_parse_url(sa.url, &ep) != 0) {
-        fprintf(stderr, "xrdstorascan: %s needs an http(s):// dashboard URL\n", mode);
+        BRIX_CLIENT_LOG("ERROR",  "xrdstorascan: %s needs an http(s):// dashboard URL\n", mode);
         return SX_USAGE;
     }
     if (sa.password == NULL) {
-        fprintf(stderr, "xrdstorascan: %s needs --password or $XRDSTORASCAN_PASSWORD\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrdstorascan: %s needs --password or $XRDSTORASCAN_PASSWORD\n",
                 mode);
         return SX_USAGE;
     }
 
     brix_status_clear(&st);
     if (scan_login(&ep, &sa, cookie, sizeof(cookie), &st) != 0) {
-        fprintf(stderr, "xrdstorascan: %s\n", st.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdstorascan: %s\n", st.msg);
         return brix_shellcode(&st);
     }
 

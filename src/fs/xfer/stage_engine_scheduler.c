@@ -23,6 +23,7 @@
  *       stage_engine_internal.h; the byte mover is stage_engine_run.
  */
 
+#include "core/compat/log_event.h"
 #include "stage_engine.h"
 #include "stage_engine_internal.h"
 #include "stage_events.h"          /* 2.0 F2 StageEvents feed (brix_frm_stagemsg) */
@@ -169,7 +170,7 @@ stage_complete(brix_stage_kind_t kind, brix_sd_instance_t *src,
      * permanent deny, a transient origin outage is expected to clear. */
     stage_journal_mark_failed(brix_stage_engine_journal_dir(), reqid, last_errno);
 
-    ngx_log_error(NGX_LOG_WARN, log, 0,
+    BRIX_LOG(NGX_LOG_WARN, log, 0,
         "xrootd stage: deferred %s of \"%s\" failed (reqid %s errno %d) - "
         "record marked FAILED, kept for retry",
         brix_stage_kind_str(kind), dst_key, reqid, last_errno);

@@ -3,6 +3,7 @@
  * Owned by the copy engine: applications select a transfer, while libbrix
  * owns its directory walk, filtering, credentials and HTTP operations.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "copy_internal.h"
 
 /* Shared state for one recursive web-upload walk (local tree → web collection).
@@ -81,7 +82,7 @@ walk_handle_dir(web_upload_ctx_t *c, const walk_child_t *ch)
                                  c->conn ? c->conn->verify_host : 1,
                                  c->conn ? c->conn->ca_dir : NULL,
                                  pcert, &mst) != 0) {
-            fprintf(stderr, "xrdcp: mkcol %s: %s\n", ch->rel, mst.msg);
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: mkcol %s: %s\n", ch->rel, mst.msg);
             c->failed++;
             return;   /* skip this subtree — its files would 409 */
         }
@@ -111,7 +112,7 @@ walk_handle_file(web_upload_ctx_t *c, const walk_child_t *ch)
                              c->scheme, c->endpoint->host,
                              c->endpoint->port, rpath)
                >= sizeof(rurl)) {
-        fprintf(stderr, "xrdcp: remote path too long for %s\n", ch->rel);
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: remote path too long for %s\n", ch->rel);
         c->failed++;
         return;
     }
@@ -124,12 +125,12 @@ walk_handle_file(web_upload_ctx_t *c, const walk_child_t *ch)
     if (copy_web_leaf_retry(ch->local, rurl, c->opts, c->conn, &cst) == 0) {
         c->copied++;
         if (c->opts == NULL || !c->opts->silent) {
-            fprintf(stderr, "[%zu] %s -> %s\n", c->copied + c->failed,
+            BRIX_CLIENT_LOG("ERROR",  "[%zu] %s -> %s\n", c->copied + c->failed,
                     ch->local, rurl);
         }
     } else {
         c->failed++;
-        fprintf(stderr, "xrdcp: %s: %s\n", rurl, cst.msg);
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: %s: %s\n", rurl, cst.msg);
     }
 }
 
@@ -146,7 +147,7 @@ copy_web_upload_walk(web_upload_ctx_t *c, const char *localdir,
     struct dirent *de;
 
     if (d == NULL) {
-        fprintf(stderr, "xrdcp: cannot open %s: %s\n", localdir, strerror(errno));
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: cannot open %s: %s\n", localdir, strerror(errno));
         c->failed++;
         return;
     }
@@ -158,12 +159,12 @@ copy_web_upload_walk(web_upload_ctx_t *c, const char *localdir,
             continue;
         }
         if (walk_child_paths(localdir, rel, de->d_name, &ch) != 0) {
-            fprintf(stderr, "xrdcp: path too long under %s\n", localdir);
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: path too long under %s\n", localdir);
             c->failed++;
             continue;
         }
         if (lstat(ch.local, &sb) != 0) {
-            fprintf(stderr, "xrdcp: stat %s: %s\n", ch.local, strerror(errno));
+            BRIX_CLIENT_LOG("ERROR",  "xrdcp: stat %s: %s\n", ch.local, strerror(errno));
             c->failed++;
             continue;
         }
@@ -215,7 +216,7 @@ copy_web_recursive_upload(const char *localdir, const char *dst,
     size_t          blen;
 
     if (brix_weburl_parse(dst, &u) != 0) {
-        fprintf(stderr, "xrdcp: bad web URL %s\n", dst);
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: bad web URL %s\n", dst);
         brix_status_set(status, XRDC_EUSAGE, 0,
                         "bad web destination URL: %s", dst);
         return -1;
@@ -249,7 +250,7 @@ copy_web_recursive_upload(const char *localdir, const char *dst,
 
     copy_web_upload_walk(&c, localdir, "");
     if (o == NULL || !o->silent) {
-        fprintf(stderr, "xrdcp: %zu copied, %zu failed (recursive web upload)\n",
+        BRIX_CLIENT_LOG("ERROR",  "xrdcp: %zu copied, %zu failed (recursive web upload)\n",
                 c.copied, c.failed);
     }
     if (c.failed != 0) {

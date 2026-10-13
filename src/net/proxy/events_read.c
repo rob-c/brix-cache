@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "proxy_internal.h"
 #include "protocols/root/connection/handler.h"
 #include "platform/platform_api.h"
@@ -83,7 +84,7 @@ proxy_read_hdr_complete(brix_proxy_ctx_t *proxy, ngx_connection_t *uconn)
     proxy->resp_status = ntohs(hdr->status);
     proxy->resp_dlen   = ntohl(hdr->dlen);
 
-    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
                   "xrootd proxy: upstream hdr status=%d dlen=%uz state=%d",
                   (int) proxy->resp_status,
                   (size_t) proxy->resp_dlen,
@@ -98,7 +99,7 @@ proxy_read_hdr_complete(brix_proxy_ctx_t *proxy, ngx_connection_t *uconn)
     if (proxy->state == XRD_PX_FORWARDING) {
         ngx_int_t srt = brix_proxy_try_splice(proxy);
         if (srt == NGX_OK) {
-            ngx_log_debug1(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
+            BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
                           "xrootd proxy: splice started dlen=%uz",
                           (size_t) proxy->resp_dlen);
             /* Splice started — pump drives I/O; don't buffer body. */
@@ -121,7 +122,7 @@ proxy_read_hdr_complete(brix_proxy_ctx_t *proxy, ngx_connection_t *uconn)
         brix_proxy_abort(proxy, "proxy: body alloc failed");
         return BRIX_PXR_DONE;
     }
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
                   "xrootd proxy: buffering body dlen=%uz",
                   (size_t) proxy->resp_dlen);
     proxy->resp_body[proxy->resp_dlen] = '\0';
@@ -202,7 +203,7 @@ proxy_read_fill_body(brix_proxy_ctx_t *proxy, ngx_event_t *rev)
 
     n = uconn->recv(uconn, proxy->resp_body + proxy->resp_body_pos, need);
     if (n == NGX_AGAIN) {
-        ngx_log_debug2(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
                       "xrootd proxy: body AGAIN pos=%uz dlen=%uz",
                       (size_t) proxy->resp_body_pos,
                       (size_t) proxy->resp_dlen);
@@ -248,7 +249,7 @@ proxy_read_expand_status(brix_proxy_ctx_t *proxy, ngx_connection_t *uconn)
     ngx_memcpy(&extra, proxy->resp_body + 12, 4);
     extra = ntohl(extra);
 
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
                   "xrootd proxy: kXR_status two-phase expand extra=%uz resptype=%d",
                   (size_t) extra,
                   (int)(unsigned char) proxy->resp_body[7]);
@@ -299,7 +300,7 @@ proxy_read_relay_attn(brix_proxy_ctx_t *proxy)
         return BRIX_PXR_PROCEED;
     }
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
                    "xrootd proxy: relaying kXR_attn frame (dlen=%uz)",
                    (size_t) proxy->resp_dlen);
 
@@ -373,7 +374,7 @@ proxy_read_dispatch(brix_proxy_ctx_t *proxy, ngx_event_t *rev)
             return BRIX_PXR_DONE;
         }
 #endif
-        ngx_log_debug2(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+        BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
                       "xrootd proxy: relay_to_client status=%d dlen=%uz",
                       (int) proxy->resp_status,
                       (size_t) proxy->resp_dlen);

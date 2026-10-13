@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "upstream_internal.h"
 
 /*
@@ -223,7 +224,7 @@ brix_upstream_start_connect(brix_upstream_t *up, ngx_connection_t *uconn,
      * it via SO_ERROR); rc==0 is an immediate local connect; anything else is a hard fail. */
     rc = connect(uconn->fd, (const struct sockaddr *)(const void *) addr, addrlen);
     if (rc == -1 && ngx_socket_errno != NGX_EINPROGRESS) {
-        ngx_log_error(NGX_LOG_ERR, uconn->log, ngx_socket_errno,
+        BRIX_LOG(NGX_LOG_ERR, uconn->log, ngx_socket_errno,
                       "brix: upstream connect to %s:%d failed",
                       (char *) conf->upstream_host.data,
                       (int) conf->upstream_port);
@@ -287,7 +288,7 @@ brix_upstream_start(brix_ctx_t *ctx, ngx_connection_t *c,
     fd = brix_upstream_start_resolve_socket(conf, &chosen_addr,
                                             &chosen_addrlen, &dns_failed);
     if (dns_failed) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                       "brix: upstream: cannot resolve \"%s\"",
                       (char *) conf->upstream_host.data);
         brix_upstream_cleanup(up);
@@ -295,7 +296,7 @@ brix_upstream_start(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (fd == (int) NGX_INVALID_FILE) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                       "brix: upstream: no usable address for \"%s\"",
                       (char *) conf->upstream_host.data);
         brix_upstream_cleanup(up);
@@ -327,7 +328,7 @@ brix_upstream_start(brix_ctx_t *ctx, ngx_connection_t *c,
         return NGX_ERROR;
     }
 
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+    BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: upstream connecting to %s:%d",
                    (char *) conf->upstream_host.data,
                    (int) conf->upstream_port);

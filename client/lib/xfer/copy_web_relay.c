@@ -1,4 +1,5 @@
 /* copy_web_relay.c - copy-engine retry and private web-to-web staging. */
+#include "../../../shared/observability/log_stdio.h"
 #include "copy_internal.h"
 
 static void
@@ -16,7 +17,7 @@ copy_retry_pause(const brix_copy_opts *opts, int attempt,
     half_ms = (unsigned) backoff * 500u;
     wait_ms = half_ms + brix_jitter_ms(half_ms + 1u);
     if (opts == NULL || !opts->silent) {
-        fprintf(stderr, "xrdcp: %s failed (%s); retry %d/%d in %.1fs\n",
+        BRIX_CLIENT_LOG("WARN",  "xrdcp: %s failed (%s); retry %d/%d in %.1fs\n",
                 src, status->msg, attempt + 1, opts->retry_count,
                 wait_ms / 1000.0);
     }
@@ -92,7 +93,7 @@ copy_web_relay(const char *src, const char *dst,
         leg = *opts;
     }
     if (!leg.silent) {
-        fprintf(stderr, "xrdcp: %s -> %s (web->web via local temp)\n",
+        BRIX_CLIENT_LOG("INFO",  "xrdcp: %s -> %s (web->web via local temp)\n",
                 src, dst);
     }
     leg.force = 1;

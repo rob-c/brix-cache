@@ -44,8 +44,16 @@ from settings import (
 
 pytestmark = pytest.mark.timeout(120)
 
-SYS_XRDFS = "/usr/bin/xrdfs"
-SYS_XRDCP = "/usr/bin/xrdcp"
+def _reference_tool(name, native):
+    """Find an installed stock tool without selecting this repo's binary."""
+    candidate = shutil.which(name)
+    if candidate is None or os.path.realpath(candidate) == os.path.realpath(native):
+        return None
+    return candidate
+
+
+SYS_XRDFS = _reference_tool("xrdfs", XRDFS_BIN)
+SYS_XRDCP = _reference_tool("xrdcp", XRDCP_BIN)
 
 _CLEAN_ENV = {k: v for k, v in os.environ.items()}
 _CLEAN_ENV.pop("X509_USER_PROXY", None)
@@ -53,7 +61,7 @@ _CLEAN_ENV.pop("X509_CERT_DIR", None)
 
 
 def _have_system_tools():
-    return os.path.exists(SYS_XRDFS) and os.path.exists(SYS_XRDCP)
+    return SYS_XRDFS is not None and SYS_XRDCP is not None
 
 
 if not _have_system_tools():

@@ -46,6 +46,11 @@ _PS_CACHE = {"at": 0.0, "table": {}}
 _PS_TTL = 1.0
 
 
+def _refresh_ps_cache():
+    if not _HAVE_PROCFS:
+        _PS_CACHE["at"], _PS_CACHE["table"] = 0.0, {}
+
+
 def _ps_snapshot():
     """Raw ``ps -axE`` lines (own-uid environment appended), or none."""
     try:
@@ -172,7 +177,9 @@ def _process_name(pid):
 
 
 def _daemon_name_matches(name, exes):
-    return name in exes or ("nginx" in exes and name.startswith("nginx-"))
+    normalized = name.lower()
+    return normalized in exes or ("nginx" in exes
+                                  and normalized.startswith("nginx-"))
 
 
 def _helper_matches(pid, name, command):
@@ -181,7 +188,7 @@ def _helper_matches(pid, name, command):
     A suite runner can carry test paths in --ignore options. Matching those
     arguments used to classify the parent operator as a daemon and kill it.
     """
-    if not name.startswith("python") or _is_harness_cmd(command):
+    if not name.lower().startswith("python") or _is_harness_cmd(command):
         return False
     script = _python_script(_process_argv(pid))
     if script is None or not os.path.isabs(script):
@@ -249,17 +256,25 @@ def owns(test_root, text):
     """
     if isinstance(text, str):
         text = text.encode("utf-8", "replace")
-    return _owns(os.path.realpath(str(test_root)).encode(), text)
+    return any(_owns(marker, text) for marker in _ownership_markers(test_root))
+
+
+def _ownership_markers(test_root):
+    """Raw and resolved spellings of one root (notably /tmp on Darwin)."""
+    raw = os.path.abspath(str(test_root)).encode()
+    resolved = os.path.realpath(str(test_root)).encode()
+    return tuple(dict.fromkeys((raw, resolved)))
 
 
 def find_orphans(test_root, exes=FLEET_EXES):
     """Return sorted ``[(pid, cmdline)]`` of LIVE fleet processes owned by
     ``test_root`` (own argv or parent argv references it)."""
-    marker = os.path.realpath(str(test_root)).encode()
+    _refresh_ps_cache()
+    markers = _ownership_markers(test_root)
     owned = {}
     pids = _candidate_pids(exes)
     for pid in sorted(pids):
-        cmd = _owned_command(pid, marker, exes)
+        cmd = _owned_command(pid, markers, exes)
         if cmd is not None:
             owned[pid] = cmd or "<pid %d>" % pid
     return sorted(owned.items())
@@ -368,14 +383,15 @@ def _pgrep_pids(executable):
         return set()
 
 
-def _owned_command(pid, marker, exes):
+def _owned_command(pid, markers, exes):
     command = _cmdline(pid)
     if not _is_fleet_process(pid, command, exes):
         return None
     parent = _cmdline(_ppid(pid))
     blobs = (command.encode("utf-8", "replace"),
              parent.encode("utf-8", "replace"), _environ(pid))
-    return command if any(_owns(marker, blob) for blob in blobs) else None
+    return command if any(_owns(marker, blob)
+                          for marker in markers for blob in blobs) else None
 
 
 
@@ -440,6 +456,7 @@ def lane_claimants(test_root, exes=FLEET_EXES, exclude_self=True):
     owner died, which is why this reads the declaration instead of the
     command line.
     """
+    _refresh_ps_cache()
     marker = os.path.realpath(str(test_root))
     mine = set(_ancestry()) if exclude_self else set()
     claimants = {}

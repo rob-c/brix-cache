@@ -16,7 +16,7 @@ Execution enters from the handshake opcode router after login/auth completes:
 `kXR_prepare` → `brix_handle_prepare`, while `../handshake/dispatch_session.c`
 routes `kXR_set` → `brix_handle_set`. `brix_handle_query` (`dispatch.c`) then
 fans out by `ntohs(req->infotype)` to one of ~14 handlers declared in
-`query_internal.h`, returning `kXR_Unsupported` for any unrecognized infotype.
+`query_internal.h`, returning `kXR_ArgInvalid` for any unrecognized infotype.
 
 The two operations that touch real file bytes — `kXR_Qcksum` (checksum one file)
 and `kXR_Qckscan` (checksum a file or a whole subtree) — can be expensive, so
@@ -38,7 +38,7 @@ nginx-xrootd does not embed the `XrdOfs` plugin layer.
 
 | File | Responsibility |
 |---|---|
-| `dispatch.c` | `brix_handle_query` — the `kXR_query` dispatcher; switches on `ntohs(req->infotype)` to each sub-handler; `kXR_Qvisa` is rejected with `kXR_ArgInvalid` if `ctx->cur_dlen != 0`; unknown infotypes return `kXR_Unsupported`. |
+| `dispatch.c` | `brix_handle_query` — the `kXR_query` dispatcher; switches on `ntohs(req->infotype)` to each sub-handler; `kXR_Qvisa` is rejected with `kXR_ArgInvalid` if `ctx->cur_dlen != 0`; unknown infotypes return `kXR_ArgInvalid`. |
 | `query_internal.h` | Internal header: shared prototypes for every sub-handler, the two AIO context structs (`brix_cksum_aio_t`, `brix_ckscan_aio_t`), the standalone checksum helper prototypes, and the caps `BRIX_CKSCAN_INIT_CAP` (256 KiB) and `BRIX_PREPARE_CMD_MAX_PATHS` (512). |
 | `checksum_qcksum.c` | `kXR_Qcksum` (`brix_query_cksum`) — single-file checksum by path (`cksum_path`: full auth chain + confined open + manager/cache-origin redirect) or by open handle (`cksum_handle`); posts a thread task or computes synchronously. Default algo `adler32`. |
 | `checksum_qcksum_async.c` | Thread-pool worker + completion for `kXR_Qcksum`: `brix_cksum_aio_thread` computes off-loop via `brix_integrity_get_fd`; `brix_cksum_aio_done` closes any path-opened fd, sends the result, and resumes the connection. |

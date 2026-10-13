@@ -31,6 +31,7 @@ typedef struct {
      * lstat / listxattr in the walk routes through the confined VFS seam). */
     const brix_vfs_ctx_t *vfs_scope;
     ngx_log_t          *log;
+    ngx_pool_t         *pool;
 } fattr_recurse_ctx_t;
 
 /*
@@ -67,28 +68,29 @@ fattr_recurse_init_node_ctx(fattr_recurse_ctx_t *rctx, brix_vfs_ctx_t *vctx,
  *       the full 7-byte internal prefix so the client sees the bare name it set,
  *       and append only if the whole entry fits. No return value. */
 static void
-fattr_recurse_emit_names(fattr_recurse_ctx_t *rctx, const char *relpath,
-    const char *xlist, ssize_t list_sz)
+fattr_recurse_emit_names(fattr_recurse_ctx_t *rctx, brix_vfs_ctx_t *vctx,
+    const char *fpath, const char *relpath, const char *xlist, ssize_t list_sz)
 {
     const char *lp   = xlist;
     const char *lend = xlist + list_sz;
 
     /* Stride name-by-name through the NUL-separated list (lp..lend). */
     while (lp < lend) {
-        size_t full_nlen = strlen(lp);
-        /* Keep only our managed "user.U.*" keys (and require a non-empty
-         * suffix after the prefix). */
-        if (strncmp(lp, BRIX_FATTR_XKEY_PFX, BRIX_FATTR_XKEY_PFX_LEN) == 0
-            && full_nlen > BRIX_FATTR_XKEY_PFX_LEN)
-        {
+        size_t                full_nlen = strlen(lp);
+        brix_fattr_stored_t   stored;
+        int                   decoded;
+
+        decoded = fattr_storage_decode_list(rctx->pool, vctx, fpath, -1, lp,
+                                             &stored);
+        if (decoded == 1) {
             /* Strip the full internal "user.U." prefix (7 bytes) so the
              * client sees the bare name it set — the reference uses 'U' only
              * as an internal SFS namespace and returns verbatim names in the
              * List response (XeqFALsd). Returning "U.name" both diverged from
              * stock AND broke list->get round-trips (a re-get of "U.name"
              * would resolve to "user.U.U.name"). */
-            const char *resp_name   = lp + BRIX_FATTR_XKEY_PFX_LEN;
-            size_t      resp_nlen   = full_nlen - BRIX_FATTR_XKEY_PFX_LEN;
+            const char *resp_name   = stored.name;
+            size_t      resp_nlen   = stored.nlen;
             size_t      relpath_len = strlen(relpath);
             /* entry = "relpath:name\0" — +1 for ':' separator, +1 for NUL */
             size_t      entry_len   = relpath_len + 1 + resp_nlen + 1;
@@ -150,7 +152,7 @@ fattr_recurse_file(fattr_recurse_ctx_t *rctx, const char *fpath,
         return;
     }
 
-    fattr_recurse_emit_names(rctx, relpath, xlist, list_sz);
+    fattr_recurse_emit_names(rctx, &fvctx, fpath, relpath, xlist, list_sz);
 }
 
 /*
@@ -245,6 +247,7 @@ fattr_list_recurse(brix_ctx_t *ctx, ngx_connection_t *c,
     rctx.root_len   = strlen(path);  /* relpath = fullpath + root_len in the walk */
     rctx.vfs_scope             = vctx;
     rctx.log                   = vctx->log;
+    rctx.pool                  = c->pool;
 
     fattr_recurse_dir(&rctx, path, 0);
 
@@ -422,8 +425,9 @@ fattr_list_append_value(brix_vfs_ctx_t *vctx, const char *path, int fd,
  *       cap is over-provisioned for kXR_faMaxVars aData values so this is only a
  *       guard. */
 static size_t
-fattr_list_build(brix_vfs_ctx_t *vctx, const char *path, int fd, int aData,
-    const char *raw, ssize_t actual, u_char *resp, size_t resp_cap)
+fattr_list_build(ngx_pool_t *pool, brix_vfs_ctx_t *vctx, const char *path,
+    int fd, int aData, const char *raw, ssize_t actual, u_char *resp,
+    size_t resp_cap)
 {
     /* wp = write cursor into resp; lp/lend stride the raw name list. */
     u_char     *wp   = resp;
@@ -431,15 +435,18 @@ fattr_list_build(brix_vfs_ctx_t *vctx, const char *path, int fd, int aData,
     const char *lend = raw + actual;
 
     while (lp < lend) {
-        size_t full_nlen = strlen(lp);
-        /* Emit only managed "user.U.*" keys with a non-empty suffix. */
-        if (strncmp(lp, BRIX_FATTR_XKEY_PFX, BRIX_FATTR_XKEY_PFX_LEN) == 0
-            && full_nlen > BRIX_FATTR_XKEY_PFX_LEN) {
+        size_t               full_nlen = strlen(lp);
+        brix_fattr_stored_t  stored;
+        int                  decoded;
+
+        decoded = fattr_storage_decode_list(pool, vctx, path, fd, lp,
+                                             &stored);
+        if (decoded == 1) {
             /* Strip the full internal "user.U." prefix (7 bytes) so the client
              * sees the bare name it set — matching the reference XeqFALsd, which
              * returns verbatim names (the 'U' namespace is internal only). */
-            const char *resp_name = lp + BRIX_FATTR_XKEY_PFX_LEN;
-            size_t      resp_nlen = full_nlen - BRIX_FATTR_XKEY_PFX_LEN;
+            const char *resp_name = stored.name;
+            size_t      resp_nlen = stored.nlen;
             /* name + NUL, plus (if aData) the 4-byte len prefix + value buffer. */
             size_t space_needed = resp_nlen + 1
                                   + (aData ? 4 + BRIX_ROOT_FATTR_LIST_SLACK : 0);
@@ -448,7 +455,16 @@ fattr_list_build(brix_vfs_ctx_t *vctx, const char *path, int fd, int aData,
             ngx_memcpy(wp, resp_name, resp_nlen);
             wp += resp_nlen;
             *wp++ = '\0';
-            if (aData) {
+            if (aData && stored.value != NULL) {
+                uint32_t vlen_be = htonl((uint32_t) stored.vlen);
+
+                ngx_memcpy(wp, &vlen_be, 4);
+                wp += 4;
+                if (stored.vlen != 0) {
+                    ngx_memcpy(wp, stored.value, stored.vlen);
+                    wp += stored.vlen;
+                }
+            } else if (aData) {
                 fattr_list_append_value(vctx, path, fd, lp, &wp);
             }
         }
@@ -507,14 +523,14 @@ ngx_int_t fattr_list(brix_ctx_t *ctx, ngx_connection_t *c,
      * the build loop need not realloc — the break inside still guards against
      * exceeding it.
      */
-    resp_cap = (size_t) rd.actual + kXR_faMaxVars * (4 + BRIX_ROOT_FATTR_VAL_BUF) + 64;
+    resp_cap = BRIX_ROOT_FATTR_RESP_CAP;
     resp = ngx_palloc(c->pool, resp_cap);
     if (resp == NULL) {
         return brix_send_error(ctx, c, kXR_NoMemory, "out of memory");
     }
 
-    resp_len = fattr_list_build(vctx, path, fd, aData, rd.raw, rd.actual,
-        resp, resp_cap);
+    resp_len = fattr_list_build(c->pool, vctx, path, fd, aData, rd.raw,
+        rd.actual, resp, resp_cap);
 
     BRIX_OP_OK(ctx, BRIX_OP_FATTR);
     if (resp_len == 0) {

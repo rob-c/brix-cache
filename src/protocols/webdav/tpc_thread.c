@@ -11,6 +11,7 @@
  * to the synchronous path in tpc.c.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "core/compat/net_target.h"
 #include "observability/dashboard/dashboard_tracking.h"
@@ -168,7 +169,7 @@ tpc_thread_ssrf_preflight(tpc_thread_ctx_t *t)
         return NGX_OK;
     }
 
-    ngx_log_error(NGX_LOG_WARN, t->log, 0,
+    BRIX_LOG(NGX_LOG_WARN, t->log, 0,
                   "brix_webdav: HTTP-TPC SSRF check blocked "
                   "transfer to %s: %s",
                   t->url, ssrf_err);

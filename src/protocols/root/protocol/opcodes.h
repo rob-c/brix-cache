@@ -76,6 +76,7 @@
 #define kXR_pgread    3030  /* paged read with per-page CRC32c integrity */
 #define kXR_writev    3031  /* scatter-gather write */
 #define kXR_clone     3032  /* server-side range copy (protocol v5.2.0) */
+#define kXR_REQFENCE  3033  /* first reserved value after the request range */
 
 /* ------------------------------------------------------------------ */
 /* Vendor extension opcodes (nginx-xrootd local — NOT standard XRootD)  */
@@ -183,6 +184,7 @@
 #define kXR_TooManyErrs     3033  /* too many errors — server giving up */
 #define kXR_ReqTimedOut     3034  /* the request itself exceeded its time budget */
 #define kXR_TimerExpired    3035  /* a server-side timer (wait/stage) expired */
+#define kXR_ERRFENCE        3036  /* first value outside the wire-error range */
 
 /* ------------------------------------------------------------------ */
 /* kXR_status encoding base                                             */

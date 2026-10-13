@@ -24,7 +24,10 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import importlib.util
+import json
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 import pytest
 
@@ -39,6 +42,26 @@ CLIENT_DOCKERFILE = K8S / "Dockerfiles/gridftp-client/Dockerfile"
 RUNNER_JOB = K8S / "charts/test-runner/templates/job.yaml"
 PKI_BOOTSTRAP = GRIDFTP_CHART / "templates/pki-bootstrap-job.yaml"
 INTEROP_TEST = K8S / "remote-suite/tests/test_gridftp_interop.py"
+EVIDENCE_TOOL = REPO / "tools/ci/check_gridftp_interop_image.py"
+EVIDENCE_SPEC = importlib.util.spec_from_file_location(
+    "gridftp_interop_guard", EVIDENCE_TOOL)
+EVIDENCE = importlib.util.module_from_spec(EVIDENCE_SPEC)
+EVIDENCE_SPEC.loader.exec_module(EVIDENCE)
+
+
+def _outbound_junit(path, outcomes=None, captured=None):
+    outcomes = outcomes or {}
+    suite = ET.Element("testsuite")
+    for name in sorted(EVIDENCE.EXPECTED_OUTBOUND_TESTS):
+        case = ET.SubElement(
+            suite, "testcase",
+            classname="tests.test_gridftp_outbound_interop", name=name)
+        outcome = outcomes.get(name)
+        if outcome:
+            ET.SubElement(case, outcome, message="deliberate fixture")
+    if captured:
+        ET.SubElement(suite, "system-out").text = captured
+    ET.ElementTree(suite).write(path, encoding="utf-8", xml_declaration=True)
 
 
 # --- entrypoint: must load the mounted config, not the stock conf-path -------
@@ -197,3 +220,71 @@ def test_interop_gates_unpinnable_data_channel_cells():
         "lab_suite _gridftp must set TEST_GRIDFTP_DATACHAN_PINNED=1")
     assert "image.repository=gridftp-client" in lab, (
         "lab_suite _gridftp must drive with the reference gridftp-client image")
+
+
+# --- external-door release evidence (phase-115 W5.5) ------------------------
+
+def test_outbound_nine_passes_create_credential_free_evidence(tmp_path):
+    report = tmp_path / "report.xml"
+    secret = "X509_USER_PROXY=/tmp/x509up_u123 PRIVATE KEY bearer-token"
+    _outbound_junit(report, captured=secret)
+    evidence = EVIDENCE.build_outbound_evidence(
+        report, "dcache", "9.2.17", "door.example.org",
+        "2026-10-07T12:00:00Z")
+    encoded = json.dumps(evidence)
+    assert evidence["status"] == "validated"
+    assert evidence["results"]["passed"] == 9
+    assert evidence["results"]["skipped"] == 0
+    assert secret not in encoded
+    assert len(evidence["junit_sha256"]) == 64
+
+
+@pytest.mark.parametrize("outcome", ["failure", "error", "skipped"])
+def test_outbound_nonpassing_cell_refuses_certification(tmp_path, outcome):
+    report = tmp_path / "report.xml"
+    cell = next(iter(EVIDENCE.EXPECTED_OUTBOUND_TESTS))
+    _outbound_junit(report, {cell: outcome})
+    with pytest.raises(EVIDENCE.EvidenceError, match="requires 9/9 passes"):
+        EVIDENCE.validate_outbound_junit(report)
+
+
+def test_outbound_missing_and_duplicate_cells_refuse_certification(tmp_path):
+    report = tmp_path / "report.xml"
+    _outbound_junit(report)
+    tree = ET.parse(report)
+    suite = tree.getroot()
+    suite.remove(suite[0])
+    tree.write(report)
+    with pytest.raises(EVIDENCE.EvidenceError, match="inventory mismatch"):
+        EVIDENCE.validate_outbound_junit(report)
+    _outbound_junit(report)
+    tree = ET.parse(report)
+    suite = tree.getroot()
+    suite.append(ET.fromstring(ET.tostring(suite[0])))
+    tree.write(report)
+    with pytest.raises(EVIDENCE.EvidenceError, match="duplicate"):
+        EVIDENCE.validate_outbound_junit(report)
+
+
+@pytest.mark.parametrize("endpoint", [
+    "https://door.example.org", "user@door.example.org",
+    "door.example.org/path", "door.example.org\nforged=metadata",
+])
+def test_outbound_metadata_refuses_urls_credentials_and_records(tmp_path,
+                                                                endpoint):
+    report = tmp_path / "report.xml"
+    _outbound_junit(report)
+    with pytest.raises(EVIDENCE.EvidenceError, match="endpoint"):
+        EVIDENCE.build_outbound_evidence(report, "globus", "6.0", endpoint)
+
+
+def test_outbound_malformed_xml_and_naive_timestamp_are_refused(tmp_path):
+    report = tmp_path / "report.xml"
+    report.write_text("<testsuite><testcase>")
+    with pytest.raises(EVIDENCE.EvidenceError, match="malformed"):
+        EVIDENCE.validate_outbound_junit(report)
+    _outbound_junit(report)
+    with pytest.raises(EVIDENCE.EvidenceError, match="timezone"):
+        EVIDENCE.build_outbound_evidence(
+            report, "globus", "6.0", "door.example.org",
+            "2026-10-07T12:00:00")

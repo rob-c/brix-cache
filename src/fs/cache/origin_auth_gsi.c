@@ -16,6 +16,7 @@
  * cache_internal.h).
  */
 
+#include "core/compat/log_event.h"
 #include "cache_internal.h"
 #include "protocols/root/protocol/bootstrap_pack.h"   /* shared handshake/login packers */
 #include "protocols/root/protocol/frame_hdr.h"        /* xrd_error_body_decode */
@@ -210,7 +211,7 @@ originauth_gsi_warn_bare_cert(const uint8_t *proxy_pem, size_t proxy_pem_len,
         off = (size_t) ((u_char *) p - proxy_pem) + blen;
     }
     if (ncerts < 2) {
-        ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, ngx_cycle->log, 0,
             "brix: origin GSI credential \"%s\" has %uz certificate(s); a "
             "stock XRootD origin requires a delegated PROXY chain (>= 2: "
             "proxy + end-entity cert). A bare host cert/key will be rejected "

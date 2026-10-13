@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "protocols/root/connection/budget.h"
 #include "protocols/root/connection/disconnect.h"  /* run_deferred_teardown (WS3) */
@@ -41,7 +42,7 @@ void
 brix_read_io_failure_log(ngx_log_t *log, const char *who, int fd,
     off_t offset, size_t rlen, int io_errno)
 {
-    ngx_log_error(NGX_LOG_ERR, log, 0,
+    BRIX_LOG(NGX_LOG_ERR, log, 0,
                   "brix: %s read failed: fd=%d off=%O len=%uz io_errno=%d "
                   "(%s) fd_kind=%s",
                   who, fd, offset, rlen, io_errno,

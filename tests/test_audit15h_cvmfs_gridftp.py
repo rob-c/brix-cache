@@ -204,21 +204,10 @@ def _rel(repo_path, obj):
 
 
 def _workers(pidfile):
-    """The worker pids of the master named by `pidfile`, straight out of /proc."""
+    """The worker pids of the master named by ``pidfile``."""
+    from lib_py.util import children_of
     master = int(pidfile.read_text().strip())
-    kids = []
-    for entry in os.listdir("/proc"):
-        if not entry.isdigit():
-            continue
-        try:
-            with open(f"/proc/{entry}/status") as fh:
-                for line in fh:
-                    if line.startswith("PPid:"):
-                        _guard_workers_1(master, kids, entry, line)
-                        break
-        except OSError:
-            continue                              # the process exited under us
-    return master, kids
+    return master, sorted(children_of(master))
 
 
 # ---------------------------------------------------------------------------

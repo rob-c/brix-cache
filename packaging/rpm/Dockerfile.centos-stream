@@ -1,0 +1,42 @@
+# Native RPM builder for CentOS Stream 9 and 10.
+# Select with --build-arg STREAM_RELEASE=9|10 and the matching Ceph line.
+
+ARG STREAM_RELEASE=10
+FROM quay.io/centos/centos:stream${STREAM_RELEASE} AS builder
+
+ARG STREAM_RELEASE=10
+ARG BRIX_CEPH_RELEASE=squid
+
+RUN dnf install -y 'dnf-command(config-manager)' && \
+    dnf config-manager --set-enabled crb && \
+    dnf install -y epel-release && \
+    dnf config-manager --set-enabled epel
+
+RUN printf '[centos-storage-ceph-%s]\nname=CentOS Stream %s Storage SIG Ceph %s\nbaseurl=https://mirror.stream.centos.org/SIGs/%s-stream/storage/$basearch/ceph-%s/\nenabled=1\ngpgcheck=0\nmodule_hotfixes=1\n' \
+    "${BRIX_CEPH_RELEASE}" "${STREAM_RELEASE}" "${BRIX_CEPH_RELEASE}" \
+    "${STREAM_RELEASE}" "${BRIX_CEPH_RELEASE}" \
+    > /etc/yum.repos.d/centos-storage-ceph.repo
+
+RUN dnf install -y \
+        gcc gcc-c++ make git pkgconfig rpm-build rpmdevtools redhat-rpm-config \
+        nginx-mod-devel openssl-devel pcre2-devel zlib-devel \
+        libxml2-devel jansson-devel libcurl-devel krb5-devel libcom_err-devel \
+        libxcrypt-devel fuse3-devel sqlite-devel libseccomp-devel \
+        liburing-devel libzstd-devel brotli-devel xz-devel bzip2-devel lz4-devel \
+        selinux-policy-devel systemd-rpm-macros \
+        librados-devel libradospp-devel libradosstriper-devel libcephfs-devel \
+    && dnf clean all
+
+ARG VERSION=""
+WORKDIR /build/src
+COPY . .
+
+RUN RPMBUILD_TOPDIR=/root/rpmbuild packaging/rpm/build-rpm.sh "${VERSION}"
+
+RUN mkdir -p /artifacts && \
+    find /root/rpmbuild/RPMS /root/rpmbuild/SRPMS -name '*.rpm' -exec cp {} /artifacts/ \;
+
+ARG STREAM_RELEASE=10
+FROM quay.io/centos/centos:stream${STREAM_RELEASE} AS final
+COPY --from=builder /artifacts /artifacts
+CMD ["find", "/artifacts", "-name", "*.rpm"]

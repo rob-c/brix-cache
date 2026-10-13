@@ -283,6 +283,16 @@ def _prepare_cancel(s, reqid, sid=b"\x00\x32"):
     return st
 
 
+def _prepare_query_status(s, reqid, sid=b"\x00\x33"):
+    """Return the QPrep state letter for one request id in its owner session."""
+    body = struct.pack("!H14s", 2, b"\x00" * 14)
+    payload = reqid.encode() if isinstance(reqid, str) else reqid
+    s.sendall(_frame(kXR_query, body, payload, sid=sid))
+    _, st, reply = _read_response(s)
+    state = reply[:1].decode(errors="replace") if reply else ""
+    return st, state
+
+
 def _rst(s):
     try:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))

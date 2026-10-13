@@ -4,15 +4,16 @@ The files described here remain in [`packaging/deb/`](../../../../packaging/deb/
 Directory listings below refer to that source location; command working
 directories are unchanged by this guide’s relocation.
 
-This directory contains .deb packaging for Ubuntu 22.04 (jammy) and
-Ubuntu 24.04 (noble) — the deb counterpart of `packaging/rpm/` (AlmaLinux).
+This directory contains .deb packaging for Ubuntu 22.04 (jammy), Ubuntu 24.04
+(noble), and Ubuntu 26.04 (resolute) — the deb counterpart of
+`packaging/rpm/` (AlmaLinux).
 One debhelper source package (`debian/`) builds **ten** binary packages from
 one source tree, mirroring the RPM subpackage split:
 
 | Package | Arch | Contents |
 |---|---|---|
 | `nginx-mod-brix-cache` | any | The combined BriX nginx dynamic module, the xrdhttp filter module, the modules-available loader snippet, example config, logrotate rule, Grafana dashboard + Prometheus alerts |
-| `brix-cache-client` | any | The clean-room native CLI tools (`xrdcp`, `xrdfs`, `xrd`, `xrdcksum`, `xrdstorascan`, …), the `libbrixposix_preload.so` POSIX shim, completions, man pages; `Recommends:` the two FUSE packages |
+| `brix-cache-client` | any | The clean-room native CLI tools (`xrdcp`, `xrdfs`, `xrd`, `xrdcksum`, `xrdstorascan`, …), offline `brix-config-migrate` assistant, the `libbrixposix_preload.so` POSIX shim, completions, man pages; `Recommends:` the two FUSE packages |
 | `brix-cache-client-compat` | any | The SAME tools under a `brix-` prefix (`brix-xrdcp`, …), co-installable with the official xrootd-client tools |
 | `brix-xrootdfs-fuse` | any | The `xrootdfs` FUSE mount (async + `--legacy` drivers in one binary) |
 | `brix-cvmfs-fuse` | any | `brixMount`, the native CVMFS FUSE client (+ the `brixcvmfs` alias) |
@@ -35,6 +36,9 @@ packaging/deb/build-deb-container.sh
 
 # Ubuntu 24.04 against the Ubuntu-archive nginx (1.24.0 on noble):
 packaging/deb/build-deb-container.sh -f distro
+
+# Ubuntu 26.04:
+packaging/deb/build-deb-container.sh -d ubuntu26
 
 # Ubuntu 22.04:
 packaging/deb/build-deb-container.sh -d ubuntu22
@@ -99,12 +103,14 @@ Two target flavors select which nginx the module package tracks (`-f`):
   our `60-mod-brix-cache.conf` — the names are chosen so the
   `modules-enabled` include glob orders them correctly).
 
-Both nginx flavors are built `--with-compat` (verified: Ubuntu noble's
-`nginx -V` shows `--with-compat`, nginx.org always builds with it), so one
-module binary per nginx *version* serves either package source; the flavor
-only changes the generated `Depends:` line.  The module is compiled from
-the vanilla nginx.org source tarball of the matching version — Ubuntu's
-packaging patches do not change the module ABI.
+Both nginx flavors are built `--with-compat`, but that signature is not a
+substitute for vendor-header equality.  An Ubuntu patch can change a public
+nginx structure without changing `NGINX_VERSION` or the module signature.
+Consequently `org` builds use the matching vanilla nginx.org source, while
+`distro` builds require the exact-version `nginx-dev` package and compile from
+its patched `/usr/share/nginx/src` SDK.  `build-deb.sh` fails closed when the
+installed SDK package version differs from the installed/candidate nginx
+package version.
 
 ## Module activation
 
@@ -160,15 +166,15 @@ nginx worker user — `nginx` when that account exists (nginx.org packages),
 else `www-data` (Ubuntu-archive packages) — unless a `dpkg-statoverride`
 says otherwise.
 
-## Optional codecs
+## Codec and sandbox features
 
-zstd, lz4 and io_uring are ON (Build-Depends carry the dev packages;
+zstd and Brotli are mandatory, while lz4, io_uring, and seccomp are enabled by
+the package build (Build-Depends carry the development packages and
 `BRIX_ENABLE_IO_URING=1` is exported by `debian/rules`), matching the RPM
-defaults.  lzma/brotli/bzip2 are OFF; `./configure` probes via pkg-config,
-so to enable one add its dev package (`liblzma-dev`, `libbrotli-dev`,
-`libbz2-dev`) to `debian/control` Build-Depends (and the builder
-Dockerfile) — it then compiles in and `dpkg-shlibdeps` picks up the runtime
-dependency automatically.
+defaults.  lzma and bzip2 remain optional; `./configure` probes them via
+pkg-config, so to enable either add its development package (`liblzma-dev` or
+`libbz2-dev`) to `debian/control` Build-Depends and the builder Dockerfile.
+`dpkg-shlibdeps` then discovers the corresponding runtime dependency.
 
 ## Install
 

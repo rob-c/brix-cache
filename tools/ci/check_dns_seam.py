@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 #
 # check_dns_seam.py — enforce "one DNS path" (phase-116 W4.4 / Appendix A).
 #
@@ -172,11 +177,11 @@ def main(argv):
     args = ap.parse_args(argv)
     hits, count = scan(args.root.resolve())
     if hits:
-        print("check_dns_seam: name resolution outside the DNS seam "
+        _brix_diagnostic('ERROR', 'tools/ci/check_dns_seam.py', 'main', "check_dns_seam: name resolution outside the DNS seam "
               "(src/net/dns/, client/lib/net/resolve.c):", file=sys.stderr)
         for hit in hits:
-            print(f"  {hit}", file=sys.stderr)
-        print("  Route it through brix_dns_resolve()/brix_dns_resolve_sync() "
+            _brix_diagnostic('ERROR', 'tools/ci/check_dns_seam.py', 'main', f"  {hit}", file=sys.stderr)
+        _brix_diagnostic('ERROR', 'tools/ci/check_dns_seam.py', 'main', "  Route it through brix_dns_resolve()/brix_dns_resolve_sync() "
               "(server) or brix_resolve() (client); no waiver exists.",
               file=sys.stderr)
         return 1

@@ -24,6 +24,7 @@
  * crypto work.
  */
 
+#include "core/compat/log_event.h"
 #include "ocsp.h"
 #include "ocsp_internal.h"
 
@@ -93,7 +94,7 @@ ocsp_check_urls(ngx_log_t *log, STACK_OF(OPENSSL_STRING) *ocsp_urls,
         OCSP_REQUEST  *req = NULL;
         int            status;
 
-        ngx_log_error(NGX_LOG_DEBUG, log, 0,
+        BRIX_LOG(NGX_LOG_DEBUG, log, 0,
                       "brix_ocsp: querying responder \"%s\"", url);
 
         resp = do_ocsp_request(log, q->dns, url, q->leaf, q->issuer, q->id,
@@ -114,12 +115,12 @@ ocsp_check_urls(ngx_log_t *log, STACK_OF(OPENSSL_STRING) *ocsp_urls,
         OCSP_REQUEST_free(req);
 
         if (status == 0) {
-            ngx_log_error(NGX_LOG_DEBUG, log, 0,
+            BRIX_LOG(NGX_LOG_DEBUG, log, 0,
                           "brix_ocsp: certificate is GOOD (\"%s\")", url);
             return 0;   /* GOOD */
         }
         if (status == -1) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_ocsp: certificate is REVOKED (\"%s\")", url);
             return -1;  /* REVOKED — never override */
         }
@@ -164,7 +165,7 @@ brix_ocsp_check_cert(ngx_log_t *log, const brix_dns_policy_t *dns, X509 *leaf,
     }
 
     if (issuer == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: no issuer certificate for OCSP check; "
                       "treating as soft_fail=%d", soft_fail);
         return soft_fail ? 0 : -1;
@@ -173,7 +174,7 @@ brix_ocsp_check_cert(ngx_log_t *log, const brix_dns_policy_t *dns, X509 *leaf,
     /* Extract OCSP URLs from the Authority Information Access extension */
     ocsp_urls = X509_get1_ocsp(leaf);
     if (ocsp_urls == NULL || sk_OPENSSL_STRING_num(ocsp_urls) == 0) {
-        ngx_log_error(NGX_LOG_DEBUG, log, 0,
+        BRIX_LOG(NGX_LOG_DEBUG, log, 0,
                       "brix_ocsp: no OCSP URL in certificate AIA extension");
         if (ocsp_urls) {
             X509_email_free(ocsp_urls);
@@ -184,7 +185,7 @@ brix_ocsp_check_cert(ngx_log_t *log, const brix_dns_policy_t *dns, X509 *leaf,
     /* Build the OCSP certificate ID (SHA-1 hash of issuer fields) */
     id = OCSP_cert_to_id(NULL, leaf, issuer);
     if (id == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: OCSP_cert_to_id() failed");
         X509_email_free(ocsp_urls);
         return soft_fail ? 0 : -1;
@@ -262,7 +263,7 @@ ocsp_store_staple(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf,
     /* Encode response to DER for the TLS extension */
     der_len = i2d_OCSP_RESPONSE(resp, &der);
     if (der_len <= 0 || der == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: DER encoding of staple failed");
         return NGX_ERROR;
     }
@@ -284,7 +285,7 @@ ocsp_store_staple(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf,
     xcf->ocsp.staple_data = buf;
     xcf->ocsp.staple_len  = (size_t)der_len;
 
-    ngx_log_error(NGX_LOG_INFO, log, 0,
+    BRIX_LOG(NGX_LOG_INFO, log, 0,
                   "brix_ocsp: staple cached (%d bytes) from \"%s\"",
                   der_len, url);
     return NGX_OK;
@@ -314,7 +315,7 @@ ocsp_fetch_staple_urls(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf,
         OCSP_REQUEST  *req = NULL;
         int            status;
 
-        ngx_log_error(NGX_LOG_DEBUG, log, 0,
+        BRIX_LOG(NGX_LOG_DEBUG, log, 0,
                       "brix_ocsp: fetching staple from \"%s\"", url);
 
         resp = do_ocsp_request(log, q->dns, url, q->leaf, q->issuer, q->id,
@@ -330,7 +331,7 @@ ocsp_fetch_staple_urls(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf,
         OCSP_REQUEST_free(req);
         req = NULL;
         if (status != 0) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
                 "brix_ocsp: staple response not GOOD (status=%d) "
                 "from \"%s\" — skipping", status, url);
             OCSP_RESPONSE_free(resp);
@@ -384,14 +385,14 @@ brix_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
     ngx_int_t                 rc;
 
     if (leaf == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: no server certificate; cannot fetch staple");
         return NGX_ERROR;
     }
 
     ocsp_urls = X509_get1_ocsp(leaf);
     if (ocsp_urls == NULL || sk_OPENSSL_STRING_num(ocsp_urls) == 0) {
-        ngx_log_error(NGX_LOG_DEBUG, log, 0,
+        BRIX_LOG(NGX_LOG_DEBUG, log, 0,
                       "brix_ocsp: no OCSP URL in server certificate AIA");
         if (ocsp_urls) {
             X509_email_free(ocsp_urls);
@@ -406,7 +407,7 @@ brix_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
      */
     issuer = ocsp_find_issuer(xcf->gsi_store, leaf);
     if (issuer == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
                       "brix_ocsp: cannot locate issuer certificate for staple");
         X509_email_free(ocsp_urls);
         return NGX_ERROR;

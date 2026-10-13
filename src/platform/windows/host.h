@@ -46,8 +46,13 @@
 #define BRIX_HAS_COPY_FILE_RANGE 1
 #define BRIX_HAS_IPV6_FLOWLABEL 0
 #define BRIX_HAS_TCP_INFO 0
+#define BRIX_HAS_NO_NEW_PRIVS 0
+#define BRIX_HAS_WORKER_EXEC 0            /* no supported worker subprocess PAL */
+#define BRIX_HAS_CAPABILITIES 0
+#define BRIX_HAS_SAVED_IDS 0
 #define BRIX_HAS_GSS_KRB5_IMPORT_CRED 0
 #define BRIX_PLAT_SHM_DIR "/tmp"         /* stub-grade: no RAM-backed root */
+#define BRIX_XATTR_NAME_MAX 255u          /* NTFS ADS component budget */
 
 /* Adapter selection. */
 #define BRIX_HAS_NTFS_ADS 1

@@ -167,6 +167,36 @@ def _wait_for_redirect(redir_port, path, expected_ds_ports,
     )
 
 
+def _wait_for_no_redirect(redir_port, path, timeout: float = 20.0,
+                          host: str = HOST):
+    """Retry locate until the manager observes a data-server disconnect.
+
+    Stopping nginx and delivery of EOF to the redirector are asynchronous.  A
+    fixed sleep races that event under parallel load, so assert the externally
+    visible routing state instead while retaining a bounded failure deadline.
+    """
+    timeout *= budget_scale()
+    deadline = time.monotonic() + timeout
+    last_status = None
+    while time.monotonic() < deadline:
+        try:
+            sock = _cluster_handshake_login(host, redir_port)
+            try:
+                _cluster_send_locate(sock, path)
+                last_status, _body = _cluster_read_response(sock)
+                if last_status != kXR_redirect:
+                    return
+            finally:
+                sock.close()
+        except OSError:
+            pass
+        time.sleep(0.25)
+    pytest.fail(
+        f"Redirector on {redir_port} still redirected {path!r} after "
+        f"{timeout}s (last status={last_status})"
+    )
+
+
 @pytest.fixture(scope="session")
 def manager_nginx():
     """Use the pre-launched dedicated manager nginx at MANAGER_PORT.
@@ -274,16 +304,21 @@ def _cluster_handshake_login(host, port):
     """Full XRootD bootstrap: handshake + kXR_protocol + kXR_login."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(10)
-    sock.connect((host, port))
-    sock.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
-    sock.sendall(struct.pack(">BB H I BB 10x I",
-                             0, 1, 3006, 0x00000520, 0x02, 0x03, 0))
-    _cluster_recv_exact(sock, 16)
-    _cluster_read_response(sock)
-    sock.sendall(struct.pack(">BB H I 8s BB B B I",
-                             0, 1, 3007, 0, b"anon\x00\x00\x00\x00", 0, 0, 5, 0, 0))
-    _cluster_read_response(sock)
-    return sock
+    try:
+        sock.connect((host, port))
+        sock.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
+        sock.sendall(struct.pack(">BB H I BB 10x I",
+                                 0, 1, 3006, 0x00000520, 0x02, 0x03, 0))
+        _cluster_recv_exact(sock, 16)
+        _cluster_read_response(sock)
+        sock.sendall(struct.pack(">BB H I 8s BB B B I",
+                                 0, 1, 3007, 0, b"anon\x00\x00\x00\x00",
+                                 0, 0, 5, 0, 0))
+        _cluster_read_response(sock)
+        return sock
+    except (OSError, RuntimeError):
+        sock.close()
+        raise
 
 
 def _cluster_locate_redirect(port, path, timeout=25.0, settimeout=20):
@@ -300,11 +335,19 @@ def _cluster_locate_redirect(port, path, timeout=25.0, settimeout=20):
     deadline = time.monotonic() + timeout
     status, body = None, b""
     while True:
-        sock = _cluster_handshake_login(HOST, port)
-        sock.settimeout(settimeout)
-        _cluster_send_locate(sock, path)
-        status, body = _cluster_read_response(sock)
-        sock.close()
+        try:
+            sock = _cluster_handshake_login(HOST, port)
+            try:
+                sock.settimeout(settimeout)
+                _cluster_send_locate(sock, path)
+                status, body = _cluster_read_response(sock)
+            finally:
+                sock.close()
+        except (OSError, RuntimeError):
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.5)
+            continue
         if status == kXR_redirect or time.monotonic() >= deadline:
             return status, body
         time.sleep(0.5)

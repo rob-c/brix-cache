@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "core/config/config.h"
 #include "handoff.h"
@@ -11,7 +12,6 @@
  */
 
 #define BRIX_HANDOFF_BUF   (64 * 1024)
-#define BRIX_HANDOFF_IDLE  75000   /* ms; drop a relay that stalls both ways */
 
 typedef struct {
     ngx_stream_session_t      *s;
@@ -27,6 +27,8 @@ typedef struct {
     size_t   uc_off, uc_end;
 
     ngx_brix_srv_metrics_t  *metrics;   /* for connections_active-- on close */
+    ngx_msec_t                 connect_timeout;
+    ngx_msec_t                 idle_timeout;
     unsigned                   connected:1;
     unsigned                   closed:1;
 } brix_handoff_t;
@@ -85,7 +87,7 @@ handoff_close(brix_handoff_t *h)
  */
 static ngx_int_t
 handoff_pump(ngx_connection_t *from, ngx_connection_t *to,
-    u_char *buf, size_t *off, size_t *end)
+    u_char *buf, size_t *off, size_t *end, ngx_msec_t idle_timeout)
 {
     ssize_t  n;
 
@@ -100,7 +102,7 @@ handoff_pump(ngx_connection_t *from, ngx_connection_t *to,
                 if (ngx_handle_write_event(to->write, 0) != NGX_OK) {
                     return NGX_ERROR;
                 }
-                ngx_add_timer(to->write, BRIX_HANDOFF_IDLE);
+                ngx_add_timer(to->write, idle_timeout);
                 return NGX_OK;
             }
             return NGX_ERROR;          /* 0 or NGX_ERROR on the write side */
@@ -117,7 +119,7 @@ handoff_pump(ngx_connection_t *from, ngx_connection_t *to,
             if (ngx_handle_read_event(from->read, 0) != NGX_OK) {
                 return NGX_ERROR;
             }
-            ngx_add_timer(from->read, BRIX_HANDOFF_IDLE);
+            ngx_add_timer(from->read, idle_timeout);
             return NGX_OK;
         }
         return NGX_ERROR;              /* EOF (0) or error: tear the relay down */
@@ -142,10 +144,13 @@ static void
 handoff_cu(brix_handoff_t *h, ngx_event_t *ev)
 {
     if (ev->timedout) {
+        BRIX_LOG(NGX_LOG_INFO, h->client->log, NGX_ETIMEDOUT,
+                 "xrootd handoff: client-to-upstream idle timeout");
         handoff_close(h);
         return;
     }
-    if (handoff_pump(h->client, h->upstream, h->cu, &h->cu_off, &h->cu_end)
+    if (handoff_pump(h->client, h->upstream, h->cu, &h->cu_off, &h->cu_end,
+                     h->idle_timeout)
         != NGX_OK)
     {
         handoff_close(h);
@@ -157,10 +162,13 @@ static void
 handoff_uc(brix_handoff_t *h, ngx_event_t *ev)
 {
     if (ev->timedout) {
+        BRIX_LOG(NGX_LOG_INFO, h->client->log, NGX_ETIMEDOUT,
+                 "xrootd handoff: upstream-to-client idle timeout");
         handoff_close(h);
         return;
     }
-    if (handoff_pump(h->upstream, h->client, h->uc, &h->uc_off, &h->uc_end)
+    if (handoff_pump(h->upstream, h->client, h->uc, &h->uc_off, &h->uc_end,
+                     h->idle_timeout)
         != NGX_OK)
     {
         handoff_close(h);
@@ -194,13 +202,15 @@ handoff_begin_relay(brix_handoff_t *h)
     h->upstream->write->handler = handoff_upstream_write;
 
     /* Drive client->upstream first (flush the prefix), then upstream->client. */
-    if (handoff_pump(h->client, h->upstream, h->cu, &h->cu_off, &h->cu_end)
+    if (handoff_pump(h->client, h->upstream, h->cu, &h->cu_off, &h->cu_end,
+                     h->idle_timeout)
         != NGX_OK)
     {
         handoff_close(h);
         return;
     }
-    if (handoff_pump(h->upstream, h->client, h->uc, &h->uc_off, &h->uc_end)
+    if (handoff_pump(h->upstream, h->client, h->uc, &h->uc_off, &h->uc_end,
+                     h->idle_timeout)
         != NGX_OK)
     {
         handoff_close(h);
@@ -217,7 +227,7 @@ handoff_connect_done(ngx_event_t *ev)
     socklen_t         len = sizeof(err);
 
     if (ev->timedout) {
-        ngx_log_error(NGX_LOG_ERR, h->client->log, NGX_ETIMEDOUT,
+        BRIX_LOG(NGX_LOG_ERR, h->client->log, NGX_ETIMEDOUT,
                       "xrootd handoff: connect to %V timed out", h->peer.name);
         handoff_close(h);
         return;
@@ -225,7 +235,7 @@ handoff_connect_done(ngx_event_t *ev)
     if (getsockopt(u->fd, SOL_SOCKET, SO_ERROR, (void *) &err, &len) == -1
         || err != 0)
     {
-        ngx_log_error(NGX_LOG_ERR, h->client->log, err,
+        BRIX_LOG(NGX_LOG_ERR, h->client->log, err,
                       "xrootd handoff: connect to upstream failed");
         handoff_close(h);
         return;
@@ -265,6 +275,8 @@ brix_http_handoff_start(ngx_stream_session_t *s, ngx_connection_t *c,
     h->s       = s;
     h->client  = c;
     h->metrics = ctx->metrics;
+    h->connect_timeout = conf->http_handoff_connect_timeout;
+    h->idle_timeout = conf->http_handoff_idle_timeout;
 
     /* Seed the client->upstream window with the bytes already read. */
     ngx_memcpy(h->cu, prefix, prefix_len);
@@ -283,7 +295,7 @@ brix_http_handoff_start(ngx_stream_session_t *s, ngx_connection_t *c,
     ctx->handoff = h;
 
     if (conf->http_handoff_addr->socklen == 0) {   /* phase-116: unresolved */
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                       "xrootd handoff: %V not yet resolved",
                       &conf->http_handoff_name);
         return NGX_ERROR;
@@ -298,7 +310,7 @@ brix_http_handoff_start(ngx_stream_session_t *s, ngx_connection_t *c,
 
     rc = ngx_event_connect_peer(&h->peer);
     if (rc == NGX_ERROR || rc == NGX_BUSY || rc == NGX_DECLINED) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+        BRIX_LOG(NGX_LOG_ERR, c->log, 0,
                       "xrootd handoff: cannot connect to %V", &conf->http_handoff_name);
         return NGX_ERROR;
     }
@@ -315,7 +327,7 @@ brix_http_handoff_start(ngx_stream_session_t *s, ngx_connection_t *c,
         handoff_begin_relay(h);
     } else {
         /* NGX_AGAIN: connect in progress; arm a connect deadline. */
-        ngx_add_timer(u->write, BRIX_HANDOFF_IDLE);
+        ngx_add_timer(u->write, h->connect_timeout);
     }
 
     return NGX_OK;

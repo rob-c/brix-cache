@@ -235,10 +235,22 @@ gsi_first(brix_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
      * XRDC_GSI_VERSION overrides (e.g. 10300 to force the unsigned path). */
     {
         const char *vov = getenv("XRDC_GSI_VERSION");
-        version = vov != NULL ? (uint32_t) strtoul(vov, NULL, 10) : 10600;
+        version = c != NULL && c->opts.gsi_version != 0
+            ? c->opts.gsi_version
+            : vov != NULL ? (uint32_t) strtoul(vov, NULL, 10) : 10600;
     }
 
-    if (!brix_gsi_rand(client_rtag, sizeof(client_rtag))) {
+    if (c != NULL) {
+        size_t index;
+
+        c->gsi_login_challenge_text = 1;
+        for (index = 0; parms[index] != '\0'; index++)
+            if ((unsigned char) parms[index] < 0x20
+                || (unsigned char) parms[index] > 0x7e)
+                c->gsi_login_challenge_text = 0;
+    }
+
+    if (!brix_gsi_rand_tag(client_rtag)) {
         brix_status_set(st, XRDC_EAUTH, 0, "gsi: RNG failed");
         return -1;
     }
@@ -498,12 +510,22 @@ gsi_more(brix_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
     EVP_PKEY *proxy_key;
     char      err[160];
     int       rc;
+    const uint8_t *bucket = NULL;
+    size_t bucket_length = 0;
+    int signed_dh;
+    int plain_dh;
 
     /* A later authmore may be the X.509 delegation request (kXGS_pxyreq) rather
      * than the cert round — dispatch on the buffer's step. */
     if (gsi_msg_step(sbody, slen) == (uint32_t) kXGS_pxyreq) {
         return gsi_sigpxy(c, sbody, slen, payload, plen, st);
     }
+
+    signed_dh = brix_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_cipher,
+        &bucket, &bucket_length) == 0;
+    plain_dh = !signed_dh
+        && brix_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_puk,
+            &bucket, &bucket_length) == 0;
 
     gsi_resolve_proxy(c, proxy, sizeof(proxy), st);
 
@@ -536,6 +558,10 @@ gsi_more(brix_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
     }
     if (c != NULL) {
         c->gsi_deleg_ready = 1;
+        c->gsi_server_dh_signed = signed_dh;
+        c->gsi_server_dh_plain = plain_dh;
+        c->gsi_unpadded_secret = plain_dh && !c->gsi_deleg_use_iv;
+        c->gsi_round2_response_built = 1;
         /* Arm kXR_sigver request signing only when the server's advertised
          * security level will demand signatures — the async engine refuses to
          * attach signing-active connections (core/aio/aio.c), so a level-0

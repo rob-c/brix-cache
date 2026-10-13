@@ -58,15 +58,10 @@ from pathlib import Path
 # does not exist.  Fifth instance of the move-hazard class the item 1 note
 # names; this one is live rather than latent.
 from brix_suite.settings import TESTS_DIR as _TESTS_DIR
+from brix_suite.prep_step_guards import require_success
 
 #: `settings.TESTS_DIR` is a str; the flat module's was a Path and every use
 #: below is a `/` join, so it is re-wrapped rather than rewritten at each site.
-def _guard_run_1(tolerate, proc, argv):
-    if proc.returncode != 0 and not tolerate:
-        raise RuntimeError(
-            f"{' '.join(map(str, argv))} exited {proc.returncode}\n{proc.stderr}"
-        )
-
 def _guard_run_2(quiet, proc, argv):
     if proc.returncode != 0 and not quiet:
         _warn(f"{argv[0]} rc={proc.returncode}: {proc.stderr.strip()[:200]}")
@@ -135,7 +130,7 @@ def _run(argv, *, cwd=None, env=None, tolerate=False, quiet=False):
             _warn(f"{argv[0]}: {exc}")
             return None
         raise
-    _guard_run_1(tolerate, proc, argv)
+    require_success(tolerate, proc, argv)
     _guard_run_2(quiet, proc, argv)
     return proc
 
@@ -392,6 +387,7 @@ def _missing_sentinels(pki_dir: Path, tokens_dir: Path) -> list:
     """
     expected = (
         pki_dir / "ca" / "ca.pem",            # pki_helpers.blitz_test_pki
+        pki_dir / "ca" / "test-user.crl.pem", # revoked-user fleet endpoint
         pki_dir / "user" / "proxy_std.pem",   # make_proxy.py
         tokens_dir / "signing_key.pem",       # make_token.py init
         tokens_dir / "jwks.json",             # matching public signing key
@@ -597,8 +593,8 @@ class FleetArtifactsStep(PrepStep):
     name = "fleet-artifacts"
 
     def build(self, artifacts=None) -> None:
-        _run([sys.executable, str(TESTS_DIR / "tokenforge.py"),
-              "fleet-artifacts", str(self.paths.tokens_dir)],
+        _run([sys.executable, str(TESTS_DIR / "tokenforge.py"), "fleet-artifacts",
+              str(self.paths.tokens_dir)],
              env=self.paths.env, tolerate=True, quiet=True)
 
 

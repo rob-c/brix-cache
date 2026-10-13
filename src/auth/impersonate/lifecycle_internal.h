@@ -5,7 +5,9 @@
  * single process-global settings block:
  *   - lifecycle.c         config-directive parsing + validation
  *   - lifecycle_broker.c  master-side privileged-broker spawn + init_module
- *   - lifecycle_worker.c  worker cap-drop + client connect + per-request begin/end
+ *   - lifecycle_worker.c  worker cap-drop and identity-transition policy
+ *   - lifecycle_worker_caps.c  worker capability-state inspection
+ *   - lifecycle_worker_request.c  client connect + per-request begin/end
  * This header names the settings struct and exports the one global they share so
  * the split stays behaviour-identical to the pre-split single file.
  */

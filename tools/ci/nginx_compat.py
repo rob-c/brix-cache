@@ -7,6 +7,11 @@ version and artifact hashes. Requires Python 3.12, CMake, the module dependencie
 and the focused pytest dependencies documented in docs/03-configuration/BUILD.md. Installs nothing.
 """
 from __future__ import annotations
+import sys as _brix_log_sys
+from pathlib import Path as _BrixLogPath
+_brix_log_sys.path.insert(0, str(_BrixLogPath(__file__).resolve().parents[2]))
+from tools.logging_support import diagnostic as _brix_diagnostic
+
 
 import argparse
 from contextlib import contextmanager
@@ -304,7 +309,7 @@ def main(argv=None):
             run_target(target, version, options, resolution_error)
         except (OSError, ValueError, RuntimeError, tarfile.TarError,
                 subprocess.SubprocessError) as error:
-            print(f'nginx compatibility: FAIL: {target}: {error}', file=sys.stderr)
+            _brix_diagnostic('ERROR', 'tools/ci/nginx_compat.py', 'main', f'nginx compatibility: FAIL: {target}: {error}', file=sys.stderr)
             failed = True
     return int(failed)
 

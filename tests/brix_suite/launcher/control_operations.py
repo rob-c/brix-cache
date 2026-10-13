@@ -123,14 +123,6 @@ def _signal_nginx_quit(launcher, spec, endpoint, master):
         pass
 
 
-def _master_exited(master):
-    try:
-        os.kill(master, 0)
-        return False
-    except OSError:
-        return True
-
-
 def _kill_master(master):
     try:
         os.kill(master, signal.SIGKILL)
@@ -138,12 +130,44 @@ def _kill_master(master):
         pass
 
 
-def _wait_master_exit(master):
+def _owned_master_group(master, endpoint):
+    """Return this instance's private process group, never a foreign group."""
+    if master is None:
+        return None
+    from lib_py.util import process_cmdline  # noqa: PLC0415
+
+    command = process_cmdline(master)
+    if endpoint.prefix.encode() not in command:
+        return None
+    try:
+        group = os.getpgid(master)
+    except OSError:
+        return None
+    return group if group == master else None
+
+
+def _terminate_owned_group(group):
+    if group is None:
+        return
+    try:
+        # The normal quit + TERM paths and ten-second master wait have already
+        # run.  A remaining private group is a wedged teardown holding fixed
+        # test ports, so the final group fallback must be non-ignorable.
+        os.killpg(group, signal.SIGKILL)
+    except OSError:
+        pass
+
+
+def _wait_master_exit(launcher, master):
     if master is None:
         return
     deadline = time.time() + 10
     while time.time() < deadline:
-        if _master_exited(master):
+        # Reuse the launcher's portable process-state helper: kill(pid, 0)
+        # remains successful for an already-dead zombie in containers whose
+        # PID 1 does not reap promptly.  Waiting ten seconds for every such
+        # nginx master turns full-fleet teardown into a multi-minute stall.
+        if launcher._process_exited(master):
             return
         time.sleep(0.05)
     _kill_master(master)
@@ -151,9 +175,15 @@ def _wait_master_exit(master):
 
 def _stop_nginx(launcher, spec, endpoint):
     master = launcher._read_pid(endpoint.pidfile)
+    group = _owned_master_group(master, endpoint)
     _signal_nginx_quit(launcher, spec, endpoint, master)
     launcher._kill_pidfile(endpoint.pidfile, signal.SIGTERM, process_group=True)
-    _wait_master_exit(master)
+    _wait_master_exit(launcher, master)
+    # nginx may remove its pidfile while gracefully draining workers that still
+    # own every listen socket.  Finish the already-verified private group even
+    # after its leader/pidfile has gone; do not depend on a loaded-host lsof
+    # sweep finding each orphan before the next fixed-port launch.
+    _terminate_owned_group(group)
     launcher._reap_orphan_nginx_workers(spec)
     launcher._wait_ports_released(spec)
 
@@ -174,12 +204,15 @@ def stop(launcher, name, namespace):
     _stop_nginx(launcher, spec, endpoint)
 
 
-def _candidate_pids(spec, declared_ports):
+def _candidate_pids(spec, declared_ports, listeners=None):
     from lib_py.util import pids_on_port
 
     candidates = set()
     for port in declared_ports(spec):
-        candidates.update(pids_on_port(port))
+        if listeners is None:
+            candidates.update(pids_on_port(port))
+        else:
+            candidates.update(listeners.get(port, ()))
     return candidates
 
 
@@ -196,12 +229,12 @@ def _process_title(pid):
         return b""
 
 
-def reap_orphan_nginx_workers(spec, declared_ports):
+def reap_orphan_nginx_workers(spec, declared_ports, listeners=None):
     from lib_py.util import kill_pid_list
 
     workers = [
         pid
-        for pid in _candidate_pids(spec, declared_ports)
+        for pid in _candidate_pids(spec, declared_ports, listeners)
         if _process_title(pid).strip().startswith(b"nginx: worker process")
     ]
     if workers:

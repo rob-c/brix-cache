@@ -418,8 +418,8 @@ playback_frame_record(FILE *fp, playback_ctx *pc)
         free(w);
         return XRDCAP_REC_TRUNC;
     }
-    /* Replay only client REQUEST frames that are real operations. */
-    if (isreq == 1 && dir == '>' && wlen >= 24 && !is_session_op(code)) {
+    /* Minimized malformed requests may be shorter than a normal header. */
+    if (isreq == 1 && dir == '>' && wlen > 0 && !is_session_op(code)) {
         playback_reissue_wire(pc, code, w, wlen);
     }
     free(w);

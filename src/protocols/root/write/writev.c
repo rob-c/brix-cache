@@ -1,3 +1,4 @@
+#include "core/compat/log_event.h"
 #include "platform/platform_api.h"
 #include "core/ngx_brix_module.h"
 #include "fs/cache/writethrough_metrics.h"
@@ -160,22 +161,11 @@ writev_validate_handles(brix_ctx_t *ctx, ngx_connection_t *c,
 
 	for (i = 0; i < n_segs; i++) {
 		int idx = (int)(unsigned char) wl[i].fhandle[0];
-		ngx_int_t rc;
+		ngx_int_t rc = NGX_OK;
 
-		/* fd < 0 means the slot is closed/never-opened (stale handle). */
-		if (idx < 0 || idx >= BRIX_MAX_FILES || ctx->files == NULL
-			|| ctx->files[idx].fd < 0)
-		{
-			BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
-			rc = brix_send_error(ctx, c, kXR_FileNotOpen,
-									 "invalid file handle in writev");
-			return rc == NGX_OK ? NGX_DONE : rc;
-		}
-		if (!ctx->files[idx].writable) {
-			BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
-			rc = brix_send_error(ctx, c, kXR_NotAuthorized,
-									 "file not open for writing");
-			return rc == NGX_OK ? NGX_DONE : rc;
+		if (!brix_validate_write_handle(ctx, c, idx, "WRITEV",
+		                                BRIX_OP_WRITEV, &rc)) {
+			return rc == NGX_ERROR ? NGX_ERROR : NGX_DONE;
 		}
 	}
 
@@ -217,6 +207,10 @@ writev_write_segment(brix_ctx_t *ctx, ngx_connection_t *c,
 	if (wlen == 0) {
 		return NGX_OK;
 	}
+	if (ctx->files[idx].writer != NULL) {
+		return writev_staged_segment(ctx, c, seg, data_ptr,
+		                              bytes_written_total);
+	}
 
 	/* Same replay handling as the AIO path: a range already written on a prior
 	 * (dropped) connection is acknowledged as success but not re-issued to
@@ -229,7 +223,7 @@ writev_write_segment(brix_ctx_t *ctx, ngx_connection_t *c,
 	if (ctx->files[idx].wrts_enabled &&
 	    brix_wrts_is_replay(&ctx->files[idx], offset, wlen))
 	{
-		ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+		BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
 		    "brix: writev recovery replay skip offset=%lld len=%ud",
 		    (long long) offset, wlen);
 		*bytes_written_total += (size_t) wlen;
@@ -310,8 +304,9 @@ writev_execute_sync(const writev_run_t *run, size_t *bytes_written_total)
  * WHY: Completes the doSync contract after the synchronous writes land.
  * HOW: Re-decodes wlen from the wire to skip zero-length segments; a handle may
  * appear in several segments but fsync is idempotent so duplicates are harmless. */
-static void
-writev_sync_handles(brix_ctx_t *ctx, const write_list *wl, size_t n_segs)
+static ngx_int_t
+writev_sync_handles(brix_ctx_t *ctx, ngx_connection_t *c,
+                    const write_list *wl, size_t n_segs)
 {
 	size_t i;
 
@@ -320,11 +315,20 @@ writev_sync_handles(brix_ctx_t *ctx, const write_list *wl, size_t n_segs)
 		if (ntohl((uint32_t) wl[i].wlen) > 0) {
 			brix_vfs_job_t job;
 
+			if (ctx->files[idx].writer != NULL) {
+				ngx_int_t rc = writev_sync_staged(ctx, c, idx);
+
+				if (rc != NGX_OK) {
+					return rc;
+				}
+				continue;
+			}
 			brix_vfs_job_sync_init(&job, ctx->files[idx].fd);
 			brix_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
 			brix_vfs_io_execute(&job);
 		}
 	}
+	return NGX_OK;
 }
 
 /* writev_reply — access-log the completed vector and send the aggregate OK.
@@ -460,22 +464,33 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 	run.n_segs   = n_segs;
 	run.data_ptr = data_ptr;
 
-	rc = writev_try_aio(&run, do_sync, &posted);
-	if (rc != NGX_OK) {
-		return rc;       /* allocation failure: drop the link. */
-	}
-	if (posted) {
-		return NGX_OK;   /* done callback owns the buffer + reply. */
+	if (!writev_has_staged(&run)) {
+		rc = writev_try_aio(&run, do_sync, &posted);
+		if (rc != NGX_OK) {
+			return rc;       /* allocation failure: drop the link. */
+		}
+		if (posted) {
+			return NGX_OK;   /* done callback owns the buffer + reply. */
+		}
 	}
 
 	/* Synchronous fallback: write each segment on the event-loop thread. */
 	rc = writev_execute_sync(&run, &bytes_written_total);
+	if (rc == NGX_DONE) {
+		return NGX_OK;   /* staged writer error already queued */
+	}
 	if (rc != NGX_OK) {
 		return rc;
 	}
 
 	if (do_sync) {
-		writev_sync_handles(ctx, wl, n_segs);
+		rc = writev_sync_handles(ctx, c, wl, n_segs);
+		if (rc == NGX_DONE) {
+			return NGX_OK;   /* staged commit error already queued */
+		}
+		if (rc != NGX_OK) {
+			return rc;
+		}
 	}
 
 	return writev_reply(ctx, c, n_segs, bytes_written_total);

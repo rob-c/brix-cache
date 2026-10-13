@@ -40,7 +40,8 @@ from settings import BIND_HOST, HOST
 
 REPO_XRDCP = os.path.join(servers.CLIENT_BIN, "xrdcp")
 CURL = shutil.which("curl") or "/usr/bin/curl"
-XRDHTTP_LIB = servers.find_xrd_lib("libXrdHttp-5.so", "libXrdHttp.so")
+XRDHTTP_LIB = servers.find_xrd_lib("libXrdHttp-6.so", "libXrdHttp-5.so",
+                                   "libXrdHttp.so")
 FILE_NAME = "h.bin"
 
 
@@ -88,24 +89,40 @@ def start_brix_http(prefix, data):
     for sub in ("admin", "run", "logs"):
         os.makedirs(os.path.join(prefix, sub), exist_ok=True)
     port = free_port()
+    root_port = free_port()
     cfg = os.path.join(prefix, "xrootd.cfg")
     with open(cfg, "w") as fh:
         fh.write(f"""all.export /
 oss.localroot {data}
 all.adminpath {prefix}/admin
 all.pidpath {prefix}/run
+xrd.port {root_port}
 xrd.protocol XrdHttp:{port} {XRDHTTP_LIB}
 """)
     env = dict(os.environ)
     env.pop("LD_LIBRARY_PATH", None)
+    # Stock XRootD refuses to run as uid 0 unless an explicit de-escalation
+    # account is selected.  Its runtime and export trees must therefore be
+    # writable by that account in root-run package validation containers.
+    servers._chmod(["chmod", "-R", "a+rwX", prefix])
     proc = subprocess.Popen([servers.BRIX_BIN, "-c", cfg, "-l",
-                             os.path.join(prefix, "logs", "xrootd.log")],
+                             os.path.join(prefix, "logs", "xrootd.log"),
+                             *_xrootd_runas_args()],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             env=env)
     if not wait_port(port, proc):
         proc.kill()
         sys.exit("xrootd XrdHttp failed to start")
     return port, proc
+
+
+def _xrootd_runas_args():
+    """De-escalate only when the launcher actually has privilege to drop.
+
+    Stock XRootD refuses uid 0 without ``-R``; an ordinary user must not pass
+    it because setgid/setuid then fails before the HTTP plugin can start.
+    """
+    return ["-R", "nobody"] if os.geteuid() == 0 else []
 
 
 def http_get(client, port, want, timeout):

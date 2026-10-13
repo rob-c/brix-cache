@@ -14,6 +14,7 @@
  *
  * Clean-room: parse-only; no protocol core, no XrdCl.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "brix.h"
 #include "core/version.h"
 #include "core/progname.h"
@@ -169,7 +170,7 @@ mpx_read_stdin(void)
     char  *buf = malloc(cap);
 
     if (buf == NULL) {
-        fprintf(stderr, "mpxstats-brix: out of memory\n");
+        BRIX_CLIENT_LOG("ERROR",  "mpxstats-brix: out of memory\n");
         return 51;
     }
     while ((n = fread(buf + len, 1, cap - 1 - len, stdin)) > 0) {
@@ -207,14 +208,14 @@ mpx_read_remote(const char *host, int metrics_port)
     }
     body = malloc(1u << 20);
     if (body == NULL) {
-        fprintf(stderr, "mpxstats-brix: out of memory\n");
+        BRIX_CLIENT_LOG("ERROR",  "mpxstats-brix: out of memory\n");
         return 51;
     }
     brix_status_clear(&status);
     if (brix_http_get(server, metrics_port, "/metrics", 5000, &http, body,
                       1u << 20, NULL, &status) != 0)
     {
-        fprintf(stderr, "mpxstats-brix: GET %s:%d/metrics: %s\n", server,
+        BRIX_CLIENT_LOG("INFO",  "mpxstats-brix: GET %s:%d/metrics: %s\n", server,
                 metrics_port, status.msg);
         free(body);
         return 51;

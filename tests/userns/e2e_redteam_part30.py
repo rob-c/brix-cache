@@ -173,7 +173,6 @@ def _rt30_sub_case_0_invariants_the_fixture(dir_a, UID_ALICE, GID_STAFF, dir_b, 
            "deep/a/b mode is 0750 group-rx")
     except OSError as e:
         ok(False, "deep/a/b mode read failed (rc=%s)" % e)
-    _group_traversal_depth_p2(set_canonical, webget, rel_leaf, webprop, rel_b, rel_a, is_blocked, SECRET, dir_a, dir_b, leaf, is_ok_read, SECRET_S, body_text, tag)
 
 
 def _rt30_positive_control_owner_alice_reads_the(set_canonical, webget, rel_leaf, is_ok_read, SECRET):
@@ -220,10 +219,8 @@ def _rt30_positive_control_carol_can_propfind_the(SECRET, body, st, webprop, rel
     st, body = webprop("carol", rel_b, depth="1")
     ok(any((is_ok_read(st), is_blocked(st) is False, st == 207)),
        "[canon] staff carol PROPFIND deep/a/b returns a result (HTTP %d)" % st)
-    _group_traversal_depth_p3(webget, rel_leaf, webprop, rel_a, set_canonical, rel_b, dir_a, is_blocked, SECRET, dir_b, leaf, SECRET_S, is_ok_read, body_text, tag)
 
 
-def _group_traversal_depth_p3(webget, rel_leaf, webprop, rel_a, set_canonical, rel_b, dir_a, is_blocked, SECRET, dir_b, leaf, SECRET_S, is_ok_read, body_text, tag):
     # ======================================================================
     # SUB-CASE 2: flip ancestor 'a' to 0700 (strip group search at the TOP).
     #   Even though 'b' and leaf perms would allow carol, she is blocked at 'a'.
@@ -272,10 +269,8 @@ def _rt30_positive_control_owner_alice_still_reaches(SECRET, body, st, webget, r
        "[flipA] owner alice still reaches leaf through 0700 'a' (HTTP %d)" % st)
 
     set_canonical()
-    _group_traversal_depth_p4(webget, rel_leaf, webprop, rel_b, set_canonical, dir_b, is_blocked, leaf, SECRET, SECRET_S, is_ok_read, rel_a, dir_a, body_text, tag)
 
 
-def _group_traversal_depth_p4(webget, rel_leaf, webprop, rel_b, set_canonical, dir_b, is_blocked, leaf, SECRET, SECRET_S, is_ok_read, rel_a, dir_a, body_text, tag):
     # ======================================================================
     # SUB-CASE 3: flip ancestor 'b' to 0700 (strip group search at the MIDDLE).
     #   'a' (0710) lets carol traverse one level, but 'b' (0700) blocks her.
@@ -323,10 +318,8 @@ def _rt30_positive_control_owner_alice_still_reaches_2(SECRET, body, SECRET_S, b
        "[flipB] owner alice still reaches leaf through 0700 'b' (HTTP %d)" % st)
 
     set_canonical()
-    _group_traversal_depth_p5(set_canonical, webget, rel_leaf, leaf, is_blocked, SECRET, SECRET_S, is_ok_read, rel_a, rel_b, dir_a, dir_b, body_text, tag)
 
 
-def _group_traversal_depth_p5(set_canonical, webget, rel_leaf, leaf, is_blocked, SECRET, SECRET_S, is_ok_read, rel_a, rel_b, dir_a, dir_b, body_text, tag):
     # ======================================================================
     # SUB-CASE 4: leaf-level group bit stripped — flip secret.txt to 0600.
     #   Ancestors all permit search, but the leaf itself denies group read.
@@ -402,7 +395,7 @@ def _rt30_deny_bob_non_staff_blocked_on(rel_leaf, tag, SECRET, SECRET_S):
         pass
     ok(all((rc != 0, not bob_leak)),
        "[root canon] non-staff bob DENIED deep secret via root:// (rc=%d)" % rc)
-    ok(all((SECRET_S not in any((out, '')), SECRET_S not in any((err, '')))),
+    ok(all((SECRET_S not in _rt_default(out, ''), SECRET_S not in _rt_default(err, ''))),
        "[root canon] bob root:// output leaks no marker text (rc=%d)" % rc)
 
 
@@ -410,7 +403,7 @@ def _rt30_positive_control_carol_xrdfs_ls_of(rel_a, SECRET_S, rel_b, dir_a):
 
     # DENY — bob xrdfs ls of the staff-only dir 'a'.
     rc, out, err = xrd_fs(["ls", rel_a], "bob")
-    ok(any((rc != 0, SECRET_S not in any((out, '')))),
+    ok(any((rc != 0, SECRET_S not in _rt_default(out, ''))),
        "[root canon] non-staff bob xrdfs ls deep/a DENIED/empty (rc=%d)" % rc)
 
     # POSITIVE CONTROL — carol xrdfs ls of 'b' (0750 group r-x) lists it.
@@ -436,7 +429,7 @@ def _rt30_segment_05(rel_leaf, tag, SECRET, SECRET_S):
         pass
     ok(all((rc != 0, not carol_flipA_leak)),
        "[root flipA] staff carol BLOCKED at 0700 'a' on root:// (rc=%d)" % rc)
-    ok(all((SECRET_S not in any((out, '')), SECRET_S not in any((err, '')))),
+    ok(all((SECRET_S not in _rt_default(out, ''), SECRET_S not in _rt_default(err, ''))),
        "[root flipA] carol root:// flipA output leaks no marker (rc=%d)" % rc)
 
 
@@ -458,7 +451,7 @@ def _rt30_positive_control_owner_alice_still_reaches_3(rel_a, SECRET_S, rel_leaf
 
     # carol xrdfs ls on the now-private 'a' denied.
     rc, out, err = xrd_fs(["ls", rel_a], "carol")
-    ok(any((rc != 0, SECRET_S not in any((out, '')))),
+    ok(any((rc != 0, SECRET_S not in _rt_default(out, ''))),
        "[root flipA] staff carol xrdfs ls deep/a (0700) DENIED (rc=%d)" % rc)
 
     # POSITIVE CONTROL — owner alice still reaches leaf through 0700 'a'.
@@ -499,7 +492,7 @@ def _rt30_positive_control_owner_alice_still_reaches_4(tag, SECRET, rc, rel_leaf
 
     # carol xrdfs stat of the leaf is denied (cannot traverse 'b').
     rc, out, err = xrd_fs(["stat", rel_leaf], "carol")
-    ok(any((rc != 0, SECRET_S not in any((out, '')))),
+    ok(any((rc != 0, SECRET_S not in _rt_default(out, ''))),
        "[root flipB] staff carol xrdfs stat leaf through 0700 'b' DENIED (rc=%d)" % rc)
 
     # POSITIVE CONTROL — owner alice still reaches leaf through 0700 'b'.
@@ -596,10 +589,8 @@ def _rt30_positive_control_owner_alice_reads_via(webget, rel_leaf, is_ok_read, S
            "[restore] secret.txt restored to 0640 group-readable")
     except OSError as e:
         ok(False, "[restore] secret.txt mode read failed (rc=%s)" % e)
-    _group_traversal_depth_p6(set_canonical, webget, rel_leaf, rel_a, rel_b, dir_a, dir_b, leaf, is_ok_read, SECRET, is_blocked, tag, SECRET_S)
 
 
-def _group_traversal_depth_p6(set_canonical, webget, rel_leaf, rel_a, rel_b, dir_a, dir_b, leaf, is_ok_read, SECRET, is_blocked, tag, SECRET_S):
     # ======================================================================
     # SUB-CASE 5: root:// plane — same per-ancestor rule via xrdfs cat/ls.
     #   GUARDED by xrd_avail().
@@ -610,7 +601,6 @@ def _group_traversal_depth_p6(set_canonical, webget, rel_leaf, rel_a, rel_b, dir
     else:
         # root:// unavailable — record the guarded skip as an explicit invariant.
         ok(True, "[root] xrd_avail() false — root:// sub-cases skipped (guarded)")
-    _group_traversal_depth_p7(set_canonical, webget, rel_leaf, is_ok_read, SECRET, is_blocked, leaf, dir_a, dir_b)
 
 
 def _rt30_sub_case_6_worker_survival_final(set_canonical, webget, rel_leaf, is_ok_read, SECRET, leaf, UID_ALICE, GID_STAFF, dir_a, dir_b):

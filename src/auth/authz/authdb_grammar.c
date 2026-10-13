@@ -9,6 +9,7 @@
  * the line, and the `v` (VOMS vorg), `l` (VOMS role) selectors and the `x`
  * (stage/recall) privilege joined the alphabets.
  */
+#include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 
 #include <stddef.h>
@@ -95,7 +96,7 @@ brix_adb_reject(adb_parse_ctx_t *pc, const char *reason)
     len = (size_t) (end - buf);
 
     if (pc->defect == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, pc->cf, 0, "%s", buf);
+        BRIX_CONF_LOG(NGX_LOG_EMERG, pc->cf, 0, "%s", buf);
         return NGX_DECLINED;
     }
     if (pc->defect->len == 0) {
@@ -332,7 +333,7 @@ brix_authdb_defect_refuse(ngx_conf_t *cf, ngx_uint_t format,
         return NGX_CONF_OK;
     }
 
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                        "%V (the native authdb engine refuses a line it cannot "
                        "parse rather than silently dropping part of it; use "
                        "`brix_authdb_engine xrdacc` for XrdAcc-format files)",

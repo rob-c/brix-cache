@@ -14,6 +14,7 @@
  * EVP_PKEY_CTX_new_from_name() + EVP_PKEY_fromdata() to construct the final handle.
  * All intermediate BIGNUMs/params/bld are freed before return. */
 
+#include "core/compat/log_event.h"
 #include "token_internal.h"
 #include "b64url.h"
 
@@ -43,7 +44,7 @@ brix_token_rsa_pubkey_from_ne(const char *n_b64, size_t n_b64_len,
     n_len = b64url_decode(n_b64, n_b64_len, n_bin, sizeof(n_bin));
     e_len = b64url_decode(e_b64, e_b64_len, e_bin, sizeof(e_bin));
     if (n_len <= 0 || e_len <= 0) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_token: JWKS: cannot decode RSA n/e");
         return NULL;
     }
@@ -103,7 +104,7 @@ brix_token_ec_pubkey_from_xy(const char *x_b64, size_t x_b64_len,
     x_len = b64url_decode(x_b64, x_b64_len, x_bin, sizeof(x_bin));
     y_len = b64url_decode(y_b64, y_b64_len, y_bin, sizeof(y_bin));
     if (x_len != 32 || y_len != 32) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
                       "brix_token: JWKS: EC P-256 x/y must each decode to 32 bytes");
         return NULL;
     }

@@ -43,6 +43,40 @@ def _load():
 guard = _load()
 
 
+# --- copied-checkout ownership ----------------------------------------------
+
+def test_tracked_lookup_marks_the_checkout_safe(monkeypatch, tmp_path):
+    seen = []
+
+    class Result:
+        stdout = "src/core/ident.h\n"
+
+    def fake_run(argv, **kwargs):
+        seen.append((argv, kwargs))
+        return Result()
+
+    monkeypatch.setattr(guard.subprocess, "run", fake_run)
+    assert guard._tracked(tmp_path, "src/core/ident.h")
+    assert f"safe.directory={tmp_path}" in seen[0][0]
+
+
+def test_tracked_lookup_keeps_the_path_after_double_dash(monkeypatch, tmp_path):
+    class Result:
+        stdout = "src/core/ident.h\n"
+
+    monkeypatch.setattr(guard.subprocess, "run", lambda argv, **kwargs: (
+        Result() if argv[-2:] == ["--", "src/core/ident.h"] else None))
+    assert guard._tracked(tmp_path, "src/core/ident.h")
+
+
+def test_empty_git_result_remains_untracked(monkeypatch, tmp_path):
+    class Result:
+        stdout = ""
+
+    monkeypatch.setattr(guard.subprocess, "run", lambda *args, **kwargs: Result())
+    assert not guard._tracked(tmp_path, "ignored/generated.conf")
+
+
 # --- scope ------------------------------------------------------------------
 
 EXPECTED_TREES = (

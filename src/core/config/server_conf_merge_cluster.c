@@ -22,6 +22,8 @@
  *       behaviour change from the split.
  */
 
+#include "core/compat/log_event.h"
+#include "platform/platform_api.h"  /* BRIX_HAS_WORKER_EXEC */
 #include "config.h"
 #include "server_conf_internal.h"
 #include "core/types/tunables.h"  /* BRIX_CMS_READ_TIMEOUT_MAX_MS */
@@ -78,13 +80,13 @@ brix_merge_srv_tpc(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
                               TPC_HOPS_DEFAULT);
     ngx_conf_merge_uint_value(conf->tpc_streams,  prev->tpc_streams, 1);
     if (conf->tpc_max_hops > BRIX_TPC_HOPS_MAX) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_tpc_max_hops must be between 0 and %d",
                            BRIX_TPC_HOPS_MAX);
         return NGX_CONF_ERROR;
     }
     if (conf->tpc_streams < 1 || conf->tpc_streams > TPC_STREAMS_MAX) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_tpc_streams must be between 1 and %d",
                            TPC_STREAMS_MAX);
         return NGX_CONF_ERROR;
@@ -304,8 +306,8 @@ brix_merge_srv_cms_selection(ngx_stream_brix_srv_conf_t *conf,
  * HOW:  merge each directive, install the two loc-cache TTLs process-wide when
  *       configured, and inherit an unset altds string from the parent.
  */
-static void
-brix_merge_srv_cms_feeds(ngx_stream_brix_srv_conf_t *conf,
+static char *
+brix_merge_srv_cms_feeds(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
     /* §2.6: loc-cache TTL policy (process-wide set-once).  fxhold keeps the
@@ -324,6 +326,14 @@ brix_merge_srv_cms_feeds(ngx_stream_brix_srv_conf_t *conf,
 
     /* §2.11 (cms.perf pgm): external load feed + freshness window. */
     ngx_conf_merge_str_value(conf->cms.perf_pgm, prev->cms.perf_pgm, "");
+#if !BRIX_HAS_WORKER_EXEC
+    if (conf->cms.perf_pgm.len > 0) {
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
+            "brix_cms_perf_pgm is unsupported on this host because hardened "
+            "workers cannot execute subprocesses");
+        return NGX_CONF_ERROR;
+    }
+#endif
     ngx_conf_merge_msec_value(conf->cms.perf_int, prev->cms.perf_int, BRIX_CONFIG_CMS_PERF_INTERVAL_MS);
 
     /* §2.12 (cms.altds): advertised foreign data port + liveness monitor. */
@@ -353,6 +363,7 @@ brix_merge_srv_cms_feeds(ngx_stream_brix_srv_conf_t *conf,
     }
     ngx_conf_merge_msec_value(conf->cms.fsxeq_timeout,
                               prev->cms.fsxeq_timeout, BRIX_CONFIG_CMS_FSXEQ_TIMEOUT_MS);
+    return NGX_CONF_OK;
 }
 
 
@@ -425,8 +436,8 @@ brix_merge_srv_cms_deadlines(ngx_stream_brix_srv_conf_t *conf,
  * HOW:  merge the three plain directives, then run the three groups in the
  *       order their dependencies require — deadlines last.
  */
-static void
-brix_merge_srv_cms(ngx_stream_brix_srv_conf_t *conf,
+static char *
+brix_merge_srv_cms(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
     ngx_conf_merge_msec_value(conf->cms.locate_timeout, prev->cms.locate_timeout,
@@ -435,8 +446,11 @@ brix_merge_srv_cms(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_str_value(conf->cms.vnid,        prev->cms.vnid,        "");
 
     brix_merge_srv_cms_selection(conf, prev);
-    brix_merge_srv_cms_feeds(conf, prev);
+    if (brix_merge_srv_cms_feeds(cf, conf, prev) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
     brix_merge_srv_cms_deadlines(conf, prev);
+    return NGX_CONF_OK;
 }
 
 /*
@@ -537,7 +551,7 @@ brix_merge_srv_readonly_role_check(ngx_conf_t *cf,
         return NGX_CONF_OK;
     }
 
-    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
         "brix_manager_mode and brix_read_only are mutually exclusive: a manager "
         "redirects mkdir/rm/rmdir/mv/chmod/truncate to a data node BEFORE the "
         "local read-only gate runs, so the endpoint would not be read-only. "
@@ -564,13 +578,19 @@ brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     }
     brix_merge_srv_healthcheck(conf, prev);
     brix_merge_srv_mirror(conf, prev);
-    brix_merge_srv_cms(conf, prev);
+    if (brix_merge_srv_cms(cf, conf, prev) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
 
     ngx_conf_merge_value(conf->listen_port,         prev->listen_port,     BRIX_DEFAULT_PORT);
     ngx_conf_merge_uint_value(conf->ckscan_max_depth,
                               prev->ckscan_max_depth, 32);
     ngx_conf_merge_uint_value(conf->ckscan_max_files,
                               prev->ckscan_max_files, BRIX_CONFIG_CKSCAN_MAX_FILES);
+    ngx_conf_merge_msec_value(conf->http_handoff_connect_timeout,
+                              prev->http_handoff_connect_timeout, 5000);
+    ngx_conf_merge_msec_value(conf->http_handoff_idle_timeout,
+                              prev->http_handoff_idle_timeout, 75000);
 
     brix_merge_srv_cluster_addrs(conf, prev);
 

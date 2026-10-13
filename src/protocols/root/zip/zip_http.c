@@ -41,6 +41,15 @@ zip_http_name_ok(const char *out, size_t n)
 }
 
 int
+brix_zip_http_member_validate(const char *member)
+{
+    if (member == NULL) {
+        return -1;
+    }
+    return zip_http_name_ok(member, ngx_strlen(member)) ? 1 : -1;
+}
+
+int
 brix_zip_http_member_arg(ngx_http_request_t *r, char *out, size_t outsz)
 {
     ngx_str_t  raw;

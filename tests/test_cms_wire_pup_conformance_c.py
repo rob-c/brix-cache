@@ -208,8 +208,8 @@ class TestStateRelayRecursion:
         super_stack.send_to_node(0x61D0000B, CMS_RR_STATE, CMS_MOD_RAW,
                                  forged + b"\x00")
         # the escaped form must appear; the injected raw newline must not
-        assert _wait_log_contains(super_stack.ep, rb"/elsewhere/x\x0A"), \
-            "the probed path must reach the log hex-escaped"
+        assert _wait_log_contains(super_stack.ep, rb"/elsewhere/x\x5cx0A"), \
+            "the sanitized path escape must itself be structured-log escaped"
         path = os.path.join(super_stack.ep.prefix, "logs", "error.log")
         with open(path, "rb") as fh:
             for line in fh:

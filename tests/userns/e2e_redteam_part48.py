@@ -177,10 +177,8 @@ def _rt48_a1_positive_control_alice_put_into(TAG, realp, exists, uid_of, MARK_SV
     ok(all((exists(awork), uid_of(awork) == UID_ALICE)),
        "fixture: alice 0755 scratch dir for positive controls")
 
-    _combo_error_rollback_p1(s3port, port, ta, body_of, listdir, ndw, MARK_SVC, realp, awork, MARK_BOB, size_of, exists, residue, bad_owned, TAG, uid_of, base)
 
 
-def _combo_error_rollback_p1(s3port, port, ta, body_of, listdir, ndw, MARK_SVC, realp, awork, MARK_BOB, size_of, exists, residue, bad_owned, TAG, uid_of, base):
     # =========================================================================
     # (a) WebDAV PUT whose staged temp opens but the FINAL RENAME is DENIED.
     #     Two flavours: PUT into a dir alice can enter but not write; and PUT
@@ -250,10 +248,8 @@ def _rt48_a4_empty_body_put_zero_length(residue, ndw, port, ta, exists, awork):
     st, _ = http("PUT", f"/{ndw}/empty.bin", port, ta, b"")
     ok(all((st not in (200, 201, 204), not exists(f'{ndw}/empty.bin'), residue(ndw) == [])),
        f"(a) empty-body PUT into denied dir leaves nothing (HTTP {st})")
-    _combo_error_rollback_p2(s3port, port, ta, awork, listdir, ndw, MARK_BOB, size_of, exists, TAG, body_of, residue, big, bad_owned, uid_of, base)
 
 
-def _combo_error_rollback_p2(s3port, port, ta, awork, listdir, ndw, MARK_BOB, size_of, exists, TAG, body_of, residue, big, bad_owned, uid_of, base):
     # =========================================================================
     # (b) WebDAV COPY whose DEST is cross-tenant-denied.  alice COPYs her OWN
     #     readable file to a path inside bob's no-write dir: the source read
@@ -310,7 +306,6 @@ def _rt48_b3_copy_whose_source_is_bob(TAG, port, ta, base, awork, exists, MARK_B
     ok(residue(awork) == [],
        f"(b) no staged-temp residue in alice's dir after denied-source COPY "
        f"(saw {residue(awork)})")
-    _combo_error_rollback_p3(s3port, port, ta, listdir, ndw, size_of, exists, TAG, awork, body_of, MARK_BOB, big, bad_owned, uid_of, residue)
 
 
 def _rt48_segment_01_2(TAG, s3port):

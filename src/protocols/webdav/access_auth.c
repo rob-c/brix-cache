@@ -16,6 +16,7 @@
  * as before the decomposition.
  */
 
+#include "core/compat/log_event.h"
 #include "webdav.h"
 #include "observability/metrics/unified.h"
 #include "auth/authz/acc/acc.h"
@@ -413,7 +414,7 @@ access_authenticate(ngx_http_request_t *r,
         BRIX_WEBDAV_METRIC_INC(
             auth_total[BRIX_WEBDAV_AUTH_RESULT_REJECTED]);
         brix_metric_auth(BRIX_PROTO_WEBDAV, BRIX_AUTHN_NONE, 0);
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        BRIX_LOG(NGX_LOG_WARN, r->connection->log, 0,
                       "brix_webdav: unauthenticated request rejected"
                       " (auth=required)");
         return webdav_metrics_return(r,

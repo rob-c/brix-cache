@@ -46,6 +46,25 @@ _reexport(globals(), "_test_conf_prepfattr_helpers")
 
 pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_prepfattr_b")]
 
+
+def _assert_large_fattr_layout(attrs):
+    assert any(key.startswith("user.U.$brix$") for key in attrs), \
+        f"portable fattr manifest missing on OUR disk: {sorted(attrs)}"
+    assert any(key.startswith("user.$brix.fattr.") for key in attrs), \
+        f"portable fattr chunks missing on OUR disk: {sorted(attrs)}"
+
+
+def _assert_standard_fattr_parity(our_attrs, off_attrs, name):
+    ours = _find_attr_value(our_attrs, name)
+    stock = _find_attr_value(off_attrs, name)
+    assert stock is not None, \
+        f"stock did not store {name} on disk: {sorted(off_attrs)}"
+    assert ours is not None, \
+        f"xattr {name} not found on OUR disk (have {sorted(our_attrs)})"
+    assert ours == stock, \
+        f"on-disk xattr value for {name} differs: OURS {ours!r} STOCK {stock!r}"
+
+
 @pytest.mark.parametrize("name,value", XATTR_CASES)
 def test_xattr_set_get_roundtrip_value_parity(srv, name, value):
     """`xrdfs xattr set` then `get` round-trips the EXACT value, identically on
@@ -104,13 +123,30 @@ def test_xattr_set_lands_on_disk(srv, idx, name, value):
     off_attrs = _disk_xattrs(off_disk(srv, rel))
     if our_attrs is None or off_attrs is None:
         pytest.skip("filesystem does not expose user xattrs (getfattr/os.listxattr)")
-    om = _find_attr_value(our_attrs, name)
-    fm = _find_attr_value(off_attrs, name)
-    assert fm is not None, f"stock did not store {name} on disk: {sorted(off_attrs)}"
-    assert om is not None, \
-        f"xattr {name} not found on OUR disk (have {sorted(our_attrs)})"
-    assert om == fm, \
-        f"on-disk xattr value for {name} differs: OURS {om!r} STOCK {fm!r}"
+    if len(value.encode()) > 2048:
+        _assert_large_fattr_layout(our_attrs)
+        return
+    _assert_standard_fattr_parity(our_attrs, off_attrs, name)
+
+
+def test_xattr_chunk_corruption_fails_closed(srv):
+    """A damaged private chunk must never be returned as a logical value."""
+    rel = "/xa_corrupt.bin"
+    name = "user.corrupt"
+    value = "C" * 4000
+    _make_pair_file(srv, rel, b"x")
+    rc, _, error = L.run([L.OFF_XRDFS, srv["our"], "xattr", rel,
+                          "set", f"{name}={value}"])
+    assert rc == 0, f"large xattr setup failed: {error.strip()!r}"
+    disk = our_disk(srv, rel)
+    chunks = sorted(key for key in os.listxattr(disk)
+                    if key.startswith("user.$brix.fattr."))
+    assert chunks, "large xattr did not create a private chunk"
+    os.setxattr(disk, chunks[0], b"corrupt")
+    rc, output, _ = L.run([L.OFF_XRDFS, srv["our"], "xattr", rel,
+                           "get", name])
+    assert rc != 0, "corrupt chunk was exposed as a successful logical value"
+    assert value not in output, "corrupt backing data leaked the original value"
 
 
 # =========================================================================== #

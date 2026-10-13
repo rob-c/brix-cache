@@ -11,6 +11,7 @@
  * HOW:  each do_* parses its operands into a file-local arg bundle (kept under
  *       the 5-parameter gate), then scans/dumps over an open brix_rfile. No goto.
  */
+#include "../../../shared/observability/log_stdio.h"
 #include "xrdfs_internal.h"
 
 /* dd operand set: source path plus the windowing / rate knobs. */
@@ -210,7 +211,7 @@ do_grep(brix_conn *c, const char *cwd, int argc, char **argv)
     rc = 0;
     if (a.icase) { cflags |= REG_ICASE; }
     if (regcomp(&re, a.pattern, cflags) != 0) {
-        fprintf(stderr, "xrdfs: grep: bad pattern '%s'\n", a.pattern);
+        BRIX_CLIENT_LOG("ERROR",  "xrdfs: grep: bad pattern '%s'\n", a.pattern);
         return 2;
     }
     build_path(cwd, a.arg, path, sizeof(path));
@@ -324,17 +325,17 @@ dd_parse_args(int argc, char **argv, dd_args_t *a)
         if (strncmp(argv[i], "bs=", 3) == 0) {
             a->bs = parse_bytes(argv[i] + 3);
             if (a->bs <= 0 || a->bs > XRDFS_DD_MAXBS) {
-                fprintf(stderr, "xrdfs: dd: bad bs (max 256M)\n"); return 50;
+                BRIX_CLIENT_LOG("ERROR",  "xrdfs: dd: bad bs (max 256M)\n"); return 50;
             }
         } else if (strncmp(argv[i], "skip=", 5) == 0) {
             a->skip = strtoll(argv[i] + 5, NULL, 10);
-            if (a->skip < 0) { fprintf(stderr, "xrdfs: dd: bad skip\n"); return 50; }
+            if (a->skip < 0) { BRIX_CLIENT_LOG("ERROR",  "xrdfs: dd: bad skip\n"); return 50; }
         } else if (strncmp(argv[i], "count=", 6) == 0) {
             a->count = strtoll(argv[i] + 6, NULL, 10);
-            if (a->count < 0) { fprintf(stderr, "xrdfs: dd: bad count\n"); return 50; }
+            if (a->count < 0) { BRIX_CLIENT_LOG("ERROR",  "xrdfs: dd: bad count\n"); return 50; }
         } else if (strncmp(argv[i], "rate=", 5) == 0) {
             int64_t r = parse_bytes(argv[i] + 5);
-            if (r < 0) { fprintf(stderr, "xrdfs: dd: bad rate\n"); return 50; }
+            if (r < 0) { BRIX_CLIENT_LOG("ERROR",  "xrdfs: dd: bad rate\n"); return 50; }
             a->rate = (double) r;
         } else if (strncmp(argv[i], "if=", 3) == 0) {
             a->arg = argv[i] + 3;
@@ -407,6 +408,6 @@ do_dd(brix_conn *c, const char *cwd, int argc, char **argv)
     if (rc != 0) {
         return xrdfs_report_err("dd", path, &st, 0, c);
     }
-    fprintf(stderr, "%lld bytes copied\n", (long long) produced);
+    BRIX_CLIENT_LOG("INFO",  "%lld bytes copied\n", (long long) produced);
     return 0;
 }

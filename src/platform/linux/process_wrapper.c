@@ -33,6 +33,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -167,7 +168,59 @@ brix_plat_spawn_closefrom(posix_spawn_file_actions_t *fa,
     posix_spawnattr_t *attr, int lowfd)
 {
     (void) attr;
+#if defined(__GLIBC__) && defined(__GLIBC_PREREQ) \
+    && __GLIBC_PREREQ(2, 34) \
+    && !defined(BRIX_TEST_FORCE_SPAWN_CLOSEFROM_FALLBACK)
     return posix_spawn_file_actions_addclosefrom_np(fa, lowfd);
+#else
+    DIR           *dp;
+    struct dirent *de;
+    int            self;
+    int            rc;
+
+    if (lowfd < 0) {
+        return EBADF;
+    }
+    dp = opendir("/proc/self/fd"); /* vfs-seam-allow: NOT_STORAGE - PAL spawn fd hygiene */
+    if (dp != NULL) {
+        self = dirfd(dp);
+        while ((de = readdir(dp)) != NULL) { /* vfs-seam-allow: NOT_STORAGE - PAL spawn fd hygiene */
+            char *end;
+            long  value;
+
+            errno = 0;
+            value = strtol(de->d_name, &end, 10);
+            if (errno != 0 || *end != '\0' || value < lowfd
+                || value == self || value > INT_MAX)
+            {
+                continue;
+            }
+            rc = posix_spawn_file_actions_addclose(fa, (int) value);
+            if (rc != 0) {
+                closedir(dp);
+                return rc;
+            }
+        }
+        closedir(dp);
+        return 0;
+    }
+
+    {
+        long maxfd = sysconf(_SC_OPEN_MAX);
+        int  fd;
+
+        if (maxfd < 0 || maxfd > INT_MAX) {
+            maxfd = 4096;
+        }
+        for (fd = lowfd; fd < maxfd; fd++) {
+            rc = posix_spawn_file_actions_addclose(fa, fd);
+            if (rc != 0) {
+                return rc;
+            }
+        }
+    }
+    return 0;
+#endif
 }
 
 int

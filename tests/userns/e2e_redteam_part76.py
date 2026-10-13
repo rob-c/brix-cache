@@ -257,10 +257,8 @@ def _rt76_precondition_and_bob_s_secret_ownership(s3_live, zlib, TAG, s3port, ex
 
     live = s3_live()
 
-    _phase_features_combos_p1(live, port, tb, ta, mode_of, gzip_bytes, tc, td, TAG, mkfile, mkdir_own, realp, exists, s3port, uid_of, body_of, want, svc_root_residue, raw, gid_of, tok, zlib, x, relp, base)
 
 
-def _phase_features_combos_p1(live, port, tb, ta, mode_of, gzip_bytes, tc, td, TAG, mkfile, mkdir_own, realp, exists, s3port, uid_of, body_of, want, svc_root_residue, raw, gid_of, tok, zlib, x, relp, base):
     # =====================================================================
     # (1) CHECKSUM-VERIFIED PUT x CONCURRENT IDENTITY-SWITCH.  alice, bob and carol
     #     each PUT a DISTINCT-content object into their OWN home with a CORRECT
@@ -275,10 +273,8 @@ def _phase_features_combos_p1(live, port, tb, ta, mode_of, gzip_bytes, tc, td, T
     else:
         for _ in range(7):
             ok(True, f"{TAG}(1): checksum x concurrent identity-switch skipped (no S3)")
-    _phase_features_combos_p2(live, port, tb, ta, mode_of, gzip_bytes, tc, td, TAG, mkfile, mkdir_own, realp, exists, s3port, uid_of, body_of, want, svc_root_residue, gid_of, tok, zlib, x, relp, acct, base)
 
 
-def _phase_features_combos_p2(live, port, tb, ta, mode_of, gzip_bytes, tc, td, TAG, mkfile, mkdir_own, realp, exists, s3port, uid_of, body_of, want, svc_root_residue, gid_of, tok, zlib, x, relp, acct, base):
     # =====================================================================
     # (2) CONDITIONAL PUT (If-None-Match:*) x CROSS-TENANT x LOCK-STATE.  bob LOCKs
     #     his own WebDAV file; alice then conditional-PUTs (create-if-absent) over
@@ -302,7 +298,7 @@ def _rt76_alice_conditional_create_if_absent_over(bob_cond, port, tb, TAG, ta):
                 b'<D:owner><D:href>mailto:b@b</D:href></D:owner></D:lockinfo>')
     sl, lb = http("LOCK", "/" + bob_cond, port, tb, data=lockinfo,
                   hdrs={"Content-Type": "application/xml", "Timeout": "Second-600"})
-    ok(any((sl in (200, 201), b'opaquelocktoken' in any((lb, b'')))),
+    ok(any((sl in (200, 201), b'opaquelocktoken' in _rt_default(lb, b''))),
        f"{TAG}(2): bob LOCKs his own conditional target (HTTP {sl})")
     # alice conditional create-if-absent over bob's locked file.
     sc, _ = http("PUT", "/" + bob_cond, port, ta, data=b"PFC-ALICE-COND-CLOBBER",
@@ -333,10 +329,8 @@ def _rt76_dave_doing_the_same_is_dac(soc, uid_of, alice_cond, TAG, mkdir_own, re
     ok(all((soc in (200, 201, 204), uid_of(alice_cond) == UID_ALICE)),
        f"{TAG}(2): POSITIVE alice If-None-Match:* create in OWN dir works, alice-owned "
        f"(HTTP {soc})")
-    _phase_features_combos_p3(live, mode_of, gzip_bytes, port, tc, td, ta, TAG, mkdir_own, realp, exists, s3port, uid_of, body_of, mkfile, want, svc_root_residue, gid_of, tok, zlib, x, relp, tb, acct, base)
 
 
-def _phase_features_combos_p3(live, mode_of, gzip_bytes, port, tc, td, ta, TAG, mkdir_own, realp, exists, s3port, uid_of, body_of, mkfile, want, svc_root_residue, gid_of, tok, zlib, x, relp, tb, acct, base):
     # =====================================================================
     # (3) INBOUND-COMPRESSED PUT into a 02770 setgid GROUP dir by a member.  carol
     #     (member of staff) PUTs a gzip-Content-Encoded body into an alice:staff
@@ -395,5 +389,4 @@ def _rt76_compression_decode_may_be_disabled_in(exists, cmem, s3c, uid_of, TAG, 
     ok(not svc_root_residue(SGD),
        f"{TAG}(3): setgid dir holds NO svc/root-owned residue after the compressed "
        f"PUT storm")
-    _phase_features_combos_p4(live, port, ta, s3port, uid_of, body_of, TAG, mkfile, want, exists, svc_root_residue, SGD, tok, zlib, x, relp, tb, realp, acct, base)
 

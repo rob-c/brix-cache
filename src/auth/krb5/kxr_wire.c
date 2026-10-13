@@ -17,6 +17,7 @@
  *     [2..3] status    big-endian (kXR_ok / kXR_authmore / kXR_error / ...)
  *     [4..7] dlen      big-endian — the reply token (or error body) length.
  */
+#include "core/compat/log_event.h"
 #include "auth/krb5/kxr_wire.h"
 
 #include "protocols/root/protocol/opcodes.h"   /* kXR_auth, kXR_ok, kXR_authmore */
@@ -115,14 +116,14 @@ brix_krb5_kxr_wire(void *wire_ctx, const ngx_str_t *out_token,
         || (out_token->len > 0
             && w->send(w->io, out_token->data, out_token->len) != NGX_OK))
     {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix: krb5 origin leg - auth request write failed");
         return NGX_ERROR;
     }
 
     /* ServerResponseHeader. */
     if (w->recv(w->io, rhdr, sizeof rhdr) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix: krb5 origin leg - reply header read failed");
         return NGX_ERROR;
     }
@@ -130,7 +131,7 @@ brix_krb5_kxr_wire(void *wire_ctx, const ngx_str_t *out_token,
     dlen   = get_u32_be(rhdr + 4);
 
     if (dlen > w->max_body) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix: krb5 origin leg - reply body %uD exceeds cap %uD",
             dlen, w->max_body);
         return NGX_ERROR;
@@ -142,7 +143,7 @@ brix_krb5_kxr_wire(void *wire_ctx, const ngx_str_t *out_token,
         }
         if (w->recv(w->io, body, dlen) != NGX_OK) {
             free(body);
-            ngx_log_error(NGX_LOG_ERR, log, 0,
+            BRIX_LOG(NGX_LOG_ERR, log, 0,
                 "brix: krb5 origin leg - reply body read failed");
             return NGX_ERROR;
         }
@@ -150,7 +151,7 @@ brix_krb5_kxr_wire(void *wire_ctx, const ngx_str_t *out_token,
     }
 
     if (brix_krb5_kxr_classify(status, body, dlen, in_token, done) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, log, 0,
             "brix: krb5 origin leg - origin rejected token (status %ui)",
             (ngx_uint_t) status);
         return NGX_ERROR;

@@ -256,9 +256,11 @@ def _rt39_section_g_multipart_assembled_object_then(lock_file, lf, ta, s3_up, s3
        f"F: alice LOCKs her file via WebDAV (HTTP {st_l})")
     if s3_up:
         # F1: OWNER mutates the WebDAV-locked file via S3 (cross-protocol, same id).
+        # S3 has no lock-token request field, so strict enforcement legitimately
+        # answers its native 409 OperationAborted while preserving ownership.
         st_p, _ = s3("PUT", lf, s3port, data=b"lockmix-s3-owner\n")
         muid = uid_of(lf)
-        ok(all((st_p in (200, 201, 204, 423, 412), muid == UID_ALICE, muid not in (UID_SVC, 0, UID_BOB))),
+        ok(all((st_p in (200, 201, 204, 409, 423, 412), muid == UID_ALICE, muid not in (UID_SVC, 0, UID_BOB))),
            f"F1: owner S3 PUT of WebDAV-locked file handled, stays alice-owned "
            f"(HTTP {st_p}, uid={muid})")
         ok(MARK not in body_of(lf),
