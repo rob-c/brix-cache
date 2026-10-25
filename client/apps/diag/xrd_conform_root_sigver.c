@@ -1,5 +1,5 @@
 /* Phase-118 active request-signing envelope probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "auth/gsi/gsi_core.h"
 #include "protocols/root/protocol/frame_hdr.h"
 
@@ -11,13 +11,6 @@ typedef struct {
     int      rc;
 } sigver_observation;
 
-static int
-reserve(xrd_conform_execution *execution, size_t bytes)
-{
-    char reason[64];
-
-    return xrd_conform_reserve(execution, bytes, reason, sizeof(reason));
-}
 
 static int
 connect_signing(xrd_conform_execution *execution, const brix_url *url,
@@ -83,7 +76,7 @@ write_prefix(xrd_conform_execution *execution, brix_conn *connection,
     };
 
     if (signature_length > UINT32_MAX
-        || !reserve(execution, sizeof(request) + signature_length)) return -1;
+        || !xrd_conform_reserve_probe(execution, sizeof(request) + signature_length)) return -1;
     memset(&request, 0, sizeof(request));
     request.streamid[0] = (uint8_t) (stream_id >> 8);
     request.streamid[1] = (uint8_t) stream_id;
@@ -131,7 +124,7 @@ signed_open(xrd_conform_execution *execution, brix_conn *connection,
     if (signature == NULL) return failed;
     if (write_prefix(execution, connection, stream_id, expectrid, version,
             flags, sequence, crypto, signature, signature_length, &status) != 0
-        || !reserve(execution, sizeof(request) + payload.len)
+        || !xrd_conform_reserve_probe(execution, sizeof(request) + payload.len)
         || brix_write_full(&connection->io, &request, sizeof(request),
             &status) != 0
         || brix_write_full(&connection->io, path, payload.len, &status) != 0) {
@@ -166,7 +159,7 @@ unencrypted_open(xrd_conform_execution *execution, brix_conn *connection,
     if (corrupt) hash[0] ^= 0x80;
     if (write_prefix(execution, connection, stream_id, kXR_open, 0, 0, 1,
             kXR_SHA256_sig, hash, sizeof(hash), &status) != 0
-        || !reserve(execution, sizeof(request) + payload.len)
+        || !xrd_conform_reserve_probe(execution, sizeof(request) + payload.len)
         || brix_write_full(&connection->io, &request, sizeof(request),
             &status) != 0
         || brix_write_full(&connection->io, path, payload.len, &status) != 0)
@@ -299,7 +292,7 @@ xrd_conform_probe_sigver_bound(xrd_conform_execution *execution,
             "signing-primary-unavailable", NULL, status.msg);
         return;
     }
-    if (!reserve(execution, 0)) {
+    if (!xrd_conform_reserve_probe(execution, 0)) {
         xrd_conform_result_set(execution, "SIG-009",
             BRIX_CONFORM_VERDICT_INCONCLUSIVE,
             "request-ceiling-before-signed-open", NULL, NULL);
@@ -314,7 +307,7 @@ xrd_conform_probe_sigver_bound(xrd_conform_execution *execution,
         brix_close(&primary);
         return;
     }
-    if (!reserve(execution, 0)) {
+    if (!xrd_conform_reserve_probe(execution, 0)) {
         xrd_conform_result_set(execution, "SIG-009",
             BRIX_CONFORM_VERDICT_INCONCLUSIVE,
             "request-ceiling-before-bind", NULL, NULL);
@@ -334,7 +327,7 @@ xrd_conform_probe_sigver_bound(xrd_conform_execution *execution,
         brix_close(&primary);
         return;
     }
-    if (!reserve(execution, sizeof(byte))) {
+    if (!xrd_conform_reserve_probe(execution, sizeof(byte))) {
         xrd_conform_result_set(execution, "SIG-009",
             BRIX_CONFORM_VERDICT_INCONCLUSIVE,
             "request-ceiling-before-bound-read", NULL, NULL);

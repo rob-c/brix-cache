@@ -17,6 +17,7 @@
 #include "fs/path/beneath.h"
 #include "fs/vfs/vfs.h"   /* serve diagnostics files through the VFS seam */
 #include "core/compat/cstr.h"
+#include "core/http/http_file_response.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -407,7 +408,7 @@ dig_send_response(ngx_http_request_t *r, dig_req_t *req)
 
     out.buf  = b;
     out.next = NULL;
-    return ngx_http_output_filter(r, &out);
+    return brix_http_output_file_chain(r, &out);
 }
 
 /*

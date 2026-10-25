@@ -285,6 +285,7 @@ class TestGSITLSAuthFailure:
 
     def test_wrong_ca_rejected(self):
         """Unknown CA dir causes auth failure (fresh subprocess)."""
+        import sys
         script = """\
 import os, sys
 os.environ["X509_CERT_DIR"]  = "/nonexistent/ca"
@@ -296,7 +297,7 @@ sys.exit(0 if not status.ok else 1)
 """.format(proxy=PROXY_PEM, url=GSI_TLS_URL)
 
         result = subprocess.run(
-            ["python3", "-c", script],
+            [sys.executable, "-c", script],
             capture_output=True, timeout=15
         )
         assert result.returncode == 0, (

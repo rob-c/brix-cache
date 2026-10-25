@@ -23,6 +23,7 @@ Self-skips when the nginx binary or the compiled cinfo.o are absent (e.g. a
 checkout without a build).
 """
 import os
+from pathlib import Path
 import re
 import socket
 import struct
@@ -31,13 +32,16 @@ import time
 
 import pytest
 
+from cmdscripts.compile_run import pal_xattr_addons
 from server_registry import NginxInstanceSpec
 
-def _phase_test_cache_reap_reason_metrics_1(_has_cinfo_record, deadline,
-                                            abandoned):
-    while time.time() < deadline and (os.path.exists(abandoned)
-                                      or _has_cinfo_record(abandoned)):
+def _wait_for_reaped(paths, has_record, deadline):
+    """Wait for every data file and metadata carrier, not just the first entry."""
+    while time.monotonic() < deadline:
+        if all(not os.path.exists(path) and not has_record(path) for path in paths):
+            return True
         time.sleep(0.5)
+    return False
 
 
 def _guard_sanitizer_flags_1(syms, flags):
@@ -177,7 +181,8 @@ def test_cache_reap_reason_metrics(lifecycle, tmp_path):
     src = tmp_path / "planter.c"
     src.write_text(_PLANTER_SRC)
     planter = tmp_path / "planter"
-    objs = [_CINFO_O] + _CINFO_DEPS
+    objs = [_CINFO_O, *_CINFO_DEPS,
+            *map(str, pal_xattr_addons(Path(_CINFO_O).parents[1]))]
     subprocess.run([_CC, "-O", "-o", str(planter), str(src)] + objs
                    + _sanitizer_flags(objs), check=True)
 
@@ -247,9 +252,9 @@ def test_cache_reap_reason_metrics(lifecycle, tmp_path):
     # 4. Wait for the reaper's first tick (5s) to remove the aged files
     #    (the data file AND its sidecar — the reaper unlinks them back to
     #    back, so wait for both to avoid observing the in-between state).
-    deadline = time.time() + 25
-    _phase_test_cache_reap_reason_metrics_1(_has_cinfo_record, deadline,
-                                            abandoned)
+    deadline = time.monotonic() + 25
+    _wait_for_reaped((abandoned, incomplete, completed), _has_cinfo_record,
+                     deadline)
 
     # 5. The three classified files (+ their cinfo records) are gone; the
     #    clean no-record control survives.

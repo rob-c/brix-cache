@@ -184,6 +184,8 @@ ssize_t brix_mfile_pread(brix_mfile *mf, int64_t off, void *buf, size_t len,
 int     brix_mfile_pwrite(brix_mfile *mf, int64_t off, const void *buf,
                           size_t len, brix_status *st);
 int     brix_mfile_sync(brix_mfile *mf, brix_status *st);
+/* Stat the actual open handle (also after rename/unlink), never its old path. */
+int     brix_mfile_stat(brix_mfile *mf, brix_statinfo *out, brix_status *st);
 int     brix_mfile_close(brix_mfile *mf, brix_status *st);
 
 #endif /* XRDC_AIO_H */

@@ -126,7 +126,7 @@ def test_b2_protocol_funnels_ride_the_seam():
     # S3 GetObject: whole-object sequential streaming hint via the VFS wrapper.
     assert "brix_vfs_file_read_advise(fh, 0, 0, BRIX_SD_ADV_SEQUENTIAL)" in \
         _read("src/protocols/s3/object.c")
-    # Only storage drivers and the two explicit lower PAL owners issue this
+    # Only storage drivers and explicit lower PAL owners issue this
     # call. API documentation and driver declarations are not executable calls.
     calls = [path for path in _grep_c_sources("posix_fadvise(")
              if "posix_fadvise(" in strip_comments(_read(path))]
@@ -134,6 +134,7 @@ def test_b2_protocol_funnels_ride_the_seam():
         "src/fs/backend/block/sd_block.c",
         "src/fs/backend/pblock/pblock_store.c",
         "src/fs/backend/posix/sd_posix_io.c",
+        "src/platform/freebsd/posix_wrapper.c",
         "src/platform/linux/posix_wrapper.c",
     ]
 

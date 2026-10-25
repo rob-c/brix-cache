@@ -1,24 +1,9 @@
 /* Phase-118 paired cache/origin byte, checksum, and metadata probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
 #define CAC_READ_CHUNK 65536U
 
-static int row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
 
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
-
-static int reserve(xrd_conform_execution *execution, size_t bytes,
-    brix_status *status)
-{
-    char reason[64];
-
-    if (xrd_conform_reserve(execution, bytes, reason, sizeof(reason))) return 1;
-    brix_status_set(status, XRDC_EUSAGE, 0, "%s", reason);
-    return 0;
-}
 
 static void pair_inconclusive(xrd_conform_execution *execution,
     const char *reason, const brix_status *status)
@@ -31,7 +16,7 @@ static void pair_inconclusive(xrd_conform_execution *execution,
     size_t index;
 
     for (index = 0; index < sizeof(ids) / sizeof(ids[0]); index++)
-        if (row_active(execution, ids[index]))
+        if (xrd_conform_row_active(execution, ids[index]))
             xrd_conform_result_set(execution, ids[index],
                 BRIX_CONFORM_VERDICT_INCONCLUSIVE, reason, NULL,
                 status == NULL ? NULL : status->msg);
@@ -39,10 +24,10 @@ static void pair_inconclusive(xrd_conform_execution *execution,
 
 static int pair_read_active(xrd_conform_execution *execution)
 {
-    return row_active(execution, "CAC-001")
-        || row_active(execution, "CAC-002")
-        || row_active(execution, "CAC-007")
-        || row_active(execution, "CAC-008");
+    return xrd_conform_row_active(execution, "CAC-001")
+        || xrd_conform_row_active(execution, "CAC-002")
+        || xrd_conform_row_active(execution, "CAC-007")
+        || xrd_conform_row_active(execution, "CAC-008");
 }
 
 static int parse_pair(xrd_conform_execution *execution, brix_url *cache,
@@ -74,7 +59,7 @@ static int read_whole(xrd_conform_execution *execution,
     }
     *bytes = malloc(size == 0 ? 1 : (size_t) size);
     if (*bytes == NULL) return -1;
-    if (!reserve(execution, 0, status)
+    if (!xrd_conform_reserve_status(execution, 0, status)
         || brix_file_open_read(connection, path, &file, status) != 0) {
         free(*bytes);
         *bytes = NULL;
@@ -85,7 +70,7 @@ static int read_whole(xrd_conform_execution *execution,
             ? (size_t) (size - offset) : CAC_READ_CHUNK;
         ssize_t got;
 
-        if (!reserve(execution, length, status)) break;
+        if (!xrd_conform_reserve_status(execution, length, status)) break;
         got = brix_file_read(connection, &file, (int64_t) offset,
             *bytes + offset, length, status);
         if (got != (ssize_t) length) break;
@@ -96,7 +81,7 @@ static int read_whole(xrd_conform_execution *execution,
         brix_status close_status;
 
         brix_status_clear(&close_status);
-        if (!reserve(execution, 0, &close_status)
+        if (!xrd_conform_reserve_status(execution, 0, &close_status)
             || brix_file_close(connection, &file, &close_status) != 0) rc = -1;
     }
     if (rc != 0) {
@@ -141,30 +126,18 @@ static int extent_equal(xrd_conform_execution *execution,
     return equal;
 }
 
-static int fractional_grid_equal(xrd_conform_execution *execution,
-    brix_conn *cache, brix_conn *origin, const brix_url *cache_url,
-    const brix_url *origin_url, uint64_t size, brix_status *status)
+static int
+fractional_grid_compare(xrd_conform_execution *execution, brix_conn *cache,
+    brix_conn *origin, const brix_file *cache_file,
+    const brix_file *origin_file, uint64_t size, brix_status *status)
 {
     int64_t offsets[BRIX_CONFORM_AXIS_MAX];
     int64_t lengths[BRIX_CONFORM_AXIS_MAX];
-    brix_file cache_file;
-    brix_file origin_file;
     size_t offset_count;
     size_t offset_index;
     int pass = 1;
 
-    if (!reserve(execution, 0, status)
-        || brix_file_open_read(cache, cache_url->path, &cache_file,
-            status) != 0) return -1;
-    if (!reserve(execution, 0, status)
-        || brix_file_open_read(origin, origin_url->path, &origin_file,
-            status) != 0) {
-        if (reserve(execution, 0, status))
-            brix_file_close(cache, &cache_file, status);
-        return -1;
-    }
-    offset_count = brix_conform_offsets(size, offsets,
-        BRIX_CONFORM_AXIS_MAX);
+    offset_count = brix_conform_offsets(size, offsets, BRIX_CONFORM_AXIS_MAX);
     for (offset_index = 0; pass > 0 && offset_index < offset_count;
             offset_index++) {
         size_t length_count = brix_conform_lengths(size,
@@ -173,25 +146,119 @@ static int fractional_grid_equal(xrd_conform_execution *execution,
 
         for (length_index = 0; pass > 0 && length_index < length_count;
                 length_index++) {
-            if (!brix_conform_case_selected(execution->run->config.budget,
-                    0, 1, offset_index, offset_count, length_index,
-                    length_count, offsets[offset_index], lengths[length_index],
-                    size)
-                || offsets[offset_index] < 0 || lengths[length_index] < 0
-                || lengths[length_index] > INT32_MAX)
-                continue;
-            if (!extent_equal(execution, cache, origin, &cache_file,
-                    &origin_file, size, offsets[offset_index],
+            int selected = brix_conform_case_selected(
+                execution->run->config.budget, 0, 1, offset_index,
+                offset_count, length_index, length_count,
+                offsets[offset_index], lengths[length_index], size);
+
+            if (!selected || offsets[offset_index] < 0
+                || lengths[length_index] < 0
+                || lengths[length_index] > INT32_MAX) continue;
+            if (!extent_equal(execution, cache, origin, cache_file,
+                    origin_file, size, offsets[offset_index],
                     (int32_t) lengths[length_index], status))
                 pass = status->kxr == XRDC_EUSAGE ? -1 : 0;
         }
     }
-
-    if (reserve(execution, 0, status))
-        if (brix_file_close(origin, &origin_file, status) != 0) pass = -1;
-    if (reserve(execution, 0, status))
-        if (brix_file_close(cache, &cache_file, status) != 0) pass = -1;
     return pass;
+}
+
+static int
+fractional_grid_equal(xrd_conform_execution *execution,
+    brix_conn *cache, brix_conn *origin, const brix_url *cache_url,
+    const brix_url *origin_url, uint64_t size, brix_status *status)
+{
+    brix_file cache_file;
+    brix_file origin_file;
+    int pass;
+
+    if (!xrd_conform_reserve_status(execution, 0, status)
+        || brix_file_open_read(cache, cache_url->path, &cache_file,
+            status) != 0) return -1;
+    if (!xrd_conform_reserve_status(execution, 0, status)
+        || brix_file_open_read(origin, origin_url->path, &origin_file,
+            status) != 0) {
+        if (xrd_conform_reserve_status(execution, 0, status))
+            brix_file_close(cache, &cache_file, status);
+        return -1;
+    }
+    pass = fractional_grid_compare(execution, cache, origin, &cache_file,
+        &origin_file, size, status);
+    if (xrd_conform_reserve_status(execution, 0, status)
+        && brix_file_close(origin, &origin_file, status) != 0) pass = -1;
+    if (xrd_conform_reserve_status(execution, 0, status)
+        && brix_file_close(cache, &cache_file, status) != 0) pass = -1;
+    return pass;
+}
+
+static void
+grade_pair_size(xrd_conform_execution *execution, int64_t cache_size,
+    int64_t origin_size)
+{
+    int equal = cache_size == origin_size;
+
+    if (xrd_conform_row_active(execution, "CAC-008"))
+        xrd_conform_result_set(execution, "CAC-008",
+            equal ? BRIX_CONFORM_VERDICT_CONFORMANT
+                  : BRIX_CONFORM_VERDICT_DIVERGENT,
+            equal ? "cache-origin-stat-size-agreement"
+                  : "cache-origin-stat-size-mismatch", NULL, NULL);
+    if (equal) return;
+    if (xrd_conform_row_active(execution, "CAC-001"))
+        xrd_conform_result_set(execution, "CAC-001",
+            BRIX_CONFORM_VERDICT_DIVERGENT,
+            "cache-population-size-mismatch", NULL, NULL);
+    if (xrd_conform_row_active(execution, "CAC-002"))
+        xrd_conform_result_set(execution, "CAC-002",
+            BRIX_CONFORM_VERDICT_DIVERGENT,
+            "cache-origin-range-size-mismatch", NULL, NULL);
+}
+
+static void
+grade_cache_population(xrd_conform_execution *execution, brix_conn *cache,
+    const brix_url *cache_url, uint64_t size, brix_status *status)
+{
+    uint8_t *first = NULL;
+    uint8_t *second = NULL;
+    int read_ok;
+    int same;
+
+    if (!xrd_conform_row_active(execution, "CAC-001")) return;
+    read_ok = read_whole(execution, cache, cache_url->path, size, &first,
+            status) == 0
+        && read_whole(execution, cache, cache_url->path, size, &second,
+            status) == 0;
+    same = read_ok && memcmp(first, second, (size_t) size) == 0;
+    xrd_conform_result_set(execution, "CAC-001",
+        same ? BRIX_CONFORM_VERDICT_CONFORMANT
+             : read_ok ? BRIX_CONFORM_VERDICT_DIVERGENT
+                       : BRIX_CONFORM_VERDICT_INCONCLUSIVE,
+        same ? "first-and-second-cache-reads-identical"
+             : read_ok ? "cache-population-changed-bytes"
+                       : "cache-population-read-failed",
+        NULL, read_ok ? NULL : status->msg);
+    free(first);
+    free(second);
+}
+
+static void
+grade_cache_grid(xrd_conform_execution *execution, brix_conn *cache,
+    brix_conn *origin, const brix_url *cache_url, const brix_url *origin_url,
+    uint64_t size, brix_status *status)
+{
+    int grid;
+
+    if (!xrd_conform_row_active(execution, "CAC-002")) return;
+    grid = fractional_grid_equal(execution, cache, origin, cache_url,
+        origin_url, size, status);
+    xrd_conform_result_set(execution, "CAC-002",
+        grid > 0 ? BRIX_CONFORM_VERDICT_CONFORMANT
+                 : grid == 0 ? BRIX_CONFORM_VERDICT_DIVERGENT
+                             : BRIX_CONFORM_VERDICT_INCONCLUSIVE,
+        grid > 0 ? "cache-origin-fractional-grid-agreement"
+                 : grid == 0 ? "cache-origin-fractional-grid-mismatch"
+                             : "cache-origin-grid-incomplete",
+        NULL, grid < 0 ? status->msg : NULL);
 }
 
 static void grade_checksums(xrd_conform_execution *execution,
@@ -203,12 +270,12 @@ static void grade_checksums(xrd_conform_execution *execution,
     brix_status status;
     int rc;
 
-    if (!row_active(execution, "CAC-007")) return;
+    if (!xrd_conform_row_active(execution, "CAC-007")) return;
     brix_status_clear(&status);
-    rc = reserve(execution, 0, &status)
+    rc = xrd_conform_reserve_status(execution, 0, &status)
         && brix_query_cksum(cache, cache_url->path, "sha256", cache_digest,
             sizeof(cache_digest), &status) == 0
-        && reserve(execution, 0, &status)
+        && xrd_conform_reserve_status(execution, 0, &status)
         && brix_query_cksum(origin, origin_url->path, "sha256", origin_digest,
             sizeof(origin_digest), &status) == 0;
     xrd_conform_result_set(execution, "CAC-007",
@@ -223,6 +290,36 @@ static void grade_checksums(xrd_conform_execution *execution,
         NULL, rc ? NULL : status.msg);
 }
 
+static int
+connect_cache_pair(xrd_conform_execution *execution, brix_url *cache_url,
+    brix_url *origin_url, brix_conn *cache, brix_conn *origin,
+    brix_status *status)
+{
+    brix_opts opts = execution->run->opts;
+
+    if (parse_pair(execution, cache_url, origin_url, status) != 0) return -1;
+    opts.capture = NULL;
+    if (brix_connect(cache, cache_url, &opts, status) != 0) return -2;
+    if (brix_connect(origin, origin_url, &opts, status) != 0) {
+        brix_close(cache);
+        return -2;
+    }
+    return 0;
+}
+
+static int
+load_pair_stats(xrd_conform_execution *execution, brix_conn *cache,
+    brix_conn *origin, const brix_url *cache_url, const brix_url *origin_url,
+    brix_statinfo *cache_info, brix_statinfo *origin_info,
+    brix_status *status)
+{
+    return xrd_conform_reserve_status(execution, 0, status)
+        && brix_stat(cache, cache_url->path, cache_info, status) == 0
+        && xrd_conform_reserve_status(execution, 0, status)
+        && brix_stat(origin, origin_url->path, origin_info, status) == 0
+        && cache_info->size >= 0 && origin_info->size >= 0 ? 0 : -1;
+}
+
 /* WHAT: Compare one explicit cache endpoint with its explicit origin pair.
  * WHY: Population and cache correctness cannot be inferred from one endpoint.
  * HOW: Read the cache twice before the ordinary run, then compare the selected
@@ -233,33 +330,22 @@ void xrd_conform_probe_cache_pair(xrd_conform_execution *execution)
     brix_url origin_url;
     brix_conn cache;
     brix_conn origin;
-    brix_opts opts = execution->run->opts;
     brix_statinfo cache_info;
     brix_statinfo origin_info;
     brix_status status;
-    uint8_t *first = NULL;
-    uint8_t *second = NULL;
-    int grid;
+    int connect_rc;
 
     if (!xrd_conform_family_active(execution, "CAC")
-        && !row_active(execution, "PRP-003")
-        && !row_active(execution, "PRP-004")) return;
+        && !xrd_conform_row_active(execution, "PRP-003")
+        && !xrd_conform_row_active(execution, "PRP-004")) return;
     brix_status_clear(&status);
-    if (parse_pair(execution, &cache_url, &origin_url, &status) != 0) {
-        pair_inconclusive(execution, "fixture-required:paired-cache-origin",
+    connect_rc = connect_cache_pair(execution, &cache_url, &origin_url,
+        &cache, &origin, &status);
+    if (connect_rc != 0) {
+        pair_inconclusive(execution,
+            connect_rc == -1 ? "fixture-required:paired-cache-origin"
+                             : "fixture-unavailable:paired-cache-origin",
             &status);
-        return;
-    }
-    opts.capture = NULL;
-    if (brix_connect(&cache, &cache_url, &opts, &status) != 0) {
-        pair_inconclusive(execution, "fixture-unavailable:paired-cache-origin",
-            &status);
-        return;
-    }
-    if (brix_connect(&origin, &origin_url, &opts, &status) != 0) {
-        pair_inconclusive(execution, "fixture-unavailable:paired-cache-origin",
-            &status);
-        brix_close(&cache);
         return;
     }
     xrd_conform_probe_cache_evict(execution, &cache, &origin);
@@ -270,67 +356,20 @@ void xrd_conform_probe_cache_pair(xrd_conform_execution *execution)
         brix_close(&cache);
         return;
     }
-    if (!reserve(execution, 0, &status)
-        || brix_stat(&cache, cache_url.path, &cache_info, &status) != 0
-        || !reserve(execution, 0, &status)
-        || brix_stat(&origin, origin_url.path, &origin_info, &status) != 0
-        || cache_info.size < 0 || origin_info.size < 0) {
+    if (load_pair_stats(execution, &cache, &origin, &cache_url, &origin_url,
+            &cache_info, &origin_info, &status) != 0) {
         pair_inconclusive(execution, "fixture-unavailable:paired-cache-origin",
             &status);
         brix_close(&origin);
         brix_close(&cache);
         return;
     }
-    if (row_active(execution, "CAC-008"))
-        xrd_conform_result_set(execution, "CAC-008",
-            cache_info.size == origin_info.size
-                ? BRIX_CONFORM_VERDICT_CONFORMANT
-                : BRIX_CONFORM_VERDICT_DIVERGENT,
-            cache_info.size == origin_info.size
-                ? "cache-origin-stat-size-agreement"
-                : "cache-origin-stat-size-mismatch",
-            NULL, NULL);
-    if (cache_info.size != origin_info.size) {
-        if (row_active(execution, "CAC-001"))
-            xrd_conform_result_set(execution, "CAC-001",
-                BRIX_CONFORM_VERDICT_DIVERGENT,
-                "cache-population-size-mismatch", NULL, NULL);
-        if (row_active(execution, "CAC-002"))
-            xrd_conform_result_set(execution, "CAC-002",
-                BRIX_CONFORM_VERDICT_DIVERGENT,
-                "cache-origin-range-size-mismatch", NULL, NULL);
-    } else {
-        if (row_active(execution, "CAC-001")) {
-            int read_ok = read_whole(execution, &cache, cache_url.path,
-                    (uint64_t) cache_info.size, &first, &status) == 0
-                && read_whole(execution, &cache, cache_url.path,
-                    (uint64_t) cache_info.size, &second, &status) == 0;
-            int same = read_ok && memcmp(first, second,
-                (size_t) cache_info.size) == 0;
-
-            xrd_conform_result_set(execution, "CAC-001",
-                same ? BRIX_CONFORM_VERDICT_CONFORMANT
-                     : read_ok ? BRIX_CONFORM_VERDICT_DIVERGENT
-                               : BRIX_CONFORM_VERDICT_INCONCLUSIVE,
-                same ? "first-and-second-cache-reads-identical"
-                     : read_ok ? "cache-population-changed-bytes"
-                               : "cache-population-read-failed",
-                NULL, read_ok ? NULL : status.msg);
-            free(first);
-            free(second);
-        }
-        if (row_active(execution, "CAC-002")) {
-            grid = fractional_grid_equal(execution, &cache, &origin,
-                &cache_url, &origin_url, (uint64_t) cache_info.size, &status);
-            xrd_conform_result_set(execution, "CAC-002",
-                grid > 0 ? BRIX_CONFORM_VERDICT_CONFORMANT
-                         : grid == 0 ? BRIX_CONFORM_VERDICT_DIVERGENT
-                                     : BRIX_CONFORM_VERDICT_INCONCLUSIVE,
-                grid > 0 ? "cache-origin-fractional-grid-agreement"
-                         : grid == 0 ? "cache-origin-fractional-grid-mismatch"
-                                     : "cache-origin-grid-incomplete",
-                NULL, grid < 0 ? status.msg : NULL);
-        }
+    grade_pair_size(execution, cache_info.size, origin_info.size);
+    if (cache_info.size == origin_info.size) {
+        grade_cache_population(execution, &cache, &cache_url,
+            (uint64_t) cache_info.size, &status);
+        grade_cache_grid(execution, &cache, &origin, &cache_url, &origin_url,
+            (uint64_t) cache_info.size, &status);
     }
     grade_checksums(execution, &cache, &origin, &cache_url, &origin_url);
     brix_close(&origin);

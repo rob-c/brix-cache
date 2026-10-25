@@ -209,6 +209,19 @@ int brix_plat_capget(struct __user_cap_header_struct *hdr,
 int brix_plat_capset(struct __user_cap_header_struct *hdr,
     struct __user_cap_data_struct *data);
 
+/** Create an owned child whose last process-descriptor close terminates it.
+ * Returns fork's pid/zero, or -1 with errno. Unsupported hosts return ENOTSUP.
+ * The descriptor belongs only to the parent; no numeric-pid cleanup is needed.
+ */
+pid_t brix_plat_broker_fork(int *process_fd);
+
+/** Irreversibly confine an already non-root, fixed-identity storage helper.
+ * Caller must first seal inherited descriptors to stdio, channel, root and log.
+ * Restrict the export/channel/log descriptor rights and enter capability mode;
+ * never pretend that Linux credential capabilities exist. Returns 0 or -1.
+ */
+int brix_plat_broker_confine(int channel, int rootfd, int logfd);
+
 /** secure_getenv(3): NULL in a set-user-ID image (Darwin: issetugid(2)). */
 const char *brix_plat_secure_getenv(const char *name);
 
@@ -243,5 +256,18 @@ int brix_plat_wait_pid_timeout(pid_t pid, unsigned timeout_ms);
  * @return 0, or -1 with errno (ENAMETOOLONG when `cap` is too small)
  */
 int brix_plat_boot_id(char *buf, size_t cap);
+
+/* Native per-connection byte counters and smoothed RTT (microseconds).
+ * Returns 0, or -1 with errno; valid output pointers are mandatory. Socket
+ * query failures zero all outputs rather than publishing invented counters.
+ */
+int brix_plat_tcp_stats(int fd, uint64_t *sent, uint64_t *received,
+    uint32_t *rtt_us);
+
+/* Close the inclusive descriptor interval using the host's range primitive
+ * or descriptor enumeration. Failure returns -1 with errno set so callers
+ * can retain a bounded per-descriptor fallback.
+ */
+int brix_plat_close_range(unsigned first, unsigned last);
 
 #endif /* BRIX_PLATFORM_API_POSIX_H */

@@ -24,6 +24,7 @@
  * */
 
 #include "tpc/engine/tpc_internal.h"
+#include "core/compat/host_format.h"
 #include "core/compat/net_target.h"
 #include "net/dns/dns.h"
 #include "observability/pmark/pmark.h"
@@ -71,14 +72,21 @@ tpc_connect_candidate(const brix_tpc_pull_t *t, struct sockaddr *sa,
 }
 
 
-/* WHAT: resolve + policy-check + TCP connect to the TPC origin (thread-pool
- * task).  Returns the connected fd or -1 with t->err_msg set. */
+/* ---- Resolve and dial a policy-approved source from the pull thread. ----
+ * WHAT: Return a connected origin fd, or -1 with t->err_msg set.
+ * WHY: IPv4-mapped literals name IPv4 peers even on IPv6-only socket hosts;
+ *      normalization must not bypass the DNS driver or per-address SSRF gate.
+ * HOW: 1. Fold mapped IPv4 with the shared host helper, retaining src_host for
+ *      identity checks. 2. Resolve through the configured DNS policy.
+ *      3. Check each actual destination address before creating its socket.
+ */
 int
 tpc_connect(brix_tpc_pull_t *t)
 {
     brix_dns_addr_t           addrs[BRIX_DNS_MAX_ADDRS];
     brix_net_target_policy_t  policy;
     char                      reason[BRIX_DNS_ERROR_LEN];
+    char                      connect_host[sizeof(t->src_host)];
     ngx_uint_t                n, i;
     uint16_t                  src_port;
 
@@ -89,7 +97,12 @@ tpc_connect(brix_tpc_pull_t *t)
     policy.allow_private = t->conf->common.tpc_allow_private;
     policy.dns           = t->conf->common.dns.policy;
 
-    n = brix_dns_resolve_sync(policy.dns, t->src_host, src_port, BRIX_AF_AUTO,
+    if (!brix_host_unmap_v4(t->src_host, connect_host, sizeof(connect_host))) {
+        snprintf(t->err_msg, sizeof(t->err_msg), "TPC source host invalid");
+        return -1;
+    }
+
+    n = brix_dns_resolve_sync(policy.dns, connect_host, src_port, BRIX_AF_AUTO,
                               SOCK_STREAM, addrs, BRIX_DNS_MAX_ADDRS, reason,
                               sizeof(reason));
     if (n == 0) {

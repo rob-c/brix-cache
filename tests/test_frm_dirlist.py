@@ -18,6 +18,7 @@ shell-script stagecmd. Self-contained (no shared fleet).
 
 import stat as statmod
 import struct
+import sys
 
 import pytest
 
@@ -167,6 +168,11 @@ def test_exec_rcreate_verb(lifecycle, tmp_path):
     base = tmp_path / "buffer"
     base.mkdir()
     marker = tmp_path / "rcreate.log"
+    # A root-run harness de-escalates nginx workers before executing the MSS
+    # program.  Pre-create this non-secret audit sink so the confined worker
+    # can append without making the whole pytest directory world-writable.
+    marker.touch()
+    marker.chmod(0o666)
     stagecmd = tmp_path / "stagecmd.sh"
     stagecmd.write_text(
         "#!/bin/sh\n"
@@ -192,7 +198,9 @@ def test_exec_rcreate_verb(lifecycle, tmp_path):
             primary.close()
 
 
-def test_exec_dread(lifecycle, tmp_path):
+@pytest.mark.parametrize("check_descriptors", [False, True],
+                         ids=["plain", "descriptor-isolation"])
+def test_exec_dread(lifecycle, tmp_path, check_descriptors):
     """(exec adapter) `$BRIX_FRM_STAGECMD dread` drives the listing: one name
     per line, trailing '/' marks a directory."""
     base = tmp_path / "buffer"
@@ -205,6 +213,20 @@ def test_exec_dread(lifecycle, tmp_path):
         "  exists) exit 0 ;;\n"
         "  *) exit 0 ;;\n"
         "esac\n")
+    if check_descriptors:
+        stagecmd.write_text(
+            f"#!{sys.executable}\n"
+            "import os, resource, stat\n"
+            "limit = min(resource.getrlimit(resource.RLIMIT_NOFILE)[0], 1024)\n"
+            "for fd in range(3, limit):\n"
+            "    try:\n"
+            "        mode = os.fstat(fd).st_mode\n"
+            "    except OSError:\n"
+            "        continue\n"
+            "    if stat.S_ISSOCK(mode):\n"
+            "        print('inherited-server-socket')\n"
+            "        raise SystemExit(93)\n"
+            "print('tapefile.dat\\narchive-dir/')\n")
     stagecmd.chmod(stagecmd.stat().st_mode | statmod.S_IEXEC)
 
     port = _launch(lifecycle, tmp_path, f"tape://exec{base}",
@@ -218,6 +240,22 @@ def test_exec_dread(lifecycle, tmp_path):
         text = body.decode()
         assert "tapefile.dat" in text, f"dread entry missing: {text!r}"
         assert "archive-dir" in text, f"dread dir entry missing: {text!r}"
+        assert "inherited-server-socket" not in text, text
     finally:
         if primary is not None:
             primary.close()
+
+
+def test_exec_dread_missing_command_is_an_error(lifecycle, tmp_path):
+    """A failed spawn must not fabricate a successful empty tape listing."""
+    base = tmp_path / "buffer"
+    base.mkdir()
+    port = _launch(lifecycle, tmp_path, f"tape://exec{base}",
+                   extra_env={"BRIX_FRM_STAGECMD": str(tmp_path / "absent-command")})
+    H.ANON_HOST = BIND_HOST
+    primary, _sessid, stream = H._establish_primary(port)
+    try:
+        status, _body = _dirlist(primary, stream, "/")
+        assert status == H.kXR_error, "missing command yielded a successful listing"
+    finally:
+        primary.close()

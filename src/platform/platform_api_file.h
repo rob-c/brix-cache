@@ -131,6 +131,12 @@ int brix_plat_sync_tree(int dirfd);
  */
 ssize_t brix_plat_sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
 
+/* Return 1 only when this open file's filesystem permits safe sendfile.
+ * FreeBSD ZFS can deadlock sendfile against concurrent writes; unknown native
+ * filesystem metadata also selects buffered I/O. Other hosts retain their
+ * normal transfer path. This advisory predicate preserves errno and owns no fd. */
+int brix_plat_file_sendfile_safe(int fd);
+
 /**
  * Zero-copy pipe splice (Linux only)
  *

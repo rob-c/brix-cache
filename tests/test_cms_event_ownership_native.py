@@ -8,29 +8,38 @@ the production setup, cleanup and nginx timer tree execute in the native test.
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 import pytest
 
 from test_platform_linux_native import native_compile
+from lib_py.nginx_build import configured_compile_layout
+
+pytestmark = pytest.mark.skipif(
+    sys.platform != "linux" and not sys.platform.startswith("freebsd"),
+    reason="requires native ELF pipe2/spawn syscall interposition")
 
 
 @pytest.fixture(scope="module")
 def cms_event_binary(native_compile):
     """Build both production owners against the configured nginx headers."""
     root = Path(__file__).resolve().parents[1]
-    build = Path(os.environ.get("BRIX_NGINX_BUILD_DIR", root / "build/alma9-merged"))
-    timer_tree = build.resolve() / "nginx-src/src/core/ngx_rbtree.c"
-    # The production owners call the PAL (INVARIANT 14), so its host units have
+    layout = configured_compile_layout(root, os.environ)
+    assert layout is not None, "configured nginx SDK is required"
+    timer_tree = layout[1] / "src/core/ngx_rbtree.c"
+    # The production owners call the PAL (INVARIANT 14), so their actual host units have
     # to be linked or brix_plat_pipe2 / brix_plat_spawn_closefrom are undefined.
     # They bottom out in pipe2()/posix_spawn(), which this build already wraps,
     # so the real PAL still routes through the interception below.
-    pal = ["src/platform/linux/storage_wrapper.c",
-           "src/platform/linux/process_wrapper.c"]
+    host = "freebsd" if sys.platform.startswith("freebsd") else "linux"
+    pal = [f"src/platform/{host}/storage_wrapper.c",
+           f"src/platform/{host}/process_wrapper.c"]
     return native_compile("cms-event-ownership", _NATIVE_SOURCE, [timer_tree, *pal], [
         "-DNGX_DEBUG=1", "-ffunction-sections", "-fdata-sections",
         "-Wl,--gc-sections", "-Wl,--wrap=socket", "-Wl,--wrap=connect",
         "-Wl,--wrap=pipe2", "-Wl,--wrap=posix_spawn", "-Wl,--wrap=kill",
         "-Wl,--wrap=waitpid",
+        "-Wl,--wrap=posix_spawnattr_setpgroup",
     ])
 
 
@@ -39,6 +48,14 @@ def cms_event_binary(native_compile):
 def test_cms_event_registration_owns_logs_and_descriptors(cms_event_binary, feature, case):
     """Register complete events, release rejected work, and handle pool refusal."""
     result = subprocess.run([str(cms_event_binary), feature, case],
+                            capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("case", ["exit", "exit-idle", "group-refused"])
+def test_perf_monitor_process_group_lifecycle(cms_event_binary, case):
+    """Retire owned descendants, leave an idle worker alone, and fail closed."""
+    result = subprocess.run([str(cms_event_binary), "perf", case],
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -65,6 +82,7 @@ static struct {
     int child_waits;
     int reject_registration;
     int reject_allocation;
+    int reject_group;
 } observed;
 
 void ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t error,
@@ -147,10 +165,12 @@ int __wrap_posix_spawn(pid_t *pid, const char *path,
                       char *const argv[], char *const environment[]) {
     (void)environment;
     assert(strcmp(path, "/bin/sh") == 0 && actions != NULL);
-    /* attributes is no longer NULL: perf_pgm.c now inits a posix_spawnattr_t
-       and passes it alongside the closefrom file action.  Pinning NULL here
-       forbade that hardening rather than testing anything, so assert the
-       part that is the contract -- the shell invocation itself. */
+    short flags;
+    pid_t group;
+    assert(attributes != NULL);
+    assert(posix_spawnattr_getflags(attributes, &flags) == 0);
+    assert((flags & POSIX_SPAWN_SETPGROUP) != 0);
+    assert(posix_spawnattr_getpgroup(attributes, &group) == 0 && group == 0);
     assert(strcmp(argv[1], "-c") == 0);
     *pid = 123456;
     observed.spawns++;
@@ -158,9 +178,16 @@ int __wrap_posix_spawn(pid_t *pid, const char *path,
 }
 
 int __wrap_kill(pid_t pid, int selected) {
-    assert(pid == 123456 && selected == SIGTERM);
+    assert(pid == -123456 && selected == SIGKILL);
     observed.child_signals++;
     return 0;
+}
+
+int __real_posix_spawnattr_setpgroup(posix_spawnattr_t *, pid_t);
+int __wrap_posix_spawnattr_setpgroup(posix_spawnattr_t *attributes, pid_t group) {
+    assert(group == 0);
+    return observed.reject_group ? EPERM :
+        __real_posix_spawnattr_setpgroup(attributes, group);
 }
 
 pid_t __wrap_waitpid(pid_t pid, int *status, int options) {
@@ -219,6 +246,37 @@ static void check_perf(ngx_cycle_t *cycle, int accepted) {
     ngx_del_timer(&feed.respawn);
 }
 
+static void check_perf_exit(ngx_cycle_t *cycle, int idle) {
+    brix_cms_perf_t *feed = &brix_cms_perf;
+    feed->cycle = cycle;
+    feed->child = idle ? 0 : -1;
+    feed->respawn.data = feed;
+    feed->respawn.log = cycle->log;
+    if (!idle) {
+        feed->pgm.data = (u_char *)"private-test-feed";
+        perf_spawn(feed);
+        assert(observed.spawns == 1);
+    }
+    ngx_add_timer(&feed->respawn, BRIX_CMS_RESPAWN_DELAY_MS);
+    brix_cms_perf_stop();
+    brix_cms_perf_stop();
+    assert(feed->stopping && !feed->respawn.timer_set && feed->conn == NULL);
+    assert(observed.child_signals == !idle && observed.child_waits == !idle);
+    assert(observed.releases == !idle);
+}
+
+static void check_group_refusal(ngx_cycle_t *cycle) {
+    brix_cms_perf_t feed = {.cycle = cycle, .child = -1};
+    feed.respawn.data = &feed;
+    feed.respawn.log = cycle->log;
+    observed.reject_group = 1;
+    perf_spawn(&feed);
+    assert(feed.conn == NULL && feed.child == -1 && feed.respawn.timer_set);
+    assert(observed.spawns == 0 && observed.child_signals == 0);
+    assert(observed.registrations == 0);
+    ngx_del_timer(&feed.respawn);
+}
+
 int main(int argc, char **argv) {
     assert(argc == 3);
     ngx_log_t log = {.log_level = NGX_LOG_DEBUG_ALL};
@@ -231,6 +289,17 @@ int main(int argc, char **argv) {
     observed.reject_registration = strcmp(argv[2], "registration-error") == 0;
     observed.reject_allocation = strcmp(argv[2], "allocation-refused") == 0;
     int accepted = strcmp(argv[2], "accepted") == 0;
+    if (strcmp(argv[2], "exit") == 0 || strcmp(argv[2], "exit-idle") == 0) {
+        check_perf_exit(&cycle, strcmp(argv[2], "exit-idle") == 0);
+        assert(ngx_event_timer_rbtree.root == ngx_event_timer_rbtree.sentinel);
+        return 0;
+    }
+    if (strcmp(argv[2], "group-refused") == 0) {
+        check_group_refusal(&cycle);
+        assert(fcntl(observed.owned_fd, F_GETFD) == -1 && errno == EBADF);
+        assert(ngx_event_timer_rbtree.root == ngx_event_timer_rbtree.sentinel);
+        return 0;
+    }
     if (strcmp(argv[1], "altds") == 0) { check_altds(&cycle, accepted); }
     else { check_perf(&cycle, accepted); }
     assert(observed.registrations == (observed.reject_allocation ? 0 : 1));

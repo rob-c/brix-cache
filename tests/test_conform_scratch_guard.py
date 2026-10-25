@@ -35,3 +35,27 @@ def test_guard_rejects_capability_name_spoof_security_negative():
     source = "brix_rm(&connection, scratch_object.path, &status);\n"
     violations = GUARD.violations_for_text("spoof.c", source)
     assert len(violations) == 1
+
+
+def test_guard_accepts_capability_passed_through_typed_helper():
+    source = (
+        'void restore(const xrd_conform_scratch_object *object) {\n'
+        'brix_rmdir(connection, object->path, status);\n}\n'
+    )
+    assert GUARD.violations_for_text('typed.c', source) == []
+
+
+def test_guard_rejects_helper_that_erases_the_capability_type():
+    source = (
+        'void restore(const char *path) {\n'
+        'brix_rmdir(connection, path, status);\n}\n'
+    )
+    assert len(GUARD.violations_for_text('erased.c', source)) == 1
+
+
+def test_guard_rejects_untyped_pointer_with_capability_shaped_member():
+    source = (
+        'void restore(const impostor *object) {\n'
+        'brix_rmdir(connection, object->path, status);\n}\n'
+    )
+    assert len(GUARD.violations_for_text('impostor.c', source)) == 1

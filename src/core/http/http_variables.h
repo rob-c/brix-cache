@@ -39,6 +39,32 @@
 /* Register every $brix_* HTTP variable. Called from the common HTTP module's
  * preconfiguration. */
 ngx_int_t brix_http_add_variables(ngx_conf_t *cf);
+/* Register a plane-owned typed table through the same sentinel/error policy. */
+ngx_int_t brix_http_register_variables(ngx_conf_t *cf, ngx_http_variable_t *variables);
+
+/* WHAT: Copy a runtime variable value into the request's lifetime domain.
+ * WHY: Dynamic origin buffers cannot be borrowed by a later access-log phase.
+ * HOW: Allocate/copy before publishing any fields; propagate allocation failure
+ * unchanged, then mark the exact-length value valid and request-cacheable.
+ */
+static ngx_inline ngx_int_t
+brix_http_variable_copy(ngx_http_request_t *r, ngx_http_variable_value_t *value,
+    const char *text)
+{
+    size_t length = ngx_strlen(text);
+    u_char *copy = ngx_pnalloc(r->pool, length);
+
+    if (copy == NULL) {
+        return NGX_ERROR;
+    }
+    ngx_memcpy(copy, text, length);
+    value->data = copy;
+    value->len = length;
+    value->valid = 1;
+    value->no_cacheable = 0;
+    value->not_found = 0;
+    return NGX_OK;
+}
 
 /*
  * Bind the request's I/O monitor onto a data-plane VFS ctx so the observer can

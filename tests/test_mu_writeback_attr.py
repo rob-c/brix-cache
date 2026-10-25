@@ -8,6 +8,7 @@ object is owned by the mapped uid).
 Run: sudo -E env PYTHONPATH=tests pytest tests/test_mu_writeback_attr.py -v
 """
 import pytest
+import uuid
 
 from mu_authz_lib import corpus, fleet
 from mu_authz_lib.oracle import authoritative
@@ -35,8 +36,9 @@ def test_s3_honors_scope_like_root(mu_fleet, cast, path, subject):
 @pytest.mark.privileged
 def test_writeback_attributed_to_writer(mu_fleet, cast):
     """A write-through as alice produces an object owned by alice's uid (attribution)."""
-    ok = put_as(cast["alice"], "/cms/alice_wb.dat", b"writeback-bytes", proto="root")
+    path = f"/cms/alice_wb_{uuid.uuid4().hex}.dat"
+    ok = put_as(cast["alice"], path, b"writeback-bytes", proto="root")
     assert ok, "authorized write-through as alice must succeed"
-    st = export_stat("/cms/alice_wb.dat")
+    st = export_stat(path)
     assert st.st_uid == cast["alice"].uid, (
         f"written-back bytes owned by uid {st.st_uid}, expected alice's {cast['alice'].uid}")

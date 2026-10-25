@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 
 from cmdscripts.compile_run import (REPO_ROOT, client_pal_host_sources,
-                                    compile_binary, pal_host_sources, result,
+                                    compile_binary, pal_host_sources, pal_xattr_sources, result,
                                     run, weak_undefined_flags)
 
 FQRN = "unit.brix.io"
@@ -52,6 +52,7 @@ REPO_CLI_SOURCES = [
     # brixcvmfs_publish.c reads the boot id through the PAL (transaction-lock
     # forensics), whose body lives in the host wrapper the Makefiles compile.
     *pal_host_sources("process_wrapper"),
+    *pal_xattr_sources(),
 ]
 REPO_CLI_LIBS = ["-lcrypto", "-lz", "-lzstd", "-lsqlite3"]
 

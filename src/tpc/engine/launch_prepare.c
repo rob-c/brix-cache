@@ -225,8 +225,9 @@ tpc_init_dst_file(brix_ctx_t *ctx, ngx_connection_t *c,
  * so the refusal shares the guard/fail2ban contract (signal=tpc_egress).
  * HOW: copy the cached ISO-8601 clock + client IP into NUL-terminated stacks,
  * sanitize the host into the path field, format via the shared guard formatter. */
-static void
-tpc_egress_emit_signal(brix_ctx_t *ctx, ngx_connection_t *c, const char *host)
+void
+brix_tpc_egress_emit_signal(brix_ctx_t *ctx, ngx_connection_t *c, const char *host,
+    guard_op_class_t operation)
 {
     guard_request_t req;
     char            line[512];
@@ -247,7 +248,7 @@ tpc_egress_emit_signal(brix_ctx_t *ctx, ngx_connection_t *c, const char *host)
     ngx_memzero(&req, sizeof(req));
     req.ip           = ip;
     req.proto        = "root";
-    req.op           = GUARD_OP_WRITE;   /* a TPC pull opens a write destination */
+    req.op           = operation;  /* pull writes its destination; push reads */
     req.path         = hostbuf;
     req.path_len     = brix_sanitize_log_string(host, hostbuf, sizeof(hostbuf));
     req.cred_present = ctx->login.dn[0] != '\0' ? 1 : 0;
@@ -307,7 +308,7 @@ tpc_prepare_check_preconditions(brix_ctx_t *ctx, ngx_connection_t *c,
         != 0)
     {
         BRIX_SRV_METRIC_INC(ctx, tpc_egress_refused_total);
-        tpc_egress_emit_signal(ctx, c, tpc->src_host);
+        brix_tpc_egress_emit_signal(ctx, c, tpc->src_host, GUARD_OP_WRITE);
         return brix_tpc_refuse(ctx, c, dst_path, kXR_NotAuthorized, egress_err);
     }
 

@@ -143,6 +143,8 @@ def _start_frm(lifecycle, tmp_path, *, name, allow_write="on", failkey=None):
     base = tmp_path / "base"
     cache = tmp_path / "cache"
     control = tmp_path / "control"
+    queue = tmp_path / "frm.queue"
+    queue.mkdir()
     tape = tmp_path / "tape"
     audit = tmp_path / "audit.log"
 
@@ -155,7 +157,7 @@ def _start_frm(lifecycle, tmp_path, *, name, allow_write="on", failkey=None):
             template_values={
                 "STORAGE_BACKEND": f"frm://exec{base}",
                 "CACHE_DIR": str(cache),
-                "QUEUE_PATH": str(tmp_path / "frm.queue"),
+                "QUEUE_PATH": str(queue),
                 "CONTROL_DIR": str(control),
                 "ALLOW_WRITE": allow_write,
             },

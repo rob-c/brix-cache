@@ -76,8 +76,8 @@ ANON_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}/"
 
 _FUSE_OK = fuse_host.FUSE_READY
 #: XNU allows mknod(2) of a regular file to the superuser only (EPERM before
-#: the request reaches any filesystem, FUSE included), so the mknod cells are
-#: a Linux contract.
+#: the request reaches any filesystem, FUSE included). Other kernels are
+#: probed independently; refusal must preserve both visible namespaces.
 _MKNOD_IS_ROOT_ONLY = sys.platform == "darwin"
 
 
@@ -212,16 +212,20 @@ def test_fuse_write_roundtrip(built):
 
 @pytest.mark.skipif(not _FUSE_OK, reason=fuse_host.SKIP_REASON)
 @pytest.mark.skipif(_MKNOD_IS_ROOT_ONLY, reason="mknod(2) of a regular file is root-only on this kernel")
-def test_fuse_mknod_creates_empty_file(built):
+def test_fuse_mknod_creates_empty_file(built, tmp_path):
     """(success) mknod(2) of a regular file creates an EMPTY file that lands on
     the server (zero length) and reads back empty through the mount. Before this
     the op was unimplemented, so `mknod`/`mknodat` returned ENOSYS."""
     name = f"_xrootdfs_mknod_{os.getpid()}_{int(time.time()*1000)}.bin"
     disk = os.path.join(DATA_ROOT, name)
+    unsupported = fuse_host.regular_mknod_error(tmp_path / "native-mknod")
     try:
         with _mount() as m:
             p = os.path.join(m.mnt, name)
-            os.mknod(p, 0o644)                 # S_IFREG by default
+            if unsupported:
+                _check_mknod_refusal(p, disk, unsupported)
+                return
+            os.mknod(p, stat.S_IFREG | 0o644)
             assert os.stat(p).st_size == 0, "mknod file should be empty"
             with open(p, "rb") as fh:
                 assert fh.read() == b"", "mknod file should read back empty"
@@ -236,16 +240,20 @@ def test_fuse_mknod_creates_empty_file(built):
 
 @pytest.mark.skipif(not _FUSE_OK, reason=fuse_host.SKIP_REASON)
 @pytest.mark.skipif(_MKNOD_IS_ROOT_ONLY, reason="mknod(2) of a regular file is root-only on this kernel")
-def test_fuse_mknod_then_write(built):
+def test_fuse_mknod_then_write(built, tmp_path):
     """(success) the real use: mknod pre-creates the node, a later
     open(O_WRONLY)+write fills it, and the content lands on the server."""
     payload = os.urandom(4096)
     name = f"_xrootdfs_mknodw_{os.getpid()}_{int(time.time()*1000)}.bin"
     disk = os.path.join(DATA_ROOT, name)
+    unsupported = fuse_host.regular_mknod_error(tmp_path / "native-mknod")
     try:
         with _mount() as m:
             p = os.path.join(m.mnt, name)
-            os.mknod(p, 0o644)
+            if unsupported:
+                _check_mknod_refusal(p, disk, unsupported)
+                return
+            os.mknod(p, stat.S_IFREG | 0o644)
             with open(p, "wb") as fh:
                 fh.write(payload)
             with open(p, "rb") as fh:
@@ -257,6 +265,18 @@ def test_fuse_mknod_then_write(built):
             os.unlink(disk)
         except OSError:
             pass
+
+
+def _check_mknod_refusal(path, disk, expected):
+    """A kernel capability refusal must not mutate either visible namespace."""
+    mounted_before = set(os.listdir(os.path.dirname(path)))
+    backing_before = set(os.listdir(os.path.dirname(disk)))
+    with pytest.raises(OSError) as caught:
+        os.mknod(path, stat.S_IFREG | 0o644)
+    assert caught.value.errno == expected
+    assert not os.path.lexists(path) and not os.path.lexists(disk)
+    assert set(os.listdir(os.path.dirname(path))) == mounted_before
+    assert set(os.listdir(os.path.dirname(disk))) == backing_before
 
 
 @pytest.mark.skipif(not _FUSE_OK, reason=fuse_host.SKIP_REASON)
@@ -448,8 +468,8 @@ from lib_py.util import linked_libraries
 _ASAN_RT = sanitizer_runtimes(PRELOAD)
 _CAT = preload_shim.posix_tool("cat")
 
-# GNU stat(1) prints the fields straight from statx; on macOS the coreutils
-# are SIP-protected (no insertion) and BSD stat has other flags, so the same
+# GNU stat(1) prints the fields straight from statx; BSD stat has other flags
+# and macOS coreutils are SIP-protected, so on BSD hosts the same
 # fields come from the interposable python's os.stat.
 _STAT_PY = ("import os, sys; st = os.stat(sys.argv[1]); "
             "print(st.st_ino, st.st_blksize, st.st_blocks, st.st_size)")
@@ -458,10 +478,10 @@ _STAT_PY = ("import os, sys; st = os.stat(sys.argv[1]); "
 def _stat_fields(path, env):
     """(returncode, stdout, stderr) for 'ino blksize blocks size' of `path`
     through the shim, via whichever stat tool the insertion reaches."""
-    if preload_shim.IS_DARWIN:
+    if sys.platform != 'linux':
         argv = [preload_shim.interposable_python(), "-c", _STAT_PY, path]
     else:
-        argv = ["stat", "-c", "%i %o %b %s", path]
+        argv = ["stat", "-L", "-c", "%i %o %b %s", path]
     p = subprocess.run(argv, env=env, capture_output=True, text=True, timeout=30)
     return p.returncode, p.stdout, p.stderr
 
@@ -514,10 +534,10 @@ def test_preload_stat_identity_fields(built, remote_file):
     rc, out, err = _stat_fields(f"/xrd/{name}", _preload_env())
     assert rc == 0, err
     ino, blksize, blocks, size = out.split()
-    assert int(size) == len(payload), p.stdout
+    assert int(size) == len(payload), out
     assert int(ino) != 0, "remote file presented as inode 0"
     assert int(blksize) == 1048576, f"blksize hint not 1 MiB: {blksize}"
-    assert int(blocks) == (len(payload) + 511) // 512, p.stdout
+    assert int(blocks) == (len(payload) + 511) // 512, out
 
 
 def test_preload_stat_enoent_after_map(built):

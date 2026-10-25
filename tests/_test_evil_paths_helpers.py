@@ -394,7 +394,7 @@ def _webdav_symlink_suite(port, tls, evil_symlinks):
             f"WebDAV GET via symlink {key} should be 403/404, got {st}"
 
 
-@pytest.mark.skipif(not _port_up(NGINX_HTTP_WEBDAV_PORT),
+@pytest.mark.skipif("not _port_up(NGINX_HTTP_WEBDAV_PORT)",
                     reason="http WebDAV (8080) not reachable")
 
 def _cms_read_frame(sock, timeout=3.0):

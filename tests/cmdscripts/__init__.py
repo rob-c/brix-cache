@@ -282,7 +282,12 @@ def _worker_credential_path(path, tree, twin_dir, worker):
 
 def _rewrite_worker_credentials(text, tree, worker):
     import re  # noqa: PLC0415
-    pattern = r"\b(?:x509_proxy|x509_key|brix_certificate_key)\s+([^;\s]+)\s*;"
+    pattern = (
+        r"\b(?:x509_proxy|x509_key|brix_certificate_key|"
+        r"brix_tpc_outbound_bearer_file|brix_upstream_token_file|"
+        r"brix_upstream_x509_proxy|brix_upstream_x509_key|"
+        r"brix_webdav_tpc_key|brix_pwd_file)\s+([^;\s]+)\s*;"
+    )
     rewritten = text
     twin_dir = os.path.join(tree, ".worker-creds")
     for path in set(re.findall(pattern, text)):
@@ -330,6 +335,26 @@ def _hand_conf_credentials_to_worker(conf, tree) -> None:
         return
     _handoff_stores(text, worker)
     rewritten = _rewrite_worker_credentials(text, tree, worker)
+    _write_rewritten_config(conf, text, rewritten)
+
+
+def prepare_conf_credentials_for_worker(conf, tree, worker=None) -> None:
+    """Copy external worker credentials into one throwaway nginx prefix.
+
+    A standing-fleet config can name a shared session credential that root-run
+    clients must continue to own.  Give the worker a private per-instance copy
+    and rewrite only the generated config, rather than chowning the shared
+    source and making the suite depend on which lane happened to run first.
+    """
+    if os.geteuid() != 0:
+        return
+    worker = worker or _worker_user()
+    if worker is None:
+        return
+    text = _read_config(conf)
+    if text is None:
+        return
+    rewritten = _rewrite_worker_credentials(text, os.path.abspath(str(tree)), worker)
     _write_rewritten_config(conf, text, rewritten)
 
 
@@ -466,4 +491,5 @@ def main(entry: Callable[[list[str]], int | None] | None = None, argv: Sequence[
 
 
 __all__ = ["hand_credential_file_to_worker", "hand_file_to_worker",
-           "handoff_credential_store", "main", "open_tree_for_worker", "run"]
+           "handoff_credential_store", "main", "open_tree_for_worker",
+           "prepare_conf_credentials_for_worker", "run"]

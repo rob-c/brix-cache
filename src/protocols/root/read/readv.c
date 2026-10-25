@@ -376,17 +376,7 @@ brix_readv_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
      * contiguous [hdr|body] frame on the SECONDARY's out-ring (it owns `buf`). */
     brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, (uint32_t) job.out_size,
                           (ServerResponseHdr *) buf);
-    *rc = brix_queue_response_base(sec_ctx, sec_c, buf,
-                                     XRD_RESPONSE_HDR_LEN + job.out_size, buf);
-    if (*rc == NGX_OK) {
-        brix_metric_offload(BRIX_PROTO_ROOT);   /* §1.1 observability */
-    }
-
-    /* Release on error OR full inline send (ring stayed empty); a parked-and-
-     * draining response keeps the buffer until its slot drains. Idempotent. */
-    if (*rc != NGX_OK || sec_ctx->out.count == 0) {
-        brix_release_read_buffer(sec_ctx, sec_c, buf);
-    }
+    *rc = brix_read_offload_queue(sec_ctx, sec_c, buf, XRD_RESPONSE_HDR_LEN + job.out_size);
     return 1;
 }
 

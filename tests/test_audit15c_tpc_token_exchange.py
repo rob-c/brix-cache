@@ -41,6 +41,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
+from lib_py.worker_exec import require_worker_exec
 
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS
 from server_registry import NginxInstanceSpec
@@ -64,6 +65,7 @@ MOCK_PORT = LIFECYCLE_SHARED_PORTS["lc-audit15c-tpcx-good"]["extra"]["MOCK_PORT"
 
 @pytest.fixture()
 def token_mock():
+    require_worker_exec()
     """Capturing token endpoint: /token answers RFC 8693-shaped JSON, /junk
     answers non-JSON garbage; every request is recorded."""
     recorded = []

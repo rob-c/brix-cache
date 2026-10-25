@@ -7,6 +7,7 @@
  * tests/test_gsi_cipher.py.  Prints "ALL PASSED" on success.
  */
 #include "auth/gsi/gsi_core.h"
+#include "auth/crypto/key_compat.h"
 #include "protocols/root/protocol/gsi.h"
 #include <openssl/rsa.h>        /* EVP_PKEY_CTX_set_rsa_keygen_bits (OpenSSL 3 declares it here) */
 
@@ -148,14 +149,11 @@ test_parms(void)
 static void
 test_rsa_sign_recover(void)
 {
-    EVP_PKEY     *rsa = NULL;
-    EVP_PKEY_CTX *kc  = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
+    EVP_PKEY     *rsa = brix_crypto_rsa_keygen(2048);
     uint8_t       msg[600], sig[2048], rec[2048];
     size_t        i, slen, rlen;
 
-    CHECK(kc && EVP_PKEY_keygen_init(kc) == 1
-          && EVP_PKEY_CTX_set_rsa_keygen_bits(kc, 2048) == 1
-          && EVP_PKEY_keygen(kc, &rsa) == 1, "rsa keygen");
+    CHECK(rsa != NULL, "rsa keygen");
     for (i = 0; i < sizeof(msg); i++) { msg[i] = (uint8_t) (i & 0xff); }
 
     slen = brix_gsi_rsa_encrypt_private(rsa, msg, sizeof(msg), sig, sizeof(sig));
@@ -164,7 +162,6 @@ test_rsa_sign_recover(void)
     CHECK(rlen == sizeof(msg) && memcmp(rec, msg, rlen) == 0,
           "decrypt_public recovers the signed blob");
 
-    EVP_PKEY_CTX_free(kc);
     EVP_PKEY_free(rsa);
 }
 

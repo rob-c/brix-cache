@@ -528,7 +528,8 @@ test_absent_source_slots(void)
     CHECK(sv->getxattr_cred(&g_stage, "/a", "n", buf, sizeof(buf), &cred) == -1
               && errno == ENOTSUP, "stage getxattr ENOTSUP");
     reset(); errno = 0;
-    CHECK(sv->setxattr(&g_stage, "/a", "n", "v", 1, 0) == NGX_ERROR
+    /* A driver slot is not the host's function-like xattr compatibility macro. */
+    CHECK((sv->setxattr)(&g_stage, "/a", "n", "v", 1, 0) == NGX_ERROR
               && errno == ENOTSUP, "stage setxattr ENOTSUP");
 
     /* No path-native truncate on the source: ENOTSUP, never the shared relay's

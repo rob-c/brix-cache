@@ -44,28 +44,15 @@ file: whichever worker gets here first owns the lane end to end, the other
 waits and then runs its own complete cycle.  Making `serial` authoritative
 belongs in conftest, and conftest is off-limits until TS-7.
 
-**Lane choice is derived, never a literal.**  A lane reserves
-`port_ladder.TOTAL_PORT_COUNT` ports — read it, never quote it; the
-ledger is repacked often (2393 → 2395 → 2418 on 2026-09-07 alone) — of
-which only the first 178 are visible in `ss`.  Two lanes a few hundred apart therefore
-look like they coexist while their `free_port` pools overlap almost
-entirely, and the collision arrives later, out of a draw rather than out of
-a boot.  The first version of this proof was written for lane 15000, which
-sits *inside* the default lane's span; that mistake is why the base below
-is computed rather than typed in.
-
-**And a lane must clear the kernel, not only the other lanes.**  Deriving
-the base as the top tile of 1024..65535 — the arithmetic `port_ladder`
-itself validates — produced a lane at 47029 that failed `bind()` with
-EADDRINUSE on a host where nothing was listening: `ip_local_port_range` is
-32768..60999 here, so the tile sat inside the range the kernel hands to
-*outbound* sockets, and a connection this very suite had open owned the
-port.  The failure is nondeterministic by construction, which is the worst
-possible shape for a lane.  The documented tiling (1023 / 19503 / 37983)
-has the same defect: the third tile is entirely inside the ephemeral range
-and the second tile'''s mock pool crosses into it at 32768.  The base below
-is therefore the highest one whose complete *named* ledger still clears the
-ephemeral floor, read from the kernel at import.
+**Lane choice is derived, never a literal.** The parent reserves its complete
+named-and-mock ledger. This proof starts only `main`, so its child explicitly
+reserves only a bounded discovery-probe budget with `TEST_MOCK_PORT_WIDTH`.
+Conftest's IPv6 readiness probe consumes a slot on each child pytest import;
+an excess draw raises instead of borrowing someone else's ports. Its complete
+reservation must clear both the parent's full reservation and the kernel's
+outgoing source-port range. Two full Linux mock
+bands do not fit below the usual ephemeral floor; pretending this main-only
+proof owned a second full mock band made all thirteen cases error at import.
 """
 
 from __future__ import annotations
@@ -109,12 +96,25 @@ def _ephemeral_range():
 
 
 EPHEMERAL_LOW, EPHEMERAL_HIGH = _ephemeral_range()
-#: The highest base whose complete NAMED ledger (`PORT_COUNT` wide — the span
-#: servers actually bind) still clears the ephemeral floor.  Derived from the
-#: ladder's own constants and the kernel's own range, so a change to either
-#: moves the lane instead of making this file flaky.
-LANE_BASE = EPHEMERAL_LOW - port_ladder.PORT_COUNT - 1
-LANE_ROOT = "/tmp/xrd-test-ts3-live-lane"
+def proof_mock_width():
+    """Budget the child imports' transient IPv6 probes, not a full mock fleet."""
+    return 16
+
+
+def proof_lane_base(parent_base, parent_width, proof_width, ephemeral_floor):
+    """Fit a complete main-only reservation outside the parent's full band."""
+    candidate = ephemeral_floor - proof_width - 1
+    if not (candidate + proof_width < parent_base + 1
+            or parent_base + parent_width < candidate + 1):
+        candidate = min(candidate, parent_base - proof_width - 1)
+    return candidate if candidate >= 1024 else None
+
+
+LANE_BASE = proof_lane_base(S.TEST_PORT_START, port_ladder.TOTAL_PORT_COUNT,
+                            port_ladder.PORT_COUNT + proof_mock_width(), EPHEMERAL_LOW)
+# The parent session owns TMP_DIR. A global /tmp lock survives runs by a
+# different uid and can prevent every proof from starting (or mix operators).
+LANE_ROOT = str(Path(S.TMP_DIR) / "ts3-live-lane")
 #: A prefix sibling of LANE_ROOT, used to prove ownership matches whole paths.
 SIBLING_ROOT = LANE_ROOT + "-sibling"
 #: Lane ownership, held for the life of the module fixture.  Deliberately NOT
@@ -153,6 +153,7 @@ json.dump({
     "tmpdir": __import__("os").environ.get("TMPDIR"),
     "env_test_root": __import__("os").environ.get("TEST_ROOT"),
     "port_start": S.TEST_PORT_START,
+    "mock_width": __import__("port_ladder").MOCK_PORT_WIDTH,
     "ports": {n: getattr(S, n) for n in (
         "NGINX_ANON_PORT", "NGINX_GSI_PORT", "NGINX_TOKEN_PORT")},
     "object_ports": {n: getattr(S.SETTINGS.ports, n) for n in (
@@ -167,7 +168,10 @@ json.dump({
 def _lane_env(root=LANE_ROOT, **extra):
     """The environment of a lane — never `os.environ` mutated in place."""
     env = dict(os.environ)
-    env.update(TEST_ROOT=root, TEST_PORT_START=str(LANE_BASE))
+    env.update(TEST_ROOT=root, TEST_PORT_START=str(LANE_BASE),
+               TEST_MOCK_PORT_WIDTH=str(proof_mock_width()),
+               TEST_REGISTRY_ROOT=str(Path(root, 'registry')),
+               TEST_REGISTRY_MANIFEST=str(Path(root, 'registry', 'manifest.json')))
     env["PYTHONPATH"] = os.pathsep.join([str(TESTS), str(SRC)])
     env.pop("TEST_SERVER_HOST", None)
     env.pop("TEST_OWN_FLEET", None)
@@ -205,11 +209,8 @@ def lane():
     """One real instance, in a lane of this file's own, for the whole module."""
     if not os.path.exists(S.NGINX_BIN):
         pytest.skip(f"no nginx binary at {S.NGINX_BIN}")
-    ambient = int(os.environ.get("TEST_PORT_START", S.TEST_PORT_START))
-    if abs(ambient - LANE_BASE) < port_ladder.TOTAL_PORT_COUNT:
-        pytest.skip(
-            f"ambient lane {ambient} overlaps the proof lane {LANE_BASE}; "
-            "a second lane here would collide out of a free_port draw")
+    if LANE_BASE is None:
+        pytest.skip("no disjoint main-only proof lane below the ephemeral floor")
 
     lock = open(LANE_LOCK, "w")
     fcntl.flock(lock, fcntl.LOCK_EX)  # blocks: a split module waits its turn
@@ -317,8 +318,9 @@ def test_a_session_in_this_root_attaches_without_touching_the_tree(lane):
 def test_the_proof_lane_clears_both_the_other_lane_and_the_kernel(lane):
     """The base is arithmetic over two constraints, not a number someone liked.
 
-    `TOTAL_PORT_COUNT` ports are reserved and 178 are visible, so an overlapping base is
-    invisible until a `free_port` draw collides mid-suite; and a base inside
+    The parent reserves its complete mock band; this proof reserves named
+    ports plus its bounded readiness probes. An overlapping base is invisible
+    until a `free_port` draw collides mid-suite; and a base inside
     `ip_local_port_range` collides with outbound sockets instead, which is
     invisible until `bind()` fails on a host where `ss` shows nothing.  Both
     are pinned as properties so a change to the ladder width or to the host's
@@ -326,9 +328,11 @@ def test_the_proof_lane_clears_both_the_other_lane_and_the_kernel(lane):
     """
     ambient = int(os.environ.get("TEST_PORT_START", S.TEST_PORT_START))
 
-    assert abs(ambient - LANE_BASE) >= port_ladder.TOTAL_PORT_COUNT
-    assert LANE_BASE + port_ladder.PORT_COUNT < EPHEMERAL_LOW, (
-        "the named ledger reaches into the kernel's outbound range")
+    assert (LANE_BASE + port_ladder.PORT_COUNT + proof_mock_width() < ambient + 1
+            or ambient + port_ladder.TOTAL_PORT_COUNT < LANE_BASE + 1)
+    assert lane["mock_width"] == proof_mock_width()
+    assert LANE_BASE + port_ladder.PORT_COUNT + proof_mock_width() < EPHEMERAL_LOW, (
+        "the complete proof ledger reaches into the kernel's outbound range")
     assert max(lane["ports"].values()) < EPHEMERAL_LOW
     assert LANE_BASE > 1024
 

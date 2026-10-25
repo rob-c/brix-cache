@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from cmdscripts.compile_run import REPO_ROOT, compile_binary, result, run
+from cmdscripts.compile_run import REPO_ROOT, compile_binary, pal_xattr_sources, result, run
 from cmdscripts.command_results import print_results
 
 
@@ -70,6 +70,7 @@ SPECS: dict[str, CUnitSpec] = {
             "src/fs/meta/xmeta_encode.c",
             "src/core/compat/crc32c.c",
             "src/core/compat/crc32c_hw.c",
+            *pal_xattr_sources(),
         ),
     ),
     "site_n2n": CUnitSpec(
@@ -193,6 +194,8 @@ SPECS: dict[str, CUnitSpec] = {
             "-D_GNU_SOURCE",
             "-I",
             "src",
+            "-include",
+            "tests/c/cred_stage_scope.h",
             "tests/c/test_cred_stage.c",
             "src/core/compat/cred_stage.c",
             "-ldl",  # dlsym(RTLD_NEXT) for the fsync-ordering interposer
@@ -216,6 +219,7 @@ SPECS: dict[str, CUnitSpec] = {
         "sesslog",
         "brix_sesslog_ut",
         (
+            "-O1",
             "-Wall",
             "-Wextra",
             "-Werror",
@@ -223,6 +227,7 @@ SPECS: dict[str, CUnitSpec] = {
             "src",
             "tests/c/sesslog_unittest.c",
             "src/observability/sesslog/sesslog.c",
+            "src/observability/sesslog/sesslog_err.c",
         ),
     ),
 }
@@ -234,7 +239,7 @@ def run_one(name: str, base: Path) -> list[tuple[bool, str]]:
     built = compile_binary(binary, list(spec.args), cwd=REPO_ROOT)
     if built.returncode != 0:
         return [result(False, f"compile {name} failed: {(built.stderr or built.stdout)[-2000:]}")]
-    ran = run([str(binary)], cwd=REPO_ROOT)
+    ran = run([str(binary)], cwd=base if name == "cred_stage" else REPO_ROOT)
     return [result(ran.returncode == 0, f"{name} exited {ran.returncode}: {(ran.stderr or ran.stdout)[-2000:]}")]
 
 

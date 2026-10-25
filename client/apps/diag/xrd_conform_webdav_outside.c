@@ -80,6 +80,59 @@ static int outside_fixture_valid(xrd_conform_execution *execution,
             || outside->path[scratch_length] == '/'));
 }
 
+static int
+prepare_outside_probe(xrd_conform_execution *execution,
+    const brix_weburl *base, const char *token, brix_weburl *outside,
+    brix_weburl *copy_source, brix_weburl *move_source,
+    dav_observation *before, char *fields, size_t fields_size)
+{
+    return xrd_conform_webdav_scratch_url(execution, base,
+            "brix-conform-dav-copy-outside", copy_source) == 0
+        && xrd_conform_webdav_scratch_url(execution, base,
+            "brix-conform-dav-move-outside", move_source) == 0
+        && xrd_conform_webdav_destination_fields(outside, fields,
+            fields_size) == 0
+        && observe_resource(execution, outside, token, before) == 0
+        && before->status == 404
+        && xrd_conform_webdav_put_fixture(execution, copy_source, token,
+            "copy-source") == 0
+        && xrd_conform_webdav_put_fixture(execution, move_source, token,
+            "move-source") == 0;
+}
+
+static int
+outside_mutations_refused(xrd_conform_execution *execution,
+    const brix_weburl *outside, const brix_weburl *copy_source,
+    const brix_weburl *move_source, const char *token, const char *fields,
+    const dav_observation *before, int *copy_status, int *move_status)
+{
+    dav_observation after;
+
+    return xrd_conform_webdav_mutation(execution, copy_source, "COPY",
+            token, fields, copy_status) == 0
+        && *copy_status >= 400 && *copy_status < 500
+        && xrd_conform_webdav_mutation(execution, move_source, "MOVE",
+            token, fields, move_status) == 0
+        && *move_status >= 400 && *move_status < 500
+        && source_unchanged(execution, copy_source, token, "copy-source")
+        && source_unchanged(execution, move_source, token, "move-source")
+        && observe_resource(execution, outside, token, &after) == 0
+        && observation_equal(before, &after);
+}
+
+static void
+cleanup_outside_probe(xrd_conform_execution *execution,
+    const brix_weburl *outside, const brix_weburl *copy_source,
+    const brix_weburl *move_source, const char *token, int copy_status,
+    int move_status)
+{
+    xrd_conform_webdav_cleanup(execution, copy_source, token);
+    xrd_conform_webdav_cleanup(execution, move_source, token);
+    if ((copy_status >= 200 && copy_status < 300)
+        || (move_status >= 200 && move_status < 300))
+        xrd_conform_webdav_cleanup(execution, outside, token);
+}
+
 /* WHAT: Refuse COPY and MOVE to an explicitly authorized outside-export URL.
  * WHY: A scratch-only destination cannot establish the export boundary.
  * HOW: Snapshot the sacrificial URL, plant two scratch sources, require both
@@ -91,7 +144,6 @@ void xrd_conform_probe_webdav_outside(xrd_conform_execution *execution,
     brix_weburl copy_source;
     brix_weburl move_source;
     dav_observation before;
-    dav_observation after;
     char fields[768];
     int copy_status = 0;
     int move_status = 0;
@@ -104,33 +156,15 @@ void xrd_conform_probe_webdav_outside(xrd_conform_execution *execution,
             "fixture-required:outside-export-destination", NULL, NULL);
         return;
     }
-    if (xrd_conform_webdav_scratch_url(execution, base,
-            "brix-conform-dav-copy-outside", &copy_source) != 0
-        || xrd_conform_webdav_scratch_url(execution, base,
-            "brix-conform-dav-move-outside", &move_source) != 0
-        || xrd_conform_webdav_destination_fields(&outside, fields,
-            sizeof(fields)) != 0
-        || observe_resource(execution, &outside, token, &before) != 0
-        || before.status != 404
-        || xrd_conform_webdav_put_fixture(execution, &copy_source, token,
-            "copy-source") != 0
-        || xrd_conform_webdav_put_fixture(execution, &move_source, token,
-            "move-source") != 0) {
+    if (!prepare_outside_probe(execution, base, token, &outside, &copy_source,
+            &move_source, &before, fields, sizeof(fields))) {
         xrd_conform_result_set(execution, "DAV-008",
             BRIX_CONFORM_VERDICT_INCONCLUSIVE,
             "fixture-setup:outside-export-destination", NULL, NULL);
         return;
     }
-    pass = xrd_conform_webdav_mutation(execution, &copy_source, "COPY",
-            token, fields, &copy_status) == 0
-        && copy_status >= 400 && copy_status < 500
-        && xrd_conform_webdav_mutation(execution, &move_source, "MOVE",
-            token, fields, &move_status) == 0
-        && move_status >= 400 && move_status < 500
-        && source_unchanged(execution, &copy_source, token, "copy-source")
-        && source_unchanged(execution, &move_source, token, "move-source")
-        && observe_resource(execution, &outside, token, &after) == 0
-        && observation_equal(&before, &after);
+    pass = outside_mutations_refused(execution, &outside, &copy_source,
+        &move_source, token, fields, &before, &copy_status, &move_status);
     xrd_conform_result_set(execution, "DAV-008",
         pass ? BRIX_CONFORM_VERDICT_CONFORMANT
              : BRIX_CONFORM_VERDICT_DIVERGENT,
@@ -138,9 +172,6 @@ void xrd_conform_probe_webdav_outside(xrd_conform_execution *execution,
              : "outside-export-destination-accepted-or-mutated",
         NULL, pass ? "COPY/MOVE refused; sources and destination unchanged"
                    : "outside-export contract changed");
-    xrd_conform_webdav_cleanup(execution, &copy_source, token);
-    xrd_conform_webdav_cleanup(execution, &move_source, token);
-    if ((copy_status >= 200 && copy_status < 300)
-        || (move_status >= 200 && move_status < 300))
-        xrd_conform_webdav_cleanup(execution, &outside, token);
+    cleanup_outside_probe(execution, &outside, &copy_source, &move_source,
+        token, copy_status, move_status);
 }

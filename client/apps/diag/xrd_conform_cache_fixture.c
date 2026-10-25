@@ -1,24 +1,8 @@
 /* Phase-118 externally prepared cache-state fixtures. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
 #define CACHE_FIXTURE_CHUNK 65536U
 
-static int reserve(xrd_conform_execution *execution, size_t bytes,
-    brix_status *status)
-{
-    char reason[64];
-
-    if (xrd_conform_reserve(execution, bytes, reason, sizeof(reason))) return 1;
-    brix_status_set(status, XRDC_EUSAGE, 0, "%s", reason);
-    return 0;
-}
-
-static int row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
-
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
 static int read_object(xrd_conform_execution *execution,
     brix_conn *connection, const char *path, uint64_t size, uint8_t **bytes,
@@ -36,7 +20,7 @@ static int read_object(xrd_conform_execution *execution,
     }
     *bytes = malloc(size == 0 ? 1 : (size_t) size);
     if (*bytes == NULL) return -1;
-    if (!reserve(execution, 0, status)
+    if (!xrd_conform_reserve_status(execution, 0, status)
         || brix_file_open_read(connection, path, &file, status) != 0) {
         free(*bytes);
         *bytes = NULL;
@@ -47,7 +31,7 @@ static int read_object(xrd_conform_execution *execution,
             ? (size_t) (size - offset) : CACHE_FIXTURE_CHUNK;
         ssize_t got;
 
-        if (!reserve(execution, length, status)) break;
+        if (!xrd_conform_reserve_status(execution, length, status)) break;
         got = brix_file_read(connection, &file, (int64_t) offset,
             *bytes + offset, length, status);
         if (got != (ssize_t) length) break;
@@ -58,7 +42,7 @@ static int read_object(xrd_conform_execution *execution,
         brix_status ignored;
 
         brix_status_clear(&ignored);
-        if (reserve(execution, 0, &ignored))
+        if (xrd_conform_reserve_status(execution, 0, &ignored))
             brix_file_close(connection, &file, &ignored);
     }
     if (rc != 0) {
@@ -68,13 +52,26 @@ static int read_object(xrd_conform_execution *execution,
     return rc;
 }
 
+/* ---- Compare two complete fixture reads ----
+ * WHAT: Return one only when both reads succeeded with identical full bytes.
+ * WHY: Capacity, corruption and ordinary cache probes share one byte oracle.
+ * HOW: 1. Require both successful reads. 2. Compare nonempty bounded content.
+ */
+static int
+fixture_bytes_match(int cache_rc, int origin_rc, const uint8_t *cache_bytes,
+    const uint8_t *origin_bytes, size_t size)
+{
+    return cache_rc == 0 && origin_rc == 0
+        && (size == 0 || memcmp(cache_bytes, origin_bytes, size) == 0);
+}
+
 static void grade_bytes(xrd_conform_execution *execution, const char *id,
     const char *success_reason, int cache_rc, int origin_rc,
     const uint8_t *cache_bytes, const uint8_t *origin_bytes, size_t size,
     const brix_status *status)
 {
-    int equal = cache_rc == 0 && origin_rc == 0
-        && (size == 0 || memcmp(cache_bytes, origin_bytes, size) == 0);
+    int equal = fixture_bytes_match(cache_rc, origin_rc, cache_bytes,
+        origin_bytes, size);
 
     xrd_conform_result_set(execution, id,
         equal ? BRIX_CONFORM_VERDICT_CONFORMANT
@@ -92,8 +89,8 @@ static void grade_capacity(xrd_conform_execution *execution, int cache_rc,
     int origin_rc, const uint8_t *cache_bytes, const uint8_t *origin_bytes,
     size_t size, const brix_status *status)
 {
-    int served = cache_rc == 0 && origin_rc == 0
-        && (size == 0 || memcmp(cache_bytes, origin_bytes, size) == 0);
+    int served = fixture_bytes_match(cache_rc, origin_rc, cache_bytes,
+        origin_bytes, size);
     int refused = cache_rc != 0 && (status->kxr == kXR_NoSpace
         || status->kxr == kXR_overQuota || status->kxr == kXR_NoMemory);
     int setup_failed = origin_rc != 0;
@@ -114,8 +111,8 @@ static void grade_corrupt(xrd_conform_execution *execution, int cache_rc,
     int origin_rc, const uint8_t *cache_bytes, const uint8_t *origin_bytes,
     size_t size, const brix_status *status)
 {
-    int refetched = cache_rc == 0 && origin_rc == 0
-        && (size == 0 || memcmp(cache_bytes, origin_bytes, size) == 0);
+    int refetched = fixture_bytes_match(cache_rc, origin_rc, cache_bytes,
+        origin_bytes, size);
     int failed_closed = cache_rc != 0 && status->kxr != 0;
     int setup_failed = origin_rc != 0;
 
@@ -162,9 +159,9 @@ void xrd_conform_probe_cache_fixture(xrd_conform_execution *execution,
     int origin_rc;
     size_t size;
 
-    if (id == NULL || !row_active(execution, id)) return;
+    if (id == NULL || !xrd_conform_row_active(execution, id)) return;
     brix_status_clear(&status);
-    if (!reserve(execution, 0, &status)
+    if (!xrd_conform_reserve_status(execution, 0, &status)
         || brix_stat(origin, origin_url->path, &origin_info, &status) != 0
         || origin_info.size < 0) {
         xrd_conform_result_set(execution, id,
@@ -175,7 +172,7 @@ void xrd_conform_probe_cache_fixture(xrd_conform_execution *execution,
     origin_rc = read_object(execution, origin, origin_url->path,
         (uint64_t) origin_info.size, &origin_bytes, &status);
     brix_status_clear(&status);
-    cache_rc = reserve(execution, 0, &status)
+    cache_rc = xrd_conform_reserve_status(execution, 0, &status)
             && brix_stat(cache, cache_url->path, &cache_info, &status) == 0
             && cache_info.size == origin_info.size
         ? read_object(execution, cache, cache_url->path,

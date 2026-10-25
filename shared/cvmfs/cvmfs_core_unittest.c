@@ -13,6 +13,7 @@
  * Exit 0 = all checks pass.
  */
 #include "cvmfs/grammar/classify.h"
+#include "auth/crypto/key_compat.h"
 #include "cvmfs/grammar/hash.h"
 #include "cvmfs/signature/manifest.h"
 #include "cvmfs/signature/whitelist.h"
@@ -133,6 +134,66 @@ static void test_whitelist(void) {
           "expired detected");            /* security-negative */
 }
 
+/* WHAT: Frame bounded parser vectors independently of RSA verification.
+ * WHY: Membership must ignore the signed tail and preserve complete tokens.
+ * HOW: Append fixed-size decoys before the selected token and opaque tail. */
+static size_t whitelist_membership_fixture(char *body, size_t capacity,
+    const char *first, size_t decoys, const char *token, const char *tail) {
+    int count = snprintf(body, capacity, "%s\nE20991231235959\nNatlas.cern.ch\n", first);
+    if (count < 0 || (size_t) count >= capacity) return 0;
+    size_t used = (size_t) count;
+    for (size_t i = 0; i < decoys; i++) {
+        count = snprintf(body + used, capacity - used,
+            "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00\n");
+        if (count < 0 || (size_t) count >= capacity - used) return 0;
+        used += (size_t) count;
+    }
+    count = snprintf(body + used, capacity - used,
+        "%s\n--\n2222222222222222222222222222222222222222\n%s", token, tail);
+    if (count < 0 || (size_t) count >= capacity - used) return 0;
+    return used + (size_t) count;
+}
+
+/* WHAT: Exercise membership before and after the inline fingerprint cache.
+ * WHY: Neither truncation nor bytes outside fingerprint body lines may grant
+ *      trust, and a valid seventeenth certificate must not be dropped.
+ * HOW: Parse positive, missing, overlong, metadata and opaque-tail vectors. */
+static void test_whitelist_membership(void) {
+    const char *fingerprint =
+        "AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01";
+    char extended[80];
+    snprintf(extended, sizeof(extended), "%s:AA", fingerprint);
+    struct {
+        const char *name;
+        const char *first;
+        size_t decoys;
+        const char *token;
+        const char *tail;
+        int present;
+    } cases[] = {
+        {"inline match", "20260101000000", 0, fingerprint, "sig", 1},
+        {"seventeenth match", "20260101000000", 16, fingerprint, "sig", 1},
+        {"128th match", "20260101000000", 127, fingerprint, "sig", 1},
+        {"missing match", "20260101000000", 128, "AA:BB:CC", "sig", 0},
+        {"inline prefix refused", "20260101000000", 0, extended, "sig", 0},
+        {"overflow prefix refused", "20260101000000", 16, extended, "sig", 0},
+        {"signature tail refused", "20260101000000", 16, "AA:BB:CC", fingerprint, 0},
+        {"metadata line refused", fingerprint, 0, "AA:BB:CC", "sig", 0},
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        char body[16384];
+        cvmfs_whitelist_t whitelist;
+        size_t length = whitelist_membership_fixture(body, sizeof(body),
+            cases[i].first, cases[i].decoys, cases[i].token, cases[i].tail);
+        CHECK(length != 0 && cvmfs_whitelist_parse((unsigned char *) body,
+            length, &whitelist) == 0, "membership vector parses");
+        CHECK(cvmfs_whitelist_lists_fp(&whitelist, fingerprint) == cases[i].present,
+              cases[i].name);
+        CHECK(!cvmfs_whitelist_lists_fp(&whitelist, NULL) &&
+              !cvmfs_whitelist_lists_fp(&whitelist, ""), "empty query refused");
+    }
+}
+
 /* ------------------------------------------------------------------ A5 */
 /* Sign `msg` the CVMFS way: RAW RSA-PKCS#1-v1.5 of the message bytes (the printed
  * hash text) — no SHA-1 DigestInfo, matching real CVMFS. Returns signature len. */
@@ -148,7 +209,7 @@ static size_t cvmfs_style_sign(EVP_PKEY *pk, const unsigned char *msg, size_t ml
 }
 
 static void test_verify(void) {
-    EVP_PKEY *pk = EVP_RSA_gen(2048);
+    EVP_PKEY *pk = brix_crypto_rsa_keygen(2048);
     X509     *x  = X509_new();
     X509_set_pubkey(x, pk);
     X509_gmtime_adj(X509_getm_notBefore(x), 0);
@@ -318,6 +379,7 @@ int main(void) {
     test_hash();
     test_manifest();
     test_whitelist();
+    test_whitelist_membership();
     test_verify();
     test_repo_config();
     test_failover();

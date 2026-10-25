@@ -39,6 +39,7 @@ import pytest
 
 from settings import BIND_HOST, NGINX_BIN
 from lib_py.util import budget_scale
+from lib_py.worker_exec import assert_worker_exec_config
 from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 from brix_suite.fd_probe import (parse_identity, write_fd_probe,
                                  write_identity_probe)
@@ -107,7 +108,7 @@ def _every_knob(root: Path) -> str:
 
 def test_every_wired_knob_parses(tmp_path):
     rc, out = _nginx_t(tmp_path, _server(tmp_path, _every_knob(tmp_path)))
-    assert rc == 0, f"the ADR-3b grammar no longer parses:\n{out}"
+    assert_worker_exec_config(rc, out)
     assert "is ignored" not in out, out
 
 
@@ -124,6 +125,9 @@ def test_every_wired_knob_parses(tmp_path):
 def test_bad_values_are_refused(tmp_path, directive, needle):
     directive = directive.format(on=_frm_on(tmp_path))
     rc, out = _nginx_t(tmp_path, _server(tmp_path, directive))
+    if "brix_frm_stagecmd" in directive:
+        assert_worker_exec_config(rc, out, diagnostic=needle)
+        return
     assert rc != 0, f"{directive!r} unexpectedly accepted"
     assert needle in out, f"expected {needle!r} for {directive!r}, got:\n{out}"
 
@@ -137,11 +141,11 @@ def test_group_or_world_writable_stagecmd_is_refused(tmp_path):
     rc, out = _nginx_t(tmp_path, _server(
         tmp_path, f"{_frm_on(tmp_path)} brix_frm_stagecmd {cmd};"))
     assert rc != 0, "a world-writable stagecmd was accepted"
-    assert "group- or world-writable" in out, out
+    assert_worker_exec_config(rc, out, diagnostic="group- or world-writable")
     cmd.chmod(0o700)
     rc, out = _nginx_t(tmp_path, _server(
         tmp_path, f"{_frm_on(tmp_path)} brix_frm_stagecmd {cmd};"))
-    assert rc == 0, f"the same program at 0700 must be accepted:\n{out}"
+    assert_worker_exec_config(rc, out)
 
 
 @pytest.mark.parametrize("a,b,needle", [
@@ -159,6 +163,9 @@ def test_process_wide_knobs_must_agree_across_servers(tmp_path, a, b, needle):
     servers = (_server(tmp_path, f"{_frm_on(tmp_path)} {a}", "a")
                + _server(tmp_path, f"{_frm_on(tmp_path)} {b}", "b"))
     rc, out = _nginx_t(tmp_path, servers)
+    if "brix_frm_stagecmd" in a:
+        assert_worker_exec_config(rc, out, diagnostic=needle)
+        return
     assert rc != 0, "disagreeing process-wide knobs were accepted"
     assert needle in out, f"expected {needle!r}, got:\n{out}"
     assert "the stage engine is process-wide" in out, out
@@ -168,7 +175,7 @@ def test_agreeing_servers_publish_once(tmp_path):
     servers = (_server(tmp_path, _every_knob(tmp_path), "a")
                + _server(tmp_path, _every_knob(tmp_path), "b"))
     rc, out = _nginx_t(tmp_path, servers)
-    assert rc == 0, f"two identical brix_frm servers must agree:\n{out}"
+    assert_worker_exec_config(rc, out)
 
 
 def test_knob_on_a_frm_off_server_warns_ignored(tmp_path):

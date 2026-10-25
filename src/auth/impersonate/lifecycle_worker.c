@@ -158,32 +158,59 @@ imp_worker_drop_all_caps(ngx_log_t *log)
 /* Return 1 only when primary/effective and every supplementary group are the
  * confined target gid; 0 for a mismatch and -1 when the group set is unreadable. */
 static int
+imp_worker_primary_gid_allowed(gid_t target)
+{
+    gid_t rgid;
+    gid_t egid;
+#if BRIX_HAS_SAVED_IDS
+    gid_t sgid;
+
+    return brix_plat_getresgid(&rgid, &egid, &sgid) == 0
+        && rgid == target && egid == target && sgid == target;
+#else
+    rgid = getgid();
+    egid = getegid();
+    return !brix_plat_process_tainted()
+        && rgid == target && egid == target;
+#endif
+}
+
+static int
+imp_worker_supplementary_groups_allowed(const gid_t *groups, int count,
+    const gid_t *allowed, int allowed_count)
+{
+    int i;
+    int j;
+
+    for (i = 0; i < count; i++) {
+        int found = 0;
+
+        if (groups[i] == 0) {
+            return 0;
+        }
+        for (j = 0; j < allowed_count; j++) {
+            if (groups[i] == allowed[j]) {
+                found = 1;
+                break;
+            }
+        }
+        if (!found) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int
 imp_worker_groups_allowed(const char *acct, gid_t target)
 {
     gid_t *groups = NULL;
     gid_t  allowed[256];
-    gid_t  rgid;
-    gid_t  egid;
-#if BRIX_HAS_SAVED_IDS
-    gid_t  sgid;
-#endif
     int    count;
     int    allowed_count = (int) (sizeof(allowed) / sizeof(allowed[0]));
-    int    i;
-    int    j;
-    int    found;
     int    result = -1;
 
-#if BRIX_HAS_SAVED_IDS
-    if (brix_plat_getresgid(&rgid, &egid, &sgid) != 0
-        || rgid != target || egid != target || sgid != target)
-#else
-    rgid = getgid();
-    egid = getegid();
-    if (brix_plat_process_tainted()
-        || rgid != target || egid != target)
-#endif
-    {
+    if (!imp_worker_primary_gid_allowed(target)) {
         return 0;
     }
     count = getgroups(0, NULL);
@@ -203,32 +230,33 @@ imp_worker_groups_allowed(const char *acct, gid_t target)
         free(groups);
         return -1;
     }
-    result = 1;
-    for (i = 0; i < count; i++) {
-        if (groups[i] == 0) {
-            result = 0;
-            break;
-        }
-        found = 0;
-        for (j = 0; j < allowed_count; j++) {
-            if (groups[i] == allowed[j]) {
-                found = 1;
-                break;
-            }
-        }
-        if (!found) {
-            result = 0;
-            break;
-        }
-    }
+    result = imp_worker_supplementary_groups_allowed(groups, count, allowed,
+                                                      allowed_count);
     free(groups);
     return result;
 }
 
 /* A capability-free nginx service identity may win when brix_worker_user was
  * not explicitly set.  Saved ids must be inert and group 0 is never accepted. */
+#if BRIX_HAS_SAVED_IDS
 static int
-imp_worker_current_identity_safe(void)
+imp_worker_saved_ids_safe(uid_t ruid, uid_t euid, uid_t suid,
+    gid_t rgid, gid_t egid, gid_t sgid)
+{
+    return ruid != 0 && rgid != 0 && ruid == euid && ruid == suid
+        && rgid == egid && rgid == sgid;
+}
+#else
+static int
+imp_worker_plain_ids_safe(uid_t ruid, uid_t euid, gid_t rgid, gid_t egid)
+{
+    return !brix_plat_process_tainted() && ruid != 0 && rgid != 0
+        && ruid == euid && rgid == egid;
+}
+#endif
+
+static int
+imp_worker_current_ids(uid_t *uid, gid_t *gid)
 {
     uid_t  ruid;
     uid_t  euid;
@@ -240,13 +268,10 @@ imp_worker_current_identity_safe(void)
 #if BRIX_HAS_SAVED_IDS
     gid_t  sgid;
 #endif
-    struct passwd *pw;
-
 #if BRIX_HAS_SAVED_IDS
     if (brix_plat_getresuid(&ruid, &euid, &suid) != 0
         || brix_plat_getresgid(&rgid, &egid, &sgid) != 0
-        || ruid == 0 || rgid == 0 || ruid != euid || ruid != suid
-        || rgid != egid || rgid != sgid)
+        || !imp_worker_saved_ids_safe(ruid, euid, suid, rgid, egid, sgid))
     {
         return 0;
     }
@@ -255,17 +280,31 @@ imp_worker_current_identity_safe(void)
     euid = geteuid();
     rgid = getgid();
     egid = getegid();
-    if (brix_plat_process_tainted() || ruid == 0 || rgid == 0
-        || ruid != euid || rgid != egid)
+    if (!imp_worker_plain_ids_safe(ruid, euid, rgid, egid))
     {
         return 0;
     }
 #endif
-    pw = getpwuid(ruid);
-    if (pw == NULL || pw->pw_gid != rgid) {
+    *uid = ruid;
+    *gid = rgid;
+    return 1;
+}
+
+static int
+imp_worker_current_identity_safe(void)
+{
+    uid_t          uid;
+    gid_t          gid;
+    struct passwd *pw;
+
+    if (!imp_worker_current_ids(&uid, &gid)) {
         return 0;
     }
-    return imp_worker_groups_allowed(pw->pw_name, rgid) == 1;
+    pw = getpwuid(uid);
+    if (pw == NULL || pw->pw_gid != gid) {
+        return 0;
+    }
+    return imp_worker_groups_allowed(pw->pw_name, gid) == 1;
 }
 
 static int
@@ -351,79 +390,6 @@ brix_imp_worker_harden(ngx_log_t *log)
     return imp_worker_prepare_drop(log);
 }
 
-/* ---- brix_worker_user: the confined account the worker is forced down to ----
- *
- * Process-global (there is one worker uid per process; the strictest posture is
- * shared across every brix server, stream + http). Empty => unset => default to
- * "nobody" with a startup warning. Set by the `brix_worker_user` directive. */
-char brix_worker_user[64] = "";
-
-char *
-brix_conf_set_worker_user(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    ngx_str_t *value = cf->args->elts;
-
-    (void) cmd;
-    (void) conf;
-
-    if (value[1].len == 0 || value[1].len >= sizeof(brix_worker_user)) {
-        return "invalid brix_worker_user account name";
-    }
-    /* Last non-empty setting wins; the account is resolved at worker init. */
-    ngx_memcpy(brix_worker_user, value[1].data, value[1].len);
-    brix_worker_user[value[1].len] = '\0';
-    return NGX_CONF_OK;
-}
-
-/* ---- brix_imp_worker_runtime_ids ----
- *
- * WHAT: Resolve the uid/gid the workers actually serve as (see lifecycle.h).
- * WHY:  Config-time provisioning of worker-writable directories (the default
- *       credential store, the default gateway stage spool) must chown to the
- *       POST-de-escalation identity: with the always-on drop, `user root` (or
- *       no `user` at all under a root master) yields workers running as
- *       brix_worker_user/nobody, and a root:0700 directory would EACCES them.
- * HOW:  A real unprivileged `user` account wins (the drop no-ops for it);
- *       otherwise resolve brix_worker_user (default "nobody") exactly as
- *       brix_imp_worker_deescalate will at worker init. */
-ngx_int_t
-brix_imp_worker_runtime_ids(ngx_uid_t conf_uid, ngx_gid_t conf_gid,
-    uid_t *uid_out, gid_t *gid_out)
-{
-    const char    *acct;
-    struct passwd *pw;
-
-    if (conf_uid != (ngx_uid_t) NGX_CONF_UNSET_UINT && conf_uid != 0) {
-        *uid_out = (uid_t) conf_uid;
-        *gid_out = (gid_t) conf_gid;
-        return NGX_OK;
-    }
-
-    /* nginx fills an omitted `user` directive from its compile-time
-     * --user/--group defaults only in the core module's init_conf, after
-     * location merges have already asked us to provision stage/credential
-     * stores.  At that earlier point ccf->user is still UNSET.  Resolve the
-     * same compiled account here so distro builds such as Fedora's
-     * --user=nginx do not get a nobody-owned 0700 store for an nginx worker.
-     * An explicitly root-capable worker must still take the fail-closed
-     * brix_worker_user/nobody path below. */
-    if (conf_uid == (ngx_uid_t) NGX_CONF_UNSET_UINT) {
-        pw = getpwnam(NGX_USER);
-        if (pw != NULL && pw->pw_uid != 0) {
-            *uid_out = pw->pw_uid;
-            *gid_out = pw->pw_gid;
-            return NGX_OK;
-        }
-    }
-    acct = brix_worker_user[0] ? brix_worker_user : "nobody";
-    pw   = getpwnam(acct);
-    if (pw == NULL || pw->pw_uid == 0) {
-        return NGX_ERROR;
-    }
-    *uid_out = pw->pw_uid;
-    *gid_out = pw->pw_gid;
-    return NGX_OK;
-}
 
 /*
  * WHAT: Resolve and validate the configured confined worker identity.

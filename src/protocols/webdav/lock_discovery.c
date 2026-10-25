@@ -90,9 +90,19 @@ webdav_lock_sweep_remove(webdav_lock_sweep_ctx_t *sw, const char *path)
         }
     }
 
-    if (brix_vfs_removexattr(&vctx, WEBDAV_LOCK_XATTR_KEY) == NGX_OK) {
-        sw->removed++;
+    if (n <= 0 || brix_lock_record_decode(raw, (size_t) n, &rec) != NGX_OK) {
+        return;
     }
+    {
+        ngx_int_t result = brix_vfs_lock_store_update(&vctx, &rec, NULL);
+        if (result == NGX_DECLINED && errno == ENOTSUP) {
+            result = brix_vfs_removexattr(&vctx, WEBDAV_LOCK_XATTR_KEY);
+        }
+        if (result != NGX_OK) {
+            return;
+        }
+    }
+    sw->removed++;
 }
 
 static ngx_int_t
@@ -192,7 +202,7 @@ webdav_handle_unlock(ngx_http_request_t *r)
      * removal; surface it as 403 instead so the lock state and the response agree.
      * (ENODATA/ENOENT collapse to NGX_OK inside the helper — idempotent unlock.)
      */
-    if (webdav_lock_xattr_delete(r, path) != NGX_OK) {
+    if (webdav_lock_xattr_delete(r, path, &e) != NGX_OK) {
         return NGX_HTTP_FORBIDDEN;
     }
 

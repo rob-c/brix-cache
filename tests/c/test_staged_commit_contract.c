@@ -21,6 +21,7 @@
 
 #include "fs/backend/sd.h"
 #include "fs/backend/posix/sd_posix_internal.h"
+#include "platform/platform_api.h"
 
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -59,9 +60,8 @@ int brix_rename_beneath(int rootfd, const char *src, const char *dst)
 }
 int brix_rename_beneath_excl(int rootfd, const char *src, const char *dst)
 {
-    /* RENAME_NOREPLACE via syscall to stay glibc-version agnostic. */
-    return (int) syscall(SYS_renameat2, rootfd, rel_of(src), rootfd,
-                         rel_of(dst), (unsigned) (1 /* RENAME_NOREPLACE */));
+    return brix_plat_renameat2(rootfd, rel_of(src), rootfd, rel_of(dst),
+                               BRIX_RENAME_NOREPLACE);
 }
 
 ngx_int_t brix_make_tmp_path(const char *base_path, char *out, size_t out_sz)
@@ -127,6 +127,14 @@ ngx_int_t brix_listxattr_confined_canon(void) { return NGX_ERROR; }
 ngx_int_t brix_removexattr_confined_canon(void) { return NGX_ERROR; }
 ngx_int_t brix_setxattr_confined_canon(void) { return NGX_ERROR; }
 ngx_int_t brix_setattr_confined_canon(void) { return NGX_ERROR; }
+/* The mapped lock-store arm is linked but never dispatched by staged cases. */
+int brix_imp_lock_store_update(ngx_log_t *log, const char *root,
+    const char *path, const char *expected, const char *replacement)
+{
+    (void) log; (void) root; (void) path; (void) expected; (void) replacement;
+    errno = ENOTSUP;
+    return -1;
+}
 /* staged_open's mkpath step: the test writes flat objects into an existing root,
  * so "already there" is the honest answer. */
 int brix_mkdir_recursive_confined_canon(ngx_log_t *log, const char *root_canon,
@@ -144,6 +152,14 @@ ngx_int_t brix_ns_rename(void) { return NGX_ERROR; }
 ngx_int_t brix_ns_delete_at(void) { return NGX_ERROR; }
 ngx_int_t brix_ns_mkdir_at(void) { return NGX_ERROR; }
 int brix_exchange_beneath(void) { return -1; }
+/* The linked namespace object names the lock-store opener, but this unit
+ * dispatches only staged commit/abort. Reaching another operation is a bug. */
+int brix_open_confined_canon(ngx_log_t *log, const char *root,
+    const char *path, int flags, mode_t mode)
+{
+    (void) log; (void) root; (void) path; (void) flags; (void) mode;
+    abort();
+}
 /* Consulted by sd_posix_staged_commit to annotate pre->atomic: this host's
  * RENAME_NOREPLACE never degraded during the test. */
 int brix_renameat_noreplace_degraded(void) { return 0; }

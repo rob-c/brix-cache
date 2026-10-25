@@ -51,6 +51,47 @@ class TestFattr:
     def teardown_method(self) -> None:
         rm_file(self.fname)
 
+    @pytest.mark.parametrize('size', [2048, 2049, 8192])
+    def test_list_retains_short_names_with_chunked_values(self, size):
+        """A large value changes physical storage, never the visible name/value."""
+        from tools.ci.remote_reference_checks import require_status, _attribute_ok
+
+        expected = {'short': 'v' * size, 'empty': ''}
+        result = require_status(self.fs.set_xattr(self.xrd_path, list(expected.items())))
+        assert len(result) == 2 and all(_attribute_ok(entry[-1]) for entry in result)
+        listed = require_status(self.fs.list_xattr(self.xrd_path))
+        assert len(listed) == 2
+        assert _attribute_map(listed) == expected
+        assert all(_attribute_ok(entry[-1]) for entry in listed)
+
+    def test_corrupt_chunk_is_not_reported_as_a_valid_value(self):
+        """Missing storage must not become successful partial metadata."""
+        from tools.ci.remote_reference_checks import require_status, _attribute_ok
+
+        require_status(self.fs.set_xattr(self.xrd_path, [('short', 'v' * 8192), ('safe', 'ok')]))
+        chunks = [key for key in os.listxattr(self.local_path)
+                  if key.startswith('user.$brix.fattr.')]
+        assert chunks, 'fixture must exercise the chunked representation'
+        os.removexattr(self.local_path, chunks[0])
+        result = require_status(self.fs.get_xattr(self.xrd_path, ['short']))
+        assert len(result) == 1 and not _attribute_ok(result[0][-1])
+        listed = require_status(self.fs.list_xattr(self.xrd_path))
+        assert _attribute_map(listed) == {'safe': 'ok'}
+
+    def test_forged_hashed_name_is_not_exposed_by_list(self):
+        """A well-formed envelope under another logical name's hash is private."""
+        import hashlib
+        from tools.ci.remote_reference_checks import require_status
+
+        require_status(self.fs.set_xattr(self.xrd_path, [('safe', 'ok')]))
+        key = 'user.U.$brix$' + hashlib.sha256(b'claimed').hexdigest()
+        name = b'different'
+        envelope = b'BXFA\x01\0\0\0' + struct.pack('>H', len(name)) + name + b'forged'
+        os.setxattr(self.local_path, key, envelope)
+        listed = require_status(self.fs.list_xattr(self.xrd_path))
+        assert _attribute_map(listed) == {'safe': 'ok'}
+        assert len(listed) == 1
+
     def test_fattr_set_and_get(self) -> None:
         """Set an attribute, then retrieve it and verify the value."""
         status, _ = self.fs.set_xattr(self.xrd_path, [("project", "cms")])

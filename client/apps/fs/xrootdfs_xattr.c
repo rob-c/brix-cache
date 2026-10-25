@@ -30,7 +30,7 @@ int op_faget(brix_conn *c, void *v, brix_status *st)
 
 
 int
-xfs_getxattr(const char *path, const char *name, char *value, size_t size)
+xfs_getxattr(uid_t caller_uid, const char *path, const char *name, char *value, size_t size)
 {
     if (g_web) return -ENOTSUP;
     brix_status st;
@@ -52,7 +52,7 @@ xfs_getxattr(const char *path, const char *name, char *value, size_t size)
             return -ENODATA;
         }
         struct ctx_cks a = { path, algo, hex, sizeof(hex) };
-        rc = xfs_meta(op_cks, &a, &st);
+        rc = xfs_meta(caller_uid, op_cks, &a, &st);
         if (rc != 0) {
             return rc;
         }
@@ -72,7 +72,7 @@ xfs_getxattr(const char *path, const char *name, char *value, size_t size)
         return -ENODATA;
     }
     struct ctx_faget a = { path, fname, value, size, &vlen };
-    rc = xfs_meta(op_faget, &a, &st);
+    rc = xfs_meta(caller_uid, op_faget, &a, &st);
     if (rc != 0) {
         return rc;
     }
@@ -107,7 +107,7 @@ xfs_xattr_mutate_guard(const char *name, int absent_errno, const char **fattr)
 }
 
 int
-xfs_setxattr(const char *path, const char *name, const char *value,
+xfs_setxattr(uid_t caller_uid, const char *path, const char *name, const char *value,
              size_t size, int flags)
 {
     brix_status st;
@@ -121,7 +121,7 @@ xfs_setxattr(const char *path, const char *name, const char *value,
     char pbuf[XRDC_PATH_MAX];
     struct ctx_faset a = { srv_path(path, pbuf, sizeof(pbuf)), fname, value, size,
                            (flags & XATTR_CREATE) ? 1 : 0 };
-    return xfs_meta(op_faset, &a, &st);
+    return xfs_meta(caller_uid, op_faset, &a, &st);
 }
 
 
@@ -130,7 +130,7 @@ int op_fadel(brix_conn *c, void *v, brix_status *st)
 
 
 int
-xfs_removexattr(const char *path, const char *name)
+xfs_removexattr(uid_t caller_uid, const char *path, const char *name)
 {
     brix_status st;
     const char *fname;
@@ -142,7 +142,7 @@ xfs_removexattr(const char *path, const char *name)
     brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     struct ctx_fadel a = { srv_path(path, pbuf, sizeof(pbuf)), fname };
-    return xfs_meta(op_fadel, &a, &st);
+    return xfs_meta(caller_uid, op_fadel, &a, &st);
 }
 
 
@@ -151,7 +151,7 @@ int op_falist(brix_conn *c, void *v, brix_status *st)
 
 
 int
-xfs_listxattr(const char *path, char *list, size_t size)
+xfs_listxattr(uid_t caller_uid, const char *path, char *list, size_t size)
 {
     if (g_web) return -ENOTSUP;
     brix_status st;
@@ -165,7 +165,7 @@ xfs_listxattr(const char *path, char *list, size_t size)
     char pbuf[XRDC_PATH_MAX];
     struct ctx_falist a = { srv_path(path, pbuf, sizeof(pbuf)), raw, sizeof(raw),
                             &rawlen };
-    int rc = xfs_meta(op_falist, &a, &st);
+    int rc = xfs_meta(caller_uid, op_falist, &a, &st);
     if (rc != 0) {
         return rc;
     }

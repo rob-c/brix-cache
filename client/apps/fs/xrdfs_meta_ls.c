@@ -32,6 +32,23 @@ typedef struct {
     char  url_base[300];
 } ls_opts;
 
+/* ---- Select the complete listing for the connected server role ----
+ * WHAT: Return the directory entries, or propagate the selected API's failure.
+ * WHY: A redirector's local namespace may be empty even though its data nodes
+ *      hold files; CLI listings must agree with the existing FUSE union view.
+ * HOW: 1. Use the bounded, credential-preserving fanout for manager sessions.
+ *      2. Keep direct data-server listings on the ordinary directory API.
+ */
+static int
+ls_dirlist(brix_conn *c, const char *path, int want_stat,
+    brix_dirent **entries, size_t *count, brix_status *status)
+{
+    if (c->server_flags & kXR_isManager) {
+        return brix_dirlist_all(c, path, want_stat, entries, count, status);
+    }
+    return brix_dirlist(c, path, want_stat, entries, count, status);
+}
+
 static void
 ls_print_entry(brix_conn *c, const brix_dirent *ent, const char *prefix,
                const ls_opts *o)
@@ -126,7 +143,7 @@ ls_print_dir_opts(brix_conn *c, const char *path, const ls_opts *o,
     size_t       plen;
     const char  *sep;
 
-    if (brix_dirlist(c, path, (o->want_long || o->recursive || o->want_cksum),
+    if (ls_dirlist(c, path, (o->want_long || o->recursive || o->want_cksum),
                      &ents, &n, st) != 0) {
         return -1;
     }
@@ -255,7 +272,7 @@ ls_json_dir(brix_conn *c, const char *path, brix_status *st)
     const char  *sep;
     int          first = 1;
 
-    if (brix_dirlist(c, path, 1 /*want_stat*/, &ents, &n, st) != 0) {
+    if (ls_dirlist(c, path, 1 /*want_stat*/, &ents, &n, st) != 0) {
         return -1;
     }
     plen = strlen(path);

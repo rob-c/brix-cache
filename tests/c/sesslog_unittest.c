@@ -73,24 +73,25 @@ test_golden_lines(void)
                        "peer=\"10.0.0.5:41234\" authmethod=gsi\n") == 0,
           "connect field order");
 
-    CHECK(brix_sesslog_fmt_auth(line, sizeof(line), &s, 1, BRIX_SESS_AM_GSI,
-                                "/DC=ch/CN=alice", "cms", NULL, NULL) > 0,
+    CHECK(brix_sesslog_fmt_auth(line, sizeof(line), &s,
+          &(brix_sesslog_auth_fields_t) {1, BRIX_SESS_AM_GSI,
+              "/DC=ch/CN=alice", "cms", NULL}, NULL) > 0,
           "auth renders");
     CHECK(strcmp(line, "SESS 0123456789abcdef AUTH ok method=gsi "
                        "user=\"/DC=ch/CN=alice\" vo=\"cms\"\n") == 0,
           "auth ok field order");
 
     CHECK(brix_sesslog_fmt_attempt(line, sizeof(line), &s,
-                                   "/data/run7/f.root",
-                                   BRIX_SESS_MODE_READ, NULL) > 0,
+          &(brix_sesslog_attempt_fields_t) {"/data/run7/f.root",
+              BRIX_SESS_MODE_READ}, NULL) > 0,
           "attempt renders");
     CHECK(strcmp(line, "SESS 0123456789abcdef ATTEMPT "
                        "path=\"/data/run7/f.root\" mode=read\n") == 0,
           "attempt field order");
 
-    CHECK(brix_sesslog_fmt_result(line, sizeof(line), &s, 0,
-                                  "/data/run7/f.root",
-                                  BRIX_SESS_MODE_READ, "not-found", NULL) > 0,
+    CHECK(brix_sesslog_fmt_result(line, sizeof(line), &s,
+          &(brix_sesslog_result_fields_t) {0, "/data/run7/f.root",
+              BRIX_SESS_MODE_READ, "not-found"}, NULL) > 0,
           "result renders");
     CHECK(strcmp(line, "SESS 0123456789abcdef RESULT fail "
                        "path=\"/data/run7/f.root\" mode=read "
@@ -103,8 +104,8 @@ test_golden_lines(void)
     x.bytes = 1073741824ULL;
     x.expected = 1073741824LL;
     x.start_msec = 2000;
-    CHECK(brix_sesslog_fmt_xfer(line, sizeof(line), &s, &x,
-                                BRIX_SESS_XFER_COMPLETE, 4604, NULL) > 0,
+    CHECK(brix_sesslog_fmt_xfer(line, sizeof(line), &s,
+          &(brix_sesslog_xfer_fields_t) {&x, BRIX_SESS_XFER_COMPLETE, 4604}, NULL) > 0,
           "xfer renders");
     CHECK(strcmp(line, "SESS 0123456789abcdef XFER complete "
                        "path=\"/data/run7/f.root\" mode=read "
@@ -112,8 +113,8 @@ test_golden_lines(void)
                        "avg=412343250\n") == 0,
           "xfer field order and rate");
 
-    CHECK(brix_sesslog_fmt_end(line, sizeof(line), &s, BRIX_SESS_END_CLIENT,
-                               3711, NULL) > 0,
+    CHECK(brix_sesslog_fmt_end(line, sizeof(line), &s,
+          &(brix_sesslog_end_fields_t) {BRIX_SESS_END_CLIENT, 3711}, NULL) > 0,
           "end renders");
     CHECK(strcmp(line, "SESS 0123456789abcdef END "
                        "reason=client-disconnect dur=2711\n") == 0,
@@ -128,19 +129,19 @@ test_sanitization(void)
 
     seed_session(&s);
     CHECK(brix_sesslog_fmt_attempt(line, sizeof(line), &s,
-                                   "/tmp/x\nSESS "
+          &(brix_sesslog_attempt_fields_t) {"/tmp/x\nSESS "
                                    "0000000000000000 END reason=shutdown",
-                                   BRIX_SESS_MODE_READ, NULL) > 0,
+              BRIX_SESS_MODE_READ}, NULL) > 0,
           "hostile path renders");
     CHECK(strstr(line, "\\x0aSESS 0000000000000000 END") != NULL,
           "newline escaped inside quoted value");
     CHECK(strchr(line, '\n') == line + strlen(line) - 1,
           "only trailing newline remains");
 
-    CHECK(brix_sesslog_fmt_auth(line, sizeof(line), &s, 1,
-                                BRIX_SESS_AM_GSI,
+    CHECK(brix_sesslog_fmt_auth(line, sizeof(line), &s,
+          &(brix_sesslog_auth_fields_t) {1, BRIX_SESS_AM_GSI,
                                 "quote\"slash\\ctl\x01utf\xc3\xa9",
-                                "-", NULL, NULL) > 0,
+              "-", NULL}, NULL) > 0,
           "hostile user renders");
     CHECK(strstr(line, "quote\\\"slash\\\\ctl\\x01utf\\xc3\\xa9") != NULL,
           "quotes, slash, control, and non-ascii escaped");
@@ -158,8 +159,8 @@ test_truncation_and_rates(void)
     memset(long_path, 'a', sizeof(long_path));
     long_path[sizeof(long_path) - 1] = '\0';
     seed_session(&s);
-    n = brix_sesslog_fmt_attempt(line, sizeof(line), &s, long_path,
-                                 BRIX_SESS_MODE_READ, NULL);
+    n = brix_sesslog_fmt_attempt(line, sizeof(line), &s,
+          &(brix_sesslog_attempt_fields_t) {long_path, BRIX_SESS_MODE_READ}, NULL);
     CHECK(n < sizeof(line), "long attempt stays in line buffer");
     CHECK(strstr(line, "...\" mode=read\n") != NULL,
           "long path truncates inside quoted value");
@@ -170,8 +171,8 @@ test_truncation_and_rates(void)
     x.bytes = 42;
     x.expected = -1;
     x.start_msec = 5000;
-    CHECK(brix_sesslog_fmt_xfer(line, sizeof(line), &s, &x,
-                                BRIX_SESS_XFER_ABORTED, 5000, NULL) > 0,
+    CHECK(brix_sesslog_fmt_xfer(line, sizeof(line), &s,
+          &(brix_sesslog_xfer_fields_t) {&x, BRIX_SESS_XFER_ABORTED, 5000}, NULL) > 0,
           "zero-duration xfer renders");
     CHECK(strstr(line, "bytes=42/- dur=0 avg=42000\n") != NULL,
           "zero-duration rate uses one millisecond floor");

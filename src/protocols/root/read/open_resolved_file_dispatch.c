@@ -218,10 +218,9 @@ brix_open_dispatch_driver(brix_open_args_t *a, brix_sd_instance_t *sd_inst,
 		return NGX_DONE;
 	}
 
-	/* Key the driver namespace on the export-root-relative ("/sub/file") form —
-	 * the same convention WebDAV/S3 and the VFS stat/dirlist/unlink paths use
-	 * (brix_vfs_export_relative_root, leading slash retained), so a file written
-	 * here is found by every other driver-backed op. */
+	/* Pass the confined export-relative LFN to the driver-open adapter, which
+	 * applies the ctx's N2N mapping exactly once. Policy and authorization keep
+	 * using the logical path; only storage addressing uses the physical key. */
 	*out_failed = brix_open_resolved_via_driver(a, &cred_vctx, sd_inst,
 	    brix_vfs_export_relative_root(resolved, conf->common.root_canon))
 	    != NGX_OK ? 1 : 0;

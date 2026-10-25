@@ -1,5 +1,6 @@
 #include "open.h"
 #include "open_internal.h"
+#include "fs/path/path.h"
 #include "protocols/ssi/ssi.h"
 #include "protocols/root/path/op_path.h"
 #include "net/manager/registry.h"
@@ -15,6 +16,7 @@
 #include "protocols/root/zip/zip_member.h"        /* phase-57 W2: ZIP member access */
 #include "fs/vfs/vfs_backend_registry.h" /* Layer 3: per-export storage driver */
 #include "fs/vfs/vfs_internal.h"         /* brix_vfs_export_relative_root */
+#include "fs/path/n2n_stage.h"
 #include "fs/backend/sd.h"           /* driver stat for read existence check */
 #include "fs/backend/cache/sd_cache.h" /* slow-tier miss offload probe (SP2) */
 #include "fs/backend/xroot/sd_xroot_fwd.h" /* 2.0 F5: forwarding-key admission */
@@ -23,12 +25,34 @@
 #include <string.h>
 #include <unistd.h>
 
+/* ---- Keep read-open directory intent across namespace normalisation ----
+ * WHAT: Refuse directories and regular-file names ending in '/'.
+ * WHY: Canonicalisation may erase the final separator; opening the resulting
+ *      file would silently disregard the caller's directory requirement.
+ * HOW: The caller authorizes first and supplies known type information. Reuse
+ *      the path spelling helper; never probe storage or change write semantics.
+ */
+ngx_int_t
+brix_open_read_target_guard(brix_ctx_t *ctx, ngx_connection_t *c,
+    const char *clean_path, ngx_flag_t is_directory)
+{
+    if (is_directory) {
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path, "rd",
+                        kXR_isDirectory, "is a directory");
+    }
+    if (brix_has_trailing_slash_cstr(clean_path)) {
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path, "rd",
+                        kXR_FSError, "not a directory");
+    }
+    return NGX_DECLINED;
+}
+
 /* Layer 3 — read-open existence + directory probe.
  *
  * A driver-backed export (block-striped / object store) keeps its namespace in
  * the driver: the physical tree under conf->rootfd holds no data files, so a
  * POSIX confined stat would spuriously report ENOENT for a file that the driver
- * actually has. Probe the driver on the export-root-relative key when a driver
+ * actually has. Probe the driver on the translated physical key when a driver
  * is bound; otherwise fall back to the confined fd-relative POSIX stat (the
  * unchanged default-export path). Returns 1 if the path exists (and sets
  * *is_dir accordingly), 0 if absent.
@@ -56,8 +80,14 @@ brix_open_read_probe(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
 
     if (sd != NULL && sd->driver->stat != NULL) {
         brix_sd_stat_t  sst;
-        const char       *key =
-            brix_vfs_export_relative_root(full_path, conf->common.root_canon);
+        char           key[PATH_MAX];
+
+        if (brix_path_export_to_pfn(conf->common.root_canon,
+                brix_vfs_backend_n2n(conf->common.root_canon), full_path,
+                key, sizeof(key)) != NGX_OK)
+        {
+            return 0;
+        }
 
         /* Slow-tier composed-cache MISS (phase-64 SP2): a source stat here would
          * be a blocking wire round-trip on the event loop. Report the path as
@@ -101,17 +131,11 @@ brix_open_read_probe(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
             return 0;
         }
 
-        /* With a forwarded user cred, dispatch on the leaf instance so
-         * brix_sd_stat_maybe_cred finds the leaf driver's stat_cred slot
-         * (mirrors vfs_stat.c): the stage/cache decorators relay stat through
-         * the PLAIN slot only, so probing the TOP instance with a resolved
-         * user cred under fallback=deny hits the forwarder's
-         * cred-would-be-dropped refusal (EACCES, no wire I/O) and a
-         * stage-composed https/xroot origin spuriously reported every
-         * existing file as absent → kXR_NotFound on read-open. Without a
-         * cred the TOP instance must answer: a cache decorator's stat serves
-         * warm hits from cinfo even when the origin object is gone. */
-        if (brix_sd_stat_maybe_cred(use_cred ? brix_vfs_ns_leaf(sd) : sd,
+        /* Keep the composed cache/stage namespace for service AND forwarded
+         * credentials. Both decorators have stat_cred twins: on a miss they
+         * forward the credential, while a complete hit matches cached bytes.
+         * The deny-mode credential gate above precedes either outcome. */
+        if (brix_sd_stat_maybe_cred(sd,
                 key, &sst, use_cred ? &ucred : NULL) != NGX_OK) {
             brix_sd_ucred_wipe(&ustore);   /* secret consumed; erase (A-4/T4) */
             return 0;
@@ -268,8 +292,15 @@ brix_open_forward_admit(brix_ctx_t *ctx, ngx_connection_t *c,
 {
 	brix_sd_instance_t *sd =
 	    brix_vfs_backend_resolve(conf->common.root_canon, c->log);
-	int                 verdict = brix_sd_xroot_fwd_admit_key(sd,
-	    brix_vfs_export_relative_root(full_path, conf->common.root_canon));
+	char                physical[PATH_MAX];
+	if (brix_path_export_to_pfn(conf->common.root_canon,
+	        brix_vfs_backend_n2n(conf->common.root_canon), full_path,
+	        physical, sizeof(physical)) != NGX_OK)
+	{
+		BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path, "rd",
+		                  kXR_ArgInvalid, "storage path translation failed");
+	}
+	int verdict = brix_sd_xroot_fwd_admit_key(sd, physical);
 
 	if (verdict == ENOTSUP) {
 		BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path, "rd",
@@ -345,10 +376,10 @@ brix_open_read_resolve(brix_ctx_t *ctx, ngx_connection_t *c,
 							  clean_path, "rd", kXR_NotFound,
 							  "file not found");
 		}
-		if (_is_dir) {
-			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
-							  clean_path, "rd", kXR_isDirectory,
-							  "is a directory");
+		ngx_int_t target_rc = brix_open_read_target_guard(ctx, c,
+		                                                clean_path, _is_dir);
+		if (target_rc != NGX_DECLINED) {
+			return target_rc;
 		}
 	}
 

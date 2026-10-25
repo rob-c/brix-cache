@@ -202,6 +202,10 @@ void brix_cms_srv_close(brix_cms_srv_ctx_t *ctx);
  * write fails. */
 ngx_int_t brix_cms_srv_send_ping(brix_cms_srv_ctx_t *ctx);
 
+/* Complete the LOGIN exchange after authentication/admission, before publishing
+ * the node. A failed/partial send is fatal, never a selectable registration. */
+ngx_int_t brix_cms_srv_send_login_ack(brix_cms_srv_ctx_t *ctx);
+
 /* Send the manager's kYR_xauth security challenge (the parms string, e.g.
  * "&P=sss", of length len) inviting the node to present its sss credential.
  * parms is borrowed (copied into the wire frame, not retained).  Returns NGX_OK
@@ -231,6 +235,9 @@ ngx_int_t brix_cms_srv_send_try(brix_cms_srv_ctx_t *ctx, const char *host,
     uint16_t port);
 
 /* server_auth.c — W1 registration authentication (CIDR + sss + host validation) */
+
+/* Refuse and close LOGIN during an outstanding challenge or invalid state. */
+ngx_int_t brix_cms_srv_require_login_state(brix_cms_srv_ctx_t *ctx);
 
 /* Accept-time peer check: NGX_OK if the peer is permitted to register.
  * When no allowlist is configured this returns NGX_OK (back-compat) after a

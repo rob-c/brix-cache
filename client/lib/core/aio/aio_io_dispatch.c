@@ -125,7 +125,7 @@ aconn_handle_attn(brix_aconn *ac, const uint8_t *body, uint32_t dlen)
     }
     xrd_resp_hdr_unpack(body + 8, &esid, &estat, &edlen);
     if (edlen > dlen - 16) {
-        edlen = dlen - 16;   /* never read past the outer frame */
+        return;   /* a truncated embedded response is not a terminal reply */
     }
     aconn_dispatch_response(ac, esid, estat, body + 16, edlen);
 }

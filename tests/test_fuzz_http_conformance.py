@@ -99,8 +99,8 @@ def _exchange(port: int, tls: bool, raw: bytes) -> bytes | None:
     ``ConnectionRefusedError`` is *not* swallowed: the endpoint passed its
     liveness probe, so a refusal now means the server died on a prior case."""
     sock = socket.create_connection((SERVER_HOST, port), timeout=_CONNECT_TIMEOUT)
-    sock.settimeout(_READ_TIMEOUT)
     conn = _TLS_CTX.wrap_socket(sock, server_hostname="localhost") if tls else sock  # net-literal-allow: SNI must match the fixture cert subject
+    conn.settimeout(_READ_TIMEOUT)
     try:
         try:
             conn.sendall(raw)

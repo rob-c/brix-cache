@@ -133,6 +133,9 @@ def test_xattr_size_probe_protocol(rig):
     # getxattr(name, NULL, 0) must return the value length without copying;
     # listxattr(NULL, 0) the total list length; short buffer → ERANGE.
     path = rig.p("hello.txt").encode()
+    if sys.platform.startswith('freebsd'):
+        _freebsd_xattr_size_probe(path)
+        return
     n = libc.getxattr(path, b"user.fqrn", None, 0)
     assert n == len(REPO)
     n = libc.listxattr(path, None, 0)
@@ -152,7 +155,13 @@ def test_xattr_symlink_follow_reaches_target(rig):
 def test_xattr_symlink_nofollow_pinned(rig):
     # Pinned: the VFS refuses user.* getxattr on the symlink itself (ENODATA),
     # while listxattr on the link still shows the path-independent name set.
-    for name in ("user.fqrn", "user.hash"):
+    names = ("user.fqrn", "user.hash")
+    if sys.platform.startswith('freebsd'):
+        # Native extattr_get_link permits common metadata on symlinks;
+        # unlike Linux, it does not suppress the whole user namespace.
+        assert os.getxattr(rig.p("link"), "user.fqrn", follow_symlinks=False) == REPO.encode()
+        names = ("user.hash",)
+    for name in names:
         assert _errno_of(lambda n=name: os.getxattr(
             rig.p("link"), n, follow_symlinks=False)) == errno.ENODATA
     # A symlink node carries only the common (non-file-only) attrs.
@@ -166,7 +175,9 @@ def test_statfs_pinned_shape(rig):
     # brixcvmfs statfs: f_bsize=4096, f_namemax=255, everything else zeroed
     # (read-only: 0 free blocks; f_blocks/f_files not reported).
     sv = os.statvfs(rig.mnt)
-    assert sv.f_bsize == 4096 and sv.f_frsize == 4096
+    # The kernel may expose a larger preferred I/O size (FreeBSD: 64 KiB).
+    # Fragment size is the allocation unit actually returned by BriX.
+    assert sv.f_bsize >= 4096 and sv.f_frsize == 4096
     assert sv.f_namemax >= 255
     assert sv.f_bfree == 0 and sv.f_bavail == 0
     assert sv.f_blocks == 0 and sv.f_files == 0 and sv.f_ffree == 0
@@ -234,8 +245,12 @@ def test_inode_stable_across_readdir_and_getattr(rig):
 def test_readdir_dirent_inos_pinned_unknown_sentinel(rig):
     # Pinned actual: brix readdir fills entries with a NULL stat, so d_ino is
     # the FUSE_UNKNOWN_INO sentinel (0xffffffff) — getattr is authoritative.
-    inos = {e.inode() for e in os.scandir(rig.mnt)}
-    assert inos == {0xffffffff}
+    entries = {e.name: e.inode() for e in os.scandir(rig.mnt)}
+    if sys.platform.startswith('freebsd'):
+        for name, inode in entries.items():
+            assert inode in (0xffffffff, os.lstat(rig.p(name)).st_ino)
+        return
+    assert set(entries.values()) == {0xffffffff}
 
 
 # ---- 5. dirent stability ---------------------------------------------------
@@ -284,12 +299,15 @@ def test_readdir_stable_during_concurrent_reads(rig):
 # ---- 6. open/close lifecycle ----------------------------------------------
 
 def test_500_open_close_cycles_no_fd_leak(rig):
-    fds_before = len(os.listdir("/proc/self/fd"))
+    import psutil
+
+    process = psutil.Process()
+    fds_before = process.num_fds()
     for _ in range(500):
         fd = os.open(rig.p("hello.txt"), os.O_RDONLY)
         assert os.read(fd, 5) == HELLO[:5]
         os.close(fd)
-    assert len(os.listdir("/proc/self/fd")) == fds_before
+    assert process.num_fds() == fds_before
 
 
 def test_200_opendir_cycles(rig):
@@ -332,8 +350,9 @@ def test_access_x_ok_on_nonexec_official_refused(rig):
 
 def test_mountpoint_is_a_fuse_filesystem(rig):
     parts = _proc_mounts_line(rig.mnt)
-    assert parts is not None, "mountpoint not in /proc/mounts"
-    assert parts[2] == "fuse.CVMFS-brix"          # pinned fstype
+    assert parts is not None, "mountpoint not in native mount table"
+    expected = 'fusefs' if sys.platform.startswith('freebsd') else 'fuse.CVMFS-brix'
+    assert parts[2] == expected
     assert "ro" in parts[3].split(",")            # read-only mount
     assert os.path.ismount(rig.mnt)
 

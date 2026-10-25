@@ -25,6 +25,9 @@
 #include <ngx_core.h>
 
 volatile ngx_cycle_t *ngx_cycle = NULL;
+/* Some ELF sanitizer runtimes retain otherwise unused handlers. Keep their
+ * process-id boundary available without overriding units' explicit spies. */
+__attribute__((weak)) ngx_pid_t ngx_pid;
 
 void
 ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,

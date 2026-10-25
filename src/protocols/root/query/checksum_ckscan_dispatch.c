@@ -16,7 +16,7 @@
  *       ("crc32c:/data/atlas/..."). This dispatch layer extracts and validates the algo, resolves the path against the export root,
  *       checks authdb read permission + VO ACL + token scope, then routes to async (ngx_thread_pool_run) or sync execution.
  *       The async path allocates a thread task with all scan parameters; the done callback delivers results back on the client connection.
- *       Sync fallback runs when no thread pool is configured or the queue is full.
+ *       Sync fallback runs only without a configured pool; a full queue returns a retry response.
  *
  * HOW:  brix_query_ckscan() validates payload presence, calls ckscan_select_payload() to extract algo + path from wire data (defaulting
  *       to adler32), extracts and resolves path, checks authdb/VO/token scope, then either posts a thread task or runs ckscan_sync().
@@ -109,7 +109,7 @@ brix_ckscan_select_payload(brix_ctx_t *ctx, ngx_connection_t *c,
 
 /* Synchronous fallback (used when thread pool is not configured). */
 
-/* ckscan_sync — the event-loop fallback (no thread pool, or queue full) mirroring
+/* ckscan_sync — the explicit no-thread-pool event-loop fallback mirroring
  * the async worker: stat the target, checksum a regular file via a confined fd or
  * walk a directory (ckscan_walk, depth/file limits) into a growable buffer, then
  * send ok+checksum or error. */
@@ -204,7 +204,7 @@ brix_query_ckscan(brix_ctx_t *ctx, ngx_connection_t *c,
         ngx_thread_task_t   *task;
         ngx_flag_t           posted;
 
-        task = ngx_thread_task_alloc(c->pool, sizeof(brix_ckscan_aio_t));
+        task = brix_query_checksum_task(c, sizeof(brix_ckscan_aio_t));
         if (task == NULL) {
             BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSCAN);
             return brix_send_error(ctx, c, kXR_NoMemory, "out of memory");
@@ -230,7 +230,7 @@ brix_query_ckscan(brix_ctx_t *ctx, ngx_connection_t *c,
         task->ctx           = t;
 
         if (brix_aio_post_task(ctx, c, conf->common.thread_pool, task,
-                                 "ckscan thread pool queue full, using sync",
+                                 "checksum scan queue full; requesting client retry",
                                  &posted) != NGX_OK)
         {
             return NGX_ERROR;
@@ -239,6 +239,9 @@ brix_query_ckscan(brix_ctx_t *ctx, ngx_connection_t *c,
         if (posted) {
             return NGX_OK;
         }
+        /* A directory scan can contain many whole-file checksums. Queue
+         * saturation must never move that unbounded work onto the event loop. */
+        return brix_send_wait(ctx, c, 1);
     }
 
     return brix_ckscan_sync(ctx, c, conf, conf->rootfd, pathbuf, algo);

@@ -7,39 +7,11 @@
  * HOW: Parse bounded response metadata, compare every represented byte against
  *      the adopted body, and use one scratch-confined PUT for mutable ETags.
  */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
 #include <strings.h>
 
-/* ---- Test whether one clause survived scope and safety filtering ----
- *
- * WHAT: Returns one for a selected non-skipped row, otherwise zero.
- * WHY: Each semantic probe has a distinct safety class and fixture cost.
- * HOW: Look up the initialized result and preserve an existing skip verdict.
- */
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
 
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
-
-/* ---- Record a binary HTTP semantic result ----
- *
- * WHAT: Stores conformant/divergent with stable expected and received evidence.
- * WHY: Parser failures must remain distinguishable from transport failures.
- * HOW: Select the verdict and reason from the supplied boolean.
- */
-static void
-grade(xrd_conform_execution *execution, const char *id, int pass,
-    const char *success, const char *failure, const char *received)
-{
-    xrd_conform_result_set(execution, id,
-        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
-             : BRIX_CONFORM_VERDICT_DIVERGENT,
-        pass ? success : failure, NULL, received);
-}
 
 /* ---- Compare a response with the adopted whole object ----
  *
@@ -65,13 +37,55 @@ whole_matches(const brix_http_resp *response,
  * HOW: Require multipart/byteranges, find boundary=, unquote, validate ASCII.
  */
 static int
+copy_boundary_token(const char *start, const char *end, char *boundary,
+    size_t capacity)
+{
+    const char *cursor;
+    size_t length = (size_t) (end - start);
+
+    if (length == 0 || length > 70 || length >= capacity
+        || start[length - 1] == ' ') return -1;
+    for (cursor = start; cursor < end; cursor++) {
+        unsigned char byte = (unsigned char) *cursor;
+
+        if (byte < 0x20 || byte > 0x7e || byte == '"' || byte == '\\')
+            return -1;
+    }
+    memcpy(boundary, start, length);
+    boundary[length] = '\0';
+    return 0;
+}
+
+static int
+parse_boundary_value(const char *cursor, char *boundary, size_t capacity)
+{
+    const char *start;
+    const char *end;
+    int quoted;
+
+    while (*cursor == ' ' || *cursor == '\t') cursor++;
+    if (*cursor != '=') return -1;
+    cursor++;
+    while (*cursor == ' ' || *cursor == '\t') cursor++;
+    quoted = *cursor == '"';
+    if (quoted) cursor++;
+    start = cursor;
+    if (quoted) {
+        while (*cursor != '\0' && *cursor != '"') cursor++;
+        if (*cursor != '"') return -1;
+        end = cursor;
+    } else {
+        while (*cursor != '\0' && *cursor != ';'
+            && *cursor != ' ' && *cursor != '\t') cursor++;
+        end = cursor;
+    }
+    return copy_boundary_token(start, end, boundary, capacity);
+}
+
+static int
 multipart_boundary(const char *content_type, char *boundary, size_t capacity)
 {
     const char *cursor;
-    const char *start;
-    const char *end;
-    size_t length;
-    int quoted = 0;
 
     if (content_type == NULL
         || strncasecmp(content_type, "multipart/byteranges", 20) != 0)
@@ -84,38 +98,71 @@ multipart_boundary(const char *content_type, char *boundary, size_t capacity)
             continue;
         }
         cursor += 8;
-        while (*cursor == ' ' || *cursor == '\t') cursor++;
-        if (*cursor != '=') return -1;
-        cursor++;
-        while (*cursor == ' ' || *cursor == '\t') cursor++;
-        if (*cursor == '"') {
-            quoted = 1;
-            cursor++;
-        }
-        start = cursor;
-        if (quoted) {
-            while (*cursor != '\0' && *cursor != '"') cursor++;
-            if (*cursor != '"') return -1;
-            end = cursor;
-        } else {
-            while (*cursor != '\0' && *cursor != ';'
-                && *cursor != ' ' && *cursor != '\t') cursor++;
-            end = cursor;
-        }
-        length = (size_t) (end - start);
-        if (length == 0 || length > 70 || length >= capacity
-            || start[length - 1] == ' ') return -1;
-        for (cursor = start; cursor < end; cursor++) {
-            unsigned char byte = (unsigned char) *cursor;
-
-            if (byte < 0x20 || byte > 0x7e || byte == '"'
-                || byte == '\\') return -1;
-        }
-        memcpy(boundary, start, length);
-        boundary[length] = '\0';
-        return 0;
+        return parse_boundary_value(cursor, boundary, capacity);
     }
     return -1;
+}
+
+typedef struct {
+    const char *cursor;
+    const char *limit;
+    const char *next_marker;
+    size_t marker_length;
+    size_t next_length;
+    uint64_t coverage;
+    unsigned parts;
+} multipart_cursor;
+
+static int part_range(const char *headers, size_t header_length,
+    uint64_t *start, uint64_t *end, uint64_t *total);
+static uint64_t range_mask(uint64_t start, uint64_t end);
+
+static int
+multipart_finish(multipart_cursor *part, uint64_t required_mask)
+{
+    if ((size_t) (part->limit - part->cursor) < 2
+        || memcmp(part->cursor, "--", 2) != 0) return 0;
+    part->cursor += 2;
+    if ((size_t) (part->limit - part->cursor) == 2
+        && memcmp(part->cursor, "\r\n", 2) == 0)
+        part->cursor += 2;
+    return part->cursor == part->limit && part->parts > 0
+        && (part->coverage & required_mask) == required_mask;
+}
+
+static int
+multipart_consume_part(multipart_cursor *part,
+    const brix_http_resp *baseline)
+{
+    const char *header_end;
+    const char *delimiter;
+    uint64_t start;
+    uint64_t end;
+    uint64_t total;
+    uint64_t part_length;
+
+    if ((size_t) (part->limit - part->cursor) < 2
+        || memcmp(part->cursor, "\r\n", 2) != 0) return -1;
+    part->cursor += 2;
+    header_end = memmem(part->cursor,
+        (size_t) (part->limit - part->cursor), "\r\n\r\n", 4);
+    if (header_end == NULL || (size_t) (header_end - part->cursor) > 4096
+        || part_range(part->cursor, (size_t) (header_end - part->cursor),
+            &start, &end, &total) != 0 || total != baseline->body_len
+        || end >= baseline->body_len) return -1;
+    part->cursor = header_end + 4;
+    delimiter = memmem(part->cursor,
+        (size_t) (part->limit - part->cursor), part->next_marker,
+        part->next_length);
+    if (delimiter == NULL) return -1;
+    part_length = end - start + 1;
+    if (part_length != (uint64_t) (delimiter - part->cursor)
+        || memcmp(part->cursor, baseline->body + start,
+            (size_t) part_length) != 0) return -1;
+    part->coverage |= range_mask(start, end);
+    part->parts++;
+    part->cursor = delimiter + 2 + part->marker_length;
+    return 0;
 }
 
 /* ---- Parse one Content-Range field from a MIME part ----
@@ -198,12 +245,9 @@ multipart_matches(const brix_http_resp *response,
     char boundary[72];
     char marker[76];
     char next_marker[80];
-    const char *cursor;
-    const char *limit;
     size_t marker_length;
     size_t next_length;
-    uint64_t coverage = 0;
-    unsigned parts = 0;
+    multipart_cursor part;
 
     if (response->status != 206
         || !brix_http_header(response, "Content-Type", content_type,
@@ -214,45 +258,20 @@ multipart_matches(const brix_http_resp *response,
     snprintf(next_marker, sizeof(next_marker), "\r\n--%s", boundary);
     marker_length = strlen(marker);
     next_length = strlen(next_marker);
-    cursor = response->body;
-    limit = response->body + response->body_len;
-    if ((size_t) (limit - cursor) < marker_length + 2
-        || memcmp(cursor, marker, marker_length) != 0) return 0;
-    cursor += marker_length;
-    while (cursor < limit) {
-        const char *header_end;
-        const char *delimiter;
-        uint64_t start;
-        uint64_t end;
-        uint64_t total;
-        uint64_t part_length;
-
-        if ((size_t) (limit - cursor) >= 2 && memcmp(cursor, "--", 2) == 0) {
-            cursor += 2;
-            if ((size_t) (limit - cursor) == 2
-                && memcmp(cursor, "\r\n", 2) == 0) cursor += 2;
-            return cursor == limit && parts > 0
-                && (coverage & required_mask) == required_mask;
-        }
-        if ((size_t) (limit - cursor) < 2 || memcmp(cursor, "\r\n", 2) != 0)
-            return 0;
-        cursor += 2;
-        header_end = memmem(cursor, (size_t) (limit - cursor), "\r\n\r\n", 4);
-        if (header_end == NULL || (size_t) (header_end - cursor) > 4096
-            || part_range(cursor, (size_t) (header_end - cursor), &start,
-                &end, &total) != 0 || total != baseline->body_len
-            || end >= baseline->body_len) return 0;
-        cursor = header_end + 4;
-        delimiter = memmem(cursor, (size_t) (limit - cursor), next_marker,
-            next_length);
-        if (delimiter == NULL) return 0;
-        part_length = end - start + 1;
-        if (part_length != (uint64_t) (delimiter - cursor)
-            || memcmp(cursor, baseline->body + start,
-                (size_t) part_length) != 0) return 0;
-        coverage |= range_mask(start, end);
-        parts++;
-        cursor = delimiter + 2 + marker_length;
+    memset(&part, 0, sizeof(part));
+    part.cursor = response->body;
+    part.limit = response->body + response->body_len;
+    part.next_marker = next_marker;
+    part.marker_length = marker_length;
+    part.next_length = next_length;
+    if ((size_t) (part.limit - part.cursor) < marker_length + 2
+        || memcmp(part.cursor, marker, marker_length) != 0) return 0;
+    part.cursor += marker_length;
+    while (part.cursor < part.limit) {
+        if ((size_t) (part.limit - part.cursor) >= 2
+            && memcmp(part.cursor, "--", 2) == 0)
+            return multipart_finish(&part, required_mask);
+        if (multipart_consume_part(&part, baseline) != 0) return 0;
     }
     return 0;
 }
@@ -284,6 +303,17 @@ single_range_matches(const brix_http_resp *response,
         && (range_mask(start, end) & required_mask) == required_mask;
 }
 
+static int
+multirange_response_matches(const brix_http_resp *response,
+    const brix_http_resp *baseline, uint64_t mask, size_t index)
+{
+    if (whole_matches(response, baseline)
+        || multipart_matches(response, baseline, mask)) return 1;
+    if (index != 1) return 0;
+    return single_range_matches(response, baseline, mask)
+        || response->status == 416;
+}
+
 /* ---- Exercise ordinary and overlapping multi-range semantics ----
  *
  * WHAT: Grades HTR-010/011 from byte-verified whole, multipart or coalesced data.
@@ -304,7 +334,7 @@ probe_multirange(xrd_conform_execution *execution, const brix_weburl *url,
 
     if (baseline->body_len < 6) {
         for (index = 0; index < 2; index++) {
-            if (row_active(execution, ids[index]))
+            if (xrd_conform_row_active(execution, ids[index]))
                 xrd_conform_result_set(execution, ids[index],
                     BRIX_CONFORM_VERDICT_SKIPPED,
                     "fixture-absent:object-smaller-than-six-bytes", NULL, NULL);
@@ -317,17 +347,14 @@ probe_multirange(xrd_conform_execution *execution, const brix_weburl *url,
         int rc;
         int pass;
 
-        if (!row_active(execution, ids[index])) continue;
+        if (!xrd_conform_row_active(execution, ids[index])) continue;
         memset(&response, 0, sizeof(response));
         brix_status_clear(&status);
         rc = xrd_conform_http_request_fields(execution, url, "GET", token,
             fields[index], baseline->body_len + 4096, &response, &status);
-        pass = rc == 0 && (whole_matches(&response, baseline)
-            || multipart_matches(&response, baseline, masks[index])
-            || (index == 1 && single_range_matches(&response, baseline,
-                masks[index]))
-            || (index == 1 && response.status == 416));
-        grade(execution, ids[index], pass,
+        pass = rc == 0 && multirange_response_matches(&response, baseline,
+            masks[index], index);
+        xrd_conform_grade_received(execution, ids[index], pass,
             index == 0 ? "multi-range-body-byte-exact"
                        : "overlap-and-descending-ranges-defined-and-exact",
             index == 0 ? "multi-range-body-invalid"
@@ -350,7 +377,7 @@ probe_chunked(xrd_conform_execution *execution,
     char transfer_encoding[128];
     int chunked;
 
-    if (!row_active(execution, "HTR-016")) return;
+    if (!xrd_conform_row_active(execution, "HTR-016")) return;
     chunked = brix_http_header(baseline, "Transfer-Encoding",
         transfer_encoding, sizeof(transfer_encoding))
         && strcasestr(transfer_encoding, "chunked") != NULL;
@@ -360,7 +387,7 @@ probe_chunked(xrd_conform_execution *execution,
             NULL, NULL);
         return;
     }
-    grade(execution, "HTR-016", baseline->framing_valid,
+    xrd_conform_grade_received(execution, "HTR-016", baseline->framing_valid,
         "chunked-body-reassembled-with-zero-terminator",
         "chunked-body-framing-invalid", transfer_encoding);
 }
@@ -410,7 +437,7 @@ probe_digest(xrd_conform_execution *execution, const brix_weburl *url,
     int have_digest;
     int pass;
 
-    if (!row_active(execution, "HTR-021")) return;
+    if (!xrd_conform_row_active(execution, "HTR-021")) return;
     memset(&response, 0, sizeof(response));
     brix_status_clear(&status);
     rc = xrd_conform_http_request_fields(execution, url, "GET", token,
@@ -429,7 +456,7 @@ probe_digest(xrd_conform_execution *execution, const brix_weburl *url,
     if (!url->is_s3 && rc == 0 && whole_matches(&response, baseline)
         && have_digest)
         xrd_conform_observe_http_checksum(execution, baseline, pass);
-    grade(execution, "HTR-021", pass, "http-digest-name-and-value-match",
+    xrd_conform_grade_received(execution, "HTR-021", pass, "http-digest-name-and-value-match",
         "http-digest-name-or-value-mismatch", rc == 0 ? digest : status.msg);
     if (rc == 0) brix_http_resp_free(&response);
 }
@@ -505,7 +532,7 @@ probe_etag_mutation(xrd_conform_execution *execution, const brix_weburl *url,
     int rc;
     int pass = 0;
 
-    if (!row_active(execution, "HTR-017")) return;
+    if (!xrd_conform_row_active(execution, "HTR-017")) return;
     if (url->is_s3 || etag_scratch_url(execution, url, &scratch) != 0) {
         xrd_conform_result_set(execution, "HTR-017",
             BRIX_CONFORM_VERDICT_SKIPPED,
@@ -530,7 +557,7 @@ probe_etag_mutation(xrd_conform_execution *execution, const brix_weburl *url,
                 sizeof(changed), &status) == 0
             && strcmp(first, changed) != 0;
     }
-    grade(execution, "HTR-017", pass, "etag-stable-then-changed-after-put",
+    xrd_conform_grade_received(execution, "HTR-017", pass, "etag-stable-then-changed-after-put",
         "etag-unstable-or-unchanged-after-put", rc == 0 ? NULL : status.msg);
     memset(&response, 0, sizeof(response));
     brix_status_clear(&status);

@@ -40,7 +40,7 @@ kXR_NotAuthorized = 3010          # XErrorCode (base 3000)
 kXR_open_read = 0x0010
 kXR_open_updt = 0x0020
 kXR_open_new = 0x0008
-kXR_delete = 0x0004
+kXR_delete = 0x0002              # flags.h: 0x0004 is kXR_force, not overwrite
 kXR_mkpath = 0x0100
 
 PROBE = "/endsess_probe.bin"
@@ -107,6 +107,16 @@ def _err_code(body):
     return struct.unpack("!I", body[:4])[0] if len(body) >= 4 else None
 
 
+def _seed_probe(s):
+    """Overwrite idempotently and prove both data and close were accepted."""
+    _, status, body = _open(s, PROBE,
+                            kXR_open_updt | kXR_delete | kXR_mkpath)
+    assert status == kXR_ok, f"writable probe open failed: {status}, {body!r}"
+    fh = body[:4]
+    assert _write(s, fh, 0, b"endsess-probe\n")[1] == kXR_ok
+    assert _close(s, fh)[1] == kXR_ok
+
+
 @pytest.fixture(scope="module", autouse=True)
 def _probe_file():
     """Create the probe file once via the wire (anon fleet allows writes)."""
@@ -116,16 +126,9 @@ def _probe_file():
         s = _handshake()
     except OSError:
         pytest.skip(f"anon server {SERVER_HOST}:{NGINX_ANON_PORT} unreachable")
-    _login(s)
-    sid, status, body = _open(s, PROBE,
-                              kXR_open_updt | kXR_open_new | kXR_delete | kXR_mkpath)
-    if status != kXR_ok:
-        s.close()
-        pytest.skip("could not create probe file (writes disabled?)")
-    fh = body[:4]
-    _write(s, fh, 0, b"endsess-probe\n")
-    _close(s, fh)
-    s.close()
+    with s:
+        _login(s)
+        _seed_probe(s)
 
 
 def test_endsess_other_session_keeps_connection_authenticated():

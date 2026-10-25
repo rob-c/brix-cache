@@ -419,11 +419,12 @@ def test_client_reconnects_when_manager_silent(silent_manager_node):
     peer = silent_manager_node
     assert peer.wait_connections(1, timeout=20.0), \
         "node never dialed the manager peer"
-    # The peer sends nothing back. Within read_timeout(3s)+backoff the node must
-    # reconnect — observed as a second accepted connection.
-    assert peer.wait_connections(2, timeout=20.0), \
-        "node did not fail over (reconnect) after manager went silent"
+    # Accepting the second socket precedes its reader thread parsing LOGIN.
+    # Observe the actual protocol event within the same reconnect budget.
+    assert peer.wait_frames(CMS_RR_LOGIN, 2, timeout=20.0), \
+        "node did not re-issue LOGIN after manager went silent"
     with peer._lock:
+        assert peer.connections >= 2, "LOGIN was not sent on a fresh connection"
         assert peer.logins >= 2, "reconnect did not re-issue LOGIN"
 
 

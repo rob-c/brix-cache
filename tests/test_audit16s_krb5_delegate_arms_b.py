@@ -59,8 +59,20 @@ def _wait_for_auth(planes, port, timeout=_CAPTURE_TIMEOUT):
     return False
 
 
+def _capture_is_usable(path):
+    """A private placeholder is visible before libkrb5 finishes serializing it."""
+    try:
+        checked = subprocess.run(
+            [SYS_KLIST, "-c", "FILE:" + str(path)],
+            env={**os.environ, "KRB5_CONFIG": KRB5_CONF},
+            capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return checked.returncode == 0
+
+
 def _capture_while_open(port, ccache, directory=DEFAULT_CAPTURE_DIR):
-    """Open a session, wait for its capture file, return (path, session)."""
+    """Wait for a newly serialized credential cache, not just its placeholder."""
     before = set(_captures(directory))
     session = _Session(port, ccache)
     session.stat()
@@ -68,8 +80,9 @@ def _capture_while_open(port, ccache, directory=DEFAULT_CAPTURE_DIR):
     while time.monotonic() < deadline:
         time.sleep(_CAPTURE_TICK)
         new = set(_captures(directory)) - before
-        if new:
-            return new.pop(), session
+        for path in new:
+            if _capture_is_usable(path):
+                return path, session
     return None, session
 
 

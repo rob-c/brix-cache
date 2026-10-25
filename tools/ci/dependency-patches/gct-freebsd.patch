@@ -1,0 +1,17 @@
+--- a/gsi/gssapi/source/library/module.c
++++ b/gsi/gssapi/source/library/module.c
+@@ -531,6 +531,14 @@
+         long                            buflen = -1;
+         buflen = sysconf(_SC_GETPW_R_SIZE_MAX);
+ 
++        /* POSIX permits -1 when this limit is indeterminate (FreeBSD).
++         * Retain getpwnam_r and its existing error/owner policy; use a
++         * bounded initial buffer rather than asserting on a legal result.
++         */
++        if (buflen <= 0)
++        {
++            buflen = 16384;
++        }
+         assert(buflen > 0);
+         char buffer[buflen];
+         struct passwd pwd = {0};

@@ -8,13 +8,14 @@ also pins the stage decorator's CAP_DIRS|CAP_DIRS_WRITE advertisement, without
 which the vfs_rename catalog-mutation gate refuses every MOVE with 403 before it
 ever reaches the sd_remote leaf.
 
-Scope — S3 has no directories; BriX models a folder as a zero-byte "path/" marker
-object (the standard AWS/MinIO/Ceph-RGW convention). The full driver contract for
-every namespace slot (mkdir marker PUT · rename file=CopyObject+DELETE · non-empty
-dir rename=ENOTSUP · rmdir marker DELETE · directory-aware stat · fallback_deny
-security-neg) is proven hermetically, success/error/security-neg per slot, in the
-C unit tests/c/test_sd_remote_rename.c (7 sub-tests) against a fake transport that
-honours "key/" markers.
+Scope — S3 has no directories; BriX models an empty folder as a zero-byte
+"path/" marker object (the standard AWS/MinIO/Ceph-RGW convention) and a
+non-empty markerless folder as an implicit prefix. The full driver contract for
+every namespace slot (mkdir marker PUT · rename file=CopyObject+DELETE ·
+non-empty dir rename=ENOTSUP · rmdir marker DELETE · marker/implicit-prefix
+stat · fallback_deny security-neg) is proven hermetically,
+success/error/security-neg per slot, in tests/c/test_sd_remote_rename.c against
+a fake transport.
 
 This HTTP suite covers the object-level slice — the MOVE (rename) path and its
 guards:
@@ -59,6 +60,7 @@ except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
 from settings import NGINX_BIN, HOST, BIND_HOST
+from official_interop_lib import worker_reachable
 from server_registry import NginxInstanceSpec
 
 pytestmark = [pytest.mark.serial,
@@ -109,6 +111,9 @@ def ns_server(lifecycle, tmp_path):
     global FRONT_PORT, ORIGIN_PORT
 
     oroot = _namespace_origin(tmp_path)
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    worker_reachable(oroot, stage)
 
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-s3-driver-ns",
@@ -116,6 +121,7 @@ def ns_server(lifecycle, tmp_path):
         protocol="http",
         template_values={"BIND_HOST": BIND_HOST,
                          "ORIGIN_DIR": str(oroot),
+                         "STAGE_DIR": str(stage),
                          "S3_ACCESS_KEY": S3_AK,
                          "S3_SECRET_KEY": S3_SK},
         reason="s3:// namespace mutation (MOVE rename over staged s3://) end-to-end"))
@@ -124,7 +130,9 @@ def ns_server(lifecycle, tmp_path):
     ORIGIN_PORT = ep.extra_ports["ORIGIN_PORT"]
     if not _wait_port(ORIGIN_PORT):
         pytest.skip("s3-driver-ns origin listener did not come up")
-    yield
+    # The embedded S3 endpoint's configured root is the bucket contents; the
+    # bucket name is virtual in the request path rather than a disk component.
+    yield oroot
 
 
 def _url(key):
@@ -170,6 +178,28 @@ def test_mkcol_creates_marker_collection(ns_server):
     assert _req("PUT", key, data=BODY).status_code in (200, 201, 204)
     g = _req("GET", key, headers={"Accept-Encoding": "identity"})
     assert g.status_code == 200 and g.content == BODY, "object inside collection"
+
+
+def test_markerless_prefix_is_a_collection(ns_server):
+    # success/corner: objects written outside BriX commonly have no directory
+    # marker. The filesystem-backed S3 origin models that shape directly: only
+    # prefix/child exists. PROPFIND must classify prefix as a collection, and
+    # MKCOL must refuse to overwrite the already-existing implicit directory.
+    coll = f"implicit_{uuid.uuid4().hex}"
+    key = f"{coll}/child.bin"
+    child = ns_server / key
+    child.parent.mkdir()
+    child.write_bytes(BODY)
+
+    p = _req("PROPFIND", coll + "/", headers={"Depth": "0"})
+    assert p.status_code in (207, 200), \
+        f"markerless prefix PROPFIND: {p.status_code} {p.text[:200]}"
+    g = _req("GET", key, headers={"Accept-Encoding": "identity"})
+    assert g.status_code == 200 and g.content == BODY
+
+    m = _req("MKCOL", coll + "/")
+    assert m.status_code in (405, 409, 412), \
+        f"MKCOL must refuse an implicit collection, got {m.status_code}"
 
 
 def test_mkcol_existing_collection_conflicts(ns_server):

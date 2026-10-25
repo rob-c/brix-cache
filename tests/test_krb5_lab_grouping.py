@@ -106,10 +106,11 @@ def test_existing_occupied_port_guard_still_refuses_a_foreign_listener():
     assert checked == ["owned-port"]
 
 
-def test_existing_user_namespace_guard_still_refuses_unavailable_isolation():
-    guard = _guard("_guard_krb5_lab_3", _userns_works=lambda: False)
-    with pytest.raises(pytest.skip.Exception, match="user namespaces"):
-        guard()
+def test_failed_private_realm_provisioning_is_not_a_missing_feature_skip():
+    guard = _guard("_guard_krb5_lab_6")
+    failed = SimpleNamespace(returncode=1, stderr="realm creation failed", stdout="")
+    with pytest.raises(pytest.fail.Exception, match="realm creation failed"):
+        guard(failed)
 
 
 def _checksum_collection():

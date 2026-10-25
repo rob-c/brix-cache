@@ -47,11 +47,13 @@ _reexport(globals(), "_test_conf_prepfattr_helpers")
 pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_prepfattr_b")]
 
 
-def _assert_large_fattr_layout(attrs):
-    assert any(key.startswith("user.U.$brix$") for key in attrs), \
-        f"portable fattr manifest missing on OUR disk: {sorted(attrs)}"
-    assert any(key.startswith("user.$brix.fattr.") for key in attrs), \
-        f"portable fattr chunks missing on OUR disk: {sorted(attrs)}"
+def _assert_large_fattr_layout(our_attrs, off_attrs, name):
+    has_manifest = any(key.startswith("user.U.$brix$") for key in our_attrs)
+    has_chunks = any(key.startswith("user.$brix.fattr.") for key in our_attrs)
+    assert has_manifest == has_chunks, \
+        f"incomplete portable fattr layout on OUR disk: {sorted(our_attrs)}"
+    if not has_manifest:
+        _assert_standard_fattr_parity(our_attrs, off_attrs, name)
 
 
 def _assert_standard_fattr_parity(our_attrs, off_attrs, name):
@@ -63,6 +65,19 @@ def _assert_standard_fattr_parity(our_attrs, off_attrs, name):
         f"xattr {name} not found on OUR disk (have {sorted(our_attrs)})"
     assert ours == stock, \
         f"on-disk xattr value for {name} differs: OURS {ours!r} STOCK {stock!r}"
+
+
+def _corrupt_first_private_fattr_chunk(srv, rel, name, value):
+    _make_pair_file(srv, rel, b"x")
+    rc, _, error = L.run([L.OFF_XRDFS, srv["our"], "xattr", rel,
+                          "set", f"{name}={value}"])
+    assert rc == 0, f"large xattr setup failed: {error.strip()!r}"
+    disk = our_disk(srv, rel)
+    chunks = sorted(key for key in os.listxattr(disk)
+                    if key.startswith("user.$brix.fattr."))
+    if not chunks:
+        pytest.skip("filesystem aggregate xattr cap selected direct fallback")
+    os.setxattr(disk, chunks[0], b"corrupt")
 
 
 @pytest.mark.parametrize("name,value", XATTR_CASES)
@@ -124,7 +139,7 @@ def test_xattr_set_lands_on_disk(srv, idx, name, value):
     if our_attrs is None or off_attrs is None:
         pytest.skip("filesystem does not expose user xattrs (getfattr/os.listxattr)")
     if len(value.encode()) > 2048:
-        _assert_large_fattr_layout(our_attrs)
+        _assert_large_fattr_layout(our_attrs, off_attrs, name)
         return
     _assert_standard_fattr_parity(our_attrs, off_attrs, name)
 
@@ -134,15 +149,7 @@ def test_xattr_chunk_corruption_fails_closed(srv):
     rel = "/xa_corrupt.bin"
     name = "user.corrupt"
     value = "C" * 4000
-    _make_pair_file(srv, rel, b"x")
-    rc, _, error = L.run([L.OFF_XRDFS, srv["our"], "xattr", rel,
-                          "set", f"{name}={value}"])
-    assert rc == 0, f"large xattr setup failed: {error.strip()!r}"
-    disk = our_disk(srv, rel)
-    chunks = sorted(key for key in os.listxattr(disk)
-                    if key.startswith("user.$brix.fattr."))
-    assert chunks, "large xattr did not create a private chunk"
-    os.setxattr(disk, chunks[0], b"corrupt")
+    _corrupt_first_private_fattr_chunk(srv, rel, name, value)
     rc, output, _ = L.run([L.OFF_XRDFS, srv["our"], "xattr", rel,
                            "get", name])
     assert rc != 0, "corrupt chunk was exposed as a successful logical value"
@@ -400,9 +407,7 @@ def test_raw_fattr_bad_numattr_parity(srv, subcode, numattr):
 
 @pytest.mark.parametrize("path", ["/nope.txt", "/sub/gone.bin", "/missing/x"])
 def test_raw_fattr_get_nonexistent_file_parity(srv, path):
-    """RAW kXR_fattrGet on a NONEXISTENT file -> pin stock. The reference path
-    access check reports the attr-level failure inside an ok response (per-attr
-    rc), whereas ours rejects the whole request with kXR_NotFound."""
+    """Missing files retain an ok envelope carrying the per-attribute failure."""
     so, sf = _both()
     try:
         st_o, b_o = _fattr(so, path, kXR_fattrGet, 1, names=["user.x"])
@@ -412,12 +417,6 @@ def test_raw_fattr_get_nonexistent_file_parity(srv, path):
         sf.close()
     raw = f"\n  OURS cat={_category(st_o, b_o)} body={b_o[:48]!r}" \
           f"\n  STOCK cat={_category(st_f, b_f)} body={b_f[:48]!r}"
-    if (st_o == kXR_ok) != (st_f == kXR_ok):
-        pytest.xfail(
-            "OUR-SERVER BUG: kXR_fattrGet on a nonexistent file is rejected at "
-            f"the request level on ours but reported as a per-attr rc inside an "
-            f"ok response on stock.{raw} The reference returns kXR_ok and "
-            "encodes the failure in the nvec rc (XeqFAGet, Xeq:430).")
     assert (st_o == kXR_ok) == (st_f == kXR_ok), \
         f"fattr-get nonexistent-file success differs:{raw}"
     if st_o != kXR_ok:

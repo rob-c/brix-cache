@@ -124,6 +124,22 @@ paths.
 
 ## Contract
 
+`posix/lock_store.c` and `posix/lock_store.h` own the portable local lock
+transaction. A caller-supplied confined descriptor is locked with nonblocking
+`flock`; the stored xattr must exactly match the expected record before update
+or removal. Absent-only creation and stale-record refusal share that critical
+section. There is no sidecar file or generic conditional-xattr emulation.
+The caller closes its descriptor on every outcome. This serializes cooperating
+BriX transactions, not arbitrary external processes rewriting xattrs directly.
+For explicitly configured POSIX exports, `brix_sd_posix_open_lock_fd` in
+`posix/sd_posix_ns.c` opens the translated key beneath the instance's own root,
+using the same confined absolute-key derivation as its xattr operations.
+
+RADOS path-native truncation atomically asserts that the object exists before
+resizing it, in the same compound write. Unlike bare `rados_trunc`, it must not
+create a missing object; a separate existence probe would race a concurrent
+delete. Service and caller-scoped CephX slots use this same implementation.
+
 - **Worker-safe raw ops.** `pread`/`pwrite`/`ftruncate`/`fsync`/`fstat` (and
   `staged_write`) must not touch an nginx pool, emit metrics/logs, or read cache
   state — they run on AIO worker threads. The POSIX bodies are exactly today's

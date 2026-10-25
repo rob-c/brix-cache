@@ -48,15 +48,19 @@ _CURRENT_NODEID = [""]   # updated per-test by the sentinel setup hook
 
 
 def _process_command(pid):
+    from lib_py.util import process_cmdline
+
     try:
-        with open(f"/proc/{int(pid)}/cmdline", "rb") as fh:
-            return fh.read().replace(b"\0", b" ").decode("utf-8", "replace")
+        command = process_cmdline(int(pid))
+        return command.decode("utf-8", "replace") if command else None
     except (OSError, ValueError):
         return None
 
 
 def _process_kind(command):
-    kinds = (("nginx: master", "nginx"), ("xrootd", "xrootd"), ("cmsd", "cmsd"))
+    if re.search(r"(?:^|/)nginx(?:-[0-9a-f]+)?: master process(?: |$)", command):
+        return "nginx"
+    kinds = (("xrootd", "xrootd"), ("cmsd", "cmsd"))
     for marker, name in kinds:
         if marker in command:
             return name
@@ -99,7 +103,7 @@ def _trace_kill(pid, sig, *, real_kill, fatal):
 
 def _group_server(pgid):
     lines = subprocess.run(
-        ["pgrep", "-g", str(pgid)], capture_output=True, text=True
+        ["pgrep", "-g", str(pgid)], capture_output=True, text=True, timeout=1
     ).stdout.split()
     for line in lines:
         name = _server_name(line)

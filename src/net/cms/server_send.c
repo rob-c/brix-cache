@@ -1,5 +1,7 @@
 #include "server.h"
 #include "frame_io.h"
+#include "login_wire.h"
+#include "core/compat/host_identity.h"
 
 /*
  * brix_cms_srv_send_frame — thin wrapper for server-side frame dispatch.
@@ -16,6 +18,38 @@ brix_cms_srv_send_frame(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
 {
     return brix_cms_send_frame(ctx->c, streamid, code, modifier, payload,
                                  payload_len);
+}
+
+/* ---- Acknowledge an admitted, authenticated CMS LOGIN ----
+ * WHAT: Return NGX_OK only after the complete manager LOGIN reply is sent.
+ * WHY: Reference nodes wait for this reply before processing state probes;
+ *      registration without it creates false NotFound results and reconnects.
+ * HOW: 1. Identify this listening endpoint. 2. Encode a conservative manager
+ *      reply with no optional features or storage capacity. 3. Send via frame IO.
+ */
+ngx_int_t
+brix_cms_srv_send_login_ack(brix_cms_srv_ctx_t *ctx)
+{
+    brix_cms_login_fields_t fields = {0};
+    u_char payload[BRIX_CMS_LOGIN_PAYLOAD_BUF];
+    u_char sid[BRIX_CMS_SID_BUF];
+    u_char *end;
+    size_t length;
+
+    if (ctx->c == NULL
+        || ngx_connection_local_sockaddr(ctx->c, NULL, 0) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    end = ngx_snprintf(sid, sizeof(sid), "brix-manager@%s:%ui",
+        brix_host_identity(),
+        (ngx_uint_t) ngx_inet_get_port(ctx->c->local_sockaddr));
+    fields.sid.data = sid;
+    fields.sid.len = (size_t) (end - sid);
+    length = brix_cms_login_encode(payload, sizeof(payload), &fields);
+    if (length == 0) {
+        return NGX_ERROR;
+    }
+    return brix_cms_srv_send_frame(ctx, 0, CMS_RR_LOGIN, 0, payload, length);
 }
 
 /* brix_cms_srv_send_ping — send a header-only kYR_ping (streamid=0) to a

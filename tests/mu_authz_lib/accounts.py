@@ -10,8 +10,10 @@ import pwd
 import subprocess
 
 from lib_py.util import nologin_shell
+from lib_py import account_host
 
 PREFIX = "brixtest_"
+BROKER_UID = 1699
 
 
 def require_privileged() -> None:
@@ -39,9 +41,9 @@ def reap() -> None:
     would then raise mid-session with half a cast on the box.
     """
     for name in _existing():
-        subprocess.run(["userdel", "-r", name], capture_output=True)
+        subprocess.run(account_host.user_delete(name), capture_output=True)
     for name in _existing_groups():
-        subprocess.run(["groupdel", name], capture_output=True)
+        subprocess.run(account_host.group_delete(name), capture_output=True)
 
 
 def sweep_leftover() -> None:
@@ -54,16 +56,37 @@ def _remove_mismatched_user(uname: str, uid: int) -> bool:
     try:
         if pwd.getpwnam(uname).pw_uid == uid:
             return True
-        subprocess.run(["userdel", "-r", uname], capture_output=True)
+        subprocess.run(account_host.user_delete(uname), capture_output=True)
     except KeyError:
         pass
     return False
 
 
+def _group_gid(uname: str) -> "int | None":
+    try:
+        return grp.getgrnam(uname).gr_gid
+    except KeyError:
+        return None
+
+
+def _remove_group(uname: str, old_gid: int, new_gid: int) -> None:
+    removed = subprocess.run(account_host.group_delete(uname), capture_output=True)
+    if removed.returncode == 0:
+        return
+    detail = removed.stderr.decode("utf-8", "replace")
+    raise RuntimeError(
+        f"cannot replace group {uname} at gid {old_gid} "
+        f"with gid {new_gid}: {detail.strip()}")
+
+
 def _create_group(uname: str, uid: int) -> None:
-    subprocess.run(["groupdel", uname], capture_output=True)
+    old_gid = _group_gid(uname)
+    if old_gid == uid:
+        return
+    if old_gid is not None:
+        _remove_group(uname, old_gid, uid)
     created = subprocess.run(
-        ["groupadd", "-o", "-g", str(uid), uname], capture_output=True,
+        account_host.group_add(uname, uid), capture_output=True,
     )
     if created.returncode == 0:
         return
@@ -74,8 +97,8 @@ def _create_group(uname: str, uid: int) -> None:
 
 def _create_user(uname: str, uid: int) -> None:
     created = subprocess.run(
-        ["useradd", "-r", "-M", "-o", "-u", str(uid),
-         "-g", uname, "-s", nologin_shell(), uname], capture_output=True,
+        account_host.user_add(uname, uid, uname, nologin_shell(), system=True),
+        capture_output=True,
     )
     if created.returncode == 0:
         return
@@ -84,17 +107,32 @@ def _create_user(uname: str, uid: int) -> None:
         f"cannot provision {uname} at uid {uid}: {detail.strip()}")
 
 
+def canonical_account_names(cast):
+    """One exact account per active uid, shared by provisioning and gridmap."""
+    first, result = {}, {}
+    for principal in cast.values():
+        if principal.name != 'squashed':
+            result[principal.name] = first.setdefault(
+                principal.uid, PREFIX + principal.name)
+    return result
+
+
 def provision(cast) -> None:
     """Create brixtest_<name> system users at each principal's uid. Distinct principals that
     share a uid (collide/alice) collapse onto one account by design."""
     require_privileged()
-    seen_uids: "dict[int, str]" = {}
+    names = canonical_account_names(cast)
+    seen = set()
     for p in cast.values():
-        uname = PREFIX + p.name
-        if p.uid in seen_uids and seen_uids[p.uid] != uname:
+        if p.name == 'squashed':
+            # This negative-control principal has no credentials or gridmap
+            # entry. Its logical nobody uid must never alias a real account.
+            continue
+        uname = names[p.name]
+        if uname in seen:
             # Two principals mapping to one uid share the FIRST account created for it.
             continue
-        seen_uids.setdefault(p.uid, uname)
+        seen.add(uname)
         if _remove_mismatched_user(uname, p.uid):
             continue
         # A killed run can leave the user absent but its private group behind.
@@ -115,3 +153,7 @@ def provision(cast) -> None:
         # one useradd flag.  Without -N, useradd creates brixtest_<name> at the
         # first free gid >= GID_MIN, which clears the floor by construction.
         _create_user(uname, p.uid)
+    broker = PREFIX + 'broker'
+    if not _remove_mismatched_user(broker, BROKER_UID):
+        _create_group(broker, BROKER_UID)
+        _create_user(broker, BROKER_UID)

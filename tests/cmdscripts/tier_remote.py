@@ -21,7 +21,11 @@ import tempfile
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
+from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST
+
+
+_PORTS = cmdscript_ports("tier_remote")
 
 
 def _expression_1(response):
@@ -71,7 +75,7 @@ def _expression_3(status, expected, allocated, full_status, got, cache, size,
 
 def _expression_4(sidecar):
     return (
-        (11742, 11743, 8527) if sidecar else (11682, 11683, 8497)
+        tuple(_PORTS[11:14]) if sidecar else tuple(_PORTS[5:8])
     )
 
 def _expression_5(sidecar):
@@ -192,7 +196,7 @@ def _result(checks: list[tuple[bool, str]]) -> int:
 
 def remote_stage(nginx: Path | None = None) -> int:
     with LiveRun("tier_rstage", nginx) as run:
-        topology = TierTopology(run, 11702, 11703, 8503)
+        topology = TierTopology(run, *_PORTS[0:3])
         stage = f"brix_stage on; brix_stage_store root://{HOST}:{topology.store_port}; brix_stage_flush sync;"
         topology.start(stage, origin_writable=True, cache_writable=True)
         source = run.root / "src.bin"
@@ -241,7 +245,7 @@ def remote_store(nginx: Path | None = None, *, sidecar: bool = False) -> int:
 
 def remote_evict(nginx: Path | None = None) -> int:
     with LiveRun("tier_revict", nginx) as run:
-        topology = TierTopology(run, 11732, 11733, 8525)
+        topology = TierTopology(run, *_PORTS[8:11])
         topology.start(f"brix_cache_store root://{HOST}:{topology.store_port};", origin_writable=True, cache_writable=True)
         original = topology.origin / "root/e.bin"
         digest = random_file(original, 300000)
@@ -278,7 +282,9 @@ def remote_evict(nginx: Path | None = None) -> int:
 def slice_fill(nginx: Path | None = None) -> int:
     block, size = 65536, 4194304
     with LiveRun("tier_slice", nginx) as run:
-        topology = TierTopology(run, 11712, 11713, 8507)
+        # slice-fill has no store listener; the middle slot is an unused
+        # constructor placeholder and may safely repeat the owned origin port.
+        topology = TierTopology(run, _PORTS[3], _PORTS[3], _PORTS[4])
         directives = f"brix_cache_store posix:{topology.client}/cache; brix_cache_slice_size {block};"
         source = topology.origin / "root/big.bin"
         random_file(source, size)

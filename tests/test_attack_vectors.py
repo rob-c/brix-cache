@@ -82,9 +82,9 @@ def _request(port, method, path, body=None, headers=None, tls=False):
         c.close()
 
 
-_HTTP_SKIP = pytest.mark.skipif(not _port_up(NGINX_HTTP_WEBDAV_PORT),
+_HTTP_SKIP = pytest.mark.skipif("not _port_up(NGINX_HTTP_WEBDAV_PORT)",
                                 reason="http WebDAV (8080) not reachable")
-_S3_SKIP = pytest.mark.skipif(not _port_up(NGINX_S3_PORT),
+_S3_SKIP = pytest.mark.skipif("not _port_up(NGINX_S3_PORT)",
                               reason="S3 (9001) not reachable")
 
 

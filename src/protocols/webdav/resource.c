@@ -59,28 +59,16 @@ webdav_resolve_stat(ngx_http_request_t *r, char *path, size_t pathsz,
         return NGX_OK;
     }
 
-    ngx_memzero(&vctx, sizeof(vctx));
-    vctx.rootfd = -1;
-    vctx.pool = webdav_req_pool(r);   /* task pool when offloaded (phase-109) */
-    vctx.log = r->connection->log;
-    vctx.metrics_proto = BRIX_PROTO_WEBDAV;
-    vctx.root_canon = conf->common.root_canon;
-    /* Hand-rolled ctx (not brix_vfs_ctx_init): resolve the storage backend so
-     * stat routes through the driver on a non-POSIX export. */
-    vctx.sd = brix_vfs_backend_resolve(conf->common.root_canon,
-                                         r->connection->log);
-    vctx.mutation_policy =
-        brix_vfs_policy_from_write_enable(conf->common.allow_write);
-    vctx.resolved.resolved.data = (u_char *) path;
-    vctx.resolved.resolved.len = ngx_strlen(path);
-    vctx.resolved.is_confined = 1;
-
-    vctx.is_tls = brix_http_request_is_tls(r);
-
     wctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
-    if (wctx != NULL) {
-        vctx.identity = wctx->identity;
-    }
+    /* The canonical initializer binds BOTH the backend and its N2N mapping.
+     * A hand-built ctx dropped the latter, so HEAD/DELETE probed an unprefixed
+     * object even when GET/PUT addressed the correct physical key. Preserve
+     * the task-local pool for metadata operations offloaded from the loop. */
+    brix_vfs_ctx_init(&vctx, webdav_req_pool(r), r->connection->log,
+        BRIX_PROTO_WEBDAV, conf->common.root_canon, NULL,
+        brix_vfs_policy_from_write_enable(conf->common.allow_write),
+        brix_http_request_is_tls(r),
+        wctx != NULL ? wctx->identity : NULL, path);
 
     /* Wire the per-user backend credential gate (Phase 2 Task 1).  The gate
      * fires in brix_vfs_stat when storage_cred_dir is non-NULL and the backend

@@ -12,6 +12,7 @@ import subprocess
 import pytest
 
 from test_platform_linux_native import native_compile  # shared SDK fixture
+from lib_py.nginx_build import configured_compile_layout
 
 
 @pytest.fixture(scope='module')
@@ -111,7 +112,9 @@ def test_cms_percentage_bound(parser_binary, case):
 def location_binary(native_compile):
     """Exercise real location-cache expiry using a private in-memory table."""
     root = Path(__file__).resolve().parents[1]
-    build = Path(os.environ.get('BRIX_NGINX_BUILD_DIR', root / 'build/alma9-merged')).resolve()
+    layout = configured_compile_layout(root, os.environ)
+    assert layout is not None, 'native compiler fixture already validated its SDK'
+    _, source = layout
     return native_compile('location-cache', r'''
 #include <assert.h>
 #include "net/manager/loc_cache.c"
@@ -150,7 +153,7 @@ int main(int argc, char **argv) {
     return 0;
 }
 ''', extra=['-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections',
-            str(build / 'nginx-src/src/core/ngx_string.c')])
+            str(source / 'src/core/ngx_string.c')])
 
 
 @pytest.mark.parametrize('case', ['default', 'override', 'invalid'])

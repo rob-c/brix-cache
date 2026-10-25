@@ -9,13 +9,15 @@ BUILDDIR=@MOD_OUT_SHELL@
 CC_OPT=@CC_OPT_SHELL@
 LD_OPT=@LD_OPT_SHELL@
 JOBS=@BRIX_BUILD_JOBS@
+MAKE=@MAKE_SHELL@
 CONFIG_ID='@_nginx_config_id@'
 # Root config also accepts these build-time environment overrides. Switching
 # one must invalidate objects just like changing CMake's compiler/linker flags.
 CONFIG_ID=$(printf '%s\0' "$CONFIG_ID" "${BRIX_ENABLE_IO_URING-}" \
     "${BRIX_OPTIMIZE-}" "${BRIX_LZ4_CFLAGS-}" "${BRIX_LZ4_LIBS-}" \
     "${CC-}" "${CFLAGS-}" "${LDFLAGS-}" "${PKG_CONFIG_PATH-}" \
-    "${PKG_CONFIG_LIBDIR-}" | sha256sum)
+    "${PKG_CONFIG_LIBDIR-}" "${BRIX_OPENSSL111_COMPAT-}" \
+    | @HASH_PYTHON_SHELL@ -c 'import hashlib, sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())')
 CONFIG_ID=${CONFIG_ID%% *}
 STAMP="$WORK/.brix-config-id"
 NEEDS_CONFIGURE=0
@@ -45,13 +47,14 @@ if [[ "$NEEDS_CONFIGURE" == 1 ]] || [[ ! -f "$WORK/Makefile" ]] \
         --with-stream=dynamic \
         --with-stream_ssl_module \
         --with-http_ssl_module \
+        --with-http_auth_request_module \
         --with-http_dav_module
     printf '%s\n' "$CONFIG_ID" > "$STAMP"
 fi
 
 TARGET=@NGINX_MAKE_TARGET@
 echo "[brix] building nginx $TARGET (-j$JOBS)"
-make -C "$WORK" -j"$JOBS" "$TARGET"
+"$MAKE" -C "$WORK" -j"$JOBS" "$TARGET"
 
 ls -l "$BUILDDIR"/ngx_stream_brix_module.so \
       "$BUILDDIR"/ngx_http_brix_xrdhttp_filter_module.so

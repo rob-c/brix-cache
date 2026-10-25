@@ -67,7 +67,7 @@ def test_unavailable_selected_endpoint_preserves_outcome(zip_case, monkeypatch, 
         return False
 
     monkeypatch.setattr(zip_case.subject, "_wait_listen", ready)
-    kind = RuntimeError if failure == "error" else pytest.skip.Exception
+    kind = RuntimeError if failure == "error" else pytest.fail.Exception
     with pytest.raises(kind) as caught:
         next(zip_case.subject.zipsrv.__wrapped__())
     if failure == "error":
@@ -76,7 +76,7 @@ def test_unavailable_selected_endpoint_preserves_outcome(zip_case, monkeypatch, 
         assert str(TEST_PORT_START) in str(caught.value)
 
 
-def test_archive_creation_failure_is_not_hidden_as_readiness_skip(zip_case, monkeypatch):
+def test_archive_creation_failure_is_not_hidden_as_readiness_failure(zip_case, monkeypatch):
     error = OSError("deliberate offline archive creation failure")
 
     def refuse(*args, **kwargs):

@@ -192,30 +192,49 @@ brix_http_query_name_eq(const ngx_str_t *name, const char *key,
     return ngx_strncmp(name->data, key, key_len) == 0;
 }
 
-int
-brix_http_query_parsed_value(const brix_http_query_t *query,
-    const char *key, ngx_str_t *out, unsigned flags)
+/* ---- Find one unambiguous decoded query name ----
+ * WHAT: Return zero with a nullable match, or BRIX_HTTP_QUERY_DUPLICATE.
+ * WHY: Value lookup and presence routing must reject the same ambiguity.
+ * HOW: 1. Scan the validated immutable query. 2. Reject a second matching name.
+ *      Callers validate query/key and retain their distinct empty-value rules.
+ */
+static int
+brix_http_query_find_singleton(const brix_http_query_t *query,
+    const char *key, unsigned flags, const brix_http_query_param_t **match)
 {
-    const brix_http_query_param_t *match = NULL;
-    size_t                         key_len;
-    ngx_uint_t                     i;
+    size_t key_len = ngx_strlen(key);
+    ngx_uint_t i;
 
-    if (query == NULL || !query->parsed || key == NULL || out == NULL) {
-        return -1;
-    }
-    out->data = NULL;
-    out->len = 0;
-    key_len = ngx_strlen(key);
+    *match = NULL;
     for (i = 0; i < query->count; i++) {
         if (!brix_http_query_name_eq(&query->params[i].name, key,
                                      key_len, flags))
         {
             continue;
         }
-        if (match != NULL) {
+        if (*match != NULL) {
             return BRIX_HTTP_QUERY_DUPLICATE;
         }
-        match = &query->params[i];
+        *match = &query->params[i];
+    }
+    return 0;
+}
+
+int
+brix_http_query_parsed_value(const brix_http_query_t *query,
+    const char *key, ngx_str_t *out, unsigned flags)
+{
+    const brix_http_query_param_t *match;
+
+    if (query == NULL || !query->parsed || key == NULL || out == NULL) {
+        return -1;
+    }
+    out->data = NULL;
+    out->len = 0;
+    if (brix_http_query_find_singleton(query, key, flags, &match)
+        == BRIX_HTTP_QUERY_DUPLICATE)
+    {
+        return BRIX_HTTP_QUERY_DUPLICATE;
     }
     if (match == NULL || !match->has_value
         || (match->value.len == 0 && !(flags & BRIX_HTTP_QUERY_ALLOW_EMPTY)))
@@ -254,24 +273,15 @@ int
 brix_http_query_parsed_has(const brix_http_query_t *query,
     const char *key, unsigned flags)
 {
-    const brix_http_query_param_t *match = NULL;
-    size_t                         key_len;
-    ngx_uint_t                     i;
+    const brix_http_query_param_t *match;
 
     if (query == NULL || !query->parsed || key == NULL) {
         return -1;
     }
-    key_len = ngx_strlen(key);
-    for (i = 0; i < query->count; i++) {
-        if (!brix_http_query_name_eq(&query->params[i].name, key,
-                                     key_len, flags))
-        {
-            continue;
-        }
-        if (match != NULL) {
-            return BRIX_HTTP_QUERY_DUPLICATE;
-        }
-        match = &query->params[i];
+    if (brix_http_query_find_singleton(query, key, flags, &match)
+        == BRIX_HTTP_QUERY_DUPLICATE)
+    {
+        return BRIX_HTTP_QUERY_DUPLICATE;
     }
     if (match == NULL) {
         return 0;

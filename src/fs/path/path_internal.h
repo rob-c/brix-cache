@@ -2,6 +2,7 @@
 #define BRIX_PATH_PATH_INTERNAL_H
 
 #include "core/ngx_brix_module.h"
+#include "path.h"
 
 /* Traversal guard: returns 1 (true) iff comp[0..comp_len) is exactly "." or
  * "..", else 0. Borrows comp (need not be NUL-terminated); O(1), no alloc. */
@@ -68,14 +69,6 @@ int brix_open_confined_parent_canon(ngx_log_t *log, const char *root_canon,
  * slash unless root is "/"). The next-byte ('/' or NUL) test defeats prefix
  * spoofing ("/export" never matches "/exportdata"). Borrows both strings. */
 int brix_path_within_root(const char *root_canon, const char *path_canon);
-
-/* Strips root_canon from absolute resolved, writing the root-relative form
- * (or "." when resolved IS the root) into rel[0..relsz). Returns 1 on success,
- * 0 on failure (sets errno: EXDEV if resolved escapes root and logs a warning;
- * ENAMETOOLONG if the relative form does not fit relsz). Note: failure is 0,
- * not -1. Borrows root_canon/resolved; writes only on success. */
-int brix_resolved_relative_to_root(ngx_log_t *log, const char *root_canon,
-    const char *resolved, char *rel, size_t relsz);
 
 /* Canonicalizes config root (ngx_str_t, not NUL-terminated) into root_canon via
  * realpath(3); the root must exist. Returns 1 on success, 0 on failure (root

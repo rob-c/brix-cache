@@ -1,5 +1,5 @@
 /* Phase-118 raw pgwrite checksum-error and correction probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "core/compat/crc32c.h"
 #include "core/compat/pgio.h"
 #include "protocols/root/protocol/codec/wire_codec.h"
@@ -13,38 +13,7 @@ typedef struct {
     uint32_t trailer_length;
 } pgw_reply;
 
-static int
-reserve_op(xrd_conform_execution *execution, size_t bytes)
-{
-    char reason[64];
 
-    return xrd_conform_reserve(execution, bytes, reason, sizeof(reason));
-}
-
-static void
-grade(xrd_conform_execution *execution, const char *id, int pass,
-    const char *success, const char *failure, const brix_status *status)
-{
-    xrd_conform_result_set(execution, id,
-        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
-             : BRIX_CONFORM_VERDICT_DIVERGENT,
-        pass ? success : failure, NULL, status == NULL ? NULL : status->msg);
-}
-
-/* ---- Test whether a pgwrite clause survived scope filtering ----
- *
- * WHAT: Returns one when the named result row is active.
- * WHY: The 256-error ceiling exercise is intentionally expensive and must not
- *      run when `--only` selects another checksum-error clause.
- * HOW: Look up the result row and reject absent or skipped entries.
- */
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
-
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
 static int
 send_pgwrite(brix_conn *connection, brix_file *file, int64_t offset,
@@ -182,7 +151,7 @@ send_bad_pages(xrd_conform_execution *execution, brix_conn *connection,
     int rc = -1;
 
     payload = bad_pages_payload(execution, offset, pages, &payload_length);
-    if (payload != NULL && reserve_op(execution, payload_length)
+    if (payload != NULL && xrd_conform_reserve_probe(execution, payload_length)
         && send_pgwrite(connection, file, offset, 0, payload, payload_length,
             &stream_id, status) == 0
         && read_pgwrite_reply(connection, stream_id, reply, status) == 0)
@@ -235,7 +204,7 @@ correct_outstanding_pages(xrd_conform_execution *execution,
         brix_conform_fill(&execution->run->key, (uint64_t) offset, data,
             sizeof(data));
         payload_length = xrdp_pg_encode(data, sizeof(data), offset, payload);
-        if (!reserve_op(execution, payload_length)
+        if (!xrd_conform_reserve_probe(execution, payload_length)
             || send_pgwrite(connection, file, offset, kXR_pgRetry, payload,
                 payload_length, &stream_id, status) != 0
             || read_pgwrite_reply(connection, stream_id, &reply, status) != 0)
@@ -248,6 +217,45 @@ correct_outstanding_pages(xrd_conform_execution *execution,
 }
 
 static void
+send_outstanding_batches(xrd_conform_execution *execution,
+    brix_conn *connection, brix_file *file, pgw_reply *first,
+    pgw_reply *second, int *first_ok, int *second_ok, brix_status *status)
+{
+    const size_t pages = kXR_pgMaxEpr;
+    const int64_t second_offset = (int64_t) pages * kXR_pgPageSZ;
+
+    if (send_bad_pages(execution, connection, file, 0, pages, first,
+            status) == 0) {
+        *first_ok = first->trailer_length == 8 + pages * 8;
+        free(first->trailer);
+    }
+    if (*first_ok && send_bad_pages(execution, connection, file,
+            second_offset, pages, second, status) == 0) {
+        *second_ok = second->trailer_length == 8 + pages * 8;
+        free(second->trailer);
+    }
+}
+
+static int
+probe_terminal_error(xrd_conform_execution *execution,
+    brix_conn *connection, brix_file *file, int64_t offset,
+    brix_status *status)
+{
+    uint8_t *payload;
+    uint16_t stream_id;
+    size_t payload_length;
+    int matched = 0;
+
+    payload = bad_pages_payload(execution, offset, 1, &payload_length);
+    if (payload != NULL && xrd_conform_reserve_probe(execution, payload_length)
+        && send_pgwrite(connection, file, offset, 0, payload, payload_length,
+            &stream_id, status) == 0)
+        matched = read_too_many_errors(connection, stream_id, status);
+    free(payload);
+    return matched;
+}
+
+static void
 probe_outstanding_limit(xrd_conform_execution *execution,
     brix_conn *connection, const xrd_conform_scratch_object *object)
 {
@@ -256,11 +264,8 @@ probe_outstanding_limit(xrd_conform_execution *execution,
     const int64_t terminal_offset = 2 * second_offset;
     pgw_reply first;
     pgw_reply second;
-    uint8_t *payload;
     brix_file file;
     brix_status status;
-    uint16_t stream_id;
-    size_t payload_length;
     int first_ok = 0;
     int second_ok = 0;
     int terminal = 0;
@@ -278,34 +283,65 @@ probe_outstanding_limit(xrd_conform_execution *execution,
     }
 
     brix_status_clear(&status);
-    if (!reserve_op(execution, 0)
+    if (!xrd_conform_reserve_probe(execution, 0)
         || brix_file_open_write(connection, object->path, 1, 0, &file,
             &status) != 0) return;
-    if (send_bad_pages(execution, connection, &file, 0, batch_pages, &first,
-            &status) == 0) {
-        first_ok = first.trailer_length == 8 + batch_pages * 8;
-        free(first.trailer);
-    }
-    if (first_ok && send_bad_pages(execution, connection, &file, second_offset,
-            batch_pages, &second, &status) == 0) {
-        second_ok = second.trailer_length == 8 + batch_pages * 8;
-        free(second.trailer);
-    }
-    payload = bad_pages_payload(execution, terminal_offset, 1,
-        &payload_length);
-    if (second_ok && payload != NULL && reserve_op(execution, payload_length)
-        && send_pgwrite(connection, &file, terminal_offset, 0, payload,
-            payload_length, &stream_id, &status) == 0)
-        terminal = read_too_many_errors(connection, stream_id, &status);
-    free(payload);
+    send_outstanding_batches(execution, connection, &file, &first, &second,
+        &first_ok, &second_ok, &status);
+    if (second_ok)
+        terminal = probe_terminal_error(execution, connection, &file,
+            terminal_offset, &status);
     if (terminal)
         corrected = correct_outstanding_pages(execution, connection, &file,
             2 * batch_pages, &status);
-    if (corrected && reserve_op(execution, 0))
+    if (corrected && xrd_conform_reserve_probe(execution, 0))
         corrected = brix_file_close(connection, &file, &status) == 0;
-    grade(execution, "PGW-010", first_ok && second_ok && terminal && corrected,
+    xrd_conform_grade_status(execution, "PGW-010", first_ok && second_ok && terminal && corrected,
         "outstanding-cse-cap-enforced", "outstanding-cse-cap-not-enforced",
         &status);
+}
+
+static int
+retry_page(xrd_conform_execution *execution, brix_conn *connection,
+    brix_file *file, const uint8_t *data, brix_status *status)
+{
+    uint8_t payload[4100];
+    pgw_reply reply;
+    uint16_t stream_id;
+    size_t payload_length = xrdp_pg_encode(data, 4096, 0, payload);
+    int passed = 0;
+
+    if (xrd_conform_reserve_probe(execution, payload_length)
+        && send_pgwrite(connection, file, 0, kXR_pgRetry, payload,
+            payload_length, &stream_id, status) == 0
+        && read_pgwrite_reply(connection, stream_id, &reply, status) == 0) {
+        passed = fixed_status_valid(&reply, stream_id, 0)
+            && reply.trailer_length == 0;
+        free(reply.trailer);
+    }
+    return passed && xrd_conform_reserve_probe(execution, 0)
+        && brix_file_close(connection, file, status) == 0;
+}
+
+static int
+readback_page(xrd_conform_execution *execution, brix_conn *connection,
+    const xrd_conform_scratch_object *object, const uint8_t *expected,
+    brix_status *status)
+{
+    uint8_t actual[4096];
+    brix_file file;
+    int passed = 0;
+
+    if (xrd_conform_reserve_probe(execution, 0)
+        && brix_file_open_read(connection, object->path, &file, status) == 0) {
+        if (xrd_conform_reserve_probe(execution, sizeof(actual)))
+            passed = brix_file_read(connection, &file, 0, actual,
+                sizeof(actual), status) == (ssize_t) sizeof(actual)
+                && memcmp(actual, expected, sizeof(actual)) == 0;
+        if (xrd_conform_reserve_probe(execution, 0))
+            brix_file_close(connection, &file, status);
+    }
+    return passed;
 }
 
 void
@@ -314,11 +350,9 @@ xrd_conform_probe_pgwrite_cse(xrd_conform_execution *execution,
 {
     uint8_t data[4096];
     uint8_t payload[4100];
-    uint8_t actual[4096];
     brix_file file;
     brix_status status;
     pgw_reply bad_reply;
-    pgw_reply retry_reply;
     uint16_t stream_id;
     size_t payload_length;
     int bad_ok = 0;
@@ -328,12 +362,12 @@ xrd_conform_probe_pgwrite_cse(xrd_conform_execution *execution,
 
     brix_conform_fill(&execution->run->key, 8192, data, sizeof(data));
     brix_status_clear(&status);
-    if (!reserve_op(execution, 0)
+    if (!xrd_conform_reserve_probe(execution, 0)
         || brix_file_open_write(connection, object->path, 1, 0, &file,
             &status) != 0) return;
     payload_length = xrdp_pg_encode(data, sizeof(data), 0, payload);
     payload[0] ^= 0x80;
-    if (reserve_op(execution, payload_length)
+    if (xrd_conform_reserve_probe(execution, payload_length)
         && send_pgwrite(connection, &file, 0, 0, payload, payload_length,
             &stream_id, &status) == 0
         && read_pgwrite_reply(connection, stream_id, &bad_reply, &status) == 0) {
@@ -341,41 +375,26 @@ xrd_conform_probe_pgwrite_cse(xrd_conform_execution *execution,
             && cse_valid(&bad_reply);
         free(bad_reply.trailer);
     }
-    grade(execution, "PGW-005", bad_ok, "bad-crc-reported-in-cse",
+    xrd_conform_grade_status(execution, "PGW-005", bad_ok, "bad-crc-reported-in-cse",
         "bad-crc-not-reported", &status);
-    grade(execution, "PGW-007", bad_ok, "cse-lengths-and-offset-list-valid",
+    xrd_conform_grade_status(execution, "PGW-007", bad_ok, "cse-lengths-and-offset-list-valid",
         "cse-structure-invalid", &status);
-    grade(execution, "PGW-008", bad_ok, "cse-crc32c-valid",
+    xrd_conform_grade_status(execution, "PGW-008", bad_ok, "cse-crc32c-valid",
         "cse-crc32c-invalid", &status);
 
-    if (bad_ok && reserve_op(execution, 0))
+    if (bad_ok && xrd_conform_reserve_probe(execution, 0))
         close_gated = brix_file_close(connection, &file, &status) != 0
             && status.kxr == kXR_ChkSumErr;
-    grade(execution, "PGW-006", close_gated,
+    xrd_conform_grade_status(execution, "PGW-006", close_gated,
         "uncorrected-page-gated-close", "uncorrected-page-finalized", &status);
 
-    payload_length = xrdp_pg_encode(data, sizeof(data), 0, payload);
-    if (close_gated && reserve_op(execution, payload_length)
-        && send_pgwrite(connection, &file, 0, kXR_pgRetry, payload,
-            payload_length, &stream_id, &status) == 0
-        && read_pgwrite_reply(connection, stream_id, &retry_reply, &status) == 0) {
-        retry_ok = fixed_status_valid(&retry_reply, stream_id, 0)
-            && retry_reply.trailer_length == 0;
-        free(retry_reply.trailer);
-    }
-    if (retry_ok && reserve_op(execution, 0))
-        retry_ok = brix_file_close(connection, &file, &status) == 0;
-    if (retry_ok && reserve_op(execution, 0)
-        && brix_file_open_read(connection, object->path, &file, &status) == 0) {
-        if (reserve_op(execution, sizeof(actual)))
-            readback_ok = brix_file_read(connection, &file, 0, actual,
-                sizeof(actual), &status) == (ssize_t) sizeof(actual)
-                && memcmp(actual, data, sizeof(data)) == 0;
-        if (reserve_op(execution, 0))
-            brix_file_close(connection, &file, &status);
-    }
-    grade(execution, "PGW-009", retry_ok && readback_ok,
+    if (close_gated)
+        retry_ok = retry_page(execution, connection, &file, data, &status);
+    if (retry_ok)
+        readback_ok = readback_page(execution, connection, object, data,
+            &status);
+    xrd_conform_grade_status(execution, "PGW-009", retry_ok && readback_ok,
         "rejected-page-retry-corrected-object", "pgwrite-retry-failed", &status);
-    if (row_active(execution, "PGW-010"))
+    if (xrd_conform_row_active(execution, "PGW-010"))
         probe_outstanding_limit(execution, connection, object);
 }

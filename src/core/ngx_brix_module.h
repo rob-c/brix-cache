@@ -66,9 +66,7 @@
 #include <openssl/bn.h>
 #include <openssl/rand.h>
 #include <openssl/rsa.h>
-#include <openssl/params.h>
-#include <openssl/param_build.h>
-#include <openssl/core_names.h>
+#include "auth/crypto/key_compat.h"
 
 /* VOMS support is loaded at runtime via dlopen; no compile-time header needed */
 

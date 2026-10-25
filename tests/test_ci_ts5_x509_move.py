@@ -51,21 +51,23 @@ _ARCHIVES = ("x509forge_flat.py", "x509forge_part2_flat.py",
 
 # Deliberate Alma9 fixture repairs after the mechanical move, verified by
 # test_x509_fixture_signing: signing policy is scoped to the fixture child,
-# and EC fixture keys use the existing key primitive. Keep exact body pins;
+# and EC fixture keys use the existing key primitive. The subsequent 1.1.1
+# repair supplies req's DN section explicitly and excludes duplicate CA
+# defaults; child-only SHA-1 policy scope is unchanged. Keep exact body pins;
 # these names are not permission for arbitrary later drift.
 _POST_MOVE_CHANGED = {
     '_make_ca_openssl': (
         'a5f8a75b9716b59b0e6476d8f3d915cf62288b66124ada8d421e77a7831311f7',
-        '349960bc5efa572f3aa603021dd72936514ef646c90ae798e1f64a3277ec2449',
+        'c9bbea91533f46eed2e3b96d0d6c2a042408ce8c9a798b534b61d84b7c50f72e',
     ),
     '_make_eec_openssl': (
         'a6d32c48a600a7f4c4caab906ac1bd97b245563948dde7fbee5aebee8434a057',
-        'f7e48ccd273648a995006b4107f0e8276d62d644605d5ed3274d721b1f44e742',
+        '449f27f12e57abea222727260e47ac9b0c1d7570b6498c824deb9ac7c2596788',
     ),
 }
 _POST_MOVE_ADDED = {
     '_fixture_signing_env':
-        '778ef778e42ab748d4a5685148b522925fac2e31a2ac78297caa4987cf74e311',
+        '7650269fffb7de672178f3db68b2a57bdb62e3155fbfd5f938ae397aebc74dbd',
     '_write_fixture_key':
         'c2885623f0b88b664939645f1ee5673197ae879990a9fcd4e66b408ba5d0aae1',
 }

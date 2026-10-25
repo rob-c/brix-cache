@@ -11,6 +11,7 @@
 
 #include "core/compat/log_event.h"
 #include "pki_build.h"
+#include "store_compat.h"
 #include "auth/crypto/store_policy.h"
 
 #include <openssl/pem.h>
@@ -250,7 +251,7 @@ brix_build_ca_store(ngx_log_t *log,
     }
 
     if (cadir != NULL) {
-        if (!X509_STORE_load_path(store, cadir)) {
+        if (!brix_crypto_store_load_path(store, cadir)) {
             BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_pki: failed to load CA directory \"%s\"",
                           cadir);
@@ -258,7 +259,7 @@ brix_build_ca_store(ngx_log_t *log,
     }
 
     if (cafile != NULL) {
-        if (!X509_STORE_load_file(store, cafile)) {
+        if (!brix_crypto_store_load_file(store, cafile)) {
             BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_pki: failed to load CA file \"%s\"", cafile);
         }

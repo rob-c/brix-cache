@@ -6,6 +6,9 @@
 #include "observability/pmark/pmark.h"
 #include "observability/metrics/metrics.h"
 #include "observability/metrics/metrics_macros.h"
+#include "platform/platform_api.h"
+
+#if BRIX_HAS_IPV6_FLOWLABEL
 
 typedef struct {
     uint32_t expected_label;
@@ -142,6 +145,8 @@ pmark_test_lease(ngx_log_t *log)
     assert(state->marked == 1 && state->failed == 1);
 }
 
+#endif /* BRIX_HAS_IPV6_FLOWLABEL */
+
 static void
 pmark_test_encoding(char **arguments)
 {
@@ -158,19 +163,25 @@ pmark_test_encoding(char **arguments)
 int
 main(int argc, char **argv)
 {
-    pmark_test_state_t state = {0};
-    ngx_log_t log = {.log_level = NGX_LOG_INFO, .data = &state};
-
     assert(argc >= 2);
     if (strcmp(argv[1], "encode") == 0) {
         assert(argc == 5);
         pmark_test_encoding(argv);
-    } else if (strcmp(argv[1], "lease") == 0) {
-        pmark_test_lease(&log);
     } else {
-        assert(strcmp(argv[1], "probe-success") == 0
-               || strcmp(argv[1], "probe-denied") == 0);
-        pmark_test_probe(&log, strcmp(argv[1], "probe-denied") == 0);
+#if BRIX_HAS_IPV6_FLOWLABEL
+        pmark_test_state_t state = {0};
+        ngx_log_t log = {.log_level = NGX_LOG_INFO, .data = &state};
+
+        if (strcmp(argv[1], "lease") == 0) {
+            pmark_test_lease(&log);
+        } else {
+            assert(strcmp(argv[1], "probe-success") == 0
+                   || strcmp(argv[1], "probe-denied") == 0);
+            pmark_test_probe(&log, strcmp(argv[1], "probe-denied") == 0);
+        }
+#else
+        assert(!"kernel lease tests require a flow-label-capable PAL");
+#endif
     }
     return 0;
 }

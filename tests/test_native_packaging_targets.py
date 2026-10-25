@@ -54,23 +54,31 @@ def test_alma_rpms_carry_one_shared_rocky_platform_notice() -> None:
         assert '--define "brix_vendor_alma 1"' in dockerfile
 
 
-def test_release_workflow_builds_all_targets_without_asset_name_collisions() -> None:
+def _release_workflow() -> str:
     workflow_path = ROOT / ".github/workflows/packages.yml"
     if not workflow_path.exists():
         pytest.skip("release workflow metadata is not shipped in native source archives")
-    workflow = workflow_path.read_text()
-    for target in (
-        "alma8",
-        "alma9",
-        "alma10",
-        "fedora43",
-        "fedora44",
-        "fedora-rawhide",
-        "centos-stream9",
-        "centos-stream10",
-    ):
-        assert f"- {target}" in workflow
+    return workflow_path.read_text()
+
+
+@pytest.mark.parametrize("target", (
+    "alma8",
+    "alma9",
+    "alma10",
+    "fedora43",
+    "fedora44",
+    "fedora-rawhide",
+    "centos-stream9",
+    "centos-stream10",
+))
+def test_release_workflow_builds_every_rpm_target(target: str) -> None:
+    assert f"- {target}" in _release_workflow()
+
+
+def test_release_workflow_uses_unique_assets_and_checks_nix() -> None:
+    workflow = _release_workflow()
     assert "brix-cache-${{ matrix.distro }}-arm64.tar.gz" in workflow
+    assert 'nix --extra-experimental-features "nix-command flakes"' in workflow
     assert "flake check path:/src" in workflow
 
 
@@ -82,6 +90,62 @@ def test_nix_flake_has_pinned_supported_system_outputs() -> None:
     assert '"x86_64-linux"' in flake
     assert '"locked"' in lock
     assert "nginx-brix-cache" in flake
+
+
+def test_nix_test_sdk_keeps_the_built_nginx_objects() -> None:
+    """The SDK must exercise native seams, not turn them into missing-object skips."""
+    package = (ROOT / "packaging/nix/package.nix").read_text()
+    sdk = package[package.index("nginx-brix-test-sdk ="):
+                  package.index("in {", package.index("nginx-brix-test-sdk ="))]
+    assert "buildPhase =" not in sdk
+    assert "dontBuild" not in sdk
+    assert 'cp -R . "$out/"' in sdk
+
+
+def test_nix_dev_shell_carries_external_interop_tools() -> None:
+    flake = (ROOT / "flake.nix").read_text()
+    for package in (
+        "createrepo_c", "fail2ban", "fuse3", "gfal2-util", "kubernetes-helm",
+        "minio-client", "nghttp2", "podman", "squid", "valgrind", "varnish",
+    ):
+        assert package in flake, f"Nix dev shell omits {package}"
+
+
+def test_nix_dev_shell_does_not_opt_into_the_insecure_minio_server() -> None:
+    flake = (ROOT / "flake.nix").read_text()
+    assert "NIXPKGS_ALLOW_INSECURE" not in flake
+    assert "permittedInsecurePackages" not in flake
+    assert "\n              minio\n" not in flake
+
+
+def test_nix_python_includes_optional_feature_bindings() -> None:
+    flake = (ROOT / "flake.nix").read_text()
+    python = flake[flake.index("python = pkgs.python3.withPackages"):
+                   flake.index("in {", flake.index("python = pkgs.python3.withPackages"))]
+    for package in ("boto3", "botocore", "brotli", "crc32c", "numpy", "psutil",
+                    "requests-aws4auth", "xattr", "pyopenssl", "zstandard"):
+        assert package in python, f"Nix Python environment omits {package}"
+
+
+def test_nix_python_reference_bindings_meet_the_declared_major_version() -> None:
+    flake = (ROOT / "flake.nix").read_text()
+    assert 'version = "6.2.0";' in flake
+    assert 'format = "wheel";' in flake
+    assert "complexipy xrootdBindings" in flake
+    assert "autoPatchelfHook" in flake
+    assert "xrootd-6.2.0-cp313-cp313-manylinux_2_28_aarch64.whl" in flake
+    assert "xrootd-6.2.0-cp313-cp313-manylinux_2_28_x86_64.whl" in flake
+
+
+def test_nix_source_package_excludes_appledouble_archive_metadata() -> None:
+    package = (ROOT / "packaging/nix/package.nix").read_text()
+    assert '!(lib.hasPrefix "._" name)' in package
+
+
+def test_nix_compiles_the_installed_io_uring_backend() -> None:
+    package = (ROOT / "packaging/nix/package.nix").read_text()
+    assert "liburing" in package
+    assert 'BRIX_ENABLE_IO_URING = "1";' in package
 
 
 def test_rpm_test_package_bundles_its_brixtest_runtime() -> None:
@@ -102,6 +166,34 @@ def test_rpm_test_package_keeps_brixtest_noarch_payload_data_only() -> None:
     assert "%{_datadir}/brix/brixtest -name '__pycache__'" in cleanup
     assert "%{_datadir}/brix/brixtest -name '*.pyc'" in cleanup
     assert "%{_datadir}/brix/brixtest -type f" in cleanup
+
+
+def test_stock_named_client_packages_conflict_with_xrootd_client() -> None:
+    """The replacement clients must never reach an ambiguous file collision."""
+    deb = (ROOT / "packaging/deb/debian/control").read_text()
+    deb_client = deb[deb.index("Package: brix-cache-client\n"):
+                     deb.index("Package: brix-cache-client-compat\n")]
+    spec = (RPM / "nginx-mod-brix-cache.spec").read_text()
+    rpm_client = spec[spec.index("%package -n brix-cache-client\n"):
+                      spec.index("%package -n brix-cache-client-compat\n")]
+    assert "Conflicts: xrootd-client" in deb_client
+    assert "Conflicts:      xrootd-client" in rpm_client
+
+
+def test_native_test_package_uses_coinstallable_prefixed_clients() -> None:
+    """Tests retain the official interoperability client beside BriX tools."""
+    control = (ROOT / "packaging/deb/debian/control").read_text()
+    tests = control[control.index("Package: brix-cache-tests\n"):
+                    control.index("Package: brix-tools\n")]
+    assert "brix-cache-client-compat (= ${source:Version})" in tests
+    assert "brix-cache-client (= ${source:Version})" not in tests
+
+
+def test_prefixed_debian_client_remains_coinstallable() -> None:
+    control = (ROOT / "packaging/deb/debian/control").read_text()
+    compat = control[control.index("Package: brix-cache-client-compat\n"):
+                     control.index("Package: brix-xrootdfs-fuse\n")]
+    assert "Conflicts: xrootd-client" not in compat
 
 
 def test_native_source_archives_keep_required_migration_tools() -> None:

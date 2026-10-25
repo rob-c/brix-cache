@@ -250,10 +250,12 @@ brix_vfs_stat_impl(brix_vfs_ctx_t *ctx, brix_vfs_stat_t *stat_out,
             }
         }
 
-        /* Dispatch on the leaf instance so brix_sd_stat_maybe_cred finds the
-         * leaf driver's stat_cred slot (decorators have only plain relays). */
+        /* Stat the same composed namespace that supplies read-open bytes.
+         * Cache/stage stat_cred twins preserve the credential on a miss; a
+         * complete hit supplies its own metadata without touching the origin.
+         * The credential gate above must still refuse BEFORE that hit. */
         if (drv->stat == NULL
-            || brix_sd_stat_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
+            || brix_sd_stat_maybe_cred(ctx->sd,
                    physical, &sd_st,
                    use_cred ? &cred : NULL) != NGX_OK)
         {
@@ -488,10 +490,10 @@ brix_vfs_probe(brix_vfs_ctx_t *ctx, int nofollow,
             }
         }
 
-        /* Dispatch on the leaf instance so brix_sd_stat_maybe_cred finds the
-         * leaf driver's stat_cred slot (decorators have only plain relays). */
+        /* Preserve cache metadata just as the metered stat arm does. The
+         * already-completed credential gate also applies to warm hits. */
         if (drv->stat == NULL
-            || brix_sd_stat_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
+            || brix_sd_stat_maybe_cred(ctx->sd,
                    physical, &sd_st, use_cred ? &cred : NULL) != NGX_OK)
         {
             brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */

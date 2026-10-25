@@ -268,8 +268,8 @@ class TestIncomingDispatch:
         a raw NUL-terminated path payload."""
         sid = 0x55667788
         path = b"/have_me.bin"
-        node_stack.send_to_node(sid, CMS_RR_STATE, CMS_MOD_RAW, path + b"\x00")
-        reply = node_stack.collect_reply(CMS_RR_HAVE, timeout=8.0)
+        before = node_stack.send_to_node(sid, CMS_RR_STATE, CMS_MOD_RAW, path + b"\x00")
+        reply = node_stack.collect_reply(CMS_RR_HAVE, timeout=8.0, after=before)
         assert reply is not None, \
             "node did not answer kYR_state with kYR_have for a resident file"
         assert reply[0] == sid, "kYR_have must echo the state streamid"
@@ -284,15 +284,15 @@ class TestIncomingDispatch:
         """A kYR_state for a path the node does NOT hold draws no kYR_have — the
         node stays silent (matching real cmsd) and the connection survives."""
         sid = 0x99AABBCC
-        node_stack.send_to_node(sid, CMS_RR_STATE, CMS_MOD_RAW,
-                                b"/definitely_absent_file.bin\x00")
-        reply = node_stack.collect_reply(CMS_RR_HAVE, timeout=3.0)
+        before = node_stack.send_to_node(sid, CMS_RR_STATE, CMS_MOD_RAW,
+                                         b"/definitely_absent_file.bin\x00")
+        reply = node_stack.collect_reply(CMS_RR_HAVE, timeout=3.0, after=before)
         assert reply is None, "node must not claim to hold an absent path"
         # Sanity: the connection survives — a manager PING still draws a PONG
         # (deterministic, unlike waiting on the heartbeat's LOAD timing).
         ping_sid = 0x0BADF00D
-        node_stack.send_to_node(ping_sid, CMS_RR_PING, 0)
-        alive = node_stack.collect_reply(CMS_RR_PONG, timeout=8.0)
+        before = node_stack.send_to_node(ping_sid, CMS_RR_PING, 0)
+        alive = node_stack.collect_reply(CMS_RR_PONG, timeout=8.0, after=before)
         assert alive is not None, "CMS connection died after a silent kYR_state"
         assert alive[0] == ping_sid, "post-state PONG must echo the PING streamid"
 

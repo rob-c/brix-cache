@@ -276,6 +276,19 @@ def gsi_store_memo(nginx: Path | None = None) -> int:
 # ---------------------------------------------------------------------------
 # run_gsi_intermediate_ca.sh — GSI with an intermediate-CA chain + hashed CA dir.
 # ---------------------------------------------------------------------------
+def _intermediate_ca_root_command() -> tuple[str | Path, ...]:
+    """Issue a valid fixture anchor without inheriting distro req extensions."""
+    config = REPO_ROOT / "tests/brix_suite/security/pki-ca.cnf"
+    return ("req", "-x509", "-config", config,
+            "-newkey", "rsa:2048", "-nodes", "-keyout", "root.key",
+            "-out", "root.pem", "-days", "2", "-sha256",
+            "-subj", "/O=BrixTest/CN=Test Root CA",
+            "-addext", "basicConstraints=critical,CA:TRUE",
+            "-addext", "subjectKeyIdentifier=hash",
+            "-addext", "authorityKeyIdentifier=keyid:always",
+            "-addext", "keyUsage=critical,keyCertSign,cRLSign")
+
+
 def gsi_intermediate_ca(nginx: Path | None = None) -> int:
     stock = Path(os.environ.get("XRDCP_STOCK", "/usr/bin/xrdcp"))
     if not os.access(stock, os.X_OK):
@@ -303,8 +316,7 @@ def gsi_intermediate_ca(nginx: Path | None = None) -> int:
 
         # root CA -> intermediate CA -> server leaf; user EEC under the root
         steps = [
-            ("req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", "root.key", "-out", "root.pem",
-             "-days", "2", "-subj", "/O=BrixTest/CN=Test Root CA", "-addext", "basicConstraints=critical,CA:TRUE"),
+            _intermediate_ca_root_command(),
             ("req", "-newkey", "rsa:2048", "-nodes", "-keyout", "inter.key", "-out", "inter.csr",
              "-subj", "/O=BrixTest/CN=Test Issuing CA 2B"),
             ("x509", "-req", "-in", "inter.csr", "-CA", "root.pem", "-CAkey", "root.key", "-set_serial", "101",
@@ -320,7 +332,7 @@ def gsi_intermediate_ca(nginx: Path | None = None) -> int:
         ]
         for step in steps:
             if not osl(*step):
-                return _skip(f"openssl PKI build failed ({' '.join(step[:3])})")
+                raise LiveFailure(f"openssl PKI build failed ({step[0]}); see {pki_log}")
         (pki / "user" / "userkey.pem").chmod(0o600)
         (pki / "host.key").chmod(0o600)
 

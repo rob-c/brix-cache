@@ -82,14 +82,15 @@ def _voms(name, vo):
     return SimpleNamespace(name=name, proxy=proxy, token="", s3_key="", s3_secret="")
 
 
-def test_denied_principal_gets_identical_verdict_regardless_of_existence(direct_authz_env):
+@pytest.mark.parametrize('suffix', ['', '/', '///', '/?cks.type=adler32'])
+def test_denied_principal_gets_identical_verdict_regardless_of_existence(direct_authz_env, suffix):
     """The oracle: a denied principal (VO atlas) must get the SAME denial for an existing path
     and a non-existent one — never NotFound for one and NotAuthorized for the other."""
     url = direct_authz_env
     bob = _voms("bob", "atlas")
 
-    v_exists = measure_root(url, _EXISTS, "read", principal=bob)
-    v_ghost = measure_root(url, _GHOST, "read", principal=bob)
+    v_exists = measure_root(url, _EXISTS + suffix, "read", principal=bob)
+    v_ghost = measure_root(url, _GHOST + suffix, "read", principal=bob)
     assert v_exists.decision == "DENY", f"denied bob must be refused the existing path: {v_exists}"
     assert v_ghost.decision == "DENY", f"denied bob must be refused the absent path: {v_ghost}"
     assert v_exists == v_ghost, (
@@ -110,3 +111,12 @@ def test_authorized_principal_sees_real_answer(direct_authz_env):
     v_ghost = measure_root(url, _GHOST, "read", principal=alice)
     assert v_ghost.decision == "DENY" and v_ghost.tier == "none", (
         f"authorized alice must get NotFound (tier none) for an absent path: {v_ghost}")
+
+
+@pytest.mark.parametrize('suffix', ['/', '///', '/?cks.type=adler32'])
+def test_authorized_reader_cannot_open_a_file_as_a_directory(direct_authz_env, suffix):
+    alice = _voms('alice', 'cms')
+    verdict = measure_root(direct_authz_env, _EXISTS + suffix, 'read', principal=alice)
+    assert verdict.decision == 'DENY', verdict
+    assert '[3005] not a directory' in verdict.reason, verdict
+    assert measure_root(direct_authz_env, _EXISTS, 'read', principal=alice).decision == 'ALLOW'

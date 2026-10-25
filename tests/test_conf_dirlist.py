@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from lib_py.reference_host import assert_backing_size_parity
 _reexport(globals(), "_test_conf_dirlist_helpers")
 
 
@@ -62,8 +63,7 @@ def test_ls_l_sizes_match_stock(srv, path):
     assert set(o) == set(f), \
         f"ls -l {path} name-set divergence: ours={set(o)} stock={set(f)}"
     for name in f:
-        assert o.get(name) == f.get(name), \
-            f"ls -l {path} size for {name}: ours={o.get(name)} stock={f.get(name)}"
+        assert_backing_size_parity(srv, path.rstrip('/') + '/' + name, o[name], f[name])
 
 
 # =========================================================================== #

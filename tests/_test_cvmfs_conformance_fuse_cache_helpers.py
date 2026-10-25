@@ -257,8 +257,8 @@ class MockOrigin:
 def make_origin():
     origins = []
 
-    def _make(web: Path) -> MockOrigin:
-        o = MockOrigin(web).start()
+    def _make(web: Path, repo: str = REPO) -> MockOrigin:
+        o = MockOrigin(web, repo).start()
         origins.append(o)
         return o
 
@@ -285,8 +285,16 @@ def _quota_tree(n: int = 8, size: int = 300_000, seed: int = 7) -> dict:
 def _forge(tmp_path: Path, tree: dict, **kw):
     web = tmp_path / "web"
     pub = tmp_path / "repo.pub"
-    forge = RepoForge(REPO, web, **kw).build(tree, pub)
+    forge = RepoForge(kw.pop("repo", REPO), web, **kw).build(tree, pub)
     return forge, web, pub
+
+
+def _default_cache_parent_writable(base=Path("/var/lib/brixcvmfs")):
+    """A provisioned cache root needs no write authority over all of /var/lib."""
+    base = Path(base)
+    if base.exists():
+        return base.is_dir() and os.access(base, os.W_OK | os.X_OK)
+    return os.access(base.parent, os.W_OK | os.X_OK)
 
 
 def content_key(data: bytes) -> str:

@@ -274,7 +274,8 @@ static void test_mut_attrs(fix_t *f) {
  * WHY:  the core symlink-escape invariant — the confined walk must not resolve
  *       outside the overlay root — must hold for the mutation path too.
  * HOW:  (1) plant an /etc symlink at upper/esc; (2) truncate esc/passwd and
- *       assert it fails but not with -EISDIR; (3) truncate esc and expect -ELOOP.
+ *       assert it fails but not with -EISDIR; (3) independently probe native
+ *       O_NOFOLLOW refusal and require truncate to preserve that errno.
  */
 static void test_mut_symlink_escape(fix_t *f) {
     char lp[512];
@@ -283,8 +284,13 @@ static void test_mut_symlink_escape(fix_t *f) {
     CHECK(brix_overlay_truncate(&f->ov, "esc/passwd", 0) < 0
           && brix_overlay_truncate(&f->ov, "esc/passwd", 0) != -EISDIR,
           "truncate through symlink refused (walk dead-ends)");
-    CHECK(brix_overlay_truncate(&f->ov, "esc", 0) == -ELOOP,
-          "truncate of symlink itself → -ELOOP");
+    int native_fd = open(lp, O_WRONLY | O_NOFOLLOW | O_CLOEXEC);
+    int refusal = errno;
+    CHECK(native_fd < 0 && (refusal == ELOOP || refusal == EMLINK),
+          "native O_NOFOLLOW refuses symlink");
+    if (native_fd >= 0) close(native_fd);
+    CHECK(brix_overlay_truncate(&f->ov, "esc", 0) == -refusal,
+          "truncate preserves native symlink refusal");
 }
 
 /* ---- section 2 driver: mutation primitives ----

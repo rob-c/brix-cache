@@ -77,6 +77,12 @@ BRIXPOSIX_HIDDEN xfs_slot *slot_of(int fd);
 BRIXPOSIX_HIDDEN int       map_path(const char *path, char *out, size_t outsz);
 /* One statinfo -> struct stat mapping (shared with the FUSE drivers). */
 BRIXPOSIX_HIDDEN void      fill_stat(const brix_statinfo *si, struct stat *stbuf);
+/* Shared wrapper bodies, bypassing old glibc's inline __xstat redirects. */
+BRIXPOSIX_HIDDEN int brixposix_stat_impl(const char *path, struct stat *out);
+BRIXPOSIX_HIDDEN int brixposix_lstat_impl(const char *path, struct stat *out);
+BRIXPOSIX_HIDDEN int brixposix_fstat_impl(int fd, struct stat *out);
+BRIXPOSIX_HIDDEN int brixposix_fstatat_impl(int dirfd, const char *path,
+                                          struct stat *out, int flags);
 /* A real FILE* over an already-open shadow fd (host stdio: fopencookie /
  * funopen; lib/platform/<host>/preload_stream.c).  On failure the fd is
  * closed here and NULL returned with errno: the caller only ever saw the

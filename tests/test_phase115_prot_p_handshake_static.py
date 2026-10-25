@@ -157,7 +157,7 @@ def test_the_pin_is_against_our_own_delegated_identity():
 
     self_dn = function_body(source, "gftp_dc_tls_self_dn")
     assert "SSL_get_certificate" in self_dn, self_dn
-    assert "X509_NAME_oneline" in self_dn, self_dn
+    assert "brix_crypto_name_oneline" in self_dn, self_dn
 
 
 def test_the_two_roles_share_one_pin_predicate():

@@ -112,6 +112,12 @@ _ADDED_SINCE_MOVE = {
         # test_ci_lane_ownership_gate.py.
         "ForeignLaneError", "__init__", "_ancestry", "_declared_root",
         "_is_harness_cmd", "lane_claimants", "lane_harnesses", "live_lanes",
+        # Native private environments must not veto cleanup for a visibly
+        # unrelated non-harness. Unknown argv and real harnesses remain strict.
+        "_claimant_candidate",
+        # FreeBSD cannot equate an unreadable own environment with no claim:
+        # refresh the native snapshot once, then fail closed if still unknown.
+        "_require_readable_native_environment",
         # Phase-111 fleet recovery proves ownership through the listener's
         # socket inode before adopting stale registry state.
         "_tcp_inode", "_table_listener_inodes", "_listening_socket_inodes",
@@ -133,6 +139,11 @@ _ADDED_SINCE_MOVE = {
         # One snapshot is shared across an ownership pass and its marker
         # extraction, avoiding internally inconsistent Darwin ps answers.
         "_ownership_markers", "_refresh_ps_cache",
+        # Nix Python launchers re-exec the store interpreter, replacing comm
+        # with `python3.x` while preserving the exact copied daemon name in
+        # argv[0].  This helper recognises that wrapper-safe spelling without
+        # accepting a `python -m ... nginx` option or arbitrary substring.
+        "_argv_daemon_name_matches",
     },
 }
 
@@ -161,6 +172,13 @@ _CHANGED_SINCE_MOVE = {
         # Ownership matching now consumes the shared process snapshot and
         # recognises the split runner spellings used by packaged test tools.
         "_daemon_name_matches", "_owned_command", "find_orphans", "owns",
+        # Accept the exact argv[0] daemon basename as a second identity source
+        # when a Nix wrapper has replaced the kernel comm during re-exec.
+        "_is_fleet_process",
+        # Apply the existing harness classification before inspecting an
+        # unrelated native process's sealed environment, not after it raises.
+        # General claimant inspection and unknown/harness refusal are unchanged.
+        "lane_claimants", "lane_harnesses",
     },
 }
 

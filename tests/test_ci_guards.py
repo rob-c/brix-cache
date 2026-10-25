@@ -273,7 +273,8 @@ def test_size_complexity_backlogs_do_not_exist(backlog: str) -> None:
 # run for minutes. Marked slow and self-skipping so the fast lane never pays for
 # them, while ``run_suite --nightly`` still exercises the real Python runner.
 def _analyzer_makefile() -> Path:
-    return Path(os.environ.get("NGX_BUILD", "/tmp/nginx-1.28.3")) / "objs/Makefile"
+    selected = os.environ.get("NGX_MAKEFILE")
+    return Path(selected) if selected else Path(os.environ.get("NGX_BUILD", "/tmp/nginx-1.28.3")) / "objs/Makefile"
 
 
 @pytest.mark.slow
@@ -286,7 +287,7 @@ def _analyzer_makefile() -> Path:
 def test_ci_analyzer_runner_green(runner: str, tool: str) -> None:
     makefile = _analyzer_makefile()
     if not makefile.exists():
-        pytest.skip(f"configured nginx build tree absent ({makefile.parent.parent})")
+        pytest.skip(f"configured nginx build tree absent (expected {makefile})")
     if not _have(tool):
         pytest.skip(f"{tool} not installed")
     rc, out = _run(runner)
@@ -361,20 +362,24 @@ _DEPS = _load("check_python_deps")
 
 
 
-def test_python_deps_guard_accepts_a_bounded_declared_tree(tmp_path) -> None:
+@pytest.mark.parametrize('requirement,module', [('requests>=2.25,<3', 'requests'),
+                                               ('psutil>=5.9,<8', 'psutil')])
+def test_python_deps_guard_accepts_a_bounded_declared_tree(tmp_path, requirement, module) -> None:
     root = _deps_tree(
         tmp_path,
-        "requests>=2.25,<3\n",
+        requirement + '\n',
         "zstandard>=0.18,<1\n",
-        "import pytest\nimport requests\n\nz = pytest.importorskip('zstandard')\n",
+        f"import pytest\nimport {module}\n\nz = pytest.importorskip('zstandard')\n",
     )
     ok, findings = _DEPS.run(root)
     assert ok, findings
 
 
-def test_python_deps_guard_rejects_a_one_sided_bound(tmp_path) -> None:
+@pytest.mark.parametrize('requirement,module', [('requests>=2.25', 'requests'),
+                                               ('psutil>=5.9', 'psutil')])
+def test_python_deps_guard_rejects_a_one_sided_bound(tmp_path, requirement, module) -> None:
     """R2: an open-ended `>=` is how a new major enters CI unreviewed."""
-    root = _deps_tree(tmp_path, "requests>=2.25\n", "", "import requests\n")
+    root = _deps_tree(tmp_path, requirement + '\n', '', f'import {module}\n')
     ok, findings = _DEPS.run(root)
     assert not ok
     assert any("upper bound missing" in f for f in findings), findings
@@ -388,10 +393,12 @@ def test_python_deps_guard_rejects_an_undeclared_import(tmp_path) -> None:
     assert any("paramiko" in f and "no requirements file" in f for f in findings), findings
 
 
-def test_python_deps_guard_rejects_optional_imported_at_module_scope(tmp_path) -> None:
+@pytest.mark.parametrize('requirement,module', [('zstandard>=0.18,<1', 'zstandard'),
+                                               ('psutil>=5.9,<8', 'psutil')])
+def test_python_deps_guard_rejects_optional_imported_at_module_scope(tmp_path, requirement, module) -> None:
     """R3: the real bug this guard found — optional silently becoming required."""
     root = _deps_tree(
-        tmp_path, "", "zstandard>=0.18,<1\n", "import zstandard\n"
+        tmp_path, '', requirement + '\n', f'import {module}\n'
     )
     ok, findings = _DEPS.run(root)
     assert not ok

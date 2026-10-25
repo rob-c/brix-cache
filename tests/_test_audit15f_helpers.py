@@ -23,11 +23,14 @@ from __future__ import annotations
 
 import re
 import subprocess
+import shutil
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from settings import HOST
+import pytest
 
 
 def _guard_serve_object_1(matched, self, start, end, payload):
@@ -141,7 +144,40 @@ def heads(recorded, path):
 
 # ── kernel socket timers (the dead-peer knobs' only external witness) ─────
 
-SS_BIN = "/usr/sbin/ss"
+SS_BIN = shutil.which("ss") or "/usr/sbin/ss"
+
+
+def socket_observation_available():
+    """Use native public TCP PCB flags on FreeBSD, ss timers on Linux."""
+    return sys.platform.startswith('freebsd') or shutil.which('ss') is not None
+
+
+@pytest.fixture(scope='module')
+def native_tcp_observer(tmp_path_factory):
+    if not sys.platform.startswith('freebsd'):
+        return None
+    from cmdscripts.compile_run import compile_binary
+
+    directory = tmp_path_factory.mktemp('native-tcp-observer')
+    source, binary = directory / 'observer.c', directory / 'observer'
+    source.write_text(_FREEBSD_TCP_OBSERVER)
+    result = compile_binary(binary, ['-std=gnu11', '-Wall', '-Wextra', '-Werror', str(source)])
+    assert result.returncode == 0, result.stdout + result.stderr
+    return binary
+
+
+def _freebsd_established(observer):
+    result = subprocess.run([str(observer)], check=True, capture_output=True,
+                            text=True, timeout=5)
+    rows = []
+    for line in result.stdout.splitlines():
+        local, peer, armed, timer = map(int, line.split())
+        assert 0 < local < 65536 and 0 < peer < 65536
+        # xtcpcb.tt_keep is a signed int32 countdown. A snapshot can race its
+        # expiry; the actual SO_KEEPALIVE bit, not that countdown, proves arming.
+        assert armed in (0, 1) and -(1 << 31) <= timer < (1 << 31), line
+        rows.append((f':{local}', f':{peer}', f'keepalive:{timer}' if armed else 'bare'))
+    return rows
 
 
 def ss_established():
@@ -157,7 +193,7 @@ def ss_established():
     return rows
 
 
-def socket_timers(*, local_port=None, peer_port=None, timeout=6.0):
+def socket_timers(*, local_port=None, peer_port=None, timeout=6.0, observer=None):
     """The trailing columns (timer:(...) among them) of the one established
     socket whose local and/or peer port match.
 
@@ -167,7 +203,7 @@ def socket_timers(*, local_port=None, peer_port=None, timeout=6.0):
     """
     deadline = time.time() + timeout
     while time.time() < deadline:
-        timer = _matching_socket_timer(local_port, peer_port)
+        timer = _matching_socket_timer(local_port, peer_port, observer)
         if timer is not None:
             return timer
         time.sleep(0.2)
@@ -175,11 +211,68 @@ def socket_timers(*, local_port=None, peer_port=None, timeout=6.0):
         f"no established socket local={local_port} peer={peer_port}")
 
 
-def _matching_socket_timer(local_port, peer_port):
-    for local, peer, timer in ss_established():
+def _matching_socket_timer(local_port, peer_port, observer=None):
+    for local, peer, timer in _established_rows(observer):
         if local_port is not None and not local.endswith(f":{local_port}"):
             continue
         if peer_port is not None and not peer.endswith(f":{peer_port}"):
             continue
         return timer
     return None
+
+
+def _established_rows(observer):
+    return _freebsd_established(observer) if observer is not None else ss_established()
+
+
+_FREEBSD_TCP_OBSERVER = r'''
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/socketvar.h>
+#include <sys/sysctl.h>
+#include <netinet/in.h>
+#include <netinet/in_pcb.h>
+#include <netinet/tcp.h>
+#include <netinet/tcp_fsm.h>
+#include <netinet/tcp_var.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+static int print_records(const unsigned char *data, size_t length)
+{
+    size_t offset = sizeof(struct xinpgen);
+    while (offset + sizeof(ksize_t) <= length) {
+        ksize_t size;
+        memcpy(&size, data + offset, sizeof(size));
+        if (size == sizeof(struct xinpgen)) { return 0; }
+        if (size != sizeof(struct xtcpcb) || size > length - offset) { return 2; }
+        const struct xtcpcb *tcp = (const void *) (data + offset);
+        const struct xinpcb *inp = &tcp->xt_inp;
+        if (tcp->t_state == TCPS_ESTABLISHED && inp->xi_socket.so_uid == getuid()) {
+            printf("%u %u %u %d\n", ntohs(inp->inp_lport), ntohs(inp->inp_fport),
+                !!(inp->xi_socket.so_options & SO_KEEPALIVE), tcp->tt_keep);
+        }
+        offset += size;
+    }
+    return 2;
+}
+
+int main(void)
+{
+    size_t length = 0;
+    if (sysctlbyname("net.inet.tcp.pcblist", NULL, &length, NULL, 0) != 0) { return 3; }
+    if (length < sizeof(struct xinpgen) || length > 8 * 1024 * 1024) { return 4; }
+    length = length * 2 + 65536;
+    unsigned char *data = malloc(length);
+    if (data == NULL) { return 5; }
+    if (sysctlbyname("net.inet.tcp.pcblist", data, &length, NULL, 0) != 0) {
+        free(data);
+        return 6;
+    }
+    int result = print_records(data, length);
+    free(data);
+    return result;
+}
+'''

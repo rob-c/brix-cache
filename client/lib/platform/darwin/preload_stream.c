@@ -13,7 +13,7 @@
 
 #include "platform/preload.h"
 
-#if BRIX_PLATFORM_DARWIN
+#if BRIX_HAS_FUNOPEN
 
 #include "brixposix_internal.h"
 
@@ -68,4 +68,4 @@ brixposix_stream_open(int fd, const char *mode)
     return fp;
 }
 
-#endif /* BRIX_PLATFORM_DARWIN */
+#endif /* BRIX_HAS_FUNOPEN */

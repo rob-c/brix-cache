@@ -12,7 +12,7 @@ import tempfile
 import subprocess
 from pathlib import Path
 
-from pal_native import pal_sources
+from pal_native import pal_sources, _available_pal_libraries
 
 # Test configuration
 TEST_TIMEOUT = 30  # seconds
@@ -41,7 +41,8 @@ def test_c_program(native_compile):
         sources = pal_sources()
         executable = native_compile(
             'platform-api', code, sources,
-            ['-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections'])
+            ['-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections',
+             *_available_pal_libraries()])
         result = subprocess.run([str(executable)], capture_output=True,
                                 text=True, timeout=TEST_TIMEOUT)
         assert result.returncode == 0, result.stdout + result.stderr
@@ -61,7 +62,7 @@ def test_pal_platform_name(test_c_program):
 #include <string.h>
 #include "platform/platform_api.h"
 
-int main() {
+int main(void) {
     const char *name = brix_plat_name();
     if (name == NULL) {
         printf("FAIL: platform name is NULL\\n");
@@ -69,7 +70,8 @@ int main() {
     }
     
     if (strcmp(name, "linux") == 0 || 
-        strcmp(name, "darwin") == 0 || 
+        strcmp(name, "darwin") == 0 ||
+        strcmp(name, "freebsd") == 0 ||
         strcmp(name, "windows") == 0) {
         printf("PASS: platform = %s\\n", name);
         return 0;
@@ -91,7 +93,7 @@ def test_pal_arch(test_c_program):
 #include <string.h>
 #include "platform/platform_api.h"
 
-int main() {
+int main(void) {
     const char *arch = brix_plat_arch();
     if (arch == NULL) {
         printf("FAIL: arch is NULL\\n");
@@ -123,7 +125,7 @@ def test_pal_cpu_count(test_c_program):
 #include <stdio.h>
 #include "platform/platform_api.h"
 
-int main() {
+int main(void) {
     int count = brix_plat_cpu_count();
     if (count > 0) {
         printf("PASS: cpu_count = %d\\n", count);
@@ -145,7 +147,7 @@ def test_pal_memory(test_c_program):
 #include <stdint.h>
 #include "platform/platform_api.h"
 
-int main() {
+int main(void) {
     uint64_t total = brix_plat_total_memory();
     uint64_t avail = brix_plat_available_memory();
     
@@ -176,7 +178,7 @@ def test_pal_htobe64_roundtrip(test_c_program):
 #include <stdint.h>
 #include "platform/platform_api.h"
 
-int main() {
+int main(void) {
     uint64_t test_values[] = {
         0x0000000000000000ULL,
         0x0000000000000001ULL,
@@ -219,7 +221,7 @@ def test_pal_htobe32_roundtrip(test_c_program):
 #include <stdint.h>
 #include "platform/platform_api.h"
 
-int main() {
+int main(void) {
     uint32_t val = 0x12345678U;
     uint32_t be = brix_plat_htobe32(val);
     uint32_t host = brix_plat_be32toh(be);
@@ -244,7 +246,7 @@ def test_pal_htobe16_roundtrip(test_c_program):
 #include <stdint.h>
 #include "platform/platform_api.h"
 
-int main() {
+int main(void) {
     uint16_t val = 0x1234U;
     uint16_t be = brix_plat_htobe16(val);
     uint16_t host = brix_plat_be16toh(be);
@@ -275,7 +277,7 @@ def test_pal_anon_fd_basic(test_c_program, temp_dir):
 #include <fcntl.h>
 #include "platform/platform_api.h"
 
-int main() {
+int main(void) {
     int fd = brix_plat_anon_fd("test", NULL);
     if (fd < 0) {
         printf("FAIL: anon_fd returned %d\\n", fd);
@@ -331,7 +333,7 @@ def test_pal_pipe2(test_c_program):
 #include <string.h>
 #include "platform/platform_api.h"
 
-int main() {
+int main(void) {
     int pipefd[2];
     
     if (brix_plat_pipe2(pipefd, 0) < 0) {
@@ -388,7 +390,7 @@ def test_pal_random_basic(test_c_program):
 #include <string.h>
 #include "platform/platform_api.h"
 
-int main() {
+int main(void) {
     uint8_t buf1[32];
     uint8_t buf2[32];
     
@@ -446,7 +448,7 @@ def test_pal_fsync_data(test_c_program, temp_dir):
 #include <unistd.h>
 #include "platform/platform_api.h"
 
-int main() {{
+int main(void) {{
     char filename[] = "{temp_dir}/test_fsync.txt";
     
     int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -493,7 +495,7 @@ def test_pal_linux_specific(test_c_program):
 #include <stdio.h>
 #include "platform/platform_api.h"
 
-int main() {
+int main(void) {
     // Test sendfile (Linux-specific)
     printf("INFO: Linux platform detected\\n");
     
@@ -517,7 +519,7 @@ def test_pal_darwin_specific(test_c_program):
 #include <stdio.h>
 #include "platform/platform_api.h"
 
-int main() {
+int main(void) {
     printf("INFO: macOS platform detected\\n");
     
     // Test that macOS xattr functions work (6-parameter signature)

@@ -267,6 +267,8 @@ def _nft(rule):
 
 def _boot(nginx_bin, workdir, conf, port):
     """Start the manager and wait until it accepts; returns nothing."""
+    from cmdscripts.live_common import inject_nginx_load_modules
+    inject_nginx_load_modules(conf, nginx_bin)
     _sh(nginx_bin, "-t", "-p", workdir, "-c", conf)
     _sh(nginx_bin, "-p", workdir, "-c", conf)
     deadline = time.time() + 15
@@ -285,6 +287,12 @@ def _read(path):
             return fh.read()
     except OSError:
         return b""
+
+
+def _arm_log_tail(log, offset, registered):
+    """A failed registration must retain the worker's startup diagnostics."""
+    start = offset if registered else 0
+    return _read(log)[start:].decode("utf8", "replace")
 
 
 def _run_arm(spec, arm):
@@ -320,7 +328,9 @@ def _run_arm(spec, arm):
                 torn = round(time.time() - t0, 2)
                 break
             time.sleep(0.2)
-        tail = _read(log)[pre:].decode("utf8", "replace")
+        # A worker can fail after its master bound the listener. Retain that
+        # boot diagnostic if registration never completed, not an empty tail.
+        tail = _arm_log_tail(log, pre, registered)
         return {"name": arm["name"], "registered": registered,
                 "node_port": node_port, "torn_down_after": torn,
                 "etimedout": "Connection timed out" in tail,

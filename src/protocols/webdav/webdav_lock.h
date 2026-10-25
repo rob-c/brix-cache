@@ -22,14 +22,15 @@
  * request (not just a log) so the lock xattr is written as the mapped user under
  * impersonation (root_canon is derived from the request's loc conf). */
 ngx_int_t webdav_lock_xattr_write(ngx_http_request_t *r, const char *path,
-    const webdav_lock_xattr_t *e, int flags);
+    const webdav_lock_xattr_t *e, int flags, const webdav_lock_xattr_t *expected);
 /* getxattr+decode the lock on `path`.  NGX_OK; NGX_DECLINED if no lock present
  * (or path gone); NGX_ERROR on a real getxattr fault. */
 ngx_int_t webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
     webdav_lock_xattr_t *e);
 /* removexattr the lock on `path`.  Idempotent: NGX_OK even if absent; NGX_ERROR
  * only on an unexpected fault. */
-ngx_int_t webdav_lock_xattr_delete(ngx_http_request_t *r, const char *path);
+ngx_int_t webdav_lock_xattr_delete(ngx_http_request_t *r, const char *path,
+    const webdav_lock_xattr_t *expected);
 
 /*
  * webdav_lock_startup_sweep — recursively remove every persisted lock xattr

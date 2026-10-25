@@ -5,6 +5,13 @@ import pytest
 from cmdscripts.c_regression_units import RUNNERS, run_checks
 
 
+def _skip_unavailable(results):
+    """Missing build inputs must be visible, never successful executions."""
+    unavailable = [message for _ok, message in results if message.startswith("SKIP:")]
+    if unavailable:
+        pytest.skip("\n".join(unavailable))
+
+
 # Parametrized from the runner table itself, never a hand-kept copy of it: a
 # maintained list silently orphans every unit added to RUNNERS but forgotten
 # here, and they then compile and run only when someone invokes the runner by
@@ -22,3 +29,4 @@ def test_c_regression_shell_port(tmp_path: Path, name: str):
     results = run_checks(tmp_path, [name])
     failed = [message for ok, message in results if not ok]
     assert not failed, "\n".join(failed)
+    _skip_unavailable(results)

@@ -20,6 +20,7 @@ import bz2
 import gzip
 import lzma
 import os
+import random
 import shutil
 import subprocess
 import time
@@ -156,6 +157,21 @@ def test_s3_get_compressed_roundtrip(base, token):
 
         _assert_test_s3_get_compressed_roundtrip_1()
         assert "accept-encoding" in r.headers.get("Vary", "").lower()
+    finally:
+        _delete(base, path)
+
+
+@pytest.mark.parametrize("token", ["gzip", "zstd"])
+def test_s3_large_incompressible_body_completes_across_backpressure(base, token):
+    """GetObject's deferred accounting must not abort a partially sent frame."""
+    data = random.Random(118).randbytes(2 * 1024 * 1024)
+    path = _key("backpressure_" + token)
+    try:
+        assert _put(base, path, data).status_code in (200, 201, 204)
+        response = _raw_get(base, path, {"Accept-Encoding": token})
+        assert response.status == 200
+        assert response.headers.get("Content-Encoding", "").lower() == token
+        assert CODECS[token](response.data) == data
     finally:
         _delete(base, path)
 

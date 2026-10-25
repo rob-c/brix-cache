@@ -247,19 +247,20 @@ static ngx_http_variable_t  brix_http_variables[] = {
 };
 
 
+#define BRIX_VARIABLE_TYPE ngx_http_variable_t
+#define BRIX_VARIABLE_ADD ngx_http_add_variable
+#define BRIX_VARIABLE_REGISTER brix_http_register_variables
+#define BRIX_VARIABLE_LINKAGE
+#include "core/compat/register_variables.inc"
+#undef BRIX_VARIABLE_TYPE
+#undef BRIX_VARIABLE_ADD
+#undef BRIX_VARIABLE_REGISTER
+#undef BRIX_VARIABLE_LINKAGE
+
+/* WHAT: Register the common HTTP table. WHY: Retain one public entry point.
+ * HOW: Pass its own descriptors to the shared typed registration helper. */
 ngx_int_t
 brix_http_add_variables(ngx_conf_t *cf)
 {
-    ngx_http_variable_t *v, *nv;
-
-    for (v = brix_http_variables; v->name.len; v++) {
-        nv = ngx_http_add_variable(cf, &v->name, v->flags);
-        if (nv == NULL) {
-            return NGX_ERROR;
-        }
-        nv->get_handler = v->get_handler;
-        nv->data = v->data;
-    }
-
-    return NGX_OK;
+    return brix_http_register_variables(cf, brix_http_variables);
 }

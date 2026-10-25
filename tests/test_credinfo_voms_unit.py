@@ -23,13 +23,14 @@ client hasn't been built it skips rather than failing.
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 
 from brix_suite.client_build import client_make
 from cmdscripts.c_regression_units import _gcov_flags
 import pytest
-from cmdscripts.compile_run import LZ4_LINK_FLAGS
+from lib_py.client_toolchain import client_static_dependency_flags
 
 def _guard_voms_bin_1(cc):
     if cc is None:
@@ -72,17 +73,13 @@ FALLBACK_CFLAGS = [
     "-std=c11", "-D_GNU_SOURCE", "-Wall", "-Wextra", "-Ilib", "-I../src",
     "-I../shared", "-DXRDPROTO_NO_NGX", "-DBRIX_PLATFORM_HOST=linux",
 ]
-FALLBACK_LDLIBS = [
-    "-lssl", "-lcrypto", "-lz", "-lkrb5", "-lk5crypto", "-lcom_err",
-    "-lzstd", "-llzma", "-lbrotlienc", "-lbrotlidec", "-lbz2",
-    *LZ4_LINK_FLAGS, "-luring",
-]
-
-
 def _client_make_flags():
-    """(ALL_CFLAGS, LDLIBS) of the client Makefile, so the suite compiles
+    """Client ALL_CFLAGS and canonical static dependency/runtime flags.
+
+    The suite compiles
     credinfo.c with exactly the macros libbrix.a was built with (krb5/liburing/
-    codec gates, the PAL's BRIX_PLATFORM_HOST) and links exactly its libraries.
+    codec gates, the PAL's BRIX_PLATFORM_HOST). libbrix.pc preserves both the
+    selected libraries and their runtime search paths; LDLIBS alone does not.
     `make -pn` dumps the evaluated database; the xrdproto sub-make prints its
     own ALL_CFLAGS too, so the client's is the one carrying `-Ilib`.
 
@@ -91,11 +88,11 @@ def _client_make_flags():
     database reaches this output), so this shares the client tree lock with
     every other builder — the door test_client_make_serialized.py guards."""
     r = client_make(CLIENT, "-s", "-pn", capture_output=True, text=True)
-    cflags = [m.split() for m in re.findall(r"^ALL_CFLAGS :?= (.*)$", r.stdout, re.M)
-              if "-Ilib" in m.split()]
-    ldlibs = re.findall(r"^LDLIBS :?= (.*)$", r.stdout, re.M)
+    r.check_returncode()
+    cflags = [shlex.split(m) for m in re.findall(r"^ALL_CFLAGS :?= (.*)$", r.stdout, re.M)
+              if "-Ilib" in shlex.split(m)]
     return (cflags[-1] if cflags else FALLBACK_CFLAGS,
-            ldlibs[-1].split() if ldlibs else FALLBACK_LDLIBS)
+            client_static_dependency_flags(CLIENT))
 
 
 @pytest.fixture(scope="module")

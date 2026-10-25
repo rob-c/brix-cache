@@ -6,6 +6,7 @@
  */
 #include "core/types/tunables.h"
 #include "auth/crypto/store_policy.h"
+#include "auth/crypto/name_compat.h"
 
 #include <openssl/bn.h>
 #include <openssl/evp.h>
@@ -41,11 +42,14 @@ struct brix_sp_table_s {
 
 /* -- shared DN canonicaliser ---------------------------------------------- */
 
+/* ---- Canonicalize a policy DN through the selected OpenSSL backend ----
+ * WHAT: Copy the slash-form DN into the caller's bounded, terminated buffer.
+ * WHY: Policy matching must not depend on the linked library's escaping era.
+ * HOW: 1. Initialize output. 2. Render owned text. 3. Copy within the buffer.
+ */
 char *
 brix_x509_oneline(const X509_NAME *name, char *buf, size_t buflen)
 {
-    char *s;
-
     if (buflen == 0) {
         return buf;
     }
@@ -53,16 +57,7 @@ brix_x509_oneline(const X509_NAME *name, char *buf, size_t buflen)
     if (name == NULL) {
         return buf;
     }
-    s = X509_NAME_oneline(name, NULL, 0);
-    if (s != NULL) {
-        size_t n = strlen(s);
-        if (n >= buflen) {
-            n = buflen - 1;
-        }
-        memcpy(buf, s, n);
-        buf[n] = '\0';
-        OPENSSL_free(s);
-    }
+    (void) brix_crypto_name_oneline(name, buf, buflen);
     return buf;
 }
 

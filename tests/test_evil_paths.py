@@ -292,7 +292,7 @@ class TestWebDavHttpEvil:
         _webdav_symlink_suite(NGINX_HTTP_WEBDAV_PORT, tls=False, evil_symlinks=evil_symlinks)
 
 
-@pytest.mark.skipif(not _port_up(NGINX_WEBDAV_PORT),
+@pytest.mark.skipif("not _port_up(NGINX_WEBDAV_PORT)",
                     reason="https WebDAV (8443) not reachable")
 class TestWebDavHttpsEvil:
     def test_evil_battery(self):
@@ -302,7 +302,7 @@ class TestWebDavHttpsEvil:
         _webdav_symlink_suite(NGINX_WEBDAV_PORT, tls=True, evil_symlinks=evil_symlinks)
 
 
-@pytest.mark.skipif(not _port_up(NGINX_S3_PORT),
+@pytest.mark.skipif("not _port_up(NGINX_S3_PORT)",
                     reason="S3 (9001) not reachable")
 class TestS3Evil:
     BUCKET = "testbucket"
@@ -398,7 +398,7 @@ class TestWebDavHttpEvilWrites:
         _webdav_write_attacks(NGINX_HTTP_WEBDAV_PORT, False, write_zone)
 
 
-@pytest.mark.skipif(not _port_up(NGINX_WEBDAV_PORT),
+@pytest.mark.skipif("not _port_up(NGINX_WEBDAV_PORT)",
                     reason="https WebDAV (8443) not reachable")
 class TestWebDavHttpsEvilWrites:
     def test_write_escapes_blocked(self, write_zone):

@@ -10,9 +10,11 @@ same code is reached by a Content-Range PUT under `brix_upload_resume on`
 plus `brix_webdav_stage_dir` — a directive with no behavioural coverage at all.
 
 The cross-device condition is real, not simulated: the stage dir is created on
-tmpfs (/dev/shm) and the export on the ordinary filesystem, so rename(2) between
-them genuinely returns EXDEV.  The whole module skips when /dev/shm is absent,
-unwritable, or turns out to be the same device as the export — an assertion that
+a separately provisioned filesystem (TEST_STAGE_DEVICE_ROOT, default /dev/shm)
+and the export on the ordinary filesystem, so rename(2) between them genuinely
+returns EXDEV. Without an explicit stage root, the module skips when /dev/shm is
+absent, unwritable, or on the export's device. A bad explicit root fails instead.
+An assertion that
 "the fallback ran" is worthless if the fast path could have served it.
 
 Coverage (success + error + security-negative):
@@ -35,6 +37,7 @@ import hashlib
 import http.client
 import os
 import pathlib
+import tempfile
 import uuid
 
 import pytest
@@ -48,23 +51,30 @@ from server_registry import NginxInstanceSpec
 pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-stage-xdev")]
 
-SHM = "/dev/shm"
 NAME = "lc-stage-xdev"
+
+
+def _unavailable_stage(reason):
+    """A promised stage device is a requirement, never a quiet coverage skip."""
+    if "TEST_STAGE_DEVICE_ROOT" in os.environ:
+        pytest.fail(reason)
+    pytest.skip(reason)
 
 
 def _stage_dir(export: pathlib.Path) -> str:
     """A writable tmpfs stage dir that is provably a DIFFERENT device from the
     export — otherwise commit takes the rename(2) fast path and the module would
     pass without ever entering the fallback it exists to test."""
-    if not (os.path.isdir(SHM) and os.access(SHM, os.W_OK)):
-        pytest.skip("no writable /dev/shm — cannot stage on a second device")
-    stage = pathlib.Path(SHM) / f"xrd-xdev-{os.getpid()}"
-    stage.mkdir(parents=True, exist_ok=True)
+    root = os.environ.get("TEST_STAGE_DEVICE_ROOT", "/dev/shm")
+    if not (os.path.isdir(root) and os.access(root, os.W_OK | os.X_OK)):
+        _unavailable_stage(f"no writable stage root {root} — need a second device")
+    if os.stat(root).st_dev == os.stat(export).st_dev:
+        _unavailable_stage(f"stage root {root} is on the export device — no EXDEV")
+    stage = pathlib.Path(tempfile.mkdtemp(prefix="xrd-xdev-", dir=root))
     # The worker may run as another user (see test_shutdown_resume.py): a
     # 0755 root-owned stage dir fails staged-open and the PUT 503s.
-    os.chmod(stage, 0o777)
-    if os.stat(stage).st_dev == os.stat(export).st_dev:
-        pytest.skip("/dev/shm is the same device as the export — no EXDEV")
+    if os.geteuid() == 0:
+        os.chmod(stage, 0o777)
     return str(stage)
 
 

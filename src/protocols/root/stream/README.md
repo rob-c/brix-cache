@@ -60,7 +60,7 @@ compiled via `NGX_ADDON_SRCS` (`config:236-237`). Treat `module.c` as ground tru
 | `directives_tpc.h` | third-party-copy (TPC) SSRF policy + OAuth2 delegation directives #included into ngx_stream_brix_commands[] in module.c (compiler concatenates; setters/enum tables from module_enums.h stay visible). |
 | `directives_writethrough.h` | write-through cache directives (write-back mode, flush credential, never/always write-through path prefixes) #included into ngx_stream_brix_commands[] in module.c (compiler concatenates; setters/enum tables from module_e. |
 | `directives_zones.h` | shared-memory zone directives (stream main-conf: brix_kv_zone, brix_token_cache, brix_auth_cache, brix_rate_limit_zone) #included into ngx_stream_brix_commands[] in module.c (compiler concatenates; setters/enum tables fr. |
-| `module_enums.c` / `.h` | directive enum value tables for the stream module. |
+| `module_enums.c` / `.h` | directive enum value tables, including SSI executors, backend delegation, STS flavor and credential fallback; the command table only references them. |
 
 ## Key types & data structures
 

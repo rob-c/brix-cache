@@ -343,9 +343,10 @@ http {{
 
     def _xrootd_sec_block(self, d: Path, cred: str) -> str:
         sec_lib = find_xrd_sec_lib() or "libXrdSec.so"
+        cert, key = self._stock_tls_paths(d)
         if cred == "gsi":
             return (f"xrootd.seclib {sec_lib}\n"
-                    f"sec.protocol gsi -certdir:{CA_DIR} -cert:{SERVER_CERT} -key:{SERVER_KEY}"
+                    f"sec.protocol gsi -certdir:{CA_DIR} -cert:{cert} -key:{key}"
                     " -gridmap:none -gmapopt:10 -crl:0\n"
                     "sec.protbind * gsi")
         if cred == "token":
@@ -356,7 +357,7 @@ issuer = {self.tok_issuer}
 base_path = /
 default_user = fwduser
 """)
-            return (f"xrd.tls   {SERVER_CERT} {SERVER_KEY}\n"
+            return (f"xrd.tls   {cert} {key}\n"
                     f"xrd.tlsca certdir {CA_DIR}\n"
                     f"xrootd.seclib {sec_lib}\n"
                     "sec.protocol ztn\n"
@@ -364,6 +365,20 @@ default_user = fwduser
                     "ofs.authorize 1\n"
                     f"ofs.authlib libXrdAccSciTokens-5.so config={d}/scitokens.cfg")
         return ""
+
+    def _stock_tls_paths(self, directory: Path) -> tuple[Path, Path]:
+        """Private node-local TLS material readable by a dropped stock daemon."""
+        cert = directory / "hostcert.pem"
+        key = directory / "hostkey.pem"
+        if not cert.exists() or not key.exists():
+            shutil.copy(SERVER_CERT, cert)
+            shutil.copy(SERVER_KEY, key)
+        cert.chmod(0o444)
+        key.chmod(0o400)
+        if os.geteuid() == 0:
+            shutil.chown(cert, user="nobody")
+            shutil.chown(key, user="nobody")
+        return cert, key
 
     def spawn_bwrap_xrootd(self, d: Path, cfg: Path, log: Path, port: int) -> bool:
         """Launch xrootd under bwrap with a test-CA-augmented default bundle."""
@@ -389,6 +404,7 @@ default_user = fwduser
             xrd_runas = ["-R", "nobody"]
             subprocess.run(["chmod", "a+rx", str(self.run.root)], check=False)
             subprocess.run(["chmod", "-R", "a+rwX", str(d)], check=False)
+            self._stock_tls_paths(d)
         proc = self.run.spawn(["bwrap", "--dev-bind", "/", "/",
                                "--bind", bundle, real_bundle,
                                "--setenv", "XDG_CACHE_HOME", cache,
@@ -397,6 +413,6 @@ default_user = fwduser
         pidfile.write_text(str(proc.pid))
         self.node_pidfiles.append(pidfile)
         self.last_log = log
-        wait_tcp(HOST, port, 6)
+        ready = wait_tcp(HOST, port, 6)
         time.sleep(0.4)
-        return True
+        return ready and proc.poll() is None

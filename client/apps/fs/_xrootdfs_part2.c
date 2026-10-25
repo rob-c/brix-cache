@@ -93,8 +93,8 @@ aio_web_mount(int fuse_argc, char **fuse_argv, size_t fuse_argv_cap,
         xfs_daemon_ready((unsigned char) brix_shellcode(&st));
         return brix_shellcode(&st);
     }
-    /* Success is signalled from xfs_init() once the mount is live. */
-    int rc = fuse_main(fuse_argc, fuse_argv, &xfs_ops, NULL);
+    /* Success is signalled from xfs_ll_init() once the mount is live. */
+    int rc = xfs_session_main(fuse_argc, fuse_argv);
     brix_cpool_destroy(g_web_pool);
     g_web_pool = NULL;
     return rc;
@@ -187,8 +187,8 @@ aio_root_mount(int fuse_argc, char **fuse_argv, size_t fuse_argv_cap,
             g_url.host, g_url.port, g_max_conns, g_streams, g_max_stall,
             g_ext_setattr, g_ext_symlink, g_ext_readlink, g_ext_link);
 
-    /* Success is signalled from xfs_init() once the mount is live. */
-    rc = fuse_main(fuse_argc, fuse_argv, &xfs_ops, NULL);
+    /* Success is signalled from xfs_ll_init() once the mount is live. */
+    rc = xfs_session_main(fuse_argc, fuse_argv);
 
     xfs_ident_shutdown();
     brix_mgr_destroy(g_mgr);

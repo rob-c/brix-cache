@@ -9,8 +9,9 @@ at init to a confined account:
   * brix_worker_user <acct>        -> dropped to that account;
   * account missing / uid|gid 0    -> the worker REFUSES to serve (fail-closed).
 
-Everything is read from /proc/<worker>/status (+ the error log for the fail-closed
-case), so no request is driven.  Off a root host every test skips cleanly.
+Linux checks procfs capability sets; FreeBSD checks native saved credentials and
+procctl no-new-privileges. All actual nginx workers are inspected. Off a root
+host every test skips cleanly.
 
 Run:  sudo -E env PYTHONPATH=tests pytest tests/test_worker_deescalation_root.py -v
 """
@@ -18,15 +19,21 @@ from __future__ import annotations
 
 import os
 import pwd
+import grp
 import shutil
+import sys
 import time
 
 import pytest
+import psutil
 
 import settings
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST
+from lib_py.process_host import (native_no_new_privileges, native_process_record,
+                                nginx_worker_title)
+from lib_py.util import process_cmdline
 
 pytestmark = [
     pytest.mark.privileged,
@@ -40,34 +47,56 @@ BASE = os.path.join(settings.TEST_ROOT, "wdeesc")
 NO_CAPS = "0000000000000000"
 
 
-def _status(pid: int) -> "dict[str, str]":
+def _status(pid: int) -> dict:
+    if sys.platform.startswith('freebsd'):
+        return dict(credentials=native_process_record(pid, 'credentials', '-s'),
+                    no_new_privileges=native_no_new_privileges(pid))
     out: "dict[str, str]" = {}
     with open(f"/proc/{pid}/status", encoding="utf-8") as fh:
         for line in fh:
             key, _, val = line.partition(":")
-            if key in ("CapEff", "CapPrm", "NoNewPrivs", "Uid"):
+            if key in ("CapEff", "CapPrm", "CapBnd", "CapInh", "CapAmb",
+                       "NoNewPrivs", "Uid", "Gid", "Groups"):
                 out[key] = val.strip()
     return out
 
 
-def _worker_status(prefix: str) -> "dict[str, str] | None":
-    """Status of the (first) nginx worker under `prefix`'s master, or None."""
+def _worker_statuses(prefix: str) -> list[dict]:
+    """Inspect every actual worker; cache managers/helpers cannot satisfy this."""
     with open(os.path.join(prefix, "logs", "nginx.pid"), encoding="utf-8") as fh:
         master = int(fh.read().strip())
-    for entry in os.listdir("/proc"):
-        if not entry.isdigit():
-            continue
-        try:
-            with open(f"/proc/{entry}/stat", encoding="utf-8") as fh:
-                ppid = int(fh.read().rpartition(")")[2].split()[1])
-        except (OSError, IndexError, ValueError):
-            continue
-        if ppid == master:
-            try:
-                return _status(int(entry))
-            except OSError:
-                return None
-    return None
+    children = psutil.Process(master).children()
+    return [_status(child.pid) for child in children
+            if nginx_worker_title(process_cmdline(child.pid))]
+
+
+def _assert_confined(status, account):
+    """Require complete irreversible identity loss and native NNP readback."""
+    assert account.pw_uid > 0 and account.pw_gid > 0
+    if 'credentials' in status:
+        _assert_native_confined(status, account)
+        return
+    assert status['Uid'].split() == [str(account.pw_uid)] * 4, status
+    assert status['Gid'].split() == [str(account.pw_gid)] * 4, status
+    assert set(status['Groups'].split()) == {str(account.pw_gid)}, status
+    for name in ('CapEff', 'CapPrm', 'CapBnd', 'CapInh', 'CapAmb'):
+        assert status[name] == NO_CAPS, status
+    assert status['NoNewPrivs'] == '1', status
+
+
+def _assert_native_confined(status, account):
+    credentials = status['credentials']
+    assert [credentials[key] for key in ('ruid', 'uid', 'svuid')] == [account.pw_uid] * 3
+    assert [credentials[key] for key in ('rgid', 'group', 'svgid')] == [account.pw_gid] * 3
+    assert set(credentials['groups']) == {account.pw_gid}, credentials
+    assert status['no_new_privileges'] is True, status
+
+
+def _assert_workers_confined(prefix, account):
+    workers = _worker_statuses(prefix)
+    assert workers, 'no actual worker process found'
+    for status in workers:
+        _assert_confined(status, account)
 
 
 def _distinct_confined_account() -> "pwd.struct_passwd | None":
@@ -108,6 +137,8 @@ def _spec(name: str, worker_user_line: str):
         protocol="root",
         readiness="tcp",
         template_values={
+            "BIND_HOST": BIND_HOST,
+            "ROOT_GROUP": grp.getgrgid(pwd.getpwnam('root').pw_gid).gr_name,
             "BACKEND_DIR": backend,
             "CACHE_DIR": cache,
             "WORKER_USER_LINE": worker_user_line,
@@ -132,12 +163,7 @@ def test_root_worker_drops_to_nobody_by_default(harness):
     nobody (uid 65534) with NO capabilities and NO_NEW_PRIVS — pre-auth parsing runs
     unprivileged without any opt-in."""
     ep = harness.start(_spec("default", ""))
-    st = _worker_status(ep.prefix)
-    assert st is not None, "no worker process found"
-    assert st.get("Uid", "").split()[:1] == ["65534"], \
-        f"worker was not dropped to nobody by default: {st}"
-    assert st.get("CapEff") == NO_CAPS, f"dropped worker still holds caps: {st}"
-    assert st.get("NoNewPrivs") == "1", f"NO_NEW_PRIVS not set: {st}"
+    _assert_workers_confined(ep.prefix, pwd.getpwnam('nobody'))
 
 
 def test_root_worker_drops_to_configured_account(harness):
@@ -148,12 +174,7 @@ def test_root_worker_drops_to_configured_account(harness):
         pytest.skip("no distinct uid>0/gid>0 account available to prove the directive")
     ep = harness.start(_spec("configured",
                              f"        brix_worker_user {pw.pw_name};"))
-    st = _worker_status(ep.prefix)
-    assert st is not None, "no worker process found"
-    assert st.get("Uid", "").split()[:1] == [str(pw.pw_uid)], \
-        f"worker was not dropped to configured account {pw.pw_name}: {st}"
-    assert st.get("CapEff") == NO_CAPS, f"dropped worker still holds caps: {st}"
-    assert st.get("NoNewPrivs") == "1", f"NO_NEW_PRIVS not set: {st}"
+    _assert_workers_confined(ep.prefix, pw)
 
 
 def test_root_worker_refuses_on_missing_account(harness):
@@ -172,6 +193,4 @@ def test_root_worker_refuses_on_missing_account(harness):
         log = fh.read()
     assert "refusing to serve" in log and "brix_no_such_account_xyz" in log, \
         "worker did not fail closed on a missing brix_worker_user account"
-    st = _worker_status(ep.prefix)
-    assert st is None or st.get("Uid", "").split()[:1] != ["0"], \
-        f"a worker is serving as uid 0 despite the unreachable confined account: {st}"
+    assert _worker_statuses(ep.prefix) == [], 'a worker survived an unreachable confined account'

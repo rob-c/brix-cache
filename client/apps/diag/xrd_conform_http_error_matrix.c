@@ -96,6 +96,29 @@ pair_matches(xrd_conform_execution *execution, const http_error_pair *pair,
         && strcmp(repeat_reason, first_reason) == 0;
 }
 
+static int
+readonly_create_matches(xrd_conform_execution *execution,
+    const char *root_target, const char *http_target)
+{
+    uint16_t root_code = 0;
+    int first_status = 0;
+    int repeat_status = 0;
+    char root_message[128];
+    char first_reason[128];
+    char repeat_reason[128];
+
+    return root_target != NULL && http_target != NULL
+        && xrd_conform_observe_root_error(execution, root_target, &root_code,
+            root_message) == 0
+        && observe_http_once(execution, http_target, "PUT", &first_status,
+            first_reason) == 0
+        && observe_http_once(execution, http_target, "PUT", &repeat_status,
+            repeat_reason) == 0
+        && root_code == kXR_fsReadOnly && first_status == 403
+        && repeat_status == first_status
+        && strcmp(repeat_reason, first_reason) == 0;
+}
+
 /* WHAT: Grade the paired ROOT/HTTP read-only creation contract.
  * WHY: HTC-002 requires a denied mutation, not inference from a safe GET.
  * HOW: Require exact EROFS fixtures, issue PUT twice, and compare native codes. */
@@ -106,26 +129,11 @@ grade_readonly_create(xrd_conform_execution *execution)
         "HTC-002");
     const char *root_target = fixture_target(execution->run, "EROFS", 0);
     const char *http_target = fixture_target(execution->run, "EROFS", 1);
-    uint16_t root_code = 0;
-    int first_status = 0;
-    int repeat_status = 0;
-    char root_message[128];
-    char first_reason[128];
-    char repeat_reason[128];
     int matched;
 
     if (row == NULL || row->verdict == BRIX_CONFORM_VERDICT_SKIPPED
         || (root_target == NULL && http_target == NULL)) return;
-    matched = root_target != NULL && http_target != NULL
-        && xrd_conform_observe_root_error(execution, root_target, &root_code,
-            root_message) == 0
-        && observe_http_once(execution, http_target, "PUT", &first_status,
-            first_reason) == 0
-        && observe_http_once(execution, http_target, "PUT", &repeat_status,
-            repeat_reason) == 0
-        && root_code == kXR_fsReadOnly && first_status == 403
-        && repeat_status == first_status
-        && strcmp(repeat_reason, first_reason) == 0;
+    matched = readonly_create_matches(execution, root_target, http_target);
     xrd_conform_result_set(execution, "HTC-002",
         matched ? BRIX_CONFORM_VERDICT_CONFORMANT
                 : BRIX_CONFORM_VERDICT_DIVERGENT,

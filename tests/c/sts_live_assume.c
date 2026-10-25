@@ -23,6 +23,7 @@
 
 #include "auth/s3/sts.h"
 #include "core/compat/crypto.h"
+#include "net/dns/curl_pin.h"
 
 /* ---- nginx surface stubs (pool → malloc, as the offline STS unit does) ---- */
 
@@ -49,6 +50,23 @@ ngx_alloc(size_t size, ngx_log_t *log)
 
 volatile ngx_cycle_t  *ngx_cycle;
 
+static int
+probe_pin(const char *url)
+{
+    CURL               *curl = curl_easy_init();
+    struct curl_slist  *resolve = NULL;
+    char                err[256];
+    ngx_int_t           rc;
+
+    if (curl == NULL) {
+        return 2;
+    }
+    rc = brix_dns_curl_pin(curl, NULL, url, &resolve, err, sizeof(err));
+    curl_slist_free_all(resolve);
+    curl_easy_cleanup(curl);
+    return rc == NGX_OK ? 0 : 1;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -59,11 +77,17 @@ main(int argc, char **argv)
     ngx_str_t          sk = ngx_null_string;
     ngx_str_t          session = ngx_null_string;
     ngx_log_t          log_ = { 0 };
+    ngx_cycle_t        cycle_ = { 0 };
     /* A non-NULL sentinel: sts_validate() rejects a NULL pool, and the pool-alloc
      * stubs above ignore the pointer's target (they malloc), so any non-NULL
      * address satisfies the guard without a real nginx pool. */
     ngx_pool_t        *pool = (ngx_pool_t *) &log_;
 
+    cycle_.log = &log_;
+    ngx_cycle = &cycle_;
+    if (argc == 3 && strcmp(argv[1], "--dns-probe") == 0) {
+        return probe_pin(argv[2]);
+    }
     if (argc < 5) {
         fprintf(stderr, "usage: %s <endpoint> <ak> <sk> <region> [role]\n",
             argv[0]);

@@ -44,15 +44,18 @@
     #define BRIX_HAS_FUSE 0
 #endif
 #define BRIX_HAS_INOTIFY 0
+#define BRIX_HAS_FUSE_NODEV 1             /* native nodev mount option */
+#define BRIX_HAS_FUNOPEN 1
 #define BRIX_HAS_SPLICE 0
 #define BRIX_HAS_POSIX_FADVISE 0
 #define BRIX_HAS_CLONEFILE 1
 #define BRIX_HAS_COPY_FILE_RANGE 0
 #define BRIX_HAS_IPV6_FLOWLABEL 0
-#define BRIX_HAS_TCP_INFO 0
+#define BRIX_HAS_TCP_INFO 1              /* native TCP_CONNECTION_INFO counters */
 #define BRIX_HAS_NO_NEW_PRIVS 1          /* sandbox profile denies process-exec */
 #define BRIX_HAS_WORKER_EXEC 0            /* worker sandbox denies every exec */
 #define BRIX_HAS_CAPABILITIES 0
+#define BRIX_HAS_FIXED_ID_BROKER 0
 #define BRIX_HAS_SAVED_IDS 0              /* libc cannot inspect the saved IDs */
 /* gss_krb5_import_cred is an MIT extension.  Apple's system Kerberos is
  * Heimdal (no import call), but a build against the Homebrew MIT keg has it:

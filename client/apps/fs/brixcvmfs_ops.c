@@ -114,10 +114,14 @@ int brixcvmfs_op_readlink(const char *path, char *buf, size_t size) {
     return 0;
 }
 
+/* WHAT: Report the read-only filesystem's logical block and fragment sizes.
+ * WHY: FreeBSD does not substitute f_bsize for an unspecified f_frsize.
+ * HOW: Initialize both 4 KiB units explicitly; never advertise free capacity. */
 int brixcvmfs_op_statfs(const char *path, struct statvfs *sv) {
     (void) path;
     memset(sv, 0, sizeof(*sv));
     sv->f_bsize = 4096;
+    sv->f_frsize = 4096;
     sv->f_namemax = 255;
     return 0;
 }

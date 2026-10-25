@@ -191,6 +191,11 @@ cms_srv_complete_login(brix_cms_srv_ctx_t *ctx)
         return;
     }
 
+    if (brix_cms_srv_send_login_ack(ctx) != NGX_OK) {
+        cms_srv_fail_close(ctx, BRIX_SESS_END_SERVER);
+        return;
+    }
+
     brix_srv_register(ctx->host, ctx->port, ctx->paths,
                          ctx->free_mb, ctx->util_pct);
     if (ctx->vnid[0] != '\0') {

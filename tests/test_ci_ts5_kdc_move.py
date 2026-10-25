@@ -112,6 +112,38 @@ def _probe(code: str, env: dict | None = None):
     return proc.stdout.strip()
 
 
+@pytest.fixture(scope="module")
+def addressed_ticket_binary(tmp_path_factory):
+    """Use the real public-API helper even when testing refusal before KDC I/O."""
+    from test_audit16e_krb5_ip_check import _addressed_ticket_binary
+
+    return _addressed_ticket_binary(tmp_path_factory.mktemp("addressed-ticket"))
+
+
+@pytest.mark.parametrize("address", ["not-an-address", "::1", "127.0.0.1/8"])  # net-literal-allow: addressed-ticket rejection corpus
+def test_addressed_ticket_rejects_invalid_source_before_cache_mutation(
+        addressed_ticket_binary, tmp_path, address):
+    """Malformed/family-mismatched inputs cannot overwrite existing credentials."""
+    cache = tmp_path / "cache"
+    cache.write_bytes(b"unchanged private cache sentinel")
+    result = subprocess.run([str(addressed_ticket_binary), "missing-keytab", "client",
+                             "FILE:" + str(cache), address], capture_output=True,
+                            text=True, timeout=5)
+    assert result.returncode == 2 and "IPv4" in result.stderr
+    assert cache.read_bytes() == b"unchanged private cache sentinel"
+
+
+def test_addressed_ticket_refuses_nonfile_cache_without_side_effects(
+        addressed_ticket_binary, tmp_path):
+    """A fixture cannot silently select a shared system keyring or cache backend."""
+    cache = tmp_path / "cache"
+    result = subprocess.run([str(addressed_ticket_binary), "missing-keytab", "client",
+        "DIR:" + str(cache), "127.0.0.1"], capture_output=True,  # net-literal-allow: literal address binding under test
+                            text=True, timeout=5)
+    assert result.returncode == 2 and "usage:" in result.stderr
+    assert not cache.exists()
+
+
 def _cli(*args, env: dict | None = None):
     """Invoke the flat spelling exactly as the catalogue does: absolute path."""
     e = dict(os.environ)

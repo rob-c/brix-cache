@@ -47,6 +47,7 @@ except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
 from settings import NGINX_BIN, HOST, BIND_HOST
+from official_interop_lib import worker_reachable
 from server_registry import NginxInstanceSpec
 
 pytestmark = [pytest.mark.serial,
@@ -82,12 +83,16 @@ def ce_driver_server(lifecycle, tmp_path):
     _require_driver_dependencies()
     global WEBDAV_PORT, ORIGIN_PORT
     oroot = _origin_root(tmp_path)
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    worker_reachable(oroot, stage)
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-ce-driver-s3",
         template="nginx_ce_driver_s3.conf",
         protocol="http",
         template_values={"BIND_HOST": BIND_HOST,
                          "ORIGIN_DIR": str(oroot),
+                         "STAGE_DIR": str(stage),
                          "S3_ACCESS_KEY": S3_AK,
                          "S3_SECRET_KEY": S3_SK},
         reason="Content-Encoding PUT to a driver-backed (s3://) object backend"))

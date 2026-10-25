@@ -4,9 +4,8 @@
  * A WebDAV lock is encoded as a single xattr on the locked resource:
  *   token=<tok>|owner=<owner>|expires=<msec>|scope=<exclusive|shared>|depth=<infinity|0>
  *
- * XATTR_CREATE semantics make lock creation atomic across workers: if two
- * workers race on the same unlocked path, exactly one setxattr(XATTR_CREATE)
- * succeeds and the other gets EEXIST → NGX_DECLINED → 423 Locked.
+ * Local storage uses a serialized, inode-bound VFS lock-store transaction.
+ * Driver/broker-owned storage retains native conditional xattr dispatch.
  */
 #include "core/compat/log_event.h"
 #include "webdav.h"
@@ -30,9 +29,9 @@
  */
 
 /*
- * Build a transient VFS ctx for a confined xattr op on `path`.  The xattr
- * family is not allow_write-gated, so the allow_write flag threaded through
- * does not affect set/remove behaviour.  The _ns (namespace) credential build
+ * Build a transient VFS ctx for a confined xattr op on `path`.  Lock-record
+ * mutations retain the export's typed mutation policy; reads need no mutation
+ * authority.  The _ns (namespace) credential build
  * is deliberate: minting is reserved for data-plane GET/PUT/COPY sites, so a
  * lock xattr op that needs a credential the user doesn't already have falls
  * back per the configured storage_credential_fallback policy, same as every
@@ -70,11 +69,12 @@ webdav_lock_vfs_ctx_init(ngx_http_request_t *r, const char *path,
 
 ngx_int_t
 webdav_lock_xattr_write(ngx_http_request_t *r, const char *path,
-    const webdav_lock_xattr_t *e, int flags)
+    const webdav_lock_xattr_t *e, int flags, const webdav_lock_xattr_t *expected)
 {
     ngx_log_t        *log = r->connection->log;
     brix_vfs_ctx_t  vctx;
     char              buf[WEBDAV_LOCK_XATTR_MAXLEN];
+    ngx_int_t         result;
 
     if (brix_lock_record_encode(e, buf, sizeof(buf)) != NGX_OK) {
         BRIX_LOG(NGX_LOG_ERR, log, 0,
@@ -84,10 +84,14 @@ webdav_lock_xattr_write(ngx_http_request_t *r, const char *path,
 
     webdav_lock_vfs_ctx_init(r, path, &vctx);
 
-    if (brix_vfs_setxattr(&vctx, WEBDAV_LOCK_XATTR_KEY, buf, strlen(buf),
-                            flags) != NGX_OK)
+    result = brix_vfs_lock_store_update(&vctx, expected, e);
+    if (result == NGX_DECLINED && errno == ENOTSUP) {
+        result = brix_vfs_setxattr(&vctx, WEBDAV_LOCK_XATTR_KEY,
+                                   buf, strlen(buf), flags);
+    }
+    if (result != NGX_OK)
     {
-        if (errno == EEXIST) {
+        if (errno == EEXIST || errno == EBUSY || errno == EWOULDBLOCK) {
             return NGX_DECLINED;   /* XATTR_CREATE race — another worker won */
         }
         BRIX_LOG(NGX_LOG_ERR, log, errno,
@@ -137,14 +141,20 @@ webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
 }
 
 ngx_int_t
-webdav_lock_xattr_delete(ngx_http_request_t *r, const char *path)
+webdav_lock_xattr_delete(ngx_http_request_t *r, const char *path,
+    const webdav_lock_xattr_t *expected)
 {
     ngx_log_t        *log = r->connection->log;
     brix_vfs_ctx_t  vctx;
+    ngx_int_t       result;
 
     webdav_lock_vfs_ctx_init(r, path, &vctx);
 
-    if (brix_vfs_removexattr(&vctx, WEBDAV_LOCK_XATTR_KEY) != NGX_OK) {
+    result = brix_vfs_lock_store_update(&vctx, expected, NULL);
+    if (result == NGX_DECLINED && errno == ENOTSUP) {
+        result = brix_vfs_removexattr(&vctx, WEBDAV_LOCK_XATTR_KEY);
+    }
+    if (result != NGX_OK) {
         if (errno == ENODATA || errno == ENOATTR || errno == ENOENT
             || errno == ENOTSUP || errno == EOPNOTSUPP || errno == ENOSYS)
         {

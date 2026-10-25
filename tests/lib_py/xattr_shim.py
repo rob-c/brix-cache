@@ -132,7 +132,12 @@ def _removexattr(path, attribute, *, follow_symlinks=True):
 
 def install() -> bool:
     """Add the xattr functions to ``os`` if this Python lacks them (Darwin)."""
-    if hasattr(os, "getxattr") or sys.platform != "darwin":
+    if hasattr(os, "getxattr"):
+        return False
+    if sys.platform.startswith("freebsd"):
+        from lib_py.freebsd_xattr import install as install_freebsd
+        return install_freebsd()
+    if sys.platform != "darwin":
         return False
     os.getxattr = _getxattr
     os.setxattr = _setxattr

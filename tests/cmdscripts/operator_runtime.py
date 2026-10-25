@@ -13,7 +13,7 @@ import socket
 import subprocess
 import sys
 import tempfile
-from lib_py.util import pid_alive
+from lib_py.util import pid_alive, procfs_available
 import time
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
@@ -117,17 +117,10 @@ def _pgrep_name(name: str) -> list[int]:
 
 
 def clean_test_fleet(test_root: Path = Path("/tmp/xrd-test")) -> None:
-    # Cross-lane shared state: the default credential store on tmpfs is owned
-    # by whichever lane's worker identity touched it last (root lane -> nobody,
-    # unprivileged lane -> the test user).  A store left by the OTHER lane is
-    # 0700 foreign-owned, so this lane's workers EACCES every delegation PUT
-    # and the config-time ensure shouts ownership warnings that trip the
-    # credential tests.  It holds only throwaway test delegations — wipe it
-    # (best-effort: unprivileged we may not own it, but then the pre-existing
-    # skip guards apply).
-    shutil.rmtree(f"/dev/shm/brix-creds.{os.geteuid()}", ignore_errors=True)
+    # A root-scoped cleanup cannot revoke another live lane's service-owned
+    # credential store. Test fixtures must provision their own private store.
     _kill_root_processes(test_root)
-    _kill_stale_listeners()
+    _kill_stale_listeners(test_root)
 
 
 def _kill_root_processes(test_root):
@@ -138,10 +131,12 @@ def _kill_root_processes(test_root):
 
 
 def _signal_root_processes(root_marker):
+    from fleet_orphans import owns
+
     owned = set()
     for name in ("nginx", "xrootd", "cmsd", "krb5kdc", "kadmind", "haproxy"):
         for pid in _pgrep_name(name):
-            if root_marker in _process_cmdline(pid):
+            if owns(root_marker, _process_cmdline(pid)):
                 owned.add(pid)
                 _safe_kill(pid, signal.SIGTERM)
     return owned
@@ -157,17 +152,29 @@ def _wait_for_processes(owned):
 
 
 def _kill_remaining_processes(owned, root_marker):
+    from fleet_orphans import owns
+
     for pid in owned:
-        if root_marker in _process_cmdline(pid):
+        if owns(root_marker, _process_cmdline(pid)):
             _safe_kill(pid, signal.SIGKILL)
 
 
-def _kill_stale_listeners():
+def _kill_stale_listeners(test_root):
     from lib_py.util import kill_pid_list, pids_in_port_range  # noqa: PLC0415
+
     listeners = pids_in_port_range(TEST_PORT_START, TEST_PORT_START + PORT_COUNT)
-    stale = [pid for pid in listeners if _is_test_server(pid)]
+    if not listeners:
+        return
+    stale = _owned_stale_listeners(test_root, listeners)
     if stale:
         kill_pid_list(stale)
+
+
+def _owned_stale_listeners(test_root, listeners):
+    from fleet_orphans import find_orphans
+
+    owned = {pid for pid, command in find_orphans(test_root)}
+    return [pid for pid in listeners if pid in owned and _is_test_server(pid)]
 
 
 def _pid_alive(pid) -> bool:
@@ -177,7 +184,7 @@ def _pid_alive(pid) -> bool:
 
 def _executable_name(pid) -> str:
     """Basename of the program ``pid`` runs; "" if unknown."""
-    if os.path.isdir("/proc"):
+    if procfs_available():
         try:
             return Path(f"/proc/{pid}/exe").resolve().name
         except OSError:
@@ -204,10 +211,13 @@ def _is_test_server(pid):
 
 def teardown_test_fleet(test_root: Path) -> None:
     """Stop through the registry helper, then reap exact-root stragglers."""
+    registry = Path(test_root) / "registry"
     subprocess.run(
         [sys.executable, "-m", "cmdscripts.manage_test_servers", "stop-all"],
         cwd=str(TESTS),
-        env={**os.environ, "TEST_ROOT": str(test_root), "PYTHONPATH": str(TESTS)},
+        env={**os.environ, "TEST_ROOT": str(test_root), "PYTHONPATH": str(TESTS),
+             "TEST_REGISTRY_ROOT": str(registry),
+             "TEST_REGISTRY_MANIFEST": str(registry / "manifest.json")},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         check=False,
@@ -497,8 +507,10 @@ class FleetSentinelAbort(Exception):
 
 
 def _sentinel_marker(test_root: Path) -> Path:
-    root = os.environ.get("TEST_REGISTRY_ROOT") or str(test_root / "registry")
-    return Path(root) / ".fleet-sentinel-abort"
+    root = Path(os.environ.get("TEST_REGISTRY_ROOT") or test_root / "registry")
+    if not root.resolve().is_relative_to(test_root.resolve()):
+        root = test_root / "registry"
+    return root / ".fleet-sentinel-abort"
 
 
 def clear_sentinel_marker(test_root: Path) -> None:
@@ -534,16 +546,20 @@ def _suite_lane(
     try:
         return _pytest_lane(selection, main, common, timeout=timeout)
     finally:
-        teardown_test_fleet(test_root)
-        _raise_if_sentinel_tripped(test_root)
+        try:
+            _raise_if_sentinel_tripped(test_root)
+        finally:
+            teardown_test_fleet(test_root)
 
 
 def _suite_serial_lane(test_root: Path, selection: list[str], common: list[str]) -> bool:
     try:
         return _serial_lane(selection, common)
     finally:
-        teardown_test_fleet(test_root)
-        _raise_if_sentinel_tripped(test_root)
+        try:
+            _raise_if_sentinel_tripped(test_root)
+        finally:
+            teardown_test_fleet(test_root)
 
 # These are physical continuations, not independent modules: their functions
 # intentionally use the launch/cleanup helpers defined above.  Execute them in

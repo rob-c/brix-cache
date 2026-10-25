@@ -466,26 +466,8 @@ tokenauth_bind_session(brix_ctx_t *ctx, ngx_connection_t *c,
     const brix_token_claims_t *claims = &st->claims;
     int i;
 
-    /* Track unique user and VO at auth completion. */
-    {
-        ngx_brix_metrics_t *shm = brix_metrics_shared();
-        if (shm != NULL) {
-            size_t vo_len = strlen(ctx->login.primary_vo);
-            if (vo_len > 0 && vo_len < sizeof(ctx->login.primary_vo)) {
-                brix_track_vo_activity(shm, ctx->login.primary_vo, 0, 0);
-                ngx_uint_t vi;
-                for (vi = 0; vi < BRIX_VO_MAX_TRACKED; vi++) {
-                    if (ngx_strncmp(shm->vo_global.slots[vi].name, ctx->login.primary_vo,
-                                    BRIX_VO_NAME_LEN) == 0)
-                    {
-                        BRIX_ATOMIC_INC(&shm->vo_global.slots[vi].requests_total);
-                        break;
-                    }
-                }
-            }
-            brix_track_unique_user(shm, ctx->login.dn, strlen(ctx->login.dn));
-        }
-    }
+    brix_track_auth_identity(brix_metrics_shared(), ctx->login.primary_vo,
+        sizeof(ctx->login.primary_vo), ctx->login.dn, sizeof(ctx->login.dn));
 
     ctx->login.session_slot_hint =
         brix_session_register(ctx->login.sessid, ctx->login.dn,

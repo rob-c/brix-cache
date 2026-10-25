@@ -14,6 +14,12 @@ versioned envelope containing the exact logical name. Get, list and delete
 validate and unwrap that representation, so the wire behavior does not inherit
 the narrower host limit.
 
+Large values may also use hashed keys and digest-checked chunks even when
+the logical name fits a native key. Listing verifies the physical key against
+the logical name's hash, not against the direct-key preference. This keeps
+short names visible with large values while refusing mismatched envelopes or
+missing/corrupt chunks; internal manifest and chunk names remain private.
+
 `kXR_fattr` is a single wire opcode carrying one of four sub-codes — `Get`,
 `Set`, `Del`, `List`. Since phase-62 **every xattr syscall here goes through the
 VFS xattr seam** (`brix_vfs_*xattr`, `src/fs/vfs/vfs_xattr.c`), never a raw
@@ -49,6 +55,7 @@ per-attribute results and increments the `BRIX_OP_FATTR` metric slot.
 | `dispatch.c` | `brix_handle_fattr()` — the single entry point. Validates `subcode`/`numattr`/write-permission, resolves file-handle vs path target, builds one function-scope `brix_vfs_ctx_t` (a confined `brix_vfs_stat` verifies a path target; fd targets carry proto/log only), auth-gates path targets, copies and parses the name vector, then routes the ctx + path/fd to `fattr_get`/`fattr_set`/`fattr_del`/`fattr_list`. |
 | `helpers.c` | Shared plumbing: `fattr_errno_to_xrd()` (errno→kXR), `fattr_set_rc()` (write per-attribute status in place, big-endian), `fattr_parse_nvec()` (parse the request name vector into `attrs[]`), `fattr_send_vector_status()` (build/send the Set/Del status frame). |
 | `storage.c` | Portable logical-name adapter. Direct `user.U.*` xattrs remain the common case; names beyond the host limit use a collision-checked SHA-256 key plus a versioned name/value envelope. |
+| `storage_keys.c` / `storage_keys.h` | Pure bounded physical-name hashing and chunk-key geometry, shared by reads, writes and cleanup; contains no filesystem operations. |
 | `get.c` | `fattr_get()` — `kXR_fattrGet`. Two-phase read (size query then buffered read) of each named attribute via the VFS xattr seam — `brix_vfs_getxattr` (path mode) / `brix_vfs_fgetxattr` (fd mode); builds the value-vector (`vvec`) response: per-attr 4-byte big-endian length + raw bytes. |
 | `set.c` | `fattr_set()` — `kXR_fattrSet`. Parses the value vector (4-byte BE length + bytes per attribute) with signed-length safety checks, applies each via `brix_vfs_setxattr`/`brix_vfs_fsetxattr`, honoring `kXR_fa_isNew` → `XATTR_CREATE`. |
 | `del.c` | `fattr_del()` — `kXR_fattrDel`. Removes each named attribute via `brix_vfs_removexattr`/`brix_vfs_fremovexattr`, recording per-attribute status; partial success is valid. |
@@ -117,18 +124,19 @@ in `attrs[]`, then:
 
 **Calls out to:** `../path/` (path extraction, confinement, auth gate),
 `../metrics/` (`BRIX_OP_OK`/`BRIX_OP_ERR` on slot `BRIX_OP_FATTR`), the
-shared response framer `brix_send_ok()`/`brix_send_error()`, and the kernel
-`<sys/xattr.h>` syscalls directly. It reads file descriptors from
+shared response framer `brix_send_ok()`/`brix_send_error()`, and the VFS attribute
+interfaces (the platform-specific syscalls remain behind the PAL). It reads file descriptors from
 `ctx->files[]` (see [../connection/README.md](../connection/README.md) /
 `src/protocols/root/connection/fd_table.c`). It does **not** use [../../../core/aio/README.md](../../../core/aio/README.md) — xattr
 ops run inline.
 
 ## Invariants, security & gotchas
 
-- **Path confinement is mandatory and explicit.** Path-form requests never call
-  raw `*xattr` on the client path until `brix_open_beneath()` has succeeded
-  against `conf->rootfd` (RESOLVE_BENEATH); the canonical full path from
-  `brix_beneath_full_path()` is what the syscalls use (`dispatch.c:101-126`).
+- **Path confinement is mandatory and explicit.** Path-form requests use the
+  VFS. The POSIX attribute helper pins a descriptor through the existing
+  confined opener and uses `f*xattr`, not a raw pathname syscall after a stat.
+  This closes both traversal and symlink-replacement races. Impersonated
+  requests retain the broker's confined, mapped-user descriptor operations.
   The recurse walk (`list.c`) operates only inside the already-confined target
   directory.
 - **Write gate is fail-closed and runs first.** `kXR_fattrSet`/`kXR_fattrDel`
@@ -149,6 +157,11 @@ ops run inline.
   an error count. `fattr_errno_to_xrd()` maps `ENODATA → kXR_AttrNotFound` and
   `ERANGE → kXR_ArgTooLong`, delegating everything else to the shared
   `brix_kxr_from_errno()`.
+  An authorized Get targeting a missing file likewise returns an `ok` envelope
+  with `kXR_NotFound` in every requested attribute slot and zero-length values.
+  Missing attributes on existing files retain `kXR_AttrNotFound`. Authorization
+  refusals and malformed name vectors remain request-level failures; List/Set/Del
+  do not inherit the missing-Get target exception.
 - **xattr-unsupported filesystems and backends degrade, not error.**
   `fattr_list()` treats `ENOTSUP`/`EOPNOTSUPP`/`ENOSYS` as an empty result
   rather than a protocol error. All three spell "no extended attributes here",

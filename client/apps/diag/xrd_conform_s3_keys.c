@@ -1,14 +1,7 @@
 /* Phase-118 S3 wire-path and unusual-key conformance probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "core/compat/uri.h"
 
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
-
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
 /* WHAT: Encode only the S3 URI while preserving an already-canonical query.
  * WHY: SigV4 hashes the encoded URI, and raw spaces must never enter HTTP/1.1.
@@ -218,7 +211,7 @@ xrd_conform_probe_s3_special_keys(xrd_conform_execution *execution,
     size_t created = 0;
     int pass;
 
-    if (!url->is_s3 || !row_active(execution, "S3-014")) return;
+    if (!url->is_s3 || !xrd_conform_row_active(execution, "S3-014")) return;
     if (special_paths(execution, url, objects, prefix) != 0
         || put_special(execution, objects, &created) != 0) {
         delete_special(execution, objects, created);

@@ -34,6 +34,7 @@ class TestPrepareStageCommand:
         """Reset the shared stage log before each test."""
         os.makedirs(os.path.dirname(PREPARE_CMD_LOG), exist_ok=True)
         open(PREPARE_CMD_LOG, "w").close()
+        os.chmod(PREPARE_CMD_LOG, 0o666)
 
     @staticmethod
     def _session_on(port: int):

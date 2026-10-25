@@ -36,6 +36,10 @@ import pytest
 import kdc_helpers
 from ephemeral_port import free_port
 from lib_py.util import linked_libraries
+from lib_py.reference_host import (
+    reference_listener_args, reference_listener_ready, reference_transport_directives,
+)
+from stock_xrootd_owner import stock_krb5_layout
 from settings import (
     HOST,
     KRB5_CCACHE,
@@ -77,7 +81,8 @@ def _guard_xrootd_krb5_8():
         pytest.skip("krb5 realm could not be provisioned")
 
 
-pytestmark = pytest.mark.xdist_group("krb5-xrootd-interop")
+# Setup's explicit 180s client-build budget must fit inside its outer ceiling.
+pytestmark = [pytest.mark.xdist_group("krb5-xrootd-interop"), pytest.mark.timeout(300)]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -89,20 +94,12 @@ XRDCP = os.path.join(CLIENT_DIR, "bin", "xrdcp")
 
 
 def _find_seclib():
-    for d in ("/usr/lib64", "/usr/lib/x86_64-linux-gnu", "/usr/lib"):
-        for name in ("libXrdSec-5.so", "libXrdSec.so"):
-            p = os.path.join(d, name)
-            if os.path.exists(p):
-                return p
-    return None
+    layout = stock_krb5_layout()
+    return str(layout[0]) if layout is not None else None
 
 
 def _krb5_plugin_present():
-    for d in ("/usr/lib64", "/usr/lib/x86_64-linux-gnu", "/usr/lib"):
-        if any(os.path.exists(os.path.join(d, n))
-               for n in ("libXrdSeckrb5-5.so", "libXrdSeckrb5.so")):
-            return True
-    return False
+    return stock_krb5_layout() is not None
 
 
 def _client_has_krb5():
@@ -166,8 +163,9 @@ all.adminpath {admin}
 all.pidpath {run}
 xrd.sched mint 1 maxt 4 avlt 1
 xrd.trace off
+{reference_transport_directives()}
 xrootd.seclib {seclib}
-sec.protocol krb5 {KRB5_SERVICE_PRINCIPAL}
+sec.protocol {os.path.dirname(seclib)} krb5 {KRB5_SERVICE_PRINCIPAL}
 sec.protbind * krb5
 """, encoding="utf-8")
     log_path = logs / "xrootd.log"
@@ -179,13 +177,13 @@ sec.protbind * krb5
     env["KRB5_CONFIG"] = KRB5_CONF
 
     srv = subprocess.Popen(
-        [xrootd, "-c", str(cfg), "-l", str(log_path)],
+        [xrootd, *reference_listener_args(HOST), "-c", str(cfg), "-l", str(log_path)],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         start_new_session=True, env=env)
     try:
-        if not _wait_port(HOST, port, time.time() + 20):
+        if not reference_listener_ready(srv, HOST, port, timeout=20):
             log = log_path.read_text(errors="replace") if log_path.exists() else ""
-            pytest.skip(f"reference xrootd did not come up:\n{log[-2000:]}")
+            pytest.fail(f"installed reference xrootd did not become ready:\n{log[-2000:]}")
         yield {"port": port, "log": log_path}
     finally:
         try:

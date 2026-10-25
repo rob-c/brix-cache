@@ -115,9 +115,12 @@ subsystem the handlers call out to:
 - **Checksum math** is delegated to `../../../core/compat/README.md`: `brix_integrity_get_fd`
   (with xattr-cache opts) for Qcksum, `brix_checksum_u32_fd` for the Qckscan
   walk, and `brix_checksum_parse` for algorithm name → enum.
-- **Async offload** uses `../../../core/aio/README.md`: `ngx_thread_task_alloc`,
-  `brix_task_bind`, `brix_aio_post_task` (which falls back to sync if the
-  queue is full), `brix_aio_restore_request`, and `brix_aio_resume`.
+- **Async offload** uses `../../../core/aio/README.md`: `brix_task_bind`,
+  `brix_aio_post_task`, `brix_aio_restore_request`, and `brix_aio_resume`.
+  Qcksum and Qckscan obtain one reusable, pool-cleanup-owned task per connection
+  via `brix_query_checksum_task`. A full queue returns a one-second `kXR_wait`;
+  expensive checksum work never falls through onto the event loop on overflow.
+  The synchronous checksum path remains only for an explicitly absent pool.
 - **Cluster behavior** (Qcksum, path variant): in `manager_mode` the query is
   bounced like `stat`/`open` — `brix_srv_select` against the SHM registry
   (`../../../net/manager/README.md`) yields `BRIX_RETURN_REDIR`; a registry miss triggers
@@ -150,6 +153,15 @@ subsystem the handlers call out to:
   the client disconnected mid-flight. Handle-based requests (`close_fd=0`) must
   never close the session's fd. The Qckscan `_done` frees `t->resp` on both the
   success and the early-return (destroyed-connection) path.
+- **Task and policy ownership survive retries.** The reusable task cannot be
+  reset while its event is active, and its heap storage is released only at
+  connection-pool teardown, not inside its embedded completion callback. Busy
+  path checksums close their temporary VFS handle; handle queries retain the
+  session's handle. Both query forms carry the typed export mutation policy by
+  value so checksum-cache writes cannot lose or widen the endpoint policy.
+- **Backpressure is not worker isolation.** Admitted checksums still use the
+  configured I/O pool; very long computations can occupy its threads. Retry on
+  queue overflow does not provide cancellation or a dedicated checksum pool.
 - **Sync and async paths must stay byte-identical.** `brix_ckscan_sync`
   (`checksum_ckscan_dispatch.c`) deliberately mirrors `brix_ckscan_aio_thread`
   (same stat → open → walk → append → caps). Change one, change both. The same
@@ -163,8 +175,9 @@ subsystem the handlers call out to:
   adler32 / crc32c / crc64 / crc64nvme (`brix_ckscan_algorithm_supported`),
   also defaulting to adler32. (`crc64` = CRC-64/XZ, `crc64nvme` = CRC-64/NVME;
   stock XRootD ships no crc64 calculator, so these are this gateway's de-facto
-  convention — 16 lowercase hex over the wire.) The Qckscan algo prefix is only
-  parsed up to the first `/` so that paths containing `:` are not misread.
+  convention — 16 lowercase hex over the wire.) Legacy algorithm prefixes are
+  parsed only before the first `/` (also before `?` for Qcksum), so spaces and
+  colons inside filenames or CGI values cannot be mistaken for an algorithm.
 - **`kXR_Qconfig tpc` must be a bare digit.** `XrdCl::Utils::CheckTPCLite` parses
   the first response line with `isdigit()` + `atoi()`; a `tpc=` prefix would make
   the client reject TPC. The `tpc` capability is `allow_write && thread_pool`.
@@ -219,10 +232,11 @@ Register the new `.c` in the top-level `config` script (the module's
 **Make a query op async:** copy the `brix_cksum_aio_t` pattern — add a context
 struct to `query_internal.h`, write a `_thread` worker (no nginx-event-loop
 access; result/error fields only) and a `_done` callback
-(`brix_aio_restore_request` → send → `brix_aio_resume`), allocate via
-`ngx_thread_task_alloc`, bind with `brix_task_bind`, and post with
-`brix_aio_post_task` while keeping a synchronous fallback for the queue-full
-case. Always keep the sync and async paths byte-identical.
+(`brix_aio_restore_request` → send → `brix_aio_resume`), give the task an explicit
+connection-lifetime owner, bind with `brix_task_bind`, and post with
+`brix_aio_post_task`. Checksum queries use `brix_query_checksum_task` and return
+`kXR_wait` on queue overflow; only an absent pool selects synchronous compute.
+Always keep successful sync and async responses byte-identical.
 
 **Tune scan limits / staging:** caps live in `query_internal.h`
 (`BRIX_CKSCAN_INIT_CAP`, `BRIX_PREPARE_CMD_MAX_PATHS`) and in srv-conf

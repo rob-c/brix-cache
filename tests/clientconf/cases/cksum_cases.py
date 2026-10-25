@@ -15,7 +15,11 @@ produced a value.  This keeps the suite honest — our client's correctness is
 always asserted — without going red when stock can't serve as the oracle.
 """
 
+from functools import partial
+
 import pytest
+
+from _test_conf_cksum_helpers import REF
 
 from .. import corpus
 from ..diffcore import OURS, STOCK
@@ -28,11 +32,6 @@ from ..model import Case
 def _guard_post_cksum_value_1(results):
     if _unreachable(results[OURS]) or _unreachable(results[STOCK]):
         pytest.skip("server unreachable during checksum (infra)")
-
-def _guard_post_cksum_value_2(results):
-    if _server_declined_cksum(results[OURS]) or \
-            _server_declined_cksum(results[STOCK]):
-        pytest.skip("server did not compute a checksum for this path (capability)")
 
 def _check_post_cksum_value_1(o, results):
     assert o is not None, (
@@ -63,18 +62,24 @@ def _server_declined_cksum(result):
 
 
 def _hex_token(text):
+    """Read the leading checksum field, never a hex-looking filename/diagnostic."""
     for line in text.splitlines():
-        for w in line.split():
-            if len(w) >= 8 and all(c in "0123456789abcdefABCDEF" for c in w):
-                return w.lower()
+        fields = line.split(maxsplit=1)
+        if fields and len(fields[0]) in (8, 16) and all(
+                character in "0123456789abcdefABCDEF" for character in fields[0]):
+            return fields[0].lower()
     return None
 
 
-def _post_cksum_value(ep, ctx, results):
+def _post_cksum_value(ep, ctx, results, *, expected):
+    """BriX must match fixture bytes even when the optional oracle declines."""
     _guard_post_cksum_value_1(results)
-    _guard_post_cksum_value_2(results)
     o = _hex_token(results[OURS].stdout)
     _check_post_cksum_value_1(o, results)
+    assert results[OURS].rc == 0, "our checksum client failed: %s" % results[OURS].stderr
+    assert o == expected, "our checksum differs from fixture bytes: %s != %s" % (o, expected)
+    if _server_declined_cksum(results[STOCK]):
+        return
     s = _hex_token(results[STOCK].stdout)
     if s is None:
         # Stock could not checksum this file against our server (known for
@@ -111,12 +116,14 @@ def _make_post_no_cksum(tool):
 
 def cases_for(tool):
     out = []
+    oracle, _width = REF[tool.removeprefix("xrd")]
     for name in corpus.NONEMPTY_NAMES:
         e = corpus.BY_REL[name]
         out.append(Case(
             id="%s-%s" % (tool, e.rel.replace("/", "_").replace(" ", "_")),
             argv=lambda ep, ctx, which, p=e.remote: [ep.url(p)],
-            endpoints=CKS_EPS, parity=frozenset(), post=_post_cksum_value,
+            endpoints=CKS_EPS, parity=frozenset(), post=partial(
+                _post_cksum_value, expected=oracle(corpus.local_bytes(e))),
             timeout=60))
     out.append(Case(
         id="%s-missing" % tool,

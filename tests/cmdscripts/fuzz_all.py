@@ -6,7 +6,7 @@ from pathlib import Path
 import os
 import sys
 
-from cmdscripts.compile_run import REPO_ROOT, result, run
+from cmdscripts.compile_run import REPO_ROOT, library_compile_args, platform_host_name, result, run
 
 def _expression_1(fuzz_time):
     return (
@@ -26,7 +26,7 @@ def _expression_3(ran):
 
 FUZZ_DIR = REPO_ROOT / "tests" / "fuzz"
 ARTIFACT_DIR = FUZZ_DIR / "artifacts"
-PLATFORM_HOST = "darwin" if sys.platform == "darwin" else "linux"
+PLATFORM_HOST = platform_host_name()
 SAN = ["-O1", "-g", "-fsanitize=fuzzer,address,undefined",
        f"-DBRIX_PLATFORM_HOST={PLATFORM_HOST}"]
 
@@ -62,6 +62,8 @@ BUILD_ARGS = {
         "-iquote",
         "../../src",
         "fuzz_zip_dir.c",
+        "-I", "../../shared",
+        "../../shared/cvmfs/platform/platform.c",
         f"../../src/platform/{PLATFORM_HOST}/storage_wrapper.c",
         "-lz",
         "-o",
@@ -181,6 +183,7 @@ BUILD_ARGS = {
         "-I",
         "../../shared",
         "fuzz_tar_header.c",
+        "../../shared/cvmfs/platform/platform.c",
         "../../shared/oci/tar.c",
         "../../shared/oci/tar_pax.c",
         # diff-id capture rides the reader's byte source (phase-104 D8.e)
@@ -204,6 +207,8 @@ BUILD_ARGS = {
         "-I",
         "../../shared",
         "fuzz_rpm_header.c",
+        "-I", "../../src",
+        "../../shared/cvmfs/platform/platform.c",
         "../../shared/rpm/rpmhdr.c",
         "../../shared/oci/digest.c",     # pkgid streaming sha256
         "-lcrypto",
@@ -211,6 +216,11 @@ BUILD_ARGS = {
         "fuzz_rpm_header",
     ],
 }
+
+
+def fuzz_build_args(arguments):
+    """Resolve the selected native dependency SDKs for either fuzz entry point."""
+    return library_compile_args(arguments)
 
 
 def excerpt(text: str, head: int = 1800, tail: int = 2000) -> str:
@@ -232,7 +242,7 @@ def run_checks(base: Path, fuzz_time: str | None = None) -> list[tuple[bool, str
     seconds = _expression_1(fuzz_time)
     results: list[tuple[bool, str]] = []
     for target, build_args in BUILD_ARGS.items():
-        built = run(build_args, cwd=FUZZ_DIR)
+        built = run(fuzz_build_args(build_args), cwd=FUZZ_DIR)
         if built.returncode != 0:
             _expression_2(results, target, built)
             continue

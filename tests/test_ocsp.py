@@ -68,7 +68,7 @@ class TestOCSPHTTPSImplementation:
     def test_https_verifies_peer_and_hostname(self, source):
         assert "SSL_VERIFY_PEER" in source
         assert "SSL_set_tlsext_host_name" in source
-        assert "SSL_set1_host" in source
+        assert "brix_crypto_tls_peer_name(out->ssl, host)" in source
         assert "SSL_get_verify_result" in source
 
 

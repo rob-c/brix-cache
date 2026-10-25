@@ -21,12 +21,11 @@
 # all cases are dispatched CONCURRENTLY in a module fixture and each test merely
 # asserts the pre-computed outcome. Accept cases return in ~0.1s.
 #
-# DIVERGENCES pinned below (xfail strict, official behavior asserted):
-#   * the whitelist "N<fqrn>" line is parsed-and-ignored: client.c never compares
-#     it to the repository, so a foreign / missing / wrong-case N is accepted.
-#   * the fingerprint set is capped at 16 (whitelist.c fingerprints[16]); a 17th
-#     matching fingerprint is silently dropped → refused (must NOT overflow/crash).
 # RETIRED divergences (fixed in source, now asserted positively):
+#   * the whitelist "N<fqrn>" line binds the artifact to the requested repository;
+#     a foreign, missing or wrong-case name is refused.
+#   * fingerprint membership spans the complete bounded, authenticated body;
+#     the inline 16-entry cache must not limit certificate rotations.
 #   * expiry enforced against wall-clock UTC (client.c passes time(NULL), was
 #     CLOCK_MONOTONIC — expired whitelists were accepted forever).
 #   * hash-line bound to the body digest (verify.c body_bound_to_hash) — the
@@ -74,7 +73,9 @@ def _guard_env_3(spec, repo_dir, ctx):
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from cmdscripts.c_regression_units import _gcov_flags  # noqa: E402
-from cmdscripts.compile_run import PLATFORM_HOST_FLAGS, weak_undefined_flags  # noqa: E402
+from cmdscripts.compile_run import (  # noqa: E402
+    PLATFORM_HOST_FLAGS, library_compile_args, weak_undefined_flags,
+)
 from cmdscripts.cvmfs_driver_units import (  # noqa: E402
     BRIXCVMFS_CORE_DEPS,
     BRIXCVMFS_DRIVER_SRCS,
@@ -262,11 +263,18 @@ CASES = [
     _c("fp_truncated", "refuse", _wl(lambda c, f: [FUTURE, "N" + f, c.fp[:-3]])),
     _c("fp_below_min_length", "refuse", _wl(lambda c, f: [FUTURE, "N" + f, "AB:CD"])),
 
-    # 17th matching fingerprint is dropped by the 16-cap: official accepts,
-    # brix refuses. MUST NOT overflow (see test_fp_17_dropped_does_not_crash).
+    # Certificate rotations can put the active signer beyond the inline cache.
     _c("fp_17_correct_17th", "accept",
-       _wl(lambda c, f: [FUTURE, "N" + f, *[_decoy(i) for i in range(16)], c.fp]),
-       divergence="16-fingerprint cap (whitelist.c fingerprints[16]) drops 17th match"),
+       _wl(lambda c, f: [FUTURE, "N" + f, *[_decoy(i) for i in range(16)], c.fp])),
+    _c("fp_128_correct_last", "accept",
+       _wl(lambda c, f: [FUTURE, "N" + f, *[_decoy(i) for i in range(127)], c.fp])),
+    _c("fp_128_all_wrong", "refuse",
+       _wl(lambda c, f: [FUTURE, "N" + f, *[_decoy(i) for i in range(128)]])),
+    _c("fp_extended_valid_prefix", "refuse",
+       _wl(lambda c, f: [FUTURE, "N" + f, c.fp + ":AA"])),
+    _c("fp_128_extended_valid_prefix", "refuse",
+       _wl(lambda c, f: [FUTURE, "N" + f, *[_decoy(i) for i in range(127)],
+                         c.fp + ":AA"])),
 
     # -- signature: refuse variants -----------------------------------------
     _c("sig_foreign_master", "refuse",
@@ -349,16 +357,19 @@ def _compile_brixcvmfs(dst: Path) -> None:
             "client/apps/fs/brixcvmfs_rw_ext.c",
             *[d for d in BRIXCVMFS_CORE_DEPS
               if d.startswith("shared/") and d.endswith(".c")]]
+    from lib_py.client_toolchain import client_static_dependency_flags
+
     coverage = _archive_flags(root)
-    subprocess.run(["gcc", "-Wall", "-I", "shared", "-I", "client/lib", "-I", "src",
+    archive_dependencies = client_static_dependency_flags(root / "client")
+    args = ["-Wall", "-I", "shared", "-I", "client/lib", "-I", "src",
                     "-DXRDPROTO_NO_NGX", *PLATFORM_HOST_FLAGS, *coverage,
-                    *cflags, *deps, *_ARCHIVES, *libs,
+                    *cflags, *deps, *_ARCHIVES, *libs, *archive_dependencies,
                     "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-lzstd", "-lssl",
                     "-pthread",
                     *weak_undefined_flags("brixcvmfs_ingest_main",
                                           "brixcvmfs_repo_main"),
-                    "-o", str(dst)],
-                   cwd=str(root), check=True)
+                    "-o", str(dst)]
+    subprocess.run(["gcc", *library_compile_args(args)], cwd=str(root), check=True)
 
 
 @pytest.fixture(scope="module")
@@ -468,13 +479,13 @@ def test_whitelist_case(env, case):
 
 # ---- targeted non-crash / structural assertions -----------------------------
 
-def test_fp_17_dropped_does_not_crash(env):
-    # The 16-cap must drop the 17th fingerprint safely — never write past
-    # fingerprints[16] or crash. A signal-kill shows as a negative returncode.
+def test_fp_17_after_inline_cache_is_accepted_without_overflow(env):
+    # The original input supplies the overflow entries; no array growth or
+    # truncated prefix match can supply a different certificate identity.
     res = env["results"]["fp_17_correct_17th"]
     assert res.returncode is not None and res.returncode >= 0, \
         f"brixcvmfs crashed on a 17-fingerprint whitelist: rc={res.returncode}"
-    assert res.returncode == 1, "17th-match whitelist should refuse (fp dropped by cap)"
+    assert res.returncode == 0, "the verified 17th fingerprint must be accepted"
 
 
 def test_fp_17_first_match_within_cap(env):

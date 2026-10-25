@@ -40,6 +40,8 @@
 #define BRIX_HAS_CEPH 0
 #define BRIX_HAS_FUSE 0
 #define BRIX_HAS_INOTIFY 0
+#define BRIX_HAS_FUSE_NODEV 0             /* no native FUSE mount */
+#define BRIX_HAS_FUNOPEN 0
 #define BRIX_HAS_SPLICE 0
 #define BRIX_HAS_POSIX_FADVISE 0
 #define BRIX_HAS_CLONEFILE 0
@@ -49,6 +51,7 @@
 #define BRIX_HAS_NO_NEW_PRIVS 0
 #define BRIX_HAS_WORKER_EXEC 0            /* no supported worker subprocess PAL */
 #define BRIX_HAS_CAPABILITIES 0
+#define BRIX_HAS_FIXED_ID_BROKER 0
 #define BRIX_HAS_SAVED_IDS 0
 #define BRIX_HAS_GSS_KRB5_IMPORT_CRED 0
 #define BRIX_PLAT_SHM_DIR "/tmp"         /* stub-grade: no RAM-backed root */

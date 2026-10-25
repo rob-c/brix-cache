@@ -21,6 +21,12 @@ sub-op — is a BUG IN OUR SERVER.  A confirmed our-bug that cannot be fixed fro
 test is pinned with ``@pytest.mark.xfail`` carrying the exact OURS-vs-STOCK detail
 (so the suite stays green and the diff is documented), never a bare skip.
 
+The explicit portability extension is legal long wire names on Darwin:
+BriX's validated hashed-name envelope supports the full wire range even when
+the reference server reports kXR_ArgTooLong at its native 127-byte limit.
+That case must still round-trip byte-exact through BriX; no other reference
+error, short-name mismatch, or unsupported host is exempted.
+
 The bindings run OUT-OF-PROCESS via the tests/_xrdcl_worker.py proxy (memory:
 importing pyxrootd into pytest deadlocks XrdCl).  The proxy special-cases
 ``set_xattr(path, [(name, value), ...])`` (a list-of-pairs arg, see

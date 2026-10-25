@@ -1,35 +1,14 @@
-"""Host-root grid-mapfile UNIX-impersonation end-to-end tests (phase 40).
+"""Real host-root grid-mapfile ownership, authorization and broker confinement.
 
-These tests can ONLY be exercised when the nginx binary is launched as **real
-root**.  With ``brix_idmap map`` the master runs as root and spawns a
-privileged identity broker that ``setfsuid()``s per request to the local UNIX
-account the authenticated identity maps to through a **grid-mapfile**; the backend
-file is then created owned by — and DAC-checked for — that real account.  There is
-no way to observe real on-disk ``st_uid``/``st_gid`` ownership, nor real kernel DAC
-between two mapped accounts, without a real root master and real system users.
+The registry launches nginx with a root master and unprivileged workers. WLCG
+subjects and X.509 proxy DNs map to real local accounts; inode ownership and
+kernel DAC prove the selected credentials, not merely an idmap lookup. Linux
+uses its capability broker; FreeBSD uses fixed-identity Capsicum helpers.
+Tests cover reserved/unmapped refusal, WebDAV lock ownership, idle transport,
+saved-ID loss, sealed descriptors and release of inherited listeners.
 
-What is genuinely new here (vs. the existing coverage):
-
-  * ``tests/userns/`` proves ownership WITHOUT real root, inside an unprivileged
-    user namespace, and maps the *token subject* via ``getpwnam`` — never a
-    grid-mapfile.
-  * ``tests/c/idmap_test.c`` resolves a grid-mapfile DN to a uid but never writes
-    a file.
-  * the multi-user conformance fleet (``mu_authz_lib/``) runs ``brix_idmap off``
-    on every node it authorizes through, and carries exactly one map-mode node
-    (``multiuser/root_write_imp.conf``) whose only job is to give F6 a write it
-    can attribute — it has no authdb and proves nothing about mapping itself.
-
-This module launches the real nginx binary as host root, through the registry
-``LifecycleHarness``, maps an incoming **WLCG token** (WebDAV) and an incoming
-**X.509 GSI proxy DN** (``root://``) via a grid-mapfile to real local accounts,
-and asserts the written backend object is owned by the mapped account with sane
-permissions — plus the security corollaries (per-identity kernel DAC, the
-reserved-id floor, and fail-closed deny for unmapped principals).
-
-Run privileged:  sudo -E env PYTHONPATH=tests pytest tests/test_impersonation_gridmap_root.py -v
-Off a root host every test skips cleanly (the ``skipif`` below), so the suite is
-CI-safe everywhere.
+Run: sudo -E env PYTHONPATH=tests pytest tests/test_impersonation_gridmap_root.py -v
+The standalone FreeBSD privileged target also selects this module explicitly.
 """
 from __future__ import annotations
 
@@ -37,6 +16,7 @@ import os
 import pwd
 import socket
 import stat
+import sys
 import time
 from types import SimpleNamespace
 
@@ -48,6 +28,10 @@ from server_launcher import LifecycleHarness, launch_fleet_nginx
 from server_registry import NginxInstanceSpec, endpoint_for
 
 import impersonation_gridmap_helpers as H
+from impersonation_gridmap_helpers import (
+    _broker_pid, _fd_targets, _assert_stdio_is_null,
+    _assert_no_network_socket, _assert_no_export_object,
+)
 from settings import BIND_HOST
 
 # The whole point of the suite is the root-only setfsuid broker.  Off a root host
@@ -241,7 +225,7 @@ def test_single_mode_squashes_every_identity_to_one_account(single_mode):
         tok = single_mode.ti.generate(sub=sub, scope=H.RW_SCOPE)
         r = _put(single_mode.url, f"/{name}", tok)
         assert r.status_code in (200, 201, 204), r.text
-        _assert_owned_by(H.stat_export(single_mode.export, name), "squash")
+        _assert_owned_by(H.stat_export(single_mode.export, name), "squash", single_mode.export)
 
 
 S3_ACCESS_KEY = "gm-alice-s3key"   # the SigV4 access key == impersonation principal
@@ -289,7 +273,7 @@ def test_s3_access_key_gridmap_write_owned_by_mapped_account(s3_map):
                      timeout=30)
     assert r.status_code in (200, 201, 204), f"{r.status_code} {r.text}"
     st = H.stat_export(s3_map.export, obj)  # bucket is stripped from the on-disk path
-    _assert_owned_by(st, "alice")
+    _assert_owned_by(st, "alice", s3_map.export)
 
 
 @pytest.fixture(scope="module")
@@ -329,14 +313,15 @@ def root_gsi(harness):
 # --------------------------------------------------------------------------- #
 # Shared ownership assertion                                                   #
 # --------------------------------------------------------------------------- #
-def _assert_owned_by(st: os.stat_result, logical: str):
+def _assert_owned_by(st: os.stat_result, logical: str, export: str):
     """The written object is owned by the mapped real account, not the worker or
     root, and carries no group/other write bit (impersonation created it as the
     user, so it is a private, non-shared object)."""
     assert st.st_uid == H.uid_of(logical), (
         f"file uid {st.st_uid} != mapped {logical} uid {H.uid_of(logical)}")
-    assert st.st_gid == H.gid_of(logical), (
-        f"file gid {st.st_gid} != mapped {logical} gid {H.gid_of(logical)}")
+    expected_gid = H.native_creation_gid(export, logical)
+    assert st.st_gid == expected_gid, (
+        f"file gid {st.st_gid} != native {logical} creation gid {expected_gid}")
     assert st.st_uid != 0, "file must never be owned by root"
     assert st.st_uid != WORKER_UID, "file must not be owned by the nginx worker"
     assert st.st_uid >= 1000, "mapped uid must be above the reserved-id floor"
@@ -355,7 +340,7 @@ def test_token_write_owned_by_gridmap_mapped_account(webdav_squash):
     r = _put(webdav_squash.url, "/alice_wrote.dat", tok, b"hello-from-alice")
     assert r.status_code in (200, 201, 204), r.text
     st = H.stat_export(webdav_squash.export, "alice_wrote.dat")
-    _assert_owned_by(st, "alice")
+    _assert_owned_by(st, "alice", webdav_squash.export)
 
 
 def test_distinct_tokens_map_to_distinct_accounts(webdav_squash):
@@ -367,8 +352,8 @@ def test_distinct_tokens_map_to_distinct_accounts(webdav_squash):
     assert _put(webdav_squash.url, "/b_owned.dat", tb).status_code in (200, 201, 204)
     sa = H.stat_export(webdav_squash.export, "a_owned.dat")
     sb = H.stat_export(webdav_squash.export, "b_owned.dat")
-    _assert_owned_by(sa, "alice")
-    _assert_owned_by(sb, "bob")
+    _assert_owned_by(sa, "alice", webdav_squash.export)
+    _assert_owned_by(sb, "bob", webdav_squash.export)
     assert sa.st_uid != sb.st_uid
 
 
@@ -388,7 +373,7 @@ def test_kernel_dac_enforced_between_mapped_accounts(webdav_squash):
     assert _put(webdav_squash.url, "/dac_secret.dat", ta, b"sekret").status_code \
         in (200, 201, 204)
     st = H.stat_export(webdav_squash.export, "dac_secret.dat")
-    _assert_owned_by(st, "alice")
+    _assert_owned_by(st, "alice", webdav_squash.export)
     os.chmod(os.path.join(webdav_squash.export, "dac_secret.dat"), 0o600)
     st = H.stat_export(webdav_squash.export, "dac_secret.dat")
     assert not (st.st_mode & (stat.S_IRGRP | stat.S_IROTH)), \
@@ -400,13 +385,85 @@ def test_kernel_dac_enforced_between_mapped_accounts(webdav_squash):
         "a different mapped account must be denied by kernel DAC"
 
 
+@pytest.mark.timeout(60)
+def test_map_mode_identity_survives_an_idle_transport(webdav_squash):
+    """A helper's reply deadline must not terminate it between requests."""
+    token = webdav_squash.ti.generate(sub=P_ALICE, scope=H.RW_SCOPE)
+    assert _put(webdav_squash.url, '/idle.dat', token, b'after idle').status_code in (200, 201, 204)
+    time.sleep(31)
+    response = _get(webdav_squash.url, '/idle.dat', token)
+    assert response.status_code == 200 and response.content == b'after idle'
+
+
+@pytest.fixture
+def mapped_webdav_lock(webdav_squash):
+    """A fresh actual persisted lock owned by a mapped user."""
+    from test_webdav_unlock_ownership import LOCK_BODY
+
+    token = webdav_squash.ti.generate(sub=P_ALICE, scope=H.RW_SCOPE)
+    path = f'/mapped-lock-{time.time_ns()}.dat'
+    assert _put(webdav_squash.url, path, token).status_code in (200, 201, 204)
+    headers = {'Authorization': f'Bearer {token}', 'Timeout': 'Second-3600', 'Depth': '0'}
+    response = requests.request('LOCK', webdav_squash.url + path, data=LOCK_BODY,
+                                headers=headers, timeout=10)
+    assert response.status_code in (200, 201), response.text
+    lock = response.headers['Lock-Token']
+    url = webdav_squash.url + path
+    try:
+        yield url, token, lock
+    finally:
+        requests.request('UNLOCK', url,
+            headers={'Authorization': f'Bearer {token}', 'Lock-Token': lock}, timeout=10)
+
+
+def test_mapped_webdav_lock_roundtrip(mapped_webdav_lock):
+    """LOCK updates must run as the mapped owner, not the worker's credentials."""
+    url, token, lock = mapped_webdav_lock
+    unlocked = requests.request('UNLOCK', url,
+        headers={'Authorization': f'Bearer {token}', 'Lock-Token': lock}, timeout=10)
+    assert unlocked.status_code == 204, unlocked.text
+
+
+def test_mapped_webdav_lock_refresh_preserves_ownership(mapped_webdav_lock):
+    """The owner can replace its exact persisted expiry record."""
+    url, token, lock = mapped_webdav_lock
+    response = requests.request('LOCK', url, headers={
+        'Authorization': f'Bearer {token}', 'If': f'({lock})',
+        'Timeout': 'Second-1800'}, timeout=10)
+    assert response.status_code == 200, response.text
+
+
+def test_mapped_webdav_forged_unlock_keeps_the_lock(mapped_webdav_lock):
+    """A stale/forged lock id cannot clear the persisted owner record."""
+    url, token, _lock = mapped_webdav_lock
+    response = requests.request('UNLOCK', url, headers={
+        'Authorization': f'Bearer {token}',
+        'Lock-Token': '<opaquelocktoken:00000000-0000-0000-0000-000000000000>'}, timeout=10)
+    assert response.status_code == 409, response.text
+    response = requests.put(url, data=b'forged', headers={
+        'Authorization': f'Bearer {token}'}, timeout=10)
+    assert response.status_code == 423, response.text
+
+
+def test_mapped_webdav_other_user_cannot_clear_owner_lock(mapped_webdav_lock, webdav_squash):
+    """Even a known lock token cannot borrow the mapped owner's kernel rights."""
+    url, owner, lock = mapped_webdav_lock
+    other = webdav_squash.ti.generate(sub=P_BOB, scope=H.RW_SCOPE)
+    response = requests.request('UNLOCK', url, headers={
+        'Authorization': f'Bearer {other}', 'Lock-Token': lock}, timeout=10)
+    assert response.status_code == 403, response.text
+    response = requests.put(url, data=b'owner', headers={
+        'Authorization': f'Bearer {owner}'}, timeout=10)
+    assert response.status_code == 423, response.text
+
+
 def test_unmapped_token_squashes_to_default_user(webdav_squash):
     """A principal absent from the grid-mapfile squashes to brix_idmap_default_user
     (brixgm_squash) — owned by the squash account, still never the worker/root."""
     tok = webdav_squash.ti.generate(sub=P_UNMAPPED, scope=H.RW_SCOPE)
     assert _put(webdav_squash.url, "/squashed.dat", tok).status_code in (200, 201, 204)
     st = H.stat_export(webdav_squash.export, "squashed.dat")
-    _assert_owned_by(st, "squash")
+    _assert_owned_by(st, "squash", webdav_squash.export)
 
 
 def test_gridmap_to_system_account_never_writes_as_root(webdav_squash):
@@ -419,7 +476,7 @@ def test_gridmap_to_system_account_never_writes_as_root(webdav_squash):
     st = H.stat_export(webdav_squash.export, "root_attempt.dat")
     assert st.st_uid != 0, "a gridmap->root line must never produce a root-owned file"
     assert st.st_uid >= 1000
-    _assert_owned_by(st, "squash")
+    _assert_owned_by(st, "squash", webdav_squash.export)
 
 
 def test_deny_mode_reserved_and_unmapped_fail_closed(webdav_deny):
@@ -429,7 +486,8 @@ def test_deny_mode_reserved_and_unmapped_fail_closed(webdav_deny):
     succeeds on the same server, proving the deny is selective, not blanket."""
     ta = webdav_deny.ti.generate(sub=P_ALICE, scope=H.RW_SCOPE)
     assert _put(webdav_deny.url, "/deny_alice.dat", ta).status_code in (200, 201, 204)
-    _assert_owned_by(H.stat_export(webdav_deny.export, "deny_alice.dat"), "alice")
+    _assert_owned_by(H.stat_export(webdav_deny.export, "deny_alice.dat"),
+                     "alice", webdav_deny.export)
 
     tr = webdav_deny.ti.generate(sub=P_ROOT, scope=H.RW_SCOPE)
     tu = webdav_deny.ti.generate(sub=P_UNMAPPED, scope=H.RW_SCOPE)
@@ -471,7 +529,7 @@ def test_x509_dn_gridmap_write_owned_by_mapped_account(root_gsi):
                 os.environ[k] = v
 
     s = H.stat_export(root_gsi.export, "x509_alice.dat")
-    _assert_owned_by(s, "alice")
+    _assert_owned_by(s, "alice", root_gsi.export)
 
 
 # --------------------------------------------------------------------------- #
@@ -491,81 +549,6 @@ def test_x509_dn_gridmap_write_owned_by_mapped_account(root_gsi):
 # a root daemon holds nothing it was not handed.
 
 
-def _broker_pid(sock: str) -> int:
-    from pathlib import Path
-    for _ in range(50):
-        try:
-            return int(Path(sock + ".pid").read_text().strip())
-        except (FileNotFoundError, ValueError, OSError):
-            time.sleep(0.1)
-    raise AssertionError(f"broker never recorded a pid at {sock}.pid")
-
-
-def _fd_targets(pid: int) -> "dict[int, str]":
-    """The broker's descriptor table as {fd: target}, read from /proc."""
-    base = f"/proc/{pid}/fd"
-    if not os.path.isdir(base):
-        pytest.skip("descriptor introspection needs /proc (Linux)")
-    out = {}
-    for name in os.listdir(base):
-        try:
-            out[int(name)] = os.readlink(os.path.join(base, name))
-        except OSError:
-            continue      # raced the broker closing it; not our concern
-    return out
-
-
-def _tcp_socket_inodes() -> "set[str]":
-    """Every TCP/TCP6 socket inode on the host, from /proc/net."""
-    out = set()
-    for name in ("/proc/net/tcp", "/proc/net/tcp6"):
-        try:
-            lines = open(name).read().splitlines()[1:]
-        except OSError:
-            continue
-        for line in lines:
-            fields = line.split()
-            if len(fields) > 9:
-                out.add(fields[9])
-    return out
-
-
-def _assert_stdio_is_null(targets: "dict[int, str]") -> None:
-    bad = {fd: targets.get(fd) for fd in (0, 1, 2)
-           if targets.get(fd) != "/dev/null"}
-    assert not bad, f"broker stdio is {bad}, not /dev/null — it still holds the "\
-                    "supervisor's stdin/stdout/stderr"
-
-
-def _assert_no_network_socket(targets: "dict[int, str]") -> None:
-    """AF_UNIX sockets are legitimate — the broker's own listener plus whatever
-    worker connections are live.  A NETWORK socket is not: the broker never
-    speaks TCP, so one here is an inherited nginx listener, which is exactly what
-    kept the port bound past nginx's own lifetime."""
-    inodes = {t[len("socket:["):-1] for t in targets.values()
-              if t.startswith("socket:[")}
-    held = inodes & _tcp_socket_inodes()
-    assert not held, f"broker holds inherited TCP socket(s) {sorted(held)}: {targets}"
-
-
-def _is_export_object(target: str, root: str) -> bool:
-    """True iff a /proc fd target names a regular FILE inside the export root.
-    Non-path targets ("/dev/null", "socket:[…]") never resolve under it."""
-    real = os.path.realpath(target.removesuffix(" (deleted)"))
-    under = real.startswith(root + os.sep)
-    return under and os.path.isfile(real)
-
-
-def _assert_no_export_object(targets: "dict[int, str]", export: str) -> None:
-    """The O_PATH confinement root is the export DIRECTORY itself and is the
-    broker's reason for existing; an inherited handle on a FILE under it is a
-    path around the very confinement it enforces, usable without ever presenting
-    an identity."""
-    root = os.path.realpath(export)
-    held = [t for t in targets.values() if _is_export_object(t, root)]
-    assert not held, f"broker holds inherited handle(s) on export object(s) {held}"
-
-
 @pytest.fixture(scope="module")
 def sealed_broker(harness):
     """A map-mode instance started through the PIPED launcher seam.
@@ -577,6 +560,12 @@ def sealed_broker(harness):
     gridmap = os.path.join(auth_dir, "gridmap")
     H.write_gridmap(gridmap, [(P_ALICE, H.acct("alice"))])
     ti = H.token_authority(auth_dir)
+    payload = b'broker-mapped-readiness\x00\xff'
+    ready_file = os.path.join(export, '.broker-ready')
+    with open(ready_file, 'xb') as output:
+        output.write(payload)
+    os.chown(ready_file, H.uid_of('alice'), H.gid_of('alice'))
+    os.chmod(ready_file, 0o600)
     sock = os.path.join(run_dir, "impersonate.sock")
     spec = NginxInstanceSpec(
         name="impgm-sealed",
@@ -594,6 +583,11 @@ def sealed_broker(harness):
     ep = harness.start(spec)
     elapsed = time.monotonic() - started
     _BROKER_SOCKS.append(sock)
+    # The child publishes its PID before creating/attesting native helpers.
+    # Prove the mapped I/O path is serving before inspecting its final IDs;
+    # keep the original launch timing and all saved-root assertions unchanged.
+    token = ti.generate(sub=P_ALICE, scope=H.RW_SCOPE)
+    H.assert_mapped_read_ready(_get(f'http://{BIND}:{ep.port}', '/.broker-ready', token), payload)
     return SimpleNamespace(ep=ep, sock=sock, export=export,
                            start_seconds=elapsed)
 
@@ -621,6 +615,31 @@ def test_broker_holds_nothing_it_was_not_handed(sealed_broker):
     _assert_stdio_is_null(targets)
     _assert_no_network_socket(targets)
     _assert_no_export_object(targets, sealed_broker.export)
+
+
+def test_serving_broker_identities_have_no_saved_root(sealed_broker):
+    """Verify actual kernel credentials, including each native fixed helper."""
+    psutil = pytest.importorskip('psutil')
+    broker = psutil.Process(_broker_pid(sealed_broker.sock))
+    expected_uid, expected_gid = H.uid_of('broker'), H.gid_of('broker')
+    assert tuple(broker.uids()) == (expected_uid,) * 3
+    assert tuple(broker.gids()) == (expected_gid,) * 3
+    if sys.platform.startswith('freebsd'):
+        from lib_py.process_host import native_process_record
+        helpers = broker.children()
+        assert helpers, 'native model must have real fixed-identity helpers'
+        for helper in helpers:
+            credentials = native_process_record(helper.pid, 'credentials', '-s')
+            uid, gid = credentials['uid'], credentials['group']
+            assert uid >= 1000 and uid not in (expected_uid, WORKER_UID)
+            assert gid >= 1000
+            assert (credentials['ruid'], credentials['svuid']) == (uid, uid)
+            assert (credentials['rgid'], credentials['svgid']) == (gid, gid)
+            assert 'C' in credentials['cr_flags'], 'helper is outside capability mode'
+            targets = _fd_targets(helper.pid)
+            _assert_stdio_is_null(targets)
+            _assert_no_network_socket(targets)
+            _assert_no_export_object(targets, sealed_broker.export)
 
 
 def test_listener_is_released_when_the_master_stops(harness):
@@ -663,13 +682,15 @@ def test_listener_is_released_when_the_master_stops(harness):
         pytest.fail(f"broker {pid} died with the master — this test can only "
                     "prove the release if the broker is still running")
 
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        probe.bind((BIND, ep.port))
-        probe.listen(1)
+        H.assert_listener_released(BIND, ep.port)
     except OSError as exc:
         raise AssertionError(
             f"{BIND}:{ep.port} still bound after nginx stopped (broker pid "
             f"{pid} holds the inherited listener): {exc}") from None
-    finally:
-        probe.close()
+
+
+@pytest.mark.parametrize('case', ['closed', 'active', 'timewait'])
+def test_listener_release_probe_distinguishes_real_kernel_states(case):
+    """The release assertion must not mistake TIME_WAIT for an inherited listener."""
+    H.listener_release_control(case, BIND)

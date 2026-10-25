@@ -18,6 +18,7 @@ leaking secrets" and "anonymous stats without PII".
 """
 
 import os
+import shutil
 import subprocess
 import time
 import urllib.error
@@ -180,7 +181,7 @@ def test_live_transfer_row_pii_redacted_for_anonymous(server):
     """Throttle a root:// read so a transfer row lingers, then confirm the
     anonymous snapshot redacts client/identity/path while the authed one shows
     them in full."""
-    if not (subprocess.run(["which", "xrdcp"], capture_output=True).returncode == 0):
+    if shutil.which("xrdcp") is None:
         pytest.skip("xrdcp not available")
 
     cookie = _login(server["base"])

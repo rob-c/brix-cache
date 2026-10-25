@@ -68,6 +68,8 @@ _PATH_REF = re.compile(r"tools/[A-Za-z0-9_./-]+\.(?:py|sh|txt|json|ya?ml)")
 
 def _tracked() -> set[str]:
     """Repo-relative posix paths git knows about — i.e. what a fresh clone gets."""
+    if not (ROOT / ".git").exists():
+        pytest.skip("source archive has no git index to audit")
     out = subprocess.run(
         ["git", "ls-files", "-z"],
         cwd=ROOT, capture_output=True, text=True, check=True,

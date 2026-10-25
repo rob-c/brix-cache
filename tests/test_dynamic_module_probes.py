@@ -8,6 +8,7 @@ import pytest
 import server_launcher
 import test_build_hardening as hardening
 from brix_suite.catalogue import _shared as catalogue
+from lib_py import util
 
 
 def _artifact(root, name):
@@ -30,13 +31,13 @@ def kerberos_probe(monkeypatch, tmp_path):
     calls = []
 
     def fake_ldd(argv, **_kwargs):
-        calls.append(argv[1])
-        response = responses.get(argv[1], (0, "libc.so.6 => /lib/libc.so.6"))
+        calls.append(argv[-1])
+        response = responses.get(argv[-1], (0, "libc.so.6 => /lib/libc.so.6"))
         if isinstance(response, BaseException):
             raise response
         return subprocess.CompletedProcess(argv, response[0], response[1])
 
-    monkeypatch.setattr(catalogue.subprocess, "run", fake_ldd)
+    monkeypatch.setattr(util, "run", fake_ldd)
     return str(frozen), responses, calls
 
 
@@ -56,6 +57,20 @@ def test_dynamic_module_enables_kerberos(monkeypatch, tmp_path, kerberos_probe):
     responses[module] = (0, "libkrb5.so.3 => /lib64/libkrb5.so.3 (address)")
     assert catalogue._nginx_has_krb5(), "selected module's Kerberos was missed"
     assert calls == [frozen, module], "probe did not follow the selected artifacts"
+
+
+def test_darwin_kerberos_library_enables_the_real_tier(kerberos_probe):
+    frozen, responses, calls = kerberos_probe
+    responses[frozen] = (0, frozen + ":\n\t/opt/homebrew/opt/krb5/lib/libkrb5.3.3.dylib "
+                         "(compatibility version 3.0.0, current version 3.3.0)\n")
+    assert catalogue._nginx_has_krb5()
+    assert calls == [frozen]
+
+
+def test_unresolved_darwin_kerberos_cannot_enable_a_tier(kerberos_probe):
+    frozen, responses, _calls = kerberos_probe
+    responses[frozen] = (0, "@rpath/libkrb5.3.dylib (compatibility version 3.0.0)")
+    assert not catalogue._nginx_has_krb5()
 
 
 @pytest.mark.parametrize("response", [
@@ -143,6 +158,7 @@ def test_missing_selected_module_fails_without_fallback(monkeypatch, module_buil
 ])
 def test_selected_unhardened_module_fails(monkeypatch, module_build, output, missing):
     """Finding a selected artifact does not bypass its ELF hardening checks."""
+    monkeypatch.setattr(hardening.sys, "platform", "linux")
     module = _artifact(module_build, "ngx_http_brix_xrdhttp_filter_module.so")
     monkeypatch.setenv("TEST_NGINX_LOAD_MODULES", str(module))
     monkeypatch.setattr(hardening, "_readelf", lambda _path: output)

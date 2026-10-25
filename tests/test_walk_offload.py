@@ -58,6 +58,12 @@ MULTISTATUS = (b'<?xml version="1.0" encoding="utf-8"?>'
                b'<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>'
                b'</D:multistatus>')
 
+FILE_STATUS = (b'<D:multistatus xmlns:D="DAV:"><D:response>'
+               b'<D:href>/alpha.txt</D:href><D:propstat><D:prop>'
+               b'<D:getcontentlength>5</D:getcontentlength><D:resourcetype/>'
+               b'</D:prop><D:status>HTTP/1.1 200 OK</D:status>'
+               b'</D:propstat></D:response></D:multistatus>')
+
 
 class _Origin(ThreadingHTTPServer):
     """Mock WebDAV origin: answers PROPFIND with a fixed listing, optionally
@@ -81,17 +87,21 @@ class _OriginHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Connection", "close")
         self.end_headers()
-        if body:
+        if body and self.command != "HEAD":
             self.wfile.write(body)
 
     def do_PROPFIND(self):                       # noqa: N802 — http.server API
         # Only the LISTING is delayed: the build also makes stat/HEAD and
         # residency round-trips, and delaying every method compounds the
         # latency past the client timeout instead of modelling one slow op.
-        self._reply(207, MULTISTATUS, delayed=True)
+        body = MULTISTATUS if self.path.strip("/") == "" else FILE_STATUS
+        self._reply(207, body, delayed=self.headers.get("Depth") != "0")
 
     def do_HEAD(self):                           # noqa: N802
-        self._reply(200)
+        if self.path.strip("/"):
+            self._reply(200, b"alpha", "text/plain")
+        else:
+            self._reply(200)
 
     def do_GET(self):                            # noqa: N802
         self._reply(200, b"alpha", "text/plain")

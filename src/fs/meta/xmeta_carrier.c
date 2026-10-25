@@ -5,6 +5,7 @@
 
 #include "core/types/tunables.h"
 #include "xmeta_carrier.h"
+#include "platform/platform_api.h"
 
 #include <errno.h>
 #include <limits.h>

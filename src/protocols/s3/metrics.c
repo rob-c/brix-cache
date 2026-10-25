@@ -33,6 +33,44 @@
 #include "core/http/sesslog_conn.h"
 #include "observability/metrics/http_common.h"
 #include "observability/metrics/unified.h"
+#include "core/http/http_variables.h"
+#include "object_internal.h"
+
+/* WHAT: Record ranged-serve bytes and range classification for GetObject.
+ * WHY: Inline, offloaded and deferred sends must share one metric definition.
+ * HOW: Report the authoritative served bytes to the monitor and protocol ledger. */
+void
+s3_serve_metrics(ngx_http_request_t *r,
+    const brix_http_serve_result_t *result)
+{
+    if (result->range_result == BRIX_SERVE_RANGE_UNSATISFIED) {
+        BRIX_S3_METRIC_INC(range_total[BRIX_S3_RANGE_UNSATISFIED]);
+    } else if (result->range_result == BRIX_SERVE_RANGE_PARTIAL) {
+        BRIX_S3_METRIC_INC(range_total[BRIX_S3_RANGE_PARTIAL]);
+    } else {
+        BRIX_S3_METRIC_INC(range_total[BRIX_S3_RANGE_FULL]);
+    }
+    if (result->bytes_sent > 0) {
+        brix_http_monitor_record_served(r, result->bytes_sent);
+        BRIX_S3_METRIC_ADD(bytes_tx_total, (size_t) result->bytes_sent);
+        if (r->connection && r->connection->sockaddr
+            && r->connection->sockaddr->sa_family == AF_INET6) {
+            BRIX_S3_METRIC_ADD(bytes_tx_ipv6_total, (size_t) result->bytes_sent);
+        } else {
+            BRIX_S3_METRIC_ADD(bytes_tx_ipv4_total, (size_t) result->bytes_sent);
+        }
+    }
+}
+
+/* WHAT: Complete deferred GetObject accounting once. WHY: NGX_DONE cannot book
+ * a successful response yet. HOW: Reuse the ordinary result/response reporters. */
+void
+s3_get_compressed_done(ngx_http_request_t *r,
+    const brix_http_serve_result_t *result, ngx_int_t rc)
+{
+    s3_serve_metrics(r, result);
+    s3_metrics_response_method(r, BRIX_S3_METHOD_GET, rc);
+}
 
 static brix_metric_op_t
 s3_unified_op(ngx_uint_t method_slot)

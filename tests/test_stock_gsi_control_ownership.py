@@ -20,6 +20,7 @@ def _write_output(argv, option):
 
 
 def _fake_run(argv, **kwargs):
+    assert argv[0] not in ("fuser", "pkill", "killall"), "fixture must not kill unrelated listeners"
     _write_output(argv, "-out")
     return SimpleNamespace(returncode=0, stdout="fixture-hash", stderr="")
 
@@ -34,14 +35,20 @@ def _signed_cert(base, ca, common_name, key, cert):
     cert.write_text("inert certificate fixture")
 
 
-def _prepare_builders(monkeypatch, subject):
+def _prepare_builders(monkeypatch, subject, base):
     if subject is native:
         monkeypatch.setattr(subject, "_guard_gsi_server_1", lambda: None)
         monkeypatch.setattr(subject, "_guard_gsi_server_2", lambda: None)
         monkeypatch.setattr(subject, "_openssl", _fake_openssl)
         monkeypatch.setattr(subject, "_signed_cert", _signed_cert)
-        monkeypatch.setattr(subject, "_free_port", lambda port: None)
+        monkeypatch.setattr(subject, "free_port", lambda: TEST_PORT_START)
         return
+    plugins = base / "plugins"
+    plugins.mkdir()
+    security = plugins / "libXrdSec-6.so"
+    security.touch()
+    (plugins / "libXrdSecgsi-6.so").touch()
+    monkeypatch.setattr(subject, "stock_gsi_layout", lambda: (security, plugins))
     if subject is delegation:
         monkeypatch.setattr(subject, "_require_gate_tools", lambda: None)
         monkeypatch.setattr(subject, "_make_gate_pki", lambda *args: None)
@@ -51,12 +58,11 @@ def _prepare_builders(monkeypatch, subject):
         monkeypatch.setattr(subject, "_require_gsi_tools", lambda: None)
         monkeypatch.setattr(subject, "_make_gsi_pki", lambda *args: None)
         monkeypatch.setattr(subject, "_make_gsi_proxies", lambda paths: {})
-        monkeypatch.setattr(subject, "_free_port", lambda port: None)
     monkeypatch.setattr(subject, "free_port", lambda: TEST_PORT_START)
 
 
 @pytest.fixture(params=[(delegation, "gate", "_wait"),
-                       (outbound, "gsi_tpc", "_wait_listen"),
+                       (outbound, "gsi_tpc", "reference_listener_ready"),
                        (native, "gsi_server", "_listener_ready")],
                 ids=["delegation", "outbound", "native"])
 def case(request, monkeypatch, tmp_path):
@@ -86,10 +92,10 @@ def case(request, monkeypatch, tmp_path):
     monkeypatch.setattr(subject.socket, "getfqdn", lambda: "gsi-fixture.invalid")
     monkeypatch.setattr(subject, "StockXrootdOwner", own)
     monkeypatch.setattr(subject, "_run", _fake_run)
-    monkeypatch.setattr(subject, readiness, lambda *args: True)
+    monkeypatch.setattr(subject, readiness, lambda *args, **kwargs: True)
     monkeypatch.setattr(subject.subprocess, "Popen", spawn)
     monkeypatch.setattr(subject.shutil, "chown", lambda path, user: chowns.append((str(path), user)))
-    _prepare_builders(monkeypatch, subject)
+    _prepare_builders(monkeypatch, subject, base)
     lifecycle = SimpleNamespace(start=lambda spec: SimpleNamespace(
         port=TEST_PORT_START, prefix=str(base / "destination")))
     factory = SimpleNamespace(mktemp=lambda name: base)
@@ -111,23 +117,38 @@ def _check_source_contract(case):
     assert Path(owner.admin).parent == Path("/tmp")
     assert len(str(Path(owner.admin) / "tpcgsisrc/.xrd/admin").encode()) < 108
     assert Path(owner.admin).stat().st_mode & 0o777 == 0o700
-    _assert_gsi_configuration(fields, case.base)
+    _assert_gsi_configuration(fields, case.base, case.subject)
     argv, kwargs = case.commands[0]
     assert argv[0] == "xrootd"
     assert kwargs["start_new_session"] is True
     assert case.owners[0].process is case.processes[0]
 
 
-def _assert_gsi_configuration(fields, base):
+def _assert_gsi_configuration(fields, base, subject):
     assert fields["oss.localroot"] == str(base)
     assert fields["sec.protbind"] == "* only gsi"
-    assert fields["xrootd.seclib"] == "libXrdSec.so"
-    assert "-cert:" in fields["sec.protocol"] and "-key:" in fields["sec.protocol"]
+    _assert_gsi_plugin_configuration(fields, base, subject)
+    assert "-cert:" in fields["sec.protocol"]
+    assert "-key:" in fields["sec.protocol"]
+
+
+def _assert_gsi_plugin_configuration(fields, base, subject):
+    expected = "libXrdSec.so" if subject is native else str(base / "plugins/libXrdSec-6.so")
+    assert fields["xrootd.seclib"] == expected
+    if subject is not native:
+        assert fields["sec.protocol"].startswith(str(base / "plugins") + " gsi ")
 
 
 def _assert_closed(case):
     assert not Path(case.owners[0].admin).exists()
     assert case.reaped == case.processes
+
+
+@pytest.mark.parametrize("tool", ["fuser", "pkill", "killall"])
+def test_offline_fixture_model_rejects_foreign_listener_killers(tool):
+    """Security-negative: ownership cleanup may not evict an unrelated process."""
+    with pytest.raises(AssertionError, match="unrelated listeners"):
+        _fake_run([tool, "unrelated-listener"])
 
 
 def test_deep_gsi_fixture_reaps_before_removing_short_control(case):
@@ -157,8 +178,8 @@ def test_gsi_startup_failure_cleans_only_owned_state(monkeypatch, case, failure)
         raise OSError("deliberate offline fixture failure")
 
     if failure == "not-ready":
-        monkeypatch.setattr(case.subject, case.ready, lambda *args: False)
-        error = pytest.skip.Exception
+        monkeypatch.setattr(case.subject, case.ready, lambda *args, **kwargs: False)
+        error = pytest.skip.Exception if case.subject is delegation else pytest.fail.Exception
     else:
         target = case.subject.subprocess if failure == "spawn-error" else case.subject
         method = "Popen" if failure == "spawn-error" else case.ready
@@ -170,7 +191,7 @@ def test_gsi_startup_failure_cleans_only_owned_state(monkeypatch, case, failure)
 
 
 @pytest.mark.parametrize("case", [(delegation, "gate", "_wait"),
-                                (outbound, "gsi_tpc", "_wait_listen")],
+                                (outbound, "gsi_tpc", "reference_listener_ready")],
                          indirect=True, ids=["delegation", "outbound"])
 def test_destination_start_failure_reaps_source_and_preserves_error(monkeypatch, case):
     failure = RuntimeError("deliberate offline destination startup failure")

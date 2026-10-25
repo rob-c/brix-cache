@@ -139,17 +139,33 @@ close_from_procfs(int lowfd)
     return 0;
 }
 
+/* ---- Close a native descriptor interval ----
+ * WHAT: Return the kernel result, or -1/ENOSYS without a native range syscall.
+ * WHY: Portable callers must never guess architecture-specific syscall numbers.
+ * HOW: Dispatch to the host syscall when its SDK defines it, otherwise refuse.
+ */
+int
+brix_plat_close_range(unsigned first, unsigned last)
+{
+#if defined(SYS_close_range)
+    return (int) syscall(SYS_close_range, first, last, 0U);
+#else
+    (void) first;
+    (void) last;
+    errno = ENOSYS;
+    return -1;
+#endif
+}
+
 int
 brix_plat_close_from(int lowfd)
 {
     long maxfd;
     int  fd;
 
-#if defined(SYS_close_range)
-    if (syscall(SYS_close_range, (unsigned int) lowfd, ~0U, 0) == 0) {
+    if (brix_plat_close_range((unsigned int) lowfd, ~0U) == 0) {
         return 0;
     }
-#endif
     if (close_from_procfs(lowfd) == 0) {
         return 0;
     }

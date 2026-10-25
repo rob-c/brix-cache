@@ -56,17 +56,24 @@ Run:
 """
 
 import os
+import errno
+import ipaddress
 import re
+import select
 import socket
 import sys
 import time
 import urllib.request
+import subprocess
+import shlex
 
+import psutil
 import pytest
 
 from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN, BIND_HOST, SERVER_HOST
-from _test_audit15f_helpers import SS_BIN, socket_timers
+from _test_audit15f_helpers import (socket_timers, socket_observation_available,
+                                   native_tcp_observer)
 from _test_cms_parity_wave_helpers import (StubManager, CMS_RR_LOAD,
                                            CMS_RR_LOGIN)
 
@@ -84,7 +91,7 @@ FED_CPU = 77                    # the feed's cpu figure — not a /proc value
 FED_LOAD = [FED_CPU, 1, 2, 3, 4]
 
 
-def _node(lifecycle, reason, manager_port, extra=""):
+def _node(lifecycle, reason, manager_port, extra="", manager_host=None):
     """Start the data node pointed at `manager_port`; returns the endpoint."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
@@ -94,6 +101,7 @@ def _node(lifecycle, reason, manager_port, extra=""):
         protocol="root",
         readiness="tcp",
         template_values={"BIND_HOST": BIND_HOST,
+                         "MANAGER_HOST": manager_host or BIND_HOST,
                          "MANAGER_PORT": manager_port,
                          "CMS_EXTRA": extra},
         reason=reason))
@@ -191,6 +199,40 @@ class BlackHole:
                 pass
 
 
+class PendingPeer:
+    """A root-provisioned VNET peer, not a full FreeBSD accept queue.
+
+    Closed TCP ports silently drop SYNs in that jail only. Refuse an absent or
+    non-link-local fixture, and independently verify the socket stays pending.
+    """
+
+    def __init__(self):
+        from ephemeral_port import free_port
+        address = ipaddress.ip_address(os.environ.get('BRIX_CMS_PENDING_HOST', ''))
+        if address.version != 4 or not address.is_link_local:
+            raise ValueError('pending CMS peer must be an isolated link-local IPv4 address')
+        self.host, self.port = str(address), free_port(BIND_HOST)
+        with socket.socket() as probe:
+            probe.setblocking(False)
+            result = probe.connect_ex((self.host, self.port))
+            assert result == errno.EINPROGRESS, f'fixture connect returned {result}'
+            _, writable, errors = select.select([], [probe], [probe], 0.25)
+            assert not writable and not errors, 'fixture did not keep the dial pending'
+
+    def close(self):
+        """The root wrapper owns VNET cleanup; this test owns no kernel objects."""
+
+
+def _black_hole():
+    if sys.platform.startswith('freebsd'):
+        return PendingPeer()
+    if sys.platform != 'linux':
+        pytest.skip('pending-connect fixture requires Linux backlog or FreeBSD VNET')
+    hole = BlackHole()
+    hole.host = BIND_HOST
+    return hole
+
+
 # ── brix_cms_perf_interval: the external feed's freshness window ──────────
 
 def test_a_short_perf_interval_expires_the_external_feed(lifecycle, tmp_path):
@@ -255,18 +297,95 @@ def test_a_garbled_perf_line_never_reaches_the_heartbeat(lifecycle, tmp_path):
         stub.stop()
 
 
+def _monitor_family(tmp_path, ignore_term):
+    """Create a fixture-owned shell/child pair with an explicit PID record."""
+    program = tmp_path / "perf-owned.sh"
+    record = tmp_path / "perf-owned.pids"
+    trap = "trap '' TERM\n" if ignore_term else ""
+    program.write_text(
+        "#!/bin/sh\n" + trap + "sleep 3600 &\n"
+        + "printf '%s %s\\n' \"$$\" \"$!\" > " + shlex.quote(str(record))
+        + "\nprintf '77 1 2 3 4\\n'\nwait\n")
+    program.chmod(0o755)
+    return program, record
+
+
+def _monitor_processes(program, record):
+    """Bind both PID records to their live UID, command, ancestry and lifetime."""
+    deadline = time.monotonic() + 5
+    while not record.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    shell_pid, child_pid = map(int, record.read_text().split())
+    shell, child = psutil.Process(shell_pid), psutil.Process(child_pid)
+    assert str(program) in shell.cmdline(), shell.cmdline()
+    assert shell.uids().real == os.geteuid() == child.uids().real
+    assert child.ppid() == shell.pid
+    # Save creation times before stop, so cleanup cannot target reused PIDs.
+    shell.create_time()
+    child.create_time()
+    return shell, child
+
+
+def _monitor_running(process):
+    """An already-reaped or terminated zombie cannot keep serving or sleeping."""
+    try:
+        return process.is_running() and process.status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return False
+
+
+def _assert_monitor_retired(family):
+    """Observe bounded termination without relaxing the worker-exit contract."""
+    deadline = time.monotonic() + 5
+    while any(map(_monitor_running, family)) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not any(map(_monitor_running, family)), "monitor outlived worker exit"
+
+
+def _retire_monitor_family(family):
+    """Clean up a failing fixture only through saved process identities."""
+    for process in family:
+        if _monitor_running(process):
+            process.kill()  # psutil checks the saved creation-time identity.
+
+
+@pytest.mark.parametrize("ignore_term", [False, True], ids=["ordinary", "term-ignored"])
+def test_worker_exit_retires_only_its_monitor_family(lifecycle, tmp_path, ignore_term):
+    """Exit releases shells and descendants even if TERM is ignored, not peers."""
+    program, record = _monitor_family(tmp_path, ignore_term)
+    stub = StubManager()
+    family = ()
+    witness = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"],
+                               start_new_session=True)
+    try:
+        _node(lifecycle, "CMS monitor lifetime belongs to its worker", stub.port,
+              f'brix_cms_perf_pgm "{program}";')
+        assert _wait_load(stub, lambda values: values[:5] == FED_LOAD) is not None
+        family = _monitor_processes(program, record)
+        group = os.getpgid(family[0].pid)
+        assert group != os.getpgrp(), "monitor inherited the test process group"
+        assert group == os.getpgid(family[1].pid), "monitor child escaped its group"
+        lifecycle.stop("lc-audit15f-clnode")
+        _assert_monitor_retired(family)
+        assert witness.poll() is None, "shutdown signalled an unrelated process"
+    finally:
+        lifecycle.stop("lc-audit15f-clnode")
+        _retire_monitor_family(family)
+        witness.kill()
+        witness.wait(timeout=5)
+        stub.stop()
+
+
 # ── brix_cms_send_timeout: the bound on a dial that never completes ───────
 
 def test_a_tight_send_timeout_fails_a_dial_into_a_black_hole(lifecycle):
     """success: the connect + first-write window is the knob's, so a dial that
     the peer never answers is torn down in 400ms and counted — repeatedly, as
     the cold-start retry policy re-dials."""
-    if sys.platform != "linux":
-        pytest.skip("SYN-backlog timeout behavior is Linux-specific")
-    hole = BlackHole()
+    hole = _black_hole()
     try:
         ep = _node(lifecycle, "audit-15f brix_cms_send_timeout 400ms bound",
-                   hole.port, "brix_cms_send_timeout 400ms;")
+                   hole.port, "brix_cms_send_timeout 400ms;", hole.host)
         seen = _wait_failures(ep.extra_ports["METRICS_PORT"], 2)
         assert seen >= 2, f"only {seen} dial(s) hit the deadline"
     finally:
@@ -277,10 +396,10 @@ def test_the_default_send_timeout_leaves_the_dial_outstanding(lifecycle):
     """negative control: the same black hole with the default 10s bound — the
     dial is still in flight, so nothing has failed yet.  The counter moving
     here would mean the deadline, not the directive, ended the dial above."""
-    hole = BlackHole()
+    hole = _black_hole()
     try:
         ep = _node(lifecycle, "audit-15f default send timeout control arm",
-                   hole.port)
+                   hole.port, manager_host=hole.host)
         time.sleep(5)                 # 12x the tight bound, half the default
         assert _connect_failures(ep.extra_ports["METRICS_PORT"]) == 0
     finally:
@@ -289,34 +408,34 @@ def test_the_default_send_timeout_leaves_the_dial_outstanding(lifecycle):
 
 # ── brix_cms_tcp_keepalive: dead-peer reaping on the upward leg ───────────
 
-def test_the_upward_leg_carries_a_keepalive_timer_by_default(lifecycle):
+def test_the_upward_leg_carries_a_keepalive_timer_by_default(lifecycle, native_tcp_observer):
     """success: the client leg is armed with SO_KEEPALIVE and the tight probe
     schedule, which the kernel reports as a pending keepalive timer."""
-    if not os.path.exists(SS_BIN):
-        pytest.skip("ss(8) not available")
+    if not socket_observation_available():
+        pytest.skip("native TCP socket observer not available")
     stub = StubManager()
     try:
         _node(lifecycle, "audit-15f cms client-leg keepalive default",
               stub.port)
         assert stub.wait(CMS_RR_LOGIN) is not None, "node never logged in"
-        rest = socket_timers(peer_port=stub.port)
+        rest = socket_timers(peer_port=stub.port, observer=native_tcp_observer)
         assert "keepalive" in rest, rest
     finally:
         stub.stop()
 
 
-def test_turning_the_keepalive_off_leaves_the_upward_leg_bare(lifecycle):
+def test_turning_the_keepalive_off_leaves_the_upward_leg_bare(lifecycle, native_tcp_observer):
     """negative control: the same node against the same manager with the flag
     off — no keepalive timer, and the link is otherwise unaffected (it logs in
     and heartbeats exactly as before)."""
-    if not os.path.exists(SS_BIN):
-        pytest.skip("ss(8) not available")
+    if not socket_observation_available():
+        pytest.skip("native TCP socket observer not available")
     stub = StubManager()
     try:
         _node(lifecycle, "audit-15f cms client-leg keepalive off",
               stub.port, "brix_cms_tcp_keepalive off;")
         assert stub.wait(CMS_RR_LOGIN) is not None, "node never logged in"
-        rest = socket_timers(peer_port=stub.port)
+        rest = socket_timers(peer_port=stub.port, observer=native_tcp_observer)
         assert "keepalive" not in rest, rest
         assert stub.wait(CMS_RR_LOAD) is not None, "no heartbeat without it"
     finally:
@@ -339,11 +458,11 @@ def test_the_kernel_user_timeout_ends_a_dial_the_deadline_has_not_reached(
     two more than the 30s deadline could have produced."""
     if sys.platform != "linux":
         pytest.skip("TCP_USER_TIMEOUT is a Linux socket option")
-    hole = BlackHole()
+    hole = _black_hole()
     try:
         ep = _node(lifecycle, "audit-15f brix_cms_tcp_user_timeout 2s bound",
                    hole.port,
-                   f"{LONG_DEADLINE}\n        brix_cms_tcp_user_timeout 2s;")
+                   f"{LONG_DEADLINE}\n        brix_cms_tcp_user_timeout 2s;", hole.host)
         seen = _wait_failures(ep.extra_ports["METRICS_PORT"], 2, timeout=25.0)
         assert seen >= 2, (
             f"only {seen} dial(s) ended; TCP_USER_TIMEOUT did not reach the "
@@ -357,10 +476,10 @@ def test_the_same_long_deadline_alone_leaves_the_dial_outstanding(lifecycle):
     """negative control: identical node, identical black hole, identical 30s
     deadline — only the knob is gone.  Nothing fails, so the arm above is the
     directive's doing and not the retry policy's."""
-    hole = BlackHole()
+    hole = _black_hole()
     try:
         ep = _node(lifecycle, "audit-15f cms user-timeout control arm",
-                   hole.port, LONG_DEADLINE)
+                   hole.port, LONG_DEADLINE, hole.host)
         time.sleep(10)                # 5x the knob above, a third of the bound
         assert _connect_failures(ep.extra_ports["METRICS_PORT"]) == 0
     finally:

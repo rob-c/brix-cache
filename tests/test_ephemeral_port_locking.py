@@ -74,6 +74,25 @@ def test_private_lease_registry_serializes_processes(tmp_path, monkeypatch):
     assert sorted(assigned) == list(range(ports.MOCK_PORT_FIRST, ports.MOCK_PORT_FIRST + 24))
 
 
+def test_private_leases_distinguish_processes_with_same_test_identity(
+        tmp_path, monkeypatch):
+    monkeypatch.setenv("TEST_ROOT", str(tmp_path))
+    tests = str(Path(__file__).parent)
+    command = [sys.executable, "-c",
+               "from ephemeral_port import free_port; print(free_port())"]
+    env = dict(os.environ, PYTHONPATH=tests,
+               PYTEST_CURRENT_TEST="shared-fixture-setup")
+    children = [subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        env=env) for _ in range(2)]
+    assigned = []
+    for child in children:
+        output, error = child.communicate(timeout=15)
+        assert child.returncode == 0, error
+        assigned.append(int(output))
+    assert len(set(assigned)) == 2
+
+
 def test_exhausted_registry_preserves_existing_leases(tmp_path, monkeypatch):
     monkeypatch.setenv("TEST_ROOT", str(tmp_path))
     monkeypatch.setattr(ports, "MOCK_PORT_LAST", ports.MOCK_PORT_FIRST)

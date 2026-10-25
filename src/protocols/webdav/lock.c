@@ -187,7 +187,9 @@ webdav_lock_expired_cleanup(ngx_http_request_t *r, const char *path,
         return;
     }
 
-    (void) webdav_lock_xattr_delete(r, path);
+    if (webdav_lock_xattr_delete(r, path, e) != NGX_OK) {
+        return;   /* A successor/refreshed lock must not lose its placeholder. */
+    }
     if (reap_null) {
         webdav_lock_reap_null(r, path, e);
     }
@@ -362,11 +364,12 @@ webdav_lock_refresh(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
     webdav_lock_xattr_t *e)
 {
+    webdav_lock_xattr_t previous = *e;
     if (!webdav_lock_if_header_matches(r, e->token)) {
         return NGX_HTTP_LOCKED;
     }
     e->expires = webdav_lock_parse_timeout(r, conf);
-    if (webdav_lock_xattr_write(r, path, e, XATTR_REPLACE) != NGX_OK) {
+    if (webdav_lock_xattr_write(r, path, e, XATTR_REPLACE, &previous) != NGX_OK) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     r->headers_out.status = NGX_HTTP_OK;
@@ -401,7 +404,7 @@ webdav_lock_create(ngx_http_request_t *r,
     e->is_null        = nl->created_null;
     e->expires        = webdav_lock_parse_timeout(r, conf);
 
-    rc = webdav_lock_xattr_write(r, path, e, XATTR_CREATE);
+    rc = webdav_lock_xattr_write(r, path, e, XATTR_CREATE, NULL);
     rc = webdav_lock_write_status(r, conf, rc);
     if (rc != NGX_OK) {
         return rc;

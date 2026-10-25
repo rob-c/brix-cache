@@ -44,6 +44,8 @@
     #define BRIX_HAS_FUSE 0
 #endif
 #define BRIX_HAS_INOTIFY 1
+#define BRIX_HAS_FUSE_NODEV 1             /* native nodev mount option */
+#define BRIX_HAS_FUNOPEN 0
 #define BRIX_HAS_SPLICE 1
 #define BRIX_HAS_POSIX_FADVISE 1
 #define BRIX_HAS_CLONEFILE 0
@@ -53,6 +55,7 @@
 #define BRIX_HAS_NO_NEW_PRIVS 1          /* prctl(PR_SET_NO_NEW_PRIVS) */
 #define BRIX_HAS_WORKER_EXEC 1            /* exec is policy-controlled by seccomp */
 #define BRIX_HAS_CAPABILITIES 1           /* capget/capset + bounding set */
+#define BRIX_HAS_FIXED_ID_BROKER 0
 #define BRIX_HAS_SAVED_IDS 1              /* getresuid/getresgid are authoritative */
 #define BRIX_HAS_GSS_KRB5_IMPORT_CRED 1  /* MIT gss_krb5_import_cred */
 #define BRIX_XATTR_NAME_MAX 255u          /* Linux XATTR_NAME_MAX */

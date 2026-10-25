@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from cmdscripts import tape_live
+from lib_py.worker_exec import require_worker_exec
 
 def _check_test_tape_live_scenario_1(nginx, scenario):
     assert tape_live.SCENARIOS[scenario](nginx) == 0
@@ -25,6 +26,7 @@ def test_tape_live_are_importable():
 @pytest.mark.timeout(600)
 @pytest.mark.parametrize("scenario", sorted(tape_live.SCENARIOS))
 def test_tape_live_scenario(scenario: str):
+    require_worker_exec()
     if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":
         pytest.skip("set PHASE81_RUN_LIVE_PORTS=0 to skip live port scenarios")
     nginx = Path(os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"))

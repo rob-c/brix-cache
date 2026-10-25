@@ -54,7 +54,12 @@ SHLIB_LD     = -dynamiclib -Wl,-install_name,$(LIBDIR)/$(LIBBRIX_SONAME)
 PRELOAD_LD  := -dynamiclib
 LDFLAGS_PIE :=
 else
+ifeq ($(HOST_OS),FreeBSD)
+HARDEN += -DBRIX_PLATFORM_HOST=freebsd $(shell pkg-config --cflags epoll-shim 2>/dev/null)
+PLATFORM_LIBS := $(shell pkg-config --libs epoll-shim 2>/dev/null)
+else
 HARDEN += -DBRIX_PLATFORM_HOST=linux
+endif
 whole_archive = -Wl,--whole-archive $(1) -Wl,--no-whole-archive
 SHLIB_EXT   := so
 SHLIB_LD     = -shared -Wl,-soname,$(LIBBRIX_SONAME)
@@ -181,7 +186,23 @@ endif
 # md5). zlib (-lz): adler32 for --cksum (the algorithm xrdcp historically uses).
 # krb5 libs (when present) for the sec_krb5 AP-REQ path. CODEC_LIBS: zstd/lzma/
 # brotli/bzip2 for the shared codec kernels (gzip/deflate already via -lz).
-LDLIBS := $(OPENSSL_LIBS) -lz $(KRB5_LIBS) $(CODEC_LIBS) $(URING_LIBS)
+# A codec's broad system -L must not shadow a deliberately selected parallel
+# SDK (for example EL8's old liburing versus an opted-in newer liburing).
+# Hoist absolute non-system search directories before all library operands;
+# relative directories retain their caller-supplied position.
+DEPENDENCY_LIBS := $(OPENSSL_LIBS) -lz -pthread $(KRB5_LIBS) $(URING_LIBS) $(CODEC_LIBS) $(PLATFORM_LIBS)
+SDK_LIBRARY_DIRS := $(filter-out -L/lib -L/lib64 -L/lib/% -L/lib64/% -L/usr/lib -L/usr/lib64 -L/usr/lib/% -L/usr/lib64/%,$(filter -L/%,$(DEPENDENCY_LIBS)))
+LDLIBS := $(SDK_LIBRARY_DIRS) $(DEPENDENCY_LIBS)
+# A static downstream consumer still loads the optional external libraries.
+# Preserve absolute SDK search directories at runtime as well as link time;
+# never turn a relative -L path into a runtime search of the consumer's cwd.
+comma := ,
+brix_unique_words = $(if $(strip $(1)),$(firstword $(1)) \
+                    $(call brix_unique_words,$(filter-out $(firstword $(1)),$(1))))
+PRIVATE_RUNTIME_LIBS := $(patsubst -L%,-Wl$(comma)-rpath$(comma)%,$(call brix_unique_words,$(filter -L/%,$(LDLIBS))))
+# Auxiliary native drivers and shipped executables need the same runtime
+# closure as downstream static consumers, especially @rpath Homebrew codecs.
+LDLIBS += $(PRIVATE_RUNTIME_LIBS)
 
 # Client PAL (phase-119): the only client sources that may branch on the host.
 # One body set per OS; check_platform_leak.py rejects OS macros anywhere else.
@@ -190,9 +211,20 @@ LDLIBS := $(OPENSSL_LIBS) -lz $(KRB5_LIBS) $(CODEC_LIBS) $(URING_LIBS)
 # provides) and priv_wrapper.c is not (crypt/libcrypt, module-only).
 ifeq ($(HOST_OS),Darwin)
 PLATFORM_SRCS := lib/platform/tcp_rtt.c lib/platform/mountinfo.c \
-                 lib/platform/darwin/posix.c lib/platform/darwin/mounts.c lib/platform/darwin/epoll.c \
+                 lib/platform/fuse_bsd.c lib/platform/darwin/posix.c lib/platform/darwin/mounts.c lib/platform/darwin/epoll.c \
                  ../src/platform/darwin/storage_wrapper.c ../src/platform/darwin/process_wrapper.c
 PRELOAD_HOST_SRCS := lib/platform/darwin/preload_stream.c lib/platform/darwin/preload_interpose.c
+else ifeq ($(HOST_OS),FreeBSD)
+PLATFORM_SRCS := lib/platform/tcp_rtt.c lib/platform/mountinfo.c \
+                 lib/platform/fuse_bsd.c lib/platform/freebsd/posix.c lib/platform/freebsd/mounts.c \
+                 ../src/platform/freebsd/storage_wrapper.c ../src/platform/freebsd/process_wrapper.c \
+                 ../src/platform/freebsd/xattr_wrapper.c
+PRELOAD_HOST_SRCS := lib/platform/darwin/preload_stream.c lib/platform/freebsd/preload_stat.c \
+                     lib/platform/freebsd/preload_copy.c
+# FreeBSD fortify defines inline read/pread bodies, which cannot coexist with
+# libc symbol interposition in this one TU. Keep fortify on every other object
+# and retain stack, format and linker hardening on the interposer itself.
+preload/brixposix_preload.pic.o: ALL_CFLAGS += -U_FORTIFY_SOURCE
 else
 PLATFORM_SRCS := lib/platform/tcp_rtt.c lib/platform/mountinfo.c \
                  lib/platform/linux/posix.c lib/platform/linux/mounts.c \
@@ -211,6 +243,7 @@ LIB_SRCS   := $(PLATFORM_SRCS) \
   lib/conform/scope.c lib/conform/safety.c lib/conform/result.c \
   lib/conform/baseline.c \
   lib/conform/report_terminal.c lib/conform/report_json.c \
+  lib/conform/report_fields.c \
   lib/conform/report_markdown.c lib/conform/report_html.c lib/conform/report_bundle.c \
   lib/conform/capture.c \
   lib/net/conn.c lib/net/conn_bootstrap.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/forksafe.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/tls_io.c lib/net/tls_certinfo.c lib/net/url.c lib/net/redir_registry.c lib/net/resolve.c \
@@ -399,6 +432,9 @@ xrdcp_OBJS        := apps/copy/xrdcp.o apps/copy/xrdcp_transfer.o apps/copy/xrdc
 xrdfs_OBJS        := apps/fs/xrdfs.o apps/fs/xrdfs_data.o apps/fs/xrdfs_data_content.o apps/fs/xrdfs_data_wc.o apps/fs/xrdfs_data_xfer.o apps/fs/xrdfs_data_xfer_vec.o apps/fs/xrdfs_walk.o apps/fs/xrdfs_fmt.o apps/fs/xrdfs_attr.o apps/fs/xrdfs_xattr.o apps/fs/xrdfs_meta.o apps/fs/xrdfs_meta_ls.o apps/fs/xrdfs_meta_ns.o apps/fs/xrdfs_web.o
 xrd_OBJS          := apps/diag/xrd.o apps/diag/xrd_battery.o apps/diag/xrd_battery_web.o apps/diag/xrd_doctor.o apps/diag/xrd_doctor_json.o apps/diag/xrd_clockskew.o apps/diag/xrd_mount.o apps/diag/xrd_usage.o apps/diag/xrd_conform.o apps/diag/xrd_conform_options.o apps/diag/xrd_conform_options_fixtures.o apps/diag/xrd_conform_execute.o apps/diag/xrd_conform_fixture_gates.o apps/diag/xrd_conform_open_fixtures.o apps/diag/xrd_conform_open_refresh.o apps/diag/xrd_conform_root.o apps/diag/xrd_conform_http.o apps/diag/xrd_conform_http_validators.o apps/diag/xrd_conform_http_semantics.o apps/diag/xrd_conform_root_meta.o apps/diag/xrd_conform_root_readv.o apps/diag/xrd_conform_root_readv_limits.o apps/diag/xrd_conform_root_read_raw.o apps/diag/xrd_conform_root_read_grid.o apps/diag/xrd_conform_root_pg.o apps/diag/xrd_conform_root_corpus.o apps/diag/xrd_conform_root_basic.o apps/diag/xrd_conform_root_open.o apps/diag/xrd_conform_root_open_mutate.o apps/diag/xrd_conform_root_checkpoint.o apps/diag/xrd_conform_root_prepare.o apps/diag/xrd_conform_root_control.o apps/diag/xrd_conform_root_claims.o apps/diag/xrd_conform_root_claim_audit.o apps/diag/xrd_conform_root_bind.o apps/diag/xrd_conform_root_locate.o apps/diag/xrd_conform_root_namespace.o apps/diag/xrd_conform_root_move_fixture.o apps/diag/xrd_conform_root_dir_large.o apps/diag/xrd_conform_root_write.o apps/diag/xrd_conform_root_write_capacity.o apps/diag/xrd_conform_root_write_stream.o apps/diag/xrd_conform_root_writev_limits.o apps/diag/xrd_conform_root_pgwrite_cse.o apps/diag/xrd_conform_root_fattr.o apps/diag/xrd_conform_root_readonly.o apps/diag/xrd_conform_root_frame.o apps/diag/xrd_conform_root_framing.o apps/diag/xrd_conform_root_framing_hostile.o apps/diag/xrd_conform_root_flow.o apps/diag/xrd_conform_root_login.o apps/diag/xrd_conform_root_sigver.o apps/diag/xrd_conform_root_tls.o apps/diag/xrd_conform_readonly_matrix.o apps/diag/xrd_conform_token_fixtures.o
 xrd_OBJS          += apps/diag/xrd_conform_root_login_auth.o
+xrd_OBJS          += apps/diag/xrd_conform_probe_helpers.o
+xrd_OBJS          += apps/diag/xrd_conform_error_fixtures.o
+xrd_OBJS          += apps/diag/xrd_conform_tpc_helpers.o
 xrd_OBJS          += apps/diag/xrd_conform_cross_plane.o
 xrd_OBJS          += apps/diag/xrd_conform_options_defaults.o
 xrd_OBJS          += apps/diag/xrd_conform_root_basic_query.o
@@ -585,7 +621,7 @@ endif
 # prerequisites, so the Phase-38 split siblings and any per-tool $<name>_LDLIBS
 # (e.g. xrdstorascan's -lm) fold in without a bespoke rule per binary.
 .SECONDEXPANSION:
-$(BIN_EXES): $(BINDIR)/%: $$($$*_OBJS) $(CLIENT_LIB) | $(BINDIR)
+$(BIN_EXES): $(BINDIR)/%: $$($$*_OBJS) $(CLIENT_LIB) $(PROTO_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $($*_OBJS) $(BRIX_LIBS) $(LDLIBS) $($*_LDLIBS) -o $@
 	@echo " + built $@ (no libXrdCl/libXrdSec*)"
 
@@ -601,7 +637,10 @@ apps/fs/xrootdfs_main.o: apps/fs/xrootdfs_main.c apps/fs/xrootdfs_drivers.h | pr
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 # Phase-38 split of the async driver: the siblings also need the fuse3 headers.
 XROOTDFS_SPLIT := apps/fs/xrootdfs_meta.o apps/fs/xrootdfs_io.o apps/fs/xrootdfs_xattr.o \
-                  apps/fs/xrootdfs_identity.o
+                  apps/fs/xrootdfs_identity.o apps/fs/xrootdfs_nodes.o \
+                  apps/fs/xrootdfs_session.o apps/fs/xrootdfs_lookup.o \
+                  apps/fs/xrootdfs_namespace.o apps/fs/xrootdfs_lowlevel_io.o \
+                  apps/fs/xrootdfs_lowlevel_dir.o apps/fs/xrootdfs_lowlevel_xattr.o
 $(XROOTDFS_SPLIT): apps/fs/%.o: apps/fs/%.c apps/fs/xrootdfs_internal.h | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -c $< -o $@
 # Phase-90..92 split of the unified xrootdfs front-end: xrootdfs_usage.c (shared
@@ -612,7 +651,7 @@ $(XROOTDFS_SPLIT): apps/fs/%.o: apps/fs/%.c apps/fs/xrootdfs_internal.h | proto
 XROOTDFS_BIN_SPLIT := apps/fs/xrootdfs_usage.o apps/fs/xrootdfs_legacy_ext.o
 $(XROOTDFS_BIN_SPLIT): apps/fs/%.o: apps/fs/%.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -c $< -o $@
-$(BINDIR)/xrootdfs: apps/fs/xrootdfs_main.o apps/fs/xrootdfs.o apps/fs/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(XROOTDFS_BIN_SPLIT) $(CLIENT_LIB) | $(BINDIR)
+$(BINDIR)/xrootdfs: apps/fs/xrootdfs_main.o apps/fs/xrootdfs.o apps/fs/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(XROOTDFS_BIN_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/fs/xrootdfs_main.o apps/fs/xrootdfs.o apps/fs/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(XROOTDFS_BIN_SPLIT) $(BRIX_LIBS) $(LDLIBS) $(FUSE3_LIBS) -o $@
 	@echo " + built $@ (libfuse3; unified async+legacy; no libXrdCl/libXrdSec*)"
 
@@ -711,8 +750,8 @@ BRIXMOUNT_OBJS := apps/fs/brixmount.o apps/fs/brixcvmfs.o apps/fs/brixcvmfs_rw.o
                   $(BRIX_CVMFS_OBJS) apps/fs/xrootdfs.o $(XROOTDFS_SPLIT) \
                   apps/fs/xrootdfs_usage.o $(BRIXOCI_OBJS) $(BRIXRPM_OBJS) \
                   $(BRIXINGEST_OBJS)
-$(BINDIR)/brixMount: $(BRIXMOUNT_OBJS) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(BRIXMOUNT_OBJS) $(BRIX_LIBS) $(LDLIBS) $(FUSE3_LIBS) -lcurl -lsqlite3 -lcrypto -lz -o $@
+$(BINDIR)/brixMount: $(BRIXMOUNT_OBJS) $(CLIENT_LIB) $(PROTO_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(BRIXMOUNT_OBJS) $(BRIX_LIBS) $(LDLIBS) $(FUSE3_LIBS) -lcurl -lsqlite3 -o $@
 	@echo " + built $@ (CVMFS-brix + XRootDFS-brix; libfuse3/libcurl/libsqlite3)"
 
 # --- Ceph operator tools (apps/ceph/) -------------------------------------
@@ -833,19 +872,19 @@ sd-s3-meta-smoke: ../tests/c/sd_s3_meta_smoke.c $(CLIENT_LIB) | $(BINDIR)
 # M1 async-core smoke test (tests/c/aio_smoke.c) — links the static client lib.
 # Run against a live root:// server: ./aio_smoke root://host:port /scratch.bin
 .PHONY: aio-smoke aio-resil
-aio-smoke: ../tests/c/aio_smoke.c $(CLIENT_LIB) | $(BINDIR)
+aio-smoke: ../tests/c/aio_smoke.c $(CLIENT_LIB) $(PROTO_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_smoke.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/aio_smoke
 	@echo " + built $(BINDIR)/aio_smoke (no libXrdCl/libXrdSec*)"
 
 # M2 resilience test — bounces the server mid-stream (set XRD_BOUNCE_CMD).
-aio-resil: ../tests/c/aio_resil.c $(CLIENT_LIB) | $(BINDIR)
+aio-resil: ../tests/c/aio_resil.c $(CLIENT_LIB) $(PROTO_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_resil.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/aio_resil
 	@echo " + built $(BINDIR)/aio_resil (no libXrdCl/libXrdSec*)"
 
 # Deferred-reply (kXR_waitresp → kXR_attn/asynresp) driver for the mock-server
 # pytest (tests/test_aio_waitresp.py).
 .PHONY: aio-waitresp
-aio-waitresp: ../tests/c/aio_waitresp.c $(CLIENT_LIB) | $(BINDIR)
+aio-waitresp: ../tests/c/aio_waitresp.c $(CLIENT_LIB) $(PROTO_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_waitresp.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/aio_waitresp
 	@echo " + built $(BINDIR)/aio_waitresp (no libXrdCl/libXrdSec*)"
 
@@ -853,13 +892,13 @@ aio-waitresp: ../tests/c/aio_waitresp.c $(CLIENT_LIB) | $(BINDIR)
 # phase-115 W8.6 pytest (tests/test_phase115_ssi_client.py). Exercises the SSI
 # plane with NO libXrdSsi anywhere in the link — the whole point of the client.
 .PHONY: ssi-client-smoke
-ssi-client-smoke: ../tests/c/ssi_client_smoke.c $(CLIENT_LIB) | $(BINDIR)
+ssi-client-smoke: ../tests/c/ssi_client_smoke.c $(CLIENT_LIB) $(PROTO_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/ssi_client_smoke.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/ssi_client_smoke
 	@echo " + built $(BINDIR)/ssi_client_smoke (no libXrdCl/libXrdSsi/libXrdSec*)"
 
 # M3 file-handle resumption test — read/write survive a mid-transfer bounce.
 .PHONY: aio-mfile brix-fault-proxy brix-config-migrate
-aio-mfile: ../tests/c/aio_mfile.c $(CLIENT_LIB) | $(BINDIR)
+aio-mfile: ../tests/c/aio_mfile.c $(CLIENT_LIB) $(PROTO_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/aio_mfile.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/aio_mfile
 	@echo " + built $(BINDIR)/aio_mfile (no libXrdCl/libXrdSec*)"
 
@@ -906,7 +945,7 @@ $(BINDIR)/brix-config-migrate: ../tools/brix_config_migrate.py ../tools/brix_con
 # IPv6→IPv4 auto-downgrade test (netpref.c) + its getaddrinfo LD_PRELOAD shim.
 # Run: ./bin/netfb_test state ; LD_PRELOAD=./bin/gai_shim.so ./bin/netfb_test connect
 .PHONY: netfb gai-shim
-netfb: ../tests/c/netfb_test.c $(CLIENT_LIB) | $(BINDIR)
+netfb: ../tests/c/netfb_test.c $(CLIENT_LIB) $(PROTO_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/netfb_test.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/netfb_test
 	@echo " + built $(BINDIR)/netfb_test"
 
@@ -921,16 +960,16 @@ gai-shim: ../tests/c/gai_shim.c | $(BINDIR)
 # W7.2b: the fan-out kernels are file-static, so this unit #includes the
 # implementation. The archive member is therefore never extracted (nothing is
 # left undefined for it to satisfy), which is why the plain link works.
-dirfanout: ../tests/c/dirfanout_test.c $(CLIENT_LIB) | $(BINDIR)
+dirfanout: ../tests/c/dirfanout_test.c $(CLIENT_LIB) $(PROTO_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/dirfanout_test.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/dirfanout_test
 	@echo " + built $(BINDIR)/dirfanout_test"
 
 .PHONY: forksafe
-forksafe: ../tests/c/forksafe_test.c $(CLIENT_LIB) | $(BINDIR)
+forksafe: ../tests/c/forksafe_test.c $(CLIENT_LIB) $(PROTO_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/forksafe_test.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/forksafe_test
 	@echo " + built $(BINDIR)/forksafe_test"
 
-nettmo: ../tests/c/nettmo_test.c $(CLIENT_LIB) | $(BINDIR)
+nettmo: ../tests/c/nettmo_test.c $(CLIENT_LIB) $(PROTO_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/nettmo_test.c $(BRIX_LIBS) $(LDLIBS) -o $(BINDIR)/nettmo_test
 	@echo " + built $(BINDIR)/nettmo_test"
 
@@ -955,13 +994,15 @@ $(LIBBRIX_SO): $(PIC_OBJS) $(PROTO_LIB)
 	ln -sf $(LIBBRIX_SONAME) $(LIBBRIX_SO)
 	@echo " + built $(LIBBRIX_REAL) (no libXrdCl/libXrdSec*)"
 
-# Libs.private is what `pkg-config --static` appends, and it is $(BRIX_LIBS)
-# in -l form: libxrdproto ships no PAL, so a consumer that links libbrix.a
-# once and libxrdproto.a after it fails on brix_plat_blockdev_size /
-# brix_plat_fd_reopen_readonly — symbols whose bodies are in the archive the
-# linker has already walked past. The shared form needs none of this: the .so
-# folds the whole protocol archive in (see $(LIBBRIX_SO) above).
-libbrix.pc:
+# Libs.private is what `pkg-config --static` appends.  The two archives are
+# mutually dependent, hence the trailing -lbrix.  It must also carry every
+# optional library selected when the archives were built: those dependencies
+# are intentionally absent from the shared-library link surface, but their
+# symbols remain unresolved in libbrix.a/libxrdproto.a for a static consumer.
+# Export the discovered flags verbatim so non-system locations (notably Nix
+# store paths and Homebrew keg-only krb5) remain usable downstream.
+.PHONY: libbrix.pc
+libbrix.pc: Makefile
 	@printf '%s\n' \
 	  'prefix=$(PREFIX)' \
 	  'libdir=$(LIBDIR)' \
@@ -970,9 +1011,8 @@ libbrix.pc:
 	  'Name: libbrix' \
 	  'Description: Clean-room native XRootD root:// client library (libXrdCl-free)' \
 	  'Version: $(BRIX_VERSION)' \
-	  'Requires.private: libssl libcrypto zlib' \
 	  'Libs: -L$${libdir} -lbrix' \
-	  'Libs.private: -lxrdproto -lbrix' \
+	  'Libs.private: -lxrdproto -lbrix $(LDLIBS)' \
 	  'Cflags: -I$${includedir}/brix -I$${includedir}/brix/xrdproto' > $@
 
 # Install the lib, the public header, and the (self-contained) protocol headers it
@@ -1227,9 +1267,9 @@ clean:
 	    preload/*.o preload/*.d \
 	    $(BRIX_CVMFS_OBJS) $(BRIX_CVMFS_OBJS:.o=.d) \
 	    $(CLIENT_LIB) $(LIBBRIX_SO) $(LIBBRIX_SONAME) $(LIBBRIX_REAL) libbrix.pc \
-	    $(PRELOAD_SO)
+	    $(PRELOAD_SO) $(PROTO_LIB)
 	rm -f $(ALL_OBJS:.o=.gcno) $(ALL_OBJS:.o=.gcda) \
 	    $(BRIX_CVMFS_OBJS:.o=.gcno) $(BRIX_CVMFS_OBJS:.o=.gcda)
-	rm -rf $(BINDIR)
+	rm -rf $(BINDIR) $(PROTO_DIR)/build
 
 -include $(DEPS)

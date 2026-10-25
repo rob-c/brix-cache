@@ -27,9 +27,11 @@ import json, sys
 from XRootD import client
 from XRootD.client.flags import PrepareFlags
 url, path, noerrs, stage = sys.argv[1], sys.argv[2], sys.argv[3] == "1", sys.argv[4] == "1"
-flags = PrepareFlags.STAGE if stage else PrepareFlags(0)
+flags = int(PrepareFlags.STAGE) if stage else 0
 if noerrs:
-    flags |= PrepareFlags.NOERRS
+    # Some supported Python XRootD releases omit NOERRS even though the bit is
+    # part of the wire protocol.  Keep this value aligned with flags.h.
+    flags |= int(getattr(PrepareFlags, "NOERRS", 0x04))
 st, _ = client.FileSystem(url).prepare([path], flags)
 print(json.dumps({"ok": bool(st.ok), "errno": int(st.errno), "message": st.message or ""}))
 '''

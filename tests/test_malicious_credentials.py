@@ -75,7 +75,7 @@ def _port_up(port):
 
 
 _REQ_SKIP = pytest.mark.skipif(
-    not (_HAVE_REQUESTS and _port_up(NGINX_WEBDAV_GSI_TLS_PORT)),
+    "not (_HAVE_REQUESTS and _port_up(NGINX_WEBDAV_GSI_TLS_PORT))",
     reason="requests unavailable or https WebDAV (8444) not reachable")
 
 
@@ -304,7 +304,7 @@ class TestCrossProtocolCredentialConfusion:
         st, b = _get(headers={"Authorization": "Token deadbeef"})
         _assert_rejected_clean(st, b, "non-bearer-scheme")
 
-    @pytest.mark.skipif(not _port_up(NGINX_S3_PORT),
+    @pytest.mark.skipif("not _port_up(NGINX_S3_PORT)",
                         reason="S3 (9001) not reachable")
     def test_wlcg_bearer_not_honored_as_s3_auth(self, issuer):
         # A real WLCG token presented to the S3 endpoint must not crash the

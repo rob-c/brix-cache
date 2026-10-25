@@ -103,6 +103,32 @@ def test_invalid_value_or_arity_refused(tmp_path, line, slot, needle):
     _assert_refused(_render(tmp_path, **{slot: line}), line, needle)
 
 
+@pytest.mark.parametrize('directive,token', [
+    ('brix_ssi_cta_executor', 'test'), ('brix_ssi_cta_executor', 'prod'),
+    ('brix_backend_delegation', 'select'), ('brix_backend_delegation', 'passthrough'),
+    ('brix_backend_delegation', 'exchange'), ('brix_backend_delegation', 'delegate'),
+    ('brix_backend_delegation', 'mint'), ('brix_backend_delegation', 'auto'),
+    ('brix_backend_s3_sts_flavor', 'aws'), ('brix_backend_s3_sts_flavor', 'minio'),
+    ('brix_storage_credential_fallback', 'allow'), ('brix_storage_credential_fallback', 'deny'),
+])
+def test_stream_enum_owner_preserves_all_values(tmp_path, directive, token):
+    line = f'{directive} {token};'
+    _assert_accepted(_render(tmp_path, STREAM_KNOBS=line), line)
+
+
+@pytest.mark.parametrize('directive', ['brix_ssi_cta_executor', 'brix_backend_delegation',
+                                     'brix_backend_s3_sts_flavor', 'brix_storage_credential_fallback'])
+def test_stream_enum_owner_still_refuses_unknown_values(tmp_path, directive):
+    line = f'{directive} unknown-value;'
+    _assert_refused(_render(tmp_path, STREAM_KNOBS=line), line, 'invalid value')
+
+
+@pytest.mark.parametrize('line', ['brix_ssi_cta_executor test;', 'brix_backend_delegation select;',
+                                'brix_backend_s3_sts_flavor aws;', 'brix_storage_credential_fallback deny;'])
+def test_stream_enum_owner_cannot_broaden_configuration_scope(tmp_path, line):
+    _assert_refused(_render(tmp_path, STREAM_MAIN=line), line, *MISPLACED)
+
+
 def test_header2cgi_inherits_from_every_http_scope(tmp_path):
     """MAIN|SRV|LOC: the same line must parse at each of the three levels."""
     line = "brix_webdav_header2cgi X-Brix-Token authz;"
@@ -166,12 +192,17 @@ def _user_docs_text():
     return "\n".join(parts)
 
 
+def _documented_directive_names(text):
+    """Index whole directive tokens once, rather than rescan all docs per name."""
+    return set(re.findall(r"\bbrix_[A-Za-z0-9_]+\b", text))
+
+
 def test_every_registered_directive_is_documented_for_users():
     """The generated registry table proves a name exists; a user needs prose.
     Every registered directive must be mentioned in docs/ outside that table."""
     text = _user_docs_text()
-    missing = [n for n in _registered_names()
-               if not re.search(r"\b" + re.escape(n) + r"\b", text)]
+    documented = _documented_directive_names(text)
+    missing = [n for n in _registered_names() if n not in documented]
     assert not missing, f"{len(missing)} registered directive(s) with no user-facing prose: {missing}"
 
 

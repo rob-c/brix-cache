@@ -20,7 +20,10 @@ HOW:  The fork is one line — file_serve.c serves memory-backed when
       starting at offset 0 that fits within one block, and declines anything
       spanning blocks. So the same export serves a small object zero-copy and a
       multi-block one memory-backed, and a posix export of the identical bytes
-      is the always-sendfile control. Each case runs on a cleartext and a TLS
+      is the ordinary fd-backed control. FreeBSD ZFS's PAL veto changes the
+      transport to bounded copying without changing these byte/range assertions;
+      the same native matrix on UFS retains the normal sendfile path.
+      Each case runs on a cleartext and a TLS
       listener, which is the axis the invariant is actually about.
 
 Trio per CLAUDE.md:
@@ -62,7 +65,8 @@ BLOCK = 64 * 1024
 # SMALL fits inside block 0, so pblock lends its fd and the response is
 # zero-copy. BIG spans four blocks, so pblock declines and the same handler
 # serves it memory-backed. Both are served by posix through the sendfile path
-# regardless — that is the control.
+# as fd-backed objects — that is the control. A filesystem safety veto can
+# still require bounded transport buffering (notably native FreeBSD ZFS).
 SMALL_LEN = BLOCK // 4
 BIG_LEN = 4 * BLOCK + 777          # deliberately not a block multiple
 

@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-import re
-import shlex
 import subprocess
 import sys
 
 import pytest
+
+from lib_py.nginx_build import (
+    configured_compile_layout, configured_compiler_variables,
+    native_test_link_flags, native_test_sdk_flags,
+)
 
 
 pytestmark = pytest.mark.skipif(sys.platform != 'linux', reason='Linux PAL')
@@ -24,25 +27,31 @@ pytestmark = pytest.mark.skipif(sys.platform != 'linux', reason='Linux PAL')
 def native_compile(tmp_path_factory):
     """Compile production C against the current nginx SDK in a private folder."""
     root = Path(__file__).resolve().parents[1]
-    build = Path(os.environ.get('BRIX_NGINX_BUILD_DIR', root / 'build/alma9-merged')).resolve()
-    makefile = build / 'modules/Makefile'
-    if not makefile.is_file():
-        pytest.skip('Set BRIX_NGINX_BUILD_DIR to a configured nginx CMake build')
-    contents = makefile.read_text().replace('\\\n', ' ')
-    flags = {}
-    for key in ('CC', 'CFLAGS', 'ALL_INCS'):
-        match = re.search(r'^' + key + r'\s*=\s*(.*)$', contents, re.MULTILINE)
-        assert match, f'Missing {key} in {makefile}'
-        flags[key] = shlex.split(match.group(1))
+    layout = configured_compile_layout(root, os.environ)
+    if layout is None:
+        pytest.skip('Set BRIX_NGINX_BUILD_DIR or TEST_NGINX_SRC to a configured nginx build')
+    makefile, working_directory = layout
+    flags = configured_compiler_variables(makefile)
     output = tmp_path_factory.mktemp('linux-pal-native')
 
-    def compile_program(name, code, sources=(), extra=()):
+    def compile_program(name, code, sources=(), extra=(), include_dirs=()):
         """Link the real implementation and return its executable."""
         source = output / f'{name}.c'
         executable = output / name
         source.write_text(code)
-        command = flags['CC'] + flags['CFLAGS'] + flags['ALL_INCS']
-        command += ['-O0', '-fno-lto', '-Werror=implicit-function-declaration',
+        # Clang may predefine _FORTIFY_SOURCE (notably under ASan). Undefine
+        # that builtin before replaying the configured value, retaining both
+        # the build's hardening level and strict macro-redefinition checks.
+        command = flags['CC'] + ['-U_FORTIFY_SOURCE'] + flags['CFLAGS']
+        includes, extra = native_test_sdk_flags(extra)
+        command += includes
+        # Native client headers deliberately shadow the module PAL umbrella.
+        # Keep caller-selected include owners ahead of the module SDK paths.
+        command += ['-I' + str(path) for path in include_dirs] + flags['ALL_INCS']
+        # Nix's compiler wrapper enables fortification. Keep optimization so
+        # glibc can honor that contract instead of turning every unit into a
+        # -Werror=cpp failure; disabling LTO retains object-level interposition.
+        command += ['-O1', '-fno-lto', '-Werror=implicit-function-declaration',
                     '-Werror=int-conversion', str(source)]
         command += [str(root / path) for path in sources]
         # BRIX_LOG is header-only, so extracted production functions inherit
@@ -50,8 +59,8 @@ def native_compile(tmp_path_factory):
         # The weak inert definitions keep these object-level units standalone;
         # a unit that links nginx's formatter still resolves to the strong one.
         command.append(str(root / 'tests/c/brix_log_link_stubs.c'))
-        command += list(extra) + ['-o', str(executable)]
-        result = subprocess.run(command, cwd=build / 'nginx-src',
+        command += native_test_link_flags(extra, sys.platform) + ['-o', str(executable)]
+        result = subprocess.run(command, cwd=working_directory,
                                 capture_output=True, text=True, timeout=60)
         assert result.returncode == 0, result.stdout + result.stderr
         return executable

@@ -129,7 +129,11 @@ def _open(sock, path: bytes, flags=kXR_open_updt | kXR_delete, mode=0o644):
                              b"\x00\x02", kXR_open, mode, flags,
                              b"\x00\x00", b"\x00" * 6, b"\x00" * 4, len(path)) + path)
     status, body = _read_response(sock)
-    assert status == kXR_ok, f"kXR_open({path}, {flags:#x}) failed: {status}"
+    errcode = struct.unpack("!I", body[:4])[0] if len(body) >= 4 else None
+    message = body[4:].rstrip(b"\x00")
+    assert status == kXR_ok, (
+        f"kXR_open({path}, {flags:#x}) failed: status={status} "
+        f"errcode={errcode} message={message!r}")
     return body[:4]
 
 

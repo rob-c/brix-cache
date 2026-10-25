@@ -8,3 +8,11 @@ alg_section = fixture_algorithms
 
 [fixture_algorithms]
 rh-allow-sha1-signatures = yes
+
+# req needs a DN section even with -subj. No implicit extensions: 1.1.1
+# appends -addext instead of replacing defaults, producing duplicate OIDs.
+[req]
+distinguished_name = fixture_dn
+prompt = no
+
+[fixture_dn]

@@ -75,6 +75,9 @@ _ADDED_SINCE_MOVE = {
     # list of what "complete" means (certificates AND keys), read at call
     # time so a test may repoint the module's paths first.
     "_pki_material", "ensure_test_pki", "test_pki_complete",
+    # Explicit CA request configuration avoids duplicate CA extensions with
+    # OpenSSL 1.1.1; the canonical PKI portability tests execute the command.
+    "_ca_certificate_command",
 }
 
 # The destructive entry point was retained for callers that explicitly need a

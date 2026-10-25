@@ -176,29 +176,45 @@ def test_dump_gzip_variant(tar_ut, tmp_path):
     _write_corpus(ar, tarfile.GNU_FORMAT, mode="w:gz")
     _check_against_tarfile(tar_ut, ar)
 
+def _system_gnu_tar():
+    """Select a genuine GNU oracle, not macOS's BSD tar implementation."""
+    tar = shutil.which("gtar") or shutil.which("tar")
+    if tar is None:
+        pytest.skip("GNU tar is not installed")
+    version = subprocess.run([tar, "--version"], capture_output=True, text=True, check=True)
+    if "GNU tar" not in version.stdout:
+        pytest.skip("GNU tar is not installed (macOS: brew install gnu-tar)")
+    return tar
+
+
+def _regular_tar_peer(by_path):
+    """Directory order may choose either hardlink name as the regular entry."""
+    peers = (by_path[path] for path in ("sub/a.txt", "sub/h"))
+    return next(entry for entry in peers if entry["type"] == "REG")
+
+
+def _check_gnu_tar_entries(by_path):
+    """Validate content, symlink and hardlink independently of archive order."""
+    data_entry = _regular_tar_peer(by_path)
+    assert data_entry["crc"] == zlib.crc32(b"alpha")
+    assert by_path["sub/s"]["type"] == "SYM"
+    assert {by_path["sub/h"]["type"], by_path["sub/a.txt"]["type"]} == {"REG", "HLNK"}
+
+
 def test_system_gnu_tar_when_present(tar_ut, tmp_path):
-    if shutil.which("tar") is None:
-        pytest.skip("no system tar")
+    tar = _system_gnu_tar()
     tree = tmp_path / "tree"
     (tree / "sub").mkdir(parents=True)
     (tree / "sub" / "a.txt").write_bytes(b"alpha")
     os.symlink("a.txt", tree / "sub" / "s")
     os.link(tree / "sub" / "a.txt", tree / "sub" / "h")
     ar = tmp_path / "system.tar"
-    r = subprocess.run(["tar", "--format=gnu", "-C", str(tree),
+    r = subprocess.run([tar, "--format=gnu", "-C", str(tree),
                         "-cf", str(ar), "."], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     got = _entries(_dump(tar_ut, ar).stdout)
     by_path = {e["path"].lstrip("./"): e for e in got}
-    def _assert_test_system_gnu_tar_when_present_1():
-        data_entry = next(e for path, e in by_path.items()
-                          if path in {"sub/a.txt", "sub/h"} and e["type"] == "REG")
-        assert data_entry["crc"] == zlib.crc32(b"alpha")
-        assert by_path["sub/s"]["type"] == "SYM"
-
-    _assert_test_system_gnu_tar_when_present_1()
-    # tar stores whichever of h/a.txt it met second as the hardlink
-    assert {by_path["sub/h"]["type"], by_path["sub/a.txt"]["type"]} == {"REG", "HLNK"}
+    _check_gnu_tar_entries(by_path)
 
 
 # ---- error: malformed archives crafted here ------------------------------

@@ -14,6 +14,7 @@ import shutil
 import subprocess
 
 import pytest
+from brixtest.util.net import tcp_answering
 from gfal_cli import clean_env
 from settings import HOST, NGINX_ANON_PORT, NGINX_WEBDAV_PORT
 
@@ -56,8 +57,7 @@ def _gfal(*args, **kw):
 
 
 def _port_open(port):
-    return subprocess.run(
-        ["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode == 0
+    return tcp_answering(HOST, port)
 
 
 pytestmark = [

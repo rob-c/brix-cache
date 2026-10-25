@@ -315,6 +315,14 @@ ngx_brix_cms_disconnect(ngx_brix_cms_ctx_t *ctx)
     brix_cms_state_relay_drop_ctx(ctx);
 }
 
+/* ---- Complete the manager dial and publish its initial state ----
+ * WHAT: Send login/status/load or disconnect and schedule a bounded retry.
+ * WHY: Write readiness is one-shot, but disabling its filter must preserve
+ *      nginx's close-time cancellation of queued event changes.
+ * HOW: 1. Handle the deadline and disable readiness through nginx's API.
+ *      2. Send the initial frames, retaining existing failure accounting.
+ *      3. Arm manager silence detection and the next heartbeat.
+ */
 static void
 ngx_brix_cms_write_handler(ngx_event_t *ev)
 {
@@ -344,6 +352,20 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
 
     if (c->write->timer_set) {
         ngx_del_timer(c->write);
+    }
+
+    /* Connect readiness is one-shot work.  No send below retains pending
+     * output: partial writes disconnect.  Leaving this event armed makes a
+     * writable socket spin on kqueue and continually resets the heartbeat.
+     * Disable rather than delete: a refused dial may close immediately, and
+     * ngx_close_connection must cancel the still-queued filter change. */
+    if (ev->active
+        && ngx_del_event(ev, NGX_WRITE_EVENT, NGX_DISABLE_EVENT) != NGX_OK)
+    {
+        ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_ERROR);
+        ngx_brix_cms_disconnect(ctx);
+        ngx_brix_cms_schedule_retry(ctx);
+        return;
     }
 
     if (!ctx->logged_in) {
@@ -439,10 +461,11 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
                    "brix: CMS write handler: heartbeat sent");
 }
 
-/* ngx_brix_cms_connect — start a TCP connect to the CMS manager via
- * ngx_event_connect_peer, install the read/write handlers, and arm the connect
- * timeout (NGX_BRIX_CMS_CONNECT_TIMEOUT = 5s); called from the timer when
- * ctx->connection == NULL. */
+/* ---- Start one manager dial ----
+ * WHAT: Connect, arm readiness/deadlines, or account for failure and retry.
+ * WHY: Immediate and deferred refusals must share the quiet cold-start window.
+ * HOW: 1. Resolve the peer through its DNS target. 2. Dial with nginx's API.
+ *      3. Account/retry failures or install handlers and the connect timer. */
 
 static void
 ngx_brix_cms_connect(ngx_brix_cms_ctx_t *ctx)
@@ -470,14 +493,18 @@ ngx_brix_cms_connect(ngx_brix_cms_ctx_t *ctx)
 
     rc = ngx_event_connect_peer(&ctx->peer);
     if (rc == NGX_ERROR || rc == NGX_DECLINED || ctx->peer.connection == NULL) {
-        BRIX_DIAG_WARN(ctx->cycle->log, 0,
-            "xrootd[cms]: cannot reach cluster manager %V",
-            "the cmsd is down, the address/port is wrong, or a firewall "
-            "blocks the connection",
-            "confirm cmsd is listening and that brix_cms_manager matches "
-            "its host:port; this node will keep retrying and stays OUT of the "
-            "cluster until it connects",
-            &ctx->mgr_name);
+        /* The retry owner reports an expired cold-start window, regardless
+         * of whether this kernel refused connect now or at readiness. */
+        if (ctx->ever_logged_in || ctx->fast_window == 0) {
+            BRIX_DIAG_WARN(ctx->cycle->log, 0,
+                "xrootd[cms]: cannot reach cluster manager %V",
+                "the cmsd is down, the address/port is wrong, or a firewall "
+                "blocks the connection",
+                "confirm cmsd is listening and that brix_cms_manager matches "
+                "its host:port; this node will keep retrying and stays OUT of the "
+                "cluster until it connects",
+                &ctx->mgr_name);
+        }
         BRIX_RESIL_METRIC_INC(cms_connect_failures_total);
         brix_dns_target_note_failure(ctx->mgr_dns);   /* re-resolve early */
         ngx_brix_cms_schedule_retry(ctx);

@@ -13,10 +13,10 @@ import sys
 
 import pytest
 
-from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS, platform_host_name
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HOST = {"linux": "linux", "darwin": "darwin"}.get(sys.platform)
+HOST = platform_host_name() if os.name == "posix" else None
 PROGRAM = r'''
 #include <errno.h>
 #include <fcntl.h>

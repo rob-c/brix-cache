@@ -415,5 +415,5 @@ xrdhttp_handle_multipart_get(ngx_http_request_t *r,
         return rc;
     }
 
-    return ngx_http_output_filter(r, head);
+    return brix_http_output_file_chain(r, head);
 }

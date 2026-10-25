@@ -414,6 +414,69 @@ brix_mfile_sync(brix_mfile *mf, brix_status *st)
                          mf->max_stall_ms, st);
 }
 
+/* WHAT: Stat one current file handle. WHY: Path stat can name a different inode
+ * after rename/unlink and cannot see a staged write. HOW: 1. Encode handle-only
+ * stat with the shared codec. 2. Call on its owning connection. 3. Decode once. */
+static int
+mfile_stat_once(brix_mfile *mf, const uint8_t fh[XRD_FHANDLE_LEN],
+                 brix_statinfo *out, brix_status *st)
+{
+    ClientStatRequest request;
+    memset(&request, 0, sizeof(request));
+    request.requestid = htons(kXR_stat);
+    xrdw_stat_req_t fields = {0};
+    memcpy(fields.fhandle, fh, XRD_FHANDLE_LEN);
+    xrdw_stat_req_pack(&fields, ((ClientRequestHdr *) &request)->body);
+    uint16_t status = 0;
+    uint8_t *body = NULL;
+    uint32_t length = 0;
+    brix_aio_opts options = {mf->max_stall_ms, 0, 0, NULL, 0};
+    if (brix_aio_call_ex(mf->ac, &request, NULL, 0, &options,
+                          &status, &body, &length, st) != 0) {
+        return -1;
+    }
+    char line[1024];
+    if (!length || length >= sizeof(line)) {
+        free(body);
+        brix_status_set(st, XRDC_EPROTO, 0, "invalid handle stat reply length");
+        return -1;
+    }
+    memcpy(line, body, length);
+    line[length] = '\0';
+    free(body);
+    if (brix_statinfo_parse(line, out) != 0) {
+        brix_status_set(st, XRDC_EPROTO, 0, "invalid handle stat reply");
+        return -1;
+    }
+    return 0;
+}
+
+/* WHAT: Stat a live async handle with bounded reconnect recovery.
+ * WHY: FUSE fstat must observe remote writes, not frozen open-time metadata.
+ * HOW: 1. Snapshot handle/generation. 2. Stat. 3. Recover transport faults using
+ * the existing reopen contract and patience window; preserve permanent errors. */
+int
+brix_mfile_stat(brix_mfile *mf, brix_statinfo *out, brix_status *st)
+{
+    uint64_t deadline = now_ns() + (uint64_t) mf->max_stall_ms * 1000000ULL;
+    unsigned attempt = 0;
+    for (;;) {
+        uint8_t handle[XRD_FHANDLE_LEN];
+        uint64_t generation;
+        int have_handle = mfile_snapshot(mf, handle, &generation, NULL, NULL);
+        if (have_handle && mfile_stat_once(mf, handle, out, st) == 0) {
+            return 0;
+        }
+        if ((have_handle && !mfile_should_reopen(st)) || now_ns() >= deadline) {
+            return -1;
+        }
+        brix_backoff_sleep_fast(attempt++);
+        if (mfile_reopen(mf, generation, st) != 0 && !mfile_should_reopen(st)) {
+            return -1;
+        }
+    }
+}
+
 int
 brix_mfile_close(brix_mfile *mf, brix_status *st)
 {

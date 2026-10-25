@@ -86,6 +86,8 @@ class TestPut:
         name    = f"{_PFX}put_disk.txt"
         content = b"disk verification content\n" * 100
         dst     = _data_path(name)
+        if os.path.exists(dst):
+            os.unlink(dst)
         try:
             code = _put(f"/{name}", content)
             assert code in (200, 201)
@@ -99,6 +101,8 @@ class TestPut:
         name    = f"{_PFX}put_binary.bin"
         content = bytes(range(256)) * 256  # 64 KiB, all byte values
         dst     = _data_path(name)
+        if os.path.exists(dst):
+            os.unlink(dst)
         try:
             code = _put(f"/{name}", content)
             assert code in (200, 201)
@@ -114,6 +118,8 @@ class TestPut:
         name    = f"{_PFX}put_large.bin"
         content = os.urandom(2 * 1024 * 1024)
         dst     = _data_path(name)
+        if os.path.exists(dst):
+            os.unlink(dst)
         try:
             code = _put(f"/{name}", content)
             assert code in (200, 201)

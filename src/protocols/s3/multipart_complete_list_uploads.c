@@ -120,7 +120,8 @@ mpu_upload_entry_cmp(const void *a, const void *b)
  * WHY:  Isolating the marker-parse + bounds-check + record step keeps the
  *       directory loop in mpu_collect() flat and drops its complexity below the
  *       CCN cap while preserving identical accept/reject behavior.
- * HOW:  The caller guarantees `dname[0] == '.'` and the marker is present.
+ * HOW:  The caller supplies a hidden directory entry. Independently reject a
+ *       missing marker or full sink before deriving the segment or record.
  *       Empty segment, empty uid, oversized key, or oversized uid → skip.
  *       On accept, key and upload_id are copied and the probed mtime stored.
  */
@@ -129,12 +130,17 @@ mpu_record_staging(mpu_scan_t *scan, const char *dname, const char *key_prefix,
                    time_t mtime)
 {
     const char         *mpu_marker = strstr(dname + 1, ".mpu-");
-    size_t              seg_len     = (size_t) (mpu_marker - (dname + 1));
-    const char         *uid         = mpu_marker + 5;   /* skip ".mpu-" */
+    size_t              seg_len;
+    const char         *uid;
     mpu_upload_entry_t *e;
     char                keybuf[NAME_MAX + 1];
     int                 kl;
 
+    if (mpu_marker == NULL || scan->n >= scan->max) {
+        return;
+    }
+    seg_len = (size_t) (mpu_marker - (dname + 1));
+    uid = mpu_marker + 5;   /* skip ".mpu-" */
     if (seg_len == 0 || uid[0] == '\0') {
         return;
     }

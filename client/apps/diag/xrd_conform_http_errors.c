@@ -1,30 +1,8 @@
 /* Phase-118 HTTP error mapping and request-confusion probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "core/compat/host_format.h"
 
-/* WHAT: Return whether a selected row is available for grading.
- * WHY: Family filters must prevent unrelated network operations.
- * HOW: Accept any non-skipped result with the requested id. */
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
 
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
-
-/* WHAT: Store a boolean HTTP error-probe verdict.
- * WHY: All rows need the same explicit success/failure vocabulary.
- * HOW: Map the predicate to conformant or divergent. */
-static void
-grade(xrd_conform_execution *execution, const char *id, int pass,
-    const char *success, const char *failure, const char *received)
-{
-    xrd_conform_result_set(execution, id,
-        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
-             : BRIX_CONFORM_VERDICT_DIVERGENT,
-        pass ? success : failure, NULL, received);
-}
 
 /* WHAT: Clone a parsed URL with one exact request-target string.
  * WHY: Host and TLS policy must stay constant across target-form comparisons.
@@ -70,7 +48,7 @@ probe_missing_error(xrd_conform_execution *execution, const brix_weburl *url,
     int rc;
     int pass;
 
-    if (!row_active(execution, "HTE-002")) return;
+    if (!xrd_conform_row_active(execution, "HTE-002")) return;
     if ((size_t) snprintf(path, sizeof(path), "%s.brix-conform-missing",
             url->path) >= sizeof(path) || with_path(url, path, &missing) != 0) {
         xrd_conform_result_set(execution, "HTE-002",
@@ -83,7 +61,7 @@ probe_missing_error(xrd_conform_execution *execution, const brix_weburl *url,
         NULL, 4096, &response, &status);
     pass = rc == 0 && response.status == 404
         && error_body_safe(&response, token);
-    grade(execution, "HTE-002", pass, "error-body-disclosure-scan-clean",
+    xrd_conform_grade_received(execution, "HTE-002", pass, "error-body-disclosure-scan-clean",
         "error-body-leaked-sensitive-material",
         rc == 0 ? response.reason : status.msg);
     if (rc == 0) brix_http_resp_free(&response);
@@ -104,7 +82,7 @@ probe_path_injection(xrd_conform_execution *execution,
     int rc;
     int pass;
 
-    if (!row_active(execution, "HTE-004")) return;
+    if (!xrd_conform_row_active(execution, "HTE-004")) return;
     if ((size_t) snprintf(path, sizeof(path), "%s%%0d%%0aX-Brix:injected",
             url->path) >= sizeof(path) || with_path(url, path, &hostile) != 0) {
         xrd_conform_result_set(execution, "HTE-004",
@@ -119,7 +97,7 @@ probe_path_injection(xrd_conform_execution *execution,
         && !brix_http_header(&response, "X-Brix", injected, sizeof(injected))
         && (response.body == NULL
             || strstr(response.body, "HTTP/1.1 ") == NULL);
-    grade(execution, "HTE-004", pass, "encoded-crlf-rejected",
+    xrd_conform_grade_received(execution, "HTE-004", pass, "encoded-crlf-rejected",
         "encoded-crlf-was-reflected-or-served",
         rc == 0 ? response.reason : status.msg);
     if (rc == 0) brix_http_resp_free(&response);
@@ -156,12 +134,12 @@ probe_request_smuggling(xrd_conform_execution *execution,
     int duplicate;
     int conflict;
 
-    if (!row_active(execution, "HTE-006")) return;
+    if (!xrd_conform_row_active(execution, "HTE-006")) return;
     duplicate = ambiguous_request_rejected(execution, url, token,
         "Content-Length: 1\r\nContent-Length: 2\r\n");
     conflict = ambiguous_request_rejected(execution, url, token,
         "Content-Length: 1\r\nTransfer-Encoding: chunked\r\n");
-    grade(execution, "HTE-006", duplicate && conflict,
+    xrd_conform_grade_received(execution, "HTE-006", duplicate && conflict,
         "ambiguous-request-framing-rejected",
         "ambiguous-request-framing-accepted", NULL);
 }
@@ -181,7 +159,7 @@ probe_absolute_form(xrd_conform_execution *execution, const brix_weburl *url,
     int rc;
     int pass;
 
-    if (!row_active(execution, "HTE-007")) return;
+    if (!xrd_conform_row_active(execution, "HTE-007")) return;
     brix_format_host_port(url->host, (uint16_t) url->port, authority,
         sizeof(authority));
     if ((size_t) snprintf(target, sizeof(target), "%s://%s%s",
@@ -199,7 +177,7 @@ probe_absolute_form(xrd_conform_execution *execution, const brix_weburl *url,
     pass = rc == 0 && response.status == 200
         && response.body_len == baseline->body_len
         && memcmp(response.body, baseline->body, baseline->body_len) == 0;
-    grade(execution, "HTE-007", pass, "absolute-and-origin-form-identical",
+    xrd_conform_grade_received(execution, "HTE-007", pass, "absolute-and-origin-form-identical",
         "absolute-form-diverged", rc == 0 ? response.reason : status.msg);
     if (rc == 0) brix_http_resp_free(&response);
 }
@@ -216,7 +194,7 @@ probe_traversal(xrd_conform_execution *execution, const brix_weburl *url,
     int statuses[2] = { 0, 0 };
     size_t index;
 
-    if (!row_active(execution, "HTE-008")) return;
+    if (!xrd_conform_row_active(execution, "HTE-008")) return;
     for (index = 0; index < 2; index++) {
         brix_weburl hostile;
         brix_http_resp response;
@@ -231,7 +209,7 @@ probe_traversal(xrd_conform_execution *execution, const brix_weburl *url,
             brix_http_resp_free(&response);
         }
     }
-    grade(execution, "HTE-008", statuses[0] >= 400 && statuses[0] < 500
+    xrd_conform_grade_received(execution, "HTE-008", statuses[0] >= 400 && statuses[0] < 500
         && statuses[0] == statuses[1], "traversal-encodings-equally-rejected",
         "traversal-encoding-policy-diverged", NULL);
 }
@@ -247,7 +225,7 @@ probe_request_line_limit(xrd_conform_execution *execution,
     unsigned delta;
     int pass = 1;
 
-    if (!row_active(execution, "HTE-005")) return;
+    if (!xrd_conform_row_active(execution, "HTE-005")) return;
     if (limit == 0) {
         xrd_conform_result_set(execution, "HTE-005",
             BRIX_CONFORM_VERDICT_SKIPPED,
@@ -281,7 +259,7 @@ probe_request_line_limit(xrd_conform_execution *execution,
         if (rc == 0) brix_http_resp_free(&response);
         free(target);
     }
-    grade(execution, "HTE-005", pass, "request-line-boundary-rejected",
+    xrd_conform_grade_received(execution, "HTE-005", pass, "request-line-boundary-rejected",
         "request-line-boundary-not-414", "HTTP 414 at limit and limit+1");
 }
 

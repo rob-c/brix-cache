@@ -26,6 +26,11 @@ def test_tier_remote_scenarios_are_importable():
     }
 
 
+def test_tier_remote_owns_one_unique_port_per_listener():
+    assert len(tier_remote._PORTS) == 14
+    assert len(set(tier_remote._PORTS)) == 14
+
+
 @pytest.mark.optin
 @pytest.mark.timeout(600)
 @pytest.mark.parametrize("scenario", sorted(tier_remote.SCENARIOS))

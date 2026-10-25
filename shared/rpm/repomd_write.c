@@ -338,7 +338,31 @@ static int write_staged(const char *dir, const char *name, const void *data,
     return 0;
 }
 
-/* Emit one document: gz → checksum name → staged write → repomd section. */
+/* ---- Render a complete metadata document ----
+ * WHAT: Append its XML envelope and body, returning 0 or -1 on allocation failure.
+ * WHY: XML rendering is independent of compression and publication ownership.
+ * HOW: 1. Emit the namespace envelope. 2. Append body and closing element.
+ */
+static int render_doc(sbuf_t *doc, const char *kind, const char *ns,
+                       const char *root, const sbuf_t *body, uint32_t npkgs) {
+    if (sb_put(doc, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                     "<%s xmlns=\"http://linux.duke.edu/metadata/%s\"", root,
+               ns) != 0 ||
+        (strcmp(kind, "primary") == 0 &&
+         sb_put(doc, " xmlns:rpm=\"http://linux.duke.edu/metadata/rpm\"")
+             != 0) ||
+        sb_put(doc, " packages=\"%u\">\n", npkgs) != 0 ||
+        sb_put(doc, "%s", body->p != NULL ? body->p : "") != 0 ||
+        sb_put(doc, "</%s>\n", root) != 0)
+        return -1;
+    return 0;
+}
+
+/* ---- Publish one checksummed metadata document ----
+ * WHAT: Return 0 after staged publication and index entry emission, else -1.
+ * WHY: The index must only reference complete, checksum-named documents.
+ * HOW: 1. Render XML. 2. Hash and gzip. 3. Publish, emit entry, release buffers.
+ */
 static int emit_doc(const char *rd, const char *kind, const char *ns,
                     const char *root, sbuf_t *body, uint32_t npkgs,
                     int64_t now, sbuf_t *sections, char *err, size_t errlen) {
@@ -346,18 +370,10 @@ static int emit_doc(const char *rd, const char *kind, const char *ns,
     sbuf_t            doc = {0};
     unsigned char    *gz = NULL;
     size_t            gzlen = 0;
-    char              name[128];
+    char              name[sizeof(gz_d.hex) + sizeof("-filelists.xml.gz")];
     int               rc = -1;
 
-    if (sb_put(&doc, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                     "<%s xmlns=\"http://linux.duke.edu/metadata/%s\"", root,
-               ns) != 0 ||
-        (strcmp(kind, "primary") == 0 &&
-         sb_put(&doc, " xmlns:rpm=\"http://linux.duke.edu/metadata/rpm\"")
-             != 0) ||
-        sb_put(&doc, " packages=\"%u\">\n", npkgs) != 0 ||
-        sb_put(&doc, "%s", body->p != NULL ? body->p : "") != 0 ||
-        sb_put(&doc, "</%s>\n", root) != 0) {
+    if (render_doc(&doc, kind, ns, root, body, npkgs) != 0) {
         rm_fail(err, errlen, "out of memory");
         free(doc.p);
         return -1;
@@ -368,8 +384,11 @@ static int emit_doc(const char *rd, const char *kind, const char *ns,
         brix_oci_sha256(gz, gzlen, &gz_d) != 0)
         rm_fail(err, errlen, "gzip/sha256 failure for %s", kind);
     else {
-        snprintf(name, sizeof(name), "%s-%s.xml.gz", gz_d.hex, kind);
-        if (write_staged(rd, name, gz, gzlen, err, errlen) == 0)
+        int formatted = snprintf(name, sizeof(name), "%s-%s.xml.gz", gz_d.hex, kind);
+
+        if (formatted < 0 || (size_t) formatted >= sizeof(name)) {
+            rm_fail(err, errlen, "metadata filename is too long");
+        } else if (write_staged(rd, name, gz, gzlen, err, errlen) == 0)
             rc = sb_put(sections,
                         "  <data type=\"%s\">\n"
                         "    <checksum type=\"sha256\">%s</checksum>\n"

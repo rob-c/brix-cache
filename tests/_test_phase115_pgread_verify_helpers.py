@@ -110,6 +110,22 @@ def crc32c(data: bytes) -> int:
     return crc ^ 0xFFFFFFFF
 
 
+def _page_checksum(data: bytes, checksums: dict[bytes, int]) -> int:
+    """Reuse exact page bytes only, with at most 64 entries in this response.
+
+    Keep the independent software oracle, but do not spend the assessor's wall
+    budget recomputing the same pattern thousands of times. Entries never
+    survive pack_pages(), and corruption is injected after this clean value.
+    """
+    checksum = checksums.get(data)
+    if checksum is not None:
+        return checksum
+    checksum = crc32c(data)
+    if len(checksums) < 64:
+        checksums[data] = checksum
+    return checksum
+
+
 def pack_pages(data: bytes, file_offset: int, corrupt_page: int = -1) -> bytes:
     """Page units for `data`: [CRC32c big-endian 4][data <= 4096], aligned to
     the FILE offset — the first unit is short when file_offset is not page
@@ -119,10 +135,11 @@ def pack_pages(data: bytes, file_offset: int, corrupt_page: int = -1) -> bytes:
     pos = 0
     idx = 0
     off = file_offset
+    checksums = {}
     while pos < len(data):
         take = kXR_pgPageSZ - (off % kXR_pgPageSZ)
         chunk = data[pos:pos + take]
-        crc = crc32c(chunk)
+        crc = _page_checksum(chunk, checksums)
         if idx == corrupt_page:
             crc ^= 0xDEADBEEF
         out += struct.pack("!I", crc & 0xFFFFFFFF) + chunk
@@ -273,8 +290,15 @@ class PgOrigin(PgOriginReadMixin, PgOriginDispatchMixin,
                 continue
             except OSError:
                 return
-            threading.Thread(target=self._serve, args=(conn,),
-                             daemon=True).start()
+            self._start_connection(conn)
+
+    def _start_connection(self, conn):
+        """Bind fault-injection order to accept(), never worker scheduling."""
+        with self._lock:
+            index = self.connections
+            self.connections += 1
+        threading.Thread(target=self._serve_accepted, args=(conn, index),
+                         daemon=True).start()
 
     @staticmethod
     def _exact(conn, n):

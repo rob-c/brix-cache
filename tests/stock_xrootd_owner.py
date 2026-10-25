@@ -6,6 +6,29 @@ import signal
 import subprocess
 import tempfile
 
+from lib_py.util import find_xrd_sec_lib
+
+
+def _stock_security_layout(protocol):
+    """Pair the reference security library with a plugin of its own ABI."""
+    security = find_xrd_sec_lib()
+    if security is None:
+        return None
+    plugin = security.with_name(security.name.replace("libXrdSec", "libXrdSec" + protocol, 1))
+    if not plugin.is_file():
+        return None
+    return security, plugin.parent
+
+
+def stock_gsi_layout():
+    """Select the reference server's installed GSI framework/plugin pair."""
+    return _stock_security_layout("gsi")
+
+
+def stock_krb5_layout():
+    """Select the reference server's installed Kerberos framework/plugin pair."""
+    return _stock_security_layout("krb5")
+
 
 def _kill_proc(p):
     """Terminate p and its whole process group (servers fork children — nginx

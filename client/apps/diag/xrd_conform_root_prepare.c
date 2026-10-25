@@ -1,38 +1,8 @@
 /* Phase-118 scratch-safe kXR_prepare and kXR_QPrep probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
 
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
-static int
-reserve_request(xrd_conform_execution *execution, brix_status *status)
-{
-    char reason[64];
-
-    if (xrd_conform_reserve(execution, 0, reason, sizeof(reason))) return 1;
-    brix_status_set(status, XRDC_EUSAGE, 0, "%s", reason);
-    return 0;
-}
-
-static void
-grade(xrd_conform_execution *execution, const char *id, int pass,
-    const char *success, const char *failure, const brix_status *status)
-{
-    char received[192];
-
-    snprintf(received, sizeof(received), "kxr=%d %.150s",
-        status == NULL ? 0 : status->kxr,
-        status == NULL ? "" : status->msg);
-    xrd_conform_result_set(execution, id,
-        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
-             : BRIX_CONFORM_VERDICT_DIVERGENT,
-        pass ? success : failure, NULL, received);
-}
 
 static void
 trim_request_id(char *request_id)
@@ -75,11 +45,11 @@ request_id_is_session_scoped(xrd_conform_execution *execution,
     int safe = 0;
 
     options.capture = NULL;
-    if (!reserve_request(execution, status)
+    if (!xrd_conform_reserve_zero_status(execution, status)
         || brix_endpoint_parse(execution->target, &url, status) != 0
         || brix_connect(&auxiliary, &url, &options, status) != 0)
         return 0;
-    if (reserve_request(execution, status)) {
+    if (xrd_conform_reserve_zero_status(execution, status)) {
         brix_status_clear(status);
         safe = brix_query(&auxiliary, kXR_QPrep, request_id, reply,
                 sizeof(reply), status) != 0 || strstr(reply, path) == NULL;
@@ -108,16 +78,16 @@ cancel_is_non_enumerating(xrd_conform_execution *execution,
     int absent_rc;
 
     options.capture = NULL;
-    if (!reserve_request(execution, status)
+    if (!xrd_conform_reserve_zero_status(execution, status)
         || brix_endpoint_parse(execution->target, &url, status) != 0
         || brix_connect(&auxiliary, &url, &options, status) != 0)
         return 0;
     brix_status_clear(&real_status);
-    real_rc = reserve_request(execution, &real_status)
+    real_rc = xrd_conform_reserve_zero_status(execution, &real_status)
         ? brix_prepare(&auxiliary, real, 1, kXR_cancel, 0, 0,
             reply, sizeof(reply), &real_status) : -1;
     brix_status_clear(&absent_status);
-    absent_rc = reserve_request(execution, &absent_status)
+    absent_rc = xrd_conform_reserve_zero_status(execution, &absent_status)
         ? brix_prepare(&auxiliary, absent, 1, kXR_cancel, 0, 0,
             reply, sizeof(reply), &absent_status) : -1;
     brix_close(&auxiliary);
@@ -139,14 +109,53 @@ cancel_twice(xrd_conform_execution *execution, brix_conn *connection,
     int second_ok;
 
     brix_status_clear(status);
-    first_ok = reserve_request(execution, status)
+    first_ok = xrd_conform_reserve_zero_status(execution, status)
         && brix_prepare(connection, paths, 1, kXR_cancel, 0, 0,
             reply, sizeof(reply), status) == 0;
     brix_status_clear(status);
-    second_ok = reserve_request(execution, status)
+    second_ok = xrd_conform_reserve_zero_status(execution, status)
         && brix_prepare(connection, paths, 1, kXR_cancel, 0, 0,
             reply, sizeof(reply), status) == 0;
     return first_ok && second_ok;
+}
+
+static void
+grade_qprep(xrd_conform_execution *execution, brix_conn *connection,
+    const char *request_id, const char *path, brix_status *status)
+{
+    char reply[2048] = "";
+    int query_ok = 0;
+    int session_scoped;
+
+    if (!xrd_conform_row_active(execution, "QRY-011")) return;
+    if (xrd_conform_reserve_zero_status(execution, status)) {
+        brix_status_clear(status);
+        query_ok = brix_query(connection, kXR_QPrep, request_id, reply,
+                sizeof(reply), status) == 0
+            && qprep_status_valid(reply, path);
+    }
+    session_scoped = request_id_is_session_scoped(execution, request_id,
+        path, status);
+    xrd_conform_grade_wire_status(execution, "QRY-011", query_ok && session_scoped,
+        "qprep-status-agreed-and-session-scoped",
+        query_ok ? "qprep-request-id-cross-session-visible"
+                 : "qprep-status-disagreed-with-prepare", status);
+}
+
+static void
+grade_prepare_cancel(xrd_conform_execution *execution,
+    brix_conn *connection, const char *request_id, brix_status *status)
+{
+    int cancel_ok;
+    int cancel_scoped;
+
+    if (!xrd_conform_row_active(execution, "PRP-002")) return;
+    cancel_ok = cancel_twice(execution, connection, request_id, status);
+    cancel_scoped = cancel_is_non_enumerating(execution, request_id, status);
+    xrd_conform_grade_wire_status(execution, "PRP-002", cancel_ok && cancel_scoped,
+        "cancel-accepted-idempotent-and-non-enumerating",
+        cancel_ok ? "cancel-discloses-foreign-request-existence"
+                  : "cancel-not-idempotent", status);
 }
 
 static void
@@ -155,50 +164,23 @@ probe_live_prepare(xrd_conform_execution *execution, brix_conn *connection,
 {
     const char *paths[] = { path };
     char request_id[256] = "";
-    char reply[2048] = "";
     brix_status status;
     int prepare_ok;
-    int query_ok = 0;
-    int session_scoped = 0;
-    int cancel_ok;
-    int cancel_scoped;
 
-    if (!row_active(execution, "PRP-001")
-        && !row_active(execution, "PRP-002")
-        && !row_active(execution, "QRY-011")) return;
+    if (!xrd_conform_row_active(execution, "PRP-001")
+        && !xrd_conform_row_active(execution, "PRP-002")
+        && !xrd_conform_row_active(execution, "QRY-011")) return;
     brix_status_clear(&status);
-    prepare_ok = reserve_request(execution, &status)
+    prepare_ok = xrd_conform_reserve_zero_status(execution, &status)
         && brix_prepare(connection, paths, 1, kXR_stage, 0, 0,
             request_id, sizeof(request_id), &status) == 0;
     trim_request_id(request_id);
-    if (row_active(execution, "PRP-001"))
-        grade(execution, "PRP-001", prepare_ok && request_id[0] != '\0',
+    if (xrd_conform_row_active(execution, "PRP-001"))
+        xrd_conform_grade_wire_status(execution, "PRP-001", prepare_ok && request_id[0] != '\0',
             "prepare-returned-request-id", "prepare-id-missing", &status);
     if (!prepare_ok || request_id[0] == '\0') return;
-    if (row_active(execution, "QRY-011")
-        && reserve_request(execution, &status)) {
-        brix_status_clear(&status);
-        query_ok = brix_query(connection, kXR_QPrep, request_id, reply,
-                sizeof(reply), &status) == 0
-            && qprep_status_valid(reply, path);
-    }
-    if (row_active(execution, "QRY-011")) {
-        session_scoped = request_id_is_session_scoped(execution, request_id,
-            path, &status);
-        grade(execution, "QRY-011", query_ok && session_scoped,
-            "qprep-status-agreed-and-session-scoped",
-            query_ok ? "qprep-request-id-cross-session-visible"
-                     : "qprep-status-disagreed-with-prepare",
-            &status);
-    }
-    if (!row_active(execution, "PRP-002")) return;
-    cancel_ok = cancel_twice(execution, connection, request_id, &status);
-    cancel_scoped = cancel_is_non_enumerating(execution, request_id, &status);
-    grade(execution, "PRP-002", cancel_ok && cancel_scoped,
-        "cancel-accepted-idempotent-and-non-enumerating",
-        cancel_ok ? "cancel-discloses-foreign-request-existence"
-                  : "cancel-not-idempotent",
-        &status);
+    grade_qprep(execution, connection, request_id, path, &status);
+    grade_prepare_cancel(execution, connection, request_id, &status);
 }
 
 static void
@@ -211,14 +193,14 @@ probe_missing_prepare(xrd_conform_execution *execution, brix_conn *connection,
     brix_status status;
     int rc;
 
-    if (!row_active(execution, "PRP-005")
+    if (!xrd_conform_row_active(execution, "PRP-005")
         || (size_t) snprintf(missing, sizeof(missing), "%s.__prepare_missing__",
             path) >= sizeof(missing)) return;
     brix_status_clear(&status);
-    rc = reserve_request(execution, &status)
+    rc = xrd_conform_reserve_zero_status(execution, &status)
         ? brix_prepare(connection, paths, 1, kXR_stage, 0, 0, reply,
             sizeof(reply), &status) : -1;
-    grade(execution, "PRP-005", rc != 0,
+    xrd_conform_grade_wire_status(execution, "PRP-005", rc != 0,
         "missing-prepare-refused-at-request-time",
         "missing-prepare-silently-accepted", &status);
 }
@@ -239,18 +221,18 @@ probe_unreachable_notify(xrd_conform_execution *execution,
     int prepare_ok;
     int stat_ok = 0;
 
-    if (!row_active(execution, "PRP-006")) return;
+    if (!xrd_conform_row_active(execution, "PRP-006")) return;
     brix_status_clear(&status);
-    prepare_ok = reserve_request(execution, &status)
+    prepare_ok = xrd_conform_reserve_zero_status(execution, &status)
         && brix_prepare_port(connection, paths, 1,
             kXR_stage | kXR_notify | kXR_usetcp, 0, 0, 1,
             reply, sizeof(reply), &status) == 0;
     memset(&info, 0, sizeof(info));
-    if (prepare_ok && reserve_request(execution, &status)) {
+    if (prepare_ok && xrd_conform_reserve_zero_status(execution, &status)) {
         brix_status_clear(&status);
         stat_ok = brix_stat(connection, path, &info, &status) == 0;
     }
-    grade(execution, "PRP-006", prepare_ok && stat_ok,
+    xrd_conform_grade_wire_status(execution, "PRP-006", prepare_ok && stat_ok,
         "unreachable-notify-completed-and-session-reusable",
         prepare_ok ? "notify-poisoned-session" : "notify-request-did-not-complete",
         &status);

@@ -34,6 +34,7 @@
 
 #include <ngx_config.h>
 #include <ngx_core.h>
+#include "platform/platform_api.h"
 #include "fs/backend/remote/sd_remote.h"
 #include "fs/backend/sd_cred_types.h"    /* brix_sd_cred_t */
 #include "core/compat/crypto.h"          /* brix_crypto_init: SigV4 sign path */
@@ -203,6 +204,10 @@ static void
 fake_resp_free(brix_s3_resp_t *resp)
 {
     (void) resp;
+    /* Real transports are allowed to touch errno while releasing sockets and
+     * response storage.  Deliberately clobber it so the driver test proves the
+     * HTTP-status errno survives cleanup. */
+    errno = EAGAIN;
 }
 
 static const brix_s3_transport_t g_fake_transport = {
@@ -303,7 +308,7 @@ test_getxattr_cred_signs_as_user(void)
     assert(strcmp(g_last_ak, SERVICE_AK) == 0);
 
     reset_capture();
-    n = inst->driver->getxattr(inst, "/a.txt", "user.owner", buf, sizeof(buf));
+    n = (inst->driver->getxattr)(inst, "/a.txt", "user.owner", buf, sizeof(buf));
     assert(n == 5 && memcmp(buf, "alice", 5) == 0);
     assert(strcmp(g_last_ak, SERVICE_AK) == 0);
 
@@ -395,7 +400,7 @@ test_error_contract(void)
     reset_capture();
     n = inst->driver->getxattr_cred(inst, "/nope.txt", "user.colour",
                                     buf, sizeof(buf), &cred);
-    assert(n == -1);
+    assert(n == -1 && errno == ENOENT);
     assert(g_requests == 1);
     assert(strcmp(g_last_ak, USER_AK) == 0);
 
@@ -495,7 +500,7 @@ test_cred_deny_refuses_reads(void)
     /* The deny gate is scoped to the credential path: the plain slot still
      * serves the export's own service identity. */
     reset_capture();
-    n = inst->driver->getxattr(inst, "/a.txt", "user.colour", buf, sizeof(buf));
+    n = (inst->driver->getxattr)(inst, "/a.txt", "user.colour", buf, sizeof(buf));
     assert(n == 5);
     assert(strcmp(g_last_ak, SERVICE_AK) == 0);
 

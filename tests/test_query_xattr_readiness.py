@@ -17,7 +17,8 @@ def query_binary(native_compile):
     source = Path(__file__).parent / 'c/query_xattr_readiness_test.c'
     return native_compile(
         'query-readiness', source.read_text(),
-        ['src/protocols/root/query/metadata.c', 'src/core/compat/error_mapping.c'],
+        ['src/protocols/root/query/metadata.c', 'src/core/compat/error_mapping.c',
+         'tests/c/ngx_link_stubs.c'],
         ['-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections',
          '-fsanitize=address,undefined', '-fno-omit-frame-pointer'])
 

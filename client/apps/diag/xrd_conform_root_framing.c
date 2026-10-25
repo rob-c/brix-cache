@@ -1,5 +1,5 @@
 /* Phase-118 post-login ROOT request/response framing probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "protocols/root/protocol/bootstrap_pack.h"
 #include "protocols/root/protocol/frame_hdr.h"
 
@@ -60,21 +60,20 @@ pgread_structure_poisoned(xrd_conform_execution *execution)
     return 0;
 }
 
-int
-xrd_conform_probe_selected_object(xrd_conform_execution *execution,
-    brix_conn *connection, brix_file *file, const char *path,
-    const uint8_t *baseline, uint64_t size)
+static int
+run_read_probes(xrd_conform_execution *execution, brix_conn *connection,
+    brix_file *file, const char *path, const uint8_t *baseline, uint64_t size)
 {
-    brix_conform_result *pgr_result;
+    const brix_conform_result *result;
 
     if (xrd_conform_family_active(execution, "RD"))
         xrd_conform_run_rd(execution, connection, file, baseline, size);
     if (xrd_conform_family_active(execution, "PGR"))
         xrd_conform_run_pgr(execution, connection, file, baseline, size);
-    pgr_result = xrd_conform_result_find(execution, "PGR-020");
-    if (pgr_result != NULL
-        && pgr_result->verdict == BRIX_CONFORM_VERDICT_DIVERGENT) return 1;
-    if (pgread_structure_poisoned(execution)) return 1;
+    result = xrd_conform_result_find(execution, "PGR-020");
+    if ((result != NULL
+            && result->verdict == BRIX_CONFORM_VERDICT_DIVERGENT)
+        || pgread_structure_poisoned(execution)) return 1;
     if (xrd_conform_family_active(execution, "STA"))
         xrd_conform_probe_stat(execution, connection, file, path, size);
     if (xrd_conform_family_active(execution, "RDV"))
@@ -84,13 +83,15 @@ xrd_conform_probe_selected_object(xrd_conform_execution *execution,
         && size == XRDC_CONFORM_CHUNKED_SIZE)
         xrd_conform_probe_readv_chunked(execution, connection, file, baseline,
             (size_t) size);
-    {
-        const brix_conform_result *rdv =
-            xrd_conform_result_find(execution, "RDV-018");
+    result = xrd_conform_result_find(execution, "RDV-018");
+    return result != NULL
+        && result->verdict == BRIX_CONFORM_VERDICT_DIVERGENT;
+}
 
-        if (rdv != NULL
-            && rdv->verdict == BRIX_CONFORM_VERDICT_DIVERGENT) return 1;
-    }
+static void
+run_stream_probes(xrd_conform_execution *execution, brix_conn *connection,
+    brix_file *file, const uint8_t *baseline, uint64_t size)
+{
     if (xrd_conform_family_active(execution, "BND"))
         xrd_conform_probe_bind(execution, connection, file, baseline, size);
     if (xrd_conform_family_active(execution, "ENV"))
@@ -98,59 +99,63 @@ xrd_conform_probe_selected_object(xrd_conform_execution *execution,
             size);
     if (xrd_conform_family_active(execution, "RD"))
         xrd_conform_probe_read_raw(execution, connection, file, baseline, size);
-    execution->root_size = size;
-    brix_s3_sha256_hex(baseline, (size_t) size, execution->root_digest);
-    execution->have_root = 1;
-    if (xrd_conform_family_active(execution, "XPR"))
-        xrd_conform_probe_root_traversal(execution, connection, path);
-    if (xrd_conform_family_active(execution, "XPR"))
-        xrd_conform_probe_root_case(execution, connection, path);
-    {
-        const brix_conform_result *dav = xrd_conform_result_find(execution,
-            "DAV-002");
+}
 
-        if (xrd_conform_family_active(execution, "XPR")
-            || (dav != NULL
-                && dav->verdict != BRIX_CONFORM_VERDICT_SKIPPED))
-            xrd_conform_probe_root_namespace(execution, connection, path);
-    }
-    if (xrd_conform_family_active(execution, "XPR"))
-        xrd_conform_probe_root_filenames(execution, connection, path);
+static void
+run_namespace_probes(xrd_conform_execution *execution,
+    brix_conn *connection, const char *path)
+{
+    const brix_conform_result *dav = xrd_conform_result_find(execution,
+        "DAV-002");
+    int xpr = xrd_conform_family_active(execution, "XPR");
+
+    if (xpr) xrd_conform_probe_root_traversal(execution, connection, path);
+    if (xpr) xrd_conform_probe_root_case(execution, connection, path);
+    if (xpr || (dav != NULL
+            && dav->verdict != BRIX_CONFORM_VERDICT_SKIPPED))
+        xrd_conform_probe_root_namespace(execution, connection, path);
+    if (xpr) xrd_conform_probe_root_filenames(execution, connection, path);
+}
+
+static void
+run_object_control_probes(xrd_conform_execution *execution,
+    brix_conn *connection, brix_file *file, const char *path,
+    const uint8_t *baseline, uint64_t size)
+{
+    int query = xrd_conform_family_active(execution, "QRY");
+    int claims = xrd_conform_family_active(execution, "CLM");
+
     if (basic_family_active(execution))
         xrd_conform_probe_root_basic(execution, connection, file, path);
     if (xrd_conform_family_active(execution, "OPN"))
         xrd_conform_probe_root_open(execution, connection, file, path,
             baseline, size);
-    if (xrd_conform_family_active(execution, "QRY")
-        || xrd_conform_family_active(execution, "ENV")
-        || xrd_conform_family_active(execution, "CLM"))
+    if (query || xrd_conform_family_active(execution, "ENV") || claims)
         xrd_conform_probe_root_control(execution, connection, file, path);
-    if (xrd_conform_family_active(execution, "QRY")
-        || xrd_conform_family_active(execution, "CLM"))
+    if (query || claims)
         xrd_conform_probe_query_claims(execution, connection, file, path,
             baseline, size);
     if (xrd_conform_family_active(execution, "FAT"))
         xrd_conform_probe_fattr_support(execution, connection, path);
+}
+
+int
+xrd_conform_probe_selected_object(xrd_conform_execution *execution,
+    brix_conn *connection, brix_file *file, const char *path,
+    const uint8_t *baseline, uint64_t size)
+{
+    if (run_read_probes(execution, connection, file, path, baseline, size))
+        return 1;
+    run_stream_probes(execution, connection, file, baseline, size);
+    execution->root_size = size;
+    brix_s3_sha256_hex(baseline, (size_t) size, execution->root_digest);
+    execution->have_root = 1;
+    run_namespace_probes(execution, connection, path);
+    run_object_control_probes(execution, connection, file, path, baseline,
+        size);
     return 0;
 }
 
-static void
-grade(xrd_conform_execution *execution, const char *id, int pass,
-    const char *success, const char *failure)
-{
-    xrd_conform_result_set(execution, id,
-        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
-             : BRIX_CONFORM_VERDICT_DIVERGENT,
-        pass ? success : failure, NULL, NULL);
-}
-
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    brix_conform_result *row = xrd_conform_result_find(execution, id);
-
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
 static void
 make_protocol(ClientProtocolRequest *request, uint16_t sid, int padded)
@@ -166,16 +171,8 @@ make_protocol(ClientProtocolRequest *request, uint16_t sid, int padded)
 static int
 read_reply(brix_conn *connection, framing_reply *reply, brix_status *status)
 {
-    uint8_t header[XRD_RESPONSE_HDR_LEN];
-
-    memset(reply, 0, sizeof(*reply));
-    if (brix_read_full(&connection->io, header, sizeof(header), status) != 0)
-        return -1;
-    xrd_resp_hdr_unpack(header, &reply->sid, &reply->status, &reply->length);
-    if (reply->length > sizeof(reply->body)) return -1;
-    if (reply->length > 0 && brix_read_full(&connection->io, reply->body,
-            reply->length, status) != 0) return -1;
-    return 0;
+    return xrd_conform_read_bounded_frame(connection, &reply->sid,
+        &reply->status, &reply->length, reply->body, sizeof(reply->body), status);
 }
 
 static int
@@ -205,15 +202,15 @@ probe_sequential(xrd_conform_execution *execution, brix_conn *connection,
     int body_ok = first_ok && first.status == kXR_ok
         && first.length >= sizeof(ServerProtocolBody);
 
-    grade(execution, "FRM-001", body_ok, "zero-payload-request-accepted",
+    xrd_conform_grade(execution, "FRM-001", body_ok, "zero-payload-request-accepted",
         "zero-payload-request-refused");
-    grade(execution, "FRM-002", first_ok, "eight-byte-response-header-read",
+    xrd_conform_grade(execution, "FRM-002", first_ok, "eight-byte-response-header-read",
         "response-header-not-eight-bytes");
-    grade(execution, "FRM-003", first_ok && first.sid == 0,
+    xrd_conform_grade(execution, "FRM-003", first_ok && first.sid == 0,
         "streamid-echoed", "streamid-not-echoed");
-    grade(execution, "FRM-005", first_ok && first.sid == 0,
+    xrd_conform_grade(execution, "FRM-005", first_ok && first.sid == 0,
         "zero-streamid-echoed", "zero-streamid-refused");
-    grade(execution, "FRM-006", second_ok && second.sid == 0
+    xrd_conform_grade(execution, "FRM-006", second_ok && second.sid == 0
         && second.status == kXR_ok, "completed-streamid-reused",
         "completed-streamid-reuse-refused");
 }
@@ -242,11 +239,11 @@ probe_pipeline(xrd_conform_execution *execution, brix_conn *connection,
     identities = read_ok
         && ((first.sid == 0x1234 && second.sid == 0x5678)
             || (first.sid == 0x5678 && second.sid == 0x1234));
-    grade(execution, "FRM-004", identities,
+    xrd_conform_grade(execution, "FRM-004", identities,
         "inflight-streamids-preserved", "inflight-streamids-confused");
-    grade(execution, "FRM-022", read_ok,
+    xrd_conform_grade(execution, "FRM-022", read_ok,
         "pipelined-requests-served", "pipelined-request-lost");
-    grade(execution, "FRM-023", read_ok,
+    xrd_conform_grade(execution, "FRM-023", read_ok,
         "same-connection-pipeline-served", "response-wait-required");
 }
 
@@ -262,7 +259,7 @@ probe_padding(xrd_conform_execution *execution, brix_conn *connection,
 
     ok = ok && plain.status == padded.status && plain.length == padded.length
         && memcmp(plain.body, padded.body, plain.length) == 0;
-    grade(execution, "FRM-016", ok, "reserved-padding-ignored",
+    xrd_conform_grade(execution, "FRM-016", ok, "reserved-padding-ignored",
         "reserved-padding-changed-answer");
 }
 
@@ -288,7 +285,7 @@ probe_invalid_opcode(xrd_conform_execution *execution, brix_conn *connection,
         && brix_send(connection, &request, NULL, &sid, &error) == 0
         && brix_recv(connection, sid, &output, &error) != 0
         && error.kxr == kXR_InvalidRequest;
-    grade(execution, id, refused, "invalid-opcode-defined-error",
+    xrd_conform_grade(execution, id, refused, "invalid-opcode-defined-error",
         "invalid-opcode-not-mapped");
     free(body);
 }
@@ -305,21 +302,21 @@ xrd_conform_probe_framing(xrd_conform_execution *execution,
     opts.capture = NULL;
     brix_status_clear(&status);
     if (brix_connect(&connection, url, &opts, &status) != 0) return;
-    if (row_active(execution, "FRM-001")
-        || row_active(execution, "FRM-002")
-        || row_active(execution, "FRM-003")
-        || row_active(execution, "FRM-005")
-        || row_active(execution, "FRM-006"))
+    if (xrd_conform_row_active(execution, "FRM-001")
+        || xrd_conform_row_active(execution, "FRM-002")
+        || xrd_conform_row_active(execution, "FRM-003")
+        || xrd_conform_row_active(execution, "FRM-005")
+        || xrd_conform_row_active(execution, "FRM-006"))
         probe_sequential(execution, &connection, &status);
-    if (row_active(execution, "FRM-004")
-        || row_active(execution, "FRM-022")
-        || row_active(execution, "FRM-023"))
+    if (xrd_conform_row_active(execution, "FRM-004")
+        || xrd_conform_row_active(execution, "FRM-022")
+        || xrd_conform_row_active(execution, "FRM-023"))
         probe_pipeline(execution, &connection, &status);
-    if (row_active(execution, "FRM-016"))
+    if (xrd_conform_row_active(execution, "FRM-016"))
         probe_padding(execution, &connection, &status);
-    if (row_active(execution, "FRM-017"))
+    if (xrd_conform_row_active(execution, "FRM-017"))
         probe_invalid_opcode(execution, &connection, kXR_REQFENCE, "FRM-017");
-    if (row_active(execution, "FRM-018"))
+    if (xrd_conform_row_active(execution, "FRM-018"))
         probe_invalid_opcode(execution, &connection, kXR_1stRequest - 1,
             "FRM-018");
     brix_close(&connection);

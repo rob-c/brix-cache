@@ -11,15 +11,17 @@ pins the two against each other.
 import os
 import shutil
 import subprocess
-import sys
 
 import pytest
 
-from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS, platform_host_name
 from lib_py import fuse_host
+from lib_py.nginx_build import selected_native_dependency
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HOST = {"linux": "linux", "darwin": "darwin"}.get(sys.platform)
+HOST = platform_host_name()
+if HOST not in ('linux', 'darwin', 'freebsd'):
+    HOST = None
 
 PROGRAM = r'''
 #include <errno.h>
@@ -55,6 +57,15 @@ int main(int argc, char **argv)
         printf("rc=%d errno=%d\n", rc, rc == 0 ? 0 : errno);
         return 0;
     }
+    if (argc == 3 && strcmp(argv[1], "supports") == 0) {
+        printf("%d\n", brix_plat_fuse_opt_supported(argv[2]));
+        return 0;
+    }
+    if (argc == 2 && strcmp(argv[1], "empty-options") == 0) {
+        printf("%d %d\n", brix_plat_fuse_opt_supported(NULL),
+               brix_plat_fuse_opt_supported(""));
+        return 0;
+    }
     return 2;
 }
 '''
@@ -76,11 +87,14 @@ def _compile_probe(work):
     src.write_text(PROGRAM)
     out = str(work / "umount_probe")
     sources = [os.path.join(REPO, "client", "lib", "platform", HOST, "posix.c")]
+    if HOST in ('darwin', 'freebsd'):
+        sources.append(os.path.join(REPO, 'client/lib/platform/fuse_bsd.c'))
+    includes, libraries = selected_native_dependency('epoll-shim') if HOST == 'freebsd' else ([], [])
     build = subprocess.run([cc, "-std=gnu11", "-D_GNU_SOURCE", *PLATFORM_HOST_FLAGS,
                             "-Wall", "-Werror",
                             "-I", os.path.join(REPO, "client", "lib"),   # client umbrella first
                             "-I", os.path.join(REPO, "src"),
-                            str(src), *sources, "-o", out],
+                            *includes, str(src), *sources, *libraries, "-o", out],
                            capture_output=True, text=True, timeout=180)
     if build.returncode != 0:
         pytest.fail(f"probe failed to compile:\n{build.stderr}")
@@ -150,4 +164,16 @@ def test_host_mount_opts_match_the_python_mirror(probe):
     want = fuse_host.host_mount_opts() or "(none)"
     assert got == want
     assert got != ""
+
+
+def test_ordinary_mount_options_remain_supported(probe):
+    assert probe('supports', 'ro').strip() == '1'
+
+
+def test_missing_or_empty_mount_options_are_not_injected(probe):
+    assert probe('empty-options').strip() == '0 0'
+
+
+def test_linux_only_auto_unmount_is_not_claimed_by_bsd(probe):
+    assert probe('supports', 'auto_unmount').strip() == ('1' if HOST == 'linux' else '0')
 

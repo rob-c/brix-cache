@@ -89,6 +89,21 @@ fixture_close(void *handle)
     return 0;
 }
 
+/* WHAT: Reject object-digest I/O outside this registration-only unit.
+ * WHY: Sanitizer retention can keep this unrelated entry point at link time.
+ * HOW: Abort if production registration unexpectedly reaches the walker. */
+ngx_int_t
+brix_cksum_walk_obj(brix_sd_obj_t *obj, off_t start, off_t length,
+    brix_cksum_chunk_fn fold, void *state)
+{
+    (void) obj;
+    (void) start;
+    (void) length;
+    (void) fold;
+    (void) state;
+    abort();
+}
+
 ngx_int_t
 brix_checksum_parse(const char *name, size_t length, brix_checksum_alg_t *algorithm,
     char *normalized, size_t capacity)

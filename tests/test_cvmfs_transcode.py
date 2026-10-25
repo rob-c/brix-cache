@@ -31,8 +31,12 @@ so this suite never collides in a full sequential sweep.
 """
 
 import hashlib
+from http.client import HTTPResponse, IncompleteRead
+from io import BytesIO
 import os
+import socket
 import sys
+import time
 
 import pytest
 
@@ -45,7 +49,9 @@ zstandard = pytest.importorskip("zstandard")
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
-from conformance_common import NGINX_BIN, PortBlock, raw_http, srv_instance
+from conformance_common import (
+    NGINX_BIN, PortBlock, raw_http, srv_instance, _request_blob, _parse_response,
+)
 from settings import HOST
 
 REPO = "test.cern.ch"
@@ -58,24 +64,31 @@ pytestmark = pytest.mark.skipif(
 _BLOCK = PortBlock("srv_verify")
 
 
+class _BufferedHTTP:
+    """Feed captured wire bytes to the standard library's strict chunk reader."""
+
+    def __init__(self, payload):
+        self.file = BytesIO(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n" + payload)
+
+    def makefile(self, mode):
+        return self.file
+
+
 def _dechunk(payload: bytes) -> bytes:
-    """Decode an HTTP/1.1 chunked body (the compressed serve path forces chunked
-    transfer since the compressed length is not known up front). A body that
-    carries a Content-Length instead arrives whole, so callers gate on the
-    Transfer-Encoding header before calling this."""
-    out = bytearray()
-    i = 0
-    while i < len(payload):
-        nl = payload.find(b"\r\n", i)
-        if nl < 0:
-            break
-        size = int(payload[i:nl].split(b";")[0], 16)
-        if size == 0:
-            break
-        start = nl + 2
-        out += payload[start:start + size]
-        i = start + size + 2                 # skip the chunk's trailing CRLF
-    return bytes(out)
+    """Require complete chunks AND the mandatory zero chunk, never slice short."""
+    with HTTPResponse(_BufferedHTTP(payload)) as response:
+        response.begin()
+        return response.read()
+
+
+def test_captured_chunk_reader_accepts_complete_framing():
+    assert _dechunk(b"3\r\nabc\r\n0\r\n\r\n") == b"abc"
+
+
+@pytest.mark.parametrize("wire", [b"3\r\nab", b"3\r\nabc\r\n", b"ffff\r\nabc\r\n0\r\n\r\n"])
+def test_captured_chunk_reader_refuses_truncation_or_oversized_claims(wire):
+    with pytest.raises(IncompleteRead):
+        _dechunk(wire)
 
 
 def _get(srv, path, accept_encoding=None):
@@ -99,10 +112,11 @@ def _plain_object(srv):
     raise AssertionError("no non-catalog CAS object in the mock")
 
 
-@pytest.fixture(scope="module")
-def srv():
+@pytest.fixture(scope="module", params=["normal", "rate-limited"])
+def srv(request):
+    limits = "limit_rate 64k; send_timeout 2s;" if request.param == "rate-limited" else ""
     with srv_instance(_BLOCK, objects=8, seed=812,
-                      extra_directives="brix_compress on;") as s:
+                      extra_directives=f"brix_compress on; {limits}") as s:
         yield s
 
 
@@ -141,6 +155,46 @@ def test_legacy_client_gets_identity(srv):
     assert st == 200, hdrs
     assert "content-encoding" not in hdrs, hdrs
     assert payload == clean, "identity client did not get the verbatim object"
+
+
+@pytest.mark.timeout(60)
+def test_backpressured_reader_gets_the_complete_frame(srv):
+    """A small receive window must park/resume, not terminate the first chunk."""
+    obj = _plain_object(srv)
+    clean = _origin_bytes(srv, obj)
+    # HOST is the suite's IPv4 client address (HOST6 is a separate plane).
+    # Configure the small window before SYN: shrinking it after connection
+    # stalls ordinary identity reads too on the native FreeBSD test host.
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+        sock.settimeout(15)
+        sock.connect((HOST, srv.nginx_port))
+        sock.sendall(_request_blob(HOST, srv.nginx_port, f"GET {obj} HTTP/1.1",
+                                   {"Accept-Encoding": "zstd"}, b""))
+        time.sleep(0.15)
+        parts = []
+        while part := sock.recv(8192):
+            parts.append(part)
+    status, headers, payload = _parse_response(b"".join(parts))
+    assert status == 200 and headers.get("content-encoding") == "zstd"
+    decoded = zstandard.ZstdDecompressor().decompress(
+        _dechunk(payload), max_output_size=len(clean))
+    assert decoded == clean
+
+
+@pytest.mark.timeout(60)
+def test_abandoned_compressed_response_does_not_break_the_worker(srv):
+    """A disconnect while output is pending must leave later requests usable."""
+    obj = _plain_object(srv)
+    with socket.create_connection((HOST, srv.nginx_port), timeout=15) as sock:
+        sock.sendall(_request_blob(HOST, srv.nginx_port, f"GET {obj} HTTP/1.1",
+                                   {"Accept-Encoding": "zstd"}, b""))
+        assert sock.recv(128).startswith(b"HTTP/1.1 200")
+    status, headers, payload = _get(srv, obj, "zstd")
+    clean = _origin_bytes(srv, obj)
+    assert status == 200 and headers.get("content-encoding") == "zstd"
+    assert zstandard.ZstdDecompressor().decompress(
+        _dechunk(payload), max_output_size=len(clean)) == clean
 
 
 # ---- security-negative: transcode never smuggles a corrupt fill -------------

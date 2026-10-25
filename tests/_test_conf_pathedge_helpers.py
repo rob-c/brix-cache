@@ -19,6 +19,7 @@ Self-provisioning on high ports; skips entirely without the stock toolchain.
 """
 
 import os
+from lib_py.reference_host import assert_backing_size_parity
 
 import pytest
 
@@ -137,8 +138,7 @@ def _assert_stat_parity(pair, path):
         f"DIVERGENCE stat {path!r}: our rc={o_rc} stock rc={f_rc} " \
         f"(our={o_out!r} stock={f_out!r})"
     if _ok(o_rc) and _ok(f_rc):
-        assert o_sz == f_sz, \
-            f"size mismatch stat {path!r}: ours={o_sz} stock={f_sz}"
+        assert_backing_size_parity(pair, path, o_sz, f_sz)
     return o_rc, f_rc
 
 

@@ -1,20 +1,11 @@
 /* Phase-118 ROOT write-vector count-boundary probe. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
 #include <arpa/inet.h>
 
 #define WVC_LIMIT XRDC_VEC_MAXSEGS
 #define WVC_DESCRIPTOR_SIZE 16U
 
-static int
-reserve(xrd_conform_execution *execution, size_t bytes, brix_status *status)
-{
-    char reason[64];
-
-    if (xrd_conform_reserve(execution, bytes, reason, sizeof(reason))) return 1;
-    brix_status_set(status, XRDC_EUSAGE, 0, "%s", reason);
-    return 0;
-}
 
 /* WHAT: Send 1025 descriptors on an isolated connection.
  * WHY: Stock refusal drops the link, which must not poison later probes.
@@ -58,7 +49,7 @@ probe_one_over(xrd_conform_execution *execution, brix_status *status)
     response.body = &body;
     response.blen = &body_length;
     brix_status_clear(status);
-    if (reserve(execution, 0, status)
+    if (xrd_conform_reserve_status(execution, 0, status)
         && brix_send_ext(&connection, &request, &payload, &stream_id,
             status) == 0)
         rc = brix_recv(&connection, stream_id, &response, status);
@@ -66,6 +57,36 @@ probe_one_over(xrd_conform_execution *execution, brix_status *status)
     free(descriptors);
     brix_close(&connection);
     return rc != 0 && status->kxr == kXR_ArgTooLong ? 0 : -1;
+}
+
+static int
+probe_at_limit(xrd_conform_execution *execution, brix_conn *connection,
+    const xrd_conform_scratch_object *object, brix_writev_seg *segments,
+    const uint8_t *expected, uint8_t *actual, brix_status *status)
+{
+    brix_file file;
+    ssize_t got = -1;
+    int passed = 0;
+
+    if (xrd_conform_reserve_status(execution, 0, status)
+        && brix_file_open_write(connection, object->path, 1, 0, &file,
+            status) == 0) {
+        passed = xrd_conform_reserve_status(execution, WVC_LIMIT, status)
+            && brix_file_writev(connection, &file, segments, WVC_LIMIT, 0,
+                status) == 0;
+        if (!xrd_conform_reserve_status(execution, 0, status)
+            || brix_file_close(connection, &file, status) != 0) passed = 0;
+    }
+    if (passed && xrd_conform_reserve_status(execution, 0, status)
+        && brix_file_open_read(connection, object->path, &file, status) == 0) {
+        if (xrd_conform_reserve_status(execution, WVC_LIMIT, status))
+            got = brix_file_read(connection, &file, 0, actual, WVC_LIMIT,
+                status);
+        if (!xrd_conform_reserve_status(execution, 0, status)
+            || brix_file_close(connection, &file, status) != 0) passed = 0;
+    }
+    return passed && got == WVC_LIMIT
+        && memcmp(actual, expected, WVC_LIMIT) == 0;
 }
 
 /* WHAT: Exercise the exact 1024/1025 kXR_writev segment boundary remotely.
@@ -79,9 +100,7 @@ xrd_conform_probe_writev_limits(xrd_conform_execution *execution,
     brix_writev_seg *segments = NULL;
     uint8_t *expected = NULL;
     uint8_t *actual = NULL;
-    brix_file file;
     brix_status status;
-    ssize_t got = -1;
     size_t index;
     int at_limit = 0;
     int over_limit;
@@ -103,28 +122,8 @@ xrd_conform_probe_writev_limits(xrd_conform_execution *execution,
         segments[index].data = expected + index;
     }
     brix_status_clear(&status);
-    if (reserve(execution, 0, &status)
-        && brix_file_open_write(connection, object->path, 1, 0, &file,
-            &status) == 0) {
-        if (reserve(execution, WVC_LIMIT, &status)
-            && brix_file_writev(connection, &file, segments, WVC_LIMIT, 0,
-                &status) == 0)
-            at_limit = 1;
-        if (!reserve(execution, 0, &status)
-            || brix_file_close(connection, &file, &status) != 0)
-            at_limit = 0;
-    }
-    if (at_limit && reserve(execution, 0, &status)
-        && brix_file_open_read(connection, object->path, &file, &status) == 0) {
-        if (reserve(execution, WVC_LIMIT, &status))
-            got = brix_file_read(connection, &file, 0, actual, WVC_LIMIT,
-                &status);
-        if (!reserve(execution, 0, &status)
-            || brix_file_close(connection, &file, &status) != 0)
-            at_limit = 0;
-    }
-    at_limit = at_limit && got == WVC_LIMIT
-        && memcmp(actual, expected, WVC_LIMIT) == 0;
+    at_limit = probe_at_limit(execution, connection, object, segments,
+        expected, actual, &status);
     over_limit = probe_one_over(execution, &status) == 0;
     xrd_conform_result_set(execution, "WVC-002",
         at_limit && over_limit ? BRIX_CONFORM_VERDICT_CONFORMANT

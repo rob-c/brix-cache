@@ -35,7 +35,7 @@
  *                       observes alice, printed on success.
  *
  * Invoked only by tests/test_krb5_forward_live.py, which owns the unprivileged
- * KDC lifecycle (unshare -Ur) and skips when krb5 tooling is unavailable.
+ * private, unprivileged KDC lifecycle and skips when MIT tooling is unavailable.
  *
  * Usage:  krb5_forward_live <alice_princ> <password> <origin_princ>
  *                           [origin|capture|negotiate]

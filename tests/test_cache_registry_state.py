@@ -12,6 +12,7 @@ import sys
 import pytest
 
 from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
+from lib_py.nginx_build import configured_dependency_includes
 
 REPO = Path(__file__).resolve().parents[1]
 NGINX_SOURCE = Path(os.environ.get("TEST_NGINX_SRC", "/tmp/nginx-1.28.3"))
@@ -28,7 +29,8 @@ def _include_flags():
         "src/http", "src/http/modules", "src/http/v2", "src/stream",
     )]
     includes.extend((build, REPO / "src", REPO / "shared"))
-    return [f"-I{path}" for path in includes]
+    return [f"-I{path}" for path in includes] + configured_dependency_includes(
+        build / 'Makefile', NGINX_SOURCE)
 
 
 def _sources():

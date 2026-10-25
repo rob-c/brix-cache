@@ -15,6 +15,8 @@
  * startup consistency checks.
  */
 
+#include "auth/crypto/name_compat.h"
+
 #ifndef HAVE_X509_CRL_GET0_ISSUER
 # if defined(X509_CRL_get0_issuer)
 #  define HAVE_X509_CRL_GET0_ISSUER 1
@@ -41,7 +43,7 @@
 static char *
 brix_pki_name_to_str(const X509_NAME *name)
 {
-    return X509_NAME_oneline(name, NULL, 0);
+    return brix_crypto_name_oneline(name, NULL, 0);
 }
 
 /*

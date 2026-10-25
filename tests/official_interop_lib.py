@@ -23,6 +23,7 @@ import time
 
 from settings import BIND_HOST, TEST_ROOT, TEST_PORT_START
 from port_ladder import INTEROP_WORKER_OFFSET
+from lib_py.reference_host import reference_brix_data_root
 
 def _phase_reset_to_seeded_tree_1(path):
     try:
@@ -116,7 +117,7 @@ FLEET_OFF_PORT = _FLEET_OFF_PORT
 # freshness floor), listing differentials use a per-worker lroot_<tag> dir, and
 # harmonize_perms/chown_stock stat-and-skip so a concurrent re-seed never
 # bumps ctime under a running stat-parity test.
-FLEET_OUR_DATA = os.path.join(TEST_ROOT, "data-interop-our")
+FLEET_OUR_DATA = reference_brix_data_root(os.path.join(TEST_ROOT, "data-interop-our"), TEST_ROOT)
 FLEET_OFF_DATA = os.path.join(TEST_ROOT, "data-interop-off")
 
 # --------------------------------------------------------------------------- #

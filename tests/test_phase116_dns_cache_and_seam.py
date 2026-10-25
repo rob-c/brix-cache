@@ -390,11 +390,48 @@ NON_SOURCE_SUFFIXES = {".md", ".py", ".sh", ".bash", ".txt", ".1", ".7",
                        ".example", ".json", ".yml"}
 
 
+def test_generated_c_includes_are_scanned_for_resolver_bypasses(tmp_path):
+    """A compiled .inc fragment cannot hide a direct libc DNS call."""
+    rel = "client/lib/generated_rows.inc"
+    hits, _ = _guard().scan(_tree(
+        tmp_path, {rel: "getaddrinfo(host, service, &hints, &result);\n"}))
+    assert any(rel in hit and "libc forward resolver" in hit for hit in hits)
+
+
+def test_generated_c_includes_without_dns_calls_stay_clean(tmp_path):
+    """Declarative generated rows remain valid input to the DNS seam scan."""
+    rel = "client/lib/generated_rows.inc"
+    hits, _ = _guard().scan(_tree(tmp_path, {rel: '{ "CAC-001", 1 },\n'}))
+    assert not any(rel in hit for hit in hits)
+
+
 @pytest.mark.parametrize("rel", [f"client/apps/ceph/x{s}" for s in CXX_SUFFIXES])
 def test_the_guard_reads_cxx_sources_too(tmp_path, rel):
     """A resolver call in a C++ client app is the same bypass it is in C."""
     hits, _ = _guard().scan(_tree(tmp_path, {rel: "getaddrinfo(h, s, &hints, &res);\n"}))
     assert any(rel in h and "libc forward resolver" in h for h in hits), hits
+
+
+def _external_dependency_patch(path: Path) -> bool:
+    """Build-only third-party diffs are data, not BriX translation units."""
+    return (path.parent == Path("tools/ci/dependency-patches")
+            and path.suffix == ".patch")
+
+
+@pytest.mark.parametrize("relative, expected", [
+    ("tools/ci/dependency-patches/gfal2-freebsd.patch", True),
+    ("client/lib/resolver.patch", False),
+    ("tools/ci/dependency-patches/resolver.c", False),
+])
+def test_only_external_dependency_diffs_are_patch_data(relative, expected):
+    assert _external_dependency_patch(Path(relative)) is expected
+
+
+def test_dependency_patch_directory_cannot_hide_compiled_dns_bypasses(tmp_path):
+    rel = "tools/ci/dependency-patches/resolver.c"
+    hits, _ = _guard().scan(_tree(
+        tmp_path, {rel: "getaddrinfo(host, service, &hints, &result);\n"}))
+    assert any(rel in hit and "libc forward resolver" in hit for hit in hits)
 
 
 def test_every_suffix_the_scanned_trees_carry_is_scanned_or_named():
@@ -405,7 +442,8 @@ def test_every_suffix_the_scanned_trees_carry_is_scanned_or_named():
     guard = _guard()
     tracked = subprocess.run(["git", "ls-files", *guard.SCAN_DIRS],
                              cwd=REPO, capture_output=True, text=True, check=True)
-    seen = {Path(line).suffix for line in tracked.stdout.split() if "." in Path(line).name}
+    seen = {Path(line).suffix for line in tracked.stdout.split()
+            if "." in Path(line).name and not _external_dependency_patch(Path(line))}
     unjudged = sorted(seen - set(guard.SOURCE_SUFFIXES) - NON_SOURCE_SUFFIXES)
     assert unjudged == [], (
         "these suffixes exist under the DNS seam guard's scanned trees and it "

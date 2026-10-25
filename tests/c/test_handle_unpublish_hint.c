@@ -110,12 +110,19 @@ main(void)
     u_char  s3[BRIX_SESSION_ID_LEN];
     int     victim_slot;
 
+    ngx_log_t log = {0};
+    ngx_cycle_t cycle = {0};
+
+    cycle.log = &log;
+    ngx_cycle = &cycle;
     ngx_pagesize = 4096;
     ngx_memzero(zonebuf, sizeof(zonebuf));
     ngx_memzero(&zone, sizeof(zone));
 
     sp = (ngx_slab_pool_t *) zonebuf;
+    sp->mutex.spin = (ngx_uint_t) -1;
     assert(ngx_shmtx_create(&sp->mutex, &sp->lock, NULL) == NGX_OK);
+    sp->mutex.spin = 2048;
     zone.shm.addr = zonebuf;
     zone.shm.exists = 0;
     test_handle_zone = &zone;

@@ -94,6 +94,11 @@ def serve(lifecycle, tmp_path):
         (data / "pub" / "f.txt").write_bytes(b"x\n")
         authdb = tmp_path / "authdb"
         authdb.write_text(rule + "\n")
+        # The nginx worker is de-escalated before opening the export.  Keep the
+        # fixture independent of test ordering by making its pytest-owned
+        # parent and export explicitly traversable.
+        tmp_path.chmod(0o755)
+        data.chmod(0o755)
         ep = lifecycle.start(NginxInstanceSpec(
             name="lc-p116-dns-rev", template=TEMPLATE,
             protocol="http", readiness="tcp", data_root=str(data),

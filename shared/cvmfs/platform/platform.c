@@ -32,7 +32,11 @@ int brix_plat_anon_fd(const char *label, const char *spill_dir) {
     char tmpl[576];
     snprintf(tmpl, sizeof(tmpl), "%s/.brix-anon.XXXXXX",
              (spill_dir != NULL && spill_dir[0] != '\0') ? spill_dir : "/tmp");
+#if defined(__FreeBSD__)
+    int fd = mkostemp(tmpl, O_CLOEXEC);
+#else
     int fd = mkstemp(tmpl);
+#endif
     if (fd < 0) return -1;
     unlink(tmpl);
     return fd;

@@ -7,11 +7,15 @@ not establish native Darwin compatibility.
 from pathlib import Path
 import errno
 import subprocess
+import sys
 
 import pytest
 
 from csource_scan import function_body
 from test_platform_linux_native import native_compile
+
+pytestmark = pytest.mark.skipif(sys.platform != "linux",
+                                reason="Linux renameat2 syscall-interposition adapter")
 
 
 # The PAL seam sd_frm_exec.c now calls (INVARIANT 14).  It used to carry its own

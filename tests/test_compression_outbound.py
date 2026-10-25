@@ -19,6 +19,7 @@ import bz2
 import gzip
 import lzma
 import os
+import random
 import shutil
 import subprocess
 import time
@@ -157,6 +158,21 @@ def test_get_compressed_roundtrip(base, token):
         response = _raw_get(base, path, {"Accept-Encoding": token})
         _require_response_encoding(response, token)
         _assert_compressed_payload(response, token, data, decompress)
+    finally:
+        _delete(base, path)
+
+
+@pytest.mark.parametrize("token", ["gzip", "zstd"])
+def test_large_incompressible_object_completes_across_output_backpressure(base, token):
+    """A compressed buffer larger than the socket window must resume exactly."""
+    data = random.Random(118).randbytes(2 * 1024 * 1024)
+    path = f"/out_backpressure_{token}_{uuid.uuid4().hex}.bin"
+    try:
+        assert _put(base, path, data).status_code in (200, 201, 204)
+        response = _raw_get(base, path, {"Accept-Encoding": token})
+        _require_response_encoding(response, token)
+        assert response.status == 200
+        assert CODECS[token](response.data) == data
     finally:
         _delete(base, path)
 

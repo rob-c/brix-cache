@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 
 
-HOSTS = ('linux', 'darwin', 'windows')
+HOSTS = ('linux', 'darwin', 'freebsd', 'windows')
 COMMON_API = (
     'brix_plat_name', 'brix_plat_version', 'brix_plat_arch',
     'brix_plat_anon_fd', 'brix_plat_fadvise', 'brix_plat_fsync_data',
@@ -30,7 +30,7 @@ API_NAME = re.compile(r'\bbrix_(?:plat|platform)_[A-Za-z0-9_]+\s*\(')
 INCLUDE = re.compile(r'^[ \t]*#[ \t]*include\s*["<]([^">]+)[">]', re.M)
 SOURCE = re.compile(r'\$ngx_addon_dir/([^\s"\\]+\.c)')
 HOST_BRANCH = re.compile(
-    r'^(?:if|elif) \[ "\$BRIX_PLATFORM_(LINUX|DARWIN|WINDOWS)" = "1" \]; then\s*$',
+    r'^(?:if|elif) \[ "\$BRIX_PLATFORM_(LINUX|DARWIN|FREEBSD|WINDOWS)" = "1" \]; then\s*$',
     re.M)
 
 
@@ -170,7 +170,18 @@ def _valid_host_source(host, path):
         return False
     if Path(path).is_relative_to(Path('src/platform') / host):
         return True
-    return host == 'linux' and path == 'shared/cvmfs/platform/platform.c'
+    return _valid_shared_host_source(host, path)
+
+
+def _valid_shared_host_source(host, path):
+    if host in ('linux', 'freebsd') and path == 'shared/cvmfs/platform/platform.c':
+        return True
+    # These exact implementations contain no Darwin-only API or OS branch.
+    # Reuse one BSD kqueue/pthread/copy body instead of creating a divergent port.
+    shared_bsd = ('event_wrapper.c', 'fs_watcher.c', 'aio_wrapper.c',
+                  'copy_range.c', 'security_wrapper.c')
+    return host == 'freebsd' and path in {
+        'src/platform/darwin/' + name for name in shared_bsd}
 
 
 def _host_sources(block, branch, end):

@@ -89,7 +89,6 @@ Run:
     PYTHONPATH=tests pytest tests/test_audit16l_relay_flag_arms.py -v
 """
 
-import os
 import subprocess
 import time
 
@@ -100,7 +99,8 @@ from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
 from settings import BIND_HOST, HOST, SERVER_HOST
 # The kernel-timer witness for the dead-peer knobs — the only external evidence
 # that a setsockopt happened, and already the audit's helper for it.
-from _test_audit15f_helpers import SS_BIN, socket_timers
+from _test_audit15f_helpers import (native_tcp_observer, socket_timers,
+                                   socket_observation_available)
 # The two-faced manager, the node + stub-manager pair and the client session.
 from _test_cms_parity_wave_helpers import (CMS_RR_LOGIN, StubManager, _mgr,
                                           _node, _xrd_session)
@@ -174,15 +174,17 @@ def _proxy_block(enable, *extra):
     return "\n        ".join(lines)
 
 
-def _needs_ss():
-    if not os.path.exists(SS_BIN):
-        pytest.skip("ss(8) not available")
+def _needs_socket_observer():
+    if not socket_observation_available():
+        pytest.skip("native TCP socket observer not available")
 
 
 def _pending_timer(*, local_port=None, peer_port=None, want="keepalive",
-                   timeout=8.0):
-    """The trailing ss(8) columns of the matching established socket, polled
-    until its pending timer is `want`; the last reading otherwise.
+                   timeout=8.0, observer=None):
+    """Read the matching kernel socket through the shared native observer.
+
+    FreeBSD reports SO_KEEPALIVE directly. Linux reports ss(8)'s pending timer,
+    polled until it is `want`; the last reading otherwise.
 
     ss reports ONE timer per socket — the nearest one to fire — so a socket with
     a segment still unacknowledged reads `timer:(on,181ms,0)`, the
@@ -196,10 +198,12 @@ def _pending_timer(*, local_port=None, peer_port=None, want="keepalive",
     a window at least as long, so a masked timer cannot make it pass.
     """
     deadline = time.time() + timeout
-    rest = socket_timers(local_port=local_port, peer_port=peer_port)
+    rest = socket_timers(local_port=local_port, peer_port=peer_port,
+                         observer=observer)
     while want not in rest and time.time() < deadline:
         time.sleep(0.25)
-        rest = socket_timers(local_port=local_port, peer_port=peer_port)
+        rest = socket_timers(local_port=local_port, peer_port=peer_port,
+                             observer=observer)
     return rest
 
 
@@ -376,7 +380,7 @@ def test_the_tap_proxy_off_arm_alone_advertises_nothing(lifecycle):
         f"flags={flags:#010x}")
 
 
-def test_the_keepalive_on_arm_arms_the_accepted_socket(lifecycle):
+def test_the_keepalive_on_arm_arms_the_accepted_socket(lifecycle, native_tcp_observer):
     """success: the first reading of `brix_tcp_keepalive on`'s observable — the
     accepted control connection carries the kernel's keepalive timer.
 
@@ -384,28 +388,28 @@ def test_the_keepalive_on_arm_arms_the_accepted_socket(lifecycle):
     nginx accepts; nothing has read the socket.  Without this arm the `off`
     reading below would be unfalsifiable.
     """
-    _needs_ss()
+    _needs_socket_observer()
     root_port, _cms = _mgr(lifecycle, MGR, "brix_tcp_keepalive on;",
                            "audit-16l root accept keepalive on")
     sock = _xrd_session(root_port)
     try:
-        rest = _pending_timer(local_port=root_port)
+        rest = _pending_timer(local_port=root_port, observer=native_tcp_observer)
         assert "keepalive" in rest, (
             f"brix_tcp_keepalive on must arm the accepted socket: {rest}")
     finally:
         sock.close()
 
 
-def test_the_keepalive_off_arm_leaves_the_accepted_socket_bare(lifecycle):
+def test_the_keepalive_off_arm_leaves_the_accepted_socket_bare(lifecycle, native_tcp_observer):
     """the arm: the same session against the same server with the flag written
     off carries no timer, and the session is otherwise unaffected — the option is
     hardening, never a precondition, so a logged-in client stays logged in."""
-    _needs_ss()
+    _needs_socket_observer()
     root_port, _cms = _mgr(lifecycle, MGR, "brix_tcp_keepalive off;",
                            "audit-16l root accept keepalive off")
     sock = _xrd_session(root_port)
     try:
-        rest = _pending_timer(local_port=root_port)
+        rest = _pending_timer(local_port=root_port, observer=native_tcp_observer)
         assert "keepalive" not in rest, (
             f"brix_tcp_keepalive off must leave the kernel defaults: {rest}")
         # The connection the reading was taken on is still usable.
@@ -415,7 +419,7 @@ def test_the_keepalive_off_arm_leaves_the_accepted_socket_bare(lifecycle):
         sock.close()
 
 
-def test_the_explicit_cms_keepalive_on_arm_arms_the_upward_leg(lifecycle):
+def test_the_explicit_cms_keepalive_on_arm_arms_the_upward_leg(lifecycle, native_tcp_observer):
     """the arm: `brix_cms_tcp_keepalive on` written out reaches the same armed
     socket the default gives.
 
@@ -425,13 +429,13 @@ def test_the_explicit_cms_keepalive_on_arm_arms_the_upward_leg(lifecycle):
     while `nginx -t` stayed happy.  test_audit15f_cms_node_legs.py owns the
     default (armed) and the `off` arm (bare); this is the third spelling.
     """
-    _needs_ss()
+    _needs_socket_observer()
     stub = StubManager()
     try:
         _node(lifecycle, NODE, stub, "brix_cms_tcp_keepalive on;",
               "audit-16l cms client-leg keepalive explicit on")
         assert stub.wait(CMS_RR_LOGIN) is not None, "node never logged in"
-        rest = _pending_timer(peer_port=stub.port)
+        rest = _pending_timer(peer_port=stub.port, observer=native_tcp_observer)
         assert "keepalive" in rest, (
             f"an explicit brix_cms_tcp_keepalive on must arm the leg: {rest}")
     finally:

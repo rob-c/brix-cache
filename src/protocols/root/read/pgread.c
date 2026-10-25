@@ -426,16 +426,7 @@ brix_pgread_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
      * queue the contiguous [status|data] frame on the SECONDARY (it owns buf). */
     brix_build_pgread_status(ctx, run->offset, (uint32_t) run->out_size,
                                (ServerStatusResponse_pgRead *) buf);
-    *rc = brix_queue_response_base(sec_ctx, sec_c, buf,
-                                     sizeof(ServerStatusResponse_pgRead)
-                                         + run->out_size, buf);
-    if (*rc == NGX_OK) {
-        brix_metric_offload(BRIX_PROTO_ROOT);   /* §1.1 observability */
-    }
-
-    if (*rc != NGX_OK || sec_ctx->out.count == 0) {
-        brix_release_read_buffer(sec_ctx, sec_c, buf);
-    }
+    *rc = brix_read_offload_queue(sec_ctx, sec_c, buf, sizeof(ServerStatusResponse_pgRead) + run->out_size);
     return 1;
 }
 

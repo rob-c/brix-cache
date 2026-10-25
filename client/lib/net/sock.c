@@ -13,8 +13,10 @@
 #include "net/proxy_env.h"
 #include "net/proxy_connect.h"
 #include "net/resolve.h"
+#include "core/compat/host_format.h"
 #include "platform/platform.h"   /* PAL: MSG_NOSIGNAL on every host */
 
+#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -157,11 +159,13 @@ fd_family(int fd)
     return ss.ss_family;
 }
 
-/*
- * Resolve host with the given family hint and connect to the first candidate
- * that answers (happy-eyeballs, bounded per non-final attempt). On a working
- * IPv4 reached only after an IPv6 candidate failed, demote the session to
- * IPv4-only (the connect-time trigger). Returns the fd, or -1 with *st set.
+/* ---- Connect through the DNS seam with bounded address-family fallback. ----
+ * WHAT: Return the first connected fd, or -1 with *st set.
+ * WHY: Mapped IPv4 literals must reach IPv4 peers even with IPv6-only sockets;
+ *      real IPv6, names, identity checks and fallback policy stay unchanged.
+ * HOW: 1. Fold mapped numeric hosts with the shared helper (long names retain
+ *      their original storage). 2. Resolve through brix_resolve.
+ *      3. Dial bounded candidates and demote only after a real IPv6 failure.
  */
 static int
 connect_resolved(const char *host, int port, int timeout_ms, int family,
@@ -169,14 +173,20 @@ connect_resolved(const char *host, int port, int timeout_ms, int family,
 {
     brix_resolve_addr  addrs[BRIX_RESOLVE_MAX];
     brix_resolve_err   rerr;
+    char              mapped_host[INET6_ADDRSTRLEN];
+    const char       *connect_host = host;
     int                n, i;
     int                v6_failed = 0;   /* an IPv6 candidate failed this resolve */
     int                last_errno = 0;  /* real errno of the last failed candidate */
 
+    if (brix_host_unmap_v4(host, mapped_host, sizeof(mapped_host))) {
+        connect_host = mapped_host;
+    }
+
     /* ADDRCONFIG: only return an address family the host actually has
      * configured, so a v4-only box is not handed a AAAA candidate it would burn
      * a full connect attempt failing on before falling back to IPv4. */
-    n = brix_resolve(host, port, family, SOCK_STREAM, BRIX_RESOLVE_ADDRCONFIG,
+    n = brix_resolve(connect_host, port, family, SOCK_STREAM, BRIX_RESOLVE_ADDRCONFIG,
                      addrs, BRIX_RESOLVE_MAX, &rerr);
     if (n <= 0) {
         /* EAI_AGAIN is a transient resolver hiccup (keep it retryable as a

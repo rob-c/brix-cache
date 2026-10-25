@@ -19,6 +19,7 @@ Run:
 import hashlib
 import os
 import subprocess
+import sys
 import tempfile
 
 import pytest
@@ -345,7 +346,7 @@ sys.exit(0 if not status.ok else 1)
 """.format(proxy=PROXY_PEM, url=GSI_URL)
 
         result = subprocess.run(
-            ["python3", "-c", script],
+            [sys.executable, "-c", script],
             capture_output=True, timeout=15
         )
         # exit 0 = stat failed (expected), exit 1 = stat succeeded (bad)

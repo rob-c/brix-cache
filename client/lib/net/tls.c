@@ -16,6 +16,7 @@
  */
 #include "brix.h"
 #include "tls_internal.h"
+#include "auth/crypto/tls_compat.h"
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -102,6 +103,43 @@ tls_do_connect(SSL *ssl, brix_io *io, int verify_peer, brix_status *st)
     return 0;
 }
 
+static SSL_CTX *
+tls_upgrade_ctx(const brix_conn *c, int verify_peer, const char *ca_dir,
+    brix_status *st)
+{
+    SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
+
+    if (ctx == NULL) {
+        brix_tls_err(st, XRDC_ESOCK, "SSL_CTX_new");
+        return NULL;
+    }
+    if (c->opts.tls_max_version != 0) {
+        SSL_CTX_set_security_level(ctx, 0);
+        SSL_CTX_set_min_proto_version(ctx, TLS1_VERSION);
+        SSL_CTX_set_max_proto_version(ctx, c->opts.tls_max_version);
+    } else {
+        SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
+    }
+    if (!verify_peer) {
+        SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+        return ctx;
+    }
+
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
+    if (ca_dir != NULL && ca_dir[0] != '\0') {
+        if (SSL_CTX_load_verify_locations(ctx, NULL, ca_dir) != 1) {
+            brix_tls_err(st, XRDC_EAUTH, "load CA dir");
+            SSL_CTX_free(ctx);
+            return NULL;
+        }
+    } else {
+        SSL_CTX_set_default_verify_paths(ctx);
+    }
+    X509_VERIFY_PARAM_set_flags(SSL_CTX_get0_param(ctx),
+                                X509_V_FLAG_ALLOW_PROXY_CERTS);
+    return ctx;
+}
+
 int
 brix_tls_upgrade(brix_conn *c, int verify_peer, int verify_host,
                  const char *ca_dir, brix_status *st)
@@ -110,37 +148,9 @@ brix_tls_upgrade(brix_conn *c, int verify_peer, int verify_host,
     SSL     *ssl;
     int      fl;
 
-    ctx = SSL_CTX_new(TLS_client_method());
+    ctx = tls_upgrade_ctx(c, verify_peer, ca_dir, st);
     if (ctx == NULL) {
-        brix_tls_err(st, XRDC_ESOCK, "SSL_CTX_new");
         return -1;
-    }
-    if (c->opts.tls_max_version != 0) {
-        /* Conformance-only legacy ClientHello: lower OpenSSL's local policy so
-         * the peer, rather than the client library, makes the refusal. */
-        SSL_CTX_set_security_level(ctx, 0);
-        SSL_CTX_set_min_proto_version(ctx, TLS1_VERSION);
-        SSL_CTX_set_max_proto_version(ctx, c->opts.tls_max_version);
-    } else {
-        SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
-    }
-
-    if (verify_peer) {
-        SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
-        if (ca_dir != NULL && ca_dir[0] != '\0') {
-            if (SSL_CTX_load_verify_locations(ctx, NULL, ca_dir) != 1) {
-                brix_tls_err(st, XRDC_EAUTH, "load CA dir");
-                SSL_CTX_free(ctx);
-                return -1;
-            }
-        } else {
-            SSL_CTX_set_default_verify_paths(ctx);
-        }
-        /* Permit proxy certs in the chain (GSI deployments). */
-        X509_VERIFY_PARAM_set_flags(SSL_CTX_get0_param(ctx),
-                                    X509_V_FLAG_ALLOW_PROXY_CERTS);
-    } else {
-        SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
     }
 
     ssl = SSL_new(ctx);
@@ -151,7 +161,12 @@ brix_tls_upgrade(brix_conn *c, int verify_peer, int verify_host,
     }
 
     if (verify_peer && verify_host && c->host[0] != '\0') {
-        SSL_set1_host(ssl, c->host);
+        if (!brix_crypto_tls_peer_name(ssl, c->host)) {
+            brix_tls_err(st, XRDC_EAUTH, "TLS host-verify setup");
+            SSL_free(ssl);
+            SSL_CTX_free(ctx);
+            return -1;
+        }
     }
 
     /* Non-blocking for poll-driven handshake/IO; SSL handles record framing. */
@@ -240,12 +255,13 @@ brix_tls_session_free(void *session)
  * success io->ssl holds the live SSL and *out_ctx the SSL_CTX (caller frees both via
  * brix_tls_client_free). 0 / -1.
  */
-/* Prepare the client SSL_CTX: load a client certificate for mutual TLS (davs GSI
- * delegation) when given — the proxy PEM holds cert + private key + EEC chain in
- * one file, so one path loads both — then configure server verification (allowing
- * RFC-3820 proxy certs).  Any credential/CA failure is fatal: proceeding
- * anonymously would misrepresent who is connecting.  Returns 0, or -1 with *st
- * set (caller frees ctx). */
+/* ---- Configure standalone client TLS credentials and trust ----
+ * WHAT: Return 0 with verification configured, or -1 with a credential error.
+ * WHY: HTTP copies must honor the same explicit/grid CA selection as root://;
+ *      a failed credential must never become anonymous or unverified access.
+ * HOW: 1. Load the complete client identity. 2. Resolve trust through the shared
+ *      selector. 3. Configure peer and RFC-3820 proxy verification.
+ */
 static int
 tls_prepare_ctx(SSL_CTX *ctx, int verify_peer, const char *ca_dir,
                 const char *client_cert, brix_status *st)
@@ -269,6 +285,7 @@ tls_prepare_ctx(SSL_CTX *ctx, int verify_peer, const char *ca_dir,
         return 0;
     }
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
+    ca_dir = brix_resolve_ca_dir(ca_dir);
     if (ca_dir != NULL && ca_dir[0] != '\0') {
         if (SSL_CTX_load_verify_locations(ctx, NULL, ca_dir) != 1) {
             brix_tls_err(st, XRDC_EAUTH, "load CA dir");
@@ -313,7 +330,12 @@ brix_tls_client(brix_io *io, const char *host, int verify_peer, int verify_host,
     if (host != NULL && host[0] != '\0') {
         SSL_set_tlsext_host_name(ssl, host);     /* SNI */
         if (verify_peer && verify_host) {
-            SSL_set1_host(ssl, host);
+            if (!brix_crypto_tls_peer_name(ssl, host)) {
+                brix_tls_err(st, XRDC_EAUTH, "TLS host-verify setup");
+                SSL_free(ssl);
+                SSL_CTX_free(ctx);
+                return -1;
+            }
         }
     }
     fl = fcntl(io->fd, F_GETFL, 0);

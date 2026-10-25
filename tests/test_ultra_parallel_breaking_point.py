@@ -45,7 +45,7 @@ import pytest
 
 import _test_ultra_parallel_helpers as U
 
-pytestmark = [pytest.mark.slow, pytest.mark.timeout(900),
+pytestmark = [pytest.mark.slow, pytest.mark.serial, pytest.mark.timeout(900),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-ultra-parallel")]
 
@@ -84,8 +84,7 @@ def _spawn_and_join(port, n, path, ref, out):
     for t in threads:
         t.start()
     deadline = time.perf_counter() + U.OP_TIMEOUT * (JOBS + 2) + 120
-    for t in threads:
-        t.join(timeout=max(1.0, deadline - time.perf_counter()))
+    U._join_until_deadline(threads, deadline)
 
 
 def _collect_rung(n, out, wall):

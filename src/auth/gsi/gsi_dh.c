@@ -11,6 +11,7 @@ brix_gsi_dh_keygen(void)
 {
     EVP_PKEY_CTX *ctx;
     EVP_PKEY     *k = NULL;
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
     OSSL_PARAM    params[] = {
         OSSL_PARAM_utf8_string("group", "ffdhe2048", 0),
         OSSL_PARAM_END
@@ -28,6 +29,21 @@ brix_gsi_dh_keygen(void)
     }
     brix_evp_pkey_ctx_free(ctx);
     return k;
+#else
+    ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DH, NULL);
+    if (ctx == NULL) {
+        return NULL;
+    }
+    if (EVP_PKEY_keygen_init(ctx) == 1
+        && EVP_PKEY_CTX_set_dh_nid(ctx, NID_ffdhe2048) == 1
+        && EVP_PKEY_keygen(ctx, &k) == 1) {
+        brix_evp_pkey_ctx_free(ctx);
+        return k;
+    }
+    brix_evp_pkey_ctx_free(ctx);
+    brix_evp_pkey_free(k);
+    return NULL;
+#endif
 }
 
 
@@ -70,7 +86,7 @@ brix_gsi_dh_pub_encode(EVP_PKEY *dh)
     char   *hex, *blob;
     size_t  n;
 
-    if (!EVP_PKEY_get_bn_param(dh, "pub", &pub)) {
+    if (!brix_crypto_dh_public(dh, &pub)) {
         return NULL;
     }
     hex = BN_bn2hex(pub);
@@ -91,37 +107,7 @@ brix_gsi_dh_pub_encode(EVP_PKEY *dh)
 EVP_PKEY *
 brix_gsi_dh_build_peer(EVP_PKEY *mine, BIGNUM *peer_pub)
 {
-    OSSL_PARAM     *mparams = NULL, *cparams = NULL, *merged = NULL;
-    OSSL_PARAM_BLD *bld = NULL;
-    EVP_PKEY_CTX   *ctx = NULL;
-    EVP_PKEY       *peer = NULL;
-
-    if (EVP_PKEY_todata(mine, EVP_PKEY_KEY_PARAMETERS, &mparams) != 1) {
-        return NULL;
-    }
-    bld = OSSL_PARAM_BLD_new();
-    if (bld != NULL
-        && OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_PUB_KEY, peer_pub) == 1) {
-        cparams = OSSL_PARAM_BLD_to_param(bld);
-    }
-    if (cparams != NULL) {
-        merged = OSSL_PARAM_merge(mparams, cparams);
-    }
-    if (merged != NULL) {
-        ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DH, NULL);
-        if (ctx != NULL && EVP_PKEY_fromdata_init(ctx) == 1) {
-            if (EVP_PKEY_fromdata(ctx, &peer, EVP_PKEY_PUBLIC_KEY, merged) != 1) {
-                peer = NULL;
-            }
-        }
-    }
-
-    brix_evp_pkey_ctx_free(ctx);
-    OSSL_PARAM_free(merged);
-    OSSL_PARAM_free(cparams);
-    OSSL_PARAM_BLD_free(bld);
-    OSSL_PARAM_free(mparams);
-    return peer;
+    return brix_crypto_dh_peer(mine, peer_pub);
 }
 
 

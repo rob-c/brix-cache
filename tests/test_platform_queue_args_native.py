@@ -1,6 +1,7 @@
 """Real C queue preparation and pure Windows argument serialization."""
 
 import subprocess
+import sys
 
 import pytest
 
@@ -10,6 +11,8 @@ from test_platform_linux_native import native_compile  # noqa: F401
 @pytest.fixture(scope="module")
 def queue_binary(native_compile):
     """Use real liburing SQE preparation with memory-owned queue storage."""
+    if sys.platform != "linux":
+        pytest.skip("io_uring SQE preparation requires the Linux PAL and liburing")
     return native_compile("queue-prepare", r'''
 #include <assert.h>
 #include "platform/linux/aio_wrapper.c"

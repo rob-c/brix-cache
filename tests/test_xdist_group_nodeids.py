@@ -9,7 +9,7 @@ import sys
 import pytest
 
 from brix_suite.harness.xdist_groups import materialize_xdist_group
-from conftest_part3 import _force_xdist_group
+from conftest_part3 import _force_xdist_group, _mark_path_groups
 
 
 class _Item:
@@ -60,6 +60,27 @@ def test_forced_group_reuses_parameter_safe_materialization():
     assert item.nodeid.endswith('[identity@parameter]@shared-owner')
 
 
+@pytest.mark.parametrize('groups', [(), ('cvmfs_srv_shared',),
+                                  ('other-module', 'stale-owner')])
+def test_cvmfs_fixed_port_owners_replace_conflicting_module_groups(groups):
+    """Empty, stale, or multiple module groups cannot split fixed-port owners."""
+    item = _Item('tests/test_cvmfs_probe.py::test_one[value@tag]@stale', groups)
+    item.fspath = 'tests/test_cvmfs_probe.py'
+    _mark_path_groups(item, 'test_cvmfs_probe.py')
+    materialize_xdist_group(item)
+    assert item.nodeid == ('tests/test_cvmfs_probe.py::'
+                           'test_one[value@tag]@cvmfs-fixed-ports')
+
+
+def test_unrelated_module_keeps_its_own_scheduling_group():
+    """The CVMFS port policy must not serialize unrelated module families."""
+    item = _Item('tests/test_other.py::test_one', ('other-owner',))
+    item.fspath = 'tests/test_other.py'
+    _mark_path_groups(item, 'test_other.py')
+    materialize_xdist_group(item)
+    assert item.nodeid.endswith('@other-owner')
+
+
 _COLLECTOR = '''
 import json
 import os
@@ -102,7 +123,8 @@ def _collect_only(tmp_path, selector):
         collection_selector += separator + selection
     proc = subprocess.run([sys.executable, '-m', 'pytest', '--collect-only', '--noconftest',
                            '-p', 'group_probe', '-c', str(config), '--rootdir', str(collection_root),
-                           '--ignore', str(repo.parents[1] / '.Trash'),
+                           '--confcutdir', str(collection_root),
+                           '--ignore', str(Path.home() / '.Trash'),
                            '-o', 'addopts=', '-q', collection_selector],
                           cwd=collection_root, env=env, capture_output=True,
                           text=True, timeout=30)

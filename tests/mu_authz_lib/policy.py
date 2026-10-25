@@ -37,6 +37,7 @@ import os
 from dataclasses import dataclass
 
 from . import ports
+from .accounts import canonical_account_names
 
 
 @dataclass
@@ -51,12 +52,13 @@ class Policy:
 def write_gridmap(cast) -> str:
     os.makedirs(ports.MU.MU_ROOT, exist_ok=True)
     lines = []
+    accounts = canonical_account_names(cast)
     for p in cast.values():
         if p.name == "squashed":
             continue
-        lines.append(f'"{p.dn}" brixtest_{p.name}')
+        lines.append(f'"{p.dn}" {accounts[p.name]}')
         if p.krb_princ:
-            lines.append(f'"{p.krb_princ}" brixtest_{p.name}')
+            lines.append(f'"{p.krb_princ}" {accounts[p.name]}')
     with open(ports.MU.GRIDMAP, "w") as f:
         f.write("\n".join(lines) + "\n")
     return ports.MU.GRIDMAP

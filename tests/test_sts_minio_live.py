@@ -15,19 +15,22 @@ Ritual:
   security — the same GET WITHOUT the session token is rejected (403);
              an AssumeRole signed with a wrong service secret fails closed.
 
-Run (opt-out): runs by default whenever a container runtime (docker OR rootless
-podman — see cmdscripts.container_runtime) + a minio image are present and the
-nginx objects are built; force-skip with STS_MINIO_LIVE=0, or pin the runtime
-with $BRIX_CONTAINER_RUNTIME. Runtime-direct (no fleet server), mirroring
-test_ceph_live.py — not a TEST_REGISTRY suite.
+Run (opt-out): uses a local container image or a native MinIO binary and the
+configured nginx SDK. Force-skip with STS_MINIO_LIVE=0; select a native binary
+explicitly with BRIX_MINIO_BIN. Explicit BRIX_CONTAINER_RUNTIME/BRIX_MINIO_IMAGE
+selections remain authoritative and never silently select the native service.
+The native service binds only the test host, uses private disposable data and
+is stopped through its owned Popen handle. No installed service is changed.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+from contextlib import contextmanager
 import hashlib
 import hmac
 import os
+import shutil
 import subprocess
 import time
 import urllib.error
@@ -37,9 +40,11 @@ from urllib.parse import quote
 
 import pytest
 
-from cmdscripts.c_auth_units import NGX_SRC, OBJS, find_obj, pkg_config
+from cmdscripts.c_auth_units import NGX_SRC, pkg_config
 from cmdscripts.compile_run import REPO_ROOT, run
 from cmdscripts.container_runtime import container_runtime
+from brix_suite.launcher.internal_operations import _port_released
+from test_platform_linux_native import native_compile
 from settings import HOST         # env-overridable host (the sanctioned idiom)
 
 # `slow`: this lab now actually RUNS wherever a container runtime is present
@@ -47,41 +52,6 @@ from settings import HOST         # env-overridable host (the sanctioned idiom)
 # real MinIO on a fixed port, so it belongs in the nightly/full tier, not the
 # minutes-long `-m "not slow"` PR gate. (Before the podman seam it silently
 # skipped on the docker-only gate, so no marker was needed.)
-def _expression_1():
-    return (
-        [find_obj(n) for n in STS_OBJS]
-    )
-
-def _expression_2(objs):
-    return (
-        [n for n, o in zip(STS_OBJS, objs) if o is None]
-    )
-
-def _expression_3(ngx_string, binary, objs):
-    return (
-        [
-                "gcc", "-O", "-Wall",
-                "-I", "src",
-                "-I", str(NGX_SRC / "src/core"),
-                "-I", str(NGX_SRC / "src/event"),
-                "-I", str(NGX_SRC / "src/os/unix"),
-                "-I", str(OBJS),
-                *pkg_config(["--cflags", "libxml-2.0"]),
-                "tests/c/sts_live_assume.c",
-                *[str(o) for o in objs],
-                str(ngx_string),
-                *pkg_config(["--libs", "libxml-2.0"], ["-lxml2"]),
-                *pkg_config(["--libs", "libcurl"], ["-lcurl"]),
-                "-lcrypto",
-                "-o", str(binary),
-            ]
-    )
-
-def _expression_4(built):
-    return (
-        None, f"harness compile failed: {(built.stderr or built.stdout)[-2000:]}"
-    )
-
 
 def _guard_minio_sts_lab_1():
     if os.environ.get("STS_MINIO_LIVE") == "0":
@@ -94,11 +64,7 @@ def _guard_minio_sts_lab_2(runtime):
 def _guard_minio_sts_lab_3(image):
     if image is None:
         pytest.skip("no local minio image (expected one of: "
-                    + ", ".join(MINIO_IMAGES) + ")")
-
-def _guard_minio_sts_lab_4(harness, reason):
-    if harness is None:
-        pytest.skip(reason)
+                    + ", ".join(_minio_images()) + ")")
 
 def _guard_minio_sts_lab_5(cid):
     if not cid:
@@ -119,6 +85,7 @@ pytestmark = [pytest.mark.timeout(300), pytest.mark.slow]
 # A minio image is present locally under one of these tags (see `docker images`).
 MINIO_IMAGES = (
     "quay.io/minio/minio:latest",
+    "docker.io/minio/minio:latest",
     "minio/minio:latest",
 )
 ROOT_USER = "brixroot"
@@ -130,10 +97,6 @@ BUCKET = "stsbucket"
 KEY = "obj/hello.txt"
 BODY = b"phase-70 sts origin leg live proof\n"
 ENDPOINT = f"http://{HOST}:{PORT}"
-
-# The production TUs the harness links (same objects the module build produced).
-STS_OBJS = ["sts.o", "sts_sign.o", "sts_http.o", "crypto.o", "sigv4.o"]
-
 
 # ---- minimal SigV4 (test-side verifier; independent of the code under test) --
 
@@ -209,74 +172,157 @@ def _sign_get(ak: str, sk: str, session: str | None, bucket: str, key: str):
 
 # ---- lab discovery / lifecycle -------------------------------------------
 
+def _minio_images() -> tuple[str, ...]:
+    """An explicit image selection is authoritative, never a fallback hint."""
+    requested = os.environ.get("BRIX_MINIO_IMAGE")
+    return (requested,) if requested else MINIO_IMAGES
+
+
 def _pick_image(runtime: str) -> str | None:
     listed = run([runtime, "images", "--format", "{{.Repository}}:{{.Tag}}"],
                  cwd=REPO_ROOT)
+    if listed.returncode != 0:
+        return None
     tags = set(listed.stdout.split())
-    for img in MINIO_IMAGES:
+    for img in _minio_images():
         if img in tags:
             return img
     return None
 
 
-def _build_harness(dst: Path) -> tuple[Path | None, str]:
-    """Compile tests/c/sts_live_assume.c against the prebuilt production objects.
-    Returns (binary, "") on success, or (None, reason) to skip."""
-    objs = _expression_1()
-    missing = _expression_2(objs)
-    if missing:
-        return None, f"build nginx first (missing {' '.join(missing)})"
-    ngx_string = OBJS / "src/core/ngx_string.o"
-    if not ngx_string.exists():
-        return None, "build nginx first (ngx_string.o)"
-    binary = dst / "sts_live_assume"
-    cmd = _expression_3(ngx_string, binary, objs)
-    built = run(cmd, cwd=REPO_ROOT, env={"TMPDIR": "/tmp"})
-    if built.returncode != 0:
-        return _expression_4(built)
-    return binary, ""
+def _native_minio_binary() -> str | None:
+    """An explicit binary must exist; a bad pin cannot silently use PATH."""
+    requested = os.environ.get("BRIX_MINIO_BIN")
+    found = shutil.which(requested or "minio")
+    if requested and found is None:
+        raise RuntimeError("BRIX_MINIO_BIN is not an executable binary")
+    return found
 
 
-@pytest.fixture(scope="module")
-def minio_sts_lab(tmp_path_factory):
-    _guard_minio_sts_lab_1()
+@contextmanager
+def _native_minio(binary, root):
+    """Start only our private child; never stop an existing port occupant."""
+    if not _port_released(HOST, PORT):
+        raise RuntimeError("native MinIO test endpoint is already occupied")
+    data, certs = root / "data", root / "certs"
+    data.mkdir()
+    certs.mkdir()
+    environment = {**os.environ, "MINIO_ROOT_USER": ROOT_USER,
+        "MINIO_ROOT_PASSWORD": ROOT_PW, "MINIO_BROWSER": "off",
+        "MINIO_UPDATE": "off"}
+    command = [binary, "server", "--address", f"{HOST}:{PORT}",
+               "--certs-dir", str(certs), "--json", "--anonymous", str(data)]
+    with (root / "minio.log").open("wb") as log:
+        process = subprocess.Popen(command, env=environment, stdout=log, stderr=log)
+        try:
+            yield process
+        finally:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+
+
+def _selected_native_minio():
+    """Prefer native availability but never override a container pin."""
+    container_pin = any(os.environ.get(key) for key in (
+        "BRIX_CONTAINER_RUNTIME", "BRIX_MINIO_IMAGE"))
+    if os.environ.get("BRIX_MINIO_BIN") and container_pin:
+        raise RuntimeError("select either native MinIO or a container, not both")
+    return None if container_pin else _native_minio_binary()
+
+
+@contextmanager
+def _minio_service(root):
+    """Use one owned service, preserving explicit selection errors."""
+    binary = _selected_native_minio()
+    if binary:
+        with _native_minio(binary, root) as process:
+            yield process
+        return
+    with _container_minio():
+        yield None
+
+
+@contextmanager
+def _container_minio():
+    """Keep the existing local-image oracle when native execution is absent."""
     runtime = container_runtime()
     _guard_minio_sts_lab_2(runtime)
     image = _pick_image(runtime)
     _guard_minio_sts_lab_3(image)
-
-    harness, reason = _build_harness(tmp_path_factory.mktemp("sts_harness"))
-    _guard_minio_sts_lab_4(harness, reason)
-
-    cid = run(
-        [runtime, "run", "-d", "--rm", "-p", f"{PORT}:9000",
-         "-e", f"MINIO_ROOT_USER={ROOT_USER}",
-         "-e", f"MINIO_ROOT_PASSWORD={ROOT_PW}",
-         image, "server", "/data"],
-        cwd=REPO_ROOT,
-    ).stdout.strip()
+    result = run([runtime, "run", "-d", "--rm", "-p", f"{HOST}:{PORT}:9000",
+        "-e", f"MINIO_ROOT_USER={ROOT_USER}",
+        "-e", f"MINIO_ROOT_PASSWORD={ROOT_PW}", image, "server", "/data"], cwd=REPO_ROOT)
+    assert result.returncode == 0, "MinIO container launch failed"
+    cid = result.stdout.strip()
     _guard_minio_sts_lab_5(cid)
-
     try:
-        healthy = False
-        for _ in range(80):
-            try:
-                if _http("GET", f"{ENDPOINT}/minio/health/live", {})[0] == 200:
-                    healthy = True
-                    break
-            except OSError:
-                pass
-            time.sleep(0.5)
-        _check_minio_sts_lab_1(healthy)
+        yield None
+    finally:
+        run([runtime, "rm", "-f", cid], cwd=REPO_ROOT)
 
+
+def _wait_minio(process):
+    """A dead native child cannot borrow an unrelated service's health proof."""
+    for _ in range(80):
+        if process is not None and process.poll() is not None:
+            raise RuntimeError("native MinIO exited during readiness; see minio.log")
+        try:
+            if _http("GET", f"{ENDPOINT}/minio/health/live", {})[0] == 200:
+                return
+        except OSError:
+            pass
+        time.sleep(0.5)
+    _check_minio_sts_lab_1(False)
+
+
+@pytest.fixture(scope="module")
+def sts_harness(native_compile):
+    """Compile the real STS and DNS closure; compilation failures are errors."""
+    sources = [
+        "src/auth/s3/sts.c", "src/auth/s3/sts_sign.c", "src/auth/s3/sts_http.c",
+        "src/core/compat/crypto.c", "src/core/compat/sigv4.c",
+        "src/net/dns/curl_pin.c", "src/net/dns/resolve.c",
+        "src/net/dns/resolve_thread.c", "src/core/compat/net_target_parse.c",
+        "src/core/compat/host_format.c", "tests/c/sts_live_dns_runtime.c",
+        str(NGX_SRC / "src/core/ngx_string.c"),
+        str(NGX_SRC / "src/core/ngx_inet.c"),
+    ]
+    libraries = ["openssl", "libcurl", "libxml-2.0"]
+    flags = ["-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections",
+             *pkg_config(["--cflags", *libraries]),
+             *pkg_config(["--libs", *libraries]), "-pthread"]
+    return native_compile(
+        "sts-live-assume", (REPO_ROOT / "tests/c/sts_live_assume.c").read_text(),
+        sources, flags, include_dirs=pkg_config(["--variable=includedir", "openssl"]),
+    )
+
+
+@pytest.mark.parametrize("url,expected", [
+    ("http://localhost:19922/", 0),  # net-literal-allow: hostname must exercise real DNS rather than a literal-address shortcut
+    ("http:///", 1),
+    ("http://127.0.0.1@untrusted.invalid/", 1),  # net-literal-allow: hostile userinfo must be rejected before resolution
+])
+def test_standalone_sts_uses_the_real_dns_pin(sts_harness, url, expected):
+    """Real name resolution works; malformed and userinfo URLs are refused."""
+    result = subprocess.run([str(sts_harness), "--dns-probe", url],
+                            capture_output=True, timeout=15)
+    assert result.returncode == expected, result.stderr
+
+
+@pytest.fixture(scope="module")
+def minio_sts_lab(sts_harness, tmp_path_factory):
+    _guard_minio_sts_lab_1()
+    with _minio_service(tmp_path_factory.mktemp("sts-minio-native")) as process:
+        _wait_minio(process)
         uri, hdr = _sign_put(ROOT_USER, ROOT_PW, BUCKET, "", b"")
         _check_minio_sts_lab_2(hdr, uri)
         uri, hdr = _sign_put(ROOT_USER, ROOT_PW, BUCKET, KEY, BODY)
         _check_minio_sts_lab_3(hdr, uri)
-
-        yield harness
-    finally:
-        run([runtime, "rm", "-f", cid], cwd=REPO_ROOT)
+        yield sts_harness
 
 
 def _assume(harness: Path, secret: str) -> subprocess.CompletedProcess:

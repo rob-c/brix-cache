@@ -290,7 +290,7 @@ LIFECYCLE_SHARED_PORTS_WAVES: dict[str, dict] = {
     "lc-tpc-gsi-nginx-dest": {"port": 30193},
     "lc-tpc-tls-source": {"port": 30194},
     "lc-tpc-tls-dest": {"port": 30195},
-    # native GSI interop (native-xrootd source is a fixed constant 21094).
+    # Native GSI interop (the stock source leases its own mock listener).
     "lc-nginx-gsi": {"port": 30196},
     "lc-nginx-gsi-signed": {"port": 30197},
     # CMS managers that BIND their own CMS/multi login listens (mock nodes dial).

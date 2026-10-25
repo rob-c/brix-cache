@@ -82,7 +82,7 @@ jobs:
       - name: Evaluate and build the pinned flake
         run: |
           docker run --rm -v "$PWD:/src:ro" -w /src nixos/nix:2.32.1 \
-            --extra-experimental-features "nix-command flakes" \
+            nix --extra-experimental-features "nix-command flakes" \
             flake check path:/src --print-build-logs
 
   homebrew:

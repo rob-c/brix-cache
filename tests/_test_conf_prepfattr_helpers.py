@@ -383,6 +383,11 @@ def _make_pair_file(srv, rel, payload=b""):
 def _disk_xattrs(path):
     """Return {key: value_bytes} of user.* xattrs on `path`, or None if the FS
     does not support listing xattrs."""
+    from lib_py.reference_host import reference_disk_xattrs
+
+    remote = reference_disk_xattrs(path)
+    if remote is not None:
+        return remote
     try:
         keys = os.listxattr(path)
     except (OSError, AttributeError):

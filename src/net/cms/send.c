@@ -1,6 +1,7 @@
 #include "core/compat/log_event.h"
 #include "cms_internal.h"
 #include "frame_io.h"
+#include "login_wire.h"
 #include "perf_pgm.h"               /* §2.11: external load-feed override */
 #include "net/manager/registry.h"
 #include "core/compat/host_identity.h"   /* brix_host_identity: the advertised node name */
@@ -92,6 +93,45 @@ cms_login_mode(ngx_stream_brix_srv_conf_t *conf)
     }
 }
 
+/* ---- Format the bounded exported-path list for a node LOGIN ----
+ *
+ * WHAT: Encode colon-separated exports as newline-separated typed paths and
+ * return the bytes written, without a terminating NUL.
+ * WHY: Namespace formatting is independent of capacity sampling and wire
+ * framing; isolating it keeps the LOGIN orchestrator small and testable.
+ * HOW: 1. Walk delimiters and the final segment. 2. Append nonempty segments
+ * only when the complete typed entry and its framing fit the caller's buffer.
+ */
+static size_t
+cms_login_format_paths(ngx_str_t paths, ngx_flag_t writable, u_char *output,
+    size_t capacity)
+{
+    size_t used = 0;
+    size_t segment_start = 0;
+    u_char type = writable ? (u_char) 'w' : (u_char) 'r';
+
+    if (output == NULL || (paths.len > 0 && paths.data == NULL)) {
+        return 0;
+    }
+    for (size_t index = 0; index <= paths.len; index++) {
+        if (index == paths.len || paths.data[index] == ':') {
+            size_t segment_length = index - segment_start;
+            if (segment_length > 0 && capacity > 4 && used < capacity - 4
+                && segment_length < capacity - 4 - used) {
+                if (used != 0) {
+                    output[used++] = '\n';
+                }
+                output[used++] = type;
+                output[used++] = ' ';
+                ngx_memcpy(output + used, paths.data + segment_start, segment_length);
+                used += segment_length;
+            }
+            segment_start = index + 1;
+        }
+    }
+    return used;
+}
+
 /*
  * ngx_brix_cms_send_login — initial CMS login frame with server capabilities.
  *
@@ -108,22 +148,19 @@ ngx_int_t
 ngx_brix_cms_send_login(ngx_brix_cms_ctx_t *ctx)
 {
     u_char      payload[BRIX_CMS_LOGIN_PAYLOAD_BUF];
-    u_char     *payload_cursor;
+    brix_cms_login_fields_t fields = {0};
+    size_t      payload_len;
     u_char      sid[BRIX_CMS_SID_BUF];
     u_char      pathbuf[BRIX_CMS_PATH_LIST_BUF];
     u_char      envbuf[BRIX_CMS_ENV_CGI_BUF];
     u_char      hostbuf[BRIX_CMS_HOST_ID_BUF];
-    u_char     *pp;
     ngx_str_t   paths;
     size_t      sid_len;
     size_t      path_len;
     size_t      env_len;
-    size_t      i;
-    size_t      seg_start;
     uint32_t    total_gb;
     uint32_t    free_mb;
     uint32_t    util_pct;
-    u_char      ptype;
 
     /*
      * Build the exported-path list in the real XrdCms wire format: newline-
@@ -132,34 +169,8 @@ ngx_brix_cms_send_login(ngx_brix_cms_ctx_t *ctx)
      * colon-separated namespace prefixes ("/data:/atlas").
      */
     paths = ngx_brix_cms_export_paths(ctx->conf);
-    ptype = ctx->conf->common.allow_write ? (u_char) 'w' : (u_char) 'r';
-    pp = pathbuf;
-    seg_start = 0;
-    /*
-     * Loop runs to i == paths.len (one past the last byte) so the final
-     * segment is flushed by the same branch that handles a ':' delimiter — no
-     * separate post-loop emit needed.  The "+ 4" slack in the bound check
-     * reserves room for the per-segment framing this iteration may append:
-     * one '\n' separator + the type char + a space (3) plus a margin byte.
-     */
-    for (i = 0; i <= paths.len; i++) {
-        if (i == paths.len || paths.data[i] == ':') {
-            size_t seglen = i - seg_start;
-            if (seglen > 0
-                && (size_t) (pp - pathbuf) + seglen + 4 < sizeof(pathbuf))
-            {
-                if (pp != pathbuf) {
-                    *pp++ = '\n';
-                }
-                *pp++ = ptype;
-                *pp++ = ' ';
-                ngx_memcpy(pp, paths.data + seg_start, seglen);
-                pp += seglen;
-            }
-            seg_start = i + 1;
-        }
-    }
-    path_len = (size_t) (pp - pathbuf);
+    path_len = cms_login_format_paths(paths, ctx->conf->common.allow_write,
+                                      pathbuf, sizeof(pathbuf));
 
     /*
      * Server identity "<host>:<dport>" — opaque to the manager but must be
@@ -196,28 +207,21 @@ ngx_brix_cms_send_login(ngx_brix_cms_ctx_t *ctx)
      * Scalars carry a 0x80/0xa0 type tag; strings are bare [len][data+NUL].
      * The frame header datalen (set by send_frame) is the total payload length.
      */
-    payload_cursor = payload;
-    payload_cursor = ngx_brix_cms_put_short(payload_cursor,
-                                              CMS_LOGIN_VERSION);
-    payload_cursor = ngx_brix_cms_put_int(payload_cursor,
-                                            cms_login_mode(ctx->conf));
-    payload_cursor = ngx_brix_cms_put_int(payload_cursor,
-                                            (uint32_t) getpid());
+    fields.mode = cms_login_mode(ctx->conf);
+    fields.hold_time = (uint32_t) getpid();
     /* tSpace/fSpace: total disk (GB) and free (MB) reported to the manager. */
-    payload_cursor = ngx_brix_cms_put_int(payload_cursor, total_gb);
-    payload_cursor = ngx_brix_cms_put_int(payload_cursor, free_mb);
+    fields.total_gb = total_gb;
+    fields.free_mb = free_mb;
     /*
      * mSpace: minimum-free threshold (MB).  Policy floor, not a live
      * measurement — below this free space the manager should stop selecting
      * us.  Configurable via brix_cms_min_free (§2.4); default 100 MB, the
      * historical NGX_BRIX_CMS_MIN_FREE_MB constant.
      */
-    payload_cursor = ngx_brix_cms_put_int(payload_cursor,
-                                            (uint32_t) ctx->conf->cms.min_free_mb);
+    fields.min_free_mb = (uint32_t) ctx->conf->cms.min_free_mb;
     /* fsNum: number of exported filesystems — we present a single namespace. */
-    payload_cursor = ngx_brix_cms_put_short(payload_cursor, 1);
-    payload_cursor = ngx_brix_cms_put_short(payload_cursor,
-                                              (uint16_t) util_pct);
+    fields.fs_num = 1;
+    fields.fs_util = (uint16_t) util_pct;
     /*
      * dPort: the data port clients are redirected to (our listen port).
      * §2.12 (cms.altds): a configured alternate data server's port wins —
@@ -227,12 +231,9 @@ ngx_brix_cms_send_login(ngx_brix_cms_ctx_t *ctx)
      * sPort follows as 0 — we run no separate subscriber/admin port, so the
      * field is present in wire order but advertised as unused.
      */
-    payload_cursor = ngx_brix_cms_put_short(
-        payload_cursor,
-        (uint16_t) (ctx->conf->cms.altds_port > 0
-                    ? ctx->conf->cms.altds_port
-                    : ctx->conf->listen_port));
-    payload_cursor = ngx_brix_cms_put_short(payload_cursor, 0); /* sPort */
+    fields.data_port = (uint16_t) (ctx->conf->cms.altds_port > 0
+                                  ? ctx->conf->cms.altds_port
+                                  : ctx->conf->listen_port);
 
     /*
      * Trailing Pup strings in wire order: SID, Paths, then ifList and envCGI.
@@ -248,16 +249,19 @@ ngx_brix_cms_send_login(ngx_brix_cms_ctx_t *ctx)
                                          ctx->conf->cms.vnid.data) - envbuf);
     }
 
-    payload_cursor = ngx_brix_cms_put_string(payload_cursor, sid, sid_len);
-    payload_cursor = ngx_brix_cms_put_string(payload_cursor, pathbuf,
-                                               path_len);
-    payload_cursor = ngx_brix_cms_put_string(payload_cursor, NULL, 0);
-    payload_cursor = ngx_brix_cms_put_string(payload_cursor,
-                                               env_len > 0 ? envbuf : NULL,
-                                               env_len);
+    fields.sid.data = sid;
+    fields.sid.len = sid_len;
+    fields.paths.data = pathbuf;
+    fields.paths.len = path_len;
+    fields.environment.data = env_len > 0 ? envbuf : NULL;
+    fields.environment.len = env_len;
+    payload_len = brix_cms_login_encode(payload, sizeof(payload), &fields);
+    if (payload_len == 0) {
+        return NGX_ERROR;
+    }
 
     return ngx_brix_cms_send_frame(ctx, 0, CMS_RR_LOGIN, 0, payload,
-                                     (size_t) (payload_cursor - payload));
+                                     payload_len);
 }
 
 /*

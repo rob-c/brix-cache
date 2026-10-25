@@ -178,19 +178,24 @@ def _recv_exact(sock, n):
     return buf
 
 
-def _read_resp(sock):
+def _read_resp(sock, *, expected_sid=None, max_bytes=None):
     """Read one XRootD response frame → (status: int, body: bytes)."""
     hdr = _recv_exact(sock, 8)
-    _, status, dlen = struct.unpack(">2sHI", hdr)
+    response_sid, status, dlen = struct.unpack(">2sHI", hdr)
+    if expected_sid is not None and response_sid != expected_sid:
+        raise RuntimeError("response stream ID mismatch")
+    if max_bytes is not None and dlen > max_bytes:
+        raise RuntimeError("response exceeds requested byte count")
     body = _recv_exact(sock, dlen) if dlen else b""
     return status, body
 
 
-def _read_resp_all(sock):
+def _read_resp_all(sock, *, expected_sid=None, max_bytes=None):
     """Accumulate kXR_oksofar frames into a single (status, body) pair."""
     data = b""
     while True:
-        status, body = _read_resp(sock)
+        remaining = None if max_bytes is None else max_bytes - len(data)
+        status, body = _read_resp(sock, expected_sid=expected_sid, max_bytes=remaining)
         data += body
         if status != kXR_oksofar:
             return status, data
@@ -242,10 +247,11 @@ def _fh(open_body):
     return open_body[:4]
 
 
-def _read(sock, fhandle, offset, rlen, sid=b"\x00\x30"):
+def _read(sock, fhandle, offset, rlen, sid=b"\x00\x30", *, strict=False):
     req = struct.pack(">2sH4sQiI", sid, kXR_read, fhandle, offset, rlen, 0)
     sock.sendall(req)
-    return _read_resp_all(sock)
+    return _read_resp_all(sock, expected_sid=sid if strict else None,
+                          max_bytes=rlen if strict else None)
 
 
 def _write(sock, fhandle, offset, data, sid=b"\x00\x40"):

@@ -32,6 +32,7 @@ import pytest
 
 import official_interop_lib as L
 from gfal_cli import clean_env as _clean_env
+from lib_py.reference_host import fixture_read_bytes
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_CRC32C = os.path.join(REPO, "client", "bin", "xrdcrc32c")
@@ -79,6 +80,29 @@ def _url(ctx, side, path):
 def _scratch(ctx, side, name):
     """A per-test scratch dir under each data root, created identically."""
     return _url(ctx, side, f"gfal_scr_{name}")
+
+
+def _seed_scratch_file(ctx, name, relative, payload):
+    """Seed namespace-operation fixtures independently of the copy under test.
+
+    An ignored upload error used to make rename/rm test a nonexistent file,
+    and let recursive rm falsely pass on an empty directory. Keep the separate
+    transfer tests unchanged and prove the starting bytes on both exports.
+    """
+    _validate_scratch_components(name, relative)
+    paths = [os.path.join(ctx[side + '_data'], 'gfal_scr_' + name, relative)
+             for side in ('our', 'off')]
+    for path in paths:
+        L._seed_file(path, payload)
+        assert fixture_read_bytes(path) == payload, 'scratch fixture bytes differ'
+    L.harmonize_perms(*paths)
+    return paths
+
+
+def _validate_scratch_components(name, relative):
+    components = (name, *relative.split('/'))
+    if any(not part or part in ('.', '..') or '/' in part for part in components):
+        raise ValueError('scratch fixture must name confined path components')
 
 
 # --------------------------------------------------------------------------- #

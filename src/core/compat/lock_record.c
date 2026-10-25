@@ -81,7 +81,8 @@ brix_lock_record_decode(const char *raw, size_t rawlen, brix_lock_record_t *e)
     char  *p, *end, *val, *next;
     int    version = 0;
 
-    if (rawlen == 0 || rawlen >= sizeof(buf)) {
+    if (raw == NULL || rawlen == 0 || rawlen >= sizeof(buf)
+        || memchr(raw, '\0', rawlen) != NULL) {
         return NGX_DECLINED;
     }
 
@@ -124,6 +125,12 @@ brix_lock_record_decode(const char *raw, size_t rawlen, brix_lock_record_t *e)
         e->expires = 0;
     }
 
+    /* Keep the bytes by value: legacy expiry normalization, field order and
+     * unknown fields must not change the expected side of an atomic update.
+     * Replacement encoding deliberately ignores this read-only snapshot. */
+    ngx_memcpy(e->observed, raw, rawlen);
+    e->observed[rawlen] = '\0';
+    e->observed_length = rawlen;
     return NGX_OK;
 }
 

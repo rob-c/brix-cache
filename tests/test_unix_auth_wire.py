@@ -28,12 +28,13 @@ own interfaces; it skips when the host has only 127.0.0.0/8.  All instances are
 throwaway registry-lifecycle nginx servers.
 """
 
-import fcntl
+import ipaddress
 import os
 import socket
 import struct
 
 import pytest
+import psutil
 
 from settings import BIND_HOST, HOST, NGINX_BIN
 from server_launcher import LifecycleHarness
@@ -53,8 +54,6 @@ pytestmark = [pytest.mark.serial, pytest.mark.timeout(120),
 kXR_auth, kXR_open, kXR_read = 3000, 3010, 3013
 kXR_open_read = 0x0010
 kXR_NotAuthorized = 3010          # errno EPERM -> kXR (error_mapping.c)
-
-_SIOCGIFADDR = 0x8915          # linux/sockios.h — per-interface IPv4 address
 
 SEED = b"unix-auth wire payload\n"
 
@@ -97,23 +96,61 @@ def _non_loopback_addr():
 
     Dialling such an address from this same host gives the server a non-loopback
     PEER — the only unprivileged way to put the trust gate under test.  Read off
-    the interfaces themselves (SIOCGIFADDR) rather than from the hostname, which
-    commonly resolves into 127.0.0.0/8 and would silently skip the whole leg.
+    the interfaces themselves through psutil's native adapter rather than a
+    Linux-only ioctl or a hostname that commonly resolves into 127.0.0.0/8.
     """
-    for _, name in socket.if_nameindex():
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            raw = fcntl.ioctl(sock.fileno(), _SIOCGIFADDR,
-                              struct.pack("256s", name.encode()[:15]))
-            addr = socket.inet_ntoa(raw[20:24])
-        except OSError:
-            continue
-        finally:
-            sock.close()
-        # 127.0.0.0/8 is exactly what the server's gate treats as trusted.
-        if not addr.startswith("127."):
-            return addr
+    for addresses in psutil.net_if_addrs().values():
+        for record in addresses:
+            address = _unicast_ipv4(record)
+            if address is not None:
+                return address
     return None
+
+
+def _unicast_ipv4(record):
+    if record.family != socket.AF_INET:
+        return None
+    address = ipaddress.IPv4Address(record.address)
+    if any((address.is_loopback, address.is_unspecified, address.is_multicast)):
+        return None
+    return str(address)
+
+
+def test_non_loopback_probe_uses_native_interface_addresses(monkeypatch):
+    from types import SimpleNamespace
+
+    rows = [SimpleNamespace(family=socket.AF_INET6, address='::1'),  # net-literal-allow: interface-selection vector, never dialed
+            SimpleNamespace(family=socket.AF_INET, address='127.0.0.7'),  # net-literal-allow: trusted-peer rejection vector, never dialed
+            SimpleNamespace(family=socket.AF_INET, address='192.0.2.7')]
+    monkeypatch.setattr(psutil, 'net_if_addrs', lambda: {'native0': rows})
+    assert _non_loopback_addr() == '192.0.2.7'
+
+
+@pytest.mark.parametrize('address', ['127.0.0.1', '127.64.7.1', '0.0.0.0', '224.0.0.1'])  # net-literal-allow: unusable interface-selection vectors, never dialed
+def test_non_loopback_probe_cannot_mistake_a_trusted_or_nonunicast_peer(monkeypatch, address):
+    from types import SimpleNamespace
+
+    rows = [SimpleNamespace(family=socket.AF_INET, address=address)]
+    monkeypatch.setattr(psutil, 'net_if_addrs', lambda: {'native0': rows})
+    assert _non_loopback_addr() is None
+
+
+def test_non_loopback_probe_cannot_turn_failed_inspection_into_a_skip(monkeypatch):
+    def denied():
+        raise PermissionError('cannot inspect native interfaces')
+
+    monkeypatch.setattr(psutil, 'net_if_addrs', denied)
+    with pytest.raises(PermissionError, match='cannot inspect native interfaces'):
+        _non_loopback_addr()
+
+
+def test_non_loopback_probe_refuses_malformed_native_address(monkeypatch):
+    from types import SimpleNamespace
+
+    rows = [SimpleNamespace(family=socket.AF_INET, address='not-an-ipv4-address')]
+    monkeypatch.setattr(psutil, 'net_if_addrs', lambda: {'native0': rows})
+    with pytest.raises(ValueError):
+        _non_loopback_addr()
 
 
 # --------------------------------------------------------------------------- #

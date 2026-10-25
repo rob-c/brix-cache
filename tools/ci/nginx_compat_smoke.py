@@ -20,6 +20,7 @@ import hashlib
 import http.client
 import json
 import os
+import shlex
 import signal
 import socket
 import subprocess
@@ -35,7 +36,7 @@ def _arguments(argv):
     parser.add_argument("--nginx", type=Path, required=True)
     parser.add_argument("--module-dir", type=Path, required=True)
     parser.add_argument("--stream-module", type=Path,
-                        help="override ngx_stream_module.so for distro nginx")
+                        help="explicit external stream core; built-in stream is otherwise detected")
     parser.add_argument("--work-dir", type=Path, required=True,
                         help="parent for the private run directory and logs")
     parser.add_argument("--xrdcp", type=Path,
@@ -59,7 +60,7 @@ def _artifacts(args):
 
 def _modules(args):
     modules = [
-        args.stream_module or args.module_dir / "ngx_stream_module.so",
+        *_stream_modules(args),
         args.module_dir / "ngx_stream_brix_module.so",
         args.module_dir / "ngx_http_brix_xrdhttp_filter_module.so",
     ]
@@ -67,6 +68,27 @@ def _modules(args):
         if not module.is_file():
             raise RuntimeError(f"required dynamic module is missing: {module}")
     return [module.resolve() for module in modules]
+
+
+def _stream_modules(args):
+    """An explicit override wins; otherwise require a DSO only for dynamic stream."""
+    if args.stream_module is not None:
+        return [args.stream_module]
+    if _builtin_stream(args.nginx):
+        return []
+    return [args.module_dir / "ngx_stream_module.so"]
+
+
+def _builtin_stream(nginx):
+    """Inspect exact configure arguments; dynamic/SSL-only flags are not proof."""
+    result = subprocess.run([str(nginx), "-V"], capture_output=True,
+                            text=True, timeout=10, check=False)
+    if result.returncode != 0:
+        raise RuntimeError("nginx -V failed while inspecting built-in stream support")
+    for line in (result.stdout + "\n" + result.stderr).splitlines():
+        if line.startswith("configure arguments:"):
+            return "--with-stream" in shlex.split(line.partition(":")[2])
+    return False
 
 
 def _quote(value):

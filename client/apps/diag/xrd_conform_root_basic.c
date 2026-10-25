@@ -19,6 +19,14 @@ static void probe_protocol_expectations(xrd_conform_execution *execution,
 static void probe_protocol_bootstrap(xrd_conform_execution *execution,
     const brix_url *url);
 
+typedef struct {
+    int handshake_answered;
+    int handshake_v5;
+    int handshake_version_ok;
+    int protocol_answered;
+    int protocol_body_long_enough;
+} bootstrap_observation;
+
 static void
 grade_clause(xrd_conform_execution *execution, const char *id, int pass,
     const char *pass_reason, const char *fail_reason, const char *received)
@@ -73,8 +81,8 @@ xrd_conform_probe_protocol_claims(xrd_conform_execution *execution,
  * HOW: Exchange only the canonical handshake and protocol request, bound every
  *      read, and keep the malformed fixture out of the primary session. */
 static void
-probe_protocol_bootstrap(xrd_conform_execution *execution,
-    const brix_url *url)
+read_bootstrap_observation(const brix_url *url, brix_io *io,
+    brix_status *status, bootstrap_observation *observed)
 {
     ClientInitHandShake handshake;
     ClientProtocolRequest protocol;
@@ -82,78 +90,91 @@ probe_protocol_bootstrap(xrd_conform_execution *execution,
     uint8_t handshake_header[XRD_RESPONSE_HDR_LEN];
     uint8_t handshake_body[sizeof(ServerProtocolBody)];
     uint8_t response_header[XRD_RESPONSE_HDR_LEN];
-    brix_io io;
-    brix_status status;
     uint16_t response_sid = 0, response_status = 0;
     uint32_t response_length = 0;
     uint16_t handshake_sid = 0, handshake_status = 0;
     uint32_t handshake_length = 0;
+    memset(observed, 0, sizeof(*observed));
+    xrd_pack_handshake(&handshake);
+    xrd_pack_protocol_request(&protocol, streamid, kXR_secreqs);
+    io->fd = brix_tcp_connect(url->host, url->port, io->timeout_ms, status);
+    if (io->fd >= 0
+        && brix_write_full(io, &handshake, sizeof(handshake), status) == 0
+        && brix_read_full(io, handshake_header, sizeof(handshake_header),
+            status) == 0) {
+        xrd_resp_hdr_unpack(handshake_header, &handshake_sid,
+            &handshake_status, &handshake_length);
+        observed->handshake_answered = 1;
+        observed->handshake_v5 = handshake_sid == 0 && handshake_status == 0
+            && handshake_length == sizeof(handshake_body)
+            && brix_read_full(io, handshake_body, sizeof(handshake_body),
+                status) == 0;
+        observed->handshake_version_ok = observed->handshake_v5
+            && xrd_get_u32_be(handshake_body) >= 0x300
+            && xrd_get_u32_be(handshake_body) <= kXR_PROTOCOLVERSION;
+        if (observed->handshake_v5
+            && brix_write_full(io, &protocol, sizeof(protocol), status) == 0
+            && brix_read_full(io, response_header, sizeof(response_header),
+                status) == 0) {
+            xrd_resp_hdr_unpack(response_header, &response_sid,
+                &response_status, &response_length);
+            observed->protocol_answered = response_sid == 1
+                && response_status == kXR_ok;
+            observed->protocol_body_long_enough = observed->protocol_answered
+                && response_length >= sizeof(ServerProtocolBody);
+        }
+    }
+}
+
+static void
+grade_bootstrap_observation(xrd_conform_execution *execution,
+    const bootstrap_observation *observed, const brix_status *status)
+{
+    if (xrd_conform_family_active(execution, "HSK")) {
+        grade_clause(execution, "HSK-001", observed->handshake_answered,
+            "canonical-handshake-answered", "handshake-reply-missing",
+            status->msg);
+        grade_clause(execution, "HSK-002", observed->handshake_v5,
+            "v5-eight-byte-handshake-body", "non-v5-handshake-body",
+            status->msg);
+        grade_clause(execution, "HSK-003", observed->handshake_version_ok,
+            "protocol-version-in-supported-range",
+            "protocol-version-out-of-range", status->msg);
+    }
+    if (xrd_conform_family_active(execution, "PROT")) {
+        grade_clause(execution, "PROT-001", observed->protocol_answered,
+            "pre-login-protocol-answered", "pre-login-protocol-missing",
+            status->msg);
+        grade_clause(execution, "PROT-002",
+            observed->protocol_body_long_enough,
+            "short-protocol-body-present", "protocol-body-too-short",
+            status->msg);
+    }
+}
+
+static void
+probe_protocol_bootstrap(xrd_conform_execution *execution,
+    const brix_url *url)
+{
+    bootstrap_observation observed;
+    brix_io io;
+    brix_status status;
     char reason[64];
-    int handshake_answered = 0;
-    int handshake_v5 = 0;
-    int handshake_version_ok = 0;
-    int answered = 0;
-    int body_long_enough = 0;
 
     if ((!xrd_conform_family_active(execution, "PROT")
             && !xrd_conform_family_active(execution, "HSK"))
         || url->scheme != XRDC_SCHEME_ROOT
         || !xrd_conform_reserve(execution,
-            sizeof(handshake) + sizeof(protocol), reason, sizeof(reason)))
-        return;
+            sizeof(ClientInitHandShake) + sizeof(ClientProtocolRequest),
+            reason, sizeof(reason))) return;
     memset(&io, 0, sizeof(io));
     io.fd = -1;
     io.timeout_ms = 3000;
     io.stall_deadline_ms = 3000;
     brix_status_clear(&status);
-    xrd_pack_handshake(&handshake);
-    xrd_pack_protocol_request(&protocol, streamid, kXR_secreqs);
-    io.fd = brix_tcp_connect(url->host, url->port, io.timeout_ms, &status);
-    if (io.fd >= 0
-        && brix_write_full(&io, &handshake, sizeof(handshake), &status) == 0
-        && brix_read_full(&io, handshake_header, sizeof(handshake_header),
-            &status) == 0) {
-        xrd_resp_hdr_unpack(handshake_header, &handshake_sid,
-            &handshake_status, &handshake_length);
-        handshake_answered = 1;
-        handshake_v5 = handshake_sid == 0 && handshake_status == 0
-            && handshake_length == sizeof(handshake_body)
-            && brix_read_full(&io, handshake_body, sizeof(handshake_body),
-                &status) == 0;
-        handshake_version_ok = handshake_v5
-            && xrd_get_u32_be(handshake_body) >= 0x300
-            && xrd_get_u32_be(handshake_body) <= kXR_PROTOCOLVERSION;
-        if (handshake_v5
-            && brix_write_full(&io, &protocol, sizeof(protocol), &status) == 0
-            && brix_read_full(&io, response_header, sizeof(response_header),
-                &status) == 0) {
-            xrd_resp_hdr_unpack(response_header, &response_sid,
-                &response_status, &response_length);
-            answered = response_sid == 1 && response_status == kXR_ok;
-            body_long_enough = answered
-                && response_length >= sizeof(ServerProtocolBody);
-        }
-    }
+    read_bootstrap_observation(url, &io, &status, &observed);
     if (io.fd >= 0) close(io.fd);
-    if (xrd_conform_family_active(execution, "HSK")) {
-        grade_clause(execution, "HSK-001", handshake_answered,
-            "canonical-handshake-answered", "handshake-reply-missing",
-            status.msg);
-        grade_clause(execution, "HSK-002", handshake_v5,
-            "v5-eight-byte-handshake-body", "non-v5-handshake-body",
-            status.msg);
-        grade_clause(execution, "HSK-003", handshake_version_ok,
-            "protocol-version-in-supported-range",
-            "protocol-version-out-of-range", status.msg);
-    }
-    if (xrd_conform_family_active(execution, "PROT")) {
-        grade_clause(execution, "PROT-001", answered,
-            "pre-login-protocol-answered", "pre-login-protocol-missing",
-            status.msg);
-        grade_clause(execution, "PROT-002", body_long_enough,
-            "short-protocol-body-present", "protocol-body-too-short",
-            status.msg);
-    }
+    grade_bootstrap_observation(execution, &observed, &status);
 }
 
 static void
@@ -420,68 +441,72 @@ probe_directory_open(xrd_conform_execution *execution, brix_conn *connection,
         brix_file_close(connection, &directory, &status);
 }
 
-static void
-probe_directory(xrd_conform_execution *execution, brix_conn *connection,
-    const char *path)
+static size_t
+probe_plain_directory(xrd_conform_execution *execution,
+    brix_conn *connection, const char *parent, const char *name)
 {
-    char parent[XRDC_PATH_MAX];
-    const char *name;
-    brix_statinfo info;
     brix_dirent *entries = NULL;
     brix_status status;
+    char reason[64];
     size_t count = 0;
     size_t index;
-    size_t plain_count = 0;
     int found = 0;
+
+    brix_status_clear(&status);
+    if (!reserve_request(execution, reason)
+        || brix_dirlist(connection, parent, 0, &entries, &count,
+            &status) != 0) return 0;
+    for (index = 0; index < count; index++)
+        if (strcmp(entries[index].name, name) == 0) found = 1;
+    xrd_conform_result_set(execution, "DIR-001",
+        BRIX_CONFORM_VERDICT_INCONCLUSIVE,
+        found ? "target-present-but-directory-not-exclusive"
+              : "target-absent-from-parent-listing",
+        "exclusive planted-directory fixture", NULL);
+    free(entries);
+    return count;
+}
+
+static void
+probe_dstat_directory(xrd_conform_execution *execution,
+    brix_conn *connection, const char *parent, size_t plain_count)
+{
+    brix_dirent *entries = NULL;
+    brix_status status;
+    char reason[64];
+    size_t count = 0;
+    size_t index;
     int all_stat = 1;
+
+    brix_status_clear(&status);
+    if (!reserve_request(execution, reason)
+        || brix_dirlist(connection, parent, 1, &entries, &count,
+            &status) != 0) return;
+    for (index = 0; index < count; index++)
+        if (!entries[index].have_stat) all_stat = 0;
+    grade(execution, "DIR-002", count == plain_count && all_stat,
+        "dstat-count-matches-plain", &status);
+    grade(execution, "DIR-003", count == plain_count && all_stat,
+        "exact-dstat-sentinel-recognized", &status);
+    free(entries);
+}
+
+static void
+probe_invalid_directories(xrd_conform_execution *execution,
+    brix_conn *connection, const char *parent, const char *path)
+{
+    brix_dirent *entries = NULL;
+    brix_status status;
     char reason[64];
     char escape[XRDC_PATH_MAX];
+    size_t count = 0;
 
-    if (split_path(path, parent, &name) != 0) return;
-    probe_directory_open(execution, connection, parent);
-    brix_status_clear(&status);
-    if (reserve_request(execution, reason)
-        && brix_stat(connection, parent, &info, &status) == 0)
-        grade(execution, "STA-004", (info.flags & kXR_isDir) != 0,
-            "parent-stat-identifies-directory", &status);
-    brix_status_clear(&status);
-    if (reserve_request(execution, reason)
-        && brix_dirlist(connection, parent, 0, &entries, &count, &status) == 0) {
-        for (index = 0; index < count; index++)
-            if (strcmp(entries[index].name, name) == 0) found = 1;
-        plain_count = count;
-        xrd_conform_result_set(execution, "DIR-001",
-            BRIX_CONFORM_VERDICT_INCONCLUSIVE,
-            found ? "target-present-but-directory-not-exclusive"
-                  : "target-absent-from-parent-listing",
-            "exclusive planted-directory fixture", NULL);
-    }
-    free(entries);
-    entries = NULL;
-    count = 0;
-    brix_status_clear(&status);
-    if (reserve_request(execution, reason)
-        && brix_dirlist(connection, parent, 1, &entries, &count, &status) == 0) {
-        for (index = 0; index < count; index++)
-            if (!entries[index].have_stat) all_stat = 0;
-        grade(execution, "DIR-002", count == plain_count && all_stat,
-            "dstat-count-matches-plain", &status);
-        /* The typed parser recognizes and removes only the authoritative
-         * 10-byte lead-in. A missing or altered sentinel becomes a bogus extra
-         * entry, so exact count parity plus valid per-entry stats proves it. */
-        grade(execution, "DIR-003", count == plain_count && all_stat,
-            "exact-dstat-sentinel-recognized", &status);
-    }
-    free(entries);
-    entries = NULL;
-    count = 0;
     brix_status_clear(&status);
     if (reserve_request(execution, reason))
         grade(execution, "DIR-006",
             brix_dirlist(connection, path, 0, &entries, &count, &status) != 0,
             "file-path-refused-as-directory", &status);
     free(entries);
-
     if ((size_t) snprintf(escape, sizeof(escape), "%s/..", parent)
         >= sizeof(escape) || !reserve_request(execution, reason)) return;
     entries = NULL;
@@ -491,6 +516,29 @@ probe_directory(xrd_conform_execution *execution, brix_conn *connection,
         brix_dirlist(connection, escape, 0, &entries, &count, &status) != 0,
         "parent-traversal-list-refused", &status);
     free(entries);
+}
+
+static void
+probe_directory(xrd_conform_execution *execution, brix_conn *connection,
+    const char *path)
+{
+    char parent[XRDC_PATH_MAX];
+    const char *name;
+    brix_statinfo info;
+    brix_status status;
+    size_t plain_count;
+    char reason[64];
+
+    if (split_path(path, parent, &name) != 0) return;
+    probe_directory_open(execution, connection, parent);
+    brix_status_clear(&status);
+    if (reserve_request(execution, reason)
+        && brix_stat(connection, parent, &info, &status) == 0)
+        grade(execution, "STA-004", (info.flags & kXR_isDir) != 0,
+            "parent-stat-identifies-directory", &status);
+    plain_count = probe_plain_directory(execution, connection, parent, name);
+    probe_dstat_directory(execution, connection, parent, plain_count);
+    probe_invalid_directories(execution, connection, parent, path);
 }
 
 void

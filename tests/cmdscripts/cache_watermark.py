@@ -12,6 +12,7 @@ import urllib.request
 
 from cmdscripts import run
 from cmdscripts.c_regression_units import _gcov_flags, _sanitizer_flags
+from cmdscripts.compile_run import pal_xattr_addons
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
 
@@ -88,6 +89,7 @@ int main(int argc, char **argv) {
         meta_dir / "xmeta_carrier.o",
         cinfo_o.parents[1] / "compat" / "crc32c.o",
         cinfo_o.parents[1] / "compat" / "crc32c_hw.o",
+        *pal_xattr_addons(cinfo_o.parents[1]),
     ]
     missing = [str(path) for path in objects if not path.is_file()]
     if missing:

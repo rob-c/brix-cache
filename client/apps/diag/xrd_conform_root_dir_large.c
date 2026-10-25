@@ -27,6 +27,31 @@ find_entry(const brix_dirent *entries, size_t count, const char *name)
     return NULL;
 }
 
+static int
+dir_checksum_matches(xrd_conform_execution *execution,
+    brix_conn *connection, const brix_dirent *entries, size_t count,
+    const char *name, brix_status *status)
+{
+    xrd_conform_scratch_object object;
+    const brix_dirent *entry = find_entry(entries, count, name);
+    char leaf[64];
+    char expected[129];
+    char token[144];
+    int length;
+
+    length = snprintf(leaf, sizeof(leaf), "brix-conform-dir/%s", name);
+    if (length < 0 || (size_t) length >= sizeof(leaf)
+        || brix_conform_scratch_path(execution->run->config.scratch, leaf,
+            object.path, sizeof(object.path)) != 0
+        || entry == NULL || entry->checksum[0] == '\0'
+        || !large_dir_reserve(execution, status)
+        || brix_query_cksum(connection, object.path, "adler32", expected,
+            sizeof(expected), status) != 0) return 0;
+    length = snprintf(token, sizeof(token), "adler32:%s", expected);
+    return length >= 0 && (size_t) length < sizeof(token)
+        && strcmp(entry->checksum, token) == 0;
+}
+
 /* WHAT: Compare dcksm tokens to independent Qcksum answers.
  * WHY: Presence alone does not establish that a directory checksum is true.
  * HOW: Use the two byte-identical planted files, require a token for each, and
@@ -48,28 +73,8 @@ xrd_conform_probe_dir_checksums(xrd_conform_execution *execution,
         || brix_dirlist_cksum(connection, base->path, "adler32", &entries,
             &count, &status) != 0) pass = 0;
     for (index = 0; pass && index < sizeof(names) / sizeof(names[0]); index++) {
-        xrd_conform_scratch_object object;
-        const brix_dirent *entry = find_entry(entries, count, names[index]);
-        char leaf[64];
-        char expected[129];
-        char token[144];
-        int length;
-
-        length = snprintf(leaf, sizeof(leaf), "brix-conform-dir/%s",
-            names[index]);
-        if (length < 0 || (size_t) length >= sizeof(leaf)
-            || brix_conform_scratch_path(execution->run->config.scratch, leaf,
-                object.path, sizeof(object.path)) != 0
-            || entry == NULL || entry->checksum[0] == '\0'
-            || !large_dir_reserve(execution, &status)
-            || brix_query_cksum(connection, object.path, "adler32", expected,
-                sizeof(expected), &status) != 0) {
-            pass = 0;
-            break;
-        }
-        length = snprintf(token, sizeof(token), "adler32:%s", expected);
-        if (length < 0 || (size_t) length >= sizeof(token)
-            || strcmp(entry->checksum, token) != 0) pass = 0;
+        pass = dir_checksum_matches(execution, connection, entries, count,
+            names[index], &status);
     }
     xrd_conform_result_set(execution, "DIR-008",
         pass ? BRIX_CONFORM_VERDICT_CONFORMANT
@@ -139,6 +144,60 @@ large_dir_result(xrd_conform_execution *execution, int pass,
         status == NULL ? NULL : status->msg);
 }
 
+static size_t
+create_large_dir_children(xrd_conform_execution *execution,
+    brix_conn *connection, brix_status *status)
+{
+    xrd_conform_scratch_object child;
+    char name[XRDC_NAME_MAX];
+    size_t index;
+
+    for (index = 0; index < LARGE_DIR_ENTRIES; index++) {
+        if (large_dir_path(execution, index, &child, name) != 0
+            || !large_dir_reserve(execution, status)
+            || brix_mkdir(connection, child.path, 0755, 0, status) != 0)
+            break;
+    }
+    return index;
+}
+
+static int
+large_listing_exact(const brix_dirent *entries, size_t count)
+{
+    unsigned char seen[LARGE_DIR_ENTRIES] = { 0 };
+    size_t index;
+
+    if (count != LARGE_DIR_ENTRIES) return 0;
+    for (index = 0; index < count; index++) {
+        size_t entry_index;
+
+        if (!large_dir_entry_index(entries[index].name, &entry_index)
+            || seen[entry_index]) return 0;
+        seen[entry_index] = 1;
+    }
+    for (index = 0; index < LARGE_DIR_ENTRIES; index++)
+        if (!seen[index]) return 0;
+    return 1;
+}
+
+static void
+cleanup_large_dir(xrd_conform_execution *execution, brix_conn *connection,
+    const xrd_conform_scratch_object *base, size_t created,
+    brix_status *status)
+{
+    xrd_conform_scratch_object child;
+    char name[XRDC_NAME_MAX];
+    size_t index;
+
+    for (index = created; index > 0; index--) {
+        if (large_dir_path(execution, index - 1U, &child, name) == 0
+            && large_dir_reserve(execution, status))
+            brix_rmdir(connection, child.path, status);
+    }
+    if (large_dir_reserve(execution, status))
+        brix_rmdir(connection, base->path, status);
+}
+
 /* WHAT: Force a plain listing beyond one 64 KiB response frame.
  * WHY: A successful small listing does not exercise continuation framing.
  * HOW: Create 276 scratch-confined long-name directories, observe the client's
@@ -148,16 +207,12 @@ xrd_conform_probe_large_dir(xrd_conform_execution *execution,
     brix_conn *connection)
 {
     xrd_conform_scratch_object base;
-    xrd_conform_scratch_object child;
     brix_dirent *entries = NULL;
-    unsigned char seen[LARGE_DIR_ENTRIES] = { 0 };
     brix_status status;
-    char name[XRDC_NAME_MAX];
     size_t continuations = 0;
     size_t created = 0;
     size_t count = 0;
-    size_t index;
-    int exact = 1;
+    int exact;
     int listed = 0;
 
     if (!dir_row_active(execution, "DIR-007")) return;
@@ -179,41 +234,14 @@ xrd_conform_probe_large_dir(xrd_conform_execution *execution,
             &status);
         return;
     }
-    for (index = 0; index < LARGE_DIR_ENTRIES; index++) {
-        if (large_dir_path(execution, index, &child, name) != 0
-            || !large_dir_reserve(execution, &status)
-            || brix_mkdir(connection, child.path, 0755, 0, &status) != 0)
-            break;
-        created++;
-    }
+    created = create_large_dir_children(execution, connection, &status);
     if (created == LARGE_DIR_ENTRIES
         && large_dir_reserve(execution, &status)
         && brix_dirlist_observe(connection, base.path, 0, &entries, &count,
             &continuations, &status) == 0) listed = 1;
-    if (listed && count == LARGE_DIR_ENTRIES) {
-        for (index = 0; index < count; index++) {
-            size_t entry_index;
-
-            if (!large_dir_entry_index(entries[index].name, &entry_index)
-                || seen[entry_index]) {
-                exact = 0;
-                break;
-            }
-            seen[entry_index] = 1;
-        }
-        for (index = 0; exact && index < LARGE_DIR_ENTRIES; index++)
-            exact = seen[index] != 0;
-    } else {
-        exact = 0;
-    }
+    exact = listed && large_listing_exact(entries, count);
     free(entries);
-    for (index = created; index > 0; index--) {
-        if (large_dir_path(execution, index - 1U, &child, name) == 0
-            && large_dir_reserve(execution, &status))
-            brix_rmdir(connection, child.path, &status);
-    }
-    if (large_dir_reserve(execution, &status))
-        brix_rmdir(connection, base.path, &status);
+    cleanup_large_dir(execution, connection, &base, created, &status);
     large_dir_result(execution,
         listed && continuations > 0 && exact,
         listed && continuations == 0 ? "large-listing-was-not-continued"

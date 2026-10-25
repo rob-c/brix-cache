@@ -334,6 +334,8 @@ def _setup_link(delay_ms, rate_mbit, wmem_cap):
 
 
 def _boot_nginx(nginx_bin, conf, workdir):
+    from cmdscripts.live_common import inject_nginx_load_modules
+    inject_nginx_load_modules(conf, nginx_bin)
     r = subprocess.run([nginx_bin, "-p", workdir + "/", "-c", conf],
                        capture_output=True, text=True)
     if r.returncode != 0:

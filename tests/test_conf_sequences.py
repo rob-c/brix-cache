@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from lib_py.reference_host import fixture_read_bytes
 _reexport(globals(), "_test_conf_sequences_helpers")
 
 pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_sequences")]
@@ -38,8 +39,7 @@ def test_create_write_fstat_read_close_stat_reopen(srv, n):
         finally:
             s.close()
         # on-disk truth
-        with open(disk_for(srv, url, wire), "rb") as f:
-            disk = f.read()
+        disk = fixture_read_bytes(disk_for(srv, url, wire))
         results[who] = dict(fstat=fstat_sz, path=path_sz, rb=rb, rb2=rb2,
                             disk=disk)
         # per-server invariants
@@ -83,8 +83,7 @@ def test_write_sync_write_close_full_content(srv, a_n, b_n):
             assert _close(s, fh)[0] == kXR_ok, f"{who} close"
         finally:
             s.close()
-        with open(disk_for(srv, url, wire), "rb") as f:
-            got = f.read()
+        got = fixture_read_bytes(disk_for(srv, url, wire))
         assert got == expected, f"{who} write-sync-write final content wrong"
 
 
@@ -115,8 +114,7 @@ def test_write_truncate_smaller_fstat_read(srv, n, keep):
             assert _close(s, fh)[0] == kXR_ok, f"{who} close"
         finally:
             s.close()
-        with open(disk_for(srv, url, wire), "rb") as f:
-            got = f.read()
+        got = fixture_read_bytes(disk_for(srv, url, wire))
         assert got == payload[:keep], f"{who} on-disk after shrink wrong"
 
 
@@ -144,8 +142,7 @@ def test_write_truncate_extend_zero_region(srv, n, grow):
             assert _close(s, fh)[0] == kXR_ok, f"{who} close"
         finally:
             s.close()
-        with open(disk_for(srv, url, wire), "rb") as f:
-            got = f.read()
+        got = fixture_read_bytes(disk_for(srv, url, wire))
         assert got[:n] == payload and got[n:] == b"\x00" * (grow - n), \
             f"{who} on-disk extend wrong"
 
@@ -173,8 +170,7 @@ def test_overwrite_middle_only(srv, total, off, mlen):
             assert _close(s, fh)[0] == kXR_ok, f"{who} close"
         finally:
             s.close()
-        with open(disk_for(srv, url, wire), "rb") as f:
-            got = f.read()
+        got = fixture_read_bytes(disk_for(srv, url, wire))
         assert len(got) == total, f"{who} overwrite changed total size"
         assert got == expected, f"{who} overwrite touched bytes outside [off,off+mlen)"
 
@@ -204,8 +200,7 @@ def test_reopen_append_grows(srv, base_n, app_n):
             assert _close(s, fh2)[0] == kXR_ok, f"{who} close append"
         finally:
             s.close()
-        with open(disk_for(srv, url, wire), "rb") as f:
-            got = f.read()
+        got = fixture_read_bytes(disk_for(srv, url, wire))
         assert got == base + app, f"{who} reopen-append content wrong"
 
 
@@ -270,8 +265,7 @@ def test_recreate_via_delete_replaces(srv, first_n, second_n):
             assert _close(s, fh2)[0] == kXR_ok, f"{who} close second"
         finally:
             s.close()
-        with open(disk_for(srv, url, wire), "rb") as f:
-            got = f.read()
+        got = fixture_read_bytes(disk_for(srv, url, wire))
         assert got == second, f"{who} recreate did not replace content"
 
 
@@ -372,8 +366,8 @@ def test_rename_preserves_content_and_checksum(srv, n):
             _close(s, fh2)
         finally:
             s.close()
-        with open(disk_for(srv, url, dst_w), "rb") as f:
-            _require(f.read() == payload, f"{who} on-disk content wrong after mv")
+        _require(fixture_read_bytes(disk_for(srv, url, dst_w)) == payload,
+                 f"{who} on-disk content wrong after mv")
 
 
 # =========================================================================== #

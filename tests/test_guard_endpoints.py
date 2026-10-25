@@ -31,12 +31,14 @@ import pathlib
 import re
 import socket
 import subprocess
+import tempfile
 import time
 
 import pytest
 
 from guard_http_lib import NGINX_BIN, AuditLog, GuardServer
-from settings import HOST, BIND_HOST
+from official_interop_lib import worker_reachable
+from settings import HOST, BIND_HOST, TEST_ROOT
 from server_registry import NginxInstanceSpec
 
 def _expression_1(tmp_path):
@@ -61,6 +63,29 @@ def _expression_2(dav_root, ports, audits):
 def _guard_fleet_1():
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
+
+
+def _prepare_guard_roots(tmp_path):
+    dav_root = tmp_path / "dav_export"
+    s3_root = tmp_path / "s3_export"
+    xrd_root = tmp_path / "xrd_export"
+    for directory in (dav_root, s3_root, xrd_root):
+        directory.mkdir()
+    (dav_root / "hello.txt").write_bytes(b"dav-hello\n")
+    (s3_root / "bucket").mkdir()
+    (s3_root / "bucket" / "obj.bin").write_bytes(b"s3-object\n")
+    (xrd_root / "f.bin").write_bytes(os.urandom(4096))
+    worker_reachable(dav_root, s3_root, xrd_root, tmp_path)
+    return dav_root, s3_root, xrd_root
+
+
+def _wait_for_guard_ports(ports):
+    deadline = time.time() + 10
+    while time.time() < deadline and not all(
+            _port_alive(port) for port in ports.values()):
+        time.sleep(0.1)
+    assert all(_port_alive(port) for port in ports.values()), \
+        "guard endpoint fleet did not bring every listener up"
 
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
@@ -105,18 +130,18 @@ def _port_alive(port):
 
 
 @pytest.fixture()
-def fleet(lifecycle, tmp_path):
+def fleet(lifecycle):
     _guard_fleet_1()
 
-    dav_root = tmp_path / "dav_export"
-    s3_root = tmp_path / "s3_export"
-    xrd_root = tmp_path / "xrd_export"
-    for d in (dav_root, s3_root, xrd_root):
-        d.mkdir()
-    (dav_root / "hello.txt").write_bytes(b"dav-hello\n")
-    (s3_root / "bucket").mkdir()
-    (s3_root / "bucket" / "obj.bin").write_bytes(b"s3-object\n")
-    (xrd_root / "f.bin").write_bytes(os.urandom(4096))
+    # Keep worker-served roots out of pytest's numbered tree.  Under xdist,
+    # pytest may restore its private 0700 ancestor while nginx is between its
+    # config-test process and the real worker fork.  TEST_ROOT is the suite's
+    # disposable public runtime tree; a unique child preserves per-test
+    # isolation without that ownership race.
+    tmp_path = pathlib.Path(tempfile.mkdtemp(
+        prefix="guard-endpoints-", dir=TEST_ROOT))
+    tmp_path.chmod(0o777)
+    dav_root, s3_root, xrd_root = _prepare_guard_roots(tmp_path)
 
     audits = _expression_1(tmp_path)
 
@@ -137,10 +162,7 @@ def fleet(lifecycle, tmp_path):
     ports = {"dav": ep.extra_ports["DAV_PORT"], "s3": ep.extra_ports["S3_PORT"],
              "ops": ep.extra_ports["OPS_PORT"], "xrd": ep.extra_ports["XRD_PORT"],
              "cms": ep.extra_ports["CMS_PORT"]}
-    deadline = time.time() + 10
-    while time.time() < deadline and not all(
-            _port_alive(p) for p in ports.values()):
-        time.sleep(0.1)
+    _wait_for_guard_ports(ports)
 
     return _expression_2(dav_root, ports, audits)
 

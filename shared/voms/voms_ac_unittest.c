@@ -17,6 +17,7 @@
  */
 
 #include "voms/voms_ac.h"
+#include "auth/crypto/key_compat.h"
 #include "voms/voms_asn1.h"
 #include "voms/voms_lsc.h"
 #include "voms/voms_ac_fixture.h"
@@ -49,10 +50,10 @@ static const unsigned char *fixture_der(int *len)
 /* A throwaway self-signed certificate with the given subject and serial —
  * the stand-in for the user's end-entity certificate the AC was issued to. */
 static X509 *
-make_cert(const X509_NAME *subject, const ASN1_INTEGER *serial,
+make_cert(X509_NAME *subject, const ASN1_INTEGER *serial,
     const unsigned char *ext_der, int ext_len)
 {
-    EVP_PKEY     *key = EVP_RSA_gen(2048);
+    EVP_PKEY     *key = brix_crypto_rsa_keygen(2048);
     X509         *cert = X509_new();
     ASN1_INTEGER *serial_copy = ASN1_INTEGER_dup(serial);
 

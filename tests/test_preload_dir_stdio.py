@@ -354,11 +354,7 @@ class TestPreloadBuildWiring:
         internal would leave libc's own version in front of it, and the
         file would compile, link and do nothing."""
         exported = preload_shim.exported_symbols(PRELOAD)
-        wanted = {preload_shim.wrap_name(n) for n in (
-            "opendir", "readdir", "readdir_r", "closedir",
-            "rewinddir", "telldir", "seekdir", "dirfd", "fopen", "freopen")}
-        if not preload_shim.IS_DARWIN:   # the glibc-only LFS spellings
-            wanted |= {"readdir64", "fopen64", "freopen64"}
+        wanted = preload_shim.stdio_directory_exports()
         assert wanted <= exported, sorted(wanted - exported)
 
     def test_the_internal_helpers_stay_internal(self):

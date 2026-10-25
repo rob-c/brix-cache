@@ -15,6 +15,7 @@ import subprocess
 import time
 
 import pytest
+from brix_suite.client_build import client_run
 
 from brix_suite.settings import TESTS_DIR
 from settings import HOST, BIND_HOST
@@ -141,23 +142,30 @@ def _make_xroot_node(base, lifecycle, backend, options):
     return node
 
 
-def _make_http_node(base, lifecycle, backend, options):
-    doc_root = os.path.join(base, "http-origin")
+def _network_origin(backend, doc_root):
+    """Reuse committed HTTP/S3 origin templates, with no external service."""
+    template, extra = {
+        "http": ("nginx_lc_cache_partial_http_origin.conf", {}),
+        "s3": ("nginx_ro_s3.conf", {"S3_KNOBS": "            brix_allow_write off;\n"}),
+    }[backend]
+    return NginxInstanceSpec(name=ORIGIN_NAME, template=template,
+        protocol="http", data_root=doc_root,
+        template_values={"BIND_HOST": BIND_HOST, **extra},
+        reason=f"cache partial-fill {backend} origin")
+
+
+def _make_network_node(base, lifecycle, backend, options):
+    doc_root = os.path.join(base, backend + "-origin")
     cache_dir = os.path.join(base, "cache")
     for path in (doc_root, cache_dir):
         os.makedirs(path, exist_ok=True)
-    origin_ep = lifecycle.start(NginxInstanceSpec(
-        name=ORIGIN_NAME,
-        template="nginx_lc_cache_partial_http_origin.conf",
-        protocol="http",
-        data_root=doc_root,
-        template_values={"BIND_HOST": BIND_HOST},
-        reason="cache partial-fill http:// origin"))
+    origin_ep = lifecycle.start(_network_origin(backend, doc_root))
+    bucket = "/robucket" if backend == "s3" else ""
     values = _cache_values(
-        cache_dir, f"http://{HOST}:{origin_ep.port}", options)
+        cache_dir, f"{backend}://{HOST}:{origin_ep.port}{bucket}", options)
     cache_ep = _start_cache(
         lifecycle, cache_dir, backend, values,
-        "cache partial-fill http cache node")
+        f"cache partial-fill {backend} cache node")
     node = CacheNode(lifecycle, cache_ep.port, cache_dir, backend, origin_ep.port,
                      names=[CACHE_NAME, ORIGIN_NAME], origin_name=ORIGIN_NAME)
     node.backend_data = doc_root
@@ -191,13 +199,13 @@ def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=N
                     max_object=None, deny_prefix=None, include_regex=None,
                     origin_backend="posix", allow_write=False,
                     prefetch=None, prefetch_window=None, urlcgi=None):
-    """Start a registry-managed cache node backed by xroot, HTTP, or local IO.
+    """Start a registry-managed cache node backed by xroot, HTTP, S3 or local IO.
 
     `urlcgi` is the argument string of a brix_cache_urlcgi line (2.0 F5, the
     per-open pfc.blocksize / pfc.prefetch clamp), e.g. "blocksize 1m 4m"."""
     options = {
         "slice_size": slice_size,
-        "max_size": (max_file_size if backend in {"xroot", "http"}
+        "max_size": (max_file_size if backend in {"xroot", "http", "s3"}
                      else max_object),
         "deny_prefix": deny_prefix,
         "include_regex": include_regex,
@@ -207,7 +215,8 @@ def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=N
                            + _optline("brix_cache_prefetch_window", prefetch_window)
                            + _optline("brix_cache_urlcgi", urlcgi)),
     }
-    builders = {"xroot": _make_xroot_node, "http": _make_http_node}
+    builders = {"xroot": _make_xroot_node, "http": _make_network_node,
+                "s3": _make_network_node}
     builder = builders.get(backend, _make_local_node)
     return builder(str(tmp), lifecycle, backend, options)
 
@@ -369,13 +378,15 @@ def residency(store_dir, key):
     first and, when it is absent, read the xattr off the object itself. Returns
     {'absent': True} only when neither carrier holds a record."""
     cinfo = os.path.join(store_dir, key + ".cinfo")
-    p = subprocess.run([XRDCINFO, cinfo], capture_output=True, text=True)
+    p = client_run(os.path.join(REPO, "client"), [XRDCINFO, cinfo],
+                   capture_output=True, text=True, timeout=30)
     parsed = _parsed_cinfo(p.stdout)
     if not parsed.get("absent"):
         return parsed
 
     data = os.path.join(store_dir, key)
-    px = subprocess.run([XRDCINFO, "--xattr", data], capture_output=True, text=True)
+    px = client_run(os.path.join(REPO, "client"), [XRDCINFO, "--xattr", data],
+                    capture_output=True, text=True, timeout=30)
     xparsed = _parsed_cinfo(px.stdout)
     if not xparsed.get("absent"):
         return xparsed
@@ -383,12 +394,9 @@ def residency(store_dir, key):
 
 
 def backend_available(backend):
-    """True iff the backend can be stood up here. http always can — make_cache_node
-    launches a local nginx static origin, no external service needed. s3 needs
-    XRD_TEST_S3_ENDPOINT and rados needs XRD_TEST_RADOS_POOL (cluster-tier); absent
-    -> those tests skip (never fail)."""
+    """HTTP and S3 use local native origins; RADOS requires a cluster."""
     return {
         "http":  True,
-        "s3":    bool(os.environ.get("XRD_TEST_S3_ENDPOINT")),
+        "s3":    True,
         "rados": bool(os.environ.get("XRD_TEST_RADOS_POOL")),
     }.get(backend, True)

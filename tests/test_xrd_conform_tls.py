@@ -29,7 +29,9 @@ def _certificate(tmp_path, san):
     ca_dir = tmp_path / "ca"
     ca_dir.mkdir()
     subprocess.run(
-        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+        ["openssl", "req", "-x509", "-config",
+         str(ROOT / "tests/brix_suite/security/pki-ca.cnf"),
+         "-newkey", "rsa:2048", "-nodes",
          "-keyout", str(key), "-out", str(cert), "-days", "2",
          "-subj", "/CN=brix-conform-fixture",
          "-addext", "basicConstraints=critical,CA:TRUE",
@@ -49,6 +51,9 @@ class TlsPgOrigin(PgOrigin):
     def __init__(self, payload, cert, key, behaviour="ok"):
         self._tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         self._tls_context.minimum_version = ssl.TLSVersion.TLSv1_2
+        # Do not let the test's secure policy depend on the Python/OpenSSL
+        # vendor default. The hostile subclass explicitly re-enables this.
+        self._tls_context.options |= ssl.OP_NO_RENEGOTIATION
         self._tls_context.load_cert_chain(cert, key)
         super().__init__(payload, behaviour=behaviour)
 

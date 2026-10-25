@@ -159,7 +159,7 @@ class TestPALPlatformDetection:
         """Test brix_plat_name() - Get platform name"""
         # Would call actual PAL function
         # For now, verify platform detection works
-        assert platform_context['platform'] in ('linux', 'darwin', 'windows')
+        assert platform_context['platform'] in ('linux', 'darwin', 'freebsd', 'windows')
 
     def test_brix_plat_version(self, platform_context):
         """Test brix_plat_version() - Get platform version"""

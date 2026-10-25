@@ -11,6 +11,7 @@
 #include "fs/backend/sd.h"
 #include "sd_pblock_catalog.h"
 #include "sd_pblock_unittest_internal.h"
+#include "platform/platform_api.h"
 
 #include <errno.h>
 #include <ftw.h>
@@ -439,13 +440,40 @@ test_threads(brix_sd_instance_t *inst)
     }
 }
 
-/* Each forked child opens its OWN instance on the same root and writes a batch;
- * the parent then verifies every child's files landed. Exercises cross-process
- * WAL locking + the busy-timeout retry path. */
-void
-test_processes(const char *root, brix_sd_instance_t *inst)
+/* WHAT: Write the unchanged process-concurrency batch, returning its verdict.
+ * WHY: SQLite must not reuse its inherited global locking state after fork.
+ * HOW: 1. Open a fresh instance after exec. 2. Write 25 files. 3. Close it. */
+int
+pbut_process_writer(const char *root)
 {
-    enum { NPROC = 4, NOPS = 25 };
+    brix_sd_instance_t    inst = {0};
+    brix_sd_pblock_conf_t conf = { root, 5000, 0, NULL, 0 };
+    int                  j, bad = 0;
+
+    inst.driver = D;
+    if (D->init(&inst, &conf) != NGX_OK) {
+        return 2;
+    }
+    for (j = 0; j < PBUT_PROCESS_OPS; j++) {
+        char path[64];
+
+        snprintf(path, sizeof(path), "/mp/p%d-%d", (int) getpid(), j);
+        if (write_file(&inst, path, "x", 1) != 0) {
+            bad = 1;
+            break;
+        }
+    }
+    D->cleanup(&inst);
+    return bad;
+}
+
+/* WHAT: Verify all 100 files written concurrently by four fresh processes.
+ * WHY: Exercise real cross-process WAL locking, not inherited SQLite state.
+ * HOW: 1. Fork/exec four writers. 2. Reap them. 3. Count the parent's listing. */
+void
+test_processes(const char *root, brix_sd_instance_t *inst, const char *program)
+{
+    enum { NPROC = 4, NOPS = PBUT_PROCESS_OPS };
     pid_t pids[NPROC];
     int   i, total = 0, rc;
     brix_sd_dir_t   *dir;
@@ -458,25 +486,8 @@ test_processes(const char *root, brix_sd_instance_t *inst)
         pid_t pid = fork();
 
         if (pid == 0) {
-            brix_sd_instance_t    cinst = {0};
-            brix_sd_pblock_conf_t conf = { root, 5000, 0, NULL, 0 };
-            int                     j, bad = 0;
-
-            cinst.driver = D;
-            if (D->init(&cinst, &conf) != NGX_OK) {
-                _exit(2);
-            }
-            for (j = 0; j < NOPS; j++) {
-                char path[64];
-
-                snprintf(path, sizeof(path), "/mp/p%d-%d", (int) getpid(), j);
-                if (write_file(&cinst, path, "x", 1) != 0) {
-                    bad = 1;
-                    break;
-                }
-            }
-            D->cleanup(&cinst);
-            _exit(bad ? 1 : 0);
+            execl(program, program, "--process-writer", root, (char *) NULL);
+            _exit(3);
         }
         CHECK(pid > 0, "fork %d", i);
         pids[i] = pid;
@@ -485,7 +496,10 @@ test_processes(const char *root, brix_sd_instance_t *inst)
     for (i = 0; i < NPROC; i++) {
         int status = 0;
 
-        waitpid(pids[i], &status, 0);
+        if (pids[i] <= 0) {
+            continue;
+        }
+        CHECK(waitpid(pids[i], &status, 0) == pids[i], "reap child %d", i);
         CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0,
               "child %d exit status %d", i, status);
     }

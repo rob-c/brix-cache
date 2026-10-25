@@ -64,6 +64,8 @@ class TestRoundTrip:
         name    = f"{_PFX}rt_text.txt"
         content = b"Hello, WebDAV round-trip!\n" * 50
         dst     = _data_path(name)
+        if os.path.exists(dst):
+            os.unlink(dst)
         try:
             assert _put(f"/{name}", content) in (200, 201)
             assert _get(f"/{name}") == content
@@ -75,6 +77,8 @@ class TestRoundTrip:
         name    = f"{_PFX}rt_binary.bin"
         content = os.urandom(128 * 1024)  # 128 KiB random bytes
         dst     = _data_path(name)
+        if os.path.exists(dst):
+            os.unlink(dst)
         try:
             assert _put(f"/{name}", content) in (200, 201)
             assert _get(f"/{name}") == content

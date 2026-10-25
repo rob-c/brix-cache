@@ -25,17 +25,20 @@ import os
 import shutil
 import socket
 import subprocess
-import time
 from pathlib import Path
 
 import pytest
 
 from server_registry import NginxInstanceSpec
-from stock_xrootd_owner import StockXrootdOwner
+from stock_xrootd_owner import StockXrootdOwner, stock_gsi_layout
 from ephemeral_port import free_port
 from settings import HOST
+from lib_py.util import wait_tcp
+from lib_py.reference_host import reference_listener_args, reference_listener_ready
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
+              # Include bounded certificate/proxy generation in the outer timer.
+              pytest.mark.timeout(300),
               pytest.mark.xdist_group("lc-tpc")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -51,20 +54,8 @@ def _run(cmd, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, timeout=60, **kw)
 
 
-def _free_port(port):
-    subprocess.run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"], check=False)
-    for _ in range(20):
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode != 0:
-            return
-        time.sleep(0.1)
-
-
 def _wait_listen(port, tries=60):
-    for _ in range(tries):
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode == 0:
-            return True
-        time.sleep(0.1)
-    return False
+    return wait_tcp(HOST, port, timeout=tries * 0.1)
 
 
 @pytest.fixture
@@ -163,29 +154,36 @@ def _mint_gsi_proxy(directory, stem, output, certs, env):
 
 def _write_gsi_source_config(base, paths, port):
     server = paths["server"]
+    layout = stock_gsi_layout()
+    if layout is None:
+        pytest.skip("stock XRootD security library and matching GSI plugin are missing")
+    security, plugins = layout
+    stock_copy = shutil.which("xrdcp")
+    if stock_copy is None:
+        pytest.skip("stock xrdcp is missing")
     config = base / "xrootd.cfg"
     config.write_text(
         f"xrd.port {port}\nall.export /gsidata\noss.localroot {base}\n"
-        "xrootd.seclib libXrdSec.so\n"
-        f"sec.protocol /usr/lib64 gsi -certdir:{paths['certs']} "
+        f"xrootd.seclib {security}\n"
+        f"sec.protocol {plugins} gsi -certdir:{paths['certs']} "
         f"-cert:{server / 'hostcert.pem'} -key:{server / 'hostkey.pem'} "
         "-crl:0 -gmapopt:10 -dlgpxy:0\nsec.protbind * only gsi\n"
-        "ofs.tpc ttl 300 300 pgm /usr/bin/xrdcp\n"
+        f"ofs.tpc ttl 300 300 pgm {stock_copy}\n"
         f"all.adminpath {paths['admin']}\nall.pidpath {paths['admin']}\n")
     shutil.move(str(paths["srcdata"]), str(base / "gsidata"))
     return config
 
 
 def _start_gsi_source(base, paths, config, port, owner):
-    _free_port(port)
-    argv = ["xrootd", "-c", str(config), "-l", str(paths["logs"] / "xrd.log"),
+    argv = ["xrootd", *reference_listener_args(HOST), "-c", str(config),
+            "-l", str(paths["logs"] / "xrd.log"),
             "-n", "tpcgsisrc"]
     argv = _gsi_source_argv(base, paths, argv)
     source = subprocess.Popen(argv, stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL, start_new_session=True)
     owner.process = source
-    if not _wait_listen(port):
-        pytest.skip("stock xrootd GSI source did not come up")
+    if not reference_listener_ready(source, HOST, port, timeout=6.0):
+        pytest.fail("installed stock xrootd GSI source did not become ready")
     return source
 
 

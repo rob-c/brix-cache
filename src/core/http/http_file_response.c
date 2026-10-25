@@ -14,6 +14,66 @@
 #include <stdio.h>
 #include <string.h>
 #include "core/compat/alloc_guard.h"
+#include "platform/platform_api.h"
+
+/* Import nginx's existing copy-filter context owner; do not duplicate its
+ * initialization, buffering, AIO, or backpressure implementation. */
+extern ngx_module_t ngx_http_copy_filter_module;
+
+/* WHAT: Disable kernel file transfer in this request's actual copy-filter ctx.
+ * WHY: A connection flag is shared by HTTP/2 streams and is not a safe
+ *      per-response policy. nginx already owns bounded buffers and retries.
+ * HOW: 1. If needed, prime the normal filter after headers with no body.
+ *      2. Require its initialized ctx. 3. Change only this request's I/O choice. */
+static ngx_int_t
+brix_http_require_buffered_file(ngx_http_request_t *r)
+{
+    ngx_output_chain_ctx_t *copy;
+    ngx_int_t rc;
+
+    copy = ngx_http_get_module_ctx(r, ngx_http_copy_filter_module);
+    if (copy == NULL) {
+        rc = ngx_http_output_filter(r, NULL);
+        if (rc == NGX_ERROR || rc > NGX_OK) {
+            return NGX_ERROR;
+        }
+        copy = ngx_http_get_module_ctx(r, ngx_http_copy_filter_module);
+    }
+    if (copy == NULL) {
+        return NGX_ERROR;
+    }
+    copy->sendfile = 0;
+    copy->need_in_memory = 1;
+    return NGX_OK;
+}
+
+/* WHAT: Output a file-containing chain without unsafe filesystem sendfile.
+ * WHY: Single/multipart WebDAV/S3, stored ZIP and diagnostics share this edge;
+ *      backend fd availability alone does not establish kernel I/O safety.
+ * HOW: 1. Inspect actual file fds. 2. On any refusal, require the request-local
+ *      copy path before emitting bytes. 3. Use the unchanged output filters. */
+ngx_int_t
+brix_http_output_file_chain(ngx_http_request_t *r, ngx_chain_t *chain)
+{
+    ngx_chain_t *link;
+
+    for (link = chain; link != NULL; link = link->next) {
+        if (link->buf == NULL || !link->buf->in_file) {
+            continue;
+        }
+        if (link->buf->file == NULL) {
+            return NGX_ERROR;
+        }
+        if (brix_plat_file_sendfile_safe(link->buf->file->fd)) {
+            continue;
+        }
+        if (brix_http_require_buffered_file(r) != NGX_OK) {
+            return NGX_ERROR;
+        }
+        break;
+    }
+    return ngx_http_output_filter(r, chain);
+}
 
 /*
  * brix_http_chain_append_file_range - append one file-backed ngx_buf_t to a chain.
@@ -390,7 +450,7 @@ brix_http_send_file_range(ngx_http_request_t *r, ngx_fd_t fd,
         return ngx_http_send_special(r, NGX_HTTP_LAST);
     }
 
-    return ngx_http_output_filter(r, &out);
+    return brix_http_output_file_chain(r, &out);
 }
 
 /*
@@ -419,7 +479,7 @@ brix_http_send_single_buf(ngx_http_request_t *r, ngx_buf_t *b)
 
     out.buf = b;
     out.next = NULL;
-    return ngx_http_output_filter(r, &out);
+    return brix_http_output_file_chain(r, &out);
 }
 
 /*

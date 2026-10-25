@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from lib_py.reference_host import fixture_read_bytes
 _reexport(globals(), "_test_conf_truncate_sync_helpers")
 
 pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_truncate_sync_b")]
@@ -14,8 +15,7 @@ def test_truncate_big_down_prefix(srv, keep):
     assert fs(srv["our"], "truncate", our_w, str(keep))[0] == 0, "our shrink"
     assert fs(srv["off"], "truncate", off_w, str(keep))[0] == 0, "off shrink"
     for url, w in ((srv["our"], our_w), (srv["off"], off_w)):
-        with open(disk_for(srv, url, w), "rb") as f:
-            got = f.read()
+        got = fixture_read_bytes(disk_for(srv, url, w))
         assert got == src[:keep], f"{url} big-shrink kept wrong prefix (keep={keep})"
 
 
@@ -38,8 +38,7 @@ def test_append_at_eof_grows(srv, base_n, app_n):
             assert _close(s_sock, fh)[0] == kXR_ok
         finally:
             s_sock.close()
-        with open(disk_for(srv, url, wire), "rb") as f:
-            got = f.read()
+        got = fixture_read_bytes(disk_for(srv, url, wire))
         assert len(got) == base_n + app_n, f"{who} append size wrong"
         assert got == base + app, f"{who} append content wrong"
 
@@ -85,8 +84,8 @@ def test_zero_length_write_is_noop(srv):
             assert _close(s_sock, fh)[0] == kXR_ok
         finally:
             s_sock.close()
-        with open(disk_for(srv, url, wire), "rb") as f:
-            assert f.read() == base, f"{who} zero-length write changed content/size"
+        assert fixture_read_bytes(disk_for(srv, url, wire)) == base, \
+            f"{who} zero-length write changed content/size"
     assert (res["our"] == kXR_ok) == (res["off"] == kXR_ok), \
         f"zero-length write rc parity differs: {res}"
 
@@ -120,8 +119,7 @@ def test_write_past_shrunk_file(srv, idx, shrink_to, write_off, wlen):
         expected = bytearray(max(shrink_to, write_off + wlen))
         expected[0:shrink_to] = base[:shrink_to]
         expected[write_off:write_off + wlen] = payload
-        with open(disk_for(srv, url, wire), "rb") as f:
-            got = f.read()
+        got = fixture_read_bytes(disk_for(srv, url, wire))
         assert got == bytes(expected), f"{who} write-past-shrunk content wrong"
 
 
@@ -138,7 +136,6 @@ def test_extend_then_shrink_roundtrip(srv, n, up, down):
         assert fs(url, "truncate", wire, str(up))[0] == 0, f"{who} extend"
         assert os.path.getsize(disk_for(srv, url, wire)) == up
         assert fs(url, "truncate", wire, str(down))[0] == 0, f"{who} shrink"
-        with open(disk_for(srv, url, wire), "rb") as f:
-            got = f.read()
+        got = fixture_read_bytes(disk_for(srv, url, wire))
         assert len(got) == down, f"{who} ext-shrink size wrong"
         assert got == base[:down], f"{who} ext-shrink prefix corrupted"

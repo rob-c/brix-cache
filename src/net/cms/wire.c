@@ -1,6 +1,73 @@
 #include "cms_internal.h"
+#include "login_wire.h"
 
 #include <stdio.h>
+
+/* ---- Measure the complete login payload before writing any bytes ----
+ * WHAT: Return its size, or 0 for invalid spans, wire lengths or capacity.
+ * WHY: Both login directions share the exact scalar/string order and bounds.
+ * HOW: 1. Reserve 40 scalar and eight empty-string bytes. 2. Bound each tail.
+ */
+static size_t
+cms_login_payload_size(size_t capacity, const brix_cms_login_fields_t *fields)
+{
+    const ngx_str_t *strings[] = {
+        &fields->sid, &fields->paths, &fields->interfaces, &fields->environment
+    };
+    size_t required = 48;
+
+    if (capacity < required) {
+        return 0;
+    }
+    for (size_t index = 0; index < sizeof(strings) / sizeof(strings[0]); index++) {
+        size_t length = strings[index]->len;
+        if (length == 0) {
+            continue;
+        }
+        if (strings[index]->data == NULL || length > UINT16_MAX - 1
+            || length + 1 > capacity - required) {
+            return 0;
+        }
+        required += length + 1;
+    }
+    return required;
+}
+
+/* ---- Encode a complete, bounded CmsLoginData payload ----
+ * WHAT: Return the encoded size, or 0 without modifying output on error.
+ * WHY: A manager must acknowledge LOGIN, using the same wire schema as a node.
+ * HOW: 1. Validate all spans. 2. Use the shared Pup primitives in schema order.
+ */
+size_t
+brix_cms_login_encode(u_char *output, size_t capacity,
+    const brix_cms_login_fields_t *fields)
+{
+    u_char *cursor = output;
+    size_t required;
+
+    if (output == NULL || fields == NULL) {
+        return 0;
+    }
+    required = cms_login_payload_size(capacity, fields);
+    if (required == 0) {
+        return 0;
+    }
+    cursor = ngx_brix_cms_put_short(cursor, CMS_LOGIN_VERSION);
+    cursor = ngx_brix_cms_put_int(cursor, fields->mode);
+    cursor = ngx_brix_cms_put_int(cursor, fields->hold_time);
+    cursor = ngx_brix_cms_put_int(cursor, fields->total_gb);
+    cursor = ngx_brix_cms_put_int(cursor, fields->free_mb);
+    cursor = ngx_brix_cms_put_int(cursor, fields->min_free_mb);
+    cursor = ngx_brix_cms_put_short(cursor, fields->fs_num);
+    cursor = ngx_brix_cms_put_short(cursor, fields->fs_util);
+    cursor = ngx_brix_cms_put_short(cursor, fields->data_port);
+    cursor = ngx_brix_cms_put_short(cursor, fields->subscriber_port);
+    cursor = ngx_brix_cms_put_string(cursor, fields->sid.data, fields->sid.len);
+    cursor = ngx_brix_cms_put_string(cursor, fields->paths.data, fields->paths.len);
+    cursor = ngx_brix_cms_put_string(cursor, fields->interfaces.data, fields->interfaces.len);
+    (void) ngx_brix_cms_put_string(cursor, fields->environment.data, fields->environment.len);
+    return required;
+}
 
 /*
  * wire.c — CMS frame header and XrdOucPup payload codec

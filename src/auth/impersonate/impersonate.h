@@ -363,4 +363,10 @@ int     brix_imp_setxattr(const char *reqpath, const char *name,
 int     brix_imp_removexattr(const char *reqpath, const char *name);
 ssize_t brix_imp_listxattr(const char *reqpath, void *buf, size_t bufsz);
 
+/* Persist one lock-record CAS under the mapped identity and broker root.
+ * Call after VFS mutation/confinement/lock policy. Empty strings mean absent;
+ * records must be bounded encoded lock values, never arbitrary xattr names. */
+int brix_imp_lock_store_update(ngx_log_t *log, const char *root_canon,
+    const char *resolved, const char *expected, const char *replacement);
+
 #endif /* BRIX_IMPERSONATE_H */

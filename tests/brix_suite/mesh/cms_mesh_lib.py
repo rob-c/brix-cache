@@ -20,7 +20,6 @@ pytest-specific so cms_mesh_servers.py can import and run it standalone.
 
 import glob
 import hashlib
-import ipaddress
 import os
 import shutil
 import signal
@@ -317,11 +316,8 @@ def _reference_ip_args():
     family choice may therefore select IPv6 for an IPv4-only nginx listener.
     Named mesh hosts retain XRootD's automatic family selection.
     """
-    try:
-        address = ipaddress.ip_address(HOST.strip("[]"))
-    except ValueError:
-        return []
-    return ["-I", f"v{address.version}"]
+    from lib_py.reference_host import reference_listener_args
+    return reference_listener_args(HOST)
 
 
 # Stock ``xrootd``/``cmsd`` refuse to start as superuser ("XrdConfig: Security

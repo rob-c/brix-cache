@@ -10,6 +10,7 @@
 #include "core/compat/log_event.h"
 #include "config.h"
 #include "runtime_server_backend_internal.h"
+#include "auth/crypto/tls_compat.h"
 
 #if (NGX_SSL)
 /*
@@ -46,7 +47,7 @@ brix_tls_ctx_enable_verify(ngx_conf_t *cf, SSL_CTX *ctx, const ngx_str_t *host)
         hbuf[hl] = '\0';
         X509_VERIFY_PARAM_set_hostflags(param,
             X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
-        if (X509_VERIFY_PARAM_set1_host(param, hbuf, 0) != 1) {
+        if (!brix_crypto_verify_peer_name(param, hbuf)) {
             BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                 "brix: failed to pin upstream TLS verify host \"%V\"", host);
             return NGX_ERROR;

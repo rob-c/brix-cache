@@ -22,6 +22,7 @@
  *   Gated by the caller on conf->tpc_outbound_tls (bootstrap.c). (phase-57 §F5) */
 
 #include "tpc/engine/tpc_internal.h"
+#include "auth/crypto/tls_compat.h"
 #include "core/compat/cstr.h"
 #include "core/compat/host_format.h"
 
@@ -128,7 +129,7 @@ tpc_start_tls(brix_tpc_pull_t *t, int fd)
         /* Only meaningful when the chain is actually being verified. */
         if (verify_host) {
             SSL_set_hostflags(ssl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
-            if (SSL_set1_host(ssl, vhost) != 1) {
+            if (!brix_crypto_tls_peer_name(ssl, vhost)) {
                 snprintf(t->err_msg, sizeof(t->err_msg),
                          "TPC TLS: host-verify setup failed");
                 t->xrd_error = kXR_ServerError;

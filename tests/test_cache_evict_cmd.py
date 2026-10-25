@@ -34,6 +34,7 @@ import pytest
 
 from settings import HOST, BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
+from official_interop_lib import OFF_XRDFS as STOCK_XRDFS
 
 pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cache-evict")]
@@ -42,7 +43,6 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRDFS = os.path.join(CLIENT_DIR, "bin", "xrdfs")
 XRDCP = os.path.join(CLIENT_DIR, "bin", "xrdcp")
-STOCK_XRDFS = "/usr/bin/xrdfs"
 
 PAYLOAD = b"evict-me " * 4096
 
@@ -119,7 +119,7 @@ def test_evict_drops_cached_object(lifecycle, tmp_path, _client_built):
 def test_stock_client_fevict_lands(lifecycle, tmp_path, _client_built):
     """(success, drop-in proof) the STOCK 5.6.9 client's own cache fevict is
     accepted and drops the object — same wire, no BriX client needed."""
-    if not os.path.exists(STOCK_XRDFS):
+    if STOCK_XRDFS is None or not os.path.exists(STOCK_XRDFS):
         pytest.skip("stock xrdfs not installed")
     port, _data, cache = _start(lifecycle, tmp_path)
     _fill_cache(port, tmp_path, cache)

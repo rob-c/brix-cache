@@ -29,6 +29,7 @@ from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runti
 import subprocess
 
 import pytest
+from lib_py.worker_exec import assert_worker_exec_config
 
 from settings import BIND_HOST, NGINX_BIN
 
@@ -81,7 +82,7 @@ stream {{ server {{ listen {BIND_HOST}:13299;
 
 def test_frm_surviving_grammar_parses(tmp_path):
     rc, out = _nginx_t(tmp_path, FRM_DIRECTIVES.format(root=tmp_path))
-    assert rc == 0, f"pinned brix_frm_* grammar no longer parses:\n{out}"
+    assert_worker_exec_config(rc, out)
 
 
 def test_frm_bad_value_rejected(tmp_path):

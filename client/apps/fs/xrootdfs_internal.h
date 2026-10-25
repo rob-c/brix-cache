@@ -26,11 +26,14 @@
 #include "platform/platform.h"   /* PAL: Linux-shaped xattr calls on every host */
 
 #define XFS_CKS_XATTR_PFX "user.XrdCks."
-typedef struct {
+typedef struct afh {
     brix_mfile     *mf;             /* root:// async handle (NULL on web mounts) */
     brix_webfile   *wf;            /* http(s)/WebDAV handle (NULL on root mounts) */
     pthread_mutex_t lock;
     int             writable;
+    struct stat     attr;           /* authorized open attributes, also after unlink */
+    uid_t           caller_uid;
+    struct afh     *node_next;      /* mount mutex protects this intrusive owner */
     int64_t         wsize;  /* high-water byte size written through this handle —
                              * lets getattr report a still-staged (uncommitted)
                              * new file before its close-time commit (the server
@@ -38,7 +41,8 @@ typedef struct {
     brix_iobuf      io;   /* shared read-ahead / write-back engine (iobuf.c) */
 } afh;
 
-extern const struct fuse_operations xfs_ops;
+int xfs_session_main(int argc, char **argv);
+void xfs_daemon_ready(unsigned char status);
 
 /* shared op-context structs (Phase 38) */
 struct ctx_qspace { const char *path; char *out; size_t outsz; };
@@ -76,7 +80,7 @@ extern int g_ident_streams;   /* --identity-streams: per-identity data streams *
 int  xfs_ident_init(void);
 /* 0 with the pool/mgr out-params set, or -EMFILE (no slot) / -EACCES (the
  * identity would not connect).  Never falls back to the mount owner's. */
-int  xfs_ident_get(brix_pool **pool, brix_mgr **mgr);
+int  xfs_ident_get(uid_t caller_uid, brix_pool **pool, brix_mgr **mgr);
 void xfs_ident_shutdown(void);
 extern struct brix_cpool *g_web_pool;   /* Phase-86: pooled WebDAV metadata (web mounts) */
 extern size_t     g_readahead;
@@ -97,36 +101,36 @@ extern int        g_xattr;
 const char *srv_path(const char *p, char *buf, size_t sz);
 int xfs_err(const brix_status *st);
 int xfs_conn_healthy(const brix_status *st);
-int xfs_meta(brix_fuse_op_fn fn, void *ctx, brix_status *st);
-int xfs_meta_idem(brix_fuse_op_fn fn, void *ctx, int benign_errno,
+int xfs_meta(uid_t caller_uid, brix_fuse_op_fn fn, void *ctx, brix_status *st);
+int xfs_meta_idem(uid_t caller_uid, brix_fuse_op_fn fn, void *ctx, int benign_errno,
                   brix_status *st);
 void xfs_fill_stat(const brix_statinfo *si, struct stat *stbuf);
 
 /* xrootdfs_meta.c */
-int xfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi);
-int xfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags);
-int xfs_mkdir(const char *path, mode_t mode);
-int xfs_unlink(const char *path);
-int xfs_rmdir(const char *path);
-int xfs_rename(const char *from, const char *to, unsigned int flags);
-int xfs_chmod(const char *path, mode_t mode, struct fuse_file_info *fi);
-int xfs_truncate(const char *path, off_t size, struct fuse_file_info *fi);
-int xfs_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi);
-int xfs_chown(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi);
-int xfs_symlink(const char *target, const char *linkpath);
+int xfs_getattr(uid_t caller_uid, const char *path, struct stat *stbuf, struct fuse_file_info *fi);
+int xfs_readdir(uid_t caller_uid, const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags);
+int xfs_mkdir(uid_t caller_uid, const char *path, mode_t mode);
+int xfs_unlink(uid_t caller_uid, const char *path);
+int xfs_rmdir(uid_t caller_uid, const char *path);
+int xfs_rename(uid_t caller_uid, const char *from, const char *to, unsigned int flags);
+int xfs_chmod(uid_t caller_uid, const char *path, mode_t mode, struct fuse_file_info *fi);
+int xfs_truncate(uid_t caller_uid, const char *path, off_t size, struct fuse_file_info *fi);
+int xfs_utimens(uid_t caller_uid, const char *path, const struct timespec tv[2], struct fuse_file_info *fi);
+int xfs_chown(uid_t caller_uid, const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi);
+int xfs_symlink(uid_t caller_uid, const char *target, const char *linkpath);
 
 /* xrootdfs.c */
-int xfs_link(const char *from, const char *to);
+int xfs_link(uid_t caller_uid, const char *from, const char *to);
 
 /* xrootdfs_meta.c */
-int xfs_readlink(const char *path, char *buf, size_t size);
+int xfs_readlink(uid_t caller_uid, const char *path, char *buf, size_t size);
 
 /* xrootdfs_xattr.c */
 int op_qspace(brix_conn *c, void *v, brix_status *st);
 
 /* xrootdfs_meta.c */
-int xfs_statfs(const char *path, struct statvfs *stbuf);
-int xfs_access(const char *path, int mask);
+int xfs_statfs(uid_t caller_uid, const char *path, struct statvfs *stbuf);
+int xfs_access(uid_t caller_uid, const char *path, int mask);
 
 /* xrootdfs_io.c */
 ssize_t afh_pread(afh *h, int64_t off, void *buf, size_t len, brix_status *st);
@@ -134,10 +138,10 @@ ssize_t afh_io_pread(void *be, int64_t off, void *buf, size_t n, brix_status *st
 int afh_io_pwrite(void *be, int64_t off, const void *buf, size_t n, brix_status *st);
 int afh_flush_wbuf(afh *h, brix_status *st);
 void afh_free(afh *h);
-int afh_open(const char *path, int writable, int force, struct fuse_file_info *fi);
-int xfs_open(const char *path, struct fuse_file_info *fi);
-int xfs_create(const char *path, mode_t mode, struct fuse_file_info *fi);
-int xfs_mknod(const char *path, mode_t mode, dev_t rdev);
+int afh_open(uid_t caller_uid, const char *path, int writable, int force, struct fuse_file_info *fi);
+int xfs_open(uid_t caller_uid, const char *path, struct fuse_file_info *fi);
+int xfs_create(uid_t caller_uid, const char *path, mode_t mode, struct fuse_file_info *fi);
+int xfs_mknod(uid_t caller_uid, const char *path, mode_t mode, dev_t rdev);
 int xfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
 int xfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
 int xfs_flush(const char *path, struct fuse_file_info *fi);
@@ -148,16 +152,15 @@ int xfs_release(const char *path, struct fuse_file_info *fi);
 const char * xfs_xattr_to_fattr(const char *name);
 int op_cks(brix_conn *c, void *v, brix_status *st);
 int op_faget(brix_conn *c, void *v, brix_status *st);
-int xfs_getxattr(const char *path, const char *name, char *value, size_t size);
-int xfs_setxattr(const char *path, const char *name, const char *value, size_t size, int flags);
+int xfs_getxattr(uid_t caller_uid, const char *path, const char *name, char *value, size_t size);
+int xfs_setxattr(uid_t caller_uid, const char *path, const char *name, const char *value, size_t size, int flags);
 int op_faset(brix_conn *c, void *v, brix_status *st);
 int op_fadel(brix_conn *c, void *v, brix_status *st);
-int xfs_removexattr(const char *path, const char *name);
+int xfs_removexattr(uid_t caller_uid, const char *path, const char *name);
 int op_falist(brix_conn *c, void *v, brix_status *st);
-int xfs_listxattr(const char *path, char *list, size_t size);
+int xfs_listxattr(uid_t caller_uid, const char *path, char *list, size_t size);
 
 /* xrootdfs.c */
-void * xfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg);
 void usage(void);
 void usage_fp(FILE *out);   /* xrootdfs_usage.c */
 

@@ -5,6 +5,7 @@
  */
 #include "brix_fault_ext.h"
 
+#include <sys/socket.h>
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <stdint.h>

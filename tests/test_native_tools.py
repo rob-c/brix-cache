@@ -11,12 +11,14 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from brix_suite.client_build import client_make
 import zlib
 
 import pytest
 
 from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
+from lib_py.util import linked_libraries
 
 def _guard_tools_1():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
@@ -148,7 +150,7 @@ def test_xrdprep_evict(tools, seeded):
 
 @pytest.mark.parametrize("tool", TOOLS)
 def test_tool_no_libbrixl(tools, tool):
-    out = subprocess.run(["ldd", tools[tool]], capture_output=True, text=True).stdout
+    out = linked_libraries(tools[tool], check=True)
     bad = [ln for ln in out.splitlines() if re.search(r"XrdCl|XrdSec|libXrd", ln)]
     assert not bad, f"{tool} links upstream xrootd libs:\n{out}"
 
@@ -187,5 +189,5 @@ def test_mpxstats_aggregates_stdin(mpxstats_bin):
 
 
 def test_mpxstats_no_libbrixl(mpxstats_bin):
-    out = subprocess.run(["ldd", mpxstats_bin], capture_output=True, text=True).stdout
+    out = linked_libraries(mpxstats_bin, check=True)
     assert not re.search(r"XrdCl|XrdSec|libXrd", out), out

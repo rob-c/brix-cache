@@ -39,7 +39,8 @@ import os
 import re
 import subprocess
 from brix_suite.client_build import client_make
-import sys
+from lib_py.client_toolchain import client_test_env as _run_env
+from lib_py.client_toolchain import uses_prefix_toolchain as _uses_prefix_toolchain
 
 import pytest
 
@@ -53,30 +54,13 @@ FORKSAFE_C = os.path.join(CLIENT_DIR, "lib", "net", "forksafe.c")
 pytestmark = pytest.mark.timeout(300)
 
 
-def _run_env():
-    """Make the optional codec/krb5 libs resolvable for both link and runtime
-    when the toolchain is a conda prefix; a no-op on a system build."""
-    env = dict(os.environ)
-    prefix = env.get("CONDA_PREFIX") or sys.prefix
-    pcdir = os.path.join(prefix, "lib", "pkgconfig")
-    if os.path.isdir(pcdir):
-        libdir = os.path.join(prefix, "lib")
-        env["LD_LIBRARY_PATH"] = libdir + os.pathsep + env.get("LD_LIBRARY_PATH", "")
-        env["PKG_CONFIG_PATH"] = pcdir + os.pathsep + env.get("PKG_CONFIG_PATH", "")
-    return env
-
-
 @pytest.fixture(scope="module")
 def forksafe_bin():
-    """Build only when missing — a failed link would delete a good pre-built
-    binary, and this suite's static half is worth running either way."""
-    out = b""
-    if not os.path.exists(FORKSAFE_BIN):
-        r = client_make(CLIENT_DIR, "forksafe", env=_run_env(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=600)
-        out = r.stdout
-    if not os.path.exists(FORKSAFE_BIN):
-        pytest.skip("run `make -C client forksafe`:\n"
-                    f"{out.decode(errors='replace')[-800:]}")
+    """Relink against this run's SDK; an old binary can contain foreign rpaths."""
+    r = client_make(CLIENT_DIR, "forksafe", env=_run_env(), stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, timeout=600)
+    assert r.returncode == 0, r.stdout.decode(errors="replace")[-3000:]
+    assert os.path.exists(FORKSAFE_BIN)
     return FORKSAFE_BIN
 
 

@@ -1,19 +1,8 @@
 /* Phase-118 explicit quota and capacity fixture probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
 #define CONFORM_CAPACITY_WRITE (128U * 1024U)
 
-/* ---- Spend one bounded request/byte allowance ---- */
-static int
-reserve_op(xrd_conform_execution *execution, size_t bytes,
-    brix_status *status)
-{
-    char reason[64];
-
-    if (xrd_conform_reserve(execution, bytes, reason, sizeof(reason))) return 1;
-    brix_status_set(status, XRDC_EUSAGE, 0, "%s", reason);
-    return 0;
-}
 
 /* ---- Exercise one operator-labelled refusal endpoint ----
  *
@@ -48,14 +37,14 @@ probe_refusal(xrd_conform_execution *execution, const char *target,
         *evidence = status;
         return -1;
     }
-    if (reserve_op(execution, 0, &status)
+    if (xrd_conform_reserve_status(execution, 0, &status)
         && brix_file_open_opaque(&connection, object.path, opaque, 1, 1, 0,
             &file, &status) == 0) {
         opened = 1;
-        if (reserve_op(execution, sizeof(payload), &status))
+        if (xrd_conform_reserve_status(execution, sizeof(payload), &status))
             rc = brix_file_write(&connection, &file, 0, payload,
                 sizeof(payload), &status);
-        if (rc == 0 && reserve_op(execution, 0, &status))
+        if (rc == 0 && xrd_conform_reserve_status(execution, 0, &status))
             rc = brix_file_close(&connection, &file, &status);
     }
     *observed = status.kxr;
@@ -64,14 +53,14 @@ probe_refusal(xrd_conform_execution *execution, const char *target,
         brix_status cleanup;
 
         brix_status_clear(&cleanup);
-        if (reserve_op(execution, 0, &cleanup))
+        if (xrd_conform_reserve_status(execution, 0, &cleanup))
             brix_file_close(&connection, &file, &cleanup);
     }
     {
         brix_status cleanup;
 
         brix_status_clear(&cleanup);
-        if (reserve_op(execution, 0, &cleanup))
+        if (xrd_conform_reserve_status(execution, 0, &cleanup))
             brix_rm(&connection, object.path, &cleanup);
     }
     brix_close(&connection);

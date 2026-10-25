@@ -44,11 +44,11 @@ extern void brix_cksum_aio_done(ngx_event_t *ev);
  * WHAT: Locate the "algo:path"/"algo path" prefix separator (':' or ' ') within the NUL-bounded
  *      leading run of the payload, reporting the algorithm length and the separator offset.
  * WHY:  The legacy non-standard wire form places the algorithm as a "<algo><sep><path>" prefix;
- *      it must be distinguished from a bare path before the path is extracted. Isolating the scan
- *      keeps qcksum_select_algo linear and free of the raw index loop.
- * HOW:  strnlen bounds the scan to the printable prefix, then a single forward pass returns the
- *      first ':'/' ' offset (also the algorithm length) via *alg_len; returns 1 iff a separator
- *      was found, 0 otherwise (out-params zeroed).
+ *      it must be distinguished from a bare path before the path is extracted. Spaces or colons
+ *      after the first slash belong to the filename, never the algorithm selector.
+ * HOW:  1. Bound the scan with strnlen. 2. Stop at the path/CGI boundary. 3. Return the first
+ *      leading ':'/' ' offset (also the algorithm length) via *alg_len; return 0 if no prefix
+ *      separator was found (out-params zeroed).
  */
 static ngx_flag_t
 brix_qcksum_find_algo_sep(const u_char *payload, size_t payload_len,
@@ -59,7 +59,8 @@ brix_qcksum_find_algo_sep(const u_char *payload, size_t payload_len,
     *sep_off = 0;
     *alg_len = 0;
 
-    for (size_t i = 0; i < wire_len; i++) {
+    for (size_t i = 0; i < wire_len && payload[i] != '/'
+                           && payload[i] != '?'; i++) {
         if (payload[i] == ':' || payload[i] == ' ') {
             *sep_off = i;
             *alg_len = i;
@@ -382,8 +383,8 @@ brix_qcksum_open(brix_qcksum_req_t *rq, ngx_int_t *out_rc)
  *      variant owns the handle (close_fd=1: the done cb releases the VFS handle), unlike the
  *      handle variant which computes on an already-open fd it does not own.
  * HOW:  Alloc the task, populate the brix_cksum_aio_t (fd/fh/obj/streamid/algo/resolved), bind
- *      the thread + done callbacks, then brix_aio_post_task. A full queue leaves *handled=0 so
- *      the caller reuses the still-open handle for a synchronous compute.
+ *      the thread + done callbacks, then brix_aio_post_task. A full queue closes the owned
+ *      handle, retains the reusable task and answers kXR_wait instead of computing inline.
  */
 static ngx_int_t
 brix_qcksum_try_async(brix_qcksum_req_t *rq, brix_vfs_file_t *fh, int fd,
@@ -402,9 +403,11 @@ brix_qcksum_try_async(brix_qcksum_req_t *rq, brix_vfs_file_t *fh, int fd,
         return NGX_OK;
     }
 
-    task = ngx_thread_task_alloc(c->pool, sizeof(brix_cksum_aio_t));
+    task = brix_query_checksum_task(c, sizeof(brix_cksum_aio_t));
     if (task == NULL) {
         brix_vfs_close(fh, c->log);
+        brix_log_access(ctx, c, "QUERY", rq->full_path, "cksum", 0,
+                           kXR_NoMemory, "out of memory", 0);
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSUM);
         *handled = 1;
         return brix_send_error(ctx, c, kXR_NoMemory, "out of memory");
@@ -417,6 +420,8 @@ brix_qcksum_try_async(brix_qcksum_req_t *rq, brix_vfs_file_t *fh, int fd,
     t->fd       = fd;
     t->fh       = fh;        /* done cb releases the VFS handle */
     t->close_fd = 1;
+    t->mutation_policy =
+        brix_vfs_policy_from_write_enable(conf->common.allow_write);
     brix_vfs_file_sd_obj(fh, &t->obj); /* Layer 3: whole-object checksum */
     ngx_memcpy(t->streamid, ctx->recv.cur_streamid, 2);
     ngx_cpystrn((u_char *) t->algo, (u_char *) rq->algo, sizeof(t->algo));
@@ -428,7 +433,7 @@ brix_qcksum_try_async(brix_qcksum_req_t *rq, brix_vfs_file_t *fh, int fd,
     task->ctx = t;
 
     if (brix_aio_post_task(ctx, c, conf->common.thread_pool, task,
-                             "cksum thread pool queue full, using sync",
+                             "checksum worker queue full; requesting client retry",
                              &posted) != NGX_OK)
     {
         brix_vfs_close(fh, c->log);
@@ -440,14 +445,17 @@ brix_qcksum_try_async(brix_qcksum_req_t *rq, brix_vfs_file_t *fh, int fd,
         *handled = 1;
         return NGX_OK;
     }
-    /* not posted → fall through to the sync path, reusing the open handle. */
-    return NGX_OK;
+    /* A busy queue is backpressure, not permission to read the entire object
+     * on the event loop. No worker owns this handle or task on this path. */
+    brix_vfs_close(fh, c->log);
+    *handled = 1;
+    return brix_send_wait(ctx, c, 1);
 }
 
 /*
  * WHAT: Synchronously compute the checksum on an open VFS handle, close the handle, and on
  *      success emit the access log + OK reply. Returns the terminal result of the request.
- * WHY:  The sync path runs when no thread pool is configured or the pool queue was full; it
+ * WHY:  The sync path runs only when no thread pool is configured; it
  *      shares the format/reply tail with the async done callback's success shape.
  * HOW:  Snapshot the sd_obj for the whole-object checksum, build the "algo hex" response, close
  *      the handle unconditionally, then map NGX_DONE (error already sent) / non-OK / OK → send_ok.

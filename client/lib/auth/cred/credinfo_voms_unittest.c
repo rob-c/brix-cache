@@ -24,6 +24,7 @@
 #define _GNU_SOURCE            /* open_memstream, mkdtemp, setenv */
 #endif
 #include <stdio.h>
+#include "auth/crypto/key_compat.h"
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -66,7 +67,7 @@ count(const char *hay, const char *needle)
 static X509 *
 make_cert(const unsigned char *ext_der, int ext_len)
 {
-    EVP_PKEY  *key = EVP_RSA_gen(2048);
+    EVP_PKEY  *key = brix_crypto_rsa_keygen(2048);
     X509      *cert = X509_new();
     X509_NAME *name = X509_NAME_new();
 

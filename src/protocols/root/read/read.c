@@ -299,21 +299,7 @@ brix_read_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
 
     /* Queue the contiguous [hdr|data] frame on the SECONDARY's out-ring; the
      * secondary owns `buf` and releases it when the slot drains. */
-    *rc = brix_queue_response_base(sec_ctx, sec_c, buf,
-                                     XRD_RESPONSE_HDR_LEN + (size_t) nread, buf);
-    if (*rc == NGX_OK) {
-        brix_metric_offload(BRIX_PROTO_ROOT);   /* §1.1 observability */
-    }
-
-    /*
-     * Release here on error OR on a full inline send (secondary ring stayed
-     * empty) — only a parked-and-draining response keeps the buffer, whose slot
-     * drain then releases it.  Mirrors read_finish_buffered's post-queue release;
-     * brix_release_read_buffer is idempotent so the error/parked overlap is safe.
-     */
-    if (*rc != NGX_OK || sec_ctx->out.count == 0) {
-        brix_release_read_buffer(sec_ctx, sec_c, buf);
-    }
+    *rc = brix_read_offload_queue(sec_ctx, sec_c, buf, XRD_RESPONSE_HDR_LEN + (size_t) nread);
     return 1;
 }
 

@@ -8,12 +8,31 @@ These tests pin the reaper hermetically: no real mount, daemon, or kill.
 
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from cmdscripts import fake_nginx, fake_nginx_broken, live_common
 
 _TR = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
+
+
+@pytest.mark.parametrize("exited,expected,ticks", [
+    ({101}, [], [0.0, 0.0]),
+    (set(), [101, 202], [0.0, 6.0]),
+    ({101}, [202], [0.0, 0.0, 6.0]),
+])
+def test_exit_wait_does_not_treat_zombies_as_live_servers(
+        monkeypatch, exited, expected, ticks):
+    from brix_suite.launcher import RegistryLauncher
+
+    pids = [101] if not expected else [101, 202]
+    clock = iter(ticks)
+    monkeypatch.setattr(RegistryLauncher, "_process_exited",
+                        staticmethod(lambda pid: pid in exited))
+    monkeypatch.setattr(live_common.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(live_common.time, "sleep", lambda delay: None)
+    assert live_common._await_exit(pids) == expected
 
 
 def _runtime_config(path):
@@ -131,6 +150,7 @@ def test_close_reaps_before_removing_the_tree(monkeypatch, tmp_path):
 
 
 def test_fuse_mounts_under_parses_proc_mounts(monkeypatch):
+    monkeypatch.setattr(live_common, 'sys', SimpleNamespace(platform='linux'))
     fake = (
         f"/dev/fuse {_TR}/tmp/cvmfs_bench.x/sm15 fuse ro 0 0\n"
         "portal /run/user/1000/doc fuse.portal rw 0 0\n"
@@ -139,8 +159,44 @@ def test_fuse_mounts_under_parses_proc_mounts(monkeypatch):
     )
     monkeypatch.setattr(live_common.Path, "read_text",
                         lambda self, *a, **k: fake)
+    exists = live_common.os.path.exists
+    monkeypatch.setattr(live_common.os.path, "exists",
+                        lambda path: True if str(path) == "/proc/mounts" else exists(path))
     points = live_common._fuse_mounts_under(_TR + "/tmp/cvmfs_bench.x/")
     assert points == [_TR + "/tmp/cvmfs_bench.x/sm15"]
+
+
+def test_freebsd_mount_table_selects_exact_root_and_children(monkeypatch, tmp_path):
+    import psutil
+    from lib_py.fuse_host import freebsd_fuse_mounts_under
+
+    root = str(tmp_path / 'owned')
+    rows = [SimpleNamespace(mountpoint=path, fstype=kind) for path, kind in (
+        (root, 'fusefs'), (root + '/child', 'fusefs'), (root + '/disk', 'zfs'))]
+    monkeypatch.setattr(psutil, 'disk_partitions', lambda **kwargs: rows)
+    assert freebsd_fuse_mounts_under(root + '/') == [root, root + '/child']
+
+
+def test_freebsd_mount_table_does_not_claim_a_prefix_sibling(monkeypatch, tmp_path):
+    import psutil
+    from lib_py.fuse_host import freebsd_fuse_mounts_under
+
+    root = str(tmp_path / 'owned')
+    rows = [SimpleNamespace(mountpoint=root + '-foreign/child', fstype='fusefs')]
+    monkeypatch.setattr(psutil, 'disk_partitions', lambda **kwargs: rows)
+    assert freebsd_fuse_mounts_under(root) == []
+
+
+def test_freebsd_mount_table_failure_cannot_authorize_cleanup(monkeypatch, tmp_path):
+    import psutil
+    from lib_py.fuse_host import freebsd_fuse_mounts_under
+
+    def denied(**kwargs):
+        raise PermissionError('native table refused')
+
+    monkeypatch.setattr(psutil, 'disk_partitions', denied)
+    with pytest.raises(PermissionError, match='native table refused'):
+        freebsd_fuse_mounts_under(str(tmp_path))
 
 
 # --------------------------------------------------------------------------- #

@@ -26,6 +26,7 @@ import pytest
 import requests
 
 import settings
+from cmdscripts.live_common import inject_nginx_load_modules
 from server_launcher import LifecycleHarness, launch_fleet_nginx
 from server_registry import NginxInstanceSpec, endpoint_for
 
@@ -126,18 +127,21 @@ def _probe_paths(name: str, binary_name: str):
         probe,
         os.path.join(probe, "prefix"),
         os.path.join(probe, binary_name),
-        os.path.join(os.path.dirname(__file__), "configs",
-                     "nginx_module_load_smoke.conf"),
+        os.path.join(probe, "nginx.conf"),
         os.path.join(probe, "nginx.log"),
     )
 
 
-def _prepare_probe(prefix: str, binary: str, account) -> None:
+def _prepare_probe(prefix: str, binary: str, config: str, account) -> None:
     logs = os.path.join(prefix, "logs")
     os.makedirs(logs, exist_ok=True)
     os.chown(prefix, account.pw_uid, account.pw_gid)
     os.chown(logs, account.pw_uid, account.pw_gid)
     shutil.copy2(settings.NGINX_BIN, binary)
+    source = os.path.join(os.path.dirname(__file__), "configs",
+                          "nginx_module_load_smoke.conf")
+    shutil.copy2(source, config)
+    inject_nginx_load_modules(config, settings.NGINX_BIN)
 
 
 def _start_probe(command, log_path: str):
@@ -220,7 +224,7 @@ def test_already_target_worker_terminally_drops_file_capabilities():
     _probe, prefix, binary, config, log_path = _probe_paths(
         "already-target-cap", "nginx-cap-probe")
     proc = None
-    _prepare_probe(prefix, binary, nobody)
+    _prepare_probe(prefix, binary, config, nobody)
     subprocess.run([setcap, "cap_setuid,cap_setgid+ep", binary], check=True)
     try:
         proc = _start_probe([
@@ -246,7 +250,7 @@ def test_default_safe_nginx_identity_with_primary_group_starts():
     _probe, prefix, binary, config, log_path = _probe_paths(
         "safe-service-groups", "nginx-group-probe")
     proc = None
-    _prepare_probe(prefix, binary, account)
+    _prepare_probe(prefix, binary, config, account)
     try:
         proc = _start_probe([
             setpriv, f"--reuid={account.pw_uid}",
@@ -269,7 +273,7 @@ def test_default_service_identity_rejects_unregistered_supplementary_group():
     extra = pwd.getpwnam("nobody").pw_gid
     _probe, prefix, binary, config, log_path = _probe_paths(
         "unsafe-service-groups", "nginx-group-probe")
-    _prepare_probe(prefix, binary, account)
+    _prepare_probe(prefix, binary, config, account)
     proc = None
     try:
         proc = _start_probe([
@@ -289,10 +293,13 @@ def test_single_process_mode_refuses_privileged_serving():
     """`master_process off` must exit instead of serving in the root process."""
     probe = os.path.join(BASE, "single-process-refusal")
     prefix = os.path.join(probe, "prefix")
-    config = os.path.join(os.path.dirname(__file__), "configs",
-                          "nginx_module_load_smoke.conf")
+    config = os.path.join(probe, "nginx.conf")
 
     os.makedirs(os.path.join(prefix, "logs"), exist_ok=True)
+    source = os.path.join(os.path.dirname(__file__), "configs",
+                          "nginx_module_load_smoke.conf")
+    shutil.copy2(source, config)
+    inject_nginx_load_modules(config, settings.NGINX_BIN)
     result = subprocess.run([
         settings.NGINX_BIN, "-e", "stderr", "-p", prefix + "/",
         "-c", config, "-g", "master_process off; daemon off;",

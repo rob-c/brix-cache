@@ -1,4 +1,23 @@
 from split_continuation import reexport as _reexport
+from contextlib import contextmanager
+import tempfile
+
+from cmdscripts import open_tree_for_worker
+
+
+@contextmanager
+def _dstat_files():
+    """Isolate the positive directory oracle from concurrent hostile-name tests."""
+    with tempfile.TemporaryDirectory(prefix="_dstat_", dir=DATA_DIR) as directory:
+        open_tree_for_worker(directory)
+        names = []
+        for index in range(3):
+            name, size = f"probe_{index}.bin", 128 * (index + 1)
+            with open(os.path.join(directory, name), "wb") as output:
+                output.write(os.urandom(size))
+            names.append((name, size))
+        yield "//" + os.path.basename(directory), names
+
 def _expression_1_next(msg):
     return (
         any(k in msg for k in ("no such", "not found", "doesn't exist", "does not exist"))
@@ -192,17 +211,9 @@ class TestDirlistFlagsConformance:
 
     def test_dstat_per_entry_sizes_match_individual_stat(self):
         """kXR_dstat: sizes in dirlist response must match separate stat calls."""
-        names = []
-        try:
-            for i in range(3):
-                size = 128 * (i + 1)
-                name = f"_dstat_{os.getpid()}_{i}.bin"
-                with open(os.path.join(DATA_DIR, name), "wb") as fh:
-                    fh.write(os.urandom(size))
-                names.append((name, size))
-
-            n_st, n_listing = _dirlist_retry(_fs(NGINX_URL), "//")
-            r_st, r_listing = _dirlist_retry(_fs(REF_URL  ), "//")
+        with _dstat_files() as (remote, names):
+            n_st, n_listing = _dirlist_retry(_fs(NGINX_URL), remote)
+            r_st, r_listing = _dirlist_retry(_fs(REF_URL), remote)
             _check_test_dstat_per_entry_sizes_match_individual_stat_1(n_st, r_st)
 
             n_sizes = _expression_1(n_listing)
@@ -215,9 +226,10 @@ class TestDirlistFlagsConformance:
 
                 _assert_test_dstat_per_entry_sizes_match_individual_stat_1()
                 _check_test_dstat_per_entry_sizes_match_individual_stat_2(expected_size, n_sizes, name, r_sizes)
-        finally:
-            for name, _ in names:
-                _phase_test_dstat_per_entry_sizes_match_individual_stat_1(name)
+                for endpoint in (NGINX_URL, REF_URL):
+                    status, info = _fs(endpoint).stat(remote + "/" + name)
+                    assert status.ok, status.message
+                    assert info.size == expected_size
 
     def test_dirlist_without_dstat_agrees_on_names(self):
         n_st, n_listing = _dirlist_retry(_fs(NGINX_URL), "//", DirListFlags.NONE)

@@ -46,6 +46,8 @@ import threading
 import time
 
 import pytest
+psutil = pytest.importorskip('psutil')
+import sys
 
 from lib_py import fuse_host
 from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
@@ -120,11 +122,29 @@ def remote_file(built):
         pass
 
 
+def _owned_daemon(mountpoint):
+    """Require the exact binary, UID and mount argument before owning a daemon."""
+    candidates = []
+    for process in psutil.process_iter(['uids', 'cmdline']):
+        try:
+            if process.info['uids'].real != os.geteuid():
+                continue
+            if mountpoint not in process.info['cmdline']:
+                continue
+            if os.path.realpath(process.exe()) == os.path.realpath(XROOTDFS):
+                candidates.append(process)
+        except psutil.NoSuchProcess:
+            continue
+    assert len(candidates) == 1, f'expected one owned daemon for {mountpoint}'
+    return candidates[0]
+
+
 class _DaemonMount:
     """A mount made WITHOUT -f: xrootdfs forks and the launcher returns."""
 
     def __init__(self, mnt):
         self.mnt = mnt
+        self.process = _owned_daemon(mnt)
 
     def __enter__(self):
         return self
@@ -144,12 +164,13 @@ class _DaemonMount:
 
     def __exit__(self, *exc):
         self.detach()
-        # Reap the daemon by mountpoint. A healthy driver exits on its own once
-        # the session is torn down; a WEDGED one does not, and because it is an
-        # orphan (its launcher already exited) nothing else will collect it —
-        # leaking one per test would slowly fill the box during a failing run.
-        subprocess.run(["pkill", "-9", "-f", f"xrootdfs.*{self.mnt}"],
-                       capture_output=True)
+        # psutil checks PID/creation-time identity before signalling. A regex
+        # process-name sweep is not ownership, even for a private mount path.
+        try:
+            self.process.wait(timeout=5)
+        except psutil.TimeoutExpired:
+            self.process.kill()
+            self.process.wait(timeout=5)
         try:
             os.rmdir(self.mnt)
         except OSError:
@@ -282,8 +303,11 @@ def test_daemonized_write_reaches_origin(built):
         with _mount_daemonized() as m:
             try:
                 rc, _, err = _run_with_deadline(
-                    m, ["dd", f"of={os.path.join(m.mnt, name)}",
-                        "bs=65536", "count=1", "status=none"],
+                    m, [sys.executable, '-c',
+                        'import pathlib,sys; data=sys.stdin.buffer.read(); '
+                        'assert len(data)==65536; '
+                        'assert pathlib.Path(sys.argv[1]).write_bytes(data)==len(data)',
+                        os.path.join(m.mnt, name)],
                     stdin_bytes=payload)
             except _ReadTimeout:
                 pytest.fail("write to a daemonized mount never completed")
@@ -337,20 +361,13 @@ def test_daemonized_detaches_from_terminal_and_cwd(built, remote_file):
     """
     name, _ = remote_file
     with _mount_daemonized() as m:
-        pids = subprocess.run(
-            ["pgrep", "-f", f"{os.path.basename(XROOTDFS)}.*{m.mnt}"],
-            capture_output=True, text=True).stdout.split()
-        if not pids:
-            pytest.skip("cannot locate the daemon process to inspect")
-        pid = pids[0]
-
         # Session leader: its own sid, not the test runner's.
-        stat_line = open(f"/proc/{pid}/stat").read()
-        sid = int(stat_line[stat_line.rindex(")") + 2:].split()[3])
-        assert sid == int(pid), f"daemon sid {sid} != pid {pid} (not detached)"
+        pid = m.process.pid
+        sid = os.getsid(pid)
+        assert sid == pid, f"daemon sid {sid} != pid {pid} (not detached)"
 
         # Rooted at / so it pins no other filesystem.
-        assert os.readlink(f"/proc/{pid}/cwd") == "/", "daemon did not chdir(/)"
+        assert m.process.cwd() == "/", "daemon did not chdir(/)"
 
         # And it is still serving, so detaching did not cost functionality.
         assert name in os.listdir(m.mnt)

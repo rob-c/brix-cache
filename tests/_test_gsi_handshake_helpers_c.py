@@ -85,6 +85,8 @@ STOCK_XRDCP = shutil.which("xrdcp") or "/usr/bin/xrdcp"
 # stable listen port.  Allocate both from the TEST_PORT_START-anchored interop
 # ladder; the whole split family is already pinned to xdist_group("gsihs").
 from official_interop_lib import worker_port  # noqa: E402
+from brix_suite.mesh.cms_mesh_lib import _reference_ip_args
+from lib_py.reference_host import reference_transport_directives
 
 P_STOCK_ROOT = worker_port(21130)
 P_STOCK_ROOT_FCA = worker_port(21131)  # foreign-CA stock server
@@ -198,12 +200,14 @@ def _start_stock_gsi(pki, port, hostcert, hostkey, certdir, cfgname, control_roo
             f"-cert:{hostcert} -key:{hostkey} "
             "-crl:0 -gmapopt:10 -dlgpxy:0\n"
             "sec.protbind * only gsi\n")
+        f.write(reference_transport_directives())
     _free_port(port)
     # xrootd refuses to run as the superuser; under a root test runner drop it to
     # `nobody` (-R) and open the tree + private key it must read/write as that
     # user (mirrors the fleet's refxrootd.sh _ref_launch shim).
     xrd_cmd = ["xrootd", "-c", cfg, "-l",
                os.path.join(base, f"stock-{port}.log"), "-n", "gsihs"]
+    xrd_cmd += _reference_ip_args()
     if os.geteuid() == 0:
         subprocess.run(["chmod", "-R", "a+rwX", base], check=False)
         # pytest's tmp_path_factory creates pytest-of-root/pytest-N as 0700, so

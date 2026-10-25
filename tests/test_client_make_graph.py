@@ -2,10 +2,9 @@
 """Guards the client build GRAPH against the clean-tree link failure.
 
 `client/Makefile` builds the shared protocol core by recursing into
-`shared/xrdproto`.  Most targets only need the archive to EXIST, so they hang
-off the order-only `| proto` alias.  Two targets — `libbrixposix_preload.so`
-and `libbrix.so` — actually LINK it and therefore name `$(PROTO_LIB)` as a
-normal prerequisite.  That is only legal if the archive is a real make target:
+`shared/xrdproto`.  Every target that links the archive names `$(PROTO_LIB)` as
+a normal prerequisite, so a codec/configuration change in that archive forces
+the consumer to relink.  That is only legal if the archive is a real make target:
 when the recursion lived on the phony alone, any tree without a pre-built
 `shared/xrdproto/libxrdproto.a` (i.e. every clean CI checkout) died with
 
@@ -26,6 +25,7 @@ touching anything.
 from __future__ import annotations
 
 import pathlib
+import importlib
 import platform
 import re
 import shutil
@@ -45,12 +45,62 @@ ABSENT = "/nonexistent/brix-make-graph/libxrdproto.a"
 pytestmark = pytest.mark.timeout(120)
 
 
+@pytest.mark.parametrize("module_name", ["test_ipv6_fallback", "test_net_resilience"])
+def test_network_fixtures_build_the_real_archive_before_linking(monkeypatch, module_name):
+    """Pretending libbrix.a is new can link helpers against old socket code."""
+    module = importlib.import_module(module_name)
+    calls = []
+    monkeypatch.setattr(module, "client_make", lambda *args, **kwargs:
+        calls.append(args) or subprocess.CompletedProcess(args, 0, stdout=b""))
+    monkeypatch.setattr(module.os.path, "exists", lambda path: True)
+    module._build.__wrapped__()
+    assert len(calls) == 1
+    assert "libbrix.a" in calls[0][1:], calls
+    assert "-W" not in calls[0][1:], calls
+
+
+@pytest.mark.parametrize("flags,expected", [
+    ("-L/opt/brix-sdk/lib -luring", "-Wl,-rpath,/opt/brix-sdk/lib"),
+    ("-luring", "-luring"),
+    ("-Lrelative -luring", "-Lrelative"),
+])
+def test_static_dependency_runtime_paths_are_absolute(flags, expected):
+    result = client_make(CLIENT,
+        "-nB", "libbrix.pc", "URING_LIBS=" + flags,
+        "OPENSSL_LIBS=", "KRB5_LIBS=", "CODEC_LIBS=",
+        capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stderr
+    private = next(line for line in result.stdout.splitlines() if "Libs.private:" in line)
+    assert expected in private
+    _assert_absolute_runtime_paths(private)
+    assert "-pthread" in private, "static consumers need pthread on pre-2.34 glibc"
+
+
+def _assert_absolute_runtime_paths(private):
+    """Allow native absolute SDK paths, never empty or relative loader paths."""
+    runtime_paths = re.findall(r"-Wl,-rpath,([^\s'\"]*)", private)
+    assert all(path.startswith('/') for path in runtime_paths), runtime_paths
+
+
+@pytest.mark.parametrize("system_dir", ["/usr/lib", "/usr/lib64", "/usr/lib/aarch64-linux-gnu"])
+def test_parallel_sdk_cannot_be_shadowed_by_a_codec_system_directory(system_dir):
+    """A codec's -L must not silently downgrade the selected external SDK."""
+    result = client_make(CLIENT,
+        "-nB", "libbrix.pc", "URING_LIBS=-L/opt/brix-sdk/lib -luring",
+        "OPENSSL_LIBS=", "KRB5_LIBS=", f"CODEC_LIBS=-L{system_dir} -lzstd",
+        capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stderr
+    private = next(line for line in result.stdout.splitlines() if "Libs.private:" in line)
+    assert private.index("-L/opt/brix-sdk/lib") < private.index(f"-L{system_dir}")
+    assert "-Wl,-rpath,/opt/brix-sdk/lib" in private
+
+
 def _make_variables(makefile: pathlib.Path, **overrides: str) -> dict[str, str]:
     """Return make's expanded simple variables without building any target."""
-    command = ["make", "-f", str(makefile), "-pn", *(
+    command = ["-f", str(makefile), "-pn", *(
         f"{name}={value}" for name, value in overrides.items()
     )]
-    proc = subprocess.run(command, cwd=makefile.parent,
+    proc = client_make(makefile.parent, *command,
                           capture_output=True, text=True)
     variables = {}
     for line in proc.stdout.splitlines():
@@ -197,6 +247,35 @@ def test_shared_object_goals_resolve_with_the_archive_missing(goal: str) -> None
     assert proc.returncode == 0, combined
 
 
+@pytest.mark.parametrize("goal", ["aio-smoke", "aio-resil", "aio-waitresp",
+                                  "aio-mfile", "ssi-client-smoke", "netfb",
+                                  "dirfanout", "forksafe", "nettmo"])
+def test_optional_drivers_build_the_protocol_archive_on_a_clean_tree(goal):
+    """An optional driver's link closure is also a normal build dependency."""
+    rule = re.search(rf"^{re.escape(goal)}:.*$", MAKEFILE.read_text(), re.MULTILINE)
+    assert rule and "$(PROTO_LIB)" in rule.group(0)
+    result = _dry_run(goal)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "true -C ../shared/xrdproto" in result.stdout
+
+
+@pytest.mark.parametrize("flags,expected", [
+    ("-L/opt/brix-sdk/lib -lz", ["-Wl,-rpath,/opt/brix-sdk/lib"]),
+    ("-Lrelative -lz", []),
+    ("-lz", []),
+])
+def test_optional_driver_runtime_paths_follow_absolute_sdk_dirs(flags, expected):
+    """External SDKs are loadable; a relative library path never becomes RPATH."""
+    result = client_make(CLIENT, "-nB", "MAKE=true", "dirfanout",
+                         "URING_LIBS=" + flags, "OPENSSL_LIBS=",
+                         "KRB5_LIBS=", "CODEC_LIBS=", "PLATFORM_LIBS=",
+                         capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stdout + result.stderr
+    links = _link_lines(result.stdout, "bin/dirfanout_test")
+    assert len(links) == 1, result.stdout
+    assert [flag for flag in links[0].split() if flag.startswith("-Wl,-rpath,")] == expected
+
+
 def test_protocol_archive_is_a_real_target() -> None:
     """The invariant behind both goals: $(PROTO_LIB) carries its own rule.
 
@@ -210,6 +289,31 @@ def test_protocol_archive_is_a_real_target() -> None:
         "$(PROTO_LIB) has no rule of its own — targets that link it will fail "
         "on any tree where shared/xrdproto/libxrdproto.a does not exist yet"
     )
+
+
+def test_every_generic_executable_relinks_when_protocol_archive_changes() -> None:
+    """Optional codec changes in libxrdproto must invalidate native tools."""
+    body = MAKEFILE.read_text()
+    rule = re.search(
+        r"^\$\(BIN_EXES\):\s+\$\(BINDIR\)/%:.*$", body, re.MULTILINE)
+    assert rule and "$(PROTO_LIB)" in rule.group(0)
+
+
+@pytest.mark.parametrize("goal", ["xrootdfs", "brixMount"])
+def test_special_executables_relink_when_protocol_archive_changes(goal: str) -> None:
+    """The two bespoke link recipes obey the same archive dependency rule."""
+    body = MAKEFILE.read_text()
+    rule = re.search(rf"^\$\(BINDIR\)/{goal}:.*$", body, re.MULTILINE)
+    assert rule and "$(PROTO_LIB)" in rule.group(0)
+
+
+def test_client_clean_removes_shared_protocol_build_products() -> None:
+    """A feature-probe rebuild cannot reuse codec-disabled shared objects."""
+    body = MAKEFILE.read_text()
+    clean = re.search(r"^clean:.*?(?=\n[^\t\n#])", body, re.MULTILINE | re.DOTALL)
+    assert clean
+    assert "$(PROTO_LIB)" in clean.group(0)
+    assert "$(PROTO_DIR)/build" in clean.group(0)
 
 
 def test_the_protocol_core_has_exactly_one_recursion_point() -> None:

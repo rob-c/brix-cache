@@ -17,6 +17,16 @@
 
 #include "open.h"
 
+/* Pure option interpretation; callers retain authorization ordering. */
+off_t brix_open_declared_asize(brix_ctx_t *ctx);
+int brix_open_options_conflict(uint16_t options);
+brix_sd_open_hints_t brix_open_cache_hints(brix_ctx_t *ctx, ngx_flag_t is_write);
+
+/* After authorization, reject directory targets and file-as-directory spelling.
+ * No storage access; NGX_DECLINED permits the regular-file open to continue. */
+ngx_int_t brix_open_read_target_guard(brix_ctx_t *ctx, ngx_connection_t *c,
+    const char *clean_path, ngx_flag_t is_directory);
+
 /* Opaque extraction helper — defined in open_overview.c. */
 extern int open_extract_opaque(const u_char *payload, size_t payload_len,
     char *out, size_t out_size);

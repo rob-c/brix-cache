@@ -31,6 +31,7 @@
 
 #include "fs/backend/http/sd_http_internal.h"
 #include "fs/backend/meta_advisory.h"
+#include "platform/platform_api.h"
 
 static int failures;
 

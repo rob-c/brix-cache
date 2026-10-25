@@ -79,6 +79,59 @@ probe_echoed_descriptor(xrd_conform_execution *execution,
  * WHY: Count-limit bugs can truncate, alias, or overrun segment state.
  * HOW: Verify 1024 typed one-byte extents, then raw-send 1025 descriptors. */
 static void
+init_one_byte_segments(brix_readv_seg *segments, uint8_t *bytes,
+    uint64_t size)
+{
+    size_t index;
+
+    for (index = 0; index < XRDC_VEC_MAXSEGS; index++) {
+        segments[index].offset = (int64_t) (index % size);
+        segments[index].len = 1;
+        segments[index].buf = bytes + index;
+    }
+}
+
+static int
+scatter_matches(const brix_readv_seg *segments, const uint8_t *bytes,
+    const uint8_t *baseline, uint64_t size)
+{
+    size_t index;
+
+    for (index = 0; index < XRDC_VEC_MAXSEGS; index++)
+        if (segments[index].got != 1
+            || bytes[index] != baseline[index % size]) return 0;
+    return 1;
+}
+
+static void
+pack_readv_limit_payload(uint8_t *payload, const brix_file *file,
+    uint64_t size)
+{
+    size_t index;
+
+    for (index = 0; index <= XRDC_VEC_MAXSEGS; index++)
+        brix_readv_seg_pack(payload + index * BRIX_READV_SEGSIZE,
+            file->fhandle, 1, index % size);
+}
+
+static int
+allocate_segment_probe(brix_readv_seg **segments, uint8_t **bytes,
+    uint8_t **payload)
+{
+    *segments = calloc(XRDC_VEC_MAXSEGS, sizeof(**segments));
+    *bytes = malloc(XRDC_VEC_MAXSEGS);
+    *payload = malloc((XRDC_VEC_MAXSEGS + 1U) * BRIX_READV_SEGSIZE);
+    return *segments != NULL && *bytes != NULL && *payload != NULL;
+}
+
+static int
+readv_limit_refused(int rc, const brix_status *status)
+{
+    return rc != 0 && (status->kxr == kXR_ArgTooLong
+        || status->kxr == kXR_ArgInvalid);
+}
+
+static void
 probe_segment_limit(xrd_conform_execution *execution, brix_conn *connection,
     brix_file *file, const uint8_t *baseline, uint64_t size)
 {
@@ -88,26 +141,18 @@ probe_segment_limit(xrd_conform_execution *execution, brix_conn *connection,
     uint16_t wire_status = 0;
     brix_status status;
     ssize_t got;
-    size_t index;
     int scatter_ok = 1, refused;
     char reason[64];
 
     if (size == 0) return;
-    segments = calloc(XRDC_VEC_MAXSEGS, sizeof(*segments));
-    bytes = malloc(XRDC_VEC_MAXSEGS);
-    payload = malloc((XRDC_VEC_MAXSEGS + 1U) * BRIX_READV_SEGSIZE);
-    if (segments == NULL || bytes == NULL || payload == NULL) {
+    if (!allocate_segment_probe(&segments, &bytes, &payload)) {
         xrd_conform_result_set(execution, "RDV-011",
             BRIX_CONFORM_VERDICT_INCONCLUSIVE, "local-allocation-failed",
             NULL, NULL);
         free(segments); free(bytes); free(payload);
         return;
     }
-    for (index = 0; index < XRDC_VEC_MAXSEGS; index++) {
-        segments[index].offset = (int64_t) (index % size);
-        segments[index].len = 1;
-        segments[index].buf = bytes + index;
-    }
+    init_one_byte_segments(segments, bytes, size);
     if (!xrd_conform_reserve(execution, XRDC_VEC_MAXSEGS, reason,
             sizeof(reason))) {
         xrd_conform_result_set(execution, "RDV-011",
@@ -118,16 +163,11 @@ probe_segment_limit(xrd_conform_execution *execution, brix_conn *connection,
     brix_status_clear(&status);
     got = brix_file_readv(connection, file, segments, XRDC_VEC_MAXSEGS,
         &status);
-    for (index = 0; index < XRDC_VEC_MAXSEGS && scatter_ok; index++)
-        scatter_ok = segments[index].got == 1
-            && bytes[index] == baseline[index % size];
-    for (index = 0; index <= XRDC_VEC_MAXSEGS; index++)
-        brix_readv_seg_pack(payload + index * BRIX_READV_SEGSIZE,
-            file->fhandle, 1, index % size);
-    refused = raw_readv(execution, connection, payload,
+    scatter_ok = scatter_matches(segments, bytes, baseline, size);
+    pack_readv_limit_payload(payload, file, size);
+    refused = readv_limit_refused(raw_readv(execution, connection, payload,
         (XRDC_VEC_MAXSEGS + 1U) * BRIX_READV_SEGSIZE, 0, &wire_status,
-        &body, &body_length, &status) != 0
-        && (status.kxr == kXR_ArgTooLong || status.kxr == kXR_ArgInvalid);
+        &body, &body_length, &status), &status);
     xrd_conform_result_set(execution, "RDV-011",
         got == XRDC_VEC_MAXSEGS && scatter_ok && refused
             ? BRIX_CONFORM_VERDICT_CONFORMANT
@@ -184,6 +224,22 @@ probe_malformed(xrd_conform_execution *execution, brix_conn *connection,
     free(body);
 }
 
+static int
+mixed_handle_bytes_match(ssize_t got, const brix_readv_seg segments[2],
+    const uint8_t bytes[2], const uint8_t *baseline)
+{
+    return got == 2 && segments[0].got == 1 && segments[1].got == 1
+        && bytes[0] == baseline[0] && bytes[1] == baseline[1];
+}
+
+static int
+stale_handle_refused(ssize_t got, const brix_status *status,
+    const brix_readv_seg segments[2])
+{
+    return got < 0 && status->kxr == kXR_FileNotOpen
+        && segments[0].got == 0 && segments[1].got == 0;
+}
+
 /* WHAT: Exercise multiple and then stale file handles in one vector.
  * WHY: A server must never substitute another live handle for a stale one.
  * HOW: Open the path twice, verify mixed handles, close one, and retry. */
@@ -211,8 +267,7 @@ probe_handle_mix(xrd_conform_execution *execution, brix_conn *connection,
         return;
     }
     got = brix_file_readv_multi(connection, files, segments, 2, &status);
-    mixed_ok = got == 2 && segments[0].got == 1 && segments[1].got == 1
-        && bytes[0] == baseline[0] && bytes[1] == baseline[1];
+    mixed_ok = mixed_handle_bytes_match(got, segments, bytes, baseline);
     xrd_conform_result_set(execution, "RDV-014",
         mixed_ok ? BRIX_CONFORM_VERDICT_CONFORMANT
                  : BRIX_CONFORM_VERDICT_DIVERGENT,
@@ -224,8 +279,7 @@ probe_handle_mix(xrd_conform_execution *execution, brix_conn *connection,
     segments[0].got = segments[1].got = 0;
     if (!xrd_conform_reserve(execution, 0, reason, sizeof(reason))) return;
     got = brix_file_readv_multi(connection, files, segments, 2, &status);
-    stale_ok = got < 0 && status.kxr == kXR_FileNotOpen
-        && segments[0].got == 0 && segments[1].got == 0;
+    stale_ok = stale_handle_refused(got, &status, segments);
     xrd_conform_result_set(execution, "RDV-015",
         stale_ok ? BRIX_CONFORM_VERDICT_CONFORMANT
                  : BRIX_CONFORM_VERDICT_DIVERGENT,
@@ -263,7 +317,7 @@ query_limit(xrd_conform_execution *execution, brix_conn *connection,
  * HOW: Reserve aggregate bytes, call the API, then compare each segment. */
 static int
 readv_exact(xrd_conform_execution *execution, brix_conn *connection,
-    brix_file *file, brix_readv_seg segments[2], size_t count,
+    brix_file *file, brix_readv_seg *segments, size_t count,
     const uint8_t *baseline, brix_status *status)
 {
     size_t index, total = 0;
@@ -284,6 +338,52 @@ readv_exact(xrd_conform_execution *execution, brix_conn *connection,
     return 1;
 }
 
+static int
+probe_total_limit(xrd_conform_execution *execution, brix_conn *connection,
+    brix_file *file, const uint8_t *baseline, uint8_t *buffer,
+    size_t byte_cap, brix_status *status)
+{
+    brix_readv_seg segments[2] = { 0 };
+    size_t first = byte_cap / 2U;
+    int pass;
+
+    segments[0].len = first;
+    segments[0].buf = buffer;
+    segments[1].offset = (int64_t) first;
+    segments[1].len = byte_cap - first;
+    segments[1].buf = buffer + first;
+    pass = readv_exact(execution, connection, file, segments, 2, baseline,
+        status);
+    segments[1].len++;
+    return pass && readv_exact(execution, connection, file, segments, 2,
+        baseline, status);
+}
+
+static int
+probe_element_limit(xrd_conform_execution *execution, brix_conn *connection,
+    brix_file *file, const uint8_t *baseline, uint8_t *buffer,
+    size_t byte_cap, brix_status *status)
+{
+    brix_readv_seg segment = { 0 };
+    char reason[64];
+    ssize_t got;
+    int pass;
+
+    segment.len = byte_cap;
+    segment.buf = buffer;
+    pass = readv_exact(execution, connection, file, &segment, 1, baseline,
+        status);
+    segment.len = byte_cap + 1U;
+    segment.got = 0;
+    if (!xrd_conform_reserve(execution, byte_cap + 1U, reason,
+            sizeof(reason))) return 0;
+    brix_status_clear(status);
+    got = brix_file_readv(connection, file, &segment, 1, status);
+    return pass && (got < 0
+        || (got == (ssize_t) byte_cap && segment.got == byte_cap
+            && memcmp(buffer, baseline, byte_cap) == 0));
+}
+
 /* WHAT: Reconcile per-element and vector-total Qconfig limits with behavior.
  * WHY: RDV-012/013/019 are claims checks, not hard-coded implementation facts.
  * HOW: Probe exact/+1 totals, exact/+1 element sizes and the count cap. */
@@ -292,28 +392,18 @@ probe_transfer_limits(xrd_conform_execution *execution,
     brix_conn *connection, brix_file *file, const uint8_t *baseline,
     uint64_t size)
 {
-    brix_readv_seg segments[2] = { 0 };
     brix_status status;
     uint8_t *buffer;
-    size_t byte_cap, count_cap, first;
-    ssize_t got;
+    size_t byte_cap, count_cap;
     int total_ok, element_ok, advertised_ok;
-    char reason[64];
 
     if (!query_limit(execution, connection, "readv_ior_max", &byte_cap)
         || !query_limit(execution, connection, "readv_iov_max", &count_cap)
         || byte_cap > 64U * 1024U * 1024U || size <= byte_cap + 1U) return;
     buffer = malloc(byte_cap + 1U);
     if (buffer == NULL) return;
-    first = byte_cap / 2U;
-    segments[0].len = first; segments[0].buf = buffer;
-    segments[1].offset = (int64_t) first;
-    segments[1].len = byte_cap - first; segments[1].buf = buffer + first;
-    total_ok = readv_exact(execution, connection, file, segments, 2,
-        baseline, &status);
-    segments[1].len++;
-    total_ok = total_ok && readv_exact(execution, connection, file, segments,
-        2, baseline, &status);
+    total_ok = probe_total_limit(execution, connection, file, baseline,
+        buffer, byte_cap, &status);
     xrd_conform_result_set(execution, "RDV-012",
         total_ok ? BRIX_CONFORM_VERDICT_CONFORMANT
                  : BRIX_CONFORM_VERDICT_DIVERGENT,
@@ -321,20 +411,8 @@ probe_transfer_limits(xrd_conform_execution *execution,
                  : "per-element-cap-misapplied-to-vector-total",
         "cap and cap+1 totals exact", status.msg);
 
-    memset(segments, 0, sizeof(segments));
-    segments[0].len = byte_cap; segments[0].buf = buffer;
-    element_ok = readv_exact(execution, connection, file, segments, 1,
-        baseline, &status);
-    segments[0].len = byte_cap + 1U; segments[0].got = 0;
-    if (!xrd_conform_reserve(execution, byte_cap + 1U, reason,
-            sizeof(reason))) element_ok = 0;
-    else {
-        brix_status_clear(&status);
-        got = brix_file_readv(connection, file, segments, 1, &status);
-        element_ok = element_ok && (got < 0
-            || (got == (ssize_t) byte_cap && segments[0].got == byte_cap
-                && memcmp(buffer, baseline, byte_cap) == 0));
-    }
+    element_ok = probe_element_limit(execution, connection, file, baseline,
+        buffer, byte_cap, &status);
     xrd_conform_result_set(execution, "RDV-013",
         element_ok ? BRIX_CONFORM_VERDICT_CONFORMANT
                    : BRIX_CONFORM_VERDICT_DIVERGENT,

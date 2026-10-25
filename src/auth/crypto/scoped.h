@@ -70,6 +70,7 @@
 #include <openssl/x509v3.h>
 #include <openssl/bn.h>
 #include <openssl/ec.h>
+#include "key_compat.h"
 
 /* OpenSSL 4 const-qualified borrowed extension accessors.  Older releases
  * expose the same borrowed object through a mutable pointer and require that

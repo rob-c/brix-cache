@@ -346,15 +346,20 @@ class TestHintsReachTheDriverOnTheRootPlane:
     DRIVER_OPEN = "src/protocols/root/read/open_resolved_file_open.c"
 
     def test_root_driver_open_uses_the_hinted_slot(self):
-        """Success: the root:// driver open goes through the hinted helper."""
+        """Success: translate the confined name, then preserve credentials and hints."""
         text = (REPO / self.DRIVER_OPEN).read_text()
-        assert "brix_sd_open_hinted_maybe_cred(sd, logical," in text
+        translate = text.index("brix_path_lfn_to_pfn(vctx, logical, physical,")
+        credential = text.index("if (brix_vfs_backend_cred(")
+        hinted = text.index("obj = brix_sd_open_hinted_maybe_cred(sd, physical,")
+        assert translate < credential < hinted, "translation/credential/open order changed"
+        assert "&vctx->open_hints" in text, "driver open dropped the cache hints"
 
     def test_root_driver_open_no_longer_uses_the_plain_slot(self):
         """Error: the plain cred open in that call is the regression itself —
         it compiles, serves bytes, and drops every hint."""
         text = (REPO / self.DRIVER_OPEN).read_text()
-        assert "brix_sd_open_maybe_cred(sd, logical," not in text
+        assert "brix_sd_open_maybe_cred(sd," not in text
+        assert "brix_sd_open_hinted_maybe_cred(sd, logical," not in text
 
     def test_the_hinted_helper_still_falls_back_without_a_hint(self):
         """Security negative: routing to the hinted slot must stay conditional

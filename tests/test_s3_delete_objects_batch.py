@@ -139,6 +139,12 @@ def _seed(root, keys, payload=b"x"):
         (root / k).write_bytes(payload)
 
 
+def _worker_writable(path):
+    """Hand root-created fixture directories to the de-escalated worker."""
+    if os.geteuid() == 0:
+        path.chmod(0o777)
+
+
 def _assert_all_gone(root, keys):
     survivors = [k for k in keys if (root / k).exists()]
     assert survivors == [], f"keys survived the batch: {survivors[:5]}"
@@ -164,6 +170,7 @@ def test_thousand_key_batch_is_one_upstream_request(srv):
     origin = srv["dirs"]["origin"]
     keys = [f"bulk/obj-{i:04d}.bin" for i in range(1000)]
     (origin / "bulk").mkdir(exist_ok=True)
+    _worker_writable(origin / "bulk")
     _seed(origin, keys)
 
     before_lines = len(_origin_lines(srv))

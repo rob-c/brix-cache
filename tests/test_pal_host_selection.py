@@ -34,11 +34,11 @@ import tempfile
 
 import pytest
 
-from cmdscripts.compile_run import run
+from cmdscripts.compile_run import platform_host_name, run
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SRC = REPO / "src"
-HOSTS = ("linux", "darwin", "windows")
+HOSTS = ("linux", "darwin", "windows", "freebsd")
 
 pytestmark = pytest.mark.timeout(60)
 
@@ -92,7 +92,7 @@ def test_a_hostile_predefine_cannot_hijack_the_host_name() -> None:
     identifiers; the header owns its token regardless, so the PAL cannot be
     pointed at another host's adapters by anything on the command line.
     """
-    injected = ["-Dlinux=1", "-Ddarwin=1", "-Dwindows=1"]
+    injected = ["-Dlinux=1", "-Ddarwin=1", "-Dwindows=1", "-Dfreebsd=1"]
     _rc, out = _include_pal("-DBRIX_PLATFORM_HOST=darwin", *injected)
     assert "platform/darwin/host.h" in out, (
         f"injected predefines redirected the host include:\n{out}"
@@ -106,8 +106,9 @@ def test_the_module_build_flags_preprocess_this_host_cleanly() -> None:
     This is the module build's actual condition — the one that failed — so it
     must complete, not merely select the right directory.
     """
-    rc, out = _include_pal("-DBRIX_PLATFORM_HOST=linux", "-DBRIX_PLATFORM_LINUX=1")
-    assert rc == 0, f"the Linux PAL does not preprocess without -std=:\n{out}"
+    host = platform_host_name()
+    rc, out = _include_pal(f"-DBRIX_PLATFORM_HOST={host}")
+    assert rc == 0, f"the {host} PAL does not preprocess without -std=:\n{out}"
 
 
 def test_a_missing_host_token_still_reports_the_actionable_error() -> None:
@@ -194,7 +195,7 @@ def test_the_seam_token_names_the_host_being_built_for() -> None:
     """
     from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
 
-    expected = "darwin" if sys.platform == "darwin" else "linux"
+    expected = platform_host_name()
     assert f"-DBRIX_PLATFORM_HOST={expected}" in PLATFORM_HOST_FLAGS, (
         f"PLATFORM_HOST_FLAGS does not select this host: {PLATFORM_HOST_FLAGS}"
     )

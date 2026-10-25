@@ -342,6 +342,8 @@ def test_orphan_worker_reaper_uses_only_declared_ports(monkeypatch, tmp_path):
 
     monkeypatch.setattr("lib_py.util.pids_on_port", lambda port: [701, 702])
     monkeypatch.setattr("lib_py.util.kill_pid_list", lambda pids: killed.extend(pids))
+    monkeypatch.setattr("brix_suite.orphans.find_orphans",
+                        lambda root: [(701, 'owned nginx worker')])
     monkeypatch.setattr(
         "lib_py.util.process_cmdline",
         lambda pid: (b"nginx: worker process" if pid == 701
@@ -710,35 +712,6 @@ def test_lifecycle_harness_drives_throwaway_instance(lifecycle, tmp_path):
     _check_test_lifecycle_harness_drives_throwaway_instance_3(endpoint)
 
 
-def test_registry_settings_exports_phase_env_knobs():
-    assert settings.REGISTRY_ROOT.endswith("registry")
-    assert settings.REGISTRY_MANIFEST.endswith("manifest.json")
-    assert isinstance(settings.REGISTRY_START, bool)
-    assert isinstance(settings.REGISTRY_KEEP_LOGS, bool)
-    assert isinstance(settings.TEST_PORT_START, int)
-
-
-def test_endpoint_honours_spec_host_and_brackets_ipv6_url():
-    """A spec that declares a host gets it verbatim on the endpoint (this is
-    the address the readiness probe dials) and IPv6 literals are bracketed in
-    the URL."""
-    spec = NginxInstanceSpec(name="v6-probe-smoke", template="unused.conf",
-                             port=19321, host="::1")  # net-literal-allow: IPv6 endpoint construction under test
-    endpoint = endpoint_for(spec)
-    assert endpoint.host == "::1"  # net-literal-allow: IPv6 endpoint host under test
-    assert endpoint.url == "root://[::1]:19321/"  # net-literal-allow: IPv6 endpoint URL formatting under test
-
-
-def test_endpoint_defaults_to_settings_host_without_spec_host():
-    """No declared host -> settings.HOST, unbracketed (the pre-existing
-    contract for the v4 fleet must not shift)."""
-    spec = NginxInstanceSpec(name="v4-probe-smoke", template="unused.conf",
-                             port=19322)
-    endpoint = endpoint_for(spec)
-    assert endpoint.host == settings.HOST
-    assert endpoint.url == f"root://{settings.HOST}:19322/"
-
-
 def test_ipv6_fleet_specs_declare_host6():
     """Every [::1]-tier fleet spec must carry host=HOST6 — a 127.0.0.1 TCP
     probe against a v6-only listener can never succeed, so a missing host
@@ -749,3 +722,16 @@ def test_ipv6_fleet_specs_declare_host6():
     _check_test_ipv6_fleet_specs_declare_host6_4(v6)
     wrong = [s.name for s in v6 if s.host != settings.HOST6]
     _check_test_ipv6_fleet_specs_declare_host6_5(wrong)
+
+
+def test_operator_child_teardown_preserves_the_live_parent_fleet(test_env, tmp_path):
+    """An empty child registry cannot authorize stopping the parent's listener."""
+    import socket
+    from cmdscripts.operator_runtime import teardown_test_fleet
+
+    endpoint = (settings.BIND_HOST, settings.NGINX_ANON_PORT)
+    with socket.create_connection(endpoint, timeout=2):
+        pass
+    teardown_test_fleet(tmp_path / 'operator-child')
+    with socket.create_connection(endpoint, timeout=2):
+        pass

@@ -23,10 +23,12 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import os
+import shutil
 import stat
 import subprocess
+import sys
 
-__all__ = ["client_make", "make_lock_path"]
+__all__ = ["client_make", "client_run", "make_lock_path"]
 
 # Not ``tempfile.gettempdir()``: the suite pins TMPDIR per lane at settings
 # import, and this lock has to span lanes — two lanes on one tree is the case.
@@ -68,10 +70,32 @@ def _tree_lock(client_dir):
         os.close(fd)  # closing drops the flock on every path, TimeoutExpired included
 
 
+def _make_program():
+    """FreeBSD's base make cannot parse the GNU client Makefile."""
+    if not sys.platform.startswith("freebsd"):
+        return "make"
+    program = shutil.which("gmake")
+    if program is None:
+        raise FileNotFoundError("FreeBSD client test builds require GNU make (gmake)")
+    return program
+
+
 def client_make(client_dir, *targets, **run_kwargs):
     """``subprocess.run(["make", "-C", client_dir, *targets], **run_kwargs)``
     under the tree lock.  ``run_kwargs`` are the caller's (``capture_output``,
     ``text``, ``timeout``, ``env``, ``stdout``, ``stderr``); ``check`` keeps
     subprocess's default, so callers inspect ``returncode`` as before."""
     with _tree_lock(client_dir):
-        return subprocess.run(["make", "-C", str(client_dir), *targets], **run_kwargs)
+        return subprocess.run([_make_program(), "-C", str(client_dir), *targets], **run_kwargs)
+
+
+def client_run(client_dir, argv, **run_kwargs):
+    """Execute a built helper without racing an in-place relink by another test.
+
+    The build lock alone serializes writers, not readers. A linker briefly
+    leaves its output non-executable; cached-object inspection must not see
+    that intermediate state as a storage failure. Preserve real execution
+    failures and subprocess budgets, without retrying or accepting bad output.
+    """
+    with _tree_lock(client_dir):
+        return subprocess.run(argv, **run_kwargs)

@@ -10,7 +10,11 @@ import subprocess
 import tempfile
 
 from cmdscripts.compile_run import (PLATFORM_HOST_FLAGS, REPO_ROOT,
-                                    pal_host_sources, result, run)
+                                    library_compile_args, pal_host_sources,
+                                    pal_host_libraries, pal_xattr_sources,
+                                    module_shared_platform_sources,
+                                    result, run)
+from lib_py.nginx_build import configured_dependency_includes
 
 
 def _expression_1():
@@ -43,10 +47,10 @@ def _guard_sanitizer_flags_3(syms, flags):
 
 
 DEFAULT_NGX_SRC = Path(os.environ.get(
-    "NGX_SRC",
+    "TEST_NGINX_SRC", os.environ.get("NGX_SRC", os.environ.get("NGINX_SRC",
     "/tmp/nginx-1.28.3" if Path("/tmp/nginx-1.28.3/src/core/ngx_config.h").exists()
     else "/tmp/nginx-1.24.0",
-))
+))))
 TEST_C = REPO_ROOT / "tests" / "c"
 
 
@@ -55,6 +59,11 @@ def _tail(proc: subprocess.CompletedProcess) -> str:
 
 
 def _nginx_generated_include(ngx_src: Path) -> Path:
+    selected = os.environ.get("TEST_NGINX_OBJS")
+    if selected:
+        # Split CMake SDKs keep generated headers beside module objects, not
+        # under nginx-src/objs. An explicit SDK must never fall back elsewhere.
+        return Path(selected)
     direct = ngx_src / "objs"
     if (direct / "ngx_auto_headers.h").is_file():
         return direct
@@ -99,17 +108,21 @@ def _nginx_includes(ngx_src: Path, *, http: bool = False, stream: bool = False) 
             "-I", str(ngx_src / "src/http/modules"),
             "-I", str(ngx_src / "src/http/v2"),
         ]
-    return incs + ["-I", str(REPO_ROOT / "src")]
+    dependencies = configured_dependency_includes(
+        _nginx_generated_include(ngx_src) / 'Makefile', ngx_src)
+    return incs + ["-I", str(REPO_ROOT / "src"), *dependencies]
 
 
 def _find_obj(ngx_src: Path, name: str, under: str = "addon") -> Path | None:
-    root = ngx_src / "objs" / under
+    root = _nginx_generated_include(ngx_src) / under
     matches = sorted(root.rglob(name)) if root.exists() else []
     return matches[0] if matches else None
 
 
 def _need_obj(ngx_src: Path, rel: str) -> Path | str:
-    obj = ngx_src / rel
+    relative = Path(rel)
+    obj = (_nginx_generated_include(ngx_src) / relative.relative_to("objs")
+           if relative.parts[0] == "objs" else ngx_src / relative)
     return obj if obj.exists() else f"SKIP: {obj} not found; build the module first"
 
 
@@ -160,7 +173,7 @@ def _cc(argv: list[str]) -> subprocess.CompletedProcess:
     # <host>/host.h from -DBRIX_PLATFORM_HOST alone).  ./config and
     # client/Makefile pass it for the real builds; a hand-rolled harness line
     # has to say it too.
-    return run([os.environ.get("CC", "cc"), *PLATFORM_HOST_FLAGS, *argv],
+    return run([os.environ.get("CC", "cc"), *PLATFORM_HOST_FLAGS, *library_compile_args(argv)],
                cwd=REPO_ROOT)
 
 
@@ -399,7 +412,7 @@ def pblock(base: Path) -> tuple[bool, str]:
             str(backend / "pblock/pblock_refs.c"),
             str(backend / "pblock/pblock_pack.c"),
             str(backend / "pblock/pblock_pack_seg.c"),
-            str(REPO_ROOT / "shared/cvmfs/platform/platform.c"),
+            *(str(REPO_ROOT / source) for source in module_shared_platform_sources()),
             str(backend / "pblock/pblock_snap.c"),
             str(backend / "pblock/pblock_hist.c"),
             str(REPO_ROOT / "src/core/compat/crc32c.c"),
@@ -421,6 +434,7 @@ def pblock(base: Path) -> tuple[bool, str]:
             # compiles the whole src/platform/<host>/ directory; a hand-rolled
             # link line names the two wrappers it actually reaches.
             *pal_host_sources("storage_wrapper", "posix_wrapper"),
+            *pal_host_libraries("posix_wrapper"),
             *libs,
             "-lpthread",
             "-lz",
@@ -461,6 +475,7 @@ def staged_commit_contract(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple
             "-Wall",
             *_nginx_includes(ngx_src),
             str(TEST_C / "test_staged_commit_contract.c"),
+            *pal_host_sources("path_wrapper"),
             str(ns),
             str(staged),
             str(imp),

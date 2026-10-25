@@ -52,6 +52,7 @@ from http.server import BaseHTTPRequestHandler
 
 import pytest
 import requests
+from lib_py.worker_exec import require_worker_exec
 
 from _test_audit15f_helpers import (CapturingSource, gets, heads,
                                     mint_localhost_cert, serve)
@@ -133,7 +134,12 @@ class _IdpHandler(BaseHTTPRequestHandler):
 
 
 @pytest.fixture()
-def tpctune(lifecycle, tmp_path):
+def tpctune(lifecycle, tmp_path, request):
+    if request.node.originalname in (
+            "test_token_exchange_delegates_to_the_source",
+            "test_client_secret_never_reaches_the_idp_defect_pin",
+            "test_configured_curl_binary_is_never_executed_defect_pin"):
+        require_worker_exec()
     _guard_tpctune_1()
     _guard_tpctune_2()
 

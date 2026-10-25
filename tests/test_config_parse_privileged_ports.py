@@ -95,8 +95,13 @@ def _offenders_in_function(node, name: str) -> list[str]:
 
 def _offenders_in(path: Path) -> list[str]:
     """Accepting parse cases in `path` that render a privileged port."""
+    source = path.read_text(encoding="utf-8", errors="replace")
+    # The matcher only recognizes this exact callee. Most modules never call
+    # it: avoid parsing/walking their often very large embedded fixtures.
+    if "nginx_t" not in source:
+        return []
     try:
-        tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+        tree = ast.parse(source)
     except SyntaxError:
         return []
     offenders = []
@@ -163,3 +168,29 @@ def test_the_guard_leaves_refusing_cases_alone(tmp_path):
         "    assert good.returncode == 0\n", encoding="utf-8")
     assert [row.split(" ", 1)[1] for row in _offenders_in(accepting)] \
         == ["test_x PORT=1"]
+
+
+def test_unrelated_modules_do_not_require_an_ast(tmp_path, monkeypatch):
+    unrelated = tmp_path / "test_unrelated.py"
+    unrelated.write_text("def test_value():\n    assert 2 + 2 == 4\n")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("a module without the callee needs no AST walk")
+
+    monkeypatch.setattr(ast, "parse", forbidden)
+    assert _offenders_in(unrelated) == []
+
+
+def test_prefilter_preserves_attribute_calls_and_nested_acceptance(tmp_path):
+    source = tmp_path / "test_nested.py"
+    source.write_text("class Cases:\n"
+                      "    async def test_nested(self):\n"
+                      "        result = helper.nginx_t(T, PORT=443)\n"
+                      "        assert result.returncode == 0\n")
+    assert _offenders_in(source) == ["test_nested.py:3 test_nested PORT=443"]
+
+
+def test_prefilter_does_not_certify_invalid_python(tmp_path):
+    source = tmp_path / "test_invalid.py"
+    source.write_text("def nginx_t(\n")
+    assert _offenders_in(source) == []

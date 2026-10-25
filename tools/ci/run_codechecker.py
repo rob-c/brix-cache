@@ -55,7 +55,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 ROOT = REPO
 NGX_BUILD = os.environ.get("NGX_BUILD") or "/tmp/nginx-1.28.3"
-MK = f"{NGX_BUILD}/objs/Makefile"
+MK = os.environ.get("NGX_MAKEFILE") or f"{NGX_BUILD}/objs/Makefile"
 JOBS = os.environ.get("JOBS") or str(os.cpu_count() or 1)
 BASELINE = f"{REPO}/tools/ci/codechecker_baseline.txt"
 ANALYZERS = os.environ.get("ANALYZERS") or "clangsa clang-tidy"
@@ -109,7 +109,7 @@ def read_var(name: str) -> str:
     """Read a make variable from the build Makefile exactly as the bash read_var() does."""
     try:
         cp = subprocess.run(
-            ["make", "-s", "--no-print-directory", "-C", NGX_BUILD, "-f", "objs/Makefile",
+            [shutil.which("gmake") or "make", "-s", "--no-print-directory", "-C", NGX_BUILD, "-f", MK,
              f"--eval=__pf: ; @printf '%s' \"$({name})\"", "__pf"],
             capture_output=True, text=True,
         )
@@ -151,7 +151,7 @@ def _validate_clang():
 
 def _validate_makefile():
     if not os.path.isfile(MK):
-        fail(f"no configured build at {NGX_BUILD} (need objs/Makefile; run ./configure first)")
+        fail(f"no configured build metadata at {MK} (run ./configure first)")
 
 
 def _compiler_flags():

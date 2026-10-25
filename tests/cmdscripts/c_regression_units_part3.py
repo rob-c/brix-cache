@@ -106,9 +106,9 @@ def sd_remote_setattr(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool
 
 def sd_remote_xattr_cred(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
     # driver->getxattr_cred/listxattr_cred -> the sd_remote metadata READ slots
-    # (sd_remote_meta.o) over sd_s3_get_meta/list_meta (sd_s3_meta.o), signed by
-    # sd_s3_sign.o -- which is what makes the signing identity observable to the
-    # fake transport. Same object closure as sd_remote_setattr.
+    # (sd_remote_xattr_read.o) over sd_s3_get_meta/list_meta (sd_s3_meta.o),
+    # signed by sd_s3_sign.o -- which is what makes the signing identity
+    # observable to the fake transport. Same object closure as sd_remote_setattr.
     objs = _sd_remote_objs(ngx_src)
     if isinstance(objs, str):
         return result(True, objs)
@@ -413,7 +413,7 @@ def integrity_seed(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, s
     return _compile_and_run(
         base / "test_integrity_seed",
         ["-O", "-Wall", str(TEST_C / "test_integrity_seed.c"), *objs,
-         *_nginx_includes(ngx_src)],
+         *pal_xattr_sources(), *_nginx_includes(ngx_src)],
     )
 
 

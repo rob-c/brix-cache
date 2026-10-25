@@ -6,6 +6,40 @@
 #include <string.h>
 #include <sys/time.h>
 
+/* WHAT: Record the established token/SSS authentication identity counters.
+ * WHY: Authentication frontends must not drift in VO/user bookkeeping, and
+ * malformed fixed buffers must never be scanned beyond their declared bounds.
+ * HOW: Bound both strings; reuse VO activity and unique-user helpers; retain
+ * the existing additional VO request increment exactly (not a metric rename).
+ */
+void
+brix_track_auth_identity(ngx_brix_metrics_t *shm, const char *vo,
+    size_t vo_capacity, const char *identity, size_t identity_capacity)
+{
+    size_t length;
+    ngx_uint_t index;
+
+    if (shm == NULL) {
+        return;
+    }
+    length = vo == NULL ? 0 : strnlen(vo, vo_capacity);
+    if (length > 0 && length < vo_capacity) {
+        (void) brix_track_vo_activity(shm, vo, 0, 0);
+        for (index = 0; index < BRIX_VO_MAX_TRACKED; index++) {
+            if (ngx_strncmp(shm->vo_global.slots[index].name, vo,
+                            BRIX_VO_NAME_LEN) == 0)
+            {
+                BRIX_ATOMIC_INC(&shm->vo_global.slots[index].requests_total);
+                break;
+            }
+        }
+    }
+    length = identity == NULL ? 0 : strnlen(identity, identity_capacity);
+    if (length > 0 && length < identity_capacity) {
+        (void) brix_track_unique_user(shm, identity, length);
+    }
+}
+
 /*
  * WHAT: Track Virtual Organization (VO) activity and unique user identities in shared memory.
  *

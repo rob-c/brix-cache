@@ -187,7 +187,7 @@ def _fixture_signing_env(digest_name: str):
         config = Path(__file__).resolve().with_name("fixture-signing.cnf")
         environment["OPENSSL_CONF"] = str(config)
     else:
-        environment["OPENSSL_CONF"] = os.devnull
+        environment["OPENSSL_CONF"] = str(Path(__file__).resolve().parents[1] / "pki-ca.cnf")
     return environment
 
 
@@ -218,7 +218,9 @@ def _make_eec_openssl(issuer: Cert, dn: str, *, key_bits: int,
         (td / "ca.pem").write_bytes(issuer.pem)
         (td / "ca.key").write_bytes(issuer.key_pem)
         _write_fixture_key(td / "leaf.key", key_type, key_bits, curve)
-        subprocess.run(["openssl", "req", "-new", "-key", str(td / "leaf.key"),
+        subprocess.run(["openssl", "req", "-new", "-config",
+                        str(Path(__file__).resolve().parents[1] / "pki-ca.cnf"),
+                        "-key", str(td / "leaf.key"),
                         "-subj", dn, "-out", str(td / "leaf.csr")],
                        check=True, capture_output=True)
         cmd = ["openssl", "x509", "-req", "-in", str(td / "leaf.csr"),
@@ -251,17 +253,21 @@ def _make_ca_openssl(dn: str, *, key_bits: int, digest_name: str,
     import tempfile
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
+        environment = _fixture_signing_env(digest_name)
+        config = (environment["OPENSSL_CONF"] if environment else
+                  str(Path(__file__).resolve().parents[1] / "pki-ca.cnf"))
         subprocess.run(["openssl", "genrsa", "-out", str(td / "ca.key"),
                         str(key_bits)], check=True, capture_output=True)
         subprocess.run(
-            ["openssl", "req", "-x509", "-new", "-key", str(td / "ca.key"),
+            ["openssl", "req", "-x509", "-new", "-config", config,
+             "-key", str(td / "ca.key"),
              "-subj", dn, f"-{digest_name}", "-days", str(max(not_after_days, 1)),
              "-out", str(td / "ca.pem"),
              "-addext", "basicConstraints=critical,CA:TRUE",
              "-addext", "keyUsage=critical,keyCertSign,cRLSign",
              "-addext", "subjectKeyIdentifier=hash"],
             check=True, capture_output=True,
-            env=_fixture_signing_env(digest_name))
+            env=environment)
         cert = x509.load_pem_x509_certificate((td / "ca.pem").read_bytes())
         key = serialization.load_pem_private_key(
             (td / "ca.key").read_bytes(), password=None)

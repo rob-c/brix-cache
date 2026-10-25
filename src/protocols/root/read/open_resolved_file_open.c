@@ -3,6 +3,7 @@
 #include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_session (phase-70) */
 #include "fs/vfs/vfs_backend_registry.h"  /* per-export storage-driver resolution */
 #include "fs/vfs/vfs_internal.h"          /* brix_vfs_export_relative_root key form */
+#include "fs/path/n2n_stage.h"
 #include "fs/backend/sd.h"            /* Layer 3: driver-backed export open */
 #include "core/ngx_brix_module.h"
 #include "fs/backend/csi_tagstore.h"
@@ -171,7 +172,9 @@ brix_open_capture_fd_identity(brix_file_t *fh, brix_sd_instance_t *sd,
  *       shared service credential for every user, indistinguishable in the
  *       origin's own auth/session log.
  *
- * HOW:  Runs brix_vfs_backend_cred() BEFORE the driver open (deny mode must
+ * HOW:  1. Translate the already-confined logical name through the shared N2N
+ *       stage, exactly once, before addressing the driver.
+ *       2. Run brix_vfs_backend_cred() BEFORE the driver open (deny mode must
  *       refuse before any origin connection is attempted, exactly as the
  *       VFS's own brix_vfs_open does); on NGX_ERROR propagates errno (EACCES)
  *       without touching the driver. */
@@ -189,6 +192,13 @@ brix_open_resolved_via_driver(brix_open_args_t *a, brix_vfs_ctx_t *vctx,
     brix_sd_ucred_t ustore;
     brix_sd_cred_t  ucred;
     int              use_cred = 0;
+    char             physical[PATH_MAX];
+
+    if (brix_path_lfn_to_pfn(vctx, logical, physical, sizeof(physical))
+        != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
 
     ngx_memzero(&ucred, sizeof(ucred));
     if (brix_vfs_backend_cred(vctx, &ustore, &ucred, &use_cred, &oerr)
@@ -204,7 +214,7 @@ brix_open_resolved_via_driver(brix_open_args_t *a, brix_vfs_ctx_t *vctx,
      * hinted slot, so every other export behaves exactly as before — without
      * this the root:// data plane was the one open path that dropped them,
      * while the davs/S3 brix_vfs_open path already delivered them. */
-    obj = brix_sd_open_hinted_maybe_cred(sd, logical, sd_flags, a->create_mode,
+    obj = brix_sd_open_hinted_maybe_cred(sd, physical, sd_flags, a->create_mode,
         use_cred ? &ucred : NULL, &vctx->open_hints, &oerr);
     /* Secret consumed by the origin open; erase the stack copy (A-4/T4). */
     brix_sd_ucred_wipe(&ustore);

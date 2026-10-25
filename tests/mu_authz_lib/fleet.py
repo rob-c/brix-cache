@@ -17,6 +17,11 @@ import os
 
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from settings import NGINX_BIN
+from brix_suite.worker_identity import (
+    nginx_default_worker_group,
+    nginx_default_worker_user,
+)
 
 from . import creds, ports
 
@@ -90,6 +95,8 @@ def _common_values() -> dict:
         "AUTHDB": _backends.get("authdb", ""),
         "VO": _backends.get("vo", ""),
         "S3KEYS": _backends.get("s3keys", ""),
+        "WORKER_USER": nginx_default_worker_user(NGINX_BIN),
+        "WORKER_GROUP": nginx_default_worker_group(NGINX_BIN),
     }
 
 

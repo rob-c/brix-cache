@@ -133,7 +133,11 @@ class Endpoint:
 # the token tier).                                                             #
 # --------------------------------------------------------------------------- #
 _GSI_ENV = {"X509_USER_PROXY": PROXY_STD, "X509_CERT_DIR": CA_DIR}
-_TOKEN_ENV = {"BEARER_TOKEN_FILE": TOKEN_FILE, "X509_CERT_DIR": CA_DIR}
+# Pin ztn so an ambient GSI identity cannot replace the bearer. base_env()
+# removes X.509 client identities; do not supply empty cert/key filenames,
+# which supported reference clients try to open instead of treating as absent.
+_TOKEN_ENV = {"BEARER_TOKEN_FILE": TOKEN_FILE, "X509_CERT_DIR": CA_DIR,
+              "XrdSecPROTOCOL": "ztn"}
 
 ANON = Endpoint("anon", HOST, NGINX_ANON_PORT)
 GSI = Endpoint("gsi", HOST, NGINX_GSI_PORT, caps=("proxy",), auth=_GSI_ENV)

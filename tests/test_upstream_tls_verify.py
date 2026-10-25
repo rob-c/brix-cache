@@ -65,8 +65,11 @@ class TestUpstreamTlsVerify:
     def test_ctx_helper_sets_verify_peer_and_host(self, runtime):
         helper = _fn_body(runtime, "brix_tls_ctx_enable_verify")
         assert "SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER" in helper
-        assert "X509_VERIFY_PARAM_set1_host(param" in helper
+        assert "brix_crypto_verify_peer_name(param, hbuf)" in helper
         assert "X509_VERIFY_PARAM_set_hostflags(param" in helper
+        compatibility = (_SRC / "auth/crypto/tls_compat.h").read_text(encoding="utf-8")
+        assert "X509_VERIFY_PARAM_set1_host(parameters, host, 0)" in compatibility
+        assert "X509_VERIFY_PARAM_set1_ip(parameters, address, length)" in compatibility
 
     # -- coverage: verification is enabled for BOTH outbound legs, not one --- #
     def test_both_legs_enable_verification(self, runtime):

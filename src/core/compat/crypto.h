@@ -11,9 +11,9 @@
 #include <stdint.h>
 
 /* Worker-lifecycle init/cleanup: call once in init_process / exit_process.
- * Fetches the EVP_MAC and EVP_MD algorithm objects once per worker so that
- * per-request HMAC/SHA256 calls pay only the CTX alloc cost, not a registry
- * lookup. Returns 1 on success, 0 on failure (init only). */
+ * Selects the native HMAC/SHA256 backend once per worker (cached provider
+ * algorithms on OpenSSL 3+, borrowed built-in digest on 1.1.1).
+ * Returns 1 on success, 0 on failure (init only). */
 int  brix_crypto_init(void);
 void brix_crypto_cleanup(void);
 

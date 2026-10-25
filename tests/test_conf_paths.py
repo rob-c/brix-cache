@@ -23,6 +23,7 @@ import os
 import pytest
 
 import official_interop_lib as L
+from lib_py.reference_host import fixture_read_bytes
 
 pytestmark = [pytest.mark.xdist_group("conf_paths"),
               pytest.mark.timeout(180),
@@ -350,8 +351,7 @@ def test_confinement_download_traversal_denied(pair, tmp_path):
     assert rc != 0, \
         "CONFINEMENT BYPASS (HIGH): xrdcp of '//../../etc/passwd' from OUR server succeeded"
     if os.path.exists(dst):
-        with open(dst, "rb") as f:
-            body = f.read()
+        body = fixture_read_bytes(dst)
         assert not _looks_like_passwd(body.decode("latin-1")), \
             "CONFINEMENT LEAK (HIGH): xrdcp pulled /etc/passwd through OUR server"
 

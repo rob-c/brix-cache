@@ -4,12 +4,16 @@ import errno
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 import pytest
 
 from sanitizer_preload import asan_options
 
 from test_platform_linux_native import native_compile
+
+pytestmark = pytest.mark.skipif(sys.platform != "linux",
+                                reason="Linux libseccomp PAL ownership contract")
 
 
 @pytest.fixture(scope='module')

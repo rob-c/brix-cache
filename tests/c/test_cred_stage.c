@@ -8,17 +8,20 @@
  * contract:
  *
  *   success  — brix_cred_stage_write() creates a 0600 file under the per-uid
- *              /dev/shm/brix-creds.<euid> tmpfs dir, round-trips the bytes, and
+ *              private brix-creds.<euid> dir, round-trips the bytes, and
  *              hands back distinct paths on repeated calls;
  *   dir      — brix_cred_stage_dir() creates the parent 0700, owned by euid;
  *   security — a pre-existing staging dir with loosened (group/other) mode is
  *              rejected (fail closed, EPERM) rather than trusted;
- *   never-/tmp — the returned path always lives under /dev/shm, never /tmp;
+ *   scope    — the returned path stays inside the harness's private root;
  *   error    — NULL arguments are rejected with EINVAL.
  *
  * ngx-free: links against libc only, mirroring the kernel it exercises.
  */
 #include "core/compat/cred_stage.h"
+#ifndef BRIX_CRED_STAGE_TEST_SCOPE
+#error "credential-stage tests require -include tests/c/cred_stage_scope.h"
+#endif
 
 #include <assert.h>
 #include <dirent.h>
@@ -37,7 +40,7 @@
 static void
 staging_dir(char *out, size_t outsz)
 {
-    int n = snprintf(out, outsz, "/dev/shm/brix-creds.%u",
+    int n = snprintf(out, outsz, BRIX_PLAT_SHM_DIR "/brix-creds.%u",
                      (unsigned) geteuid());
     assert(n > 0 && (size_t) n < outsz);
 }
@@ -131,7 +134,7 @@ test_dir_is_private(void)
     printf("ok dir_is_private\n");
 }
 
-/* never-/tmp: the resolved path lives on tmpfs under /dev/shm, never /tmp. */
+/* Scope: never operate on the running fleet's per-uid credential directory. */
 static void
 test_never_tmp(void)
 {
@@ -140,8 +143,8 @@ test_never_tmp(void)
     reset_dir();
 
     assert(brix_cred_stage_write("ut_", "x", 1, path, sizeof(path)) == 0);
-    assert(strncmp(path, "/dev/shm/brix-creds.", 20) == 0);
-    assert(strncmp(path, "/tmp/", 5) != 0);
+    assert(strncmp(path, BRIX_PLAT_SHM_DIR "/brix-creds.",
+                   sizeof(BRIX_PLAT_SHM_DIR "/brix-creds.") - 1) == 0);
     unlink(path);
     printf("ok never_tmp\n");
 }
@@ -272,7 +275,7 @@ close(int fd)
 static void
 persist_dir(char *out, size_t outsz)
 {
-    int n = snprintf(out, outsz, "/dev/shm/brix-cred-ut-XXXXXX");
+    int n = snprintf(out, outsz, BRIX_PLAT_SHM_DIR "/brix-cred-ut-XXXXXX");
     assert(n > 0 && (size_t) n < outsz);
     assert(mkdtemp(out) != NULL);
 }
@@ -342,7 +345,8 @@ test_cred_write_volatile_matches_stage_write(void)
 
     assert(brix_cred_write_engine(&req, secret, sizeof(secret) - 1,
                                   path1, sizeof(path1)) == 0);
-    assert(strncmp(path1, "/dev/shm/brix-creds.", 20) == 0);
+    assert(strncmp(path1, BRIX_PLAT_SHM_DIR "/brix-creds.",
+                   sizeof(BRIX_PLAT_SHM_DIR "/brix-creds.") - 1) == 0);
     assert(strstr(path1, "/ut_engine_") != NULL);
     assert(lstat(path1, &st) == 0);
     assert(S_ISREG(st.st_mode) && (st.st_mode & 07777) == 0600);
@@ -519,7 +523,7 @@ test_cred_write_rejects_group_or_other_bits(void)
 }
 
 /* security: TMPDIR has NO influence on either arm — the volatile product
- * lands under /dev/shm/brix-creds.<euid> regardless, and when the staging
+ * lands under the private brix-creds.<euid> root regardless; when the staging
  * dir is unsafe the engine fails closed instead of falling back (the
  * pre-C11 krb5 ccache honored TMPDIR||/tmp; this pins the inversion). */
 static void
@@ -539,7 +543,8 @@ test_cred_write_no_tmpdir_fallback(void)
 
     /* The krb5 ccache shape: len == 0 pre-creates an empty 0600 file. */
     assert(brix_cred_write_engine(&req, NULL, 0, path, sizeof(path)) == 0);
-    assert(strncmp(path, "/dev/shm/brix-creds.", 20) == 0);
+    assert(strncmp(path, BRIX_PLAT_SHM_DIR "/brix-creds.",
+                   sizeof(BRIX_PLAT_SHM_DIR "/brix-creds.") - 1) == 0);
     assert(strncmp(path, trap, strlen(trap)) != 0);
     unlink(path);
 

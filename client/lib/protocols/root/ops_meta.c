@@ -22,8 +22,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int
-parse_statinfo(const char *s, brix_statinfo *out)
+/* WHAT: Decode one stat line, returning 0 or -1. WHY: Path and handle replies
+ * must share the authoritative grammar. HOW: 1. Parse fields. 2. Adopt extensions. */
+int
+brix_statinfo_parse(const char *s, brix_statinfo *out)
 {
     brix_statline_ext ext;
 
@@ -76,7 +78,7 @@ stat_opt(brix_conn *c, const char *path, uint8_t options, brix_statinfo *out,
     tmp[n] = '\0';
     free(body);
 
-    if (parse_statinfo(tmp, out) != 0) {
+    if (brix_statinfo_parse(tmp, out) != 0) {
         brix_status_set(st, XRDC_EPROTO, 0, "unparseable stat body: \"%s\"", tmp);
         return -1;
     }
@@ -256,6 +258,46 @@ dirlist_skip_dstat_leadin(const uint8_t *acc, size_t acclen, int want_stat)
     return i;
 }
 
+static void
+dirent_parse_stat_line(const uint8_t *acc, size_t acclen, size_t *offset,
+    int *term, int want_cksum, brix_dirent *entry)
+{
+    char   statbuf[256];
+    size_t start, len, copy_len;
+    char  *open, *close;
+
+    *offset = next_line(acc, acclen, *offset, &start, &len, term);
+    copy_len = len < sizeof(statbuf) - 1 ? len : sizeof(statbuf) - 1;
+    memcpy(statbuf, acc + start, copy_len);
+    statbuf[copy_len] = '\0';
+    if (brix_statinfo_parse(statbuf, &entry->st) == 0) {
+        entry->have_stat = 1;
+    }
+    if (!want_cksum) {
+        return;
+    }
+
+    open = strchr(statbuf, '[');
+    close = open == NULL ? NULL : strchr(open + 1, ']');
+    if (open == NULL || close == NULL) {
+        return;
+    }
+    start = (size_t) (open + 1 - statbuf);
+    len = (size_t) (close - statbuf);
+    while (start < len && statbuf[start] == ' ') {
+        start++;
+    }
+    while (len > start && statbuf[len - 1] == ' ') {
+        len--;
+    }
+    copy_len = len - start;
+    if (copy_len >= sizeof(entry->checksum)) {
+        copy_len = sizeof(entry->checksum) - 1;
+    }
+    memcpy(entry->checksum, statbuf + start, copy_len);
+    entry->checksum[copy_len] = '\0';
+}
+
 /* ---- Parse name (and optional per-entry stat) lines into a dirent array ----
  *
  * WHAT: Walks acc from offset i, building a heap array of brix_dirent handed off
@@ -283,7 +325,7 @@ dirlist_parse_entries(const uint8_t *acc, size_t acclen, size_t i,
     size_t       count = 0, entcap = 0;
 
     while (i < acclen) {
-        size_t      ns, nl, ss, sl;
+        size_t      ns, nl;
         int         term = 0;
         brix_dirent e;
 
@@ -300,32 +342,7 @@ dirlist_parse_entries(const uint8_t *acc, size_t acclen, size_t i,
         }
 
         if (want_stat && !term) {
-            char statbuf[256];
-            size_t cp;
-            i = next_line(acc, acclen, i, &ss, &sl, &term);
-            cp = (sl < sizeof(statbuf) - 1) ? sl : sizeof(statbuf) - 1;
-            memcpy(statbuf, acc + ss, cp);
-            statbuf[cp] = '\0';
-            if (parse_statinfo(statbuf, &e.st) == 0) {
-                e.have_stat = 1;
-            }
-            if (want_cksum) {
-                char *open = strchr(statbuf, '[');
-                char *close = open == NULL ? NULL : strchr(open + 1, ']');
-
-                if (open != NULL && close != NULL) {
-                    size_t begin = (size_t) (open + 1 - statbuf);
-                    size_t end = (size_t) (close - statbuf);
-                    size_t cp;
-
-                    while (begin < end && statbuf[begin] == ' ') begin++;
-                    while (end > begin && statbuf[end - 1] == ' ') end--;
-                    cp = end - begin;
-                    if (cp >= sizeof(e.checksum)) cp = sizeof(e.checksum) - 1;
-                    memcpy(e.checksum, statbuf + begin, cp);
-                    e.checksum[cp] = '\0';
-                }
-            }
+            dirent_parse_stat_line(acc, acclen, &i, &term, want_cksum, &e);
         }
 
         if (dirent_push(&ents, &count, &entcap, &e) != 0) {

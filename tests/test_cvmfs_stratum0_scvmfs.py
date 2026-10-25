@@ -40,7 +40,7 @@ from cmdscripts.cvmfs_repo_cli import _build_repotool
 from cmdscripts.live_common import LiveRun
 from settings import BIND_HOST, CA_DIR, HOST, USER_CERT, USER_KEY
 from config_templates import render_config
-from test_cvmfs_scvmfs_voms import (_VOMS_PROXY_FAKE, _split, _voms_proxy,
+from test_cvmfs_scvmfs_voms import (_VOMS_PROXY_FAKE, _minted_proxy,
                                     _voms_signing_cert, _vomsdir)
 from test_cvmfs_scvmfs_x509 import _leaf, _self_signed
 
@@ -124,7 +124,7 @@ def s0_voms(s0, tmp_path_factory):
     voms_crt, voms_key = _voms_signing_cert(d)
     vd = _vomsdir(d, voms_crt)
     proxies = {
-        vo: _split(_voms_proxy(d, vo, voms_crt, voms_key), d, vo)
+        vo: _minted_proxy(d, vo, voms_crt, voms_key)
         for vo in ("atlas", "cms")
     }
     srv_crt, srv_key = _self_signed(d, "localhost", "server")  # net-literal-allow: throwaway TLS cert subject

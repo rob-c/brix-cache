@@ -216,7 +216,10 @@ check_security(void)
 int
 main(void)
 {
-    g_pool = ngx_create_pool(4096, NULL);
+    ngx_log_t log;
+
+    memset(&log, 0, sizeof log);
+    g_pool = ngx_create_pool(4096, &log);
     if (g_pool == NULL || dev_create(DEV_BYTES) != 0) {
         fprintf(stderr, "FAIL: cannot build the fixture\n");
         return 1;

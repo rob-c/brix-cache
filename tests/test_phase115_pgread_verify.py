@@ -37,10 +37,13 @@ Run:
     PYTHONPATH=tests python3 -m pytest tests/test_phase115_pgread_verify.py -v
 """
 import hashlib
+import struct
+from types import SimpleNamespace
 
 import pytest
 import requests
 
+import _test_phase115_pgread_verify_helpers as page_fixture
 from _test_phase115_pgread_verify_helpers import PgOrigin
 from server_registry import NginxInstanceSpec
 from settings import HOST
@@ -57,6 +60,141 @@ DIGEST = hashlib.sha256(PAYLOAD).hexdigest()
 # A read window that spans several pages but stays inside one 1 MiB origin
 # chunk, so a leg that fails on the FIRST frame is unambiguous.
 RANGE_LEN = 9000
+
+
+@pytest.mark.parametrize('payload,expected', [(b'', 0), (b'123456789', 0xE3069283)])
+def test_fixture_checksum_keeps_independent_castagnoli_vectors(payload, expected):
+    assert page_fixture._page_checksum(payload, {}) == expected
+
+
+def _count_fixture_checksums(monkeypatch):
+    calls = []
+    original = page_fixture.crc32c
+
+    def checksum(payload):
+        calls.append(payload)
+        return original(payload)
+
+    monkeypatch.setattr(page_fixture, 'crc32c', checksum)
+    return calls
+
+
+def test_fixture_checksum_cache_is_scoped_to_one_response(monkeypatch):
+    page = bytes(range(256)) * 16
+    calls = _count_fixture_checksums(monkeypatch)
+    first = page_fixture.pack_pages(page * 3, 0)
+    second = page_fixture.pack_pages(page * 3, 0)
+    assert first == second
+    assert calls == [page, page]
+
+
+def test_fixture_checksum_cache_does_not_hide_changed_page_bytes():
+    page = bytes(range(256)) * 16
+    changed = bytes([page[0] ^ 1]) + page[1:]
+    checksums = {}
+    assert page_fixture._page_checksum(page, checksums) == page_fixture.crc32c(page)
+    assert page_fixture._page_checksum(changed, checksums) == page_fixture.crc32c(changed)
+    assert checksums[page] != checksums[changed]
+
+
+def test_fixture_checksum_cache_cannot_poison_neighbouring_pages(monkeypatch):
+    page = bytes(range(256)) * 16
+    checksum = page_fixture.crc32c(page)
+    good = struct.pack('!I', checksum) + page
+    bad = struct.pack('!I', checksum ^ 0xDEADBEEF) + page
+    calls = _count_fixture_checksums(monkeypatch)
+    assert page_fixture.pack_pages(page * 3, 0, corrupt_page=1) == good + bad + good
+    assert calls == [page]
+
+
+def test_fixture_checksum_cache_stays_bounded_when_every_page_is_distinct():
+    checksums = {}
+    for index in range(66):
+        page = bytes([index]) * 4096
+        assert page_fixture._page_checksum(page, checksums) == page_fixture.crc32c(page)
+    assert len(checksums) == 64
+    assert all(len(page) <= 4096 for page in checksums)
+
+
+@pytest.mark.parametrize('offset', [1, 17, 4095, 4096])
+def test_fixture_checksum_cache_preserves_unaligned_page_boundaries(offset):
+    payload = bytes(range(256)) * 33
+    first = 4096 - offset % 4096
+    chunks = [payload[:first], *(payload[pos:pos + 4096]
+              for pos in range(first, len(payload), 4096))]
+    expected = b''.join(struct.pack('!I', page_fixture.crc32c(chunk)) + chunk
+                        for chunk in chunks if chunk)
+    assert page_fixture.pack_pages(payload, offset) == expected
+
+
+def _queued_fixture_connections(monkeypatch, behaviour, origin_class=PgOrigin):
+    """Capture worker starts without opening sockets or depending on timing."""
+    queued, closed, observed = [], [], []
+    origin = origin_class.__new__(origin_class)
+    origin.connections = 0
+    origin._lock = page_fixture.threading.Lock()
+    origin._connection_context = page_fixture.threading.local()
+    origin.behaviour = behaviour
+    origin._request_loop = lambda connection: None
+    origin._perform_handshake = lambda connection: observed.append(
+        (connection.index, origin._connection_context.index)) or True
+
+    def worker(*, target, args, daemon):
+        assert daemon is True
+        return SimpleNamespace(start=lambda: queued.append((target, args)))
+
+    monkeypatch.setattr(page_fixture.threading, 'Thread', worker)
+    for index in range(4):
+        connection = SimpleNamespace(index=index, settimeout=lambda _: None,
+            close=lambda item=index: closed.append(item))
+        origin._start_connection(connection)
+    return origin, queued, closed, observed
+
+
+@pytest.mark.parametrize('behaviour,expected', [
+    ('ok', [3, 2, 1, 0]),
+    ('handshake_poison_recovery', [2, 1, 0]),
+    ('frame_poison_recovery', [2, 1, 0]),
+])
+def test_fixture_connection_faults_follow_accept_order_even_when_workers_reverse(
+        monkeypatch, behaviour, expected):
+    origin, queued, closed, observed = _queued_fixture_connections(monkeypatch, behaviour)
+    assert origin.connections == 4
+    for target, arguments in reversed(queued):
+        target(*arguments)
+    assert observed == [(index, index) for index in expected]
+    assert sorted(closed) == [0, 1, 2, 3]
+
+
+def test_fixture_connection_dispatch_preserves_single_argument_subclass_hooks(monkeypatch):
+    class CallbackOrigin(PgOrigin):
+        def _serve(self, connection):
+            self.callbacks.append((connection.index, self._connection_context.index,
+                                   self._connection_context.postlogin_protocols))
+            connection.close()
+
+    origin, queued, closed, _ = _queued_fixture_connections(monkeypatch, 'ok', CallbackOrigin)
+    origin.callbacks = []
+    for target, arguments in reversed(queued):
+        target(*arguments)
+    assert origin.callbacks == [(index, index, 0) for index in (3, 2, 1, 0)]
+    assert sorted(closed) == [0, 1, 2, 3]
+
+
+@pytest.mark.parametrize('behaviour', ['ok', 'corrupt', 'bad_status_crc'])
+def test_fixture_pgread_coalescing_preserves_normal_and_hostile_wire_bytes(behaviour):
+    origin = PgOrigin.__new__(PgOrigin)
+    origin.behaviour, origin.corrupt_page = behaviour, 1
+    sid, offset = b'\x00\x17', 17
+    payload = bytes(range(256)) * 48
+    corruption = 1 if behaviour == 'corrupt' else -1
+    pages = page_fixture.pack_pages(payload, offset, corruption)
+    status = page_fixture.pgread_status_frame(sid, offset, len(pages))
+    if behaviour == 'bad_status_crc':
+        status = status[:8] + bytes([status[8] ^ 0x80]) + status[9:]
+    writes = []
+    origin._send_pgread(SimpleNamespace(sendall=writes.append), sid, offset, payload)
+    assert writes == [status + pages]
 
 
 def _node(lifecycle, name, origin, policy):

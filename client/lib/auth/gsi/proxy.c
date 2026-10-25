@@ -16,6 +16,8 @@
  * OpenSSL X509 is a public API. No upstream implementation was consulted.
  */
 #include "brix.h"
+#include "auth/crypto/key_compat.h"
+#include "auth/crypto/name_compat.h"
 
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
@@ -201,7 +203,7 @@ pxy_build_request(proxy_build_ctx *c, int bits, int valid_hours, long serial,
     char serial_str[32];
 
     /* Ephemeral proxy keypair. */
-    c->pkey = EVP_RSA_gen((unsigned) bits);
+    c->pkey = brix_crypto_rsa_keygen((unsigned) bits);
     if (c->pkey == NULL) { return ssl_fail(st, "RSA keygen"); }
 
     c->proxy = X509_new();
@@ -363,8 +365,8 @@ brix_proxy_info(const char *path, FILE *out, brix_status *st)
         return ssl_fail(st, "parse proxy");
     }
 
-    X509_NAME_oneline(X509_get_subject_name(cert), subj, sizeof(subj));
-    X509_NAME_oneline(X509_get_issuer_name(cert), issuer, sizeof(issuer));
+    brix_crypto_name_oneline(X509_get_subject_name(cert), subj, sizeof(subj));
+    brix_crypto_name_oneline(X509_get_issuer_name(cert), issuer, sizeof(issuer));
     fprintf(out, "path     : %s\n", path);
     fprintf(out, "subject  : %s\n", subj);
     fprintf(out, "issuer   : %s\n", issuer);

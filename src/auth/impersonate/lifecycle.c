@@ -207,3 +207,83 @@ brix_imp_validate(ngx_conf_t *cf, const char *derived_export_root)
     }
     return NGX_OK;
 }
+
+/* ---- brix_worker_user: the confined account the worker is forced down to ----
+ *
+ * Process-global (there is one worker uid per process; the strictest posture is
+ * shared across every brix server, stream + http). Empty => unset => default to
+ * "nobody" with a startup warning. Set by the `brix_worker_user` directive. */
+char brix_worker_user[64] = "";
+
+/* ---- Store the configured confined worker account ----
+ *
+ * WHAT: Accept a bounded nonempty account name or return a configuration error.
+ * WHY: Configuration-time identity selection is separate from privilege drops.
+ * HOW: 1. Validate length. 2. Copy and terminate the existing process setting.
+ */
+char *
+brix_conf_set_worker_user(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_str_t *value = cf->args->elts;
+
+    (void) cmd;
+    (void) conf;
+
+    if (value[1].len == 0 || value[1].len >= sizeof(brix_worker_user)) {
+        return "invalid brix_worker_user account name";
+    }
+    /* Last non-empty setting wins; the account is resolved at worker init. */
+    ngx_memcpy(brix_worker_user, value[1].data, value[1].len);
+    brix_worker_user[value[1].len] = '\0';
+    return NGX_CONF_OK;
+}
+
+/* ---- brix_imp_worker_runtime_ids ----
+ *
+ * WHAT: Resolve the uid/gid the workers actually serve as (see lifecycle.h).
+ * WHY:  Config-time provisioning of worker-writable directories (the default
+ *       credential store, the default gateway stage spool) must chown to the
+ *       POST-de-escalation identity: with the always-on drop, `user root` (or
+ *       no `user` at all under a root master) yields workers running as
+ *       brix_worker_user/nobody, and a root:0700 directory would EACCES them.
+ * HOW:  A real unprivileged `user` account wins (the drop no-ops for it);
+ *       otherwise resolve brix_worker_user (default "nobody") exactly as
+ *       brix_imp_worker_deescalate will at worker init. */
+ngx_int_t
+brix_imp_worker_runtime_ids(ngx_uid_t conf_uid, ngx_gid_t conf_gid,
+    uid_t *uid_out, gid_t *gid_out)
+{
+    const char    *acct;
+    struct passwd *pw;
+
+    if (conf_uid != (ngx_uid_t) NGX_CONF_UNSET_UINT && conf_uid != 0) {
+        *uid_out = (uid_t) conf_uid;
+        *gid_out = (gid_t) conf_gid;
+        return NGX_OK;
+    }
+
+    /* nginx fills an omitted `user` directive from its compile-time
+     * --user/--group defaults only in the core module's init_conf, after
+     * location merges have already asked us to provision stage/credential
+     * stores.  At that earlier point ccf->user is still UNSET.  Resolve the
+     * same compiled account here so distro builds such as Fedora's
+     * --user=nginx do not get a nobody-owned 0700 store for an nginx worker.
+     * An explicitly root-capable worker must still take the fail-closed
+     * brix_worker_user/nobody path below. */
+    if (conf_uid == (ngx_uid_t) NGX_CONF_UNSET_UINT) {
+        pw = getpwnam(NGX_USER);
+        if (pw != NULL && pw->pw_uid != 0) {
+            *uid_out = pw->pw_uid;
+            *gid_out = pw->pw_gid;
+            return NGX_OK;
+        }
+    }
+    acct = brix_worker_user[0] ? brix_worker_user : "nobody";
+    pw   = getpwnam(acct);
+    if (pw == NULL || pw->pw_uid == 0) {
+        return NGX_ERROR;
+    }
+    *uid_out = pw->pw_uid;
+    *gid_out = pw->pw_gid;
+    return NGX_OK;
+}

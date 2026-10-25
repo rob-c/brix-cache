@@ -99,10 +99,13 @@ static void af_teardown_children(void) {
     }
 }
 
-/* Control thread: owns the self-pipe. 'C' → reap; 'T' → teardown children
- * (worker threads still live to serve the umount path walks), then end the
- * umbrella session; unmounting our own mountpoint makes every worker's
- * /dev/fuse read return ENODEV, so the loop exits deterministically. */
+/*
+ * WHAT: Consume lifecycle notifications and unmount the owned umbrella.
+ * WHY:  FreeBSD unmount waits for FUSE_DESTROY; stopping the event loop first
+ *       strands that request and deadlocks both unmount and concurrent stat.
+ * HOW:  1. Reap child notifications. 2. Tear down children while serving path
+ *       walks. 3. Unmount the umbrella before requesting event-loop exit.
+ */
 static void *af_control_thread(void *arg) {
     (void) arg;
     for (;;) {
@@ -114,8 +117,8 @@ static void *af_control_thread(void *arg) {
         }
         if (c == 'C') { af_reap_children(); continue; }
         af_teardown_children();
-        fuse_exit(g_af.fuse);
         af_umount_path(g_af.mnt);
+        fuse_exit(g_af.fuse);
         return NULL;
     }
 }
@@ -337,16 +340,34 @@ af_install_signals(void)
 }
 
 
-/* Spin the control + optional idle threads, run the umbrella event loop, then
- * (on external unmount) tear the children down and join.  Returns the process
- * exit code. */
+/*
+ * WHAT: Run the umbrella event loop with owned lifecycle threads.
+ * WHY:  Failed thread creation must not lead to joining an uninitialized
+ *       handle or serving a mount with no shutdown controller.
+ * HOW:  1. Require the controller. 2. Track only a successfully started idle
+ *       thread. 3. Serve, tear down children, join owners, and destroy FUSE.
+ */
 static int
 af_run(void)
 {
-    pthread_t ctl, idle;
-    pthread_create(&ctl, NULL, af_control_thread, NULL);
-    int have_idle = g_af.o.idle_s > 0;
-    if (have_idle) pthread_create(&idle, NULL, af_idle_thread, NULL);
+    pthread_t ctl, idle = {0};
+    int status = pthread_create(&ctl, NULL, af_control_thread, NULL);
+    if (status != 0) {
+        af_log("cannot start shutdown controller: %s", strerror(status));
+        close(g_af.sigpipe[0]);
+        close(g_af.sigpipe[1]);
+        fuse_unmount(g_af.fuse);
+        fuse_destroy(g_af.fuse);
+        return 1;
+    }
+    int have_idle = 0;
+    if (g_af.o.idle_s > 0) {
+        status = pthread_create(&idle, NULL, af_idle_thread, NULL);
+        have_idle = status == 0;
+        if (status != 0) {
+            af_log("cannot start idle expiry: %s", strerror(status));
+        }
+    }
 
     af_log("serving %s (etc=%s idle=%ds strict=%d)", g_af.mnt,
            g_af.etc[0] ? g_af.etc : "/etc/cvmfs", g_af.o.idle_s, g_af.strict);

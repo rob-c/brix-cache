@@ -16,7 +16,9 @@ HOW:  ``FUSE_READY`` is evaluated once at import.  ``unmount_argv`` mirrors the
 from __future__ import annotations
 
 import os
+import errno
 import shutil
+import stat
 import subprocess
 import sys
 
@@ -24,6 +26,28 @@ import sys
 MACFUSE_MOUNT = "/Library/Filesystems/macfuse.fs/Contents/Resources/mount_macfuse"
 #: FUSE-T (a kext-free macFUSE alternative) ships its own bundle.
 FUSE_T_MOUNT = "/Library/Filesystems/fuse-t.fs/Contents/Resources/mount_fuse-t"
+
+
+def regular_mknod_error(path):
+    """Probe the native kernel, without disguising permission or I/O failures.
+
+    FreeBSD rejects regular-file mknod before dispatching to a filesystem. A
+    FUSE test must prove that independently, rather than assume its own failure
+    is an unavailable capability. Refusal must leave the probe path absent.
+    """
+    try:
+        os.mknod(path, stat.S_IFREG | 0o600)
+    except OSError as error:
+        if error.errno not in (errno.EINVAL, errno.ENOSYS, errno.EOPNOTSUPP):
+            raise
+        assert not os.path.lexists(path), "refused native mknod created a node"
+        return error.errno
+    try:
+        info = os.lstat(path)
+        assert stat.S_ISREG(info.st_mode) and info.st_size == 0
+    finally:
+        os.unlink(path)
+    return 0
 
 
 def _linux_ready() -> bool:
@@ -39,10 +63,31 @@ def _darwin_ready() -> bool:
     return status.returncode == 0 and "macfuse" in status.stdout.lower()
 
 
+def _freebsd_usermount_allowed() -> bool:
+    """FreeBSD uses its native mount helper and explicit unprivileged policy."""
+    if os.geteuid() == 0:
+        return True
+    try:
+        status = subprocess.run(["sysctl", "-n", "vfs.usermount"],
+                                capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return status.returncode == 0 and status.stdout.strip() == "1"
+
+
+def _freebsd_ready() -> bool:
+    """Check real native prerequisites; a mount still has to prove success."""
+    return (os.access('/dev/fuse', os.R_OK | os.W_OK)
+            and shutil.which('mount_fusefs') is not None
+            and _freebsd_usermount_allowed())
+
+
 def fuse_ready() -> bool:
     """True when an unprivileged FUSE mount can be attempted on this host."""
     if sys.platform == "darwin":
         return _darwin_ready()
+    if sys.platform.startswith("freebsd"):
+        return _freebsd_ready()
     return _linux_ready()
 
 
@@ -86,6 +131,8 @@ FUSE_READY = fuse_ready()
 #: The reason string every FUSE skip carries.
 SKIP_REASON = ("fuse mount prerequisites missing (active macFUSE / FUSE-T)"
                if sys.platform == "darwin"
+               else "fuse mount prerequisites missing (accessible /dev/fuse, mount_fusefs, vfs.usermount=1)"
+               if sys.platform.startswith("freebsd")
                else "fuse mount prerequisites missing (/dev/fuse, fusermount3)")
 
 
@@ -96,11 +143,43 @@ def host_mount_opts() -> str | None:
     return "noappledouble" if sys.platform == "darwin" else None
 
 
+def freebsd_mount_options(path):
+    """Inspect our mounted test filesystem, never assume Linux procfs exists.
+
+    FreeBSD has no nodev flag: mknod(8) documents that nodes outside devfs
+    cannot access devices. Do not fabricate that flag in the kernel evidence.
+    """
+    if not os.path.ismount(path):
+        return None
+    flags = os.statvfs(path).f_flag
+    options = ['ro' if flags & os.ST_RDONLY else 'rw']
+    if flags & os.ST_NOSUID:
+        options.append('nosuid')
+    return ','.join(options)
+
+
+def mount_device_access_disabled(options):
+    """Compare the device-access policy, not a non-existent FreeBSD flag."""
+    if options is None:
+        return False
+    return sys.platform.startswith('freebsd') or 'nodev' in options.split(',')
+
+
+def freebsd_fuse_mounts_under(prefix):
+    """Use FreeBSD's cached native table, never Darwin's struct statfs ABI."""
+    import psutil
+
+    root = os.path.abspath(prefix).rstrip('/')
+    return [entry.mountpoint for entry in psutil.disk_partitions(all=True)
+            if 'fuse' in entry.fstype.lower() and
+            (entry.mountpoint == root or entry.mountpoint.startswith(root + '/'))]
+
+
 def unmount_tiers(lazy: bool = False) -> list[list[str]]:
     """Every unmount command this host tries, most specific first, without the
     mount point.  Linux: fusermount3, fusermount, umount.  Darwin: umount only
     (``-f`` is the closest thing to a lazy detach there)."""
-    if sys.platform == "darwin":
+    if sys.platform == "darwin" or sys.platform.startswith("freebsd"):
         return [["umount", "-f"] if lazy else ["umount"]]
     return [["fusermount3", "-u"] + (["-z"] if lazy else []),
             ["fusermount", "-u"] + (["-z"] if lazy else []),

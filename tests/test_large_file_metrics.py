@@ -316,7 +316,7 @@ def test_crc32c_checksum_matches_local_computation():
     expected_hex = _streaming_crc32c(crc32c)
 
     res = subprocess.run(
-        [XRDFS_BIN, ANON_URL, "query", "checksum", "crc32c //large200.bin"],
+        [XRDFS_BIN, ANON_URL, "query", "checksum", "//large200.bin?cks.type=crc32c"],
         capture_output=True, text=True, timeout=30,
     )
     _check_test_crc32c_checksum_matches_local_computation_1(res)

@@ -188,6 +188,68 @@ serve_record_body_accounting(const serve_ctx_t *sc, off_t bytes,
     }
 }
 
+/* WHAT: A self-contained accounting snapshot for compressed asynchronous sends.
+ * WHY: The caller's opts/result and the released VFS handle are stack/borrowed
+ * storage. HOW: Copy only the required attribution and callback onto r->pool. */
+typedef struct {
+    serve_ctx_t               sc;
+    brix_http_serve_deferred_fn done;
+    brix_http_serve_result_t   result;
+} serve_compress_account_t;
+
+/* WHAT: Complete deferred body and protocol accounting once. WHY: NGX_DONE must
+ * not book a successful response before the codec finishes. HOW: Reuse the same
+ * accounting helper and the protocol's existing metrics callback. */
+static void
+serve_compressed_done(ngx_http_request_t *r, void *data, off_t bytes, ngx_int_t rc)
+{
+    serve_compress_account_t *a = data;
+
+    if (rc == NGX_OK) {
+        serve_record_body_accounting(&a->sc, bytes,
+            a->sc.from_cache, a->sc.cache_path);
+    } else {
+        brix_dashboard_http_error(r, "serve_file_ranged: compress send failed");
+        brix_dashboard_http_finish(r);
+    }
+    if (a->done != NULL) {
+        a->done(r, &a->result, rc);
+    }
+}
+
+/* WHAT: Snapshot deferred attribution before releasing the VFS handle.
+ * WHY: Neither an asynchronous write nor cache accounting may dereference that
+ * handle's path after close. HOW: Own the NUL-terminated cache path and copies
+ * of opts/result; no caller stack pointers are used by the completion path. */
+static serve_compress_account_t *
+serve_compressed_account(const serve_ctx_t *sc, ngx_uint_t from_cache,
+    const char *cache_path)
+{
+    serve_compress_account_t *a = ngx_pcalloc(sc->r->pool, sizeof(*a));
+    size_t                   len;
+    u_char                  *path;
+
+    if (a == NULL || (from_cache && cache_path == NULL)) {
+        return NULL;
+    }
+    a->sc.r = sc->r;
+    a->sc.backend_name = sc->backend_name;
+    a->done = sc->opts->deferred_done;
+    a->sc.result = &a->result;
+    a->sc.from_cache = from_cache;
+    a->sc.cache_path = NULL;
+    if (from_cache) {
+        len = ngx_strlen(cache_path) + 1;
+        path = ngx_pnalloc(sc->r->pool, len);
+        if (path == NULL) {
+            return NULL;
+        }
+        ngx_memcpy(path, cache_path, len);
+        a->sc.cache_path = (const char *) path;
+    }
+    return a;
+}
+
 /*
  * serve_try_compressed — opt-in whole-object outbound compression fast-path.
  *
@@ -216,6 +278,7 @@ serve_try_compressed(const serve_ctx_t *sc, ngx_uint_t range_present,
     off_t            bytes_out = 0;
     ngx_uint_t       from_cache;
     const char      *cache_path;
+    serve_compress_account_t *account;
 
     if (!opts->compress) {
         return SERVE_CONTINUE;
@@ -238,6 +301,12 @@ serve_try_compressed(const serve_ctx_t *sc, ngx_uint_t range_present,
     cfd        = brix_vfs_file_fd(fh);
     from_cache = brix_vfs_file_from_cache(fh);
     cache_path = brix_vfs_file_path(fh);
+    account = serve_compressed_account(sc, from_cache, cache_path);
+    if (account == NULL) {
+        brix_vfs_close(fh, r->connection->log);
+        *rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
+        return SERVE_DONE;
+    }
     csend = dup(cfd);
     if (csend == NGX_INVALID_FILE) {
         brix_vfs_close(fh, r->connection->log);
@@ -251,7 +320,11 @@ serve_try_compressed(const serve_ctx_t *sc, ngx_uint_t range_present,
 
     *rc = brix_http_send_file_compressed(r, csend, sc->fs_path, vst->size,
                                            enc, vst->mtime,
-                                           opts->etag_flags, &bytes_out);
+                                           opts->etag_flags, &bytes_out,
+                                           serve_compressed_done, account);
+    if (*rc == NGX_DONE) {
+        return SERVE_DONE;
+    }
     if (*rc == NGX_ERROR || *rc >= NGX_HTTP_SPECIAL_RESPONSE) {
         brix_dashboard_http_error(r, "serve_file_ranged: compress send failed");
         brix_dashboard_http_finish(r);
@@ -259,7 +332,7 @@ serve_try_compressed(const serve_ctx_t *sc, ngx_uint_t range_present,
     }
     sc->result->range_result = BRIX_SERVE_RANGE_FULL;
     /* compressed bytes on wire */
-    serve_record_body_accounting(sc, bytes_out, from_cache, cache_path);
+    serve_record_body_accounting(sc, bytes_out, from_cache, account->sc.cache_path);
     return SERVE_DONE;
 }
 

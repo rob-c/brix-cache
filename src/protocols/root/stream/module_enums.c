@@ -10,7 +10,39 @@
 #include "net/manager/health_check.h"  /* BRIX_HC_TYPE_* */
 #include "auth/crypto/store_policy.h"  /* BRIX_SP_MODE_*, BRIX_CRL_MODE_* */
 #include "fs/cache/verify.h"           /* BRIX_CACHE_VERIFY_* */
+#include "fs/backend/sd.h"            /* BRIX_CRED_* */
+#include "auth/s3/sts.h"               /* BRIX_STS_FLAVOR_* */
 #include "module_enums.h"
+
+/* Existing SSI and credential value maps share this table owner; moving them
+ * from module.c changes no name/value or directive post pointer contract. */
+ngx_conf_enum_t brix_ssi_executor_enum[] = {
+    { ngx_string("test"), 0 },
+    { ngx_string("prod"), 1 },
+    { ngx_null_string,    0 }
+};
+
+ngx_conf_enum_t brix_stream_backend_delegation_enum[] = {
+    { ngx_string("select"),      BRIX_CRED_SELECT },
+    { ngx_string("passthrough"), BRIX_CRED_PASSTHROUGH },
+    { ngx_string("exchange"),    BRIX_CRED_EXCHANGE },
+    { ngx_string("delegate"),    BRIX_CRED_DELEGATE },
+    { ngx_string("mint"),        BRIX_CRED_MINT },
+    { ngx_string("auto"),        BRIX_CRED_AUTO },
+    { ngx_null_string,           0 }
+};
+
+ngx_conf_enum_t brix_stream_sts_flavor_enum[] = {
+    { ngx_string("aws"),   BRIX_STS_FLAVOR_AWS },
+    { ngx_string("minio"), BRIX_STS_FLAVOR_MINIO },
+    { ngx_null_string,     0 }
+};
+
+ngx_conf_enum_t brix_stream_credential_fallback_enum[] = {
+    { ngx_string("allow"), 0 },
+    { ngx_string("deny"),  1 },
+    { ngx_null_string,     0 }
+};
 
 /* [brix_signing_policy on|off|require] — Globus signing_policy enforcement. */
 ngx_conf_enum_t brix_signing_policy_modes[] = {

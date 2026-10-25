@@ -20,7 +20,7 @@
 #include <stdint.h>
 #include BRIX_PLAT_HOST_HEADER(host.h)
 
-/* --- client-only PAL entry points (bodies in <host>/posix.c, <host>/mounts.c) --- */
+/* Client-only PAL entries: host posix/mounts bodies plus shared BSD FUSE policy. */
 
 /**
  * Unmount `path`. `lazy` asks for a deferred detach (Linux MNT_DETACH);

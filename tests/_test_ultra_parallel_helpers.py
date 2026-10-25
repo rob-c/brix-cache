@@ -65,6 +65,19 @@ def _mix_blob():
     return _blob(MIX_SIZE, 0x171)
 
 
+def _join_until_deadline(threads, deadline):
+    """One budget for the whole storm, never another second per hung client.
+
+    Unfinished output slots remain failures in the caller's result collector.
+    A 16k-client rung must not add four hours AFTER its deadline expires.
+    """
+    for thread in threads:
+        remaining = deadline - time.perf_counter()
+        if remaining <= 0:
+            return
+        thread.join(timeout=remaining)
+
+
 # --------------------------------------------------------------------------- #
 # Outcome classes.  The classification IS the contract: kXR_wait and a
 # pre-login refusal are CLEAN degradation; anything that breaks an

@@ -45,7 +45,7 @@ from pathlib import Path
 # REPO = script dir/../.. ; matches the bash BASH_SOURCE resolution.
 REPO = Path(__file__).resolve().parents[2]
 NGX_BUILD = os.environ.get("NGX_BUILD", "/tmp/nginx-1.28.3")
-MK = f"{NGX_BUILD}/objs/Makefile"
+MK = os.environ.get("NGX_MAKEFILE") or f"{NGX_BUILD}/objs/Makefile"
 JOBS = int(os.environ.get("JOBS") or os.cpu_count() or 1)
 
 # Files exempted from the gate (basename match). Keep empty — add only with a
@@ -66,10 +66,15 @@ def _gnu_make() -> str:
     return shutil.which("gmake") or "make"
 
 
+def _analyzer_compiler() -> str:
+    """Keep an explicit GCC analyzer separate from the server's Clang CC."""
+    return os.environ.get("FANALYZER_CC") or "gcc"
+
+
 def gcc_has_analyzer() -> bool:
     """Whether ``gcc`` is GNU gcc with -fanalyzer (Apple's gcc is clang)."""
     try:
-        out = subprocess.run(["gcc", "--version"], stdout=subprocess.PIPE,
+        out = subprocess.run([_analyzer_compiler(), "--version"], stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT, text=True).stdout
     except OSError:
         return False
@@ -84,7 +89,7 @@ def read_var(name: str) -> str:
     own chatter off stdout so only the printf payload survives."""
     try:
         out = subprocess.run(
-            [_gnu_make(), "-s", "--no-print-directory", "-C", NGX_BUILD, "-f", "objs/Makefile",
+            [_gnu_make(), "-s", "--no-print-directory", "-C", NGX_BUILD, "-f", MK,
              f"--eval=__pf: ; @printf '%s' \"$({name})\"", "__pf"],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
         )
@@ -118,7 +123,7 @@ def analyze_one(src: str, cflags: list[str], all_incs: list[str],
     ALL_INCS carries build-relative -I paths (-I src/core, -I objs), so run from
     the build tree exactly as the Makefile recipe does. The source path is absolute."""
     proc = subprocess.run(
-        ["gcc", "-fanalyzer", "-fanalyzer-verbosity=1", "-fno-diagnostics-color",
+        [_analyzer_compiler(), "-fanalyzer", "-fanalyzer-verbosity=1", "-fno-diagnostics-color",
          "-c", *cflags, *all_incs, src, "-o", "/dev/null"],
         cwd=NGX_BUILD, stderr=subprocess.PIPE, text=True,
     )
@@ -126,7 +131,7 @@ def analyze_one(src: str, cflags: list[str], all_incs: list[str],
     findings = _finding_lines(error_text)
     has_analyzer = "[-Wanalyzer-" in error_text
     _write_raw_trace(raw_path, src, error_text, has_analyzer)
-    compile_error = _compile_error(src, error_text, proc.returncode, has_analyzer)
+    compile_error = _compile_error(src, error_text, proc.returncode)
     return findings, compile_error
 
 
@@ -147,8 +152,10 @@ def _write_raw_trace(path, source, error_text, has_analyzer):
         pass
 
 
-def _compile_error(source, error_text, returncode, has_analyzer):
-    if returncode == 0 or has_analyzer:
+def _compile_error(source, error_text, returncode):
+    # An analyzer warning does not turn a failed compilation into a completed
+    # analysis. In particular, preserve fatal errors emitted after a warning.
+    if returncode == 0:
         return None
     errors = [
         line for line in error_text.splitlines()
@@ -209,10 +216,10 @@ def main(argv: list[str]) -> int:
 
 
 def _validate_environment():
-    if shutil.which("gcc") is None:
-        fail("gcc not found")
+    if shutil.which(_analyzer_compiler()) is None:
+        fail(f"GCC analyzer not found: {_analyzer_compiler()}")
     if not os.path.isfile(MK):
-        fail(f"no configured build at {NGX_BUILD} (need objs/Makefile; run ./configure first)")
+        fail(f"no configured build metadata at {MK} (run ./configure first)")
 
 
 def _compiler_flags():
@@ -221,7 +228,11 @@ def _compiler_flags():
     if not cflags:
         fail(f"could not read CFLAGS from {MK}")
     cflags = re.sub(r"-Werror(=[a-z-]+)?", "", cflags)
-    return cflags.split(), includes.split()
+    # Native FreeBSD builds with Clang. Keep the corresponding GCC warning
+    # rather than dropping its unsupported Clang spelling from analysis.
+    flags = ["-Wmaybe-uninitialized" if flag == "-Wconditional-uninitialized" else flag
+             for flag in cflags.split()]
+    return flags, includes.split()
 
 
 def _selected_sources(filt):

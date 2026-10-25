@@ -53,7 +53,7 @@ afh_free(afh *h)
 
 /* Open helper shared by open()/create(): writable + force tri-state. */
 int
-afh_open(const char *path, int writable, int force, struct fuse_file_info *fi)
+afh_open(uid_t uid, const char *path, int writable, int force, struct fuse_file_info *fi)
 {
     brix_status st;
     afh        *h = calloc(1, sizeof(*h));
@@ -98,7 +98,7 @@ afh_open(const char *path, int writable, int force, struct fuse_file_info *fi)
      * would be theatre — the bytes are what the caller is being kept away
      * from, and kXR_open is where the server decides. */
     brix_mgr *mgr;
-    int       identrc = xfs_ident_get(NULL, &mgr);
+    int       identrc = xfs_ident_get(uid, NULL, &mgr);
     if (identrc != 0) {
         afh_free(h);
         return identrc;
@@ -117,23 +117,23 @@ afh_open(const char *path, int writable, int force, struct fuse_file_info *fi)
 
 
 int
-xfs_open(const char *path, struct fuse_file_info *fi)
+xfs_open(uid_t uid, const char *path, struct fuse_file_info *fi)
 {
     int acc = fi->flags & O_ACCMODE;
     if (acc == O_RDONLY) {
-        return afh_open(path, 0, 0, fi);
+        return afh_open(uid, path, 0, 0, fi);
     }
     /* O_TRUNC -> overwrite (force 1), else update in place (force 2). */
-    return afh_open(path, 1, brix_open_force_for_open(fi->flags), fi);
+    return afh_open(uid, path, 1, brix_open_force_for_open(fi->flags), fi);
 }
 
 
 int
-xfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
+xfs_create(uid_t uid, const char *path, mode_t mode, struct fuse_file_info *fi)
 {
     (void) mode;
     /* O_EXCL → create-new (force=0, fail if exists); else truncate-create. */
-    return afh_open(path, 1, brix_open_force_for_create(fi->flags), fi);
+    return afh_open(uid, path, 1, brix_open_force_for_create(fi->flags), fi);
 }
 
 
@@ -150,7 +150,7 @@ xfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
  * Permission bits are ignored (as xfs_create does); a later chmod sets the mode.
  */
 int
-xfs_mknod(const char *path, mode_t mode, dev_t rdev)
+xfs_mknod(uid_t uid, const char *path, mode_t mode, dev_t rdev)
 {
     struct fuse_file_info fi;
     int                   rc;
@@ -165,7 +165,7 @@ xfs_mknod(const char *path, mode_t mode, dev_t rdev)
     }
 
     memset(&fi, 0, sizeof(fi));
-    rc = afh_open(path, 1 /* writable */, 0 /* create-new: fail if exists */,
+    rc = afh_open(uid, path, 1 /* writable */, 0 /* create-new: fail if exists */,
                   &fi);
     if (rc != 0) {
         return rc;
@@ -174,6 +174,35 @@ xfs_mknod(const char *path, mode_t mode, dev_t rdev)
 }
 
 
+/* WHAT: Validate a short root read against its current open-handle size.
+ * WHY: Cached FUSE reads can pad a premature EOF with zeros, concealing broken
+ * peers as successful corrupt reads. Path stat could name a replacement inode.
+ * HOW: 1. Leave full reads/errors/web handles untouched. 2. Stat only the same
+ * authorized handle. 3. Admit genuine EOF; fail closed on contradictory size. */
+static ssize_t
+afh_check_short_read(afh *handle, ssize_t received, off_t offset,
+                     size_t requested, brix_status *status)
+{
+    if (received < 0 || (size_t) received == requested || !handle->mf) {
+        return received;
+    }
+    brix_statinfo info;
+    if (brix_mfile_stat(handle->mf, &info, status) != 0) {
+        return -1;
+    }
+    if (info.size < 0 || (offset < info.size && received < info.size - offset)) {
+        brix_status_set(status, XRDC_EIO, EIO,
+                        "premature EOF from remote file handle");
+        return -1;
+    }
+    return received;
+}
+
+
+/* WHAT: Return exact available bytes or negative errno for one FUSE read.
+ * WHY: Remote EOF must not become silent zero-filled data before the real EOF.
+ * HOW: 1. Validate handle/range. 2. Read under its existing I/O lock.
+ *      3. Verify short replies by handle before the kernel can cache them. */
 int
 xfs_read(const char *path, char *buf, size_t size, off_t offset,
          struct fuse_file_info *fi)
@@ -186,9 +215,13 @@ xfs_read(const char *path, char *buf, size_t size, off_t offset,
     if (h == NULL) {
         return -EBADF;
     }
+    if (offset < 0 || size > INT32_MAX) {
+        return -EINVAL;
+    }
     brix_status_clear(&st);
     pthread_mutex_lock(&h->lock);
     r = brix_iobuf_read(&h->io, offset, buf, size, &st);
+    r = afh_check_short_read(h, r, offset, size, &st);
     pthread_mutex_unlock(&h->lock);
     return r < 0 ? xfs_err(&st) : (int) r;
 }

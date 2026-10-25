@@ -51,6 +51,25 @@ def _free_port():
     return free_port(BIND_HOST)
 
 
+def _listener_factory(port):
+    """Bind one ledger-assigned TCP listener, closing it on bind failure."""
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        listener.bind((BIND_HOST, port))
+        listener.listen(8)
+        return listener
+    except OSError:
+        listener.close()
+        raise
+
+
+def _listener():
+    """Return an atomically bound listener from the managed mock-port range."""
+    from ephemeral_port import bind_port
+    return bind_port(_listener_factory, BIND_HOST)
+
+
 def _wait_port(port, deadline=5.0):
     end = time.time() + deadline
     while time.time() < end:
@@ -66,11 +85,7 @@ class _Echo:
     """A trivial upstream: prefixes every received blob with b'echo:'."""
 
     def __init__(self):
-        self.port = _free_port()
-        self._srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._srv.bind((BIND_HOST, self.port))
-        self._srv.listen(8)
+        self.port, self._srv = _listener()
         self._stop = False
         self._t = threading.Thread(target=self._run, daemon=True)
         self._t.start()
@@ -101,11 +116,7 @@ class _StreamEcho:
     payloads flow back through the proxy where byte-level levers apply."""
 
     def __init__(self):
-        self.port = _free_port()
-        self._srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._srv.bind((BIND_HOST, self.port))
-        self._srv.listen(8)
+        self.port, self._srv = _listener()
         self._stop = False
         self._t = threading.Thread(target=self._run, daemon=True)
         self._t.start()
@@ -155,14 +166,38 @@ def _drain(sock, want, deadline=3.0):
     return out
 
 
-def _spawn(bfp, echo_port, extra=None):
+def _spawn_attempt(bfp, echo_port, extra, positional):
+    """Try one leased listener pair; return a live proxy tuple or None."""
+    listen = _free_port()
+    ctl = _free_port()
+    if positional:
+        argv = [bfp, str(listen), HOST, str(echo_port), str(ctl)] + extra
+    else:
+        argv = [bfp, "--listen", str(listen), "--target",
+                f"{HOST}:{echo_port}", "--control", str(ctl), "--quiet"] + extra
+    proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL)
+    if _wait_port(ctl, deadline=2.0) and _wait_port(listen, deadline=2.0):
+        return proc, listen, ctl
+    if proc.poll() is None:
+        proc.terminate()
+    proc.wait(timeout=5)
+    return None
+
+
+def _spawn_retry(bfp, echo_port, extra, positional, remaining):
+    """Return the first live proxy tuple from a bounded attempt chain."""
+    started = _spawn_attempt(bfp, echo_port, extra, positional)
+    if started is not None or remaining == 1:
+        return started
+    return _spawn_retry(bfp, echo_port, extra, positional, remaining - 1)
+
+
+def _spawn(bfp, echo_port, extra=None, positional=False):
     """Start a proxy in front of `echo_port`; return (proc, listen, ctl)."""
-    listen, ctl = _free_port(), _free_port()
-    argv = [bfp, "--listen", str(listen), "--target", f"{HOST}:{echo_port}",
-            "--control", str(ctl), "--quiet"] + (extra or [])
-    proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    assert _wait_port(ctl), "control port never came up"
-    assert _wait_port(listen), "listen port never came up"
+    started = _spawn_retry(bfp, echo_port, extra or [], positional, 5)
+    assert started is not None, "proxy listeners never came up after five port leases"
+    proc, listen, ctl = started
     # _wait_port(listen) proves that the socket is bound, but its probe can
     # still be queued for accept when the caller starts exercising admission
     # controls.  Drain that probe before returning so max-conns and fail-nth
@@ -179,6 +214,18 @@ def _ctl(port, cmd):
     with socket.create_connection((HOST, port), timeout=3) as s:
         s.sendall((cmd + "\n").encode())
         return s.recv(4096).decode()
+
+
+def _ctl_eventually(port, cmd, deadline=5.0):
+    """Send a control command once the listener is accepting full requests."""
+    end = time.time() + deadline
+    while True:
+        try:
+            return _ctl(port, cmd)
+        except OSError:
+            if time.time() >= end:
+                raise
+            time.sleep(0.02)
 
 
 def _stat_int(ctl, key):

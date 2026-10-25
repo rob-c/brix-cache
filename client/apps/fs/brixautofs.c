@@ -230,8 +230,9 @@ int af_umount_path(const char *path) {
  * (brixcvmfs parse_opts buffer cap). */
 static void af_child_opts(const char *fqrn, char *out, size_t cap) {
     const char *extra = getenv("BRIXAUTOFS_CHILD_OPTS");
-    snprintf(out, cap, "cache=%s/%s,nodev,nosuid%s%s%s",
-             g_af.o.cache_base, fqrn,
+    const char *device = BRIX_HAS_FUSE_NODEV ? ",nodev" : "";
+    snprintf(out, cap, "cache=%s/%s%s,nosuid%s%s%s",
+             g_af.o.cache_base, fqrn, device,
              g_af.o.allow_other ? ",allow_other" : "",
              extra ? "," : "", extra ? extra : "");
 }

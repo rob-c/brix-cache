@@ -16,6 +16,12 @@ fixture_target(const xrd_conform_run *run, const char *plane)
 }
 
 static int
+result_active(const brix_conform_result *row)
+{
+    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
+}
+
+static int
 scratch_weburl(xrd_conform_execution *execution, const char *target,
     brix_weburl *url)
 {
@@ -117,6 +123,125 @@ object_bytes(xrd_conform_execution *execution, const brix_weburl *object,
     return matched;
 }
 
+typedef struct {
+    int put_ok;
+    int root_ok;
+    int http_bytes_ok;
+    int list_ok;
+    int s3_bytes_ok;
+    int common_cleanup_ok;
+    int xpr_cleanup_ok;
+} mutation_observation;
+
+static int
+put_http_object(xrd_conform_execution *execution, const brix_weburl *object,
+    const char *token, const uint8_t *payload, size_t length)
+{
+    brix_http_resp response;
+    int rc = http_request(execution, object, "PUT", token, payload, length,
+        &response);
+    int ok = rc == 0 && response.status >= 200 && response.status < 300;
+
+    if (rc == 0) brix_http_resp_free(&response);
+    return ok;
+}
+
+static int
+delete_http_object(xrd_conform_execution *execution,
+    const brix_weburl *object, const char *token)
+{
+    brix_http_resp response;
+    int rc = http_request(execution, object, "DELETE", token, NULL, 0,
+        &response);
+    int ok = rc == 0 && response.status >= 200 && response.status < 300;
+
+    if (rc == 0) brix_http_resp_free(&response);
+    return ok;
+}
+
+static mutation_observation
+observe_mutation(xrd_conform_execution *execution, const char *root,
+    const brix_weburl *http_object, const brix_weburl *s3_object,
+    int xpr_ready, const uint8_t *payload, size_t length, const char *token)
+{
+    mutation_observation observed = { 0, 0, 0, 0, 0, 0, 0 };
+
+    observed.put_ok = put_http_object(execution, http_object, token, payload,
+        length);
+    if (observed.put_ok) {
+        observed.root_ok = root_stat_size(execution, root, length, 0);
+        observed.http_bytes_ok = object_bytes(execution, http_object, payload,
+            length, 0);
+        if (xpr_ready) {
+            observed.list_ok = s3_listed(execution, s3_object);
+            observed.s3_bytes_ok = object_bytes(execution, s3_object, payload,
+                length, 0);
+        }
+    }
+    observed.common_cleanup_ok = delete_http_object(execution, http_object,
+        token) && root_stat_size(execution, root, 0, 1);
+    if (xpr_ready)
+        observed.xpr_cleanup_ok = observed.common_cleanup_ok
+            && object_bytes(execution, s3_object, payload, length, 1);
+    return observed;
+}
+
+static void
+grade_http_mutation(xrd_conform_execution *execution,
+    const mutation_observation *observed)
+{
+    char received[128];
+    int pass = observed->put_ok && observed->http_bytes_ok
+        && observed->root_ok && observed->common_cleanup_ok;
+
+    snprintf(received, sizeof(received),
+        "put=%d http-bytes=%d root-size=%d cleanup=%d",
+        observed->put_ok, observed->http_bytes_ok, observed->root_ok,
+        observed->common_cleanup_ok);
+    xrd_conform_result_set(execution, "HTC-001",
+        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
+             : BRIX_CONFORM_VERDICT_DIVERGENT,
+        pass ? "http-create-visible-byte-exactly-through-root"
+             : "http-create-readback-or-cleanup-mismatch",
+        "HTTP PUT reads back byte-exactly over HTTP and at exact ROOT size",
+        received);
+}
+
+static void
+grade_xpr_mutation(xrd_conform_execution *execution,
+    const mutation_observation *observed)
+{
+    char received[128];
+    int pass = observed->put_ok && observed->root_ok && observed->list_ok
+        && observed->s3_bytes_ok && observed->xpr_cleanup_ok;
+
+    snprintf(received, sizeof(received),
+        "put=%d root-size=%d s3-list=%d s3-bytes=%d cleanup=%d",
+        observed->put_ok, observed->root_ok, observed->list_ok,
+        observed->s3_bytes_ok, observed->xpr_cleanup_ok);
+    xrd_conform_result_set(execution, "XPR-009",
+        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
+             : BRIX_CONFORM_VERDICT_DIVERGENT,
+        pass ? "cross-plane-mutation-agreement"
+             : "cross-plane-mutation-or-cleanup-mismatch",
+        "HTTP PUT visible at ROOT stat and S3 list/GET, then absent everywhere",
+        received);
+}
+
+static int
+prepare_mutation_urls(xrd_conform_execution *execution, const char *root,
+    const char *http, const char *s3, brix_weburl *http_object,
+    brix_weburl *s3_object, int *xpr_ready)
+{
+    *xpr_ready = 0;
+    if (root == NULL || http == NULL
+        || scratch_weburl(execution, http, http_object) != 0
+        || http_object->is_s3) return -1;
+    if (s3 != NULL && scratch_weburl(execution, s3, s3_object) == 0
+        && s3_object->is_s3) *xpr_ready = 1;
+    return 0;
+}
+
 void
 xrd_conform_probe_mutation_fixtures(xrd_conform_execution *execution)
 {
@@ -129,87 +254,26 @@ xrd_conform_probe_mutation_fixtures(xrd_conform_execution *execution)
     const char *s3 = fixture_target(execution->run, "s3");
     brix_weburl http_object;
     brix_weburl s3_object;
-    brix_http_resp response;
     uint8_t payload[XPR_MUTATION_SIZE];
-    char *token = NULL;
-    int put_ok = 0;
-    int root_ok = 0;
-    int http_bytes_ok = 0;
-    int list_ok = 0;
-    int bytes_ok = 0;
-    int common_cleanup_ok = 0;
-    int xpr_cleanup_ok = 0;
+    char *token;
     int xpr_active;
     int htc_active;
     int xpr_ready = 0;
-    char received[128];
+    mutation_observation observed;
 
-    xpr_active = xpr_row != NULL
-        && xpr_row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-    htc_active = htc_row != NULL
-        && htc_row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
+    xpr_active = result_active(xpr_row);
+    htc_active = result_active(htc_row);
     if ((!xpr_active && !htc_active)
         || execution->run->mutation_fixture_count == 0) return;
-    if (root == NULL || http == NULL
-        || scratch_weburl(execution, http, &http_object) != 0
-        || http_object.is_s3) return;
-    if (s3 != NULL && scratch_weburl(execution, s3, &s3_object) == 0
-        && s3_object.is_s3) xpr_ready = 1;
+    if (prepare_mutation_urls(execution, root, http, s3, &http_object,
+            &s3_object, &xpr_ready) != 0) return;
     if (xpr_active && !xpr_ready && !htc_active) return;
     brix_conform_fill(&execution->run->key, 0, payload, sizeof(payload));
     token = brix_token_discover();
-    if (http_request(execution, &http_object, "PUT", token, payload,
-            sizeof(payload), &response) == 0) {
-        put_ok = response.status >= 200 && response.status < 300;
-        brix_http_resp_free(&response);
-    }
-    if (put_ok) {
-        root_ok = root_stat_size(execution, root, sizeof(payload), 0);
-        http_bytes_ok = object_bytes(execution, &http_object, payload,
-            sizeof(payload), 0);
-        if (xpr_ready) {
-            list_ok = s3_listed(execution, &s3_object);
-            bytes_ok = object_bytes(execution, &s3_object, payload,
-                sizeof(payload), 0);
-        }
-    }
-    if (http_request(execution, &http_object, "DELETE", token, NULL, 0,
-            &response) == 0) {
-        common_cleanup_ok = response.status >= 200 && response.status < 300;
-        brix_http_resp_free(&response);
-    }
-    common_cleanup_ok = common_cleanup_ok
-        && root_stat_size(execution, root, 0, 1);
-    if (xpr_ready)
-        xpr_cleanup_ok = common_cleanup_ok
-            && object_bytes(execution, &s3_object, payload,
-                sizeof(payload), 1);
+    observed = observe_mutation(execution, root, &http_object, &s3_object,
+        xpr_ready, payload, sizeof(payload), token);
     free(token);
-    if (htc_active) {
-        snprintf(received, sizeof(received),
-            "put=%d http-bytes=%d root-size=%d cleanup=%d",
-            put_ok, http_bytes_ok, root_ok, common_cleanup_ok);
-        xrd_conform_result_set(execution, "HTC-001",
-            put_ok && http_bytes_ok && root_ok && common_cleanup_ok
-                ? BRIX_CONFORM_VERDICT_CONFORMANT
-                : BRIX_CONFORM_VERDICT_DIVERGENT,
-            put_ok && http_bytes_ok && root_ok && common_cleanup_ok
-                ? "http-create-visible-byte-exactly-through-root"
-                : "http-create-readback-or-cleanup-mismatch",
-            "HTTP PUT reads back byte-exactly over HTTP and at exact ROOT size",
-            received);
-    }
+    if (htc_active) grade_http_mutation(execution, &observed);
     if (!xpr_active || !xpr_ready) return;
-    snprintf(received, sizeof(received),
-        "put=%d root-size=%d s3-list=%d s3-bytes=%d cleanup=%d",
-        put_ok, root_ok, list_ok, bytes_ok, xpr_cleanup_ok);
-    xrd_conform_result_set(execution, "XPR-009",
-        put_ok && root_ok && list_ok && bytes_ok && xpr_cleanup_ok
-            ? BRIX_CONFORM_VERDICT_CONFORMANT
-            : BRIX_CONFORM_VERDICT_DIVERGENT,
-        put_ok && root_ok && list_ok && bytes_ok && xpr_cleanup_ok
-            ? "cross-plane-mutation-agreement"
-            : "cross-plane-mutation-or-cleanup-mismatch",
-        "HTTP PUT visible at ROOT stat and S3 list/GET, then absent everywhere",
-        received);
+    grade_xpr_mutation(execution, &observed);
 }

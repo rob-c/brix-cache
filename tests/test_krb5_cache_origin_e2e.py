@@ -58,8 +58,14 @@ from settings import (
     url_host,
 )
 from lib_py.util import linked_libraries
+from lib_py.reference_host import (
+    reference_listener_args, reference_listener_ready, reference_transport_directives,
+)
+from stock_xrootd_owner import stock_krb5_layout
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
+              # Setup permits a 180s native build, then a bounded KDC/origin boot.
+              pytest.mark.timeout(300),
               pytest.mark.xdist_group("lc-krb5-cache-origin")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -83,20 +89,12 @@ PROBE_TEXT = b"krb5-cache-origin-ok\n"
 # --------------------------------------------------------------------------
 
 def _find_seclib():
-    for d in ("/usr/lib64", "/usr/lib/x86_64-linux-gnu", "/usr/lib"):
-        for name in ("libXrdSec-5.so", "libXrdSec.so"):
-            p = os.path.join(d, name)
-            if os.path.exists(p):
-                return p
-    return None
+    layout = stock_krb5_layout()
+    return str(layout[0]) if layout is not None else None
 
 
 def _krb5_plugin_present():
-    for d in ("/usr/lib64", "/usr/lib/x86_64-linux-gnu", "/usr/lib"):
-        if any(os.path.exists(os.path.join(d, n))
-               for n in ("libXrdSeckrb5-5.so", "libXrdSeckrb5.so")):
-            return True
-    return False
+    return stock_krb5_layout() is not None
 
 
 def _client_has_krb5():
@@ -134,6 +132,7 @@ def _start_origin(tmp_path):
     """Launch a stock xrootd krb5-only origin serving PROBE_TEXT + a random blob.
     Returns (popen, port, log_path, data_dir, short_dir).  The caller reaps it."""
     xrootd = shutil.which("xrootd")
+    seclib = _find_seclib()
     data = tmp_path / "origin-data"
     data.mkdir()
     (data / "probe.txt").write_bytes(PROBE_TEXT)
@@ -160,8 +159,9 @@ all.adminpath {admin}
 all.pidpath {run}
 xrd.sched mint 1 maxt 4 avlt 1
 xrd.trace off
-xrootd.seclib {_find_seclib()}
-sec.protocol krb5 {KRB5_SERVICE_PRINCIPAL}
+{reference_transport_directives()}
+xrootd.seclib {seclib}
+sec.protocol {os.path.dirname(seclib)} krb5 {KRB5_SERVICE_PRINCIPAL}
 sec.protbind * krb5
 """, encoding="utf-8")
     log_path = logs / "xrootd.log"
@@ -171,7 +171,7 @@ sec.protbind * krb5
     env["KRB5_CONFIG"] = KRB5_CONF        # ... from the isolated session realm
 
     srv = subprocess.Popen(
-        [xrootd, "-c", str(cfg), "-l", str(log_path)],
+        [xrootd, *reference_listener_args(HOST), "-c", str(cfg), "-l", str(log_path)],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         start_new_session=True, env=env)
     return srv, port, log_path, data, short
@@ -209,10 +209,15 @@ def _origin_log_tail(path):
 
 def _start_ready_origin(tmp_path):
     server, port, log, _data, short = _start_origin(tmp_path)
-    if not _wait_port(HOST, port, time.time() + 20):
-        pytest.skip(
-            f"reference xrootd origin did not come up:\n{_origin_log_tail(log)}")
-    return server, port, log, short
+    try:
+        if not reference_listener_ready(server, HOST, port, timeout=20):
+            pytest.fail(
+                f"installed reference origin did not become ready:\n{_origin_log_tail(log)}")
+        return server, port, log, short
+    except BaseException:
+        _stop_origin(server)
+        shutil.rmtree(short)
+        raise
 
 
 def _start_delegating_cache(lifecycle, tmp_path, origin_port):
@@ -250,6 +255,7 @@ def _stop_origin(server):
         os.killpg(os.getpgid(server.pid), 9)
     except OSError:
         pass
+    server.wait(timeout=10)
 
 
 def _cleanup_cache_origin(server, short):

@@ -90,20 +90,29 @@ class TestWriteEdgeCases:
         sock.close()
         assert status == kXR_ok
 
-    def test_write_offset_overflow(self):
+    @pytest.mark.parametrize('offset', [0x7FFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFE, -1])
+    def test_write_offset_overflow(self, offset):
         path = "/write_ovf.txt"
         _make_file(path, b"x")
         sock = _session()
         status, body = _open(sock,path, kXR_open_updt)
         assert status == kXR_ok
         fh = body[:4]
-        # offset = 0x7FFFFFFFFFFFFFFF (max positive int64)
+        # Primary pathid and reserved bytes are zero; dlen alone carries length.
         req = struct.pack("!2sH4sqiI", b"\x00\x03", kXR_write,
-                          fh, 0x7FFFFFFFFFFFFFFF, 3, 3)
-        sock.sendall(req + b"AAA")
-        status, body2 = _read_response(sock)
-        sock.close()
-        assert status in (kXR_ok, kXR_error)
+                          fh, offset, 0, 3)
+        try:
+            sock.sendall(req + b"AAA")
+            status, body2 = _read_response(sock)
+            assert status == kXR_error
+            assert struct.unpack('!I', body2[:4])[0] == kXR_ArgInvalid
+            assert _read_file(path) == b'x'
+            # The same TCP session and handle must survive, not a respawned worker.
+            status, _ = _sync(sock, fh)
+            assert status == kXR_ok
+            _close(sock, fh)
+        finally:
+            sock.close()
 
 
 # =========================================================================

@@ -16,6 +16,32 @@
 #include "fs/vfs/vfs_io_core.h"  /* brix_vfs_effective_obj — POSIX-wrap or driver obj */
 #include "protocols/root/session/registry.h" /* §1.2 pathid validation (bound-path bitmap) */
 
+static ngx_int_t
+brix_pgread_validate_pathid(brix_ctx_t *ctx, ngx_connection_t *c,
+    brix_pgread_run_t *run, ngx_int_t *rc)
+{
+    if (ctx->recv.cur_dlen < 1 || ctx->recv.payload == NULL) {
+        return 1;
+    }
+
+    run->pathid = (unsigned) ((u_char *) ctx->recv.payload)[0];
+    run->reqflags = ctx->recv.cur_dlen >= 2
+                    ? (unsigned) ((u_char *) ctx->recv.payload)[1] : 0;
+    if (run->pathid == 0 || run->pathid == kXR_AnyPath) {
+        return 1;
+    }
+    if (brix_session_pathid_bound(ctx->is_bound ? ctx->bound_sessid
+                                                 : ctx->login.sessid,
+                                  run->pathid))
+    {
+        return 1;
+    }
+
+    BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
+    *rc = brix_send_error(ctx, c, kXR_ArgInvalid, "invalid path ID");
+    return 0;
+}
+
 /*
  * brix_pgread_parse_validate - decode the request and run all early checks.
  *
@@ -37,7 +63,6 @@ brix_pgread_parse_validate(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_pgread_run_t *run, ngx_int_t *rc)
 {
     xrdw_pgread_req_t             req;
-    ServerStatusResponse_pgRead  *hdr_buf;
 
     xrdw_pgread_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     run->idx = (int) (unsigned char) req.fhandle[0];
@@ -54,20 +79,8 @@ brix_pgread_parse_validate(brix_ctx_t *ctx, ngx_connection_t *c,
      * The response itself still travels the control stream — response
      * offloading over the bound path is the audit's §1.1 gap, all opcodes
      * alike. */
-    if (ctx->recv.cur_dlen >= 1 && ctx->recv.payload != NULL) {
-        run->pathid   = (unsigned) ((u_char *) ctx->recv.payload)[0];
-        run->reqflags = (ctx->recv.cur_dlen >= 2)
-                        ? (unsigned) ((u_char *) ctx->recv.payload)[1] : 0;
-        if (run->pathid != 0 && run->pathid != kXR_AnyPath
-            && !brix_session_pathid_bound(ctx->is_bound ? ctx->bound_sessid
-                                                          : ctx->login.sessid,
-                                            run->pathid))
-        {
-            BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
-            *rc = brix_send_error(ctx, c, kXR_ArgInvalid,
-                                    "invalid path ID");
-            return 0;
-        }
+    if (!brix_pgread_validate_pathid(ctx, c, run, rc)) {
+        return 0;
     }
 
     if (!brix_validate_read_handle(ctx, c, run->idx, "PGREAD",
@@ -93,15 +106,7 @@ brix_pgread_parse_validate(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (run->rlen == 0) {
-        hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));
-        if (hdr_buf == NULL) {
-            *rc = NGX_ERROR;
-            return 0;
-        }
-        brix_build_pgread_status(ctx, run->offset, 0, hdr_buf);
-        BRIX_OP_OK(ctx, BRIX_OP_PGREAD);
-        *rc = brix_queue_response(ctx, c, (u_char *) hdr_buf,
-                                    sizeof(*hdr_buf));
+        *rc = brix_send_empty_pgread(ctx, c, run->offset, 0);
         return 0;
     }
 
@@ -116,15 +121,7 @@ brix_pgread_parse_validate(brix_ctx_t *ctx, ngx_connection_t *c,
      * generic I/O-error path would incorrectly switch the wire family to
      * kXR_error, violating the pgread framing invariant. */
     if ((uint64_t) run->offset > (uint64_t) INT64_MAX - run->rlen) {
-        hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));
-        if (hdr_buf == NULL) {
-            *rc = NGX_ERROR;
-            return 0;
-        }
-        brix_build_pgread_status(ctx, run->offset, 0, hdr_buf);
-        BRIX_OP_OK(ctx, BRIX_OP_PGREAD);
-        *rc = brix_queue_response(ctx, c, (u_char *) hdr_buf,
-                                  sizeof(*hdr_buf));
+        *rc = brix_send_empty_pgread(ctx, c, run->offset, 0);
         return 0;
     }
 

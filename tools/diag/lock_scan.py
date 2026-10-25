@@ -32,6 +32,7 @@ from tools.logging_support import diagnostic as _brix_diagnostic
 import argparse
 import ctypes
 import ctypes.util
+import errno
 import os
 import sys
 import time
@@ -45,13 +46,32 @@ EXPIRED = "expired"                   # sentinel: a decoded record already lapse
 def _getxattr(path, name):
     """Read one xattr with the host API Python exposes.
 
-    CPython exposes ``os.getxattr`` on Linux but not Darwin.  Keep this
-    operator tool standalone by using Darwin's libc entry point when needed.
+    CPython exposes ``os.getxattr`` on Linux, not the BSDs. FreeBSD's native
+    py-xattr package uses its user namespace without the Linux ``user.``
+    prefix; Darwin has the six-argument libc ABI.
     """
     if hasattr(os, "getxattr"):
         return os.getxattr(path, name, follow_symlinks=False)
+    if sys.platform.startswith('freebsd'):
+        return _freebsd_getxattr(path, name)
     if sys.platform != "darwin":
-        raise OSError("extended attributes are unavailable")
+        raise OSError(errno.ENOTSUP, "extended attributes are unavailable")
+    return _darwin_getxattr(path, name)
+
+
+def _freebsd_getxattr(path, name):
+    """Use the existing native package; never fabricate an empty inventory."""
+    try:
+        import xattr
+    except ImportError as error:
+        raise OSError(errno.ENOTSUP, 'install the native FreeBSD py-xattr package') from error
+    if not name.startswith('user.'):
+        raise OSError(errno.ENOTSUP, 'only the user attribute namespace is supported')
+    return xattr.getxattr(path, name[5:], symlink=True)
+
+
+def _darwin_getxattr(path, name):
+    """Read the link's own attribute through Darwin's no-follow ABI."""
     libc = ctypes.CDLL(ctypes.util.find_library("c") or "/usr/lib/libc.dylib",
                        use_errno=True)
     libc.getxattr.restype = ctypes.c_ssize_t
@@ -99,8 +119,10 @@ def probe(path, now):
     """One path's lock state: a live record, the EXPIRED sentinel, or None."""
     try:
         raw = _getxattr(path, LOCK_XATTR)
-    except OSError:
-        return None                   # absent, unsupported, or unreadable
+    except OSError as error:
+        if error.errno in (getattr(errno, 'ENODATA', -1), getattr(errno, 'ENOATTR', -1)):
+            return None
+        raise                         # unreadable does not mean unlocked
     rec = decode(raw)
     if rec is None:
         return None
@@ -111,9 +133,14 @@ def _walk(root):
     """Every path under root, root itself first — a Depth: infinity collection
     lock on the export root covers everything beneath it."""
     yield root
-    for dirpath, dirnames, filenames in os.walk(root):
+    for dirpath, dirnames, filenames in os.walk(root, onerror=_walk_error):
         for name in dirnames + filenames:
             yield os.path.join(dirpath, name)
+
+
+def _walk_error(error):
+    """An unreadable subtree must not disappear from a pre-upgrade inventory."""
+    raise error
 
 
 def scan_root(root, now):
@@ -183,7 +210,12 @@ def main(argv=None):
         return 2
 
     now = int(time.time())
-    return _report_total(sum(report_root(root, now) for root in roots))
+    try:
+        return _report_total(sum(report_root(root, now) for root in roots))
+    except OSError as error:
+        _brix_diagnostic('ERROR', 'tools/diag/lock_scan.py', 'inventory_incomplete',
+                         f'lock inventory incomplete: errno={error.errno}', file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

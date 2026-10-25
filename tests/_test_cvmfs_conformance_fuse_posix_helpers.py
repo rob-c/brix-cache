@@ -176,9 +176,34 @@ MUTATIONS = [
                          MUTATIONS, ids=[m[0] for m in MUTATIONS])
 
 def _proc_mounts_line(mnt):
+    if sys.platform.startswith('freebsd'):
+        import psutil
+
+        for entry in psutil.disk_partitions(all=True):
+            if entry.mountpoint == str(mnt):
+                return [entry.device, entry.mountpoint, entry.fstype, entry.opts]
+        return None
     with open("/proc/mounts") as f:
         for line in f:
             parts = line.split()
             if len(parts) >= 3 and parts[1] == mnt:
                 return parts
     return None
+
+
+def _freebsd_xattr_size_probe(path):
+    """Exercise native size probes and ERANGE, including FreeBSD list framing."""
+    get = libc.extattr_get_file
+    get.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p,
+                    ctypes.c_void_p, ctypes.c_size_t]
+    get.restype = ctypes.c_ssize_t
+    listing = libc.extattr_list_file
+    listing.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_size_t]
+    listing.restype = ctypes.c_ssize_t
+    assert get(path, 1, b'fqrn', None, 0) == len(REPO)
+    # Names exclude "user." and use one length byte instead of a NUL suffix.
+    assert listing(path, 1, None, 0) == sum(len(name) - 5 + 1 for name in XATTR_NAMES)
+    buffer = ctypes.create_string_buffer(2)
+    ctypes.set_errno(0)
+    assert get(path, 1, b'fqrn', buffer, 2) == -1
+    assert ctypes.get_errno() == errno.ERANGE

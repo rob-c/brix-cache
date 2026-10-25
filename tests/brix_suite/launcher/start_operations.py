@@ -451,6 +451,9 @@ def _prepare_nginx_permissions(launcher, spec, endpoint):
     from brix_suite.nginx_tools import _nginx_bin  # noqa: PLC0415
 
     worker = nginx_worker_user(endpoint.config, _nginx_bin())
+    from cmdscripts import prepare_conf_credentials_for_worker  # noqa: PLC0415
+
+    prepare_conf_credentials_for_worker(endpoint.config, endpoint.prefix, worker)
     _prepare_worker_paths(endpoint.config, worker)
     logs_dir = os.path.join(endpoint.prefix, "logs")
     if os.path.isdir(logs_dir):
@@ -490,8 +493,19 @@ def start_nginx(launcher, spec, namespace):
     if _dispatch_special(launcher, spec, namespace):
         return
     endpoint = launcher.render_nginx(spec)
+    from brix_suite.host_caps import configuration_unavailable_reason
+    config = Path(endpoint.config)
+    reason = configuration_unavailable_reason(config.read_text()) if config.is_file() else None
+    if reason:
+        pytest.skip(reason)
     _prepare_nginx_permissions(launcher, spec, endpoint)
     launcher.nginx_test(spec)
+    # Recheck immediately before the real fork.  The config test is a separate
+    # root nginx process and the pytest temp-tree owner/mode can change while it
+    # runs (notably under xdist when sibling fixtures are being created).  A
+    # worker that inherits the listeners but cannot traverse its export leaves
+    # clients connected to the master with no process able to answer them.
+    _prepare_nginx_permissions(launcher, spec, endpoint)
     _launch_nginx(launcher, spec, endpoint, namespace)
     launcher._wait_ready(endpoint.host, endpoint.port, spec.readiness)
     launcher._owned.append(spec)
@@ -554,6 +568,11 @@ def _render_xrootd_config(spec, path, values, namespace):
         strict=namespace["REGISTRY_STRICT_TEMPLATES"],
         **values,
     )
+    from lib_py.reference_host import reference_transport_directives
+    transport = reference_transport_directives()
+    if transport:
+        with path.open('a', encoding='utf-8') as config:
+            config.write('\n' + transport)
 
 
 def _process_environment(extra):
@@ -563,8 +582,11 @@ def _process_environment(extra):
     return environment
 
 
-def _xrootd_argv(launcher, binary, config, log_path):
+def _xrootd_argv(launcher, binary, config, log_path, host):
+    from lib_py.reference_host import reference_listener_args
+
     argv = [binary, "-c", str(config), "-l", str(log_path)]
+    argv.extend(reference_listener_args(host))
     run_as = launcher._xrootd_runas_user(
         config.read_text(encoding="utf-8"), str(log_path)
     )
@@ -602,7 +624,7 @@ def start_xrootd(launcher, spec, namespace):
     config = paths["prefix"] / "conf" / "xrootd.cfg"
     _render_xrootd_config(spec, config, values, namespace)
     log_path = paths["logs"] / "xrootd.log"
-    argv = _xrootd_argv(launcher, binary, config, log_path)
+    argv = _xrootd_argv(launcher, binary, config, log_path, endpoint.host)
     process = _spawn_xrootd(argv, _process_environment(spec.env))
     _track_xrootd(launcher, spec, endpoint, process)
 
@@ -643,6 +665,6 @@ def start_xrdhttp(launcher, spec, namespace):
     config = paths["prefix"] / "conf" / "xrdhttp.cfg"
     _render_xrootd_config(spec, config, values, namespace)
     log_path = paths["logs"] / "xrdhttp.log"
-    argv = _xrootd_argv(launcher, binary, config, log_path)
+    argv = _xrootd_argv(launcher, binary, config, log_path, endpoint.host)
     process = _spawn_xrootd(argv, _process_environment(spec.env))
     _track_xrootd(launcher, spec, endpoint, process)

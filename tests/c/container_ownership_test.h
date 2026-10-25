@@ -60,9 +60,17 @@ ownership_realloc(void *allocation, size_t size)
     return ownership_fails("realloc") ? NULL : realloc(allocation, size);
 }
 
+static inline void *
+ownership_ngx_alloc(size_t size, ngx_log_t *log)
+{
+    (void) log;
+    return ownership_fails("ngx_alloc") ? NULL : malloc(size);
+}
+
 #define strdup ownership_strdup
 #define strndup ownership_strndup
 #define realloc ownership_realloc
+#define ngx_alloc ownership_ngx_alloc
 
 int
 main(int argc, char **argv)

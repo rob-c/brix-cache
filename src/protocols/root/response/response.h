@@ -81,6 +81,8 @@ void brix_build_pgread_status_sid(const u_char sid[2], int64_t file_offset,
     ServerStatusResponse_pgRead *out);
 void brix_build_pgread_status(brix_ctx_t *ctx, int64_t file_offset,
     uint32_t total_with_crcs, ServerStatusResponse_pgRead *out);
+ngx_int_t brix_send_empty_pgread(brix_ctx_t *ctx, ngx_connection_t *c,
+    int64_t file_offset, ngx_flag_t pipelinable);
 
 /* CRC32c checksum (software table implementation). */
 uint32_t brix_crc32c(const void *buf, size_t len);

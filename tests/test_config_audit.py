@@ -84,6 +84,8 @@ def anon(lifecycle, doctor, tmp_path_factory):
     data = tmp_path_factory.mktemp("cfgaudit") / "data"
     data.mkdir()
     (data / "probe.bin").write_bytes(os.urandom(64 * 1024))
+    from official_interop_lib import worker_reachable
+    worker_reachable(data)
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-cfgaudit-anon",
         template="nginx_xrddiag_remote_doctor_stream.conf",

@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from lib_py.reference_host import reference_platform
 
 
 def bare(name):
@@ -325,8 +326,7 @@ def test_bindings_binary_empty_value_roundtrip(srv, name, value):
 @needs_bindings
 @pytest.mark.parametrize("nlen", LONG_NAME_LENS)
 def test_bindings_long_name_parity(srv, nlen):
-    """Long attribute names (up to ~faMaxNlen 248) -> set/get accept-or-reject
-    parity, and value round-trip parity when accepted."""
+    """Legal wire names round-trip; the reference may hit Darwin's native limit."""
     rel = _scratch(srv)
     name = "user." + ("z" * max(1, nlen - len("user.")))
     value = "longname-val"
@@ -334,12 +334,24 @@ def test_bindings_long_name_parity(srv, nlen):
     f_sst, f_smap = _set(srv["off"], rel, [(name, value)])
     raw = (f"\n  OURS  set ok={o_sst.ok} per={_sok(o_smap.get(name))}"
            f"\n  STOCK set ok={f_sst.ok} per={_sok(f_smap.get(name))}")
+    assert o_sst.ok and _sok(o_smap.get(name)), f"legal wire name was rejected:{raw}"
+    _, o_gmap = _get(srv["our"], rel, [name])
+    assert _as_text(o_gmap.get(name, (None,))[0]) == value, \
+        f"portable long-name value did not round-trip:{raw}"
+    if _reference_native_name_limit(nlen, f_smap.get(name), reference_platform()):
+        assert f_sst.ok, f"reference request failed outside its per-attribute limit:{raw}"
+        return
     assert _sok(o_smap.get(name)) == _sok(f_smap.get(name)), \
         f"long-name (len {nlen}) set per-attr status differs:{raw}"
     if not _sok(f_smap.get(name)):
         return
-    _, o_gmap = _get(srv["our"], rel, [name])
     _, f_gmap = _get(srv["off"], rel, [name])
     assert _as_text(o_gmap.get(name, (None,))[0]) == value == \
         _as_text(f_gmap.get(name, (None,))[0]), \
         f"long-name (len {nlen}) value differs:{raw}"
+
+
+def _reference_native_name_limit(length, status, host):
+    """Only the confirmed native Darwin overlong-name verdict is an exception."""
+    return (host == "darwin" and length > 127 and not _sok(status)
+            and _serrno(status) == 3002)

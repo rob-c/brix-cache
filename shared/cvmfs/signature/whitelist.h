@@ -16,15 +16,16 @@
 typedef struct {
     long                 expiry_utc;             /* epoch seconds */
     char                 repo_name[256];         /* 'N' line fqrn, NUL-term ("" if absent) */
-    char                 fingerprints[16][60];   /* "AA:BB:...", NUL-term */
-    size_t               n_fingerprints;
+    char                 fingerprints[16][60];   /* inline cache, not the membership limit */
+    size_t               n_fingerprints;         /* number of inline cached entries */
     const unsigned char *signed_body;      size_t signed_body_len;   /* thru "--\n" */
     cvmfs_hash_t         signed_hash;      /* hash line after "--", parsed */
     const unsigned char *signed_hash_text; size_t signed_hash_text_len; /* RSA-signed */
     const unsigned char *signature;        size_t signature_len;
 } cvmfs_whitelist_t;
 
-/* Parse `buf`/`len`. Returns 0 and fills *out, or -1 on malformed input. */
+/* Parse `buf`/`len`. Returns 0 and fills *out, or -1 on malformed input.
+ * The caller retains buf through all verification and membership operations. */
 int cvmfs_whitelist_parse(const unsigned char *buf, size_t len, cvmfs_whitelist_t *out);
 
 /* 1 if `fp_hex` ("AA:BB:...") is in the whitelist (case-insensitive). */

@@ -47,12 +47,12 @@ class TestSupervisorValidOps:
         # status provoked by the update.
         assert super_stack.wait_for_code(CMS_RR_STATUS, timeout=20.0) \
             is not None, "supervisor never sent its login-time kYR_status"
-        super_stack.send_to_node(0x61E00002, CMS_RR_UPDATE, 0)
-        assert super_stack.collect_reply(CMS_RR_STATUS, timeout=2.5) is None, \
+        before = super_stack.send_to_node(0x61E00002, CMS_RR_UPDATE, 0)
+        assert super_stack.collect_reply(CMS_RR_STATUS, timeout=2.5, after=before) is None, \
             "supVOps must drop kYR_update on a supervisor"
         ping_sid = 0x61E00003
-        super_stack.send_to_node(ping_sid, CMS_RR_PING, 0)
-        alive = super_stack.collect_reply(CMS_RR_PONG, timeout=8.0)
+        before = super_stack.send_to_node(ping_sid, CMS_RR_PING, 0)
+        alive = super_stack.collect_reply(CMS_RR_PONG, timeout=8.0, after=before)
         assert alive is not None and alive[0] == ping_sid, \
             "connection must survive a dropped invalid op"
 

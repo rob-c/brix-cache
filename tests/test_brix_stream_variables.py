@@ -48,6 +48,10 @@ import pytest
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN
+from stream_log_observation import (
+    _brix_access_json, _fields, _latest_uniform_checksum, _log_lines,
+    _uniform_lines, _wait_for_transfer_line, _wait_uniform_op,
+)
 
 pytestmark = [pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness,
@@ -81,13 +85,6 @@ def node(tmp_path_factory):
         yield inst
     finally:
         harness.close()
-
-
-def _log_lines(inst):
-    log = Path(inst.prefix) / "logs" / "brixsess.log"
-    if not log.exists():
-        return []
-    return [ln for ln in log.read_text(errors="replace").splitlines() if ln.strip()]
 
 
 def _xrdcp_get(inst, dest: Path, name: str = "probe.bin") -> int:
@@ -149,47 +146,25 @@ def test_root_session_is_logged_through_nginx_stream_access_log(node, tmp_path):
     failure worth catching.
     """
     dest = tmp_path / "out.bin"
+    before = len(_log_lines(node))
     rc = _xrdcp_get(node, dest)
     assert rc == 0, "xrdcp GET failed"
     assert dest.read_bytes() == PAYLOAD
 
-    lines = _log_lines(node)
-    assert lines, "no stream access-log line was written"
-    fields = dict(re.findall(r"(\w+)=(\S+)", lines[-1]))
+    line = _wait_for_transfer_line(node, before)
+    assert line, "no new transferred-byte session access-log line was written"
+    fields = _fields(line)
 
-    assert fields.get("proto") == "root", lines[-1]
-    assert fields.get("tls") == "off", lines[-1]
+    assert fields.get("proto") == "root", line
+    assert fields.get("tls") == "off", line
     # Anonymous export: login completes, so auth is "none" — not the "-"
     # sentinel, which would mean brix never ran.
-    assert fields.get("auth") in {"none", "gsi", "token"}, lines[-1]
+    assert fields.get("auth") in {"none", "gsi", "token"}, line
     # The transfer really moved bytes; the counter must show it.
     out = fields.get("out", "-")
     assert out.isdigit() and int(out) >= len(PAYLOAD), (
         f"bytes_out={out!r} does not reflect the {len(PAYLOAD)}-byte transfer: "
-        f"{lines[-1]}")
-
-
-import json as _json
-
-
-def _brix_access_json(inst):
-    log = Path(inst.prefix) / "logs" / "error.log"
-    if not log.exists():
-        return []
-    out = []
-    for ln in log.read_text(errors="replace").splitlines():
-        i = ln.find("brix_access_json: ")
-        if i == -1:
-            continue
-        s = ln[i + len("brix_access_json: "):]
-        j = s.find("}")          # nginx appends ", client: ..., server: ..."
-        if j == -1:
-            continue
-        try:
-            out.append(_json.loads(s[:j + 1]))
-        except ValueError:
-            pass
-    return out
+        f"{line}")
 
 
 def _access_json_records(inst, timeout=2.0):
@@ -223,8 +198,7 @@ def test_json_access_log_records_the_client_address(node, tmp_path):
     remotes = _access_json_remotes(node)
     if remotes is None:
         pytest.skip("brix xrdfs not built")
-    if not remotes:
-        pytest.skip("no brix_access_json line carried a remote for this op set")
+    assert remotes, "no brix_access_json line carried a remote for this op set"
     assert remotes[-1].startswith(("127.0.0.1", "::1")), remotes[-1]  # net-literal-allow: expected loopback address recorded by the test server
 
 
@@ -259,23 +233,9 @@ def test_phase_112_access_json_carries_each_fact_exactly_once(node):
     recs = _access_json_records(node)
     if recs is None:
         pytest.skip("brix xrdfs not built")
-    if not recs:
-        pytest.skip("no brix_access_json record was produced for this op set")
+    assert recs, "no brix_access_json record was produced for this op set"
     for rec in recs:
         _assert_phase_112_json_shape(rec)
-
-
-def _uniform_lines(inst):
-    log = Path(inst.prefix) / "logs" / "brixuniform.log"
-    if not log.exists():
-        return []
-    return [ln for ln in log.read_text(errors="replace").splitlines()
-            if ln.strip()]
-
-
-def _fields(line):
-    """Parse one `k=v k=v` log line into a dict."""
-    return dict(re.findall(r"(\w+)=(\S+)", line))
 
 
 def _uniform_op_fields(inst, op):
@@ -305,41 +265,18 @@ def _require_wire_checksum(inst):
     return toks[0].lower(), toks[-1].lower()
 
 
-def _latest_uniform_checksum(inst):
-    """The ck= field of the most recent uniform line that carried one, or None."""
-    for ln in reversed(_uniform_lines(inst)):
-        fields = dict(re.findall(r"(\w+)=(\S+)", ln))
-        if fields.get("ck", "-") != "-":
-            return fields["ck"]
-    return None
-
-
 def test_checksum_resolves_on_the_stream_plane(node):
     """(success, phase-110 W3) $brix_checksum on root:// — the plane that
     actually computes file digests. A `xrdfs query checksum` (kXR_Qcksum) makes
     brix report a digest; the session's $brix_checksum logs it as "alg:hex"
     (INVARIANT #9, algorithm-tagged) and its hex equals the value brix returned
     on the wire. Skips cleanly if the harness cannot compute a checksum."""
+    before = len(_uniform_lines(node))
     algo, wire_hex = _require_wire_checksum(node)
-
-    _wait_for_new_line(node, 0)          # the query session logged at close
-    ck = _latest_uniform_checksum(node)
+    ck = _latest_uniform_checksum(node, before)
     assert ck is not None, "no uniform line reported a checksum after the query"
     assert ck == f"{algo}:{wire_hex}", (
         f"$brix_checksum {ck!r} != the wire digest {algo}:{wire_hex}")
-
-
-def _wait_uniform_op(inst, op, timeout=15.0):
-    """The last uniform log line whose op== `op`, once the session-close write
-    lands (other cells' sessions write their own lines), or None."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        reads = [ln for ln in _uniform_lines(inst)
-                 if dict(re.findall(r"(\w+)=(\S+)", ln)).get("op") == op]
-        if reads:
-            return reads[-1]
-        time.sleep(0.25)
-    return None
 
 
 def test_uniform_names_resolve_on_the_stream_plane(node, tmp_path):
@@ -352,12 +289,13 @@ def test_uniform_names_resolve_on_the_stream_plane(node, tmp_path):
     $brix_op / $brix_status / $brix_tier / $brix_duration.
     """
     dest = tmp_path / "out2.bin"
+    before = len(_uniform_lines(node))
     rc = _xrdcp_get(node, dest)
     assert rc == 0, "xrdcp GET failed"
 
     # The session-close write lags and other cells' sessions write their own
     # lines, so select the READ line this transfer produced (helper waits).
-    last = _wait_uniform_op(node, "read")
+    last = _wait_uniform_op(node, "read", before=before)
     assert last is not None, "no uniform read line was written for the transfer"
     fields = dict(re.findall(r"(\w+)=(\S+)", last))
 
@@ -419,7 +357,7 @@ def test_metadata_op_serves_zero_bytes_with_its_own_outcome(node):
     """
     _xrdfs_stat(node, "/probe.bin")               # a hit
     _xrdfs_stat(node, "/does-not-exist.bin")      # a miss
-    miss = _wait_uniform_op(node, "stat")
+    miss = _wait_uniform_op(node, "stat", status="not_found")
     assert miss is not None, "no uniform stat line was written"
     fields = _fields(miss)
     assert fields.get("op") == "stat", miss

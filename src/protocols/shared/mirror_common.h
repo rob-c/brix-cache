@@ -35,6 +35,30 @@
 
 #include "core/config/shared_conf.h"
 
+/* WHAT: Bind one mirror directive to its enable flag, URL and typed handler.
+ * WHY: RPM/OCI share duplicate detection and deferred URL validation; neither
+ * setter may leave partially changed configuration after invalid input.
+ * HOW: Check arity and duplicate state before publishing the three fields.
+ */
+static ngx_inline char *
+brix_http_mirror_configure(ngx_conf_t *cf, ngx_http_core_loc_conf_t *location,
+    ngx_flag_t *enabled, ngx_str_t *url, ngx_http_handler_pt handler)
+{
+    ngx_str_t *values;
+
+    if (cf->args == NULL || cf->args->nelts != 2 || location == NULL) {
+        return NGX_CONF_ERROR;
+    }
+    if (*enabled != NGX_CONF_UNSET) {
+        return "is duplicate";
+    }
+    values = cf->args->elts;
+    *enabled = 1;
+    *url = values[1];
+    location->handler = handler;
+    return NGX_CONF_OK;
+}
+
 /* Compose <root><key> into `path`. A root of "/" is the pure-cache-node anchor
  * and contributes nothing, so the path IS the key. Returns NGX_OK, or
  * NGX_HTTP_REQUEST_URI_TOO_LARGE when the result would not fit `path_size`

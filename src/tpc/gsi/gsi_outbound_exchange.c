@@ -21,8 +21,6 @@
 #include <openssl/dh.h>
 #include <openssl/bn.h>
 #include <openssl/evp.h>
-#include <openssl/core_names.h>
-#include <openssl/param_build.h>
 
 /* File: gsi_outbound_exchange.c — GSI round-2 driver for native TPC pull
  * WHAT: tpc_outbound_gsi_exchange completes the outbound GSI handshake on a TPC

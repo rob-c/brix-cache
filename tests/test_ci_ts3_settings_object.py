@@ -119,9 +119,9 @@ def test_ledger_covers_every_named_port_and_keeps_the_alias():
     assert len(set(ports)) == len(ports)
 
 
-@pytest.mark.parametrize("port_start", [10000, 23000, 26000])
+@pytest.mark.parametrize("port_start", [2000, 6000, 10000])
 def test_lane_math_places_the_ladder_at_the_requested_base(port_start):
-    """Each lane's ports are its own base + the same offsets (F8)."""
+    """Legal lanes keep identical offsets, including the whole mock band."""
     probe = (
         "import json, settings\n"
         "print(json.dumps({'start': settings.TEST_PORT_START,"
@@ -138,6 +138,24 @@ def test_lane_math_places_the_ladder_at_the_requested_base(port_start):
     # offset of NGINX_ANON_PORT within the ladder is lane-independent
     assert got["anon"] - port_start == settings.NGINX_ANON_PORT - settings.TEST_PORT_START
     assert got["obj_anon"] == got["anon"], "object and module disagree in-lane"
+
+
+@pytest.mark.parametrize("port_start", [23000, 26000])
+def test_lane_math_does_not_authorize_a_mock_band_inside_ephemeral_ports(port_start):
+    """Previously legal named ports cannot hide colliding mock allocations."""
+    from port_ladder import PORT_COUNT, check_lane_clears_ephemeral_range
+    # This is a full-band contract even when the containing proof lane
+    # deliberately reserves fewer mock ports for its own execution.
+    full_span = PORT_COUNT + 16384
+    with pytest.raises(RuntimeError, match="ephemeral"):
+        check_lane_clears_ephemeral_range(port_start, full_span, (32768, 60999))
+
+
+@pytest.mark.parametrize('mock_width', [0, 128, 1024])
+def test_a_bounded_partial_lane_is_not_judged_as_a_full_mock_band(mock_width):
+    from port_ladder import PORT_COUNT, check_lane_clears_ephemeral_range
+
+    check_lane_clears_ephemeral_range(23000, PORT_COUNT + mock_width, (32768, 60999))
 
 
 def test_derive_moves_a_lane_without_touching_the_original():

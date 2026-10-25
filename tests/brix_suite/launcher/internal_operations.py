@@ -229,8 +229,14 @@ def _stop_external(spec):
 
 def _kill_port_processes(endpoint):
     from lib_py.util import pids_on_port
+    from brix_suite.orphans import find_orphans
+    from brix_suite.settings import TEST_ROOT
 
-    for pid in pids_on_port(int(endpoint.port)):
+    candidates = set(pids_on_port(int(endpoint.port)))
+    if not candidates:
+        return
+    owned = {pid for pid, command in find_orphans(TEST_ROOT)}
+    for pid in candidates & owned:
         try:
             os.kill(pid, signal.SIGKILL)
         except OSError:

@@ -2519,6 +2519,9 @@ through `X509_VERIFY_PARAM_set1_host`, which matches DNS names only — so the
 same peer, the same certificate and the same CA are accepted when the upstream
 is written as a name and refused when it is written as an address literal, even
 though the certificate carries the matching IP SAN (#104).
+Resolution update (2026-10-17): #104 is repaired by the shared typed DNS/IP
+verification helper. The updated wire tests require both spellings to succeed
+and still reject wrong-host peers; see [the native ABI validation record](../03-configuration/OPENSSL111.md).
 File 26 takes the WebDAV half of the same clustering header,
 `webdav/directives_net.h`, whose two mirror arm-gaps are both on the security
 side of the flag: `brix_mirror_strip_auth` is written `on` and never `off`, and
@@ -5076,6 +5079,11 @@ Eighty-one defect candidates, and the first one is why the tranche exists:
   `X509_VERIFY_PARAM_set1_ip_asc` when the host parses as an address, or refuse
   the combination at config time with a message naming
   `brix_upstream_tls_name`.
+  Resolution (2026-10-17): the historical #104 behavior above is fixed.
+  `auth/crypto/tls_compat.h` pins DNS and IP identities using their respective
+  native verification parameters, shared by server connectors and clients.
+  Live upstream verification passed on the OpenSSL 1.1.1 build, with mismatched
+  peers still refused. This does not resolve the separate #103 opt-out finding.
 - **DEFECT CANDIDATE #105 (correctness/observability — the HTTP mirror's
   divergence detector can never fire, so `brix_mirror_log_diverge` has no
   observable arm and `brix_mirror_divergence_total{surface="http"}` is frozen at

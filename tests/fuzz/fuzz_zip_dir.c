@@ -64,6 +64,7 @@
 
 /* Public header (already pulled in by zip_dir.c, but named here for clarity). */
 #include "../../src/protocols/root/zip/zip_dir.h"
+#include "platform/platform_api.h"
 
 /* ---- fuzzer entry point -------------------------------------------------- */
 
@@ -87,7 +88,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         return 0;
     }
 
-    fd = memfd_create("zipfuzz", 0);
+    fd = brix_plat_anon_fd("zipfuzz", NULL);
     if (fd < 0) {
         return 0;
     }

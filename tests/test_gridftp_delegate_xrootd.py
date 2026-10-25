@@ -37,10 +37,10 @@ Run:
 """
 
 import glob
+import ipaddress
 import os
 import shutil
 import subprocess
-import time
 
 import pytest
 
@@ -49,6 +49,7 @@ from ephemeral_port import free_port          # native stock-xrootd upstream
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from gridftp_client_env import gsi_client_env
+from lib_py.util import wait_tcp
 
 def _phase_init_1(cfg, self):
     with open(cfg, "w") as fh:
@@ -139,6 +140,24 @@ def _require():
         _guard_require_4(p)
 
 
+def _require_reference_ready(server):
+    """Probe the owned native daemon, not a Linux-only listener-list command."""
+    if (server._proc.poll() is None
+            and wait_tcp(BIND_HOST, server.port, timeout=6.0)
+            and server._proc.poll() is None):
+        return
+    status = server._proc.poll()
+    server.stop()
+    pytest.fail("stock xrootd GSI server did not become ready (process status=%r): %s" %
+                (status, server.log_text()[-1200:]))
+
+
+def _reference_command(config, log):
+    """Pin the public listener option to the fixture's numeric bind family."""
+    family = 'v' + str(ipaddress.ip_address(BIND_HOST).version)
+    return ['xrootd', '-I', family, '-c', config, '-l', log]
+
+
 class _Xrootd:
     """A stock GSI xrootd storage server on the SHARED test PKI, torn down on
     stop().  Exports ``/`` from a private data dir so the gateway's logical paths
@@ -154,7 +173,7 @@ class _Xrootd:
         _phase_init_1(cfg, self)
         # No `-n <instance>`: it relocates the `-l` file into an instance
         # subdirectory, hiding the log from log_text().
-        argv = ["xrootd", "-c", cfg, "-l", self.log]
+        argv = _reference_command(cfg, self.log)
         # Root-harness privilege drop: stock xrootd refuses to run as superuser
         # ("Security reasons prohibit running as superuser"), so under a root
         # harness we run it via `-R nobody` and pre-open every path that user
@@ -172,14 +191,7 @@ class _Xrootd:
             argv += ["-R", runas]
         self._proc = subprocess.Popen(
             argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        for _ in range(60):
-            if _run(["bash", "-c",
-                     f"ss -tln | grep -q ':{self.port} '"]).returncode == 0:
-                break
-            time.sleep(0.1)
-        else:
-            self.stop()
-            pytest.skip("stock xrootd GSI server did not come up")
+        _require_reference_ready(self)
 
     def place(self, name, data):
         with open(os.path.join(self.data, name), "wb") as fh:
@@ -198,6 +210,7 @@ class _Xrootd:
             self._proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             self._proc.kill()
+            self._proc.wait(timeout=5)
 
 
 class _Gateway:
@@ -271,7 +284,7 @@ def test_delegated_get_authenticates_as_user(gateway, xrd, tmp_path):
         f"delegated get failed rc={r.returncode}\n{r.stderr}\n"
         f"--- gateway ---\n{gateway.error_log()}\n--- xrootd ---\n{xrd.log_text()}")
     with open(dst, "rb") as fh:
-        assert fh.read() == payload
+        assert fh.read(len(payload) + 1) == payload
     # Keystone: the user's identity crossed client → gateway → storage.
     assert USER_DN_MARK in xrd.log_text(), (
         "upstream xrootd never logged the forwarded user DN — the proxy did not "
@@ -318,7 +331,7 @@ def test_mode_select_does_not_forward(xrd, tmp_path):
 # chunked write, close) was configured-but-never-executed under delegation.    #
 # docs/refactor/testsuite-combinatorial-coverage-audit-2026-08-04.md item 14.  #
 # --------------------------------------------------------------------------- #
-def _upstream_bytes(xrd, name):
+def _upstream_bytes(xrd, name, expected_size):
     """Read an object straight off the upstream's export tree.
 
     Deliberately NOT a RETR back through the gateway: reading it back the same
@@ -330,7 +343,10 @@ def _upstream_bytes(xrd, name):
     if not os.path.exists(path):
         return None
     with open(path, "rb") as fh:
-        return fh.read()
+        actual_size = os.fstat(fh.fileno()).st_size
+        assert actual_size == expected_size, (
+            "upstream object size differs: %d vs %d" % (actual_size, expected_size))
+        return fh.read(expected_size + 1)
 
 
 def test_delegated_stor_writes_through_to_the_upstream(gateway, xrd, tmp_path):
@@ -350,7 +366,7 @@ def test_delegated_stor_writes_through_to_the_upstream(gateway, xrd, tmp_path):
         f"delegated STOR failed rc={r.returncode}\n{r.stderr}\n"
         f"--- gateway ---\n{gateway.error_log()}\n--- xrootd ---\n{xrd.log_text()}")
 
-    got = _upstream_bytes(xrd, "stored.bin")
+    got = _upstream_bytes(xrd, "stored.bin", len(payload))
     assert got is not None, (
         "STOR reported success but nothing reached the upstream export — the "
         f"bytes went somewhere else\n{gateway.error_log()}")
@@ -371,11 +387,12 @@ def test_stored_object_round_trips_back_through_the_gateway(gateway, xrd, tmp_pa
         fh.write(payload)
     assert _guc(f"file://{src}",
                 f"gsiftp://{SERVER_HOST}:{gateway.port}/rt.bin").returncode == 0
+    assert _upstream_bytes(xrd, "rt.bin", len(payload)) == payload
     dst = os.path.join(str(tmp_path), "rt.out")
     r = _guc(f"gsiftp://{SERVER_HOST}:{gateway.port}/rt.bin", f"file://{dst}")
     assert r.returncode == 0, f"{r.stderr}\n{gateway.error_log()}"
     with open(dst, "rb") as fh:
-        assert fh.read() == payload
+        assert fh.read(len(payload) + 1) == payload
 
 
 def test_overwriting_an_existing_upstream_object_replaces_it(gateway, xrd,
@@ -393,7 +410,7 @@ def test_overwriting_an_existing_upstream_object_replaces_it(gateway, xrd,
     r = _guc(f"file://{src}",
              f"gsiftp://{SERVER_HOST}:{gateway.port}/clobber.bin")
     assert r.returncode == 0, f"{r.stderr}\n{gateway.error_log()}"
-    assert _upstream_bytes(xrd, "clobber.bin") == payload, (
+    assert _upstream_bytes(xrd, "clobber.bin", len(payload)) == payload, (
         "overwrite did not truncate — the previous object's tail survived")
 
 
@@ -415,7 +432,7 @@ def test_stor_creates_the_parent_chain_on_the_upstream_only(gateway, xrd,
     r = _guc(f"file://{src}",
              f"gsiftp://{SERVER_HOST}:{gateway.port}/no/such/dir/orphan.bin")
     assert r.returncode == 0, f"{r.stderr}\n{gateway.error_log()}"
-    assert _upstream_bytes(xrd, "no/such/dir/orphan.bin") == payload
+    assert _upstream_bytes(xrd, "no/such/dir/orphan.bin", len(payload)) == payload
     stray = os.path.join(gateway.data_root, "no", "such", "dir", "orphan.bin")
     assert not os.path.exists(stray), (
         f"the write landed on the GATEWAY's local export, not the upstream: {stray}")

@@ -17,10 +17,11 @@
  * HOW:  Verify its master signature, wall-clock expiry, and exact repository name.
  */
 static int load_whitelist(cvmfs_client_t *cl, long now,
-                          cvmfs_whitelist_t *whitelist) {
-    unsigned char wlbuf[65536]; size_t wln = 0;
+                          cvmfs_whitelist_t *whitelist,
+                          unsigned char *wlbuf, size_t capacity) {
+    size_t wln = 0;
 
-    if (raw_fetch(cl, ".cvmfswhitelist", wlbuf, sizeof(wlbuf), &wln, now) != 0)
+    if (raw_fetch(cl, ".cvmfswhitelist", wlbuf, capacity, &wln, now) != 0)
         return -3;
     if (cvmfs_whitelist_parse(wlbuf, wln, whitelist) != 0)
         return -4;
@@ -121,9 +122,12 @@ static int load_trust_and_catalog(cvmfs_client_t *cl, long now,
                                   char *out_tmp, size_t out_tmp_sz,
                                   cvmfs_catalog_t **out_cat) {
     cvmfs_whitelist_t whitelist;
+    unsigned char     whitelist_body[65536];
     int               rc;
 
-    rc = load_whitelist(cl, now, &whitelist);
+    /* Parsed views must remain live until the manifest certificate membership
+     * check finishes, not point into a returned helper's stack frame. */
+    rc = load_whitelist(cl, now, &whitelist, whitelist_body, sizeof(whitelist_body));
     if (rc != 0)
         return rc;
     rc = load_manifest(cl, now, &whitelist, mbuf, mbuf_cap, mlen, m);

@@ -206,7 +206,7 @@ TOKENS = (
      ("src/protocols/root/stream/module_enums.c", "brix_hc_types")),
     ("brix_ssi_cta_executor", "prod", "ssi_cta_executor",
      "src/core/config/server_conf_merge_cluster.c", "0",
-     ("src/protocols/root/stream/module.c", "brix_ssi_executor_enum")),
+     ("src/protocols/root/stream/module_enums.c", "brix_ssi_executor_enum")),
     ("brix_webdav_checksum_xattr_format", "text", "checksum_xattr_format",
      "src/protocols/webdav/config_merge.c", "BRIX_CKS_FMT_TEXT",
      ("src/protocols/webdav/module_commands.c", "brix_webdav_cks_xattr_formats")),
@@ -231,7 +231,7 @@ RESTATES_THE_DEFAULT = {d: d != "brix_ssi_cta_executor" for d in TOKEN_IDS}
 
 STS_TABLES = (
     ("http", "src/core/config/http_common.c", "brix_sts_flavor_enum"),
-    ("stream", "src/protocols/root/stream/module.c",
+    ("stream", "src/protocols/root/stream/module_enums.c",
      "brix_stream_sts_flavor_enum"),
 )
 

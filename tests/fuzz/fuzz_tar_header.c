@@ -43,6 +43,7 @@
 #include <unistd.h>
 
 #include "oci/tar.h"
+#include "platform/platform_api.h"
 
 #define MAX_ENTRIES 4096
 #define MAX_BODY    (8u << 20)
@@ -72,7 +73,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         return 0;
     }
 
-    fd = memfd_create("layer", MFD_CLOEXEC);
+    fd = brix_plat_anon_fd("layer", NULL);
     if (fd < 0) {
         return 0;
     }

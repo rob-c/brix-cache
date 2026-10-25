@@ -1,4 +1,5 @@
 #include "open.h"
+#include "open_internal.h"
 #include "fs/cache/cache_storage.h"
 #include "fs/path/beneath.h"
 
@@ -17,6 +18,8 @@ brix_open_cached_read(brix_ctx_t *ctx, ngx_connection_t *c,
     char        resolved[PATH_MAX];
     struct stat cst;
     int         n;
+    int         exists;
+    ngx_int_t   target_rc;
 
     brix_beneath_full_path(conf->common.root_canon, clean_path,
                              acl_path, sizeof(acl_path));
@@ -53,7 +56,13 @@ brix_open_cached_read(brix_ctx_t *ctx, ngx_connection_t *c,
      * server-managed cache root (svc-owned, a different root than the export);
      * this existence check runs as the worker, not through the export-confined,
      * impersonation-aware VFS. */
-    if (stat(resolved, &cst) == 0) {  /* vfs-seam-allow: DOMAIN_CACHE — separate server-managed cache-root domain */
+    exists = (stat(resolved, &cst) == 0);  /* vfs-seam-allow: DOMAIN_CACHE — separate server-managed cache-root domain */
+    target_rc = brix_open_read_target_guard(ctx, c, clean_path,
+                                          exists && S_ISDIR(cst.st_mode));
+    if (target_rc != NGX_DECLINED) {
+        return target_rc;
+    }
+    if (exists) {
         /* Cache-served reads stay plaintext (read_codec=0); inline read
          * compression (phase-42 W4) is only negotiated on the direct path. */
         brix_open_request_t oreq = {

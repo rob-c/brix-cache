@@ -84,6 +84,7 @@ from pathlib import Path
 import pytest
 
 from log_records import semantic_log_text
+from stream_log_observation import wait_for_log_value
 import requests
 
 import kdc_helpers
@@ -106,6 +107,7 @@ from settings import (
     url_host,
 )
 from lib_py.util import loopback_alias_usable
+from lib_py.nginx_build import selected_native_dependency
 
 pytestmark = [pytest.mark.timeout(600),
               pytest.mark.uses_lifecycle_harness,
@@ -174,10 +176,24 @@ def _klist_addresses(ticket_ccache, profile):
     return addresses
 
 
+def _addressed_ticket_binary(base):
+    """Build against the same selected public MIT headers and runtime libraries."""
+    binary = base / "addressed-ticket"
+    cflags, libraries = selected_native_dependency("krb5")
+    command = [os.environ.get("CC", "cc"), "-std=c11", "-O2", "-Wall", "-Wextra",
+               *cflags, str(ROOT / "tests/c/krb5_addressed_ticket.c"),
+               *libraries, "-o", str(binary)]
+    compiled = subprocess.run(command, capture_output=True, text=True, timeout=60)
+    assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+    return binary
+
+
 def _kinit(profile, ccache):
+    """Explicitly restrict the TGT to HOST, independent of interface enumeration."""
+    binary = _addressed_ticket_binary(Path(ccache).parent)
     subprocess.run(
-        [SYS_KINIT, "-k", "-t", KRB5_CLIENT_KEYTAB, "-c", str(ccache),
-         KRB5_CLIENT_PRINCIPAL],
+        [str(binary), KRB5_CLIENT_KEYTAB, KRB5_CLIENT_PRINCIPAL,
+         "FILE:" + str(ccache), HOST],
         env={**os.environ, "KRB5_CONFIG": str(profile)},
         check=True, capture_output=True, timeout=60)
 
@@ -185,13 +201,10 @@ def _kinit(profile, ccache):
 def _addressed_ticket(base):
     """A TGT whose address list names the address the client connects FROM.
 
-    ``noaddresses = false`` turns MIT's default off so the AS-REQ asks for an
-    addressful ticket at all.  ``extra_addresses`` is then required rather than
-    cosmetic: ``krb5_os_localaddr()`` skips 127/8, so without it the ticket
-    would name only the host's routable addresses and the KDC would refuse the
-    very next TGS-REQ — which arrives over loopback — as BADADDR, leaving the
-    client with no service ticket to present and nothing for the server's check
-    to have an opinion about.
+    The public initial-credential API pins the TGT's list to HOST rather than
+    assuming local-address enumeration drops every loopback alias. The profile
+    retains addressful service-ticket requests, and klist independently checks
+    the issued TGT. FOREIGN must remain absent; no server assertion is weakened.
     """
     profile = base / "krb5-addressed.conf"
     text = Path(KRB5_CONF).read_text()

@@ -21,6 +21,7 @@ import base64
 import glob
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -32,8 +33,10 @@ from cmdscripts.c_regression_units import _gcov_flags
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, SERVER_HOST
 
-from cmdscripts.compile_run import PLATFORM_HOST_FLAGS, client_pal_host_sources
-from lib_py.fuse_host import FUSE_READY, SKIP_REASON as FUSE_SKIP_REASON
+from cmdscripts.compile_run import (
+    PLATFORM_HOST_FLAGS, client_pal_host_sources, pal_xattr_sources,
+)
+from lib_py.fuse_host import FUSE_READY, SKIP_REASON as FUSE_SKIP_REASON, unmount as host_unmount
 
 _PORTS = cmdscript_ports("brixcvmfs_live")
 
@@ -137,9 +140,11 @@ def _fuse3_flags() -> tuple[list[str], list[str]]:
 
 
 def _gcc(run: LiveRun, output: Path, args: list) -> Path:
+    from cmdscripts.compile_run import library_compile_args
     link_inputs = [Path(arg) for arg in args
                    if isinstance(arg, str) and arg.endswith((".a", ".o"))]
-    run.call(["gcc", *args, *_gcov_flags(link_inputs), "-o", output],
+    link_flags = shlex.split(os.environ.get("LDFLAGS", ""))
+    run.call(["gcc", *link_flags, *library_compile_args(args), *_gcov_flags(link_inputs), "-o", output],
              cwd=REPO_ROOT)
     return output
 
@@ -172,31 +177,8 @@ def _client_link_libs() -> list[str]:
     this probe-driven: an archive from a feature-minimal checkout should remain
     linkable rather than acquiring a hard dependency on every optional library.
     """
-    packages = ("krb5", "libzstd", "liblzma", "libbrotlienc", "libbrotlidec",
-                "bzip2", "liburing")
-    libs: list[str] = []
-    for package in packages:
-        _extend_unique(libs, _package_libraries(package))
-    if _package_exists("liblz4"):
-        libs.extend(LZ4_LINK_FLAGS)
-    if "-lbz2" not in libs and glob.glob("/usr/lib/*/libbz2.so*"):
-        # bzip2 ships no .pc file on Debian/Ubuntu, but libxrdproto's
-        # codec_bzip2.o needs it wherever the runtime library exists — the
-        # pkg-config probe alone leaves the umbrella link undefined-reference.
-        libs.append("-lbz2")
-    return libs
-
-
-def _package_libraries(package):
-    result = subprocess.run(["pkg-config", "--libs", package],
-                            capture_output=True, text=True)
-    return result.stdout.split() if result.returncode == 0 else []
-
-
-def _package_exists(package):
-    result = subprocess.run(["pkg-config", "--exists", package],
-                            capture_output=True)
-    return result.returncode == 0
+    from lib_py.client_toolchain import client_static_dependency_flags
+    return client_static_dependency_flags(REPO_ROOT / "client")
 
 
 def _extend_unique(target, values):
@@ -252,6 +234,7 @@ def _link_dependencies(frontends, includes, sources):
     _extend_unique(includes, ("client/lib", "src"))
     _extend_unique(sources, CPOOL_STANDALONE_DEPS)
     _extend_unique(sources, client_pal_host_sources("posix"))
+    _extend_unique(sources, pal_xattr_sources())
     return ["-DXRDPROTO_NO_NGX"], [], []
 
 
@@ -319,12 +302,13 @@ def _repo_env(run: LiveRun, port: int, pub: Path, *, cache: Path | None = None, 
 
 
 def _unmount(mnt: Path) -> None:
-    """fusermount3 -u / fusermount -u with a lazy umount fallback. Never raises."""
-    for argv in (["fusermount3", "-u"], ["fusermount", "-u"], ["umount", "-l"]):
-        if shutil.which(argv[0]) is None:
+    """Use the host's owner-unmount policy, including its bounded force retry."""
+    for force in (False, True):
+        try:
+            result = host_unmount(str(mnt), lazy=force, timeout=5)
+        except (OSError, subprocess.SubprocessError):
             continue
-        proc = subprocess.run([*argv, str(mnt)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if proc.returncode == 0:
+        if result.returncode == 0:
             return
 
 

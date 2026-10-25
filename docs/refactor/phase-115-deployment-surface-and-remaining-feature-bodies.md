@@ -3081,8 +3081,10 @@ forbids was ever possible.
     `test_the_opted_out_plane_still_fails_closed`) now each demand one.
   * `test_the_address_literal_plane_never_waited_on_a_name` corroborates the
     mechanism from the other side: `IP_PIN_PORT` is a literal, final at
-    registration, so it is the one plane the race cannot reach — and its
-    refusal is still the #104 certificate failure, not a resolve failure.
+    registration, so it is the one plane the race cannot reach. The original
+    #104 certificate refusal was repaired on 2026-10-17 by typed DNS/IP peer
+    verification; this test now requires verified success without a DNS retry.
+    See [the native OpenSSL validation record](../03-configuration/OPENSSL111.md).
 
 The gate's own first live run is worth recording, because it failed in exactly
 the way the gate exists to prevent. A leg that is not ready yet does not merely

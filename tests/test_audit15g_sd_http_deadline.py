@@ -48,13 +48,16 @@ Cases:
 """
 
 import os
+import http.client
+import socket
 import time
 
 import pytest
 
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS
 from server_registry import NginxInstanceSpec
-from settings import NGINX_BIN, BIND_HOST
+from settings import NGINX_BIN, BIND_HOST, HOST
+from ephemeral_port import free_port
 from _test_audit15g_helpers import (XERR_IO_ERROR, XERR_NOT_FOUND, open_fails,
                                     pattern, read_whole, serve_paced,
                                     wait_until)
@@ -132,6 +135,59 @@ def _store_size(store, path=PATH):
 
 def _gets(origin):
     return [r for r in origin.recorded if r["method"] == "GET"]
+
+
+def _close_origin(origin):
+    """Release only this fixture, including paused and keep-alive handlers."""
+    origin.hold.set()
+    origin.shutdown()
+    origin.server_close()
+
+
+def test_paced_origin_healthy_response_remains_byte_exact():
+    origin = serve_paced(free_port(BIND_HOST), b'fixture-response')
+    client = http.client.HTTPConnection(HOST, origin.server_port, timeout=2)
+    try:
+        client.request('GET', '/healthy')
+        response = client.getresponse()
+        assert response.status == 200 and response.read() == b'fixture-response'
+    finally:
+        client.close()
+        _close_origin(origin)
+
+
+def test_stopped_origin_closes_its_existing_keepalive_connection():
+    origin = serve_paced(free_port(BIND_HOST), b'fixture-response')
+    client = http.client.HTTPConnection(HOST, origin.server_port, timeout=2)
+    try:
+        client.request('HEAD', '/warm')
+        assert client.getresponse().read() == b''
+        connection = client.sock
+        assert connection is not None
+        _close_origin(origin)
+        assert connection.recv(1) == b'', 'stopped origin retained an answering handler'
+        with pytest.raises(OSError):
+            socket.create_connection((HOST, origin.server_port), timeout=1)
+        assert len(origin.recorded) == 1
+    finally:
+        client.close()
+        _close_origin(origin)
+
+
+def test_origin_teardown_never_closes_another_origins_connection():
+    stopped = serve_paced(free_port(BIND_HOST), b'stopped')
+    live = serve_paced(free_port(BIND_HOST), b'live')
+    client = http.client.HTTPConnection(HOST, live.server_port, timeout=2)
+    try:
+        client.request('HEAD', '/warm')
+        client.getresponse().read()
+        _close_origin(stopped)
+        client.request('GET', '/still-live')
+        assert client.getresponse().read() == b'live'
+    finally:
+        client.close()
+        _close_origin(stopped)
+        _close_origin(live)
 
 
 # --------------------------------------------------------------------------- #

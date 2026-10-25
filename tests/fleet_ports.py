@@ -342,6 +342,15 @@ CMDSCRIPTS_PORTS = {
     "xroot_gateway_regress": (29219, 2),
     "cvmfs_repo_cli": (29221, 4),
     "root_readonly_gateway": (29225, 6),
+    # Five independently launched tier_remote topologies: remote-stage (3),
+    # slice-fill (2), remote-store (3), remote-evict (3), sidecar-meta (3).
+    # These previously retained shell-era literals, including 11742 which is
+    # also the historical stage-async port, and collided under xdist.
+    "tier_remote": (29236, 14),
+    # nonstaged-reap (1), sd-s3-meta (1), xfer-audit-sink (2).  The old
+    # absolute ports sat inside the rebased fleet lane and collided with a
+    # registry listener when the full suite used its default TEST_PORT_START.
+    "metadata_live_ports": (29250, 4),
 }
 
 # Tuple bases above are the original ports used by each developed command test.

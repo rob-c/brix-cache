@@ -173,6 +173,13 @@ def node_factory(lifecycle, tmp_path):
         m.stop()
 
 
+def _assert_event_cleanup(node):
+    """Refused dials cannot leave a queued change targeting a closed/reused fd."""
+    log = node.read_log()
+    assert 'Bad file descriptor' not in log, log
+    assert 'connection already closed' not in log, log
+
+
 def test_happy_path_registers_fast(node_factory):
     """Manager already listening: the node registers near-instantly."""
     node, _, _ = node_factory(start_manager=True)
@@ -182,6 +189,7 @@ def test_happy_path_registers_fast(node_factory):
     ms, attempts, profile = res
     assert profile == "loopback"
     assert ms < 500, f"loopback registration took {ms} ms"
+    _assert_event_cleanup(node)
 
 
 def test_fast_retry_engages_for_late_manager(node_factory):
@@ -201,6 +209,7 @@ def test_fast_retry_engages_for_late_manager(node_factory):
         assert attempts >= 2, f"expected fast-retry (multiple attempts), got {attempts}"
         # Registered close to when the manager appeared, not after a multi-second backoff.
         assert ms < 1500, f"settled in {ms} ms — slower than fast-retry should allow"
+        _assert_event_cleanup(node)
     finally:
         mgr.stop()
 
@@ -235,6 +244,7 @@ def test_dead_manager_is_bounded_then_backs_off(node_factory):
     time.sleep(1.5)
     warns = node.read_log().count("cannot reach cluster manager")
     assert warns <= 3, f"too many backoff WARNs ({warns}) — not sparse (spinning?)"
+    _assert_event_cleanup(node)
 
 
 def test_tunables_accepted(node_factory):

@@ -20,7 +20,8 @@ def pal_sources():
     """
     import sys
     from pathlib import Path as _Path
-    host = {'linux': 'linux', 'darwin': 'darwin'}[sys.platform]
+    from cmdscripts.compile_run import platform_host_name
+    host = platform_host_name()
     root = _Path(__file__).resolve().parents[2]
     host_dir = root / 'src' / 'platform' / host
     sources = ['src/platform/platform_runtime.c']
@@ -29,7 +30,11 @@ def pal_sources():
                       if not p.name.endswith('_unittest.c'))
     sources += ['src/core/compat/crc32c.c',
                 'src/core/compat/crc32c_hw.c']
-    if host == 'linux':
+    if host == 'freebsd':
+        from tools.ci.pal_source_contract import configured_sources
+        sources = configured_sources(root)[host] + [
+            'src/core/compat/crc32c.c', 'src/core/compat/crc32c_hw.c']
+    elif host == 'linux':
         sources.append('shared/cvmfs/platform/platform.c')
     return sources
 
@@ -38,6 +43,11 @@ def _available_pal_libraries():
     """-l flags for the optional libraries the host PAL units reference."""
     import shutil
     import subprocess
+    import sys
+    if sys.platform == "darwin":
+        return ["-framework", "Security", "-framework", "Accelerate"]
+    if sys.platform.startswith("freebsd"):
+        return ["-lcrypt"]
     found = []
     for pkg, flag in (('libseccomp', '-lseccomp'), ('liburing', '-luring'),
                       ('libcrypt', '-lcrypt')):

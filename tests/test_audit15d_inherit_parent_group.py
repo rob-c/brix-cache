@@ -8,8 +8,10 @@ A rule `brix_inherit_parent_group /shared` makes entries created under the
 prefix take the PARENT directory's gid and parent-derived group mode bits,
 enforced by explicit chown/chmod — NOT by the kernel's setgid-bit semantic.
 To prove the policy (and not the kernel) does the work, the parent dirs here
-carry a supplementary gid WITHOUT the setgid bit: the kernel default would
-give new entries the process egid.
+carry a supplementary gid WITHOUT the setgid bit. Linux normally uses the
+process egid here, whereas BSD/macOS inherits the directory gid even without
+setgid. Native local controls distinguish those defaults; the explicit policy's
+group-mode adjustment is observable on both hosts.
 
 DEFECT-CANDIDATE PIN — mkdir never inherits.  The policy has two consumers:
 
@@ -149,13 +151,18 @@ def test_mkdir_group_policy_skipped_defect_pin(inherit):
     status, body = _xrd_mkdir(s, "/shared/d1")
     s.close()
     assert status == KXR_OK, (status, body)
+    control = data / "shared" / "native-control"
+    control.mkdir(mode=0o755)
+    native = control.stat()
     st = os.stat(data / "shared" / "d1")
-    assert st.st_gid == os.getgid(), \
-        (f"mkdir inherited gid {st.st_gid} — mkdir-side policy fixed? "
-         f"invert this pin (expected egid {os.getgid()}, parent {supp})")
+    assert st.st_gid == native.st_gid, \
+        (f"mkdir gid {st.st_gid} differs from native default {native.st_gid}; "
+         f"mkdir-side policy fixed? parent gid {supp}")
+    assert st.st_mode & 0o070 == native.st_mode & 0o070 == 0o050, \
+        "mkdir unexpectedly acquired the policy's parent group-write bit; invert this defect pin"
 
 
-def test_create_outside_rule_keeps_process_egid(inherit):
+def test_create_outside_rule_keeps_native_group_and_mode(inherit):
     # /other has the SAME supplementary gid on the parent, so any inheritance
     # here would be indistinguishable from the ruled case — its absence pins
     # the rule's path scoping on the (working) file-create consumer.
@@ -163,7 +170,13 @@ def test_create_outside_rule_keeps_process_egid(inherit):
     s = _session(port)
     _xrd_put(s, "/other/f1.dat", b"payload\n")
     s.close()
-    assert os.stat(data / "other" / "f1.dat").st_gid == os.getgid()
+    control = data / "other" / "native-control"
+    control.touch(mode=0o644)
+    native = control.stat()
+    created = os.stat(data / "other" / "f1.dat")
+    assert created.st_gid == native.st_gid, "a rule for /shared changed /other's native gid"
+    assert created.st_mode & 0o070 == native.st_mode & 0o070 == 0o040, \
+        "a rule for /shared granted group-write outside its prefix"
 
 
 def test_relative_rule_path_refused_at_parse(tmp_path):

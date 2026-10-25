@@ -40,10 +40,10 @@ from settings import HOST
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "resilience"))
 from resilience.servers import (  # noqa: E402
     XrootdAnon, NginxAnon, FaultProxy, seed_file, XRDCP, FAULT_PROXY,
+    NGINX_BIN as NGINX,
 )
 
 XROOTD = shutil.which("xrootd")
-NGINX = os.environ.get("RESIL_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 
 # serial + one xdist group, like every other resilience.servers importer
 # (test_cache_verify_require / test_cache_truncation_poison /

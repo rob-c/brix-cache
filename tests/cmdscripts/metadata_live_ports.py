@@ -13,7 +13,11 @@ import time
 
 from cmdscripts.compile_run import REPO_ROOT
 from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
+from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST
+
+
+_PORTS = cmdscript_ports("metadata_live_ports")
 
 
 def _expression_1(fallback_log):
@@ -96,6 +100,7 @@ def xmeta() -> int:
 
 
 def nonstaged_reap(nginx: Path | None = None) -> int:
+    port = _PORTS[0]
     with LiveRun("nsreap", nginx) as run:
         export = run.mkdir("export")
         (export / "sub").mkdir()
@@ -106,7 +111,7 @@ def nonstaged_reap(nginx: Path | None = None) -> int:
             f"""daemon on; error_log {run.root}/logs/e.log info; pid {run.root}/nginx.pid;
 worker_processes 1;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {run.root}/tmp; server {{ listen {BIND_HOST}:8583;
+http {{ client_body_temp_path {run.root}/tmp; server {{ listen {BIND_HOST}:{port};
   location / {{ dav_methods PUT DELETE;
     brix_webdav on; brix_storage_backend posix:{export}; brix_webdav_auth none; brix_allow_write on; }} }} }}
 """,
@@ -117,11 +122,11 @@ http {{ client_body_temp_path {run.root}/tmp; server {{ listen {BIND_HOST}:8583;
         live_name = f"b.bin.xrd-tmp.{os.getpid()}.333"
         (export / live_name).write_text("live")
         (export / "keep.bin").write_text("real")
-        run.start_nginx(run.root, config, 8583)
+        run.start_nginx(run.root, config, port)
         time.sleep(1)
         source = run.root / "src.bin"
         digest = random_file(source, 200000)
-        code = run.curl_status(f"http://{HOST}:8583/real.bin", "-T", str(source))
+        code = run.curl_status(f"http://{HOST}:{port}/real.bin", "-T", str(source))
         log = (run.root / "logs/e.log").read_text(errors="replace")
         return _checks(
             [
@@ -136,6 +141,7 @@ http {{ client_body_temp_path {run.root}/tmp; server {{ listen {BIND_HOST}:8583;
 
 
 def sd_s3_meta(nginx: Path | None = None) -> int:
+    port = _PORTS[1]
     smoke = REPO_ROOT / "client/bin/sd_s3_meta_smoke"
     if not smoke.exists():
         built = client_make(REPO_ROOT / "client", "sd-s3-meta-smoke", capture_output=True, text=True)
@@ -151,7 +157,7 @@ thread_pool default threads=2;
 events {{ worker_connections 64; }}
 http {{
     server {{
-        listen {BIND_HOST}:9012;
+        listen {BIND_HOST}:{port};
         location / {{
             brix_s3 on;
             brix_storage_backend posix:{s3root};
@@ -162,7 +168,7 @@ http {{
 }}
 """,
         )
-        run.start_nginx(run.root, config, 9012)
+        run.start_nginx(run.root, config, port)
         seed = run.call(
             [
                 "curl",
@@ -173,15 +179,16 @@ http {{
                 "x-amz-meta-foo: bar",
                 "--data-binary",
                 "payload",
-                f"http://{HOST}:9012/testbucket/obj.txt",
+                f"http://{HOST}:{port}/testbucket/obj.txt",
             ],
             check=False,
         )
-        smoke_run = run.call([smoke, HOST, "9012", "/testbucket/obj.txt"], check=False)
+        smoke_run = run.call([smoke, HOST, str(port), "/testbucket/obj.txt"], check=False)
         return _checks([(seed.returncode == 0, "seed object with user metadata"), (smoke_run.returncode == 0, "sd_s3 metadata smoke harness passed")])
 
 
 def xfer_audit_sink(nginx: Path | None = None) -> int:
+    origin_port, node_port = _PORTS[2:4]
     xrdcp = REPO_ROOT / "client/bin/xrdcp"
     if not xrdcp.exists():
         print(f"SKIP: no xrdcp client at {xrdcp}")
@@ -195,12 +202,12 @@ def xfer_audit_sink(nginx: Path | None = None) -> int:
             f"""daemon on; error_log {origin}/logs/e.log info; pid {origin}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen {BIND_HOST}:11774; brix_root on; brix_export {origin}/root;
+    listen {BIND_HOST}:{origin_port}; brix_root on; brix_export {origin}/root;
     brix_auth none; brix_allow_write on;
 }} }}
 """,
         )
-        run.start_nginx(origin, origin_conf, 11774)
+        run.start_nginx(origin, origin_conf, origin_port)
 
         def start_node(extra: str = "") -> Path:
             node = run.mkdir("b")
@@ -214,22 +221,22 @@ stream {{ server {{
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen {BIND_HOST}:11775; brix_root on; brix_export {node}/export;
+    listen {BIND_HOST}:{node_port}; brix_root on; brix_export {node}/export;
     brix_auth none; brix_allow_write on; brix_upload_resume off;
-    brix_storage_backend root://{HOST}:11774;
+    brix_storage_backend root://{HOST}:{origin_port};
     brix_stage on;
     brix_stage_store posix:{node}/stage;
     brix_stage_flush sync;
 }} }}
 """,
             )
-            run.start_nginx(node, conf, 11775)
+            run.start_nginx(node, conf, node_port)
             return node
 
         def upload(name: str) -> bool:
             source = run.root / "src.bin"
             random_file(source, 65536)
-            return run.call([xrdcp, "-f", source, f"root://{HOST}:11775//{name}"], check=False).returncode == 0
+            return run.call([xrdcp, "-f", source, f"root://{HOST}:{node_port}//{name}"], check=False).returncode == 0
 
         node = start_node()
         # LiveRun creates the generic runtime logs directory.  Remove it after

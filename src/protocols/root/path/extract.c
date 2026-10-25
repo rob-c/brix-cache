@@ -3,6 +3,13 @@
 
 #include <string.h>
 
+static int
+brix_path_extract_args_valid(const u_char *payload, size_t payload_len,
+    const char *out, size_t outsz)
+{
+    return payload != NULL && payload_len != 0 && out != NULL && outsz >= 2;
+}
+
 /*
  *
  * WHAT: Extracts and sanitizes a filesystem path string from XRootD wire protocol payload. Validates input parameters (non-NULL pointers, minimum buffer size of 2 bytes). Rejects payloads exceeding BRIX_MAX_PATH length with warning log entry. Handles NUL termination detection — if payload contains embedded NUL character not at the end position, rejects it as potentially malicious or corrupted data. When strip_cgi flag is enabled, truncates payload at '?' character to remove CGI query parameters (only keeps path portion before query string). Validates final copy length against output buffer capacity — rejects zero-length or overflow paths with warning log entry. Copies extracted path to output buffer via ngx_memcpy() and null-terminates. Returns 1 on success, 0 on any rejection/validation failure.
@@ -19,7 +26,7 @@ brix_extract_path_kxr(ngx_log_t *log, const u_char *payload,
     size_t        copy_len;
 
     if (kxr_error != NULL) *kxr_error = kXR_ArgInvalid;
-    if (payload == NULL || payload_len == 0 || out == NULL || outsz < 2) {
+    if (!brix_path_extract_args_valid(payload, payload_len, out, outsz)) {
         return 0;
     }
 

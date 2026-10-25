@@ -60,6 +60,70 @@ brix_ocsp_stapling_cb(SSL *ssl, void *arg)
     return SSL_TLSEXT_ERR_OK;
 }
 
+static ngx_int_t
+brix_tls_configure_cipher_list(ngx_conf_t *cf,
+    ngx_stream_brix_srv_conf_t *xcf)
+{
+    if (xcf->tls_ciphers.len == 0) {
+        return NGX_OK;
+    }
+    if (SSL_CTX_set_cipher_list(xcf->tls_ctx->ctx,
+                                (char *) xcf->tls_ciphers.data) == 0)
+    {
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
+            "brix_tls_ciphers \"%V\" matched no ciphers this build can offer",
+            &xcf->tls_ciphers);
+        return NGX_ERROR;
+    }
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
+        "brix: root:// TLS cipher list pinned to \"%V\"", &xcf->tls_ciphers);
+    return NGX_OK;
+}
+
+static ngx_int_t
+brix_tls_configure_ciphersuites(ngx_conf_t *cf,
+    ngx_stream_brix_srv_conf_t *xcf)
+{
+    if (xcf->tls_ciphersuites.len == 0) {
+        return NGX_OK;
+    }
+    if (SSL_CTX_set_ciphersuites(xcf->tls_ctx->ctx,
+                                 (char *) xcf->tls_ciphersuites.data) == 0)
+    {
+        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
+            "brix_tls_ciphersuites \"%V\" matched no TLSv1.3 suites this "
+            "build can offer", &xcf->tls_ciphersuites);
+        return NGX_ERROR;
+    }
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
+        "brix: root:// TLSv1.3 cipher suites pinned to \"%V\"",
+        &xcf->tls_ciphersuites);
+    return NGX_OK;
+}
+
+/* WHAT: Apply optional offload or explicitly report the native TLS fallback.
+ * WHY: Legacy OpenSSL must not silently attest support for an absent option.
+ * HOW: Return when disabled; keep native API selection and logging together. */
+static void
+brix_tls_configure_ktls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
+{
+    if (!xcf->tls_ktls) {
+        return;
+    }
+#ifdef SSL_OP_ENABLE_KTLS
+    SSL_CTX_set_options(xcf->tls_ctx->ctx, SSL_OP_ENABLE_KTLS);
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
+        "brix: kernel-TLS (kTLS) requested for root:// TLS context "
+        "(brix_ktls on - opt-in, HW-offload-only; software kTLS regresses) "
+        "- engages per-connection when the negotiated cipher is "
+        "kTLS-offloadable, else userspace TLS");
+#else
+    BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
+        "brix: kTLS is unavailable in this OpenSSL build; "
+        "using userspace TLS (brix_ktls on)");
+#endif
+}
+
 ngx_int_t
 brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
@@ -113,31 +177,10 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
      * silent OpenSSL-default fallback, so a typo can never leave the listener
      * quietly more permissive than intended.
      */
-    if (xcf->tls_ciphers.len > 0) {
-        if (SSL_CTX_set_cipher_list(xcf->tls_ctx->ctx,
-                                    (char *) xcf->tls_ciphers.data) == 0)
-        {
-            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
-                "brix_tls_ciphers \"%V\" matched no ciphers this build can offer",
-                &xcf->tls_ciphers);
-            return NGX_ERROR;
-        }
-        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
-            "brix: root:// TLS cipher list pinned to \"%V\"", &xcf->tls_ciphers);
-    }
-
-    if (xcf->tls_ciphersuites.len > 0) {
-        if (SSL_CTX_set_ciphersuites(xcf->tls_ctx->ctx,
-                                     (char *) xcf->tls_ciphersuites.data) == 0)
-        {
-            BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
-                "brix_tls_ciphersuites \"%V\" matched no TLSv1.3 suites this "
-                "build can offer", &xcf->tls_ciphersuites);
-            return NGX_ERROR;
-        }
-        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
-            "brix: root:// TLSv1.3 cipher suites pinned to \"%V\"",
-            &xcf->tls_ciphersuites);
+    if (brix_tls_configure_cipher_list(cf, xcf) != NGX_OK
+        || brix_tls_configure_ciphersuites(cf, xcf) != NGX_OK)
+    {
+        return NGX_ERROR;
     }
 
     /*
@@ -162,16 +205,7 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
      * the read path independently re-checks BIO_get_ktls_send() per connection
      * before choosing the file-backed chain.
      */
-#ifdef SSL_OP_ENABLE_KTLS
-    if (xcf->tls_ktls) {
-        SSL_CTX_set_options(xcf->tls_ctx->ctx, SSL_OP_ENABLE_KTLS);
-        BRIX_CONF_LOG(NGX_LOG_NOTICE, cf, 0,
-            "brix: kernel-TLS (kTLS) requested for root:// TLS context "
-            "(brix_ktls on - opt-in, HW-offload-only; software kTLS regresses) "
-            "- engages per-connection when the negotiated cipher is "
-            "kTLS-offloadable, else userspace TLS");
-    }
-#endif
+    brix_tls_configure_ktls(cf, xcf);
 
     /* Register OCSP stapling callback if stapling is configured */
     if (xcf->ocsp.stapling) {

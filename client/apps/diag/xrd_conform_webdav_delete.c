@@ -1,5 +1,5 @@
 /* Phase-118 DAV-006 recursive atomic collection-delete probe. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
 #include <pthread.h>
 
@@ -14,12 +14,6 @@ typedef struct {
     int                    rc;
 } dav_delete_job;
 
-static int row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
-
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
 static void
 set_delete_result(xrd_conform_execution *execution,
@@ -30,7 +24,7 @@ set_delete_result(xrd_conform_execution *execution,
     size_t index;
 
     for (index = 0; index < sizeof(ids) / sizeof(ids[0]); index++)
-        if (row_active(execution, ids[index]))
+        if (xrd_conform_row_active(execution, ids[index]))
             xrd_conform_result_set(execution, ids[index], verdict, reason,
                 expected, received);
 }
@@ -149,6 +143,66 @@ static void cleanup_tree(xrd_conform_execution *execution,
         &status);
 }
 
+static int
+prepare_delete_tree(xrd_conform_execution *execution, const brix_weburl *url,
+    const char *token, brix_weburl *collection, brix_weburl *nested,
+    brix_weburl *first, brix_weburl *second)
+{
+    return xrd_conform_webdav_scratch_url(execution, url,
+            "brix-conform-dav-delete", collection) == 0
+        && child_url(collection, "nested", nested) == 0
+        && child_url(collection, "first", first) == 0
+        && child_url(nested, "second", second) == 0
+        && plant_tree(execution, collection, nested, first, second, token);
+}
+
+static int
+start_delete_job(xrd_conform_execution *execution,
+    const brix_weburl *collection, const char *token, dav_delete_job *job,
+    pthread_t *thread, const char **failure, char *reason, size_t reason_size)
+{
+    memset(job, 0, sizeof(*job));
+    job->execution = execution;
+    job->collection = *collection;
+    job->headers = xrd_conform_http_headers(collection, "DELETE", token, NULL,
+        failure);
+    return job->headers != NULL
+        && xrd_conform_reserve(execution, 65536, reason, reason_size)
+        && pthread_create(thread, NULL, delete_worker, job) == 0;
+}
+
+static int
+observe_delete_snapshots(xrd_conform_execution *execution,
+    const brix_weburl *collection, const char *token, int *absent)
+{
+    size_t snapshots = 0;
+    int partial = 0;
+
+    while (snapshots < DAV_DELETE_SNAPSHOTS && !*absent) {
+        if (snapshot_complete(execution, collection, token, absent) != 0)
+            partial = 1;
+        snapshots++;
+    }
+    return partial;
+}
+
+static int
+delete_completed(xrd_conform_execution *execution, dav_delete_job *job,
+    pthread_t thread, const brix_weburl *collection, const brix_weburl *nested,
+    const brix_weburl *first, const brix_weburl *second, const char *token,
+    int partial, int *absent, int *descendants_absent)
+{
+    int joined = pthread_join(thread, NULL) == 0;
+
+    *descendants_absent = resource_absent(execution, first, token)
+        && resource_absent(execution, nested, token)
+        && resource_absent(execution, second, token);
+    return joined && !partial && job->rc == 0
+        && job->response.status >= 200 && job->response.status < 300
+        && snapshot_complete(execution, collection, token, absent) == 0
+        && *absent && *descendants_absent;
+}
+
 void xrd_conform_probe_webdav_delete(xrd_conform_execution *execution,
     const brix_weburl *url, const char *token)
 {
@@ -160,36 +214,23 @@ void xrd_conform_probe_webdav_delete(xrd_conform_execution *execution,
     pthread_t thread;
     const char *failure = NULL;
     char reason[64] = "delete-worker-unavailable";
-    size_t snapshots = 0;
     int absent = 0;
     int partial = 0;
     int descendants_absent;
-    int joined;
     int pass;
 
-    if (!row_active(execution, "DAV-006")
-        && !row_active(execution, "RM-008")) return;
-    if (xrd_conform_webdav_scratch_url(execution, url,
-            "brix-conform-dav-delete", &collection) != 0
-        || child_url(&collection, "nested", &nested) != 0
-        || child_url(&collection, "first", &first) != 0
-        || child_url(&nested, "second", &second) != 0
-        || !plant_tree(execution, &collection, &nested, &first, &second,
-            token)) {
+    if (!xrd_conform_row_active(execution, "DAV-006")
+        && !xrd_conform_row_active(execution, "RM-008")) return;
+    if (!prepare_delete_tree(execution, url, token, &collection, &nested,
+            &first, &second)) {
         set_delete_result(execution, BRIX_CONFORM_VERDICT_INCONCLUSIVE,
             "fixture-setup:recursive-webdav-collection", NULL, NULL);
         if (collection.path[0] != '\0')
             cleanup_tree(execution, &collection, token);
         return;
     }
-    memset(&job, 0, sizeof(job));
-    job.execution = execution;
-    job.collection = collection;
-    job.headers = xrd_conform_http_headers(&collection, "DELETE", token, NULL,
-        &failure);
-    if (job.headers == NULL
-        || !xrd_conform_reserve(execution, 65536, reason, sizeof(reason))
-        || pthread_create(&thread, NULL, delete_worker, &job) != 0) {
+    if (!start_delete_job(execution, &collection, token, &job, &thread,
+            &failure, reason, sizeof(reason))) {
         set_delete_result(execution, BRIX_CONFORM_VERDICT_INCONCLUSIVE,
             job.headers == NULL ? "delete-header-construction-failed"
                                 : "delete-worker-unavailable",
@@ -198,19 +239,9 @@ void xrd_conform_probe_webdav_delete(xrd_conform_execution *execution,
         cleanup_tree(execution, &collection, token);
         return;
     }
-    while (snapshots < DAV_DELETE_SNAPSHOTS && !absent) {
-        if (snapshot_complete(execution, &collection, token, &absent) != 0)
-            partial = 1;
-        snapshots++;
-    }
-    joined = pthread_join(thread, NULL) == 0;
-    descendants_absent = resource_absent(execution, &first, token)
-        && resource_absent(execution, &nested, token)
-        && resource_absent(execution, &second, token);
-    pass = joined && !partial && job.rc == 0
-        && job.response.status >= 200 && job.response.status < 300
-        && snapshot_complete(execution, &collection, token, &absent) == 0
-        && absent && descendants_absent;
+    partial = observe_delete_snapshots(execution, &collection, token, &absent);
+    pass = delete_completed(execution, &job, thread, &collection, &nested,
+        &first, &second, token, partial, &absent, &descendants_absent);
     set_delete_result(execution,
         pass ? BRIX_CONFORM_VERDICT_CONFORMANT
              : BRIX_CONFORM_VERDICT_DIVERGENT,

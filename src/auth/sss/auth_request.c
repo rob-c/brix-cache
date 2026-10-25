@@ -298,40 +298,6 @@ sss_log_ok(ngx_connection_t *c, const char *user, const char *group,
 }
 
 /*
- * sss_track_metrics — record unique-user and VO activity at auth completion.
- *
- * WHAT: bumps the shared-memory unique-user set and the matching VO's
- * requests_total counter for the just-authenticated login.
- * WHY: metric bookkeeping is a self-contained side effect; keeping it out of
- * the reply orchestrator keeps that path linear.
- * HOW: no-ops when no SHM segment is mapped; low-cardinality labels only.
- */
-static void
-sss_track_metrics(brix_ctx_t *ctx)
-{
-    ngx_brix_metrics_t *shm = brix_metrics_shared();
-    if (shm == NULL) {
-        return;
-    }
-
-    size_t vo_len = strlen(ctx->login.primary_vo);
-    if (vo_len > 0 && vo_len < sizeof(ctx->login.primary_vo)) {
-        brix_track_vo_activity(shm, ctx->login.primary_vo, 0, 0);
-        ngx_uint_t vi;
-        for (vi = 0; vi < BRIX_VO_MAX_TRACKED; vi++) {
-            if (ngx_strncmp(shm->vo_global.slots[vi].name, ctx->login.primary_vo,
-                            BRIX_VO_NAME_LEN) == 0)
-            {
-                BRIX_ATOMIC_INC(&shm->vo_global.slots[vi].requests_total);
-                break;
-            }
-        }
-    }
-
-    brix_track_unique_user(shm, ctx->login.dn, strlen(ctx->login.dn));
-}
-
-/*
  * sss_reply — commit the authenticated identity and send the success response.
  *
  * WHAT: stamps the login/identity state (including the v2 entity fields the
@@ -367,7 +333,8 @@ sss_reply(brix_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    sss_track_metrics(ctx);
+    brix_track_auth_identity(brix_metrics_shared(), ctx->login.primary_vo,
+        sizeof(ctx->login.primary_vo), ctx->login.dn, sizeof(ctx->login.dn));
 
     ctx->login.session_slot_hint =
         brix_session_register(ctx->login.sessid, ctx->login.dn,

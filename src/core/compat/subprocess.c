@@ -21,7 +21,6 @@
 #include <signal.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -30,13 +29,6 @@
  * Real wait statuses are nonnegative, so neither marker can collide. */
 #define BRIX_SUBPROCESS_NO_STATUS   (-1)
 #define BRIX_SUBPROCESS_TIMED_OUT   (-2)
-
-/* close_range(2): Linux ≥ 5.9, the same number on every architecture. glibc
- * here ships no wrapper, so it is a raw syscall; the number normally comes from
- * <sys/syscall.h>. Already on the seccomp allowlist (seccomp_core.c). */
-#ifndef __NR_close_range
-#define __NR_close_range            436
-#endif
 
 /* ---- Validate a run request ----
  * WHAT: Return whether command and optional output buffer are usable.
@@ -137,10 +129,10 @@ brix_subprocess_close_others(int keep)
     long rc = 0;
 
     if (keep > 3) {
-        rc = syscall(__NR_close_range, 3U, (unsigned) keep - 1, 0U);
+        rc = brix_plat_close_range(3U, (unsigned) keep - 1);
     }
     if (rc == 0) {
-        rc = syscall(__NR_close_range, (unsigned) keep + 1, ~0U, 0U);
+        rc = brix_plat_close_range((unsigned) keep + 1, ~0U);
     }
     if (rc == 0) {
         return;

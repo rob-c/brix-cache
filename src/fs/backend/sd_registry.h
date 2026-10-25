@@ -145,6 +145,14 @@ typedef struct {
 brix_sd_instance_t *brix_sd_posix_borrow_instance(ngx_pool_t *pool,
     ngx_log_t *log, int rootfd, const char *root_canon);
 
+/* A private confined, nonblocking/no-follow descriptor for a POSIX lock
+ * transaction. The path is the translated driver key; caller closes the fd. */
+int brix_sd_posix_open_lock_fd(brix_sd_instance_t *inst, const char *path);
+/* Route an encoded lock CAS through the mapped-owner broker using this
+ * POSIX instance's physical root and translated key. Never use worker I/O. */
+int brix_sd_posix_broker_lock_store_update(brix_sd_instance_t *inst,
+    const char *path, const char *expected, const char *replacement);
+
 /* ---- brix_sd_posix_wrap — bind a bare fd to a stack POSIX SD object ------
  *
  * WHAT: Zero-initializes *obj and points it at the built-in POSIX driver over a

@@ -54,7 +54,7 @@ kXR_FileNotOpen = 3004            # XErrorCode (base 3000)
 kXR_open_read = 0x0010
 kXR_open_updt = 0x0020
 kXR_open_new = 0x0008
-kXR_delete = 0x0004
+kXR_delete = 0x0002              # flags.h: 0x0004 is kXR_force, not overwrite
 kXR_mkpath = 0x0100
 
 PROBE = "/lazy_ftab_probe.bin"
@@ -138,9 +138,7 @@ def test_lazy_table_open_io_close_roundtrip():
     # create): the probe file may survive an earlier run of this module.
     sid, status, body = _open(s, PROBE,
                               kXR_open_updt | kXR_delete | kXR_mkpath)
-    if status != kXR_ok:
-        s.close()
-        pytest.skip("could not create probe file (writes disabled?)")
+    assert status == kXR_ok, f"writable probe open failed: {status}, {body!r}"
     fh = body[:4]
     payload = b"lazy-file-table\n"
     assert _write(s, fh, 0, payload)[1] == kXR_ok
@@ -151,13 +149,22 @@ def test_lazy_table_open_io_close_roundtrip():
     s.close()
 
 
-def test_closed_handle_is_file_not_open():
+@pytest.fixture()
+def probe_file():
+    """Seed through a separate session so the error case runs independently."""
+    with _session() as s:
+        _, status, body = _open(s, PROBE, kXR_open_updt | kXR_delete | kXR_mkpath)
+        assert status == kXR_ok, f"writable probe open failed: {status}, {body!r}"
+        fh = body[:4]
+        assert _write(s, fh, 0, b"lazy-file-table\n")[1] == kXR_ok
+        assert _close(s, fh)[1] == kXR_ok
+
+
+def test_closed_handle_is_file_not_open(probe_file):
     """Error: after close the slot is free again — I/O on it is FileNotOpen."""
     s = _session()
     sid, status, body = _open(s, PROBE)
-    if status != kXR_ok:
-        s.close()
-        pytest.skip("probe file missing (round-trip test skipped earlier?)")
+    assert status == kXR_ok, f"seeded probe open failed: {status}, {body!r}"
     fh = body[:4]
     assert _close(s, fh)[1] == kXR_ok
     sid, status, body = _read(s, fh, 0, 16, streamid=b"\x00\x0b")

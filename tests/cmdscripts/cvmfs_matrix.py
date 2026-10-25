@@ -236,7 +236,9 @@ def _start_squid(run, port, origin_host, origin, work):
     # Without it squid shares the DEFAULT namespace with any system squid
     # service on the host and dies at startup with
     # "Ipc::Mem::Segment::create failed to shm_open(...): (17) File exists".
-    service = f"brixbl{port}"
+    # Squid adds a random tag and metadata suffix. Keep the namespace short
+    # enough for Darwin's 31-byte shm_open name limit as well as Linux.
+    service = f"b{port:x}"
     run.call(["squid", "-f", conf, "-n", service, "-z"], check=False)
     run.call(["squid", "-f", conf, "-n", service])
     return (["squid", "-f", str(conf), "-n", service, "-k", "shutdown"],
@@ -255,10 +257,12 @@ def _start_varnish(run, port, origin_host, origin_port, work):
     run.root.chmod(0o755)
     work.chmod(0o755)
     vcl.chmod(0o644)
-    run.call(["varnishd", "-a", f"{BIND_HOST}:{port}", "-f", vcl,
-              "-n", work / "vn", "-s", "malloc,256m"])
-    return (["pkill", "-f", f"varnishd .*{work}/vn"],
-            f"http://{HOST}:{port}", {})
+    # Keep the manager foreground and owned by LiveRun. FreeBSD rewrites its
+    # process title, so matching the original argv with pkill leaks the daemon
+    # and makes the next suite fail with an unrelated listener collision.
+    manager = run.spawn(["varnishd", "-F", "-a", f"{BIND_HOST}:{port}", "-f", vcl,
+                         "-n", work / "vn", "-s", "malloc,256m"])
+    return (manager.terminate, f"http://{HOST}:{port}", {})
 
 
 def _start_baseline(run, name, port, origin, work):
@@ -287,7 +291,10 @@ def run_baseline(run: LiveRun, name: str, port: int, origin: str, out_dir: Path)
             check=False,
         )
     finally:
-        run.call(stop, check=False)
+        if callable(stop):
+            stop()
+        else:
+            run.call(stop, check=False)
     if harness.returncode != 0:
         return False, f"{name} harness failed: {(harness.stderr or harness.stdout)[-2000:]}"
     return True, f"wrote {out}"

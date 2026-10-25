@@ -14,12 +14,8 @@
  *   they zero/blank the output and return NGX_DECLINED — packet marking never
  *   fails a transfer.
  *
- * HOW: TCP_INFO is read into a RAW buffer and the needed fields are pulled by
- *   their fixed kernel-ABI byte offsets.  glibc's <netinet/tcp.h> struct tcp_info
- *   is a frozen subset that lacks tcpi_bytes_acked/received, and the kernel's
- *   <linux/tcp.h> struct conflicts with it, so neither struct can be used
- *   directly — the offset read is the portable approach (the same one `ss` uses).
- *   The kernel tcp_info layout is append-only and stable across versions.
+ * HOW: The PAL owns native socket counter layouts and RTT-unit conversion.
+ *   Linux reads its append-only TCP_INFO ABI; Darwin uses TCP_CONNECTION_INFO.
  */
 
 #include "pmark.h"
@@ -32,54 +28,17 @@
 #include <time.h>
 #include <stdio.h>
 
-#if BRIX_HAS_TCP_INFO
-#include <netinet/tcp.h>     /* TCP_INFO constant only (not struct tcp_info) */
-
-/* Fixed offsets into the kernel `struct tcp_info` (bytes).  8-byte u8 preamble,
- * then 24 u32 fields (tcpi_rtt is the 16th, at 8 + 15*4 = 68), then 8-aligned
- * u64 fields: pacing_rate(104), max_pacing_rate(112), bytes_acked(120),
- * bytes_received(128). */
-#define PMARK_TCPI_OFF_RTT             68
-#define PMARK_TCPI_OFF_BYTES_ACKED     120
-#define PMARK_TCPI_OFF_BYTES_RECEIVED  128
-#endif
-
-
+/* ---- Adapt native socket counters for Firefly ----
+ * WHAT: Fill measured usage, returning NGX_DECLINED when the PAL cannot query it.
+ * WHY: OS-specific layouts and scales must not leak into portable observation.
+ * HOW: Zero the result, call the host adapter, translate only its return code.
+ */
 ngx_int_t
 brix_pmark_sockstats(int fd, brix_pmark_sockstats_t *st)
 {
     ngx_memzero(st, sizeof(*st));
-
-#if BRIX_HAS_TCP_INFO
-    {
-        unsigned char  buf[256];
-        socklen_t      len = sizeof(buf);
-        uint32_t       rtt;
-        uint64_t       acked, recvd;
-
-        if (fd < 0
-            || getsockopt(fd, IPPROTO_TCP, TCP_INFO, buf, &len) != 0)
-        {
-            return NGX_DECLINED;
-        }
-
-        if (len >= PMARK_TCPI_OFF_RTT + sizeof(rtt)) {
-            ngx_memcpy(&rtt, buf + PMARK_TCPI_OFF_RTT, sizeof(rtt));
-            st->rtt_us = rtt;
-        }
-        if (len >= PMARK_TCPI_OFF_BYTES_RECEIVED + sizeof(recvd)) {
-            ngx_memcpy(&acked, buf + PMARK_TCPI_OFF_BYTES_ACKED, sizeof(acked));
-            ngx_memcpy(&recvd, buf + PMARK_TCPI_OFF_BYTES_RECEIVED,
-                       sizeof(recvd));
-            st->bytes_sent = acked;
-            st->bytes_recv = recvd;
-        }
-        return NGX_OK;
-    }
-#else
-    (void) fd;
-    return NGX_DECLINED;
-#endif
+    return brix_plat_tcp_stats(fd, &st->bytes_sent, &st->bytes_recv, &st->rtt_us)
+           == 0 ? NGX_OK : NGX_DECLINED;
 }
 
 

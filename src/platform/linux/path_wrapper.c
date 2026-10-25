@@ -35,13 +35,34 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <time.h>
 #include <unistd.h>
 
+/*
+ * brix_plat_openat2 - open a path using Linux openat2 confinement semantics.
+ *
+ * WHAT: Invoke openat2 with close-on-exec and the caller's resolve policy.
+ * WHY:  RESOLVE_BENEATH may transiently return EAGAIN when a concurrent
+ *       rename prevents the kernel from proving that the path stayed beneath
+ *       rootfd; treating that race as a file lock leaks a spurious protocol
+ *       error to otherwise valid staged writes.
+ * HOW:  Retry only EAGAIN with a short sleep between attempts so a concurrent
+ *       namespace mutation can finish even when sched_yield() immediately
+ *       reschedules this worker (common under container overlay filesystems).
+ *       The 64-attempt/~63 ms bound keeps the worker finite; every other error
+ *       returns immediately, and exhaustion preserves EAGAIN so confinement
+ *       still fails closed.
+ */
 int
 brix_plat_openat2(int rootfd, const char *rel, int flags, mode_t mode,
     uint64_t resolve)
 {
     struct open_how how;
+#if defined(SYS_openat2)
+    unsigned int attempts = 64;
+    const struct timespec retry_pause = {0, 1000000};
+    int fd;
+#endif
 
     memset(&how, 0, sizeof(how));
     how.flags   = (uint64_t) (flags | O_CLOEXEC);
@@ -50,7 +71,14 @@ brix_plat_openat2(int rootfd, const char *rel, int flags, mode_t mode,
         how.mode = (uint64_t) (mode & 07777);
     }
 #if defined(SYS_openat2)
-    return (int) syscall(SYS_openat2, rootfd, rel, &how, sizeof(how)); /* vfs-seam-allow: SEAM_CORRECT - PAL confinement primitive beneath brix_open_beneath */
+    do {
+        fd = (int) syscall(SYS_openat2, rootfd, rel, &how, sizeof(how)); /* vfs-seam-allow: SEAM_CORRECT - PAL confinement primitive beneath brix_open_beneath */
+        if (fd < 0 && errno == EAGAIN && attempts > 1) {
+            (void) nanosleep(&retry_pause, NULL);
+        }
+    } while (fd < 0 && errno == EAGAIN && --attempts > 0);
+
+    return fd;
 #else
     (void) rootfd;
     errno = ENOSYS;

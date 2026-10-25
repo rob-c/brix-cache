@@ -13,6 +13,7 @@ minimization end to end when clang+libFuzzer are present.
 from __future__ import annotations
 
 import importlib.util
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -38,8 +39,19 @@ def _load_writeback():
 wb = _load_writeback()
 
 
+@pytest.fixture(autouse=True)
+def isolated_git_configuration(monkeypatch):
+    """No checkout routing, identity or hooks may escape into fixture repos."""
+    for key in list(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setattr(wb, "_push", lambda: pytest.fail("fixture must never push"))
+
+
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True)
+    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, check=True)
 
 
 def _init_repo(tmp_path: Path) -> Path:

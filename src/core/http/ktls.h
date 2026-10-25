@@ -44,8 +44,9 @@ brix_http_ktls_enable_ctx(SSL_CTX *ctx, ngx_log_t *log, ngx_str_t *server_name)
                   server_name);
 #else
     (void) ctx;
-    (void) log;
-    (void) server_name;
+    BRIX_LOG(NGX_LOG_NOTICE, log, 0,
+        "brix: kTLS is unavailable in this OpenSSL build; "
+        "using userspace TLS for server %V (brix_ktls on)", server_name);
 #endif
 }
 

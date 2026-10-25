@@ -31,6 +31,9 @@ from lib_py import fuse_host
 from settings import BIND_HOST, HOST, TEST_PORT_START
 from lib_py.util import budget_scale
 from port_ladder import CVMFS_CONFORMANCE_OFFSET
+from cvmfs.conformance_ports import (
+    BLOCK_WIDTH, CANONICAL_ORDER as _CANONICAL_ORDER, MATRIX_WIDTH as _MATRIX_WIDTH,
+)
 
 MOCK = str(REPO_ROOT / "tests/cvmfs/mock_stratum1.py")
 BRIXMOUNT = os.environ.get("BRIXMOUNT_BIN", str(REPO_ROOT / "client/bin/brixMount"))
@@ -52,20 +55,12 @@ NGINX_BIN = os.environ.get("NGINX_BIN") or (
 # (no cross-suite / debug collision) — which replaces the old absolute per-session
 # tiling.  `CVMFS_CONFORMANCE_PORT_BASE` still pins the sub-ladder base explicitly
 # for CI/debugging when TEST_PORT_START anchoring is not wanted.
-_CANONICAL_ORDER = (
-    "srv_gate", "srv_manifest", "srv_cas", "srv_http", "srv_proxy", "srv_geo",
-    "srv_resilience", "srv_config", "srv_verify", "srv_authz",
-    "fuse_cache", "fuse_catalog", "fuse_manifest_parse", "fuse_posix", "fuse_read",
-    "fuse_refresh_failover", "fuse_trust", "fuse_whitelist", "fuse_pin",
-    "srv_bundle", "srv_dict", "srv_scvmfs_x509", "srv_scvmfs_voms", "srv_stratum0",
-    "srv_s0_scvmfs", "srv_s0_quickstart", "srv_smoke",
-    "srv_ingest", "srv_ingest_oracle",
-)
 # +1 matches port_ladder._port(offset, 0) = PORT_START + offset + 1, so this
 # category begins exactly where the fixed-fleet ladder ends (no gap, no overlap).
 _CVMFS_BASE = int(os.environ.get("CVMFS_CONFORMANCE_PORT_BASE",
                                  TEST_PORT_START + CVMFS_CONFORMANCE_OFFSET + 1))
-PORT_BLOCKS = {name: _CVMFS_BASE + i * 20 for i, name in enumerate(_CANONICAL_ORDER)}
+PORT_BLOCKS = {name: _CVMFS_BASE + i * BLOCK_WIDTH
+               for i, name in enumerate(_CANONICAL_ORDER)}
 # NOTE: the prefetch/prewarm suites (test_cvmfs_prefetch.py, test_cvmfs_prewarm.py)
 # deliberately use OS-assigned ephemeral ports (bind port 0) instead of a block
 # here: they control both the origin and the client's $BRIXCVMFS_SERVER.
@@ -74,7 +69,7 @@ PORT_BLOCKS = {name: _CVMFS_BASE + i * 20 for i, name in enumerate(_CANONICAL_OR
 # applied on top of the anchored bases.
 _SESSION_OFFSET = 0
 
-# A dedicated sub-range, just past the 26 file blocks, for suites that spin up MANY
+# A dedicated sub-range, just past the catalogue's file blocks, for suites that spin up MANY
 # short-lived mock origins CONCURRENTLY (the fuse-trust tamper matrix runs ~30 at
 # once through a thread pool — far more than a single 10-port block).  Still within
 # TEST_PORT_START+2000; hand out a distinct fixed port per caller, thread-safely,
@@ -114,8 +109,7 @@ def _xdist_worker_slot() -> tuple[int, int]:
 # "bind() ... Address already in use" in a parallel run.  The cursor now lives in
 # a file under TEST_ROOT with an flock around the increment, exactly like
 # ephemeral_port's lease registry, so it is unique ACROSS processes too.
-_MATRIX_WIDTH = 48
-_MATRIX_BASE = _CVMFS_BASE + len(_CANONICAL_ORDER) * 20
+_MATRIX_BASE = _CVMFS_BASE + len(_CANONICAL_ORDER) * BLOCK_WIDTH
 _matrix_lock = threading.Lock()
 
 

@@ -39,6 +39,7 @@
 #undef linux
 #undef darwin
 #undef windows
+#undef freebsd
 
 #define BRIX_PLAT_STR_(x) #x
 #define BRIX_PLAT_STR(x) BRIX_PLAT_STR_(x)

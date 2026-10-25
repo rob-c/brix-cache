@@ -22,6 +22,7 @@
  */
 #include "vfs_writer_internal.h"       /* session struct + spill (phase-107 C1) */
 #include "core/compat/copy_range.h"   /* brix_copy_range — zero-copy fd ingest */
+#include "fs/core/vfs_core.h"
 
 /* Does the backend behind `ctx` accept an in-place random-offset write? The
  * POSIX default export has no resolved sd instance (ctx->sd == NULL) and is
@@ -195,6 +196,29 @@ writer_put(brix_vfs_writer_t *w, const void *buf, size_t len, off_t off)
     return NGX_OK;
 }
 
+/* ---- Bound a nonempty writer extent ----
+ * WHAT: Return NGX_OK for representable extent and accounting ends, else EINVAL.
+ * WHY: A wrapped end can raise SIGXFSZ in a backend or overflow writer cursors.
+ * HOW: 1. Subtract each nonnegative offset from off_t's maximum. 2. Compare
+ *      the unsigned length before any cast, arithmetic or storage operation.
+ */
+static ngx_int_t
+writer_check_extent(const brix_vfs_writer_t *w, size_t len, off_t off)
+{
+    if (xvfs_check_extent(off, len) != 0
+        || xvfs_check_extent(w->written, len) != 0)
+    {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/* ---- Submit one representable writer extent ----
+ * WHAT: Write bytes or return NGX_ERROR without touching an invalid extent.
+ * WHY: The mutation gate must precede extent/backend diagnostics.
+ * HOW: 1. Check the session. 2. Gate mutation. 3. Bound, write and account.
+ */
 ngx_int_t
 brix_vfs_writer_write(brix_vfs_writer_t *w, const void *buf, size_t len,
     off_t off)
@@ -208,6 +232,9 @@ brix_vfs_writer_write(brix_vfs_writer_t *w, const void *buf, size_t len,
     }
     if (brix_vfs_gate_mutation(w->ctx, BRIX_VFS_MUTATE_WRITE) != NGX_OK)
     {
+        return NGX_ERROR;
+    }
+    if (writer_check_extent(w, len, off) != NGX_OK) {
         return NGX_ERROR;
     }
     if (writer_put(w, buf, len, off) != NGX_OK) {
@@ -258,6 +285,11 @@ writer_ingest_bounce(brix_vfs_writer_t *w, int src_fd, off_t src_off, size_t len
     return NGX_OK;
 }
 
+/* ---- Ingest one representable source/destination extent ----
+ * WHAT: Copy exactly len bytes or return NGX_ERROR before an invalid range.
+ * WHY: Zero-copy and bounce paths must share overflow and mutation precedence.
+ * HOW: 1. Check arguments. 2. Gate mutation. 3. Bound both ranges and copy.
+ */
 ngx_int_t
 brix_vfs_writer_write_fd(brix_vfs_writer_t *w, int src_fd, off_t src_off,
     size_t len, off_t dst_off)
@@ -271,6 +303,12 @@ brix_vfs_writer_write_fd(brix_vfs_writer_t *w, int src_fd, off_t src_off,
     }
     if (brix_vfs_gate_mutation(w->ctx, BRIX_VFS_MUTATE_WRITE) != NGX_OK)
     {
+        return NGX_ERROR;
+    }
+    if (writer_check_extent(w, len, dst_off) != NGX_OK
+        || xvfs_check_extent(src_off, len) != 0)
+    {
+        errno = EINVAL;
         return NGX_ERROR;
     }
 

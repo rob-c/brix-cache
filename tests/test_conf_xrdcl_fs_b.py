@@ -1,4 +1,7 @@
 from split_continuation import reexport as _reexport
+from lib_py.reference_host import assert_backing_size_parity
+import re
+
 _reexport(globals(), "_test_conf_xrdcl_fs_helpers")
 
 pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_xrdcl_fs_b")]
@@ -264,14 +267,29 @@ def test_statvfs_status_parity(pair, path):
     assert res["our"] == res["off"]
 
 
+def _is_dotted_version(value):
+    return re.fullmatch(r"v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?", value) \
+        is not None
+
+
+@pytest.mark.parametrize("value", ["5.9.1", "v2.0.0", "1.2.3-rc.1", "v1.2.3+pkg"])
+def test_query_config_version_parser_accepts_supported_forms(value):
+    assert _is_dotted_version(value)
+
+
+@pytest.mark.parametrize("value", ["", "v", "1.2", "v1.2.3/../../etc", "1.2.3\nBAD"])
+def test_query_config_version_parser_rejects_malformed_forms(value):
+    assert not _is_dotted_version(value)
+
+
 def test_query_config_version_format(pair):
-    """Both Qconfig version replies must be a non-empty 'vX.Y.Z'-ish string
-    (the exact version differs, but the shape must parse for clients)."""
+    """Both Qconfig replies carry a dotted version; a leading ``v`` is
+    optional because supported stock packages use both wire forms."""
     for tag, url, _ in _both(pair):
         st, data = _fs(url).query(QueryCode.CONFIG, "version")
         assert st.ok, f"{tag} {st.message}"
         s = (data or b"").decode("ascii", "replace").strip()
-        assert s.startswith("v"), f"{tag} version not v-prefixed: {s!r}"
+        assert _is_dotted_version(s), f"{tag} malformed version: {s!r}"
 
 
 # --------------------------------------------------------------------------- #
@@ -297,7 +315,7 @@ def test_stat_size_parity(pair, path):
         st, si = _fs(url).stat(path)
         assert st.ok, f"{tag} stat {path}: {st.message}"
         sizes[tag] = si.size
-    assert sizes["our"] == sizes["off"]
+    assert_backing_size_parity(pair, path, sizes['our'], sizes['off'])
 
 
 @pytest.mark.parametrize("path", STAT_PATHS)

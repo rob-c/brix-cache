@@ -19,6 +19,7 @@
  */
 
 #include "rpm.h"
+#include "core/http/http_variables.h"
 
 #include "core/compat/alloc_guard.h"
 #include "protocols/shared/mirror_common.h"
@@ -49,44 +50,15 @@ static char *
 rpm_conf_mirror(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_http_brix_rpm_loc_conf_t *lcf = conf;
-    ngx_http_core_loc_conf_t     *clcf;
-    ngx_str_t                    *value = cf->args->elts;
-
     (void) cmd;
-    if (lcf->mirror != NGX_CONF_UNSET) {
-        return "is duplicate";
-    }
-
-    lcf->mirror     = 1;
-    lcf->mirror_url = value[1];
-
-    clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
-    clcf->handler = ngx_http_brix_rpm_handler;
-
-    return NGX_CONF_OK;
+    return brix_http_mirror_configure(cf,
+        ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module),
+        &lcf->mirror, &lcf->mirror_url, ngx_http_brix_rpm_handler);
 }
 
 
 /* ---- $rpm_class ---------------------------------------------------------- */
 
-static ngx_int_t
-rpm_var_set(ngx_http_request_t *r, ngx_http_variable_value_t *v,
-    const char *val)
-{
-    size_t   n = ngx_strlen(val);
-    u_char  *p = ngx_pnalloc(r->pool, n);
-
-    if (p == NULL) {
-        return NGX_ERROR;
-    }
-    ngx_memcpy(p, val, n);
-    v->data         = p;
-    v->len          = n;
-    v->valid        = 1;
-    v->no_cacheable = 0;
-    v->not_found    = 0;
-    return NGX_OK;
-}
 
 
 static ngx_int_t
@@ -98,9 +70,9 @@ rpm_var_class(ngx_http_request_t *r, ngx_http_variable_value_t *v,
 
     (void) data;
     if (ctx == NULL || !ctx->classified) {
-        return rpm_var_set(r, v, "-");
+        return brix_http_variable_copy(r, v, "-");
     }
-    return rpm_var_set(r, v, brix_rpm_class_str(ctx->req.cls));
+    return brix_http_variable_copy(r, v, brix_rpm_class_str(ctx->req.cls));
 }
 
 

@@ -52,7 +52,10 @@ from brix_suite.orphans import (  # noqa: E402
     ForeignLaneError, kill_orphans, lane_claimants, lane_harnesses, live_lanes,
 )
 
-pytestmark = pytest.mark.timeout(120)
+# These assertions inventory the host process namespace. Keep the deliberate
+# competing harnesses inside each case, without unrelated xdist exec storms
+# making a native environment snapshot temporarily uninspectable.
+pytestmark = [pytest.mark.timeout(120), pytest.mark.serial]
 
 _SLEEPER = textwrap.dedent("""
     import sys, time

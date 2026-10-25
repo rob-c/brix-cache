@@ -14,11 +14,13 @@ from test_platform_linux_native import native_compile
 @pytest.fixture(scope='module')
 def plugin_binary(native_compile):
     """Compile the production TU and assert every copy has non-null arguments."""
-    source = Path(__file__).parent / 'c/checksum_plugin_empty_options_test.c'
+    root = Path(__file__).resolve().parents[1]
+    source = root / 'tests/c/checksum_plugin_empty_options_test.c'
     return native_compile(
         'plugin-options', source.read_text(),
         extra=['-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections',
-               '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-ldl'])
+               '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-ldl'],
+        include_dirs=[root / 'src'])
 
 
 @pytest.mark.parametrize('scenario', ['absent', 'value', 'oversized'])

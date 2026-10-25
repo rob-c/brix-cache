@@ -1,5 +1,5 @@
 /* Phase-118 S3 multipart-upload conformance probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "core/compat/uri.h"
 
 #define S3_MULTIPART_MIN_PART (5U * 1024U * 1024U)
@@ -11,19 +11,6 @@ typedef struct {
     char                   upload_id[S3_UPLOAD_ID_MAX];
 } s3_multipart;
 
-/* ---- Decide whether a scoped result row is executable ----
- *
- * WHAT: Returns one only for an existing row that was not safety-skipped.
- * WHY: Multipart requests must never bypass registry scope or mutate authority.
- * HOW: Find the result and inspect its precomputed skip verdict.
- */
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
-
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
 /* ---- Extract one bounded XML element without entity interpretation ----
  *
@@ -384,7 +371,7 @@ skip_multipart_rows(xrd_conform_execution *execution)
     size_t index;
 
     for (index = 0; index < 3; index++)
-        if (row_active(execution, ids[index]))
+        if (xrd_conform_row_active(execution, ids[index]))
             xrd_conform_result_set(execution, ids[index],
                 BRIX_CONFORM_VERDICT_SKIPPED,
                 "fixture-absent:s3-multipart-upload", NULL, NULL);
@@ -402,7 +389,7 @@ grade_multipart_assembly(xrd_conform_execution *execution, int success,
 {
     int pass;
 
-    if (!row_active(execution, "S3-011")) return;
+    if (!xrd_conform_row_active(execution, "S3-011")) return;
     pass = success && missing_rejected;
     xrd_conform_result_set(execution, "S3-011",
         pass ? BRIX_CONFORM_VERDICT_CONFORMANT
@@ -422,7 +409,7 @@ grade_multipart_assembly(xrd_conform_execution *execution, int success,
 static void
 grade_multipart_size(xrd_conform_execution *execution, int small_rejected)
 {
-    if (!row_active(execution, "S3-012")) return;
+    if (!xrd_conform_row_active(execution, "S3-012")) return;
     xrd_conform_result_set(execution, "S3-012",
         small_rejected ? BRIX_CONFORM_VERDICT_CONFORMANT
                        : BRIX_CONFORM_VERDICT_DIVERGENT,
@@ -443,7 +430,7 @@ grade_multipart_etag(xrd_conform_execution *execution, int success,
 {
     int pass;
 
-    if (!row_active(execution, "S3-013")) return;
+    if (!xrd_conform_row_active(execution, "S3-013")) return;
     pass = success && etag_ok;
     xrd_conform_result_set(execution, "S3-013",
         pass ? BRIX_CONFORM_VERDICT_CONFORMANT
@@ -469,9 +456,9 @@ xrd_conform_probe_s3_multipart(xrd_conform_execution *execution,
     int missing_rejected;
     int small_rejected;
 
-    if (!url->is_s3 || (!row_active(execution, "S3-011")
-        && !row_active(execution, "S3-012")
-        && !row_active(execution, "S3-013"))) return;
+    if (!url->is_s3 || (!xrd_conform_row_active(execution, "S3-011")
+        && !xrd_conform_row_active(execution, "S3-012")
+        && !xrd_conform_row_active(execution, "S3-013"))) return;
     success = probe_successful_multipart(execution, url, &etag_ok);
     if (success < 0) {
         skip_multipart_rows(execution);

@@ -135,12 +135,20 @@ writes into are owned elsewhere:
   so a missing/garbled body yields a valid exclusive lock with an empty owner
   rather than uninitialized state. `webdav_lock_parse_depth` defaults to depth
   *infinity* when the header is absent.
-- **Stale doc note:** older notes describe a fixed 1024-slot shared-memory lock
-  table returning `507` at capacity. That design has been **replaced** by the
-  per-resource xattr scheme (see the header comment in `../lock.c:4-10`): no SHM,
-  no mutex, `XATTR_CREATE` gives kernel-serialized atomic creation, and a
-  startup sweep (`webdav_lock_startup_sweep`) can purge persisted locks. Lock
-  capacity is no longer a fixed slot count.
+- **Persisted inode-bound transactions.** Older notes describe a fixed
+  1024-slot shared-memory table returning `507` at capacity; that design is
+  replaced by per-resource xattrs. The local POSIX lock store serializes exact
+  compare/exchange with a fresh confined descriptor and nonblocking `flock`;
+  mapped writes execute in the owner's broker. This does not emulate general
+  conditional xattrs for uncooperating writers. Other drivers retain their
+  credential-aware xattr path. Capacity is no longer a fixed slot count.
+- **Observed bytes are not replacement encoding.** Decoded records retain a
+  bounded, by-value snapshot for the expected side of compare/exchange. Legacy
+  expiry normalization, reordered fields and ignored future fields cannot
+  change those expected bytes. New/replacement records always encode canonical
+  v2; stale observations still cannot delete a refreshed successor. Embedded
+  NULs are invalid. An explicit startup sweep can remove persisted records;
+  request-time expiry cleanup still cannot mutate a read-only export.
 
 ## Entry points / extending
 

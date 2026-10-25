@@ -17,6 +17,7 @@
 #include "protocols/root/zip/zip_member.h"        /* phase-57 W2: ZIP member access */
 #include "fs/vfs/vfs_backend_registry.h" /* Layer 3: per-export storage driver */
 #include "fs/vfs/vfs_internal.h"         /* brix_vfs_export_relative_root */
+#include "fs/path/n2n_stage.h"
 #include "fs/backend/sd.h"           /* driver stat for read existence check */
 #include "fs/backend/cache/sd_cache.h" /* slow-tier miss offload probe (SP2) */
 #include "protocols/root/path/opaque_validate.h" /* brix_opaque_value (W3.3) */
@@ -280,10 +281,20 @@ brix_open_try_cache_offload(brix_ctx_t *ctx, ngx_connection_t *c,
 {
 	brix_sd_instance_t *gsd =
 	    brix_vfs_backend_resolve(conf->common.root_canon, c->log);
-	const char *gkey =
-	    brix_vfs_export_relative_root(full_path, conf->common.root_canon);
+	char gkey[PATH_MAX];
 
-	if (gsd != NULL && brix_sd_cache_fill_needs_offload(gsd, gkey)) {
+	if (gsd == NULL) {
+		return NGX_DECLINED;
+	}
+	if (brix_path_export_to_pfn(conf->common.root_canon,
+	        brix_vfs_backend_n2n(conf->common.root_canon), full_path,
+	        gkey, sizeof(gkey)) != NGX_OK)
+	{
+		BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path,
+		    "cache", kXR_ArgInvalid, "storage path translation failed");
+	}
+
+	if (brix_sd_cache_fill_needs_offload(gsd, gkey)) {
 		/* Resolve the session's forwarded backend credential on the MAIN
 		 * thread (the async fill worker cannot touch the request ctx) and
 		 * carry it onto the fill task, so the origin leg of a cache MISS
@@ -331,83 +342,8 @@ brix_open_try_cache_offload(brix_ctx_t *ctx, ngx_connection_t *c,
 }
 
 
-/* Phase-107 C5: the client's declared final size, read leniently from the raw
- * opaque ("?oss.asize=N"). Called only on a write open, after the opaque guard
- * (byte hygiene + optional strict schema) has passed. 0 = no declaration. */
-static off_t
-brix_open_declared_asize(brix_ctx_t *ctx)
-{
-	char opq[BRIX_MAX_PATH + 1];
 
-	if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0
-	    || !open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen,
-	                            opq, sizeof(opq)))
-	{
-		return 0;
-	}
-	return (off_t) brix_opaque_asize(opq);
-}
 
-/*
- * WHAT: Detect mutually exclusive kXR_open access-mode bits.
- * WHY:  Treating an all-bits or multi-mode request as an ordered set of hints
- *       partially honours attacker-chosen semantics (for example truncate plus
- *       append) instead of rejecting the contradictory request atomically.
- * HOW:  Normalize the stock-compatible wrto|apnd spelling to append, then count
- *       the effective access modes; zero/one is defined and two or more fails
- *       before TPC, path, or VFS work.
- */
-static int
-brix_open_options_conflict(uint16_t options)
-{
-	uint16_t access = options
-	    & (kXR_open_read | kXR_open_updt | kXR_open_apnd | kXR_open_wrto);
-	unsigned count = 0;
-
-	/* Stock clients send wrto|apnd for a write-only append open.  In that
-	 * shape wrto declares the access direction and apnd refines its placement;
-	 * they are one effective mode, not two contradictory modes. */
-	if ((access & (kXR_open_wrto | kXR_open_apnd))
-	    == (kXR_open_wrto | kXR_open_apnd))
-	{
-		access &= (uint16_t) ~kXR_open_wrto;
-	}
-
-	while (access != 0) {
-		count += access & 1U;
-		access >>= 1;
-	}
-	return count > 1;
-}
-
-/* 2.0 F5 (upstream pfc.urlcgi): the per-open cache hints, read leniently from
- * the raw opaque ("?pfc.blocksize=N&pfc.prefetch=M") on a READ open, after the
- * opaque guard has passed (strict mode already rejected a malformed value as
- * BAD_TYPE; the lenient tier drops it here). Zero for a write open: the hints
- * describe how a cache slices and speculates a served object, nothing else.
- * Whether they apply at all is the cache's brix_cache_urlcgi decision. */
-static brix_sd_open_hints_t
-brix_open_cache_hints(brix_ctx_t *ctx, ngx_flag_t is_write)
-{
-	brix_sd_open_hints_t h = { 0, 0, 0 };
-	char                 opq[BRIX_MAX_PATH + 1];
-	long long            v;
-
-	if (is_write || ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0
-	    || !open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen,
-	                            opq, sizeof(opq)))
-	{
-		return h;
-	}
-	if (brix_opaque_uint(opq, "pfc.blocksize", &v) && v > 0) {
-		h.block_size = (size_t) v;
-	}
-	if (brix_opaque_uint(opq, "pfc.prefetch", &v)) {
-		h.prefetch_blocks = (size_t) v;
-		h.prefetch_set    = 1;
-	}
-	return h;
-}
 
 /*
  *
@@ -477,6 +413,46 @@ brix_open_cgroup_check(brix_ctx_t *ctx, ngx_connection_t *c,
 	return brix_send_error(ctx, c, kXR_ArgInvalid, msg);
 }
 
+static ngx_int_t
+brix_open_option_guard(brix_ctx_t *ctx, ngx_connection_t *c,
+	uint16_t options, int is_write)
+{
+	int op = is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD;
+	const char *mode = is_write ? "wr" : "rd";
+
+	if (brix_open_options_conflict(options)) {
+		BRIX_RETURN_ERR(ctx, c, op, "OPEN", "-", mode,
+			kXR_ArgInvalid, "conflicting open access modes");
+	}
+	if (options & kXR_replica) {
+		BRIX_RETURN_ERR(ctx, c, op, "OPEN", "-", mode,
+			kXR_Unsupported, "replica open is not supported");
+	}
+	return NGX_DECLINED;
+}
+
+static ngx_int_t
+brix_open_try_ssi(brix_ctx_t *ctx, ngx_connection_t *c,
+	ngx_stream_brix_srv_conf_t *conf, uint16_t options)
+{
+	char        path[PATH_MAX];
+	const char *service;
+	size_t      service_len;
+
+	if (!conf->ssi_enable) {
+		return NGX_DECLINED;
+	}
+	if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
+	                       path, sizeof(path), 1))
+	{
+		return NGX_DECLINED;
+	}
+	if (!brix_ssi_match(conf, path, &service, &service_len)) {
+		return NGX_DECLINED;
+	}
+	return brix_ssi_open(ctx, c, service, service_len, options);
+}
+
 ngx_int_t
 brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 				   ngx_stream_brix_srv_conf_t *conf)
@@ -503,17 +479,9 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 
 	/* Determine whether this is a write-mode open (shared write-bit set). */
 	is_write = brix_open_options_is_write(options);
-	if (brix_open_options_conflict(options)) {
-		BRIX_RETURN_ERR(ctx, c,
-			is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
-			"OPEN", "-", is_write ? "wr" : "rd",
-			kXR_ArgInvalid, "conflicting open access modes");
-	}
-	if (options & kXR_replica) {
-		BRIX_RETURN_ERR(ctx, c,
-			is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
-			"OPEN", "-", is_write ? "wr" : "rd",
-			kXR_Unsupported, "replica open is not supported");
+	rc = brix_open_option_guard(ctx, c, options, is_write);
+	if (rc != NGX_DECLINED) {
+		return rc;
 	}
 
 	/*
@@ -521,17 +489,9 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 	 * not a file — intercept before path resolution/open. Clean early-return:
 	 * non-SSI opens are byte-for-byte unchanged.
 	 */
-	if (conf->ssi_enable) {
-		char        ssi_path[PATH_MAX];
-		const char *svc;
-		size_t      svclen;
-
-		if (brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
-		                        ssi_path, sizeof(ssi_path), 1)
-		    && brix_ssi_match(conf, ssi_path, &svc, &svclen))
-		{
-			return brix_ssi_open(ctx, c, svc, svclen, options);
-		}
+	rc = brix_open_try_ssi(ctx, c, conf, options);
+	if (rc != NGX_DECLINED) {
+		return rc;
 	}
 
 	/* TPC (third-party-copy) context — destination pull / source rendezvous —

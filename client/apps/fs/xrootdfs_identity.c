@@ -1,9 +1,9 @@
 /*
  * xrootdfs_identity.c — per-caller SSS identity for a multi-user mount.
  *
- * WHAT: xfs_ident_pool() and xfs_ident_mgr() hand back the metadata pool and
- *       the data manager belonging to the uid of the FUSE request currently
- *       being served, building them on first use.  With --sss-identity off
+ * WHAT: xfs_ident_get() accepts the kernel request's explicit caller uid and
+ *       returns that user's metadata pool and data manager, building them on
+ *       first use. With --sss-identity off
  *       they return the mount-wide g_pool / g_mgr and nothing changes.
  * WHY:  one FUSE process serves every user on the box.  The sss authenticator
  *       named the process owner (getpwuid(geteuid()) in sec_sss.c), so under
@@ -28,7 +28,6 @@
  * name its way into an identity the operator did not issue.
  */
 #include "../../../shared/observability/log_stdio.h"
-#include <unistd.h>   /* geteuid */
 #include "xrootdfs_internal.h"
 
 #include <pwd.h>
@@ -201,16 +200,6 @@ ident_get(uid_t uid)
 }
 
 
-/* The uid of the request being served, or the process's own outside FUSE. */
-static uid_t
-ident_caller_uid(void)
-{
-    struct fuse_context *fc = fuse_get_context();
-
-    return (fc != NULL) ? fc->uid : geteuid();
-}
-
-
 /* Did uid fail for want of a slot (rather than a failed connect)?  Checked only
  * on the error path, so the extra lock round costs nothing in the common case. */
 static int
@@ -257,10 +246,9 @@ xfs_ident_init(void)
  * prevent, so the request is refused instead.  Either out-pointer may be NULL.
  */
 int
-xfs_ident_get(brix_pool **pool, brix_mgr **mgr)
+xfs_ident_get(uid_t uid, brix_pool **pool, brix_mgr **mgr)
 {
     xfs_ident *e;
-    uid_t      uid;
 
     if (!g_sss_ident) {
         if (pool != NULL) { *pool = g_pool; }
@@ -268,7 +256,6 @@ xfs_ident_get(brix_pool **pool, brix_mgr **mgr)
         return 0;
     }
 
-    uid = ident_caller_uid();
     e = ident_get(uid);
     if (e == NULL) {
         return ident_full(uid) ? -EMFILE : -EACCES;

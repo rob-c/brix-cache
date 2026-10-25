@@ -13,6 +13,7 @@
 !src
 !shared
 !client
+!tools
 !packaging
 !contrib
 !docs
@@ -26,6 +27,7 @@
 !deploy/docker
 !deploy/compose
 !tests
+!brixtest
 !utils
 !k8s-tests
 # Keep the context lean — never ship caches, scratch, generated doxygen output,

@@ -38,50 +38,13 @@
 #include "core/config/tier_directives.h"   /* shared tier-grammar X-macro */
 #include "core/config/space_group_conf.h"  /* brix_oss_space (W3.3) setter + name rule */
 #include "fs/vfs/vfs_secgate.h"            /* brix_conf_set_tls_require */
+#include "tpc/common/identity_matrix.h"     /* shared identity directive grammar */
 
 #include <stdio.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 #include <openssl/evp.h>   /* phase-3 T1: mint-CA config-time validation */
 #include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
-
-/* §7 SSI: brix_ssi_cta_executor — simulated (test) vs real tier/frm (prod). */
-static ngx_conf_enum_t  brix_ssi_executor_enum[] = {
-    { ngx_string("test"), 0 },
-    { ngx_string("prod"), 1 },
-    { ngx_null_string,    0 }
-};
-
-/* Phase 2 Task 6: brix_storage_credential_fallback allow|deny on the stream
- * (root://) plane — mirrors brix_http_ucred_fallback_enum (http_common.c)
- * exactly; a stream-local copy because the HTTP one is file-static. */
-/* Phase-70 §4: brix_backend_delegation mode names → BRIX_CRED_* on the stream
- * (root://) plane — mirrors brix_backend_delegation_enum (http_common.c); a
- * stream-local copy because the HTTP one is file-static. */
-static ngx_conf_enum_t  brix_stream_backend_delegation_enum[] = {
-    { ngx_string("select"),      BRIX_CRED_SELECT },
-    { ngx_string("passthrough"), BRIX_CRED_PASSTHROUGH },
-    { ngx_string("exchange"),    BRIX_CRED_EXCHANGE },
-    { ngx_string("delegate"),    BRIX_CRED_DELEGATE },
-    { ngx_string("mint"),        BRIX_CRED_MINT },
-    { ngx_string("auto"),        BRIX_CRED_AUTO },
-    { ngx_null_string,           0 }
-};
-
-/* Phase-70 §5.5: brix_backend_s3_sts_flavor aws|minio on the stream (root://)
- * plane — mirrors brix_sts_flavor_enum (http_common.c); a stream-local copy
- * because the HTTP one is file-static. */
-static ngx_conf_enum_t  brix_stream_sts_flavor_enum[] = {
-    { ngx_string("aws"),   BRIX_STS_FLAVOR_AWS },
-    { ngx_string("minio"), BRIX_STS_FLAVOR_MINIO },
-    { ngx_null_string,     0 }
-};
-
-static ngx_conf_enum_t  brix_stream_credential_fallback_enum[] = {
-    { ngx_string("allow"), 0 },
-    { ngx_string("deny"),  1 },
-    { ngx_null_string,     0 }
-};
 
 /*
  * brix_conf_set_stream_mint_ca — setter for "brix_storage_credential_mint_ca

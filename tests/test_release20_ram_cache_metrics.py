@@ -38,7 +38,7 @@ import pytest
 
 from _test_release20_metrics_helpers import scrape, series, value, wait_for, wait_port
 from server_registry import NginxInstanceSpec
-from settings import BIND_HOST, HOST
+from settings import BIND_HOST, HOST, XRDCP_BIN, XRDFS_BIN
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-r20-ram")]
@@ -102,30 +102,40 @@ def _bytes_rows(body, port):
 
 def _stat(ep, path="/hot.bin"):
     """A protocol round trip; the slot itself is published at accept time."""
-    r = subprocess.run(["xrdfs", f"{HOST}:{ep.port}", "stat", path],
+    r = subprocess.run([XRDFS_BIN, f"{HOST}:{ep.port}", "stat", path],
                        capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
 
 
 def _xrdcp(ep, out):
-    r = subprocess.run(["xrdcp", "-f", f"root://{HOST}:{ep.port}//hot.bin", str(out)],
+    r = subprocess.run([XRDCP_BIN, "-f", f"root://{HOST}:{ep.port}//hot.bin", str(out)],
                        capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
     return out.read_bytes()
 
 
 def _plain_read(ep):
-    """A kXR_read (not pgread) of the whole object through pyxrootd."""
-    from XRootD import client
-    from XRootD.client.flags import OpenFlags
+    """An explicit kXR_read, independent of a reference client's heuristics.
 
-    f = client.File()
-    st, _ = f.open(f"root://{HOST}:{ep.port}//hot.bin", OpenFlags.READ)
-    assert st.ok, st.message
-    st, data = f.read(offset=0, size=HOT)
-    f.close()
-    assert st.ok, st.message
-    return data
+    This is a native server/cache regression, not an official-client
+    interoperability verdict; those have separate tests and reports.
+    """
+    from _test_audit15g_helpers import ReadHandle
+
+    with ReadHandle(ep.port, '/hot.bin') as handle:
+        return handle.read(0, HOT)
+
+
+def _paged_read(ep):
+    """Verify actual pgread framing and every page CRC, not CLI heuristics."""
+    from _test_audit15g_helpers import ReadHandle
+    from _test_conf_pgio_helpers import pgread, pgread_bytes, crc32c
+
+    with ReadHandle(ep.port, '/hot.bin') as handle:
+        status, pages = pgread(handle._sock, handle.fhandle, 0, HOT)
+        assert status == 0, pages
+        assert all(crc32c(data) == checksum for _offset, data, checksum in pages)
+        return pgread_bytes(pages)
 
 
 def _worker_pids(ep):
@@ -205,6 +215,7 @@ def test_root_pgread_through_a_ram_store_keeps_the_worker(ram, origin, tmp_path)
     assert workers, "no worker under the RAM-cached master"
     assert _xrdcp(ram, tmp_path / "miss.bin") == expected
     assert _xrdcp(ram, tmp_path / "hit.bin") == expected
+    assert _paged_read(ram) == expected
     assert _plain_read(ram) == expected
     assert _worker_pids(ram) == workers, "the worker was respawned mid-read"
     log = _error_log(ram)

@@ -47,6 +47,7 @@ import os
 import socket
 import struct
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -59,6 +60,7 @@ from settings import HOST
 from test_cms_resilience import (
     CMS_RR_LOAD,
     CMS_RR_LOGIN,
+    CMS_RR_PING,
     ManagerPeer,
     _build_frame,
 )
@@ -136,6 +138,35 @@ class ImpairedLink:
             self.proc.kill()
             self.proc.wait(timeout=5)
         self.proc = None
+
+
+class _LiveManagerHeartbeat:
+    """Send manager PINGs after LOGIN so healthy-link tests stay live.
+
+    The CMS client deliberately treats a manager that sends no traffic for
+    ``brix_cms_read_timeout`` as dead.  ManagerPeer is passive by design for
+    the resilience tests that import it, so this AAA harness adds the traffic
+    a real redirector emits.  Link toxics still delay, corrupt, or discard the
+    PINGs, preserving the outage and hostile-manager coverage below.
+    """
+
+    def __init__(self, peer):
+        self.peer = peer
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self):
+        while not self._stop.wait(0.25):
+            if self.peer.count_frames(CMS_RR_LOGIN) < 1:
+                continue
+            self.peer.send_to_node(0, CMS_RR_PING, 0)
+            if self._stop.wait(1.0):
+                return
+
+    def close(self):
+        self._stop.set()
+        self._thread.join(timeout=2.0)
 
 
 def _wait_port(port, timeout=10.0, host=None):
@@ -236,21 +267,25 @@ def site(lifecycle):
     except OSError as exc:
         pytest.skip(f"could not bind redirector stand-in: {exc}")
 
-    link = None
     try:
         link = ImpairedLink(peer_port)
-        endpoint = lifecycle.start(NginxInstanceSpec(
-            name="lc-cms-aaa-node",
-            template="nginx_cms_aaa_node.conf",
-            protocol="root",
-            readiness="tcp",
-            template_values={"MANAGER_PORT": link.listen},
-            reason="CMS AAA: federation join + stay-up over an impaired WAN link.",
-        ))
-        yield AaaSite(peer, link, endpoint)
-    finally:
-        if link is not None:
+        try:
+            endpoint = lifecycle.start(NginxInstanceSpec(
+                name="lc-cms-aaa-node",
+                template="nginx_cms_aaa_node.conf",
+                protocol="root",
+                readiness="tcp",
+                template_values={"MANAGER_PORT": link.listen},
+                reason="CMS AAA: federation join + stay-up over an impaired WAN link.",
+            ))
+            heartbeat = _LiveManagerHeartbeat(peer)
+            try:
+                yield AaaSite(peer, link, endpoint)
+            finally:
+                heartbeat.close()
+        finally:
             link.close()
+    finally:
         peer.close()
 
 

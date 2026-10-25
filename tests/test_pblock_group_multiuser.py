@@ -19,11 +19,11 @@ and recovering the writer's exact EEC DN.
 Why this suite is root-only (skips cleanly otherwise):
 
   * the ``g``-rule groups come from ``getgrouplist`` of the gridmap-mapped local
-    account, so real ``groupadd``/``useradd`` accounts are required, and
+    account, so real native group/account records are required, and
   * a real GSI proxy client (pyxrootd) drives the ``root://`` plane.
 
-Off a root host — or without ``useradd``/pyxrootd/the shared GSI PKI — every
-test skips, so the module is CI-safe everywhere.
+Off a root host — or without native account tools/pyxrootd/the shared GSI PKI —
+every test skips. FreeBSD uses ``pw``; Linux uses its native shadow utilities.
 
 Run privileged:
   sudo -E env PYTHONPATH=tests pytest tests/test_pblock_group_multiuser.py -v
@@ -55,6 +55,7 @@ from types import SimpleNamespace
 import pytest
 
 from lib_py.util import nologin_shell
+from lib_py import account_host
 
 import impersonation_gridmap_helpers as H
 import settings
@@ -123,33 +124,31 @@ def _eec_dn(cn: str) -> str:
 # Account provisioning                                                         #
 # --------------------------------------------------------------------------- #
 def _tools_present() -> bool:
-    return all(shutil.which(t)
-               for t in ("useradd", "userdel", "groupadd", "groupdel"))
+    return account_host.available()
 
 
 def _reap_accounts() -> None:
     for acct, *_ in USERS.values():
-        subprocess.run(["userdel", "-r", acct], capture_output=True)
+        subprocess.run(account_host.user_delete(acct), capture_output=True)
     for grp_name in GROUPS:
-        subprocess.run(["groupdel", grp_name], capture_output=True)
+        subprocess.run(account_host.group_delete(grp_name), capture_output=True)
 
 
 def _provision_accounts() -> None:
     _reap_accounts()  # crash-safe: sweep a leaked prior run first
     for grp_name, gid in GROUPS.items():
-        subprocess.run(["groupadd", "-o", "-g", str(gid), grp_name],
+        subprocess.run(account_host.group_add(grp_name, gid),
                        check=True, capture_output=True)
     for acct, uid, primary_grp, _ in USERS.values():
         subprocess.run(
-            ["useradd", "-M", "-N", "-o", "-u", str(uid), "-g", primary_grp,
-             "-s", nologin_shell(), acct],
+            account_host.user_add(acct, uid, primary_grp, nologin_shell()),
             check=True, capture_output=True)
 
 
 @pytest.fixture(scope="module", autouse=True)
 def _accounts():
     if not _tools_present():
-        pytest.skip("useradd/userdel/groupadd/groupdel not available")
+        pytest.skip("native account-management tools unavailable")
     _provision_accounts()
     try:
         yield

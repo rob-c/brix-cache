@@ -60,6 +60,7 @@ def harness(tmp_path_factory) -> Path:
         "-I", str(OBJS),
         "tests/c/krb5_origin_princ_test.c",
         str(_FORWARD),
+        str(OBJS / "src/core/ngx_string.o"),
         *_gss_libs(),
         # forward.o may come from a --coverage nginx build; linking with
         # --coverage satisfies its __gcov_* references and is inert otherwise.
@@ -68,7 +69,7 @@ def harness(tmp_path_factory) -> Path:
     ]
     built = run(cmd, cwd=REPO_ROOT, env={"TMPDIR": "/tmp"})
     if built.returncode != 0:
-        pytest.skip(f"harness compile failed: {(built.stderr or built.stdout)[-2000:]}")
+        pytest.fail(f"harness compile failed: {(built.stderr or built.stdout)[-2000:]}")
     return binary
 
 

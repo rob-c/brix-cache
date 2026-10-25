@@ -16,6 +16,7 @@
  */
 
 #include "error_mapping.h"
+#include "platform/platform_api.h"
 #include <errno.h>
 #include <stddef.h>
 

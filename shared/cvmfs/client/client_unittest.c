@@ -18,6 +18,7 @@
  */
 #define _GNU_SOURCE
 #include "cvmfs/client/client.h"
+#include "auth/crypto/key_compat.h"
 #include "cvmfs/object/object.h"
 #include "cvmfs/signature/verify.h"
 
@@ -174,8 +175,8 @@ int main(void) {
     if (!mkdtemp(cache_dir) || !mkdtemp(tmp_dir)) { perror("mkdtemp"); return 2; }
 
     /* keys + cert */
-    EVP_PKEY *master = EVP_RSA_gen(2048);
-    EVP_PKEY *certpk = EVP_RSA_gen(2048);
+    EVP_PKEY *master = brix_crypto_rsa_keygen(2048);
+    EVP_PKEY *certpk = brix_crypto_rsa_keygen(2048);
     X509 *x = X509_new();
     X509_set_pubkey(x, certpk);
     X509_gmtime_adj(X509_getm_notBefore(x), 0);

@@ -11,8 +11,8 @@
  * WHY:  CI hosts vary wildly in whether "localhost" carries a ::1 record; a shim
  *       makes the test deterministic and host-independent (needs only a working
  *       ::1 loopback, near-universal on Linux).
- * HOW:  Each result node is one calloc block with the sockaddr inline and
- *       ai_canonname == NULL, so the process's real freeaddrinfo frees it safely.
+ * HOW:  Each result node follows its host freeaddrinfo ownership convention:
+ *       inline sockaddr on glibc, separately allocated sockaddr on Darwin.
  *       Any other host name delegates to the real getaddrinfo via dlsym.
  */
 #define _GNU_SOURCE
@@ -30,12 +30,26 @@ static const char V6ONLY[]   = "v6only.invalid";      /* ::1 only (no A record) 
 typedef int (*gai_fn)(const char *, const char *,
                       const struct addrinfo *, struct addrinfo **);
 
+#ifdef __APPLE__
+#define TEST_GAI brix_test_getaddrinfo
+#else
+#define TEST_GAI getaddrinfo
+#endif
+
+int TEST_GAI(const char *, const char *, const struct addrinfo *, struct addrinfo **);
+
 static struct addrinfo *
 mk_node(int family, int port)
 {
     size_t addrlen = (family == AF_INET6) ? sizeof(struct sockaddr_in6)
                                           : sizeof(struct sockaddr_in);
+    /* glibc releases a node as one block; Darwin's freeaddrinfo separately
+     * releases ai_addr. Match the host allocator's ownership contract. */
+#ifdef __APPLE__
+    struct addrinfo *ai = calloc(1, sizeof(*ai));
+#else
     struct addrinfo *ai = calloc(1, sizeof(*ai) + addrlen);
+#endif
     if (ai == NULL) {
         return NULL;
     }
@@ -43,7 +57,15 @@ mk_node(int family, int port)
     ai->ai_socktype = SOCK_STREAM;
     ai->ai_protocol = IPPROTO_TCP;
     ai->ai_addrlen  = (socklen_t) addrlen;
-    ai->ai_addr     = (struct sockaddr *) (ai + 1);   /* inline, frees with node */
+#ifdef __APPLE__
+    ai->ai_addr = calloc(1, addrlen);
+    if (ai->ai_addr == NULL) {
+        free(ai);
+        return NULL;
+    }
+#else
+    ai->ai_addr     = (struct sockaddr *) (ai + 1);
+#endif
     ai->ai_canonname = NULL;
 
     if (family == AF_INET6) {
@@ -80,7 +102,7 @@ resolve_real_gai(void)
     if (cand == NULL) {
         return NULL;
     }
-    if (dladdr((void *) &getaddrinfo, &self) && dladdr(cand, &next)
+    if (dladdr((void *) &TEST_GAI, &self) && dladdr(cand, &next)
         && self.dli_fbase == next.dli_fbase) {
         return NULL;                       /* candidate lives inside this shim */
     }
@@ -88,7 +110,7 @@ resolve_real_gai(void)
 }
 
 int
-getaddrinfo(const char *node, const char *service,
+TEST_GAI(const char *node, const char *service,
             const struct addrinfo *hints, struct addrinfo **res)
 {
     /* Synthesised sentinels never need the real resolver — handle them first so
@@ -144,3 +166,12 @@ getaddrinfo(const char *node, const char *service,
         return real(node, service, hints, res);
     }
 }
+
+#ifdef __APPLE__
+/* dyld requires an interpose pair; exporting libc's name alone does not replace
+ * references already bound to libSystem. This is a test-only resolver shim. */
+__attribute__((used, section("__DATA,__interpose")))
+static const struct { const void *replacement; const void *original; } gai_pair = {
+    (const void *) &TEST_GAI, (const void *) &getaddrinfo
+};
+#endif

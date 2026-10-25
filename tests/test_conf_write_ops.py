@@ -27,6 +27,7 @@ import os
 import pytest
 
 import official_interop_lib as L
+from lib_py.reference_host import fixture_read_bytes
 
 pytestmark = [pytest.mark.xdist_group("conf_write_ops"),
               pytest.mark.timeout(180),
@@ -106,8 +107,8 @@ def test_upload_sizes(srv, tmp_path, n):
     assert rc == 0, f"stock xrdcp upload N={n} -> OUR failed: {o}{e}"
     disk = our_disk(srv, wire)
     assert os.path.getsize(disk) == n, f"on-disk size mismatch for N={n}"
-    with open(src, "rb") as a, open(disk, "rb") as b:
-        assert a.read() == b.read(), f"upload byte mismatch for N={n}"
+    assert fixture_read_bytes(src) == fixture_read_bytes(disk), \
+        f"upload byte mismatch for N={n}"
 
 
 # =========================================================================== #
@@ -122,8 +123,8 @@ def test_overwrite_with_force_succeeds(srv, tmp_path):
     assert rc == 0, f"first upload: {o}{e}"
     rc, o, e = cp("-f", b, f"{srv['our']}/{wire}")
     assert rc == 0, f"forced overwrite must succeed: {o}{e}"
-    with open(b, "rb") as fb, open(our_disk(srv, wire), "rb") as fd:
-        assert fb.read() == fd.read(), "forced overwrite did not replace content"
+    assert fixture_read_bytes(b) == fixture_read_bytes(our_disk(srv, wire)), \
+        "forced overwrite did not replace content"
 
 
 def test_overwrite_without_force_matches_stock(srv, tmp_path):

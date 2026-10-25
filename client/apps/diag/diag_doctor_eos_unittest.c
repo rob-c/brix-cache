@@ -20,6 +20,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <assert.h>
 
 #include "diag_internal.h"
 
@@ -83,19 +85,35 @@ static int g_fail;
 static int has(const char *hay, const char *needle)
 { return strstr(hay, needle) != NULL; }
 
-/* Capture a printf-emitting renderer by swapping the stdout stream (glibc). */
+/* ---- Capture the renderer's actual stdout descriptor ----
+ * WHAT: Return an allocated, terminated copy of every byte emitted by fn.
+ * WHY: Reassigning stdout misses libc puts when GCC folds literal printf calls,
+ *      notably on EL8; descriptor capture observes both without changing fn.
+ * HOW: 1. Flush and redirect stdout to tmpfile. 2. Render and restore the fd.
+ *      3. Read the bounded output and close every owned resource.
+ */
 static char *
 capture(void (*fn)(const doctor_ep *), const doctor_ep *e)
 {
-    char *buf = NULL;
-    size_t sz = 0;
-    FILE  *ms = open_memstream(&buf, &sz);
-    FILE  *save = stdout;
-    stdout = ms;
+    FILE *temporary = tmpfile();
+    int saved = dup(STDOUT_FILENO);
+    long length;
+    char *buf;
+
+    assert(temporary != NULL && saved >= 0);
+    assert(fflush(stdout) == 0);
+    assert(dup2(fileno(temporary), STDOUT_FILENO) >= 0);
     fn(e);
-    fflush(ms);
-    stdout = save;
-    fclose(ms);
+    assert(fflush(stdout) == 0);
+    assert(dup2(saved, STDOUT_FILENO) >= 0);
+    assert(close(saved) == 0);
+    length = ftell(temporary);
+    assert(length >= 0 && length < 65536);
+    buf = calloc((size_t) length + 1, 1);
+    assert(buf != NULL);
+    rewind(temporary);
+    assert(fread(buf, 1, (size_t) length, temporary) == (size_t) length);
+    assert(fclose(temporary) == 0);
     return buf;
 }
 

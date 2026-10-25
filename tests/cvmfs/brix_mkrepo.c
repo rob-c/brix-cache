@@ -10,13 +10,14 @@
  *   <pubkey_out>                                    (repo master public key, PEM)
  * prints the content of "/hello" to stdout so the test can compare.
  *
- * gcc -Wall -I shared brix_mkrepo.c shared/cvmfs/grammar/hash.c \
+ * gcc -Wall -I shared -I src brix_mkrepo.c shared/cvmfs/grammar/hash.c \
  *     shared/cvmfs/object/object.c shared/cvmfs/catalog/catalog.c \
  *     -lsqlite3 -lcrypto -lz
  */
 #include "cvmfs/grammar/hash.h"
 #include "cvmfs/object/object.h"
 #include "cvmfs/catalog/catalog.h"
+#include "auth/crypto/key_compat.h"
 
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -76,7 +77,7 @@ int main(int argc, char **argv) {
     char webrepo[900]; snprintf(webrepo, sizeof(webrepo), "%s/cvmfs/%s", webroot, repo);
     mkpath(webrepo);
 
-    EVP_PKEY *master = EVP_RSA_gen(2048), *certpk = EVP_RSA_gen(2048);
+    EVP_PKEY *master = brix_crypto_rsa_keygen(2048), *certpk = brix_crypto_rsa_keygen(2048);
     X509 *x = X509_new(); X509_set_pubkey(x, certpk);
     X509_gmtime_adj(X509_getm_notBefore(x), 0); X509_gmtime_adj(X509_getm_notAfter(x), 86400);
     X509_sign(x, certpk, EVP_sha256());

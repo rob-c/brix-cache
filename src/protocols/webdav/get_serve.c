@@ -260,6 +260,16 @@ webdav_get_eval_conditionals(ngx_http_request_t *r, get_serve_state_t *st)
     return NGX_OK;
 }
 
+/* WHAT: Book a deferred compressed GET with the existing metric reporters.
+ * WHY: A parked response has not finished yet. HOW: Invoked once by the sender. */
+static void
+webdav_get_compressed_done(ngx_http_request_t *r,
+    const brix_http_serve_result_t *result, ngx_int_t rc)
+{
+    webdav_serve_metrics(r, result);
+    webdav_metrics_response(r, rc);
+}
+
 /*
  * webdav_get_serve_full — serve the file with single-range (206) / full (200) body.
  *
@@ -297,8 +307,11 @@ webdav_get_serve_full(ngx_http_request_t *r,
     opts.compress        = conf->common.compress;
     opts.pre_header_send = webdav_get_add_xrdhttp_headers;
     opts.pre_header_ud   = &st->sb;
+    opts.deferred_done   = webdav_get_compressed_done;
 
     rc = brix_http_serve_file_ranged(r, st->fh, &st->vst, path, &opts, &result);
-    webdav_serve_metrics(r, &result);
+    if (rc != NGX_DONE) {
+        webdav_serve_metrics(r, &result);
+    }
     return rc;
 }

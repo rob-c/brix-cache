@@ -100,6 +100,7 @@ tools/refactor/*
 # check_logging_template.py imports this normalizer as its canonical parser;
 # unlike the other one-shot refactor scripts it is a CI runtime dependency.
 !tools/refactor/normalize_server_logging.py
+!tools/refactor/normalize_client_logging.py
 # diag/: local crash and stall probes (scratch), except sd_slot_matrix.py — the
 # storage-driver slot matrix is GENERATED, and both the matrix doc and
 # src/fs/backend/README.md tell the reader to regenerate/drift-check it with
@@ -118,6 +119,7 @@ tools/diag/*
 # `brix_lock_enforcement strict`, so a clone without it cannot follow the
 # documented upgrade procedure.
 !tools/diag/lock_scan.py
+!tools/diag/conform_negative_coverage.py
 .aider*
 
 .rpmbuild/

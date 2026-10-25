@@ -336,7 +336,11 @@ class TestServerLoginFuzzSweep:
                              ids=[n for n, _ in _LOGIN_FUZZ])
     def test_malformed_login_keeps_server_alive(self, sweep_server, payload):
         try:
-            bad = _node_login_dialog(sweep_server.port, payload)
+            # This corpus deliberately includes rejected handshakes.  The
+            # admitted-node helper requires a successful LOGIN acknowledgment
+            # and therefore cannot be used to send malformed LOGIN payloads.
+            bad = socket.create_connection((H, sweep_server.port), timeout=8)
+            bad.sendall(_build_frame(0, CMS_RR_LOGIN, 0, payload))
         except OSError:
             # even the connect/handshake failing is fine — what matters is the
             # server still serves others.

@@ -1,16 +1,6 @@
 /* Phase-118 scratch-confined HTTP creation probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
-/* WHAT: Return whether one HTTP-create row survived scope selection.
- * WHY: Mutation must never occur for a disabled or unauthorized probe row.
- * HOW: Find the row and reject the execution engine's skipped verdict. */
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
-
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
 /* WHAT: Construct one URL beneath the authorized scratch prefix.
  * WHY: A create probe must never overwrite the adopted baseline object.
@@ -60,7 +50,7 @@ probe_zero_put(xrd_conform_execution *execution, const brix_weburl *base,
     int get_rc = -1;
     int pass;
 
-    if (!row_active(execution, "HTC-003")) return;
+    if (!xrd_conform_row_active(execution, "HTC-003")) return;
     if (scratch_url(execution, base, "brix-conform-http-zero", &scratch) != 0) {
         xrd_conform_result_set(execution, "HTC-003",
             BRIX_CONFORM_VERDICT_SKIPPED,
@@ -125,7 +115,7 @@ probe_malformed_put(xrd_conform_execution *execution,
     int rc;
     int pass;
 
-    if (!row_active(execution, id)) return;
+    if (!xrd_conform_row_active(execution, id)) return;
     if (scratch_url(execution, base, leaf, &scratch) != 0) {
         xrd_conform_result_set(execution, id, BRIX_CONFORM_VERDICT_SKIPPED,
             "fixture-absent:mutable-http-scratch", NULL, NULL);

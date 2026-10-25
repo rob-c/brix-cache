@@ -37,6 +37,12 @@
 #include <unistd.h>
 #include <stdio.h>
 
+/* WHAT: Retain sendfile for valid descriptor candidates.
+ * WHY: No filesystem restriction is established on this host.
+ * HOW: Reject the invalid-fd sentinel without changing errno or doing I/O. */
+int brix_plat_file_sendfile_safe(int fd)
+{ return fd >= 0; }
+
 int
 brix_plat_pipe2(int pipefd[2], int flags)
 {

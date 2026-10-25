@@ -107,6 +107,8 @@ _TESTS = REPO / "tests"
 
 
 def _tracked_basenames() -> set[str]:
+    if not (REPO / ".git").exists():
+        pytest.skip("source archive has no git index to audit")
     out = subprocess.check_output(["git", "ls-files"], cwd=REPO, text=True)
     return {Path(line).name for line in out.splitlines()}
 

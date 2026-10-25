@@ -41,6 +41,7 @@ import os
 import re
 import stat
 import subprocess
+import sys
 import time
 
 import pytest
@@ -56,8 +57,12 @@ from test_cms_state_have_select import (
 from test_cms_prepadd import _pstr, _expect_error, _expect_silence
 from test_release20_frm_knobs import _inherited_fds
 from log_records import semantic_log_text
+from lib_py.worker_exec import assert_worker_exec_config, require_worker_exec
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
+              # Fork/exec timing and CMS silence windows become nondeterministic
+              # beside the full lane's many live multi-node topologies.
+              pytest.mark.serial,
               pytest.mark.xdist_group("lc-r20-fsxeq")]
 
 _DIR = os.path.join(os.environ["TMPDIR"], "xrd_r20_fsxeq")
@@ -102,6 +107,14 @@ def _path_op(path):
 # The operator program
 # ---------------------------------------------------------------------------
 
+def _worker_output(path):
+    """Create one explicit output sink for the unprivileged hook process."""
+    with open(path, "a"):
+        pass
+    os.chmod(path, 0o666)
+    return path
+
+
 def _recorder(tmp, name, report, body="exit 0", mode=0o755, extra=""):
     """A program that records the argv it was handed and then does `body`.
 
@@ -109,6 +122,7 @@ def _recorder(tmp, name, report, body="exit 0", mode=0o755, extra=""):
     directory/file the built-in leg would have produced is absent, which is
     what proves the program REPLACED that leg rather than running beside it.
     """
+    _worker_output(report)
     p = os.path.join(tmp, name)
     with open(p, "w") as f:
         f.write("#!/bin/sh\n"
@@ -124,9 +138,11 @@ def _recorder(tmp, name, report, body="exit 0", mode=0o755, extra=""):
 
 def _fd_recorder(tmp, name, report, fds, env):
     """Record argv, environment and fds without shell-redirection aliases."""
+    for output in (report, fds, env):
+        _worker_output(output)
     p = os.path.join(tmp, name)
     with open(p, "w") as f:
-        f.write(f'''#!/usr/bin/python3
+        f.write(f'''#!{sys.executable}
 import os
 import stat
 import sys
@@ -218,6 +234,7 @@ _POOL = "thread_pool default threads=2 max_queue=64;"
 
 def _start_node(lifecycle, name, extra_directives, subdir, pool=_POOL):
     """A data node dialling its own manager peer.  Returns (peer, conn, root)."""
+    require_worker_exec()
     data_dir = os.path.join(_DIR, subdir, "data")
     os.makedirs(data_dir, exist_ok=True)
     mgr_port = free_port()
@@ -484,6 +501,9 @@ class TestFsxeqFailsClosed:
         """(error) every malformed line is refused at `nginx -t` with a message
         an operator can act on — never silently ignored."""
         rc, out = _nginx_t(tmp_path, line)
+        if "brix_cms_fsxeq " in line and needle != "invalid number of arguments":
+            assert_worker_exec_config(rc, out, diagnostic=needle)
+            return
         assert rc != 0 and needle in out, out
 
     def test_the_stock_grammar_parses(self, tmp_path):
@@ -492,7 +512,7 @@ class TestFsxeqFailsClosed:
         rc, out = _nginx_t(tmp_path,
                            "brix_cms_fsxeq mkdir mkpath rmdir /bin/true ns; "
                            "brix_cms_fsxeq_timeout 5s;")
-        assert rc == 0, out
+        assert_worker_exec_config(rc, out)
 
 
 # ===========================================================================
@@ -510,7 +530,7 @@ class TestFsxeqSecurityNegatives:
         prog.chmod(0o775)
         assert stat.S_IMODE(prog.stat().st_mode) & stat.S_IWGRP
         rc, out = _nginx_t(tmp_path, f"brix_cms_fsxeq mkdir {prog};")
-        assert rc != 0 and "group- or world-writable" in out, out
+        assert_worker_exec_config(rc, out, diagnostic="group- or world-writable")
 
     def test_a_traversal_path_never_reaches_the_program(self, all_ops):
         """(security-neg) THE property this feature could quietly lose: the

@@ -33,8 +33,10 @@ server on ephemeral loopback ports. No root, no fleet server.
 """
 
 import os
+import shlex
 import socket
 import subprocess
+import sys
 from brix_suite.client_build import client_make
 import threading
 import time
@@ -418,18 +420,26 @@ def test_oracle_probe_does_not_inherit_proxy_sockets(bfp, tmp_path):
     probe = str(tmp_path / "leak.py")
     with open(probe, "w") as f:
         # Fail (exit 1) so recovery keeps the fault cleared and just records; write
-        # the count of inherited sockets above stdio for inspection.
-        f.write("import os,sys\n"
-                "fds=[fd for fd in os.listdir('/proc/self/fd') if int(fd)>2]\n"
-                f"open({marker!r},'w').write(str(len(fds)))\n"
+        # the count of inherited sockets above stdio for inspection. /dev/fd
+        # exists on both Darwin and Linux; /proc/self/fd does not on Darwin.
+        f.write("import os,stat,sys\n"
+                "sockets=[]\n"
+                "for name in os.listdir('/dev/fd'):\n"
+                "    fd=int(name)\n"
+                "    if fd <= 2: continue\n"
+                "    try: mode=os.fstat(fd).st_mode\n"
+                "    except OSError: continue\n"
+                "    if stat.S_ISSOCK(mode): sockets.append(fd)\n"
+                f"open({marker!r},'w').write(str(len(sockets)))\n"
                 "sys.exit(1)\n")
     try:
-        _ctl(ctl, f"recovery latency 1 | 50 | python3 {probe} | 800")
+        command = f"{shlex.quote(sys.executable)} {shlex.quote(probe)}"
+        _ctl(ctl, f"recovery latency 1 | 50 | {command} | 800")
         _poll_result(ctl, "recovery-result", deadline=10)
         assert os.path.exists(marker), "probe never ran"
         # /bin/sh + python open a couple of their own fds; the proxy's listen/control
         # relay sockets (many) must not be among them.
-        assert int(open(marker).read()) <= 4, "probe inherited proxy descriptors"
+        assert int(open(marker).read()) == 0, "probe inherited proxy sockets"
         # proxy still serves after the probe churn
         assert _roundtrip(listen, b"STILL-UP") == b"STILL-UP"
     finally:

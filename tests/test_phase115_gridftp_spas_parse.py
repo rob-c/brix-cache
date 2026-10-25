@@ -209,7 +209,7 @@ def test_the_cross_check_message_renders_the_number(tmp_path):
     rc, out = _nginx_t(tmp_path, f"brix_storage_backend {GSIFTP} streams=4;")
     assert rc != 0
     assert '"streams=4"' in out, out
-    assert "4d" not in out, out
+    assert '"streams=4d"' not in out, out
 
 
 def test_the_cross_check_message_says_why_mode_e_is_needed(tmp_path):

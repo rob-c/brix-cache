@@ -72,7 +72,8 @@ SCAN_DIRS = ("src", "client", "shared", "tools", "contrib")
 # :587-601) and installs a fifth as the pymigrate shim (:812-813), and a
 # guard reading only .c/.h left all of them outside the one-DNS-path
 # guarantee -- a backlog by file extension, which this phase does not allow.
-SOURCE_SUFFIXES = (".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp")
+# Generated ``.inc`` files are compiled C fragments and carry the same rule.
+SOURCE_SUFFIXES = (".c", ".h", ".inc", ".cc", ".cpp", ".cxx", ".hh", ".hpp")
 
 SERVER_FORWARD = "src/net/dns/resolve_thread.c"
 SERVER_REVERSE = "src/net/dns/reverse.c"

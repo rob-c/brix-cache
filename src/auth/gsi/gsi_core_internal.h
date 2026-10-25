@@ -10,8 +10,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <openssl/core_names.h>
-#include <openssl/param_build.h>
+#include "auth/crypto/key_compat.h"
 #include <openssl/dh.h>
 #include <openssl/rand.h>
 #include <openssl/crypto.h>      /* CRYPTO_memcmp / OPENSSL_cleanse (sigver) */        

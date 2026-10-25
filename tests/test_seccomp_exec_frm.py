@@ -19,6 +19,7 @@ Run:  PYTHONPATH=tests pytest tests/test_seccomp_exec_frm.py -v
 from __future__ import annotations
 
 import os
+import sys
 import shutil
 from pathlib import Path
 
@@ -29,8 +30,10 @@ from cmdscripts import frm_stagecmd
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST
+from lib_py.seccomp_probe import worker_seccomp as _worker_seccomp
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.skipif(sys.platform != "linux", reason="seccomp-BPF is a Linux-only security facility"),
               pytest.mark.xdist_group("lc-seccomp-exec-frm")]
 
 BIND = BIND_HOST
@@ -46,36 +49,6 @@ def _traversable(path: str) -> None:
             anc.chmod((anc.stat().st_mode & 0o777) | 0o001)
         except (PermissionError, FileNotFoundError):
             pass
-
-
-def _parent_pid(entry):
-    try:
-        with open(f"/proc/{entry}/stat", encoding="utf-8") as stream:
-            return int(stream.read().rpartition(")")[2].split()[1])
-    except (OSError, IndexError, ValueError):
-        return None
-
-
-def _seccomp_mode(entry):
-    try:
-        with open(f"/proc/{entry}/status", encoding="utf-8") as stream:
-            for line in stream:
-                if line.startswith("Seccomp:"):
-                    return line.split()[1]
-    except OSError:
-        pass
-    return None
-
-
-def _worker_seccomp(prefix: str) -> "str | None":
-    with open(os.path.join(prefix, "logs", "nginx.pid"), encoding="utf-8") as fh:
-        master = int(fh.read().strip())
-    for entry in os.listdir("/proc"):
-        if not entry.isdigit():
-            continue
-        if _parent_pid(entry) == master:
-            return _seccomp_mode(entry)
-    return None
 
 
 def _start(harness, name: str, allow_exec: bool):

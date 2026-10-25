@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from lib_py.reference_host import fixture_read_bytes
 def _check_test_pgread_crc_self_consistent_both_1(st_o, st_f, off, rlen):
     assert st_o == st_f == kXR_ok, f"crc matrix @{off}+{rlen}: ours={st_o} stock={st_f}"
 
@@ -305,14 +306,12 @@ def test_pgwrite_single_page(srv, size):
     # On-disk content + size, byte-exact on our server.
     our_path = os.path.join(srv["our_data"], rel)
     assert os.path.getsize(our_path) == size, "OUR pgwrite on-disk size wrong"
-    with open(our_path, "rb") as f:
-        assert f.read() == data, "OUR pgwrite on-disk content wrong"
+    assert fixture_read_bytes(our_path) == data, "OUR pgwrite on-disk content wrong"
     # Read it back over the wire too (and parity vs stock's file).
     back = _readback(*srv["our_hp"], rel, size)
     assert back == data, "OUR pgwrite read-back != written bytes"
     off_path = os.path.join(srv["off_data"], rel)
-    with open(off_path, "rb") as f:
-        assert f.read() == data, "stock pgwrite on-disk content diverges"
+    assert fixture_read_bytes(off_path) == data, "stock pgwrite on-disk content diverges"
 
 
 # ===========================================================================
@@ -336,7 +335,5 @@ def test_pgwrite_multi_page(srv, size):
     our_path = os.path.join(srv["our_data"], rel)
     off_path = os.path.join(srv["off_data"], rel)
     assert os.path.getsize(our_path) == size, "OUR multi pgwrite size wrong"
-    with open(our_path, "rb") as f:
-        assert f.read() == data, "OUR multi-page pgwrite content wrong"
-    with open(off_path, "rb") as f:
-        assert f.read() == data, "stock multi-page pgwrite content diverges"
+    assert fixture_read_bytes(our_path) == data, "OUR multi-page pgwrite content wrong"
+    assert fixture_read_bytes(off_path) == data, "stock multi-page pgwrite content diverges"

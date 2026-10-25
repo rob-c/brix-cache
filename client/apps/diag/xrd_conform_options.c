@@ -44,52 +44,62 @@ parse_unsigned(const char *value, unsigned *out)
     return 0;
 }
 
-/* ---- Parse the reference mode ----
- *
- * WHAT: Returns zero for strict/ecosystem/both and fills the typed enum.
- * WHY: The report may never silently choose among competing authorities.
- * HOW: Perform exact string matches and refuse every other spelling.
+/* WHAT: Look up a policy token in one closed vocabulary.
+ * WHY: Policy enums differ, but unknown spellings must always be refused.
+ * HOW: Return the exact row's explicit enum value, or -1 without side effects.
  */
+typedef struct {
+    const char *name;
+    int value;
+} conform_policy_choice;
+
 static int
-parse_reference(const char *value, brix_conform_reference_mode *out)
+parse_policy_choice(const char *value, const conform_policy_choice *choices,
+    size_t count)
 {
-    if (strcmp(value, "ecosystem") == 0) {
-        *out = BRIX_CONFORM_REFERENCE_ECOSYSTEM;
-        return 0;
-    }
-    if (strcmp(value, "strict") == 0) {
-        *out = BRIX_CONFORM_REFERENCE_STRICT;
-        return 0;
-    }
-    if (strcmp(value, "both") == 0) {
-        *out = BRIX_CONFORM_REFERENCE_BOTH;
-        return 0;
+    size_t index;
+    for (index = 0; index < count; index++) {
+        if (strcmp(value, choices[index].name) == 0) {
+            return choices[index].value;
+        }
     }
     return -1;
 }
 
-/* ---- Parse the inconclusive exit policy ----
- *
- * WHAT: Returns zero for divergent/inconclusive/any and fills the enum.
- * WHY: CI must explicitly choose whether uncertainty fails its gate.
- * HOW: Exact string matching; unknown policy is a usage error.
- */
+/* WHAT: Parse the reference authority. WHY: Never silently change authority.
+ * HOW: Match the explicit reference vocabulary before assigning its enum. */
+static int
+parse_reference(const char *value, brix_conform_reference_mode *out)
+{
+    static const conform_policy_choice choices[] = {
+        { "ecosystem", BRIX_CONFORM_REFERENCE_ECOSYSTEM },
+        { "strict", BRIX_CONFORM_REFERENCE_STRICT },
+        { "both", BRIX_CONFORM_REFERENCE_BOTH }
+    };
+    int selected = parse_policy_choice(value, choices, sizeof(choices) / sizeof(choices[0]));
+    if (selected < 0) {
+        return -1;
+    }
+    *out = (brix_conform_reference_mode) selected;
+    return 0;
+}
+
+/* WHAT: Parse the inconclusive exit policy. WHY: CI uncertainty is explicit.
+ * HOW: Match the failure vocabulary before assigning the typed policy. */
 static int
 parse_fail_mode(const char *value, brix_conform_fail_mode *out)
 {
-    if (strcmp(value, "divergent") == 0) {
-        *out = BRIX_CONFORM_FAIL_DIVERGENT;
-        return 0;
+    static const conform_policy_choice choices[] = {
+        { "divergent", BRIX_CONFORM_FAIL_DIVERGENT },
+        { "inconclusive", BRIX_CONFORM_FAIL_INCONCLUSIVE },
+        { "any", BRIX_CONFORM_FAIL_ANY }
+    };
+    int selected = parse_policy_choice(value, choices, sizeof(choices) / sizeof(choices[0]));
+    if (selected < 0) {
+        return -1;
     }
-    if (strcmp(value, "inconclusive") == 0) {
-        *out = BRIX_CONFORM_FAIL_INCONCLUSIVE;
-        return 0;
-    }
-    if (strcmp(value, "any") == 0) {
-        *out = BRIX_CONFORM_FAIL_ANY;
-        return 0;
-    }
-    return -1;
+    *out = (brix_conform_fail_mode) selected;
+    return 0;
 }
 
 /* ---- Validate a role profile ----
@@ -225,6 +235,27 @@ prepare_run_key(xrd_conform_run *run)
     return 0;
 }
 
+static int
+validate_adversarial_authority(const xrd_conform_run *run)
+{
+    const char *owner = NULL;
+    size_t index;
+
+    if (run->adv_fixture_kind == NULL) return 0;
+    if (strcmp(run->adv_fixture_kind, "generator-gap") == 0)
+        owner = "ADV-007";
+    else if (strcmp(run->adv_fixture_kind, "nondeterministic") == 0)
+        owner = "ADV-009";
+    else if (strcmp(run->adv_fixture_kind, "authority-bypass") == 0)
+        owner = "ADV-010";
+    for (index = 0; owner != NULL && index < run->negative_verify_count;
+            index++)
+        if (strcmp(run->negative_verify[index], owner) == 0) return 0;
+    BRIX_CLIENT_LOG("ERROR",
+        "xrd conform: --adv-fixture requires its matching --verify-negative clause\n");
+    return 4;
+}
+
 /* ---- Validate cross-option safety authority ----
  *
  * WHAT: Returns zero only when capture/mutate/disrupt authority is complete.
@@ -234,10 +265,6 @@ prepare_run_key(xrd_conform_run *run)
 static int
 validate_authority(const xrd_conform_run *run)
 {
-    const char *adv_owner = NULL;
-    size_t verify_index;
-    int adv_verified = 0;
-
     if (run->opts.capture != NULL) {
         BRIX_CLIENT_LOG("ERROR",
             "xrd conform: --capture is managed internally; use --out for scrubbed artifacts\n");
@@ -270,26 +297,28 @@ validate_authority(const xrd_conform_run *run)
             "xrd conform: --move-fixture requires --allow-mutate and --scratch\n");
         return 4;
     }
-    if (run->adv_fixture_kind != NULL) {
-        if (strcmp(run->adv_fixture_kind, "generator-gap") == 0)
-            adv_owner = "ADV-007";
-        else if (strcmp(run->adv_fixture_kind, "nondeterministic") == 0)
-            adv_owner = "ADV-009";
-        else if (strcmp(run->adv_fixture_kind, "authority-bypass") == 0)
-            adv_owner = "ADV-010";
-        for (verify_index = 0;
-                adv_owner != NULL
-                && verify_index < run->negative_verify_count;
-                verify_index++)
-            if (strcmp(run->negative_verify[verify_index], adv_owner) == 0)
-                adv_verified = 1;
-        if (!adv_verified) {
-            BRIX_CLIENT_LOG("ERROR",
-                "xrd conform: --adv-fixture requires its matching --verify-negative clause\n");
-            return 4;
-        }
-    }
-    return 0;
+    return validate_adversarial_authority(run);
+}
+
+static int
+parse_negative_selector(int argc, char **argv, int *index,
+    xrd_conform_run *run)
+{
+    const brix_conform_clause *clause;
+    const char *value = option_value(argc, argv, index);
+    size_t verify_index;
+
+    if (value == NULL
+        || run->negative_verify_count >= XRDC_CONFORM_NEGATIVE_VERIFY_MAX)
+        return -1;
+    clause = brix_conform_clause_find(value);
+    if (clause == NULL || strncmp(clause->negative_fixture,
+            "not-applicable/", 15) == 0) return -1;
+    for (verify_index = 0; verify_index < run->negative_verify_count;
+            verify_index++)
+        if (strcmp(run->negative_verify[verify_index], value) == 0) return -1;
+    run->negative_verify[run->negative_verify_count++] = value;
+    return 1;
 }
 
 /* WHAT: Parse path/filter/report valued options. WHY: Keep parser branches
@@ -316,26 +345,109 @@ parse_selector_option(int argc, char **argv, int *index, xrd_conform_run *run)
         return run->config.only != NULL ? 1 : -1;
     }
     if (strcmp(flag, "--verify-negative") == 0) {
-        const brix_conform_clause *clause;
-        const char *value = option_value(argc, argv, index);
-        size_t verify_index;
-
-        if (value == NULL
-            || run->negative_verify_count >= XRDC_CONFORM_NEGATIVE_VERIFY_MAX)
-            return -1;
-        clause = brix_conform_clause_find(value);
-        if (clause == NULL || strncmp(clause->negative_fixture,
-                "not-applicable/", 15) == 0) return -1;
-        for (verify_index = 0; verify_index < run->negative_verify_count;
-                verify_index++)
-            if (strcmp(run->negative_verify[verify_index], value) == 0)
-                return -1;
-        run->negative_verify[run->negative_verify_count++] = value;
-        return 1;
+        return parse_negative_selector(argc, argv, index, run);
     }
     if (strcmp(flag, "--out") == 0) {
         run->config.out_dir = option_value(argc, argv, index);
         return run->config.out_dir != NULL ? 1 : -1;
+    }
+    return 0;
+}
+
+static int
+parse_adversarial_fixture(int argc, char **argv, int *index,
+    xrd_conform_run *run)
+{
+    const char *value = option_value(argc, argv, index);
+
+    if (value == NULL || run->adv_fixture_kind != NULL) return -1;
+    if (strcmp(value, "generator-gap") != 0
+        && strcmp(value, "nondeterministic") != 0
+        && strcmp(value, "authority-bypass") != 0) return -1;
+    run->adv_fixture_kind = value;
+    return 1;
+}
+
+static int
+parse_error_fixture(int argc, char **argv, int *index, xrd_conform_run *run)
+{
+    const char *value = option_value(argc, argv, index);
+    const char *equals;
+    size_t name_length;
+    size_t fixture_index;
+    int is_http = 0;
+    xrd_conform_error_fixture *fixture;
+
+    if (value == NULL
+        || run->error_fixture_count >= XRDC_CONFORM_ERROR_FIXTURE_MAX)
+        return -1;
+    equals = strchr(value, '=');
+    if (equals == NULL || equals == value || equals[1] == '\0') return -1;
+    name_length = (size_t) (equals - value);
+    if (name_length > 5
+        && memcmp(value + name_length - 5, "@http", 5) == 0) {
+        name_length -= 5;
+        is_http = 1;
+    }
+    if (name_length >= sizeof(run->error_fixtures[0].errno_name)
+        || !xrd_conform_error_fixture_name_valid(value, name_length))
+        return -1;
+    for (fixture_index = 0; fixture_index < run->error_fixture_count;
+            fixture_index++)
+        if (run->error_fixtures[fixture_index].is_http == is_http
+            && strlen(run->error_fixtures[fixture_index].errno_name)
+                == name_length
+            && memcmp(run->error_fixtures[fixture_index].errno_name,
+                value, name_length) == 0) return -1;
+    fixture = &run->error_fixtures[run->error_fixture_count++];
+    memcpy(fixture->errno_name, value, name_length);
+    fixture->errno_name[name_length] = '\0';
+    fixture->target = equals + 1;
+    fixture->is_http = is_http;
+    return 1;
+}
+
+static int
+parse_external_fixture(int argc, char **argv, int *index,
+    xrd_conform_run *run)
+{
+    int parsed;
+
+    parsed = xrd_conform_parse_special_fixture(argc, argv, index, run);
+    if (parsed != 0) return parsed;
+    parsed = xrd_conform_parse_security_fixture(argc, argv, index, run);
+    if (parsed != 0) return parsed;
+    parsed = xrd_conform_parse_denied_fixture(argc, argv, index, run);
+    if (parsed != 0) return parsed;
+    parsed = xrd_conform_parse_mutation_fixture(argc, argv, index, run);
+    if (parsed != 0) return parsed;
+    parsed = xrd_conform_parse_open_fixture(argc, argv, index, run);
+    if (parsed != 0) return parsed;
+    parsed = xrd_conform_parse_locate_fixture(argc, argv, index, run);
+    if (parsed != 0) return parsed;
+    return xrd_conform_parse_token_fixture(argc, argv, index, run);
+}
+
+static int
+parse_endpoint_option(int argc, char **argv, int *index,
+    xrd_conform_run *run)
+{
+    const char *flag = argv[*index];
+    const char *value;
+
+    if (strcmp(flag, "--also") == 0) {
+        value = option_value(argc, argv, index);
+        if (value == NULL || run->also_count >= 8) return -1;
+        run->also[run->also_count++] = value;
+        return 1;
+    }
+    if (strcmp(flag, "--quota-target") == 0) {
+        run->quota_target = option_value(argc, argv, index);
+        return run->quota_target != NULL ? 1 : -1;
+    }
+    if (strcmp(flag, "--capacity-target") == 0) {
+        run->capacity_target = option_value(argc, argv, index);
+        return run->capacity_target != NULL ? 1 : -1;
     }
     return 0;
 }
@@ -365,101 +477,17 @@ parse_reproduction_option(int argc, char **argv, int *index,
         return run->adv_observer != NULL ? 1 : -1;
     }
     if (strcmp(flag, "--adv-fixture") == 0) {
-        const char *value = option_value(argc, argv, index);
-
-        if (value == NULL || run->adv_fixture_kind != NULL
-            || (strcmp(value, "generator-gap") != 0
-                && strcmp(value, "nondeterministic") != 0
-                && strcmp(value, "authority-bypass") != 0)) return -1;
-        run->adv_fixture_kind = value;
-        return 1;
-    }
-    if (strcmp(flag, "--also") == 0) {
-        const char *value = option_value(argc, argv, index);
-
-        if (value == NULL || run->also_count >= 8) return -1;
-        run->also[run->also_count++] = value;
-        return 1;
-    }
-    {
-        int parsed = xrd_conform_parse_special_fixture(argc, argv, index, run);
-        if (parsed != 0) return parsed;
+        return parse_adversarial_fixture(argc, argv, index, run);
     }
     if (strcmp(flag, "--error-fixture") == 0) {
-        const char *value = option_value(argc, argv, index);
-        const char *equals;
-        size_t name_length;
-        size_t fixture_index;
-        int is_http = 0;
-        xrd_conform_error_fixture *fixture;
-
-        if (value == NULL
-            || run->error_fixture_count >= XRDC_CONFORM_ERROR_FIXTURE_MAX)
-            return -1;
-        equals = strchr(value, '=');
-        if (equals == NULL || equals == value || equals[1] == '\0') return -1;
-        name_length = (size_t) (equals - value);
-        if (name_length > 5
-            && memcmp(value + name_length - 5, "@http", 5) == 0) {
-            name_length -= 5;
-            is_http = 1;
-        }
-        if (name_length >= sizeof(run->error_fixtures[0].errno_name)
-            || !xrd_conform_error_fixture_name_valid(value, name_length))
-            return -1;
-        for (fixture_index = 0; fixture_index < run->error_fixture_count;
-                fixture_index++)
-            if (run->error_fixtures[fixture_index].is_http == is_http
-                && strlen(run->error_fixtures[fixture_index].errno_name)
-                    == name_length
-                && memcmp(run->error_fixtures[fixture_index].errno_name,
-                    value, name_length) == 0) return -1;
-        fixture = &run->error_fixtures[run->error_fixture_count++];
-        memcpy(fixture->errno_name, value, name_length);
-        fixture->errno_name[name_length] = '\0';
-        fixture->target = equals + 1;
-        fixture->is_http = is_http;
-        return 1;
+        return parse_error_fixture(argc, argv, index, run);
     }
     {
-        int parsed = xrd_conform_parse_security_fixture(argc, argv, index, run);
+        int parsed = parse_external_fixture(argc, argv, index, run);
 
         if (parsed != 0) return parsed;
     }
-    {
-        int parsed = xrd_conform_parse_denied_fixture(argc, argv, index, run);
-
-        if (parsed != 0) return parsed;
-    }
-    {
-        int parsed = xrd_conform_parse_mutation_fixture(argc, argv, index, run);
-
-        if (parsed != 0) return parsed;
-    }
-    {
-        int parsed = xrd_conform_parse_open_fixture(argc, argv, index, run);
-
-        if (parsed != 0) return parsed;
-    }
-    {
-        int parsed = xrd_conform_parse_locate_fixture(argc, argv, index, run);
-
-        if (parsed != 0) return parsed;
-    }
-    {
-        int parsed = xrd_conform_parse_token_fixture(argc, argv, index, run);
-
-        if (parsed != 0) return parsed;
-    }
-    if (strcmp(flag, "--quota-target") == 0) {
-        run->quota_target = option_value(argc, argv, index);
-        return run->quota_target != NULL ? 1 : -1;
-    }
-    if (strcmp(flag, "--capacity-target") == 0) {
-        run->capacity_target = option_value(argc, argv, index);
-        return run->capacity_target != NULL ? 1 : -1;
-    }
-    return 0;
+    return parse_endpoint_option(argc, argv, index, run);
 }
 
 /* WHAT: Parse numeric ceilings. WHY: Bad numbers must never become unlimited.

@@ -17,6 +17,8 @@ import sys
 
 import pytest
 
+from cmdscripts.object_unit_layout import _NGX_CORE_INC, _NGX_HTTP_INC, OBJS, _inc
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 NGINX_SRC = os.environ.get("TEST_NGINX_SRC", "/tmp/nginx-1.28.3")
@@ -29,17 +31,13 @@ PLATFORM = os.path.join(
 
 #: INVARIANT 14: the impersonation sources reach platform/platform.h, which
 #: selects its <host>/host.h from this token alone and #errors without it.
-#: Spelled out rather than imported from cmdscripts.compile_run because this
-#: directory is a standalone pytest root with no tests/ on its import path.
+#: The standalone conftest exposes the shared native SDK helpers, not the fleet.
 HOST_FLAG = f"-DBRIX_PLATFORM_HOST={'darwin' if sys.platform == 'darwin' else 'linux'}"
 
 
 def _inc_flags():
-    subs = ["src/core", "src/event", "src/event/modules", "src/os/unix",
-            "objs", "src/stream"]
-    return ([HOST_FLAG]
-            + [f"-I{os.path.join(NGINX_SRC, s)}" for s in subs]
-            + [f"-I{IMP}", f"-I{os.path.join(REPO, 'src')}"])
+    return [HOST_FLAG, *_inc(*_NGX_CORE_INC, *_NGX_HTTP_INC, OBJS,
+                             IMP, os.path.join(REPO, "src"))]
 
 
 def _require_guard_build_inputs():

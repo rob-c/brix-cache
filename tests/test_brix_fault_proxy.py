@@ -17,16 +17,8 @@ def test_version_and_help(bfp):
 
 def test_relay_and_control_levers(bfp):
     echo = _Echo()
-    listen, ctl = _free_port(), _free_port()
-    proc = subprocess.Popen(
-        [bfp, "--listen", str(listen), "--target", f"{HOST}:{echo.port}",
-         "--control", str(ctl), "--quiet"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+    proc, listen, ctl = _spawn(bfp, echo.port)
     try:
-        assert _wait_port(ctl), "control port never came up"
-        assert _wait_port(listen), "listen port never came up"
-
         # byte-exact relay through the proxy
         with socket.create_connection((HOST, listen), timeout=3) as s:
             s.sendall(b"hello")
@@ -83,14 +75,9 @@ def test_default_bind_serves_loopback(bfp):
     # and answer there — the safe default the security posture relies on. Uses the
     # positional form to also exercise back-compat argument parsing.
     echo = _Echo()
-    listen, ctl = _free_port(), _free_port()
-    proc = subprocess.Popen(
-        [bfp, str(listen), HOST, str(echo.port), str(ctl)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+    proc, _listen, ctl = _spawn(bfp, echo.port, positional=True)
     try:
-        assert _wait_port(ctl), "loopback control port not reachable"
-        assert "blocked=0" in _ctl(ctl, "status")
+        assert "blocked=0" in _ctl_eventually(ctl, "status")
     finally:
         proc.terminate()
         proc.wait(timeout=5)
@@ -100,6 +87,18 @@ def test_default_bind_serves_loopback(bfp):
 # --------------------------------------------------------------------------- #
 # Payload corruption (killer feature #1) + directionality + counters          #
 # --------------------------------------------------------------------------- #
+
+def _wait_transfer_counts(ctl, size, timeout=2.0):
+    expected = (f"up={size}B", f"down={size}B")
+    deadline = time.time() + timeout
+    status = ""
+    while time.time() < deadline:
+        status = _ctl(ctl, "status")
+        if all(field in status for field in expected):
+            return status
+        time.sleep(0.02)
+    return status
+
 
 def test_corrupt_down_directional_and_counters(bfp):
     echo = _StreamEcho()
@@ -122,7 +121,7 @@ def test_corrupt_down_directional_and_counters(bfp):
         flipped = sum(1 for a, b in zip(payload, got) if a != b)
         assert flipped > 0, "download must be corrupted"
 
-        st2 = _ctl(ctl, "status")
+        st2 = _wait_transfer_counts(ctl, len(payload))
         def _assert_test_corrupt_down_directional_and_counters_2():
             assert "corrupt=0 " not in st2  # the corruption counter advanced
             assert f"up={len(payload)}B" in st2 and f"down={len(payload)}B" in st2

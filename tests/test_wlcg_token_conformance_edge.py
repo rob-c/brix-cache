@@ -12,13 +12,13 @@ def test_a01_exp_exactly_now_default_accept():
 
 
 @pytest.mark.tokenconf
-def test_a02_exp_at_30s_boundary_accept():
-    """exp=now-30 (exactly at 30s skew boundary) → accept.
+def test_a02_exp_inside_skew_accept():
+    """A recently expired token inside the skew window is accepted on wire.
 
-    WHY:  With skew=30, the test is now > exp+30.  exp=now-30 ⇒ exp+30=now
-          ⇒ now > now is false ⇒ still valid.  Exact-boundary case.
+    Exact second boundaries are covered by test_token_time_window_native;
+    signing, scheduling and TCP setup must not consume this test's window.
     """
-    assert root_ztn(_f().temporal(-30), "/test.txt", port=PORT) == "accept"
+    assert root_ztn(_f().temporal(-1), "/test.txt", port=PORT) == "accept"
 
 
 @pytest.mark.tokenconf
@@ -42,13 +42,9 @@ def test_a04_strict_exp_minus_1s_reject():
 
 
 @pytest.mark.tokenconf
-def test_a05_strict_exp_plus_1s_accept():
-    """exp=now+1 on strict port (skew=0) → accept.
-
-    WHY:  Strict port: now > now+1 is false ⇒ still valid.  Confirms that
-          skew=0 is strict-expiry enforcement only — barely-future tokens pass.
-    """
-    assert root_ztn(_f().temporal(1), "/test.txt", port=STRICT) == "accept"
+def test_a05_strict_unexpired_token_accept():
+    """A future expiry is accepted without skew; exact +1s is a native test."""
+    assert root_ztn(_f().temporal(60), "/test.txt", port=STRICT) == "accept"
 
 
 @pytest.mark.tokenconf
@@ -63,13 +59,13 @@ def test_a06_nbf_exactly_now_accept():
 
 
 @pytest.mark.tokenconf
-def test_a07_nbf_1s_future_reject():
-    """nbf=now+1 (1s in the future, nbf_delta=+1) → reject.
+def test_a07_future_nbf_reject():
+    """Not-before stays in the future through the wire exchange, so reject.
 
-    WHY:  nbf is enforced strictly (no skew).  now < now+1 ⇒ not-yet-valid.
-          Confirms the strict nbf boundary at +1s.
+    The real validator's exact +1s/no-skew boundary is separately compiled
+    against a fixed clock, not inferred from a time-sensitive round trip.
     """
-    assert root_ztn(_f().temporal(3600, 1), "/test.txt", port=PORT) == "reject"
+    assert root_ztn(_f().temporal(3600, 300), "/test.txt", port=PORT) == "reject"
 
 
 @pytest.mark.tokenconf

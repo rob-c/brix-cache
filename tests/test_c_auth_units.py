@@ -74,7 +74,8 @@ def test_x509_link_guard_detects_stale_source_list(name, private_tmp):
     stale = [s for s in X509_POLICY_SOURCES if not s.endswith("store_policy_store.c")]
     ok, detail = link_x509_harness(private_tmp, name, sources=stale)
     assert not ok, f"stale source list unexpectedly linked for {name}"
-    assert "undefined reference" in detail
+    assert ("undefined reference" in detail
+            or "Undefined symbols for architecture" in detail), detail
 
 
 def test_x509_fixture_dir_avoids_shared_basetemp(monkeypatch, private_tmp):

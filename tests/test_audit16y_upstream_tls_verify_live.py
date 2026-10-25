@@ -29,11 +29,10 @@ Two things measured here are not what the code says they are.
     failed" — after a completed handshake, which is how you can tell the
     refusal is ours.  The opt-out the EMERG message advertises ("set the CA, or
     brix_upstream_tls_verify off to opt out") does not exist (#103).
-  * The pinned name falls back to the upstream host as spelled, and
-    `X509_VERIFY_PARAM_set1_host` matches DNS names only.  An upstream written
-    as an address literal therefore cannot be verified even by a certificate
-    carrying the matching IP SAN — the same peer, the same certificate, and the
-    same CA are accepted when the host is spelled as a name (#104).
+The former address-literal defect (#104) is repaired by the shared TLS
+compatibility helper: DNS names and IP literals use their native certificate
+identity types on both supported OpenSSL ABIs. The wire checks below require
+both spellings to work without relaxing wrong-host rejection.
 """
 
 from contextlib import ExitStack, closing
@@ -331,29 +330,25 @@ class TestTheHostnamePin:
         assert body[4:].decode() == REDIRECT_HOST
         assert "tls-login" in kinds
 
-    def test_an_address_literal_upstream_cannot_be_verified(self, uptls):
-        """DEFECT CANDIDATE #104 — the pin is set through
-        X509_VERIFY_PARAM_set1_host, which matches DNS names only, so an
-        upstream written as an address literal fails against a certificate that
-        carries the matching IP SAN."""
+    def test_an_address_literal_upstream_verifies_its_ip_san(self, uptls):
+        """An IP literal must use its typed SAN, not the DNS-name verifier."""
         status, body, kinds = _drive(uptls, "IP_PIN_PORT", "good")
-        assert status == kXR_error
-        assert _errmsg(body) == "upstream: TLS handshake failed"
-        assert "tls-established" not in kinds
+        assert status == kXR_redirect
+        assert body[4:].decode() == REDIRECT_HOST
+        assert "tls-login" in kinds
 
-    def test_the_literal_failure_is_a_certificate_failure(self, uptls):
-        _drive(uptls, "IP_PIN_PORT", "good")
-        log = _errlog(uptls)
-        assert "certificate verify failed" in log
-        assert "no live upstreams" not in log
+    def test_the_literal_success_requires_a_verified_handshake(self, uptls):
+        status, _, kinds = _drive(uptls, "IP_PIN_PORT", "good")
+        assert status == kXR_redirect
+        assert "tls-established" in kinds
+        assert "tls-refused" not in kinds
 
     def test_the_same_peer_and_ca_differ_only_by_spelling(self, uptls):
-        """The A/B that makes #104 a defect rather than a misconfiguration: one
-        stub, one certificate, one CA, two ways of writing the same host."""
+        """One stub, certificate and CA must support both host spellings."""
         by_name, _, _ = _drive(uptls, "FALLBACK_PORT", "good")
         by_literal, _, _ = _drive(uptls, "IP_PIN_PORT", "good")
         assert by_name == kXR_redirect
-        assert by_literal == kXR_error
+        assert by_literal == kXR_redirect
 
 
 # --------------------------------------------------------------------------- #
@@ -510,11 +505,10 @@ class TestTheLegIsActuallyDialed:
 
     def test_the_address_literal_plane_never_waited_on_a_name(self, uptls):
         """The one plane the race cannot reach: an address literal is final at
-        registration, so its verdict was never in question — and it is still
-        the #104 refusal, not a resolve failure."""
-        _drive(uptls, "IP_PIN_PORT", "good")
+        registration, so verified success must not depend on a DNS retry."""
+        status, _, _ = _drive(uptls, "IP_PIN_PORT", "good")
         log = _errlog(uptls)
-        assert "certificate verify failed" in log
+        assert status == kXR_redirect
         assert f'{_UNRESOLVED}{HOST}"' not in log, \
             "the literal plane went through the resolver"
 

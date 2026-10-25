@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from lib_py.reference_host import assert_backing_size_parity
 _reexport(globals(), "_test_conf_stattypes_helpers")
 
 pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_stattypes_b")]
@@ -78,8 +79,7 @@ def test_mtime_numeric_structurals_match(srv, rel):
     # structural agreement
     assert (_flags_int(of) & kXR_isDir) == (_flags_int(ff) & kXR_isDir), \
         f"isDir divergence {rel}: ours={_flags_int(of)} stock={_flags_int(ff)}"
-    assert _size_int(of) == _size_int(ff), \
-        f"size divergence {rel}: ours={_size_int(of)} stock={_size_int(ff)}"
+    assert_backing_size_parity(srv, rel, _size_int(of), _size_int(ff))
     assert _flags_int(of) == _flags_int(ff), \
         f"FLAGS divergence {rel}: ours={_flags_int(of)} stock={_flags_int(ff)}"
 
@@ -304,5 +304,4 @@ def test_xrdfs_flags_string_parity(srv, rel):
     assert "Flags" in o, f"our xrdfs stat {rel} produced no Flags: {o}"
     assert o.get("Flags") == f.get("Flags"), \
         f"xrdfs Flags string divergence {rel}: ours={o.get('Flags')!r} stock={f.get('Flags')!r}"
-    assert o.get("Size") == f.get("Size"), \
-        f"xrdfs Size divergence {rel}: ours={o.get('Size')!r} stock={f.get('Size')!r}"
+    assert_backing_size_parity(srv, rel, o.get("Size"), f.get("Size"))

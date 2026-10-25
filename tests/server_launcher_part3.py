@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import re
-import shutil
 import signal
 import socket
 import subprocess
@@ -87,8 +86,8 @@ class LifecycleHarness:
         # stale error.log from a dead prior instance must not satisfy this
         # test's log assertions.  Only wipe when nothing is running there.
         endpoint = endpoint_for(unique)
-        if Path(endpoint.prefix).exists() and not Path(endpoint.pidfile).exists():
-            shutil.rmtree(endpoint.prefix, ignore_errors=True)
+        from brix_suite.launcher.control_operations import retire_inactive_prefix
+        retire_inactive_prefix(endpoint.prefix, endpoint.pidfile)
         return unique
 
     def start(self, spec: NginxInstanceSpec):
@@ -169,18 +168,8 @@ class LifecycleHarness:
         return self.launcher.run_privileged_step(argv, **kwargs)
 
     def close(self) -> None:
-        for name in reversed(self._names):
-            try:
-                self.launcher.stop(name)
-            except Exception:
-                pass
-            finally:
-                # pytest-timeout raises BaseException-derived outcomes that are
-                # intentionally not swallowed above.  Registry ownership must
-                # still be released or every later fixture using this fixed
-                # lifecycle name fails before it can launch.
-                unregister(name)
-        self._names.clear()
+        from brix_suite.launcher.control_operations import close_owned_harness
+        close_owned_harness(self, unregister)
 
     def _spec(self, name: str) -> NginxInstanceSpec:
         suffix = f"-{os.getpid()}"

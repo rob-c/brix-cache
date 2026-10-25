@@ -201,8 +201,9 @@ def _prepare_scratch():
         "tsandir": os.path.join(workdir, "tsan"),
         "audit": os.path.join(workdir, "audit.log"),
         "queue": os.path.join(workdir, "frm.queue"),
+        "control": os.path.join(workdir, "frm-control"),
     }
-    for name in ("datadir", "tapedir", "tsandir"):
+    for name in ("datadir", "tapedir", "tsandir", "control"):
         os.makedirs(paths[name], exist_ok=True)
     paths["have_xattr"] = _xattr_ok(paths["datadir"])
     paths["shim"] = _require_shim(workdir)
@@ -272,10 +273,11 @@ def _frm_block(paths):
         return ""
     return (
         "        brix_frm on; brix_frm_queue_path %s;\n"
+        "        brix_frm_control_dir %s;\n"
         "        brix_frm_stagecmd %s; brix_frm_copymax 4;\n"
         "        brix_frm_async_recall on; brix_frm_stage_ttl 30s;\n"
         "        brix_frm_max_inflight 64;\n"
-        % (paths["queue"], paths["copycmd"])
+        % (paths["queue"], paths["control"], paths["copycmd"])
     )
 
 
@@ -397,14 +399,10 @@ def _make_service(paths, endpoint):
 def _frm_available(service, metrics_port):
     if not service.have_xattr:
         return False
-    try:
-        request = __import__("urllib.request", fromlist=["request"])
-        with request.urlopen(
-            "http://%s:%d/metrics" % (HOST, metrics_port), timeout=5
-        ) as response:
-            return b"brix_frm_" in response.read()
-    except Exception:
-        return False
+    # The fixture declares ssl on this listener. Reuse its bounded self-signed
+    # HTTPS observer; an HTTP refusal says nothing about FRM availability.
+    status, response = _https_get(metrics_port, "/metrics", timeout=5)
+    return status == 200 and b"brix_frm_" in response
 
 
 def _require_live_master(service, harness, paths):

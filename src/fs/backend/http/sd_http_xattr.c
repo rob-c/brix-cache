@@ -41,6 +41,7 @@
  */
 
 #include "sd_http_xattr_internal.h"
+#include "platform/platform_api.h"
 
 #include "core/compat/hex.h"
 

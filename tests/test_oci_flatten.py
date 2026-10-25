@@ -24,7 +24,8 @@ import zlib
 
 import pytest
 
-from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
+from cmdscripts.compile_run import (PLATFORM_HOST_FLAGS, library_compile_args,
+                                    pal_xattr_sources)
 from cmdscripts.container_runtime import container_runtime
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -43,7 +44,7 @@ SRC = [os.path.join(SHARED, "oci", f)
 
 
 def _compiler():
-    cc = shutil.which("gcc") or shutil.which("cc")
+    cc = shutil.which(os.environ.get("CC", "cc")) or shutil.which("gcc")
     if cc is None:
         pytest.skip("no C compiler")
     if not all(os.path.exists(s) for s in SRC):
@@ -56,9 +57,11 @@ def flatten_ut(tmp_path_factory):
     cc = _compiler()
     out = str(tmp_path_factory.mktemp("bin") / "flatten_ut")
     comp = subprocess.run(
-        [cc, "-Wall", "-Wextra", "-Werror", "-I", SHARED, "-I", SRC_DIR,
+        [cc, *library_compile_args([
+         "-Wall", "-Wextra", "-Werror", "-I", SHARED, "-I", SRC_DIR,
          *PLATFORM_HOST_FLAGS, "-o", out,
-         *SRC, "-lsqlite3", "-lcrypto", "-lz"],
+         *SRC, *(os.path.join(REPO, path) for path in pal_xattr_sources()),
+         "-lsqlite3", "-lcrypto", "-lz"])],
         capture_output=True, text=True)
     assert comp.returncode == 0, \
         "flatten driver failed to COMPILE:\n%s" % comp.stderr

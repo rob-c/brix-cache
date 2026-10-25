@@ -30,6 +30,7 @@ import time
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, NGINX_BIN as SELECTED_NGINX_BIN
+from lib_py.reference_host import reference_listener_args, reference_transport_directives
 
 # --- Layout ------------------------------------------------------------------
 
@@ -49,6 +50,16 @@ def _guard_enter_4(runas):
     if os.path.isfile(SERVER_KEY):
         shutil.chown(SERVER_KEY, runas)
         os.chmod(SERVER_KEY, 0o400)
+
+
+def _ready_reference(server, probe):
+    """A failed __enter__ must reap its own child and retain the failure."""
+    try:
+        _wait_port(server.port, proc=server.proc)
+        probe()
+    except BaseException:
+        server.__exit__()
+        raise
 
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -248,9 +259,10 @@ class XrootdGsi:
                 seclib=seclib, ca_dir=CA_DIR,
                 server_cert=SERVER_CERT, server_key=SERVER_KEY,
             ))
+            fh.write(reference_transport_directives())
         env = dict(os.environ)
         env.pop("LD_LIBRARY_PATH", None)
-        argv = [BRIX_BIN, "-c", self.cfg, "-l", self.log]
+        argv = [BRIX_BIN, "-c", self.cfg, "-l", self.log, *reference_listener_args(HOST)]
         # Stock xrootd refuses to run as superuser ("Security reasons prohibit
         # running as superuser; program is terminating." -> exit 8), so under a
         # root test harness drop it to `nobody` via `-R` and pre-open ONLY the
@@ -277,8 +289,7 @@ class XrootdGsi:
         self.proc = subprocess.Popen(
             argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
         )
-        _wait_port(self.port, proc=self.proc)
-        self._wait_gsi_ready()
+        _ready_reference(self, self._wait_gsi_ready)
         return self
 
     def _wait_gsi_ready(self, timeout=20.0):
@@ -371,9 +382,10 @@ class XrootdAnon:
             fh.write(_BRIX_ANON_CFG.format(
                 port=self.port, data=self.data, admin=self.admin, run=self.run,
                 extra=extra))
+            fh.write(reference_transport_directives())
         env = dict(os.environ)
         env.pop("LD_LIBRARY_PATH", None)
-        argv = [BRIX_BIN, "-c", self.cfg, "-l", self.log]
+        argv = [BRIX_BIN, "-c", self.cfg, "-l", self.log, *reference_listener_args(HOST)]
         # Stock xrootd refuses to run as superuser (exit 8) — same handling as
         # the GSI server above: drop to `nobody` via `-R` and open the paths the
         # dropped user must traverse/write (no certs here — anonymous).
@@ -393,8 +405,7 @@ class XrootdAnon:
             argv,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
         )
-        _wait_port(self.port, proc=self.proc)
-        self._wait_ready()
+        _ready_reference(self, self._wait_ready)
         return self
 
     def _wait_ready(self, timeout=20.0):

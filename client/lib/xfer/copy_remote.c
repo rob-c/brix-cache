@@ -202,17 +202,7 @@ tpc_teardown(brix_conn *sc, brix_conn *dc, brix_file *sf, brix_file *df,
              char *src_opaque, char *dst_opaque,
              int su_up, int du_up, int sopen, int dopen, int rc, brix_status *st)
 {
-    if (dopen && rc == 0) {
-        if (brix_file_close(dc, df, st) != 0) {
-            rc = -1;
-        }
-    }
-    if (sopen) {
-        brix_status tw; brix_status_clear(&tw);
-        brix_file_close(sc, sf, &tw);
-    }
-    if (du_up) { brix_close(dc); }
-    if (su_up) { brix_close(sc); }
+    rc = r2r_teardown(sc, dc, sf, df, su_up, du_up, sopen, dopen, rc, st);
     free(src_opaque);
     free(dst_opaque);
     return rc;

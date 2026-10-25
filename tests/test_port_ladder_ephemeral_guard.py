@@ -30,21 +30,21 @@ RANGE = (FLOOR, CEILING)
 
 
 def _last_legal_base(count=None):
-    """Highest base whose named ledger still ends below FLOOR."""
-    return FLOOR - (pl.PORT_COUNT if count is None else count) - 1
+    """Highest base whose complete named and mock reservation clears FLOOR."""
+    return FLOOR - (pl.TOTAL_PORT_COUNT if count is None else count) - 1
 
 
 def test_the_live_lane_clears_the_ephemeral_range():
     """The base this run is using must itself be legal — the guard's own lane."""
-    pl.check_lane_clears_ephemeral_range(pl.PORT_START, pl.PORT_COUNT,
+    pl.check_lane_clears_ephemeral_range(pl.PORT_START, pl.TOTAL_PORT_COUNT,
                                          pl.EPHEMERAL_RANGE)
 
 
-@pytest.mark.parametrize("base", [10000, 20000])
+@pytest.mark.parametrize("base", [2000, 10000])
 def test_the_documented_bases_are_accepted(base):
     """The two bases the peers actually run, judged against a synthetic range."""
     assert base <= _last_legal_base()
-    pl.check_lane_clears_ephemeral_range(base, pl.PORT_COUNT, RANGE)
+    pl.check_lane_clears_ephemeral_range(base, pl.TOTAL_PORT_COUNT, RANGE)
 
 
 def test_a_lane_inside_the_range_is_refused():
@@ -60,36 +60,39 @@ def test_the_boundary_is_the_floor_not_the_span():
     computed from PORT_COUNT so a repack cannot falsify them.
     """
     legal = _last_legal_base()
-    pl.check_lane_clears_ephemeral_range(legal, pl.PORT_COUNT, RANGE)
-    assert legal + pl.PORT_COUNT == FLOOR - 1
+    pl.check_lane_clears_ephemeral_range(legal, pl.TOTAL_PORT_COUNT, RANGE)
+    assert legal + pl.TOTAL_PORT_COUNT == FLOOR - 1
     with pytest.raises(RuntimeError):
-        pl.check_lane_clears_ephemeral_range(legal + 1, pl.PORT_COUNT, RANGE)
+        pl.check_lane_clears_ephemeral_range(legal + 1, pl.TOTAL_PORT_COUNT, RANGE)
 
 
-def test_the_mock_window_is_not_judged():
-    """A legal base whose MOCK reservation crosses the floor stays accepted.
-
-    free_port draws that window bottom-up, so its top is reached only by a run
-    holding thousands of simultaneous leases.  Refusing on a reservation rather
-    than an occupancy is the false positive this test freezes out.
-    """
-    base = _last_legal_base()
+def test_the_mock_window_cannot_overlap_outbound_connections():
+    """Named listens alone can be safe while later mock leases still collide."""
+    base = _last_legal_base(pl.PORT_COUNT)
     assert base + pl.MOCK_PORT_OFFSET + pl.MOCK_PORT_WIDTH > FLOOR, "mock window must cross"
-    pl.check_lane_clears_ephemeral_range(base, pl.PORT_COUNT, RANGE)
+    with pytest.raises(RuntimeError, match="complete"):
+        pl.check_lane_clears_ephemeral_range(base, pl.TOTAL_PORT_COUNT, RANGE)
 
 
 def test_the_message_suggests_a_base_that_is_itself_accepted():
     """A refusal that hands back an illegal base would send the reader in circles."""
     with pytest.raises(RuntimeError) as excinfo:
-        pl.check_lane_clears_ephemeral_range(42000, pl.PORT_COUNT, RANGE)
+        pl.check_lane_clears_ephemeral_range(42000, pl.TOTAL_PORT_COUNT, RANGE)
     suggested = int(str(excinfo.value).split("at or below ")[1].split(" ")[0])
     assert suggested == _last_legal_base()
-    pl.check_lane_clears_ephemeral_range(suggested, pl.PORT_COUNT, RANGE)
+    pl.check_lane_clears_ephemeral_range(suggested, pl.TOTAL_PORT_COUNT, RANGE)
 
 
 def test_an_unknown_range_never_refuses():
     """No sysctl (container, non-Linux) must still import and collect."""
     pl.check_lane_clears_ephemeral_range(42000, pl.PORT_COUNT, None)
+
+
+def test_no_legal_lane_never_suggests_another_overlapping_base():
+    with pytest.raises(RuntimeError) as error:
+        pl.check_lane_clears_ephemeral_range(1024, 16384, (10000, 65535))
+    assert 'No supported TEST_PORT_START fits' in str(error.value)
+    assert 'at or below 1024' not in str(error.value)
 
 
 @pytest.mark.parametrize("text", ["not a range", "", "60999 32768", "0 0", "1 99999"])
@@ -111,15 +114,51 @@ def test_a_missing_sysctl_reads_as_unknown(tmp_path):
     assert pl.read_ephemeral_range(str(tmp_path / "absent")) is None
 
 
+@pytest.mark.parametrize('host,utility', [('freebsd15', '/sbin/sysctl'),
+                                       ('darwin', '/usr/sbin/sysctl')])
+def test_native_range_uses_default_not_high_port_bounds(monkeypatch, host, utility):
+    calls = []
+
+    def native(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return subprocess.CompletedProcess(argv, 0, stdout='10000\n65535\n', stderr='')
+
+    monkeypatch.setattr(pl.subprocess, 'run', native)
+    assert pl._native_ephemeral_range(host) == (10000, 65535)
+    assert calls[0][0] == [utility, '-n', 'net.inet.ip.portrange.first',
+                          'net.inet.ip.portrange.last']
+    assert calls[0][1]['timeout'] == 2 and calls[0][1]['check'] is True
+    with pytest.raises(RuntimeError, match='ephemeral port range'):
+        pl.check_lane_clears_ephemeral_range(10000, pl.TOTAL_PORT_COUNT, (10000, 65535))
+
+
+@pytest.mark.parametrize('output', ['', 'broken', '65535 10000', '0 65535', '32768 65536'])
+def test_malformed_native_range_cannot_authorize_a_false_floor(monkeypatch, output):
+    monkeypatch.setattr(pl.subprocess, 'run', lambda argv, **kwargs:
+                        subprocess.CompletedProcess(argv, 0, stdout=output, stderr=''))
+    assert pl._native_ephemeral_range('freebsd15') is None
+
+
+def test_native_range_permission_failure_is_unknown_not_a_fabricated_default(monkeypatch):
+    def denied(*args, **kwargs):
+        raise PermissionError('injected unreadable kernel settings')
+
+    monkeypatch.setattr(pl.subprocess, 'run', denied)
+    assert pl._native_ephemeral_range('freebsd15') is None
+
+
 def test_the_refusal_fires_at_import_before_any_server_starts():
     """The whole point of promoting the lint: no fleet boot precedes it.
 
     A bare interpreter importing the ladder with a bad base must fail, which is
     what the fleet-boot wedge prevented the existing band lint from ever doing.
     """
+    if pl.EPHEMERAL_RANGE is None:
+        pytest.skip("host outbound port range is unknown; synthetic refusal covered above")
     proc = subprocess.run(
         [sys.executable, "-c", "import port_ladder"],
-        env={"TEST_PORT_START": "42000", "PATH": "/usr/bin:/bin",
+        env={"TEST_PORT_START": str(pl.EPHEMERAL_RANGE[0]), "PATH": "/usr/bin:/bin",
+             "TEST_MOCK_PORT_WIDTH": "0",
              "PYTHONPATH": str(pl.__file__).rsplit("/", 1)[0]},
         capture_output=True, text=True, timeout=60, check=False)
     assert proc.returncode != 0, proc.stdout

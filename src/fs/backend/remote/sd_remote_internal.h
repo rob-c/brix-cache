@@ -4,8 +4,9 @@
 /*
  * sd_remote_internal.h — cross-file internals for the remote-origin (s3://)
  * storage driver, split across sd_remote.c (read path + driver table),
- * sd_remote_meta.c (HEAD-based stat/xattr) and sd_remote_write.c (staged
- * whole-object writes + unlink). Not a public API — the external surface stays
+ * sd_remote_meta.c (HEAD-based namespace metadata), sd_remote_xattr_read.c
+ * (read-only xattrs), and sd_remote_write.c (staged whole-object writes +
+ * unlink). Not a public API — the external surface stays
  * brix_sd_remote_create/destroy in sd_remote.h.
  */
 

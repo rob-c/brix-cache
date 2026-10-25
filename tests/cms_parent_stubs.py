@@ -18,6 +18,7 @@ settings.py so they can be overridden for parallel test runners.
 
 import os
 import errno
+import select
 import signal
 import socket
 import struct
@@ -36,6 +37,8 @@ CMS_RR_LOCATE = 2
 CMS_RR_SELECT = 10
 CMS_RR_PING   = 17
 CMS_RR_PONG   = 18
+
+CMS_PING_INTERVAL = float(os.environ.get("TEST_CMS_STUB_PING_INTERVAL", "10"))
 CMS_RR_TRY    = 24
 
 # ------------------------------------------------------------------ #
@@ -109,11 +112,11 @@ def _try_payload(*entries):
 # Connection handler                                                    #
 # ------------------------------------------------------------------ #
 
-def _handle_connection(conn, locate_response_fn):
+def _handle_connection(conn, locate_response_fn, ping_interval=CMS_PING_INTERVAL):
     """Serve one nginx CMS client connection.
 
     Reads the LOGIN frame, then loops serving LOCATE frames with the
-    response computed by locate_response_fn(streamid) until the
+    response computed by locate_response_fn() until the
     connection drops.
     """
     conn.settimeout(30)
@@ -122,13 +125,31 @@ def _handle_connection(conn, locate_response_fn):
     if opcode != CMS_RR_LOGIN:
         return
 
+    next_ping = time.monotonic() + ping_interval
     while True:
-        streamid, opcode, _payload = _recv_frame(conn)
+        remaining = max(0.0, next_ping - time.monotonic())
+        readable, _, _ = select.select([conn], [], [], min(1.0, remaining))
+        streamid = opcode = None
+        if readable:
+            # Once a frame starts, retain the original bounded full-frame read.
+            # A short heartbeat socket timeout here would discard a partially
+            # received header and desynchronise the CMS stream.
+            conn.settimeout(30)
+            streamid, opcode, _payload = _recv_frame(conn)
+
         if opcode == CMS_RR_LOCATE:
             response_opcode, response_payload = locate_response_fn()
             _send_frame(conn, streamid, response_opcode, response_payload)
         elif opcode == CMS_RR_PING:
             _send_frame(conn, streamid, CMS_RR_PONG)
+        if time.monotonic() >= next_ping:
+            # A real CMS manager periodically probes every registered node.
+            # These long-lived fleet stubs must do the same: without inbound
+            # manager traffic BriX correctly reaches brix_cms_read_timeout,
+            # reconnects, and leaves a short window in which an otherwise
+            # healthy parent lookup reports "no data server available".
+            _send_frame(conn, 0, CMS_RR_PING)
+            next_ping = time.monotonic() + ping_interval
         # Other opcodes (GONE, etc.) are silently absorbed.
 
 

@@ -113,6 +113,8 @@ def wtj_server(lifecycle, tmp_path):
     # The de-escalated `nobody` worker must reach + own the export/stage/journal
     # trees (pytest tmp parents are root-0700 — untraversable otherwise).
     worker_reachable(data, stage, journal)
+    for path in (data, stage, journal):
+        os.chmod(path, 0o777)
 
     spec = NginxInstanceSpec(
         name="lc-xfer-wt-journal",

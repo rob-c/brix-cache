@@ -25,7 +25,8 @@ import os
 import socket
 import subprocess
 from brix_suite.client_build import client_make
-import sys
+from lib_py.client_toolchain import client_test_env as _base_env
+from lib_py.preload_shim import PRELOAD_VAR
 
 import pytest
 from settings import BIND_HOST, BIND_HOST6, HOST6
@@ -53,42 +54,20 @@ def _ipv6_loopback_ok():
         return False
 
 
-def _base_env():
-    """Inherit env; when built against a conda toolchain, make the optional
-    codec/krb5 libs resolvable for both link (PKG_CONFIG_PATH) and runtime
-    (LD_LIBRARY_PATH). A no-op when CONDA_PREFIX is unset (system / RPM build)."""
-    env = dict(os.environ)
-    # sys.prefix reliably points at the conda/venv toolchain even when
-    # CONDA_PREFIX is not exported.
-    prefix = env.get("CONDA_PREFIX") or sys.prefix
-    pcdir = os.path.join(prefix, "lib", "pkgconfig")
-    if os.path.isdir(pcdir):
-        libdir = os.path.join(prefix, "lib")
-        env["LD_LIBRARY_PATH"] = libdir + os.pathsep + env.get("LD_LIBRARY_PATH", "")
-        env["PKG_CONFIG_PATH"] = pcdir + os.pathsep + env.get("PKG_CONFIG_PATH", "")
-    return env
-
-
 @pytest.fixture(scope="module", autouse=True)
 def _build():
     """Build the test driver + shim + a real shipped tool (no server needed)."""
-    # Build only when a binary is missing (a failed link would delete a good
-    # pre-built one). The link needs optional codec/krb5 libs whose pkg-config
-    # entries vary by environment; if it fails and the binaries are absent, skip.
-    out = b""
     need = [NETFB, SHIM, WAIT41]
-    if not all(os.path.exists(p) for p in need):
-        r = client_make(CLIENT_DIR, "netfb", "gai-shim", "wait41-brix", env=_base_env(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
-        out = r.stdout
-    if not all(os.path.exists(p) for p in need):
-        pytest.skip("client test binaries not built (run `make -C client netfb "
-                    f"gai-shim wait41-brix`):\n{out.decode(errors='replace')[-800:]}")
+    r = client_make(CLIENT_DIR, "libbrix.a", "netfb", "gai-shim", "xrddiag", "wait41-brix", env=_base_env(),
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
+    assert r.returncode == 0, r.stdout.decode(errors="replace")[-3000:]
+    assert all(os.path.exists(p) for p in need), "client test build omitted an artifact"
 
 
 def _run(mode, *, preload=False, env_extra=None):
     env = _base_env()
     if preload:
-        env["LD_PRELOAD"] = SHIM
+        env[PRELOAD_VAR] = SHIM
     if env_extra:
         env.update(env_extra)
     return subprocess.run(
@@ -182,7 +161,7 @@ def test_real_tool_binary_downgrades():
     lst.listen(8)
     try:
         env = _base_env()
-        env["LD_PRELOAD"] = SHIM
+        env[PRELOAD_VAR] = SHIM
         p = subprocess.run(
             [WAIT41, "--timeout", "5", f"root://{SENTINEL}:{port}"],
             env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20,
@@ -195,3 +174,27 @@ def test_real_tool_binary_downgrades():
     assert p.returncode == 0, f"out={out!r} err={err!r}"
     assert "ready" in out, out
     assert err.count(DOWNGRADE_MARK) == 1, err
+
+
+@pytest.mark.parametrize('host, closed, accepted', [
+    ('::ffff:127.0.0.1', False, True),  # net-literal-allow: mapped transport success
+    ('::ffff:7f00:1', False, True),
+    ('::ffff:127.0.0.1', True, False),  # net-literal-allow: mapped closed-port refusal
+    ('::ffff:127.0.0.2', False, False),
+    ('::127.0.0.1', False, False),  # net-literal-allow: compatible IPv6 must not be unmapped
+])  # net-literal-allow: numeric transport success/refusal corpus, not external endpoints
+def test_real_tool_preserves_mapped_address_identity(host, closed, accepted):
+    """Mapped IPv4 works; refused ports, other peers and compatible IPv6 stay refused."""
+    from ephemeral_port import free_port
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind((BIND_HOST, free_port(BIND_HOST)))
+        port = listener.getsockname()[1]
+        listener.listen(8)
+        if closed:
+            listener.close()
+        result = subprocess.run(
+            [WAIT41, '--timeout', '1', f'root://[{host}]:{port}'], env=_base_env(),
+            capture_output=True, timeout=10)
+    assert (result.returncode == 0) is accepted, result.stdout + result.stderr
+    assert (b'ready' in result.stdout) is accepted, result.stdout

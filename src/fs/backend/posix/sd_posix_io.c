@@ -37,6 +37,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <unistd.h>
 
 #include "sd_posix_internal.h"
@@ -115,15 +116,58 @@ sd_posix_read_sendfile_fd(brix_sd_obj_t *obj, off_t off, size_t len,
     return obj->fd;
 }
 
-/* sd_posix_reserve — phase-107 C5: preallocate the declared final size
- * WITHOUT changing st_size, so a concurrent stat never sees bytes that were
- * only promised. ENOSPC is the caller's fail-the-open signal; a filesystem
- * without the primitive returns EOPNOTSUPP, which the caller treats as
- * advisory. brix_plat_reserve owns the primitive (fallocate KEEP_SIZE) and
- * the ENOSPC/EDQUOT release of the beyond-EOF part of a refused range. */
+/* ---- Reject reservations that cannot fit before allocating any blocks ----
+ * WHAT: Return NGX_ERROR/ENOSPC when the requested additional allocation
+ *       exceeds available filesystem space, or preserve a metadata error.
+ * WHY: An oversized fallocate can occupy all free extents before failing,
+ *      starving unrelated exports and blocking the worker during the attempt.
+ * HOW: 1. Read capacity and actual allocation from the already-open object.
+ *      2. Credit allocated blocks, including reservations beyond EOF.
+ *      3. Compare rounded-up additional blocks without multiplying capacity.
+ *         The allocator still resolves concurrent capacity changes/quotas.
+ */
+static ngx_int_t
+sd_posix_reserve_space(int fd, off_t size)
+{
+    struct statvfs space;
+    struct stat st;
+    uint64_t required = (uint64_t) size;
+    uint64_t unit, blocks;
+
+    if (fstatvfs(fd, &space) != 0 || fstat(fd, &st) != 0) {
+        return NGX_ERROR;
+    }
+    if (st.st_blocks > 0) {
+        blocks = (uint64_t) st.st_blocks;
+        required = blocks > required / 512 ? 0 : required - blocks * 512;
+    }
+    unit = space.f_frsize != 0 ? space.f_frsize : space.f_bsize;
+    if (unit == 0) {
+        errno = EIO;
+        return NGX_ERROR;
+    }
+    blocks = required / unit + (required % unit != 0);
+    if (blocks > space.f_bavail) {
+        errno = ENOSPC;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/* ---- Preallocate the declared final size without changing the file size ----
+ * WHAT: Return NGX_OK on reservation, NGX_ERROR with the storage errno otherwise.
+ * WHY: Capacity hints must not expose promised bytes through stat or exhaust
+ *      shared storage while an impossible reservation is being attempted.
+ * HOW: 1. Reject impossible additional allocations using handle metadata.
+ *      2. Delegate allocation and partial-failure release to the host PAL.
+ *         The VFS treats ENOSPC/EDQUOT as fatal and other errors as advisory.
+ */
 ngx_int_t
 sd_posix_reserve(brix_sd_obj_t *obj, off_t size)
 {
+    if (size > 0 && sd_posix_reserve_space(obj->fd, size) != NGX_OK) {
+        return NGX_ERROR;
+    }
     return brix_plat_reserve(obj->fd, size) == 0 ? NGX_OK : NGX_ERROR;
 }
 

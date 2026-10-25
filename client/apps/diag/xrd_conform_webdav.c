@@ -1,30 +1,8 @@
 /* Phase-118 read-only WebDAV multistatus probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "core/compat/host_format.h"
 
-/* WHAT: Return whether one DAV row survived scope selection.
- * WHY: HTTP profiles must not send WebDAV verbs unless explicitly selected.
- * HOW: Find the row and reject scope-skipped results. */
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
 
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
-
-/* WHAT: Store a uniform boolean WebDAV verdict.
- * WHY: Each XML predicate needs stable machine-readable evidence.
- * HOW: Map pass to conformant and failure to divergent. */
-static void
-grade(xrd_conform_execution *execution, const char *id, int pass,
-    const char *success, const char *failure, const char *received)
-{
-    xrd_conform_result_set(execution, id,
-        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
-             : BRIX_CONFORM_VERDICT_DIVERGENT,
-        pass ? success : failure, NULL, received);
-}
 
 /* WHAT: Match one XML element's local name at a '<' byte.
  * WHY: WebDAV servers freely choose namespace prefixes and letter case.
@@ -161,14 +139,14 @@ probe_depth_zero(xrd_conform_execution *execution, const brix_weburl *url,
         length = strtoull(length_text, &end, 10);
         have_length = errno == 0 && end != length_text && *end == '\0';
     }
-    if (row_active(execution, "DAV-001"))
-        grade(execution, "DAV-001", rc == 0 && response.status == 207
+    if (xrd_conform_row_active(execution, "DAV-001"))
+        xrd_conform_grade_received(execution, "DAV-001", rc == 0 && response.status == 207
             && xrd_conform_webdav_xml_count(response.body, "response") == 1,
             "depth-zero-returned-one-response",
             "depth-zero-cardinality-invalid", rc == 0 ? response.reason
                                                         : status.msg);
-    if (row_active(execution, "DAV-004"))
-        grade(execution, "DAV-004", rc == 0 && response.status == 207
+    if (xrd_conform_row_active(execution, "DAV-004"))
+        xrd_conform_grade_received(execution, "DAV-004", rc == 0 && response.status == 207
             && have_length && length == baseline->body_len,
             "dav-content-length-matches-get",
             "dav-content-length-mismatch", have_length ? length_text
@@ -188,13 +166,13 @@ probe_depth_infinity(xrd_conform_execution *execution,
     int rc;
     int pass;
 
-    if (!row_active(execution, "DAV-003")) return;
+    if (!xrd_conform_row_active(execution, "DAV-003")) return;
     rc = propfind(execution, url, token, "infinity", &response, &status);
     pass = rc == 0 && (response.status == 403
         || (response.status == 207
             && xrd_conform_webdav_xml_count(response.body, "response") == 1
             && xml_statuses_valid(response.body)));
-    grade(execution, "DAV-003", pass,
+    xrd_conform_grade_received(execution, "DAV-003", pass,
         response.status == 403 ? "infinite-depth-explicitly-refused"
                                : "infinite-depth-complete-multistatus",
         "infinite-depth-partial-or-invalid",
@@ -257,7 +235,7 @@ xrd_conform_webdav_cleanup(xrd_conform_execution *execution,
 
 /* WHAT: Prove MKCOL on an existing scratch collection returns 405.
  * WHY: Idempotent client wrappers must not hide the wire-level DAV contract.
- * HOW: Create once, create again, grade the second response and clean up. */
+ * HOW: Create once, create again, xrd_conform_grade_received the second response and clean up. */
 static void
 probe_existing_collection(xrd_conform_execution *execution,
     const brix_weburl *base, const char *token)
@@ -267,7 +245,7 @@ probe_existing_collection(xrd_conform_execution *execution,
     int second = 0;
     int pass;
 
-    if (!row_active(execution, "DAV-005")) return;
+    if (!xrd_conform_row_active(execution, "DAV-005")) return;
     if (xrd_conform_webdav_scratch_url(execution, base,
             "brix-conform-dav-existing",
             &collection) != 0) {
@@ -282,7 +260,7 @@ probe_existing_collection(xrd_conform_execution *execution,
         && xrd_conform_webdav_mutation(execution, &collection, "MKCOL",
             token, NULL, &second) == 0
         && second == 405;
-    grade(execution, "DAV-005", pass,
+    xrd_conform_grade_received(execution, "DAV-005", pass,
         "mkcol-existing-returned-405", "mkcol-existing-status-invalid",
         pass ? "405" : "not-405");
     xrd_conform_webdav_cleanup(execution, &collection, token);
@@ -354,7 +332,7 @@ probe_no_overwrite(xrd_conform_execution *execution, const brix_weburl *base,
     int status = 0;
     int pass;
 
-    if (!row_active(execution, "DAV-007")) return;
+    if (!xrd_conform_row_active(execution, "DAV-007")) return;
     if (xrd_conform_webdav_scratch_url(execution, base,
             "brix-conform-dav-source", &source) != 0
         || xrd_conform_webdav_scratch_url(execution, base,
@@ -373,7 +351,7 @@ probe_no_overwrite(xrd_conform_execution *execution, const brix_weburl *base,
         && xrd_conform_webdav_mutation(execution, &source, "MOVE", token,
             fields, &status) == 0
         && status == 412;
-    grade(execution, "DAV-007", pass,
+    xrd_conform_grade_received(execution, "DAV-007", pass,
         "move-overwrite-f-returned-412", "move-overwrite-f-status-invalid",
         pass ? "412" : "not-412");
     xrd_conform_webdav_cleanup(execution, &source, token);
@@ -441,7 +419,7 @@ probe_locking(xrd_conform_execution *execution, const brix_weburl *base,
     int locked = 0;
     int pass = 0;
 
-    if (!row_active(execution, "DAV-010")) return;
+    if (!xrd_conform_row_active(execution, "DAV-010")) return;
     if (xrd_conform_webdav_scratch_url(execution, base,
             "brix-conform-dav-lock", &object) != 0) {
         xrd_conform_result_set(execution, "DAV-010",
@@ -462,7 +440,7 @@ probe_locking(xrd_conform_execution *execution, const brix_weburl *base,
     }
     pass = locked && write_rc == 0 && put_status == 423 && unlock_rc == 0
         && (unlock_status == 200 || unlock_status == 204);
-    grade(execution, "DAV-010", pass,
+    xrd_conform_grade_received(execution, "DAV-010", pass,
         "lock-gated-write-and-unlocked", "lock-enforcement-or-unlock-failed",
         pass ? "PUT=423 UNLOCK=success" : "locking-contract-mismatch");
     xrd_conform_webdav_cleanup(execution, &object, token);
@@ -484,7 +462,7 @@ probe_external_entity(xrd_conform_execution *execution,
     int rc;
     int pass;
 
-    if (!row_active(execution, "DAV-011")) return;
+    if (!xrd_conform_row_active(execution, "DAV-011")) return;
     memset(&response, 0, sizeof(response));
     brix_status_clear(&status);
     rc = xrd_conform_http_request_body(execution, url, "PROPFIND", token,
@@ -494,7 +472,7 @@ probe_external_entity(xrd_conform_execution *execution,
         && (response.body == NULL
             || (strstr(response.body, "root:x:") == NULL
                 && strstr(response.body, "daemon:") == NULL));
-    grade(execution, "DAV-011", pass,
+    xrd_conform_grade_received(execution, "DAV-011", pass,
         "external-entity-document-refused",
         "external-entity-document-accepted-or-reflected",
         rc == 0 ? response.reason : status.msg);

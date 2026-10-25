@@ -224,6 +224,14 @@ class TestSSRFDefaultPolicy:
         assert "prohibited" in err, "error should mention 'prohibited': %r" % err
 
     @pytest.mark.registry_server("tpc-ssrf-default")
+    @pytest.mark.parametrize("host", ["::ffff:127.0.0.1", "::ffff:169.254.0.1"])  # net-literal-allow: mapped local-address refusal corpus
+    def test_mapped_local_addresses_remain_prohibited(self, nginx_default, host):
+        """Mapped spelling cannot bypass loopback or link-local policy."""
+        status, err = _tpc_attempt(nginx_default["port"], f"root://[{host}]//test.txt")
+        assert status == kXR_error, "mapped local source was accepted"
+        assert "prohibited" in err, f"mapped local source bypassed policy: {err}"
+
+    @pytest.mark.registry_server("tpc-ssrf-default")
     def test_loopback_localhost_name_rejected(self, nginx_default):
         # 'localhost' resolves to 127.0.0.1 (or ::1) — both are blocked by default
         port = nginx_default["port"]
@@ -313,6 +321,14 @@ class TestSSRFDenyPrivatePolicy:
         status, err = _tpc_attempt(port, "root://10.0.0.1//test.txt")
         assert status == kXR_error
         assert "prohibited" in err, "10/8 should be prohibited with allow_private off: %r" % err
+
+    @pytest.mark.registry_server("tpc-ssrf-deny-private")
+    def test_mapped_private_address_remains_prohibited(self, nginx_deny_private):
+        """Normalization cannot grant access to a forbidden private peer."""
+        status, err = _tpc_attempt(nginx_deny_private["port"],
+                                   "root://[::ffff:10.0.0.1]//test.txt")
+        assert status == kXR_error, "mapped private source was accepted"
+        assert "prohibited" in err, f"mapped private source bypassed policy: {err}"
 
     @pytest.mark.registry_server("tpc-ssrf-deny-private")
     def test_rfc1918_192168_rejected(self, nginx_deny_private):

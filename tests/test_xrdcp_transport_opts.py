@@ -25,6 +25,7 @@ Run:
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 
 import pytest
@@ -186,7 +187,9 @@ def test_allow_http_grants_nothing_and_relaxes_nothing(tmp_path):
     """
     plain = _run([], tmp_path)
     compat = _run(["--allow-http"], tmp_path)
-    assert (compat.returncode, compat.stderr) == (plain.returncode, plain.stderr)
+    plain_diagnostic = re.sub(r"(?m)^timestamp=\d+ ", "", plain.stderr)
+    compat_diagnostic = re.sub(r"(?m)^timestamp=\d+ ", "", compat.stderr)
+    assert (compat.returncode, compat_diagnostic) == (plain.returncode, plain_diagnostic)
     for leaked in ("notlsok", "cleartext", "verifyhost", "insecure"):
         assert leaked not in compat.stderr.lower()
 # ---- stock xrdcp long spellings (parity-audit §7.13) ----

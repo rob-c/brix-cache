@@ -162,9 +162,10 @@ def install(dest_dir, name: str = "stage.py", **cfg) -> str:
     The script + sidecar are made world-readable/executable so an unprivileged
     (``nobody``) nginx worker can exec and read them under seccomp tests.
     """
+    from cmdscripts.scriptutil import install_script
+
     dest = os.path.join(str(dest_dir), name)
-    shutil.copyfile(os.path.realpath(__file__), dest)
-    os.chmod(dest, 0o755)
+    install_script(os.path.realpath(__file__), dest)
     sidecar = dest + ".json"
     with open(sidecar, "w") as fh:
         json.dump(cfg, fh)

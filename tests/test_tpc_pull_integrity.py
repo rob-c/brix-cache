@@ -33,8 +33,8 @@ both a TPC destination and its own source):
                        DEST's pull leg
 
 The proxy frames the source->destination response stream uniformly (every reply,
-including the handshake, is an 8-byte ServerResponseHdr + dlen body) and touches
-ONLY read replies (the streamid[1]==3 tag our pull sets on kXR_read) — so the
+including the handshake, is an 8-byte ServerResponseHdr + dlen body) and matches
+replies to request opcodes, touching ONLY kXR_read replies — so the
 kXR_stat (tag 4) and kXR_Qcksum (tag 5) replies always pass through truthfully.
 It offers two deterministic, non-flaky faults (the surgical analogue of
 brix-fault-proxy `truncate-at` / `corrupt down`):
@@ -122,7 +122,7 @@ def _recv_exact(sock, n):
 class _KxrPullFaultProxy:
     """A TCP splice between the brix TPC destination and its source that frames the
     source->destination response stream (uniform 8-byte ServerResponseHdr + dlen
-    body) and, while armed, faults ONLY read replies (streamid[1]==3) — leaving the
+    body) and, while armed, faults ONLY replies matched to kXR_read — leaving the
     handshake, login, open, stat (tag 4) and checksum-query (tag 5) replies
     untouched so the size and source-checksum the destination reads are truthful.
 
@@ -194,52 +194,90 @@ class _KxrPullFaultProxy:
             return self._fault_read_frame(status, body)
         return status, body
 
-    def _pump_up(self, src, dst):
-        """destination->source: requests, forwarded raw."""
+    def _pump_up(self, src, dst, requests, request_lock):
+        """Forward requests and associate opaque stream IDs with opcodes.
+
+        Native-client placement stat can use SID 3 too. A SID is not an opcode;
+        consuming the corruption arm on that stat leaves the actual pull clean.
+        Keep the map connection-local and publish before forwarding a request.
+        """
         try:
+            handshake = _recv_exact(src, 20)
+            dst.sendall(handshake)
+            if len(handshake) != 20:
+                return
             while not self._stop.is_set():
-                data = src.recv(65536)
-                if not data:
+                if not self._forward_request(src, dst, requests, request_lock):
                     break
-                dst.sendall(data)
         except OSError:
             pass
         finally:
-            try:
-                dst.shutdown(socket.SHUT_WR)
-            except OSError:
-                pass
+            self._shutdown_write(dst)
 
-    def _pump_down(self, src, dst):
+    def _forward_request(self, src, dst, requests, request_lock):
+        """Publish one bounded request before its response can arrive."""
+        header = _recv_exact(src, 24)
+        if len(header) != 24:
+            _guard_pump_down_1(header, dst)
+            return False
+        opcode = struct.unpack("!H", header[2:4])[0]
+        size = struct.unpack("!I", header[20:24])[0]
+        if size > 16 * 1024 * 1024:
+            return False
+        payload = _recv_exact(src, size)
+        with request_lock:
+            requests[header[:2]] = opcode
+        dst.sendall(header + payload)
+        return len(payload) == size
+
+    @staticmethod
+    def _shutdown_write(dst):
+        """EOF the peer without losing the original splice error."""
+        try:
+            dst.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+
+    def _pump_down(self, src, dst, requests, request_lock):
         """source->destination: parse each ServerResponseHdr frame, fault read
         replies, re-emit.  A partial header/body only occurs when the source dies
         mid-frame — forward what arrived and stop (the destination then sees a
         short read, its own recv-failure path)."""
         try:
             while not self._stop.is_set():
-                hdr = _recv_exact(src, 8)
-                if len(hdr) < 8:
-                    _guard_pump_down_1(hdr, dst)
+                if not self._forward_reply(src, dst, requests, request_lock):
                     break
-                streamid = hdr[:2]
-                status = struct.unpack("!H", hdr[2:4])[0]
-                dlen = struct.unpack("!I", hdr[4:8])[0]
-                body = _recv_exact(src, dlen) if dlen else b""
-                if len(body) < dlen:
-                    dst.sendall(hdr + body)
-                    break
-
-                status, body = self._fault_frame(streamid, status, body)
-                hdr = streamid + struct.pack("!HI", status, len(body))
-
-                dst.sendall(hdr + body)
         except OSError:
             pass
         finally:
-            try:
-                dst.shutdown(socket.SHUT_WR)
-            except OSError:
-                pass
+            self._shutdown_write(dst)
+
+    def _forward_reply(self, src, dst, requests, request_lock):
+        """Forward one complete reply, preserving partial frames on EOF."""
+        header = _recv_exact(src, 8)
+        if len(header) < 8:
+            _guard_pump_down_1(header, dst)
+            return False
+        streamid = header[:2]
+        status, size = struct.unpack("!HI", header[2:])
+        body = _recv_exact(src, size)
+        if len(body) < size:
+            dst.sendall(header + body)
+            return False
+        with request_lock:
+            opcode = requests.get(streamid)
+        status, body = self._fault_opcode(opcode, status, body)
+        dst.sendall(streamid + struct.pack("!HI", status, len(body)) + body)
+        return True
+
+    def _fault_opcode(self, opcode, status, body):
+        """Derive the subclass hook's logical tag from the matching opcode."""
+        tags = {3006: 1, 3007: 1, 3010: 2, 3003: 2,
+                3013: 3, 3017: 4, 3001: 5}
+        tag = tags.get(opcode)
+        if tag is None:
+            return status, body
+        return self._fault_frame(bytes((0, tag)), status, body)
 
     def _handle(self, client):
         try:
@@ -248,9 +286,13 @@ class _KxrPullFaultProxy:
         except OSError:
             client.close()
             return
-        tu = threading.Thread(target=self._pump_up, args=(client, upstream),
+        requests = {}
+        request_lock = threading.Lock()
+        tu = threading.Thread(target=self._pump_up,
+                              args=(client, upstream, requests, request_lock),
                               daemon=True)
-        td = threading.Thread(target=self._pump_down, args=(upstream, client),
+        td = threading.Thread(target=self._pump_down,
+                              args=(upstream, client, requests, request_lock),
                               daemon=True)
         tu.start(); td.start()
         tu.join(); td.join()
@@ -290,7 +332,7 @@ def _anon_env():
 
 def _xrdcp_tpc(src, dst):
     return subprocess.run(
-        [XRDCP_BIN, "-f", "-s", "--tpc", "only", src, dst],
+        [XRDCP_BIN, "-f", "--tpc", "only", src, dst],
         env=_anon_env(), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         timeout=60,
     )

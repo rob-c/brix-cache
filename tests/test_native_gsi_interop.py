@@ -25,6 +25,8 @@ import pytest
 from settings import HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 from stock_xrootd_owner import StockXrootdOwner
+from ephemeral_port import free_port
+from lib_py.reference_host import reference_listener_args
 
 def _phase_gsi_server_1_next(base):
     _run(["chmod", "-R", "a+rwX", str(base / "gsitest")])
@@ -46,7 +48,7 @@ def _guard_gsi_server_3(proxy, mk):
 
 def _guard_gsi_server_6(up):
     if not up:
-        pytest.skip("stock xrootd GSI server did not come up")
+        pytest.fail("installed stock xrootd GSI server did not become ready")
 
 def _guard_gsi_server_4(hostcert, srv):
     if hostcert.exists():
@@ -68,7 +70,6 @@ STOCK_XRDFS = shutil.which("xrdfs")
 if (STOCK_XRDFS is not None
         and os.path.realpath(STOCK_XRDFS) == os.path.realpath(NATIVE_XRDFS)):
     STOCK_XRDFS = None
-PORT = 21094
 
 
 def _have(*tools):
@@ -78,23 +79,6 @@ def _have(*tools):
 
 def _run(cmd, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, timeout=40, **kw)
-
-
-def _free_port(port):
-    """Kill any stale listener squatting `port`.
-
-    These fixtures bind fixed ports (21094/21096); a leaked server from an
-    earlier run (or a crashed teardown) would otherwise keep listening with a
-    DIFFERENT throwaway CA, so our freshly-started server silently fails to bind
-    and the client transparently talks to the stale one — surfacing as a bogus
-    "certificate chain verification failed" rather than the real bind clash.
-    Pre-clearing makes the interop assertions deterministic."""
-    subprocess.run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"],
-                   capture_output=True)
-    for _ in range(20):
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode != 0:
-            return
-        time.sleep(0.1)
 
 
 def _openssl(*args):
@@ -132,11 +116,14 @@ def _root_server_args(base, certs, server, admin):
     return ["-R", runas]
 
 
-def _listener_ready():
+def _listener_ready(port, process):
+    """Probe only this fixture's reserved listener; never evict a port owner."""
     for _ in range(50):
+        if process.poll() is not None:
+            return False
         try:
-            with socket.create_connection((HOST, PORT), timeout=0.2):
-                return True
+            with socket.create_connection((HOST, port), timeout=0.2):
+                return process.poll() is None
         except OSError:
             pass
         time.sleep(0.1)
@@ -147,6 +134,7 @@ def _listener_ready():
 def gsi_server(tmp_path_factory):
     _guard_gsi_server_1()
     _guard_gsi_server_2()
+    port = free_port()
 
     base = tmp_path_factory.mktemp("gsi")
     ca, srv, usr, certs, data = (base / d for d in
@@ -177,7 +165,7 @@ def gsi_server(tmp_path_factory):
     with closing(StockXrootdOwner()) as owner:
         cfg = base / "xrootd.cfg"
         cfg.write_text(
-            f"xrd.port {PORT}\n"
+            f"xrd.port {port}\n"
             f"all.adminpath {owner.admin}\n"
             f"all.pidpath {owner.admin}\n"
             "all.export /gsidata\n"
@@ -189,8 +177,8 @@ def gsi_server(tmp_path_factory):
             "sec.protbind * only gsi\n")
         shutil.move(str(data), str(base / "gsidata"))
 
-        _free_port(PORT)
-        argv = ["xrootd", "-c", str(cfg), "-l", str(base / "x.log"), "-n", "gsitest"]
+        argv = ["xrootd", *reference_listener_args(HOST), "-c", str(cfg),
+                "-l", str(base / "x.log"), "-n", "gsitest"]
         # Stock xrootd refuses to run as superuser, so under the root test harness we
         # drop it to `nobody` via `-R` and pre-open ONLY the paths the dropped user
         # touches.  The user proxy dir (usr/) is deliberately left untouched: XrdSecgsi
@@ -201,11 +189,11 @@ def gsi_server(tmp_path_factory):
                                 start_new_session=True)
         owner.process = proc
         # Wait for the listener.
-        up = _listener_ready()
+        up = _listener_ready(port, proc)
         _guard_gsi_server_6(up)
 
-        ctx = {"host": fqdn, "port": PORT, "env": env,
-               "url": f"root://{fqdn}:{PORT}", "certs": str(certs),
+        ctx = {"host": fqdn, "port": port, "env": env,
+               "url": f"root://{fqdn}:{port}", "certs": str(certs),
                "ca": str(ca / "ca.pem"), "hostcert": str(srv / "hostcert.pem"),
                "hostkey": str(srv / "hostkey.pem"), "data": str(base / "gsidata"),
                "base": str(base)}
@@ -218,7 +206,7 @@ def test_stock_client_gsi_auth_succeeds(gsi_server):
     r = _run([STOCK_XRDFS, gsi_server["url"], "ls", "/gsidata"],
              env=gsi_server["env"])
     if r.returncode != 0:
-        pytest.skip(f"stock xrdfs could not GSI-auth to the fixture: {r.stderr}")
+        pytest.fail(f"installed stock xrdfs could not GSI-auth to the fixture: {r.stderr}")
     assert "/gsidata/hello.txt" in r.stdout
 
 

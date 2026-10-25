@@ -157,7 +157,8 @@ class _RegistryLauncherMixinC:
             with open(f"/proc/{pid}/stat", "rb") as fh:
                 suffix = fh.read().rsplit(b")", 1)[1].split()
         except (OSError, IndexError):
-            if not os.path.isdir("/proc"):
+            from lib_py.process_host import procfs_available
+            if not procfs_available():
                 # No procfs (Darwin/BSD): ask ps(1); "every pid has exited"
                 # left the reference xrootd daemons alive through stop-all.
                 from brix_suite.launcher.internals import (  # noqa: PLC0415

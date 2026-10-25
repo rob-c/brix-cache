@@ -1,4 +1,7 @@
 from split_continuation import reexport as _reexport
+import _test_conf_openflags_helpers as open_wire
+from lib_py.reference_host import fixture_read_bytes
+from urllib.parse import urlsplit
 _reexport(globals(), "_test_conf_pathedge_helpers")
 
 pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_pathedge")]
@@ -94,11 +97,10 @@ def test_xrdcp_space_name_download_byte_exact(pair, tmp_path):
     assert _ok(rc_a) == _ok(rc_b), \
         f"DIVERGENCE xrdcp '/a b c.txt': our rc={rc_a} stock rc={rc_b} ({ea}{eb})"
     if _ok(rc_a) and _ok(rc_b):
-        with open(a, "rb") as fa, open(b, "rb") as fb:
-            ga, gb = fa.read(), fb.read()
+        ga, gb = fixture_read_bytes(a), fixture_read_bytes(b)
         assert ga == gb, "xrdcp space-name bytes differ between servers"
-        with open(os.path.join(pair["our_data"], "a b c.txt"), "rb") as f:
-            assert ga == f.read(), "xrdcp space-name not byte-exact vs disk"
+        assert ga == fixture_read_bytes(os.path.join(pair["our_data"], "a b c.txt")), \
+            "xrdcp space-name not byte-exact vs disk"
 
 
 # =========================================================================== #
@@ -127,6 +129,18 @@ def test_trailing_slash_ls_parity(pair, path):
 def test_trailing_slash_cat_parity(pair, path):
     """cat parity for a file with and without a trailing slash."""
     _assert_cat_parity(pair, path, "hello world")
+
+
+@pytest.mark.parametrize('path', ['/hello.txt/', '/hello.txt///',
+                                '/hello.txt/?cks.type=adler32', '/sub/', '/absent/'])
+def test_read_open_preserves_directory_intent_on_both_servers(pair, path):
+    """Raw framing avoids either client's path rewriting or offset ABI."""
+    for side in ('our', 'off'):
+        with open_wire._session(urlsplit(pair[side]).port) as connection:
+            status, body = open_wire._open(connection, path, open_wire.kXR_open_read)
+        assert status == open_wire.kXR_error, (side, path, status, body)
+        assert open_wire._errnum(body) in (3005, 3011, 3016), (side, path, body)
+    assert fixture_read_bytes(os.path.join(pair['our_data'], 'hello.txt')) == b'hello world\n'
 
 
 def test_trailing_slash_mkdir_parity(pair):
@@ -260,11 +274,10 @@ def test_opaque_download_byte_exact(pair, tmp_path):
     assert _ok(rc_a) == _ok(rc_b), \
         f"DIVERGENCE xrdcp cgi: our rc={rc_a} stock rc={rc_b} ({ea}{eb})"
     if _ok(rc_a) and _ok(rc_b):
-        with open(a, "rb") as fa, open(b, "rb") as fb:
-            ga, gb = fa.read(), fb.read()
+        ga, gb = fixture_read_bytes(a), fixture_read_bytes(b)
         assert ga == gb, "xrdcp cgi bytes differ between servers"
-        with open(os.path.join(pair["our_data"], "data.bin"), "rb") as f:
-            assert ga == f.read(), "xrdcp cgi suffix changed the bytes vs disk"
+        assert ga == fixture_read_bytes(os.path.join(pair["our_data"], "data.bin")), \
+            "xrdcp cgi suffix changed the bytes vs disk"
 
 
 def test_opaque_embedded_equals_amp_semicolon(pair):

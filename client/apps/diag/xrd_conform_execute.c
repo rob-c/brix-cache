@@ -313,6 +313,123 @@ run_target(xrd_conform_execution *execution, const char *target,
     return xrd_conform_run_root(execution);
 }
 
+static int
+target_probes_needed(xrd_conform_execution *execution)
+{
+    const char *only = execution->run->config.only;
+    const char *fixture = execution->run->cache_fixture_kind;
+
+    if (xrd_conform_tpc_exact_selected(execution)) return 0;
+    if (fixture == NULL || only == NULL) return 1;
+    return strcmp(only, "CAC-003") != 0 && strcmp(only, "CAC-004") != 0
+        && strcmp(only, "CAC-005") != 0 && strcmp(only, "CAC-009") != 0;
+}
+
+static int
+run_selected_targets(xrd_conform_execution *execution, int *capture_enabled)
+{
+    size_t index;
+    int rc = 0;
+
+    if (!target_probes_needed(execution)) return 0;
+    if (run_target(execution, execution->run->config.target,
+            capture_enabled) != 0) rc = 3;
+    for (index = 0; index < execution->run->also_count; index++) {
+        if (run_target(execution, execution->run->also[index],
+                capture_enabled) != 0) rc = 3;
+    }
+    return rc;
+}
+
+static void
+run_fixture_probes(xrd_conform_execution *execution)
+{
+    xrd_conform_probe_tls_fixtures(execution);
+    xrd_conform_finalize_tls(execution);
+    xrd_conform_finalize_s3_auth(execution);
+    xrd_conform_finalize_s3_readonly(execution);
+    xrd_conform_probe_readonly_fixtures(execution);
+    xrd_conform_probe_auth_fixtures(execution);
+    xrd_conform_probe_token_fixtures(execution);
+    xrd_conform_probe_denied_fixtures(execution);
+    xrd_conform_probe_mutation_fixtures(execution);
+    xrd_conform_probe_open_fixtures(execution);
+    xrd_conform_probe_cross_export_move(execution);
+}
+
+static void
+finalize_cross_plane(xrd_conform_execution *execution)
+{
+    xrd_conform_grade_cross_plane(execution);
+    xrd_conform_finalize_checksums(execution);
+    xrd_conform_finalize_traversal(execution);
+    xrd_conform_finalize_case(execution);
+    xrd_conform_finalize_namespace(execution);
+    xrd_conform_finalize_filenames(execution);
+    xrd_conform_finalize_claim_audit(execution);
+    xrd_conform_finalize_fixture_gates(execution);
+}
+
+static void
+report_meta_init(brix_conform_report_meta *meta,
+    const xrd_conform_execution *execution, const char *timestamp,
+    int negative_verified)
+{
+    const xrd_conform_run *run = execution->run;
+
+    memset(meta, 0, sizeof(*meta));
+    meta->target = run->config.target;
+    meta->also_targets = run->also;
+    meta->also_target_count = run->also_count;
+    meta->profile = run->config.profile;
+    meta->shape = shape_name(run->config.shape);
+    meta->budget = brix_conform_budget_name(run->config.budget);
+    meta->reference = reference_name(run->config.reference_mode);
+    meta->run_key = run->config.run_key;
+    meta->timestamp = timestamp;
+    meta->tool_version = brix_client_version();
+    meta->negative_verify = run->negative_verify;
+    meta->negative_verify_count = run->negative_verify_count;
+    meta->negative_verify_passed = negative_verified;
+    meta->requests = execution->requests;
+    meta->bytes = execution->bytes;
+    meta->request_limit = run->config.request_limit;
+    meta->byte_limit = run->config.byte_limit;
+    meta->wall_seconds = run->config.wall_seconds;
+}
+
+static int
+publish_reproducers(xrd_conform_execution *execution, char *error,
+    size_t error_size)
+{
+    brix_conform_reproducer_frame frames[XRDC_CONFORM_ADV_REPRO_MAX];
+    size_t index;
+
+    for (index = 0; index < execution->adv_reproducer_count; index++) {
+        frames[index].sid = execution->adv_reproducers[index].sid;
+        frames[index].code = execution->adv_reproducers[index].code;
+        frames[index].wire = execution->adv_reproducers[index].wire;
+        frames[index].wire_length = execution->adv_reproducers[index].wire_length;
+    }
+    if (execution->adv_reproducer_count == 0) return 0;
+    return brix_conform_capture_reproducer(execution->run->config.out_dir,
+        "ADV-008", frames, execution->adv_reproducer_count, error,
+        error_size);
+}
+
+static int
+publish_reports(xrd_conform_execution *execution,
+    const brix_conform_report_meta *meta, int capture_enabled,
+    const char *raw_capture, char *error, size_t error_size)
+{
+    if (brix_conform_report_bundle(execution->run->config.out_dir, meta,
+            &execution->results, error, error_size) != 0) return -1;
+    if (publish_reproducers(execution, error, error_size) != 0) return -1;
+    if (!capture_enabled || access(raw_capture, R_OK) != 0) return 0;
+    return brix_conform_capture_artifacts(execution->run->config.out_dir,
+        raw_capture, &execution->results, error, error_size);
+}
+
 /* ---- Execute and report one remote conformance run ----
  *
  * WHAT: Returns the frozen Phase-118 exit code for a complete bounded run.
@@ -332,10 +449,6 @@ execute_once(xrd_conform_run *run)
     int negative_verified;
     int runner_rc = 0;
     int rc;
-    size_t target_index;
-    size_t repro_index;
-    brix_conform_reproducer_frame
-        repro_frames[XRDC_CONFORM_ADV_REPRO_MAX];
 
     memset(&execution, 0, sizeof(execution));
     execution.run = run;
@@ -363,39 +476,10 @@ execute_once(xrd_conform_run *run)
     run->opts.capture = raw_capture;
     xrd_conform_probe_cache_pair(&execution);
     xrd_conform_probe_tpc_pair(&execution);
-    if (!xrd_conform_tpc_exact_selected(&execution)
-        && (run->cache_fixture_kind == NULL || run->config.only == NULL
-            || (strcmp(run->config.only, "CAC-003") != 0
-                && strcmp(run->config.only, "CAC-004") != 0
-                && strcmp(run->config.only, "CAC-005") != 0
-                && strcmp(run->config.only, "CAC-009") != 0))) {
-        if (run_target(&execution, run->config.target, &capture_enabled) != 0)
-            runner_rc = 3;
-        for (target_index = 0; target_index < run->also_count; target_index++) {
-            if (run_target(&execution, run->also[target_index],
-                    &capture_enabled) != 0) runner_rc = 3;
-        }
-    }
-    xrd_conform_probe_tls_fixtures(&execution);
-    xrd_conform_finalize_tls(&execution);
-    xrd_conform_finalize_s3_auth(&execution);
-    xrd_conform_finalize_s3_readonly(&execution);
-    xrd_conform_probe_readonly_fixtures(&execution);
-    xrd_conform_probe_auth_fixtures(&execution);
-    xrd_conform_probe_token_fixtures(&execution);
-    xrd_conform_probe_denied_fixtures(&execution);
-    xrd_conform_probe_mutation_fixtures(&execution);
-    xrd_conform_probe_open_fixtures(&execution);
-    xrd_conform_probe_cross_export_move(&execution);
+    if (run_selected_targets(&execution, &capture_enabled) != 0) runner_rc = 3;
+    run_fixture_probes(&execution);
     run->opts.capture = NULL;
-    xrd_conform_grade_cross_plane(&execution);
-    xrd_conform_finalize_checksums(&execution);
-    xrd_conform_finalize_traversal(&execution);
-    xrd_conform_finalize_case(&execution);
-    xrd_conform_finalize_namespace(&execution);
-    xrd_conform_finalize_filenames(&execution);
-    xrd_conform_finalize_claim_audit(&execution);
-    xrd_conform_finalize_fixture_gates(&execution);
+    finalize_cross_plane(&execution);
     brix_conform_apply_reference_mode(&run->config, &execution.results);
     if (run->config.baseline != NULL
         && brix_conform_apply_baseline(run->config.baseline,
@@ -408,55 +492,12 @@ execute_once(xrd_conform_run *run)
         runner_rc == 0);
     if (!negative_verified) runner_rc = 3;
     brix_conform_run_results_count(&execution.results);
-    memset(&meta, 0, sizeof(meta));
-    meta.target = run->config.target;
-    meta.also_targets = run->also;
-    meta.also_target_count = run->also_count;
-    meta.profile = run->config.profile;
-    meta.shape = shape_name(run->config.shape);
-    meta.budget = brix_conform_budget_name(run->config.budget);
-    meta.reference = reference_name(run->config.reference_mode);
-    meta.run_key = run->config.run_key;
-    meta.timestamp = timestamp;
-    meta.tool_version = brix_client_version();
-    meta.negative_verify = run->negative_verify;
-    meta.negative_verify_count = run->negative_verify_count;
-    meta.negative_verify_passed = negative_verified;
-    meta.requests = execution.requests;
-    meta.bytes = execution.bytes;
-    meta.request_limit = run->config.request_limit;
-    meta.byte_limit = run->config.byte_limit;
-    meta.wall_seconds = run->config.wall_seconds;
+    report_meta_init(&meta, &execution, timestamp, negative_verified);
     brix_conform_report_terminal(stdout, &meta, &execution.results);
-    if (brix_conform_report_bundle(run->config.out_dir, &meta,
-            &execution.results, report_error, sizeof(report_error)) != 0) {
+    if (publish_reports(&execution, &meta, capture_enabled, raw_capture,
+            report_error, sizeof(report_error)) != 0) {
         BRIX_CLIENT_LOG("ERROR", "xrd conform: %s\n", report_error);
         runner_rc = 3;
-    } else {
-        for (repro_index = 0;
-             repro_index < execution.adv_reproducer_count; repro_index++) {
-            repro_frames[repro_index].sid =
-                execution.adv_reproducers[repro_index].sid;
-            repro_frames[repro_index].code =
-                execution.adv_reproducers[repro_index].code;
-            repro_frames[repro_index].wire =
-                execution.adv_reproducers[repro_index].wire;
-            repro_frames[repro_index].wire_length =
-                execution.adv_reproducers[repro_index].wire_length;
-        }
-        if (execution.adv_reproducer_count > 0
-            && brix_conform_capture_reproducer(run->config.out_dir,
-                "ADV-008", repro_frames, execution.adv_reproducer_count,
-                report_error, sizeof(report_error)) != 0) {
-            BRIX_CLIENT_LOG("ERROR", "xrd conform: %s\n", report_error);
-            runner_rc = 3;
-        }
-        if (capture_enabled && access(raw_capture, R_OK) == 0
-            && brix_conform_capture_artifacts(run->config.out_dir, raw_capture,
-                &execution.results, report_error, sizeof(report_error)) != 0) {
-            BRIX_CLIENT_LOG("ERROR", "xrd conform: %s\n", report_error);
-            runner_rc = 3;
-        }
     }
     /* Recount at the exit boundary so renderer activity can never leave the
      * process status out of step with the verdicts in the durable bundle. */

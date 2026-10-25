@@ -4,6 +4,7 @@
 #include "protocols/root/session/registry.h"
 #include "auth/crypto/ocsp.h"
 #include "auth/crypto/gsi_verify.h"
+#include "auth/crypto/name_compat.h"
 #include <openssl/err.h>
 #include <openssl/pem.h>
 #include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
@@ -74,7 +75,7 @@ gsi_promote_fullproxy(brix_ctx_t *ctx, ngx_connection_t *c)
     /* (3) Identity gate: the authenticated proxy DN must sit beneath the
      * supplied leaf/EEC subject — the user may only pass through a proxy for
      * their own identity, never elevate to another. */
-    subj = X509_NAME_oneline(X509_get_subject_name(leaf), NULL, 0);
+    subj = brix_crypto_name_oneline(X509_get_subject_name(leaf), NULL, 0);
     dn_ok = (subj != NULL
              && ngx_strncmp(ctx->login.dn, subj, ngx_strlen(subj)) == 0);
     OPENSSL_free(subj);

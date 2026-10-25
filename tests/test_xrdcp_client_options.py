@@ -34,7 +34,7 @@ _OPTION_SUPPORT_CACHE: dict = {}
 def _xrdcp_supports_option(opt: str) -> bool:
     """Return True when the installed xrdcp recognizes the long option *opt*.
 
-    Probes by invoking the client with the option alone; a client that does not
+    Probes with a valid operand where required; a client that does not
     know a flag emits ``unknown option '<opt>'`` to stderr (and exits non-zero),
     whereas a recognized option instead produces an argument/usage diagnostic
     that never contains that phrase.  The result is cached per option so the
@@ -43,8 +43,11 @@ def _xrdcp_supports_option(opt: str) -> bool:
     if opt in _OPTION_SUPPORT_CACHE:
         return _OPTION_SUPPORT_CACHE[opt]
 
+    command = [XRDCP_BIN, opt]
+    if opt == "--jobs":
+        command.append("2")
     proc = subprocess.run(
-        [XRDCP_BIN, opt],
+        command,
         env=_anon_env(),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -250,24 +253,35 @@ def _assert_uploaded(source, destination_dir):
     assert _sha256(destination) == _sha256(source)
 
 
-def test_xrdcp_parallel_multi_file_uploads(test_env, tmp_path):
-    """xrdcp --parallel should upload several files in one client invocation."""
-    _require_xrdcp_option("--parallel")
+def _batch_concurrency_option():
+    """Use each client's batch-concurrency spelling, not striped-read flags."""
+    option = "--jobs" if _xrdcp_supports_option("--jobs") else "--parallel"
+    _require_xrdcp_option(option)
+    return option
 
-    remote_dir = f"{PREFIX}parallel"
-    remote_disk_dir = Path(test_env["data_dir"]) / remote_dir
-    remote_disk_dir.mkdir()
 
+def _parallel_sources(tmp_path):
+    """Create deliberately different transfer lengths, including a tail."""
     sources = []
     for idx, size in enumerate((257, 4096, 1024 * 1024 + 17)):
         path = tmp_path / f"parallel-{idx}.dat"
         _write_pattern(path, size)
         sources.append(path)
+    return sources
+
+
+def test_xrdcp_parallel_multi_file_uploads(test_env, tmp_path):
+    """All batch members must arrive byte-exact with the advertised option."""
+    option = _batch_concurrency_option()
+    remote_dir = f"{PREFIX}parallel"
+    remote_disk_dir = Path(test_env["data_dir"]) / remote_dir
+    remote_disk_dir.mkdir()
+    sources = _parallel_sources(tmp_path)
 
     result = _run_xrdcp(
         [
             "-f",
-            "--parallel",
+            option,
             "3",
             *(str(path) for path in sources),
             _remote(test_env, f"{remote_dir}/"),

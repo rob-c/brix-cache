@@ -58,6 +58,15 @@ SPECS_AT_THE_MOVE = 126
 #: move; the catalogue is live, so this ledger grows by one line per definition
 #: the tree edits after the move — never by editing the archive to match.
 DEVIATIONS = {
+    # The opt-in shared-fixture lane keeps BriX exports on native FreeBSD/ZFS;
+    # only reference fixtures move to its explicitly selected shared root.
+    "_data",
+    # The opt-in reference lane keeps main on the native DATA_ROOT that tests
+    # seed; only the independent reference uses the shared fixture directory.
+    "core_specs",
+    # Reference TPC servers must execute their sibling official --server helper,
+    # never the independently selected BriX client under test.
+    "_xrdcp_bin",
     # was dirname(abspath(__file__)); after the move that names the package,
     # not the flat tests/ tree (the TS-3 TESTS_DIR / TS-4 _caller_site class).
     "_TESTS_DIR",
@@ -230,6 +239,18 @@ def test_a_named_deviation_still_exists_on_both_sides():
                for name in DEVIATIONS
                if name not in flat or name not in package}
     assert missing == {}, "stale DEVIATIONS entry (in archive, in package): %s" % missing
+
+
+def test_main_export_and_reference_fixture_view_remain_distinct(monkeypatch):
+    """The server must serve seeded native data, never an oracle's shared view."""
+    from brix_suite.catalogue import core
+
+    monkeypatch.setattr(core, 'DATA_ROOT', '/native-test/data')
+    monkeypatch.setattr(core, '_data', lambda name: '/shared-reference/' + name)
+    specifications = {spec.name: spec for spec in core.core_specs()}
+    assert specifications['main'].data_root == '/native-test/data'
+    assert specifications['ref-anon'].data_root == '/shared-reference/data'
+    assert specifications['ref-gsi-shared'].data_root == '/shared-reference/data'
 
 
 def test_the_exec_mechanism_is_gone():

@@ -190,12 +190,16 @@ brix_read_serve_sendfile(brix_ctx_t *ctx, ngx_connection_t *c,
  * Then the storage verdict: a bare-fd handle serves from its own fd; a
  * driver-backed handle serves from whatever fd its read_sendfile_fd slot
  * elects for [offset, offset+rlen) (NULL slot / decline => memory path).
+ * Finally the PAL must permit sendfile on that actual fd's filesystem; a
+ * refusal selects the existing bounded buffered/windowed strategy, not a
+ * pathname reopen or a different storage/authentication path.
  */
 ngx_fd_t
 read_sendfile_serve_fd(brix_ctx_t *ctx, ngx_connection_t *c,
     const brix_read_io_t *io)
 {
     brix_sd_obj_t *obj = &ctx->files[io->idx].sd_obj;
+    ngx_fd_t fd;
 
     if (!ctx->files[io->idx].is_regular
         || io->rlen < BRIX_READ_SENDFILE_MIN
@@ -205,10 +209,13 @@ read_sendfile_serve_fd(brix_ctx_t *ctx, ngx_connection_t *c,
         return NGX_INVALID_FILE;
     }
     if (obj->driver == NULL) {
-        return io->fd;
+        fd = io->fd;
+    } else {
+        if (obj->driver->read_sendfile_fd == NULL) {
+            return NGX_INVALID_FILE;
+        }
+        fd = obj->driver->read_sendfile_fd(obj, (off_t) io->offset, io->rlen, 1);
     }
-    if (obj->driver->read_sendfile_fd == NULL) {
-        return NGX_INVALID_FILE;
-    }
-    return obj->driver->read_sendfile_fd(obj, (off_t) io->offset, io->rlen, 1);
+    return fd != NGX_INVALID_FILE && brix_plat_file_sendfile_safe(fd)
+               ? fd : NGX_INVALID_FILE;
 }

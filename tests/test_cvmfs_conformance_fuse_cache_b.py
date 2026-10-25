@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+import uuid
 def _check_test_quota_fill_past_watermark_reaps_to_75pct_1(expect):
     assert len(expect) == 8 and all(len(v) == 300_000 for v in expect.values())
 
@@ -201,23 +202,30 @@ def test_opt_cache_disables_clever_overlay(tmp_path, make_origin):
     forge.close()
 
 
-@pytest.mark.skipif(not os.access("/var/lib", os.W_OK),
-                    reason="default cache dir /var/lib/brixcvmfs needs a writable /var/lib")
+@pytest.mark.skipif(not _default_cache_parent_writable(),
+                    reason="default cache root /var/lib/brixcvmfs needs write/search access")
 def test_default_cache_dir_when_no_opt_no_env(tmp_path, make_origin):
     # -o noclever with neither -o cache= nor $BRIXCVMFS_CACHE: the binary's
     # built-in default /var/lib/brixcvmfs/<repo> is the fallback.
-    default_dir = Path("/var/lib/brixcvmfs") / REPO
-    shutil.rmtree(default_dir, ignore_errors=True)
-    forge, web, pub = _forge(tmp_path, _std_tree())
-    origin = make_origin(web)
+    cache_parent = Path("/var/lib/brixcvmfs")
+    cache_parent.mkdir(exist_ok=True)
+    # Exclusive, unpredictable ownership: never remove an operator's repository
+    # cache or share one with another simultaneous test run.
+    default_dir = cache_parent / ("brix-default-" + uuid.uuid4().hex + ".test")
+    default_dir.mkdir(mode=0o700)
+    forge = None
     try:
-        with own_mount(REPO, origin.url, pub, extra_args=("-o", "noclever")) as (mnt, _):
+        forge, web, pub = _forge(tmp_path, _std_tree(), repo=default_dir.name)
+        origin = make_origin(web, repo=default_dir.name)
+        with own_mount(default_dir.name, origin.url, pub,
+                       extra_args=("-o", "noclever")) as (mnt, _):
             assert os.path.ismount(str(mnt))
             (mnt / "hello").read_bytes()
         assert cas_entries(default_dir), "default /var/lib/brixcvmfs/<repo> not used"
     finally:
-        shutil.rmtree(default_dir, ignore_errors=True)
-        forge.close()
+        shutil.rmtree(default_dir)
+        if forge is not None:
+            forge.close()
 
 
 # ===========================================================================

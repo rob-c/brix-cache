@@ -31,7 +31,7 @@ RUN dnf install -y 'dnf-command(config-manager)' && \
 # Step 2: add the last official Reef repository published for EL8/AArch64.
 # The moving rpm-reef alias dropped EL8 metadata; the immutable numeric repo
 # keeps this EOL compatibility build reproducible.
-RUN printf '[ceph-%s]\nname=Ceph %s for EL8\nbaseurl=https://download.ceph.com/rpm-%s/el8/$basearch\nenabled=1\ngpgcheck=0\npriority=2\n' \
+RUN printf '[ceph-%s]\nname=Ceph %s for EL8\nbaseurl=https://download.ceph.com/rpm-%s/el8/$basearch\nenabled=1\ngpgcheck=1\ngpgkey=https://download.ceph.com/keys/release.asc\npriority=2\n' \
     "${BRIX_CEPH_VERSION}" "${BRIX_CEPH_VERSION}" "${BRIX_CEPH_VERSION}" \
     > /etc/yum.repos.d/ceph.repo
 
@@ -39,7 +39,7 @@ RUN printf '[ceph-%s]\nname=Ceph %s for EL8\nbaseurl=https://download.ceph.com/r
 RUN dnf install -y \
         gcc gcc-c++ make git pkgconfig rpm-build rpmdevtools redhat-rpm-config \
         openssl3-devel zlib-devel \
-        libxml2-devel jansson-devel libcurl-devel krb5-devel libcom_err-devel \
+        libxml2-devel jansson-devel libcurl-devel libnghttp2-devel krb5-devel libcom_err-devel which \
         libxcrypt-devel sqlite-devel libseccomp-devel \
         liburing-devel libzstd-devel brotli-devel xz-devel bzip2-devel lz4-devel \
         librados-devel libradospp-devel libradosstriper-devel libcephfs-devel \

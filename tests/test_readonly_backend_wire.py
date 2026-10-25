@@ -36,6 +36,7 @@ import pytest
 from settings import BIND_HOST, HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from official_interop_lib import worker_reachable
 
 from test_pgwrite_cse import (
     _handshake_login,
@@ -81,6 +82,8 @@ def node(tmp_path_factory):
     (s3_dir / "testbucket").mkdir()
     seed = os.urandom(4096)
     (s3_dir / "seeded.bin").write_bytes(seed)
+    stage_store = tmp_path_factory.mktemp("s3-wire-stage")
+    worker_reachable(stage_store)
     harness = LifecycleHarness()
     endpoint = harness.start(NginxInstanceSpec(
         name="root-s3-readonly-wire",
@@ -89,6 +92,7 @@ def node(tmp_path_factory):
         readiness="tcp",
         template_values={"BIND_HOST": BIND_HOST,
                          "S3_DIR": str(s3_dir),
+                         "STAGE_STORE": str(stage_store),
                          "S3_ACCESS_KEY": S3_AK,
                          "S3_SECRET_KEY": S3_SK},
     ))

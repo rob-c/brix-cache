@@ -10,6 +10,7 @@ import shutil
 import socket
 import subprocess
 import time
+from lib_py.process_host import native_listener_pids, procfs_available
 
 
 def run(argv: list[str], *, cwd: Path | None = None,
@@ -161,7 +162,7 @@ def children_of(master: int) -> set[int]:
 
     Used to find an nginx master's workers by pid file rather than by name,
     since the suite runs many masters at once."""
-    if not os.path.isdir("/proc"):
+    if not procfs_available():
         out = run(["pgrep", "-P", str(master)]).stdout
         return {int(tok) for tok in out.split() if tok.isdigit()}
     return {pid for pid in (int(e) for e in os.listdir("/proc") if e.isdigit())
@@ -191,7 +192,7 @@ def process_cmdline(pid: int) -> bytes:
         with open(f"/proc/{pid}/cmdline", "rb") as handle:
             return handle.read().replace(b"\0", b" ")
     except OSError:
-        if os.path.isdir("/proc"):
+        if procfs_available():
             return b""
     try:
         out = subprocess.run(
@@ -231,7 +232,7 @@ def _ss_established_to_port(port: int | str) -> int:
 
 
 def _lsof_established_to_port(port: int | str) -> int:
-    out = run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:ESTABLISHED", "-F", "n"]).stdout
+    out = run(["lsof", "-a", "-nP", f"-iTCP:{port}", "-sTCP:ESTABLISHED", "-F", "n"]).stdout
     return sum(1 for line in out.splitlines()
                if line.startswith("n") and line.rsplit("->", 1)[-1].endswith(f":{port}"))
 
@@ -334,7 +335,7 @@ def _netstat_listener_lines() -> list[str]:
 
 
 def _lsof_listener_lines() -> list[str]:
-    out = run(["lsof", "-nP", "-iTCP", "-sTCP:LISTEN", "-F", "pcn"]).stdout
+    out = run(["lsof", "-a", "-nP", "-iTCP", "-sTCP:LISTEN", "-F", "pcn"]).stdout
     lines, pid, comm = [], None, ""
     for field in out.splitlines():
         tag, value = field[:1], field[1:]
@@ -343,7 +344,8 @@ def _lsof_listener_lines() -> list[str]:
         elif tag == "c":
             comm = value
         elif tag == "n" and pid is not None:
-            lines.append(f'LISTEN 0 128 {value} 0.0.0.0:* users:(("{comm}",pid={pid},fd=0))')  # net-literal-allow: the `ss -tlnp` peer column again
+            local = value.split("->", 1)[0]  # FreeBSD includes the wildcard peer on listeners.
+            lines.append(f'LISTEN 0 128 {local} 0.0.0.0:* users:(("{comm}",pid={pid},fd=0))')  # net-literal-allow: the `ss -tlnp` peer column again
     return lines
 
 
@@ -357,6 +359,9 @@ def listener_table_lines() -> list[str]:
     """
     if have_cmd("ss"):
         return run(["ss", "-tlnp"]).stdout.splitlines()
+    native = native_listener_pids()
+    if native is not None:
+        return _native_listener_lines(native)
     if have_cmd("netstat"):
         rows = _netstat_listener_lines()
         if rows:
@@ -366,6 +371,13 @@ def listener_table_lines() -> list[str]:
         # authoritative fallback and is still vastly cheaper than one walk per
         # registered port.
     return _lsof_listener_lines() if have_cmd("lsof") else []
+
+
+def _native_listener_lines(native):
+    """Expose unknown occupancy without manufacturing a process-group PID."""
+    return [f'LISTEN 0 128 *:{port} *:*' +
+            (f' users:(("?",pid={pid},fd=0))' if pid is not None else '')
+            for port, owners in native.items() for pid in (owners or {None})]
 
 
 def budget_scale() -> float:
@@ -414,7 +426,7 @@ def pid_alive(pid) -> bool:
     ``/proc/<pid>`` where procfs is mounted (Linux); ``kill(pid, 0)`` elsewhere
     (macOS has no procfs at all).  EPERM means the process exists but belongs
     to another user, which is still alive."""
-    if os.path.isdir("/proc"):
+    if procfs_available():
         return os.path.exists(f"/proc/{int(pid)}")
     try:
         os.kill(int(pid), 0)
@@ -425,20 +437,27 @@ def pid_alive(pid) -> bool:
     return True
 
 
-def linked_libraries(binary: str) -> str:
+def linked_libraries(binary: str, *, check: bool = False) -> str:
     """The dynamic libraries ``binary`` links, one per line: ``ldd`` where it
     exists, ``otool -L`` on Darwin (which has no ldd).  Empty on failure."""
     tool = ["ldd", binary] if have_cmd("ldd") else ["otool", "-L", binary]
     try:
-        return run(tool).stdout
+        result = run(tool, timeout=30)
+        if check:
+            result.check_returncode()
+            if not result.stdout.strip():
+                raise ValueError(f"linkage inspector returned no evidence for {binary}")
+        return result.stdout
     except OSError:
+        if check:
+            raise
         return ""
 
 
 def _lsof_listener_pids(port: int | str) -> list[int]:
     """Every pid listening on ``port``, from lsof (authoritative)."""
     output = run(
-        ["lsof", "-t", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"],
+        ["lsof", "-a", "-t", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"],
         timeout=2,
     ).stdout
     return sorted({int(value) for value in output.split() if value.isdigit()})
@@ -476,6 +495,9 @@ def pids_on_port(port: int | str) -> list[int]:
     if have_cmd("ss"):
         return sorted(_pids_in_text(
             run(["ss", "-ltnp", f"( sport = :{port} )"]).stdout))
+    native = native_listener_pids()
+    if native is not None:
+        return sorted(native.get(int(port), ()))
     if have_cmd("lsof"):
         return _lsof_listener_pids(port)
     return _netstat_listener_pids(port)
@@ -510,6 +532,9 @@ def listening_port_pids() -> dict[int, set[int]] | None:
     must key quiescence off membership, not off the PID set being non-empty.
     Returns None when `ss` is unavailable; callers fall back to per-port scans.
     """
+    native = native_listener_pids()
+    if native is not None:
+        return native
     if not have_cmd("ss") and not have_cmd("lsof"):
         return None
     listeners: dict[int, set[int]] = {}
@@ -573,7 +598,7 @@ def process_age(pid: int) -> float | None:
     vanishes during the sample.  The Linux ``comm`` field can contain spaces
     and parentheses, so split *after* its final ``)``.
     """
-    if not os.path.isdir("/proc"):
+    if not procfs_available():
         try:
             proc = run(["ps", "-p", str(int(pid)), "-o", "etime="])
         except (OSError, ValueError):

@@ -1,10 +1,10 @@
 # tests/test_build_hardening.py
-"""Asserts the build emits position-independent, RELRO+BIND_NOW, non-exec-stack
-artifacts. Security regression guard for the link-hardening defaults."""
+"""Check native link hardening: ELF RELRO/NOW/PIE, or Mach-O PIE and W^X."""
 import glob
 import os
 import pathlib
 import subprocess
+import sys
 
 import pytest
 
@@ -59,6 +59,10 @@ def test_module_so_is_relro_now():
 def _check_module_hardening(so):
     """A selected missing or unhardened module must fail the build guard."""
     assert so.is_file(), f"selected module is missing: {so}"
+    if sys.platform == "darwin":
+        from lib_py.macho_hardening import check_binary
+        check_binary(so, executable=False)
+        return
     out = _readelf(so)
     assert "GNU_RELRO" in out, f"{so} missing RELRO"
     assert _has_bind_now(out), f"{so} missing BIND_NOW"
@@ -66,6 +70,10 @@ def _check_module_hardening(so):
 
 @pytest.mark.skipif(not CLIENT_BIN.exists(), reason="client not built")
 def test_client_binary_is_pie_relro_now_noexecstack():
+    if sys.platform == "darwin":
+        from lib_py.macho_hardening import check_binary
+        check_binary(CLIENT_BIN, executable=True)
+        return
     out = _readelf(CLIENT_BIN)
     assert "Type:" in out, "ELF type is missing"
     assert "DYN (" in out, "binary is not PIE (Type should be DYN)"

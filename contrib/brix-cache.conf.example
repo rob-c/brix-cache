@@ -153,9 +153,10 @@ server {
     ssl_verify_client   optional_no_ca;
     ssl_verify_depth    10;
 
-    # Zero-copy encrypted GET via kernel TLS (OpenSSL 3 + AES-GCM); nginx falls
-    # back to read()+SSL_write automatically when kTLS is unavailable.
-    ssl_conf_command Options KTLS;
+    # Use kernel TLS where supported, otherwise keep userspace TLS. The BriX
+    # capability gate also works with Alma8's OpenSSL 1.1.1; forcing an OpenSSL-3
+    # SSL_CONF KTLS option would instead make that configuration fail to load.
+    brix_ktls on;
     ssl_buffer_size  64k;
 
     client_max_body_size 0;          # allow arbitrarily large PUT/uploads

@@ -37,6 +37,7 @@ import zlib
 import pytest
 
 from settings import BIND_HOST, HOST, NGINX_BIN, SERVER_HOST
+from official_interop_lib import worker_reachable
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
@@ -64,6 +65,9 @@ def gateway(tmp_path_factory):
     # The S3 endpoint's posix root must exist (with the bucket dir) at parse.
     s3_dir = tmp_path_factory.mktemp("s3store")
     (s3_dir / "testbucket").mkdir()
+    stage_dir = s3_dir.parent / "gridftp-s3-stage"
+    stage_dir.mkdir()
+    worker_reachable(s3_dir, stage_dir)
     harness = LifecycleHarness()
     endpoint = harness.start(NginxInstanceSpec(
         name="gridftp-s3",
@@ -72,6 +76,7 @@ def gateway(tmp_path_factory):
         readiness="tcp",
         template_values={"BIND_HOST": BIND_HOST,
                          "S3_DIR": str(s3_dir),
+                         "STAGE_DIR": str(stage_dir),
                          "S3_ACCESS_KEY": S3_AK,
                          "S3_SECRET_KEY": S3_SK},
     ))

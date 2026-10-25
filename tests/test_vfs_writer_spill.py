@@ -26,6 +26,7 @@ tests/configs/nginx_p107_spill.conf.
 import hashlib
 import os
 import pathlib
+import struct
 import subprocess
 import tempfile
 
@@ -38,14 +39,15 @@ from _xrdcl_proxy import real_bindings_available
 from fleet_lifecycle_ports import SHARED_PARSE_PLACEHOLDER_PORT
 from server_launcher import LifecycleHarness, NginxInstanceSpec
 from settings import BIND_HOST, HOST, NGINX_BIN
+import _test_xfer_wt_wire as wire
 
 pytestmark = [pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.serial,
-              pytest.mark.xdist_group("lc-p107-spill"),
-              pytest.mark.skipif(
-                  not real_bindings_available(),
-                  reason="real libXrdCl bindings unavailable")]
+              pytest.mark.xdist_group("lc-p107-spill")]
+
+requires_xrdcl = pytest.mark.skipif(not real_bindings_available(),
+                                   reason="real libXrdCl bindings unavailable")
 
 SPEC = "lc-p107-spill"
 MIB = 1024 * 1024
@@ -68,9 +70,9 @@ def _need_nginx() -> None:
         pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def spill_srv(tmp_path_factory):
-    """One instance, four fronts + two origins (see nginx_p107_spill.conf)."""
+    """Private per-case fronts: a failed client cannot contaminate the next one."""
     _need_nginx()
     base = tmp_path_factory.mktemp("p107-spill")
     dirs = {name: base / name for name in (
@@ -156,6 +158,7 @@ def _download(port: int, name: str) -> bytes:
 # --------------------------------------------------------------------------- #
 # success                                                                      #
 # --------------------------------------------------------------------------- #
+@requires_xrdcl
 def test_reverse_order_http_is_byte_exact(spill_srv):
     """8 MiB in reverse 1 MiB chunks over the http (sd_http) front."""
     data = _bytes(8 * MIB, 3)
@@ -169,6 +172,7 @@ def test_reverse_order_http_is_byte_exact(spill_srv):
     assert landed.read_bytes() == data
 
 
+@requires_xrdcl
 def test_reverse_order_remote_is_byte_exact(spill_srv):
     """The same contract over the remote (s3://, sd_remote) driver.  Byte-
     exactness is asserted at the S3 store itself: the brix_s3-over-posix
@@ -185,6 +189,7 @@ def test_reverse_order_remote_is_byte_exact(spill_srv):
         "reverse-order upload over remote/s3 is not byte-identical")
 
 
+@requires_xrdcl
 def test_in_order_writes_never_create_a_spill(spill_srv):
     """Sequential writes must stay in SEQUENTIAL mode: no scratch, ever."""
     data = _bytes(4 * MIB, 5)
@@ -207,6 +212,7 @@ def test_in_order_writes_never_create_a_spill(spill_srv):
 # --------------------------------------------------------------------------- #
 # error                                                                        #
 # --------------------------------------------------------------------------- #
+@requires_xrdcl
 def test_spill_max_refuses_enospc_and_publishes_nothing(spill_srv):
     """brix_vfs_spill_max 1m + a 4 MiB reorder: ENOSPC -> kXR_NoSpace, the
     scratch is unlinked (T4) and NO object reaches the origin."""
@@ -232,6 +238,7 @@ def test_spill_max_refuses_enospc_and_publishes_nothing(spill_srv):
 # --------------------------------------------------------------------------- #
 # security-negative                                                            #
 # --------------------------------------------------------------------------- #
+@requires_xrdcl
 def test_read_only_front_reaches_no_spill(spill_srv):
     """The phase-105 gate refuses BEFORE the writer exists: the spill root
     must stay empty no matter what a client attempts."""
@@ -244,6 +251,83 @@ def test_read_only_front_reaches_no_spill(spill_srv):
     assert not status.ok, "a write path opened on the read-only front"
     assert _files_under(spill_srv["dirs"]["spill_ro"]) == [], (
         "a read-only front created a spill scratch — the gate ran too late")
+
+
+def _wire_open(sock, name):
+    options = wire.KXR_OPEN_UPDT | wire.KXR_DELETE
+    return wire._request(sock, b'\x00\x03', wire.KXR_OPEN,
+                         struct.pack('!HH', 0o644, options), name.encode())
+
+
+def _wire_write(sock, handle, offset, data):
+    return wire._request(sock, b'\x00\x04', wire.KXR_WRITE,
+                         handle + struct.pack('!q', offset), data)
+
+
+def _wire_upload(port, name, data, spill_dir, reverse):
+    """An independent network-order client, never a substitute for XrdCl parity."""
+    offsets = list(range(0, len(data), MIB))
+    if reverse:
+        offsets.reverse()
+    with wire._connect(HOST, port) as sock:
+        handle = wire._require_ok('open', _wire_open(sock, name))[:4]
+        assert len(handle) == 4
+        for index, offset in enumerate(offsets):
+            wire._require_ok('write', _wire_write(sock, handle, offset, data[offset:offset + MIB]))
+            _assert_wire_spill(spill_dir, reverse, index)
+        wire._require_ok('close', wire._request(sock, b'\x00\x05', wire.KXR_CLOSE, handle))
+    assert _files_under(spill_dir) == [], 'wire commit leaked its owned scratch'
+
+
+def _assert_wire_spill(spill_dir, reverse, index):
+    names = _files_under(spill_dir)
+    if not reverse:
+        assert names == [], 'sequential wire writes must not spill'
+    elif index == 1:
+        assert names and all('.xrd-tmp.' in name for name in names)
+
+
+@pytest.mark.parametrize('backend,size', [('http', 8), ('remote', 4)])
+def test_wire_reverse_order_is_byte_exact(spill_srv, backend, size):
+    """Prove actual staged drivers even when a native reference has bad offsets."""
+    port = spill_srv['port'] if backend == 'http' else spill_srv['extras']['REMOTE_PORT']
+    data = _bytes(size * MIB, 19)
+    _wire_upload(port, '/wire-reverse.bin', data, spill_srv['dirs']['spill_' + backend], True)
+    origin = 'http_origin' if backend == 'http' else 's3store'
+    assert (spill_srv['dirs'][origin] / 'wire-reverse.bin').read_bytes() == data
+
+
+def test_wire_sequential_writes_do_not_spill(spill_srv):
+    data = _bytes(4 * MIB, 29)
+    _wire_upload(spill_srv['port'], '/wire-sequential.bin', data,
+                 spill_srv['dirs']['spill_http'], False)
+    assert (spill_srv['dirs']['http_origin'] / 'wire-sequential.bin').read_bytes() == data
+
+
+def _assert_wire_error(response, code):
+    status, body = response
+    assert status == 4003 and len(body) >= 4, response  # kXR_error
+    assert struct.unpack('!I', body[:4])[0] == code, response
+
+
+def test_wire_spill_limit_refuses_without_publish(spill_srv):
+    with wire._connect(HOST, spill_srv['extras']['CAPPED_PORT']) as sock:
+        handle = wire._require_ok('open', _wire_open(sock, '/wire-capped.bin'))[:4]
+        _assert_wire_error(_wire_write(sock, handle, 3 * MIB, _bytes(MIB, 9)), 3009)
+        wire._request(sock, b'\x00\x05', wire.KXR_CLOSE, handle)
+    assert _files_under(spill_srv['dirs']['spill_capped']) == []
+    assert not (spill_srv['dirs']['http_origin'] / 'wire-capped.bin').exists()
+
+
+def test_wire_read_only_refuses_before_spill(spill_srv):
+    with wire._connect(HOST, spill_srv['extras']['RO_PORT']) as sock:
+        # TCP readiness precedes worker init. The completed login is the
+        # barrier after legitimate startup checkpoint state exists.
+        before = _files_under(spill_srv['dirs']['exp_ro'])
+        _assert_wire_error(_wire_open(sock, '/wire-readonly.bin'), 3025)
+    assert _files_under(spill_srv['dirs']['spill_ro']) == []
+    assert _files_under(spill_srv['dirs']['exp_ro']) == before
+    assert not (spill_srv['dirs']['http_origin'] / 'wire-readonly.bin').exists()
 
 
 def _nginx_t(extra_stream: str) -> tuple:

@@ -66,8 +66,9 @@ brix_aio_restore_request(brix_ctx_t *ctx, const u_char streamid[2])
  * and leaves *posted = 0 so the caller falls back to synchronous I/O.
  *
  * If ngx_thread_task_post() fails (pool queue full), logs a warning at
- * NGX_LOG_WARN and returns NGX_OK with *posted = 0 — again the caller falls
- * back to synchronous I/O rather than failing the request.
+ * NGX_LOG_WARN and returns NGX_OK with *posted = 0. The caller owns that
+ * admission result: checksum queries return retry rather than computing on
+ * the event loop; other callers may retain a synchronous fallback.
  *
  * On success: *posted = 1, ctx->state = XRD_ST_AIO.
  */

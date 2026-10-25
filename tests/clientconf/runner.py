@@ -168,7 +168,7 @@ def run_param(tool, param, tmp_path, env):
         pytest.skip("endpoint %s not healthy" % ek)
     if ek in case.xfail:
         pytest.skip("%s unsupported on endpoint %s" % (case.id, ek))
-    endpoint = E.BY_KEY[ek]
+    endpoint = env.get("endpoints", E.BY_KEY)[ek]
     ctx = Ctx(endpoint, str(tmp_path), env["worker"])
     if kind == "on":
         run_knob(tool, case, endpoint, ctx)

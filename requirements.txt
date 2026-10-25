@@ -46,3 +46,7 @@ PyYAML>=5.4,<7
 lizard>=1.17,<2
 complexipy>=6,<8
 radon>=6,<7
+
+# --- native process/interface inspection and saved-identity proofs -----------
+# Required by collection and real worker-credential checks, not a skip switch.
+psutil>=5.9,<8

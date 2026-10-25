@@ -87,6 +87,10 @@ def test_deps_guard_catches_undeclared_import_in_package(tmp_path):
     probe = _SRC / "brixtest" / "_deps_probe_tmp.py"
     probe.write_text("import totally_undeclared_dist\n")
     try:
+        guard = _load_deps_guard()
+        assert probe in guard._sources(_REPO), "dependency guard omitted its untracked probe"
+        assert "totally_undeclared_dist" not in guard._local_module_names(_REPO), (
+            "a generated local module masks the deliberately undeclared import")
         proc = subprocess.run(
             [sys.executable, str(_REPO / "tools/ci/check_python_deps.py")],
             capture_output=True, text=True,

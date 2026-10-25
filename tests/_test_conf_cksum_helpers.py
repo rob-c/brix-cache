@@ -160,8 +160,8 @@ def _ourfs(url, *args, timeout=120):
 
 def _bytes(ctx, name, sub=None):
     p = os.path.join(ctx["our_data"], *( [sub, name] if sub else [name] ))
-    with open(p, "rb") as f:
-        return f.read()
+    from lib_py.reference_host import fixture_read_bytes
+    return fixture_read_bytes(p)
 
 
 def _cksum_reply(url, path, timeout=120):

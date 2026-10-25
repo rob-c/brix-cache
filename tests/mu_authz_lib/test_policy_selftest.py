@@ -33,6 +33,8 @@ def test_render_is_consistent_across_backends():
     assert cast["alice"].dn in gridmap and "brixtest_alice" in gridmap
     # the collide principal's Kerberos name maps to the same account as alice.
     assert "alice@TEST.REALM" in gridmap
+    assert '"alice@TEST.REALM" brixtest_alice\n' in gridmap
+    assert 'brixtest_collide' not in gridmap
 
     s3 = open(out["s3keys"]).read()
     assert cast["alice"].s3_key in s3 and cast["carol"].s3_key in s3

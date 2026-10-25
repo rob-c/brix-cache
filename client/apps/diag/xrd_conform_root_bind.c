@@ -111,6 +111,40 @@ probe_closed_pathid(xrd_conform_execution *execution, brix_conn *connection,
         "kXR_ArgInvalid", status.msg);
 }
 
+static int
+query_bind_max(xrd_conform_execution *execution, brix_conn *connection,
+    unsigned long *advertised, brix_status *status, char reply[64])
+{
+    char reason[64];
+    char *end = NULL;
+
+    if (!xrd_conform_reserve(execution, 0, reason, sizeof(reason))
+        || brix_query(connection, kXR_Qconfig, "bind_max", reply, 64,
+            status) != 0) return -1;
+    errno = 0;
+    *advertised = strtoul(reply, &end, 10);
+    if (errno != 0 || end == reply || (*end != '\0' && *end != '\n')
+        || *advertised == 0 || *advertised > XRDC_MAX_STREAMS - 1) return 0;
+    return 1;
+}
+
+static int
+bind_advertised_streams(xrd_conform_execution *execution,
+    brix_conn *connection, brix_streamset *streams, unsigned long advertised,
+    brix_status *status)
+{
+    char reason[64];
+
+    while (streams->n < (int) advertised) {
+        brix_status_clear(status);
+        if (!xrd_conform_reserve(execution, 0, reason, sizeof(reason))
+            || brix_bind(&streams->sec[streams->n], connection, status) != 0)
+            return 0;
+        streams->n++;
+    }
+    return 1;
+}
+
 /* WHAT: Bind exactly the advertised number of secondary streams plus one.
  * WHY: BND-004 must observe the remote enforcement boundary; a config claim
  * alone cannot establish that excess substreams are refused.
@@ -124,7 +158,6 @@ probe_bind_limit(xrd_conform_execution *execution, brix_conn *connection)
     brix_status status;
     char reply[64];
     char reason[64];
-    char *end = NULL;
     unsigned long advertised;
     int all_bound = 1;
     int refused = 0;
@@ -132,36 +165,22 @@ probe_bind_limit(xrd_conform_execution *execution, brix_conn *connection)
     memset(&streams, 0, sizeof(streams));
     memset(&overflow, 0, sizeof(overflow));
     brix_status_clear(&status);
-    if (!xrd_conform_reserve(execution, 0, reason, sizeof(reason))
-        || brix_query(connection, kXR_Qconfig, "bind_max", reply,
-            sizeof(reply), &status) != 0)
-    {
+    all_bound = query_bind_max(execution, connection, &advertised, &status,
+        reply);
+    if (all_bound < 0) {
         xrd_conform_result_set(execution, "BND-004",
             BRIX_CONFORM_VERDICT_INCONCLUSIVE, "bind-limit-query-failed",
             "advertised live streams then kXR_ArgTooLong", status.msg);
         return;
     }
-    errno = 0;
-    advertised = strtoul(reply, &end, 10);
-    if (errno != 0 || end == reply
-        || (*end != '\0' && *end != '\n')
-        || advertised == 0 || advertised > XRDC_MAX_STREAMS - 1)
-    {
+    if (all_bound == 0) {
         xrd_conform_result_set(execution, "BND-004",
             BRIX_CONFORM_VERDICT_INCONCLUSIVE, "bind-limit-not-probeable",
             "bind_max in range 1..15", reply);
         return;
     }
-    while (streams.n < (int) advertised) {
-        brix_status_clear(&status);
-        if (!xrd_conform_reserve(execution, 0, reason, sizeof(reason))
-            || brix_bind(&streams.sec[streams.n], connection, &status) != 0)
-        {
-            all_bound = 0;
-            break;
-        }
-        streams.n++;
-    }
+    all_bound = bind_advertised_streams(execution, connection, &streams,
+        advertised, &status);
     if (all_bound
         && xrd_conform_reserve(execution, 0, reason, sizeof(reason)))
     {
@@ -177,6 +196,49 @@ probe_bind_limit(xrd_conform_execution *execution, brix_conn *connection)
                              : "bind-limit-mismatch",
         "bind_max successes then kXR_ArgTooLong",
         all_bound && refused ? NULL : status.msg);
+}
+
+static void
+grade_bind_result(xrd_conform_execution *execution, int bound,
+    const brix_conn *secondary, const brix_status *status)
+{
+    int unsupported = !bound && status->kxr == kXR_Unsupported;
+
+    xrd_conform_result_set(execution, "BND-001",
+        bound && secondary->bound_pathid != 0
+            ? BRIX_CONFORM_VERDICT_CONFORMANT
+            : unsupported ? BRIX_CONFORM_VERDICT_SKIPPED
+                          : BRIX_CONFORM_VERDICT_DIVERGENT,
+        bound ? "bind-returned-usable-pathid"
+              : unsupported ? "claim-absent:data-substreams"
+                            : "bind-pathid-invalid",
+        "one-byte pathid in range 1..253", status->msg);
+}
+
+static void
+grade_bound_read(xrd_conform_execution *execution, int bound, int read_ok,
+    const uint8_t *body, uint32_t body_length, const uint8_t *baseline,
+    size_t length, const brix_status *status)
+{
+    int bytes_ok = read_ok && body_length == length
+        && memcmp(body, baseline, length) == 0;
+
+    xrd_conform_result_set(execution, "BND-002",
+        read_ok ? BRIX_CONFORM_VERDICT_CONFORMANT
+                : bound ? BRIX_CONFORM_VERDICT_DIVERGENT
+                        : BRIX_CONFORM_VERDICT_INCONCLUSIVE,
+        read_ok ? "pathid-read-arrived-on-bound-stream"
+                : bound ? "pathid-read-did-not-arrive-on-bound-stream"
+                        : "bind-unavailable",
+        "response on bound connection", status->msg);
+    xrd_conform_result_set(execution, "BND-003",
+        bytes_ok ? BRIX_CONFORM_VERDICT_CONFORMANT
+                 : read_ok ? BRIX_CONFORM_VERDICT_DIVERGENT
+                           : BRIX_CONFORM_VERDICT_INCONCLUSIVE,
+        bytes_ok ? "bound-stream-bytes-match-primary"
+                 : read_ok ? "bound-stream-byte-mismatch"
+                           : "bound-read-unavailable",
+        "byte-identical response", status->msg);
 }
 
 void
@@ -207,43 +269,36 @@ xrd_conform_probe_bind(xrd_conform_execution *execution,
         streams.n = 1;
         pathid = streams.sec[0].bound_pathid;
     }
-    xrd_conform_result_set(execution, "BND-001",
-        bound && streams.sec[0].bound_pathid != 0
-            ? BRIX_CONFORM_VERDICT_CONFORMANT
-            : status.kxr == kXR_Unsupported
-                ? BRIX_CONFORM_VERDICT_SKIPPED
-                : BRIX_CONFORM_VERDICT_DIVERGENT,
-        bound ? "bind-returned-usable-pathid"
-              : status.kxr == kXR_Unsupported
-                    ? "claim-absent:data-substreams"
-                    : "bind-pathid-invalid",
-        "one-byte pathid in range 1..253", status.msg);
+    grade_bind_result(execution, bound, &streams.sec[0], &status);
     if (bound) read_ok = bound_read(execution, connection, &streams.sec[0],
         file, length, &body, &body_length, &status) == 0;
-    xrd_conform_result_set(execution, "BND-002",
-        read_ok ? BRIX_CONFORM_VERDICT_CONFORMANT
-                : bound ? BRIX_CONFORM_VERDICT_DIVERGENT
-                        : BRIX_CONFORM_VERDICT_INCONCLUSIVE,
-        read_ok ? "pathid-read-arrived-on-bound-stream"
-                : bound ? "pathid-read-did-not-arrive-on-bound-stream"
-                        : "bind-unavailable",
-        "response on bound connection", status.msg);
-    xrd_conform_result_set(execution, "BND-003",
-        read_ok && body_length == length
-            && memcmp(body, baseline, length) == 0
-                ? BRIX_CONFORM_VERDICT_CONFORMANT
-                : read_ok ? BRIX_CONFORM_VERDICT_DIVERGENT
-                          : BRIX_CONFORM_VERDICT_INCONCLUSIVE,
-        read_ok && body_length == length
-            && memcmp(body, baseline, length) == 0
-                ? "bound-stream-bytes-match-primary"
-                : read_ok ? "bound-stream-byte-mismatch"
-                          : "bound-read-unavailable",
-        "byte-identical response", status.msg);
+    grade_bound_read(execution, bound, read_ok, body, body_length, baseline,
+        length, &status);
     free(body);
     brix_streams_close(&streams);
     if (bound) probe_closed_pathid(execution, connection, file, pathid);
     probe_bind_limit(execution, connection);
+}
+
+static void
+grade_env_bind_failure(xrd_conform_execution *execution,
+    const brix_status *status)
+{
+    int unsupported = status->kxr == kXR_Unsupported;
+
+    xrd_conform_result_set(execution, "ENV-002",
+        unsupported ? BRIX_CONFORM_VERDICT_SKIPPED
+                    : BRIX_CONFORM_VERDICT_INCONCLUSIVE,
+        unsupported ? "claim-absent:data-substreams" : "bind-unavailable",
+        NULL, status->msg);
+}
+
+static int
+env_read_matches(int rc, uint16_t wire_status, const uint8_t *body,
+    uint32_t body_length, const uint8_t *baseline, size_t length)
+{
+    return rc == 0 && wire_status == kXR_ok && body_length == length
+        && memcmp(body, baseline, length) == 0;
 }
 
 /* WHAT: Ping the primary while a pathid-directed read is awaiting collection.
@@ -270,6 +325,7 @@ xrd_conform_probe_env_flow(xrd_conform_execution *execution,
     char reason[64];
     size_t length = size < 4096 ? (size_t) size : 4096;
     int rc = -1;
+    int pass;
 
     if (length == 0) {
         xrd_conform_result_set(execution, "ENV-002",
@@ -280,12 +336,7 @@ xrd_conform_probe_env_flow(xrd_conform_execution *execution,
     if (!xrd_conform_reserve(execution, 0, reason, sizeof(reason))) return;
     brix_status_clear(&status);
     if (brix_bind(&streams.sec[0], connection, &status) != 0) {
-        xrd_conform_result_set(execution, "ENV-002",
-            status.kxr == kXR_Unsupported ? BRIX_CONFORM_VERDICT_SKIPPED
-                                          : BRIX_CONFORM_VERDICT_INCONCLUSIVE,
-            status.kxr == kXR_Unsupported
-                ? "claim-absent:data-substreams" : "bind-unavailable",
-            NULL, status.msg);
+        grade_env_bind_failure(execution, &status);
         return;
     }
     streams.n = 1;
@@ -303,15 +354,13 @@ xrd_conform_probe_env_flow(xrd_conform_execution *execution,
         if (rc == 0) rc = brix_recv(&streams.sec[0], stream_id, &response,
             &status);
     }
+    pass = env_read_matches(rc, wire_status, body, body_length, baseline,
+        length);
     xrd_conform_result_set(execution, "ENV-002",
-        rc == 0 && wire_status == kXR_ok && body_length == length
-            && memcmp(body, baseline, length) == 0
-                ? BRIX_CONFORM_VERDICT_CONFORMANT
-                : BRIX_CONFORM_VERDICT_DIVERGENT,
-        rc == 0 && wire_status == kXR_ok && body_length == length
-            && memcmp(body, baseline, length) == 0
-                ? "ping-preserved-inflight-bound-read"
-                : "ping-disturbed-inflight-bound-read",
+        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
+             : BRIX_CONFORM_VERDICT_DIVERGENT,
+        pass ? "ping-preserved-inflight-bound-read"
+             : "ping-disturbed-inflight-bound-read",
         "byte-identical bound read after primary ping", status.msg);
     free(body);
     brix_streams_close(&streams);

@@ -32,9 +32,210 @@
 
 _Static_assert(sizeof(struct stat) == sizeof(struct stat64),
                "struct stat / stat64 layout differ; *64 stat forwards need rework");
+_Static_assert(offsetof(struct stat, st_ino) == offsetof(struct stat64, st_ino)
+               && offsetof(struct stat, st_mode) == offsetof(struct stat64, st_mode)
+               && offsetof(struct stat, st_size) == offsetof(struct stat64, st_size),
+               "struct stat / stat64 member offsets differ");
 _Static_assert(sizeof(struct dirent) == sizeof(struct dirent64)
                && offsetof(struct dirent, d_name) == offsetof(struct dirent64, d_name),
                "struct dirent / dirent64 layout differ; readdir64 forward needs rework");
+
+/* WHAT: Return the native LP64 glibc stat structure version.
+ * WHY: glibc before 2.33 exports __xstat rather than stat itself.
+ * HOW: Prefer the compiling libc's ABI constant; newer headers omit it,
+ *      but retain the x86-64 version-1 / other LP64 version-0 ABI. */
+static int
+preload_stat_version(void)
+{
+#if defined(_STAT_VER)
+    return _STAT_VER;
+#elif BRIX_ARCH_X86_64
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+/* WHAT: Validate the caller's legacy structure version, returning 1 or 0.
+ * WHY: An unknown ABI must not receive a differently laid-out struct stat.
+ * HOW: Accept only the native layout; otherwise fail with EINVAL. */
+static int
+preload_stat_version_valid(int version)
+{
+    if (version != preload_stat_version()) {
+        errno = EINVAL;
+        return 0;
+    }
+    return 1;
+}
+
+/* WHAT: Invoke the original libc stat without re-entering our wrappers.
+ * WHY: Older glibc has no exported stat symbol for RTLD_NEXT to find.
+ * HOW: Try modern stat, then the native-version legacy __xstat ABI. */
+int
+brix_plat_preload_stat(const char *path, struct stat *out)
+{
+    typedef int (*legacy_fn)(int, const char *, struct stat *);
+    __typeof__(stat) *modern = BRIXPOSIX_REAL_RESOLVE(stat);
+    legacy_fn legacy;
+
+    if (modern != NULL) {
+        return modern(path, out);
+    }
+    legacy = (legacy_fn) dlsym(RTLD_NEXT, "__xstat");
+    if (legacy == NULL) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return legacy(preload_stat_version(), path, out);
+}
+
+/* WHAT: Invoke original libc lstat on an unmapped path.
+ * WHY: Local symlink semantics must survive the old-glibc ABI bridge.
+ * HOW: Try lstat, then native-version __lxstat, never the shim itself. */
+int
+brix_plat_preload_lstat(const char *path, struct stat *out)
+{
+    typedef int (*legacy_fn)(int, const char *, struct stat *);
+    __typeof__(lstat) *modern = BRIXPOSIX_REAL_RESOLVE(lstat);
+    legacy_fn legacy;
+
+    if (modern != NULL) {
+        return modern(path, out);
+    }
+    legacy = (legacy_fn) dlsym(RTLD_NEXT, "__lxstat");
+    if (legacy == NULL) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return legacy(preload_stat_version(), path, out);
+}
+
+/* WHAT: Invoke original libc fstat on a real kernel descriptor.
+ * WHY: A missing modern libc symbol must not become a NULL call.
+ * HOW: Try fstat, then native-version __fxstat, or fail ENOSYS. */
+int
+brix_plat_preload_fstat(int fd, struct stat *out)
+{
+    typedef int (*legacy_fn)(int, int, struct stat *);
+    __typeof__(fstat) *modern = BRIXPOSIX_REAL_RESOLVE(fstat);
+    legacy_fn legacy;
+
+    if (modern != NULL) {
+        return modern(fd, out);
+    }
+    legacy = (legacy_fn) dlsym(RTLD_NEXT, "__fxstat");
+    if (legacy == NULL) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return legacy(preload_stat_version(), fd, out);
+}
+
+/* WHAT: Invoke original libc fstatat, preserving dirfd and flags.
+ * WHY: Relative and non-prefix paths remain entirely libc-owned.
+ * HOW: Try fstatat, then native-version __fxstatat, or fail ENOSYS. */
+int
+brix_plat_preload_fstatat(int dirfd, const char *path, struct stat *out, int flags)
+{
+    typedef int (*legacy_fn)(int, int, const char *, struct stat *, int);
+    __typeof__(fstatat) *modern = BRIXPOSIX_REAL_RESOLVE(fstatat);
+    legacy_fn legacy;
+
+    if (modern != NULL) {
+        return modern(dirfd, path, out, flags);
+    }
+    legacy = (legacy_fn) dlsym(RTLD_NEXT, "__fxstatat");
+    if (legacy == NULL) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return legacy(preload_stat_version(), dirfd, path, out, flags);
+}
+
+/* WHAT: Interpose legacy path stat, returning the shared wrapper's result.
+ * WHY: EL8 coreutils call __xstat directly rather than stat.
+ * HOW: Validate the structure ABI before applying the existing path policy. */
+int
+__xstat(int version, const char *path, struct stat *out)
+{
+    if (!preload_stat_version_valid(version)) {
+        return -1;
+    }
+    return brixposix_stat_impl(path, out);
+}
+
+/* WHAT: Interpose legacy lstat while preserving local symlink behavior.
+ * WHY: The versioned ABI must not bypass the configured remote mapping.
+ * HOW: Validate the layout, then use the common lstat body. */
+int
+__lxstat(int version, const char *path, struct stat *out)
+{
+    if (!preload_stat_version_valid(version)) {
+        return -1;
+    }
+    return brixposix_lstat_impl(path, out);
+}
+
+/* WHAT: Interpose legacy descriptor stat, including virtual descriptors.
+ * WHY: An unhandled __fxstat sees a shadow descriptor as EBADF.
+ * HOW: Validate the layout, then delegate to the existing slot-aware body. */
+int
+__fxstat(int version, int fd, struct stat *out)
+{
+    if (!preload_stat_version_valid(version)) {
+        return -1;
+    }
+    return brixposix_fstat_impl(fd, out);
+}
+
+/* WHAT: Interpose legacy directory-relative stat.
+ * WHY: Old libc's metadata entry point must use the same prefix policy.
+ * HOW: Validate the layout, then retain dirfd and flags in the shared body. */
+int
+__fxstatat(int version, int dirfd, const char *path, struct stat *out, int flags)
+{
+    if (!preload_stat_version_valid(version)) {
+        return -1;
+    }
+    return brixposix_fstatat_impl(dirfd, path, out, flags);
+}
+
+/* WHAT: Forward LP64 legacy large-file stat with its native layout check.
+ * WHY: Old _FILE_OFFSET_BITS=64 consumers use the versioned *64 names.
+ * HOW: Reuse the matching versioned wrapper; layouts are asserted above. */
+int
+__xstat64(int version, const char *path, struct stat64 *out)
+{
+    return __xstat(version, path, (struct stat *) out);
+}
+
+/* WHAT: Forward LP64 legacy large-file lstat.
+ * WHY: Symlink metadata follows the same compatibility contract as stat.
+ * HOW: Delegate to the native-layout versioned lstat wrapper. */
+int
+__lxstat64(int version, const char *path, struct stat64 *out)
+{
+    return __lxstat(version, path, (struct stat *) out);
+}
+
+/* WHAT: Forward LP64 legacy large-file descriptor stat.
+ * WHY: Coreutils using __fxstat64 must recognize shadow descriptors.
+ * HOW: Delegate to the same checked versioned fstat body. */
+int
+__fxstat64(int version, int fd, struct stat64 *out)
+{
+    return __fxstat(version, fd, (struct stat *) out);
+}
+
+/* WHAT: Forward LP64 legacy large-file directory-relative stat.
+ * WHY: Both glibc large-file spellings must preserve prefix confinement.
+ * HOW: Delegate with the asserted-compatible stat64 layout. */
+int
+__fxstatat64(int version, int dirfd, const char *path, struct stat64 *out, int flags)
+{
+    return __fxstatat(version, dirfd, path, (struct stat *) out, flags);
+}
 
 static mode_t
 open_mode(int flags, va_list ap)
@@ -87,25 +288,25 @@ lseek64(int fd, off_t offset, int whence)
 int
 stat64(const char *path, struct stat64 *stbuf)
 {
-    return stat(path, (struct stat *) stbuf);
+    return brixposix_stat_impl(path, (struct stat *) stbuf);
 }
 
 int
 lstat64(const char *path, struct stat64 *stbuf)
 {
-    return lstat(path, (struct stat *) stbuf);
+    return brixposix_lstat_impl(path, (struct stat *) stbuf);
 }
 
 int
 fstat64(int fd, struct stat64 *stbuf)
 {
-    return fstat(fd, (struct stat *) stbuf);
+    return brixposix_fstat_impl(fd, (struct stat *) stbuf);
 }
 
 int
 fstatat64(int dirfd, const char *path, struct stat64 *stbuf, int flags)
 {
-    return fstatat(dirfd, path, (struct stat *) stbuf, flags);
+    return brixposix_fstatat_impl(dirfd, path, (struct stat *) stbuf, flags);
 }
 
 struct dirent64 *
@@ -151,7 +352,7 @@ statx(int dirfd, const char *path, int flags, unsigned int mask,
     if (path[0] != '/' || !map_path(path, remote, sizeof(remote))) {
         return real_statx(dirfd, path, flags, mask, stxbuf);
     }
-    if (stat(path, &mapped) != 0) {
+    if (brixposix_stat_impl(path, &mapped) != 0) {
         return -1;
     }
     memset(stxbuf, 0, sizeof(*stxbuf));

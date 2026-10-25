@@ -94,6 +94,27 @@ static int          g_probes;               /* total quiet reads           */
 static char         g_probed[8][64];        /* probe order, for walk shape */
 static const char  *g_fault_path;           /* this path faults ...        */
 static int          g_fault_errno;          /* ... with this errno         */
+/* ---- Model only the unit fixture's no-follow metadata boundary ----
+ * WHAT: Return fixture inode type or an explicit probe refusal.
+ * WHY: The real gate's fault handling needs an independent metadata boundary;
+ *      live tests separately verify kernel symlink identity and confinement.
+ * HOW: 1. Refuse the named fault fixture. 2. Identify the named link only for
+ *      no-follow probes. 3. Report other fixtures as regular files.
+ */
+ngx_int_t
+brix_vfs_probe(brix_vfs_ctx_t *ctx, int nofollow, brix_vfs_stat_t *out)
+{
+    const char *path = brix_vfs_ctx_path(ctx);
+
+    memset(out, 0, sizeof(*out));
+    if (strcmp(path, "/root/a/probe-failure") == 0) {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    out->mode = nofollow && strcmp(path, "/root/a/link") == 0
+        ? S_IFLNK : S_IFREG;
+    return NGX_OK;
+}
 
 ssize_t
 brix_vfs_getxattr_quiet_at(brix_vfs_ctx_t *ctx, const char *path,
@@ -187,11 +208,76 @@ make_ctx(brix_vfs_ctx_t *ctx, const char *path)
     /* log stays NULL: the advisory warn is guarded, and no test needs it */
 }
 
+/* Verify exact, by-value snapshots independently of semantic normalization. */
+static void
+check_record_snapshots(void)
+{
+    char legacy[] = "token=legacy|expires=9999999999999|owner=fixture";
+    const char future[] = "future=kept|expires=42|token=current|v=2|owner=fixture";
+    const char embedded[] = "v=2|token=prefix\0|token=hidden";
+    brix_lock_record_t record;
+    char encoded[BRIX_LOCK_XATTR_MAXLEN];
+
+    CHECK(brix_lock_record_decode(legacy, strlen(legacy), &record) == NGX_OK,
+          "legacy snapshot decodes");
+    CHECK(record.expires == 0 && record.observed_length == strlen(legacy)
+          && memcmp(record.observed, legacy, strlen(legacy)) == 0,
+          "legacy normalization retains exact expected bytes");
+    CHECK(brix_lock_record_encode(&record, encoded, sizeof(encoded)) == NGX_OK
+          && strcmp(encoded, record.observed) != 0,
+          "replacement encoding is independent of the read snapshot");
+    legacy[0] = 'X';
+    CHECK(record.observed[0] == 't', "snapshot owns its bytes by value");
+    CHECK(brix_lock_record_decode(future, strlen(future), &record) == NGX_OK
+          && record.expires == 42 && record.observed_length == strlen(future)
+          && memcmp(record.observed, future, strlen(future)) == 0,
+          "reordered and unknown fields retain exact expected bytes");
+    CHECK(brix_lock_record_decode(embedded, sizeof(embedded) - 1, &record)
+          == NGX_DECLINED, "embedded NUL cannot hide a second record");
+    CHECK(brix_lock_record_decode(NULL, 1, &record) == NGX_DECLINED,
+          "NULL snapshot is declined");
+}
+
+/* ---- Exercise namespace-link lock coverage and proof failures ----
+ * WHAT: Check link removal, ancestor refusal and failed-probe fail-closedness.
+ * WHY: A link's referent is not the namespace object being removed.
+ * HOW: 1. Refuse any referent read. 2. Check the parent lock still wins.
+ *      3. Preserve data-open refusal. 4. Refuse an unreadable lock after a
+ *      failed inode-type proof.
+ */
+static void
+check_remove_symlink_lock_boundary(void)
+{
+    brix_vfs_ctx_t ctx;
+
+    reset();
+    make_ctx(&ctx, "/root/a/link");
+    g_fault_path = "/root/a/link";
+    g_fault_errno = EXDEV;
+    CHECK(brix_vfs_require_unlocked(&ctx, BRIX_VFS_MUTATE_REMOVE) == NGX_OK,
+          "unlink does not follow the trailing link");
+    CHECK(g_probes == 2 && strcmp(g_probed[0], "/root/a") == 0,
+          "unlink still probes parent and export root");
+    add_record("/root/a", "opaquelocktoken:parent", TEST_NOW + 900, 1);
+    CHECK(brix_vfs_require_unlocked(&ctx, BRIX_VFS_MUTATE_REMOVE) == NGX_ERROR
+          && errno == EBUSY, "symlink unlink cannot evade an ancestor lock");
+    CHECK(brix_vfs_require_unlocked(&ctx, BRIX_VFS_MUTATE_OPEN) == NGX_ERROR
+          && errno == EXDEV, "data opens retain their confinement refusal");
+    make_ctx(&ctx, "/root/a/probe-failure");
+    g_fault_path = "/root/a/probe-failure";
+    g_fault_errno = EIO;
+    CHECK(brix_vfs_require_unlocked(&ctx, BRIX_VFS_MUTATE_REMOVE) == NGX_ERROR
+          && errno == EIO, "failed metadata proof cannot waive a hard lock fault");
+}
+
 int
 main(void)
 {
     brix_vfs_ctx_t ctx;
     ngx_int_t      rc;
+
+    check_record_snapshots();
+    check_remove_symlink_lock_boundary();
 
     /* 1. absent everywhere: OK, and the walk probes exactly the ancestor
      *    chain target -> export root, once each, in ascending order. */

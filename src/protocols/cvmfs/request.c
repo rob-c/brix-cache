@@ -47,6 +47,38 @@ brix_cvmfs_proxy_scheme_check(ngx_http_request_t *r)
     return NGX_OK;
 }
 
+static u_char *
+brix_cvmfs_authority_host_end(u_char *start, u_char *authority_end,
+    u_char **port_start)
+{
+    u_char *cursor;
+
+    *port_start = NULL;
+    if (*start == '[') {
+        cursor = start + 1;
+        while (cursor < authority_end && *cursor != ']') {
+            cursor++;
+        }
+        if (cursor == authority_end || (cursor + 1 < authority_end
+                                        && cursor[1] != ':'))
+        {
+            return NULL;
+        }
+        if (cursor + 1 < authority_end) {
+            *port_start = cursor + 2;
+        }
+        return cursor + 1;
+    }
+
+    for (cursor = start; cursor < authority_end; cursor++) {
+        if (*cursor == ':') {
+            *port_start = cursor + 1;
+            return cursor;
+        }
+    }
+    return authority_end;
+}
+
 /* ---- Extract the host and port from the validated authority span ----
  *
  * WHAT: fills host and port from the absolute-form target, defaulting the port
@@ -67,7 +99,7 @@ static ngx_int_t
 brix_cvmfs_proxy_extract_authority(ngx_http_request_t *r, ngx_str_t *host,
     in_port_t *port)
 {
-    u_char    *authority_end, *cursor, *host_end, *port_start;
+    u_char    *authority_end, *host_end, *port_start;
     ngx_int_t  parsed_port;
 
     if (r->host_start == NULL || r->uri_start == NULL
@@ -77,31 +109,10 @@ brix_cvmfs_proxy_extract_authority(ngx_http_request_t *r, ngx_str_t *host,
     }
 
     authority_end = r->uri_start;
-    port_start = NULL;
-    if (*r->host_start == '[') {
-        cursor = r->host_start + 1;
-        while (cursor < authority_end && *cursor != ']') {
-            cursor++;
-        }
-        if (cursor == authority_end) {
-            return NGX_HTTP_BAD_REQUEST;
-        }
-        host_end = cursor + 1;
-        if (host_end < authority_end) {
-            if (*host_end != ':') {
-                return NGX_HTTP_BAD_REQUEST;
-            }
-            port_start = host_end + 1;
-        }
-    } else {
-        host_end = authority_end;
-        for (cursor = r->host_start; cursor < authority_end; cursor++) {
-            if (*cursor == ':') {
-                host_end = cursor;
-                port_start = cursor + 1;
-                break;
-            }
-        }
+    host_end = brix_cvmfs_authority_host_end(r->host_start, authority_end,
+                                             &port_start);
+    if (host_end == NULL) {
+        return NGX_HTTP_BAD_REQUEST;
     }
 
     if (host_end == r->host_start) {

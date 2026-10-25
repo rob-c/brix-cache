@@ -83,38 +83,6 @@ size_t     g_readahead = 1024 * 1024;
 
 size_t     g_writeback = 1024 * 1024;
 
-const struct fuse_operations xfs_ops = {
-    .init     = xfs_init,
-    .getattr  = xfs_getattr,
-    .readdir  = xfs_readdir,
-    .open     = xfs_open,
-    .create   = xfs_create,
-    .mknod    = xfs_mknod,
-    .read     = xfs_read,
-    .write    = xfs_write,
-    .flush    = xfs_flush,
-    .release  = xfs_release,
-    .fsync    = xfs_fsync,
-    .mkdir    = xfs_mkdir,
-    .unlink   = xfs_unlink,
-    .rmdir    = xfs_rmdir,
-    .rename   = xfs_rename,
-    .chmod    = xfs_chmod,
-    .truncate = xfs_truncate,
-    .chown    = xfs_chown,
-    .utimens  = xfs_utimens,
-    .symlink  = xfs_symlink,
-    .readlink = xfs_readlink,
-    .link     = xfs_link,
-    .statfs   = xfs_statfs,
-    .access   = xfs_access,
-    .getxattr    = xfs_getxattr,
-    .setxattr    = xfs_setxattr,
-    .listxattr   = xfs_listxattr,
-    .removexattr = xfs_removexattr,
-};
-
-
 const char  *g_bearer = NULL;     /* --token / $BEARER_TOKEN (else anon) */
 int                 g_web_verify = 1;    /* TLS server-cert verification (https) */
 const char         *g_web_ca = NULL;     /* CA hash dir (else $X509_CERT_DIR) */
@@ -124,7 +92,7 @@ const char         *g_web_proxy = NULL;  /* X.509 proxy PEM for davs mutual TLS 
 
 /* Defined with the daemonize helpers below; called from xfs_init() so the
  * launching shell blocks until the mount is actually live. */
-static void xfs_daemon_ready(unsigned char status);
+void xfs_daemon_ready(unsigned char status);
 
 /* Map a FUSE path ("/file") to the server path under the export base. With an
  * empty base the FUSE path is used verbatim; with base "/data" → "/data/file"
@@ -184,10 +152,10 @@ xfs_conn_healthy(const brix_status *st)
 
 
 int
-xfs_meta(brix_fuse_op_fn fn, void *ctx, brix_status *st)
+xfs_meta(uid_t uid, brix_fuse_op_fn fn, void *ctx, brix_status *st)
 {
     brix_pool *pool;
-    int        rc = xfs_ident_get(&pool, NULL);
+    int        rc = xfs_ident_get(uid, &pool, NULL);
 
     if (rc != 0) {
         brix_status_set(st, XRDC_EAUTH, 0, "no connections for this identity");
@@ -203,10 +171,10 @@ xfs_meta(brix_fuse_op_fn fn, void *ctx, brix_status *st)
  * "already in the desired state" code (the first attempt applied it, its reply
  * lost): benign_errno (EEXIST/ENOENT) is normalized to success on a retry. */
 int
-xfs_meta_idem(brix_fuse_op_fn fn, void *ctx, int benign_errno, brix_status *st)
+xfs_meta_idem(uid_t uid, brix_fuse_op_fn fn, void *ctx, int benign_errno, brix_status *st)
 {
     brix_pool *pool;
-    int        rc = xfs_ident_get(&pool, NULL);
+    int        rc = xfs_ident_get(uid, &pool, NULL);
 
     if (rc != 0) {
         brix_status_set(st, XRDC_EAUTH, 0, "no connections for this identity");
@@ -226,7 +194,7 @@ xfs_fill_stat(const brix_statinfo *si, struct stat *stbuf)
 
 
 int
-xfs_link(const char *from, const char *to)
+xfs_link(uid_t uid, const char *from, const char *to)
 {
     if (g_web) return -EROFS;
     if (!g_ext_link) {
@@ -236,26 +204,7 @@ xfs_link(const char *from, const char *to)
     char fbuf[XRDC_PATH_MAX], tbuf[XRDC_PATH_MAX];
     struct brix_fuse_ctx_link2 a = { srv_path(from, fbuf, sizeof(fbuf)),
                            srv_path(to, tbuf, sizeof(tbuf)) };
-    return xfs_meta_idem(brix_fuse_op_link, &a, EEXIST, &st);
-}
-
-
-void *
-xfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
-{
-    (void) conn;
-    /* The session is up and the mountpoint is live: release the waiting parent
-     * (no-op in the foreground). Doing it HERE rather than before fuse_main()
-     * means `xrootdfs … && ls /mnt` cannot race the mount. If fuse_main fails
-     * before init, the child exits, the pipe closes, and the parent's short
-     * read reports the failure. */
-    xfs_daemon_ready(0);
-    cfg->attr_timeout     = g_attr_timeout;
-    cfg->entry_timeout    = g_entry_timeout;
-    cfg->negative_timeout = g_attr_timeout;
-    cfg->kernel_cache     = g_kernel_cache;
-    cfg->use_ino          = 1;
-    return NULL;
+    return xfs_meta_idem(uid, brix_fuse_op_link, &a, EEXIST, &st);
 }
 
 
@@ -548,7 +497,7 @@ xfs_daemonize(void)
 /* Report the setup outcome to the waiting parent and detach stdio. Call exactly
  * once per daemonized run: with 0 right before entering the FUSE loop, or with
  * the intended exit code on any earlier failure. A no-op in the foreground. */
-static void
+void
 xfs_daemon_ready(unsigned char status)
 {
     if (xfs_daemon_pipe < 0) return;

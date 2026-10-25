@@ -244,6 +244,24 @@ char *brix_tpc_conf_allow_identity(ngx_conf_t *cf, ngx_command_t *cmd,
 char *brix_tpc_conf_require(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 char *brix_tpc_conf_restrict(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
+/* WHAT: Register one identity-matrix grammar on both nginx planes.
+ * WHY: Names, arities and setters must not drift between root and HTTP.
+ * HOW: Expand constant initializers with only scope and conf placement varied.
+ * Requires: the caller's complete conf_type with its shared common preamble. */
+#define BRIX_TPC_IDENTITY_DIRECTIVES(conf_scope, conf_offset, conf_type) \
+    { ngx_string("brix_tpc_allow_identity"), \
+      (conf_scope) | NGX_CONF_2MORE, brix_tpc_conf_allow_identity, \
+      (conf_offset), 0, NULL }, \
+    { ngx_string("brix_tpc_require"), \
+      (conf_scope) | NGX_CONF_TAKE2, brix_tpc_conf_require, \
+      (conf_offset), 0, NULL }, \
+    { ngx_string("brix_tpc_restrict"), \
+      (conf_scope) | NGX_CONF_1MORE, brix_tpc_conf_restrict, \
+      (conf_offset), 0, NULL }, \
+    { ngx_string("brix_tpc_oids"), \
+      (conf_scope) | NGX_CONF_FLAG, ngx_conf_set_flag_slot, \
+      (conf_offset), offsetof(conf_type, common.tpc_oids), NULL },
+
 #endif /* !XRDPROTO_NO_NGX */
 
 #endif /* BRIX_TPC_IDENTITY_MATRIX_H */

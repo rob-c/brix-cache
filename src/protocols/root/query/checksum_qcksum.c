@@ -205,7 +205,8 @@ brix_qcksum_handle_extract_algo(brix_ctx_t *ctx, char *algo, size_t algo_sz)
  *      the two async posters separate avoids a conditional-ownership branch that would re-inflate
  *      the complexity both splits are removing.
  * HOW:  Alloc the task, populate brix_cksum_aio_t from the files[] slot (fd + snapshotted sd_obj),
- *      bind the callbacks, and brix_aio_post_task; a full queue leaves *handled=0 for sync.
+ *      bind the callbacks, and brix_aio_post_task; a full queue retains the reusable task
+ *      and answers kXR_wait rather than computing on the event loop.
  */
 static ngx_int_t
 brix_qcksum_handle_try_async(brix_qcksum_req_t *rq, int idx,
@@ -224,8 +225,10 @@ brix_qcksum_handle_try_async(brix_qcksum_req_t *rq, int idx,
         return NGX_OK;
     }
 
-    task = ngx_thread_task_alloc(c->pool, sizeof(brix_cksum_aio_t));
+    task = brix_query_checksum_task(c, sizeof(brix_cksum_aio_t));
     if (task == NULL) {
+        brix_log_access(ctx, c, "QUERY", resolved, "cksum", 0,
+                           kXR_NoMemory, "out of memory", 0);
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSUM);
         *handled = 1;
         return brix_send_error(ctx, c, kXR_NoMemory, "out of memory");
@@ -250,7 +253,7 @@ brix_qcksum_handle_try_async(brix_qcksum_req_t *rq, int idx,
     task->ctx = t;
 
     if (brix_aio_post_task(ctx, c, conf->common.thread_pool, task,
-                             "cksum thread pool queue full, using sync",
+                             "checksum worker queue full; requesting client retry",
                              &posted) != NGX_OK)
     {
         *handled = 1;
@@ -261,7 +264,10 @@ brix_qcksum_handle_try_async(brix_qcksum_req_t *rq, int idx,
         *handled = 1;
         return NGX_OK;
     }
-    return NGX_OK;
+    /* This task never entered the queue and is reusable. The session still
+     * owns its file handle; a retry cannot consume another task allocation. */
+    *handled = 1;
+    return brix_send_wait(ctx, c, 1);
 }
 
 /*

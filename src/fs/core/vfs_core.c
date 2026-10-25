@@ -24,6 +24,13 @@ xvfs_pread_full(brix_sd_obj_t *obj, void *buf, size_t len, off_t off,
     size_t   done = 0;
     u_char  *p    = buf;
 
+    if (nread != NULL) {
+        *nread = 0;
+    }
+    if (xvfs_check_extent(off, len) != 0) {
+        return -1;
+    }
+
     while (done < len) {
         ssize_t n = obj->driver->pread(obj, p + done, len - done,
                                        off + (off_t) done);
@@ -53,6 +60,10 @@ xvfs_pread_once(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     ssize_t n;
 
+    if (xvfs_check_extent(off, len) != 0) {
+        return -1;
+    }
+
     do {
         n = obj->driver->pread(obj, buf, len, off);
     } while (n < 0 && errno == EINTR);
@@ -69,6 +80,12 @@ xvfs_pwrite_full(brix_sd_obj_t *obj, const void *buf, size_t len, off_t off,
 
     if (short_io != NULL) {
         *short_io = 0;
+    }
+    if (written != NULL) {
+        *written = 0;
+    }
+    if (xvfs_check_extent(off, len) != 0) {
+        return -1;
     }
 
     while (done < len) {
@@ -135,7 +152,7 @@ xvfs_window_step(const xvfs_window_t *win, size_t bufsz, off_t off)
         return bufsz;
     }
     left = win->off + win->len - off;
-    return (left < (off_t) bufsz) ? (size_t) left : bufsz;
+    return ((uintmax_t) left < (uintmax_t) bufsz) ? (size_t) left : bufsz;
 }
 
 int
@@ -146,6 +163,9 @@ xvfs_drain_window(brix_sd_obj_t *src, brix_sd_obj_t *dst, void *buf,
 
     if (buf == NULL || bufsz == 0 || win == NULL || win->off < 0) {
         errno = EINVAL;
+        return -1;
+    }
+    if (win->len >= 0 && xvfs_check_extent(win->off, (size_t) win->len) != 0) {
         return -1;
     }
 

@@ -42,36 +42,60 @@ remote_stat(const char *remote, struct stat *stbuf)
     return 0;
 }
 
+/* WHAT: Route stat through the shared prefix policy or real host ABI.
+ * WHY: Legacy glibc entry points must bypass its inline stat redirects.
+ * HOW: Map once, then use remote_stat or the host's original libc entry. */
 int
-BRIXPOSIX_WRAP(stat)(const char *path, struct stat *stbuf)
+brixposix_stat_impl(const char *path, struct stat *stbuf)
 {
     char remote[XRDC_PATH_MAX];
-    REAL(stat);
     if (map_path(path, remote, sizeof(remote))) {
         return remote_stat(remote, stbuf);
     }
-    return real_stat(path, stbuf);
+    return brix_plat_preload_stat(path, stbuf);
 }
 
+/* WHAT: The exported stat wrapper; returns the shared body's status.
+ * WHY: Keep one policy body for modern and legacy libc ABIs.
+ * HOW: Delegate without calling glibc's inline stat entry. */
 int
-BRIXPOSIX_WRAP(lstat)(const char *path, struct stat *stbuf)
+BRIXPOSIX_WRAP(stat)(const char *path, struct stat *stbuf)
+{
+    return brixposix_stat_impl(path, stbuf);
+}
+
+/* WHAT: Route lstat without duplicating remote metadata construction.
+ * WHY: A local, non-prefix symlink must retain real libc semantics.
+ * HOW: Map once, then use remote_stat or the real host lstat. */
+int
+brixposix_lstat_impl(const char *path, struct stat *stbuf)
 {
     char remote[XRDC_PATH_MAX];
-    REAL(lstat);
     if (map_path(path, remote, sizeof(remote))) {
         return remote_stat(remote, stbuf);   /* no symlinks in the export */
     }
-    return real_lstat(path, stbuf);
+    return brix_plat_preload_lstat(path, stbuf);
 }
 
+/* WHAT: Export lstat with the shared prefix-policy body.
+ * WHY: Keep legacy and modern lstat results identical.
+ * HOW: Delegate directly to the internal implementation. */
 int
-BRIXPOSIX_WRAP(fstat)(int fd, struct stat *stbuf)
+BRIXPOSIX_WRAP(lstat)(const char *path, struct stat *stbuf)
+{
+    return brixposix_lstat_impl(path, stbuf);
+}
+
+/* WHAT: Describe a shadow descriptor, or preserve real local fstat.
+ * WHY: Older libc's __fxstat callers must recognize virtual descriptors.
+ * HOW: Look up the existing slot; otherwise use the real host ABI. */
+int
+brixposix_fstat_impl(int fd, struct stat *stbuf)
 {
     xfs_slot *s;
-    REAL(fstat);
     s = slot_of(fd);
     if (s == NULL) {
-        return real_fstat(fd, stbuf);
+        return brix_plat_preload_fstat(fd, stbuf);
     }
     memset(stbuf, 0, sizeof(*stbuf));
     stbuf->st_mode = S_IFREG | 0644;
@@ -80,15 +104,35 @@ BRIXPOSIX_WRAP(fstat)(int fd, struct stat *stbuf)
     return 0;
 }
 
+/* WHAT: Export fstat using the common shadow-descriptor implementation.
+ * WHY: Avoid libc inline redirects between compatibility entry points.
+ * HOW: Delegate to the internal body. */
 int
-BRIXPOSIX_WRAP(fstatat)(int dirfd, const char *path, struct stat *stbuf, int flags)
+BRIXPOSIX_WRAP(fstat)(int fd, struct stat *stbuf)
+{
+    return brixposix_fstat_impl(fd, stbuf);
+}
+
+/* WHAT: Route absolute mapped paths and preserve other fstatat semantics.
+ * WHY: Relative dirfd operations outside the mapping remain libc-owned.
+ * HOW: Map only absolute prefix paths, otherwise call the real host ABI. */
+int
+brixposix_fstatat_impl(int dirfd, const char *path, struct stat *stbuf, int flags)
 {
     char remote[XRDC_PATH_MAX];
-    REAL(fstatat);
     if (path[0] == '/' && map_path(path, remote, sizeof(remote))) {
         return remote_stat(remote, stbuf);
     }
-    return real_fstatat(dirfd, path, stbuf, flags);
+    return brix_plat_preload_fstatat(dirfd, path, stbuf, flags);
+}
+
+/* WHAT: Export fstatat using the shared path-routing implementation.
+ * WHY: Modern and legacy callers must pass the same mapping policy.
+ * HOW: Delegate directly, retaining dirfd and flags. */
+int
+BRIXPOSIX_WRAP(fstatat)(int dirfd, const char *path, struct stat *stbuf, int flags)
+{
+    return brixposix_fstatat_impl(dirfd, path, stbuf, flags);
 }
 
 int

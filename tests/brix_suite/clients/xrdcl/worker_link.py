@@ -67,6 +67,35 @@ _CALL_TIMEOUT = float(os.environ.get("XRDCL_PROXY_TIMEOUT", "90"))
 _probe_failures = []
 
 
+def _worker_command(candidate):
+    """An explicit remote command is authoritative; never fall back to native.
+
+    A JSON argv avoids shell evaluation. The opt-in controller owns the socket,
+    artifact provenance and fixture policy; ordinary native runs are unchanged.
+    """
+    selected = os.environ.get('TEST_XRDCL_REMOTE_COMMAND')
+    if selected is None:
+        return [candidate, '-u', _WORKER]
+    command = json.loads(selected)
+    _validate_remote_command(command)
+    return command
+
+
+def _validate_remote_command(command):
+    """Refuse malformed argv before any remote capability probe is attempted."""
+    if not isinstance(command, list) or not command:
+        raise ValueError('remote reference command must be a nonempty JSON argv')
+    if not all(_valid_remote_argument(part) for part in command):
+        raise ValueError('invalid remote reference command argument')
+    if not os.path.isabs(command[0]):
+        raise ValueError('remote reference executable must be absolute')
+
+
+def _valid_remote_argument(value):
+    """The subprocess argv contract excludes empty, non-text and NUL values."""
+    return isinstance(value, str) and bool(value) and '\x00' not in value
+
+
 def _probe_bindings(candidate):
     """Run the worker's import probe once under ``candidate``; True on rc 0.
 
@@ -79,7 +108,7 @@ def _probe_bindings(candidate):
 
     try:
         result = subprocess.run(
-            [candidate, "-u", _WORKER], input="", text=True,
+            _worker_command(candidate), input="", text=True,
             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
             timeout=10, env=sanitized_env({"XRDCL_IMPORT_PROBE": "1"}),
         )
@@ -108,6 +137,14 @@ def _worker_python():
     ``TEST_XRDCL_PYTHON`` is the authoritative override; the remaining entries
     cover the active virtualenv and the conventional project test environments.
     """
+    if 'TEST_XRDCL_REMOTE_COMMAND' in os.environ:
+        command = _worker_command(sys.executable)
+        return _remote_worker_python(command)
+    return _native_worker_python()
+
+
+def _native_worker_python():
+    """Retain the ordinary interpreter discovery order for native-only runs."""
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     candidates = [
         os.environ.get("TEST_XRDCL_PYTHON"),
@@ -131,6 +168,13 @@ def _worker_python():
         if _probe_bindings(candidate) or _probe_bindings(candidate):
             return candidate
     return None
+
+
+def _remote_worker_python(command):
+    """An opted-in but unavailable remote dependency is an error, not a skip."""
+    if not _probe_bindings(command[0]):
+        raise XrdClWorkerError('explicit remote reference probe failed; native fallback is forbidden')
+    return command[0]
 
 
 def real_bindings_available():
@@ -159,7 +203,7 @@ class _Worker:
         # Sanitized for the same putenv race as the probe above.
         env = sanitized_env({"PYTHONDONTWRITEBYTECODE": "1"})
         self._proc = subprocess.Popen(
-            [worker_python, "-u", _WORKER],
+            _worker_command(worker_python),
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL, env=env, text=True, bufsize=1,
         )

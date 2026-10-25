@@ -183,7 +183,7 @@ mint_build_cert(const mint_ca_t *ca, const char *principal, int ttl_secs,
     out->cert = NULL;
     out->key  = NULL;
 
-    key = EVP_PKEY_Q_keygen(NULL, NULL, "EC", "P-256");
+    key = brix_crypto_p256_keygen();
     if (key == NULL) {
         MINT_LOG(NGX_LOG_ERR, log, 0,
             "brix: cred_mint: EC P-256 key generation failed");

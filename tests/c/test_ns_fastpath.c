@@ -25,6 +25,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
+#include "platform/platform_api.h"
 #include "core/compat/namespace_ops.h"
 #include "fs/path/beneath.h"
 
@@ -291,7 +292,7 @@ main(void)
      * root-prefix check catches the escape. An in-root lexical answer here
      * would be a confinement hole. */
     snprintf(b, sizeof(b), "%s/escape", g_root);
-    assert(symlink("/etc/hostname", b) == 0);
+    assert(symlink("/etc/hosts", b) == 0);
     assert(realpath(b, expect) != NULL);
     assert(brix_realpath_existing(b, real) == real);
     assert(strcmp(real, expect) == 0);

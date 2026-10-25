@@ -27,9 +27,11 @@
  */
 
 #include "gftp_dc.h"
+#include "auth/crypto/name_compat.h"
 #include "gftp_gsi_internal.h"
 
 #include "auth/crypto/gsi_verify.h"
+#include "auth/crypto/tls_compat.h"
 #include "protocols/gridftp/ftp_dc_dn.h"
 #include "protocols/root/connection/netconnect.h"
 
@@ -54,7 +56,7 @@ gftp_dc_tls_self_dn(gftp_gsi_t *gsi, char *out, size_t cap)
     if (self == NULL) {
         return -1;
     }
-    return X509_NAME_oneline(X509_get_subject_name(self), out, (int) cap) == NULL
+    return brix_crypto_name_oneline(X509_get_subject_name(self), out, cap) == NULL
            ? -1 : 0;
 }
 
@@ -196,7 +198,7 @@ gftp_dc_tls_start(gftp_session_t *session, gftp_dc_t *dc)
     }
     /* GridFTP senders close the data connection without close_notify once the
      * last block is on the wire; that is EOD, not a truncation attack. */
-    SSL_set_options(gsi->ssl, SSL_OP_IGNORE_UNEXPECTED_EOF);
+    brix_crypto_gridftp_data_eof(gsi->ssl);
     /* Data channel only — the control channel keeps OpenSSL's own verdict. */
     SSL_set_verify(gsi->ssl, SSL_VERIFY_PEER, gftp_dc_tls_accept_cb);
     if (SSL_set_fd(gsi->ssl, dc->fd) != 1) {

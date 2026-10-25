@@ -36,8 +36,10 @@ mkdir -p "$OUT/ca"
 cd "$OUT"
 
 openssl req -x509 -newkey rsa:2048 -nodes -days "$DAYS" -sha256 \
+    -config <(printf '[req]\ndistinguished_name=dn\n[dn]\n') \
     -subj "/DC=demo/DC=brix/CN=BriX Demo CA" \
     -addext basicConstraints=critical,CA:TRUE -addext keyUsage=critical,keyCertSign,cRLSign \
+    -addext subjectKeyIdentifier=hash -addext authorityKeyIdentifier=keyid:always \
     -keyout ca.key -out ca/ca.pem >/dev/null 2>&1
 
 san=""

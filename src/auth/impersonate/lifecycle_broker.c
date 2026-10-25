@@ -200,8 +200,8 @@ imp_broker_null_stdio(const int *keep, int n)
  *       highest kept descriptor with the PAL's brix_plat_close_from(), and walk
  *       the short gap below it closing whatever is not kept.
  */
-static void
-imp_broker_seal_fds(int lfd, int rootfd, ngx_log_t *log)
+void
+brix_imp_broker_seal_fds(int lfd, int rootfd, ngx_log_t *log)
 {
     int keep[3];
     int n = 0;
@@ -242,7 +242,7 @@ imp_broker_child(int lfd, int rootfd, ngx_log_t *log)
     FILE *fp;
 
     setsid();
-    imp_broker_seal_fds(lfd, rootfd, log);
+    brix_imp_broker_seal_fds(lfd, rootfd, log);
     imp_pidfile(pf, sizeof(pf));
     fp = fopen(pf, "we");
     if (fp != NULL) {

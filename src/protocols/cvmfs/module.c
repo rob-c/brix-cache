@@ -36,6 +36,7 @@
  */
 
 #include "core/compat/log_event.h"
+#include "core/http/http_variables.h"
 #include "cvmfs.h"
 #include "cvmfs_module_internal.h"         /* cross-file seam: georank/merge/build */
 #include "core/config/config.h"           /* brix_metrics_ensure_zone */
@@ -118,24 +119,6 @@ ngx_http_brix_cvmfs_create_loc_conf(ngx_conf_t *cf)
  * $cvmfs_origin queries the http driver's last-answering endpoint (display
  * only — approximate under concurrent fills, exact in the common case). */
 
-static ngx_int_t
-cvmfs_var_set(ngx_http_request_t *r, ngx_http_variable_value_t *v,
-    const char *val)
-{
-    size_t  n = ngx_strlen(val);
-    u_char *p = ngx_pnalloc(r->pool, n);
-
-    if (p == NULL) {
-        return NGX_ERROR;
-    }
-    ngx_memcpy(p, val, n);
-    v->data = p;
-    v->len = n;
-    v->valid = 1;
-    v->no_cacheable = 0;
-    v->not_found = 0;
-    return NGX_OK;
-}
 
 static ngx_int_t
 cvmfs_var_class(ngx_http_request_t *r, ngx_http_variable_value_t *v,
@@ -151,9 +134,9 @@ cvmfs_var_class(ngx_http_request_t *r, ngx_http_variable_value_t *v,
 
     (void) data;
     if (ctx == NULL || ctx->url.cls > CVMFS_URL_REJECT) {
-        return cvmfs_var_set(r, v, "-");
+        return brix_http_variable_copy(r, v, "-");
     }
-    return cvmfs_var_set(r, v, names[ctx->url.cls]);
+    return brix_http_variable_copy(r, v, names[ctx->url.cls]);
 }
 
 /* phase-112: cvmfs_var_cache() was removed with $cvmfs_cache /
@@ -178,7 +161,7 @@ cvmfs_var_origin(ngx_http_request_t *r, ngx_http_variable_value_t *v,
     if (ctx == NULL || ctx->cache_status != BRIX_CVMFS_CACHE_FILL
         || lcf == NULL)
     {
-        return cvmfs_var_set(r, v, "-");
+        return brix_http_variable_copy(r, v, "-");
     }
     root = (ctx->up_root != NULL) ? ctx->up_root : lcf->common.root_canon;
     inst = brix_vfs_backend_resolve(root, r->connection->log);
@@ -186,9 +169,9 @@ cvmfs_var_origin(ngx_http_request_t *r, ngx_http_variable_value_t *v,
         inst = brix_sd_cache_source_instance(inst);
     }
     if (inst == NULL || sd_http_last_origin(inst, buf, sizeof(buf)) != 0) {
-        return cvmfs_var_set(r, v, "-");
+        return brix_http_variable_copy(r, v, "-");
     }
-    return cvmfs_var_set(r, v, buf);
+    return brix_http_variable_copy(r, v, buf);
 }
 
 /* phase-106 W1-a: the remaining names are registered TWICE — the legacy
@@ -215,22 +198,12 @@ static ngx_http_variable_t  ngx_http_brix_cvmfs_vars[] = {
 static ngx_int_t
 ngx_http_brix_cvmfs_preconfiguration(ngx_conf_t *cf)
 {
-    ngx_http_variable_t *v, *nv;
-
     /* phase-116: the probe registration tables restart with every config
      * parse (see brix_cvmfs_rtt_regs_reset) */
     brix_cvmfs_rtt_regs_reset();
     brix_cvmfs_swarm_regs_reset();
 
-    for (v = ngx_http_brix_cvmfs_vars; v->name.len; v++) {
-        nv = ngx_http_add_variable(cf, &v->name, v->flags);
-        if (nv == NULL) {
-            return NGX_ERROR;
-        }
-        nv->get_handler = v->get_handler;
-        nv->data = v->data;
-    }
-    return NGX_OK;
+    return brix_http_register_variables(cf, ngx_http_brix_cvmfs_vars);
 }
 
 /*

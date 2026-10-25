@@ -40,7 +40,9 @@ have looked fine and been wrong.
 The verbatim-move check is an AST body hash against ``brix_suite/_legacy/``.
 It compares def/class bodies only, which is exactly right here: the fixes are
 module-level constants and import lines, so every body must still hash
-identically and any body that drifted cannot be argued away.
+identically. The later residency repair is replayed exactly on the archived AST:
+the two native reads acquire the canonical build lock and a 30-second deadline.
+Neither the frozen archive nor an arbitrary body-change exemption is needed.
 """
 
 from __future__ import annotations
@@ -83,6 +85,8 @@ _DEFS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 # must be named here so the verbatim-move gate still rejects accidental drift.
 DECLARED_ADDITIONS = {
     "_cachemx": {"Snap.cache_delta", "Snap.cache_delta_or_absent"},
+    # Exact replacement bodies are additionally pinned in the baseline replay.
+    "_cache_partial_helpers": {"_make_network_node", "_network_origin"},
 }
 DECLARED_CHANGES = {
     "_cachemx": {
@@ -98,9 +102,6 @@ DECLARED_CHANGES = {
         # deltas these cases assert.  The keytab beside them keeps its 0600.
         "start_stack",
     },
-    # The helper acquired urlcgi so cache test nodes can exercise the public
-    # brix_cache_urlcgi directive without hand-writing a second configuration.
-    "_cache_partial_helpers": {"make_cache_node"},
 }
 
 
@@ -109,26 +110,123 @@ def _walk_bodies(node, prefix):
         if not isinstance(child, _DEFS):
             continue
         name = prefix + child.name
-        blob = "".join(ast.dump(item, include_attributes=False)
-                       for item in child.body)
+        blob = repr(tuple(_portable_body_ast(item) for item in child.body))
         yield name, hashlib.sha256(blob.encode()).hexdigest()
         if isinstance(child, ast.ClassDef):
             yield from _walk_bodies(child, name + ".")
 
 
+def _portable_body_ast(value):
+    """Keep semantic fields, not Python-version-dependent empty dump fields."""
+    if isinstance(value, ast.AST):
+        return (type(value).__name__, tuple((name, _portable_body_ast(child))
+            for name, child in ast.iter_fields(value) if child is not None and child != []))
+    if isinstance(value, list):
+        return tuple(_portable_body_ast(child) for child in value)
+    return value
+
+
 def _bodies(path: pathlib.Path) -> dict:
     """Hash every def/class body by its position-independent qualified name."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
+    if path.name == "_cache_partial_helpers_flat.py":
+        _replay_residency_lock(tree)
     return dict(_walk_bodies(tree, ""))
 
 
+def _replay_residency_lock(tree):
+    """Replay only the approved lock/deadline repair on the historical body."""
+    for function in tree.body:
+        if isinstance(function, ast.FunctionDef) and function.name == "residency":
+            _upgrade_residency_body(function)
+
+
+def _upgrade_residency_body(function):
+    """Apply the one approved call transformation, retaining the rest of the AST."""
+    for node in ast.walk(function):
+        if isinstance(node, ast.Call):
+            _upgrade_residency_call(node)
+
+
+def _upgrade_residency_call(node):
+    """Leave every other expression and all native argv/keywords untouched."""
+    if ast.unparse(node.func) != "subprocess.run":
+        return
+    node.func = ast.Name(id="client_run", ctx=ast.Load())
+    node.args.insert(0, ast.parse('os.path.join(REPO, "client")', mode="eval").body)
+    node.keywords.append(ast.keyword(arg="timeout", value=ast.Constant(value=30)))
+
+
 def _move_drift(name, before, after):
+    if name == '_cache_partial_helpers':
+        before = _partial_backend_baseline(before)
     additions = DECLARED_ADDITIONS.get(name, set())
     lost = sorted(set(before) - set(after))
     unexpected = sorted(set(after) - set(before) - additions)
-    changed = sorted(k for k in before if before[k] != after[k]
+    changed = sorted(k for k in before.keys() & after.keys() if before[k] != after[k]
                      and k not in DECLARED_CHANGES.get(name, set()))
     return additions, lost, unexpected, changed
+
+
+def _partial_backend_baseline(before):
+    """Pin the reviewed S3/template refactor exactly, not arbitrary body drift.
+
+    HTTP's builder became a common HTTP/S3 builder. The two new bodies use
+    committed templates; backend availability and dispatch enable that native
+    S3 lane. Keep the archive frozen and reject changes to any pinned body.
+    """
+    previous = {
+        '_make_http_node': 'aece5f0a15f0e604fc8c96ea1388fcabfb02e2af88db5972f88c49c25f4a71f8',
+        'backend_available': '282333bfed3d7d065fe257af069ba38c70208bf62af0391a4b8fc0dbf03d568b',
+        'make_cache_node': 'f5cdaa1649c5cf7ba043eb51aea3fec79535d23ff682507e31013ec9ab7fca19',
+    }
+    retained = dict(before)
+    for name, expected in previous.items():
+        assert retained.pop(name, None) == expected, 'frozen archive drift: ' + name
+    return {**retained,
+        '_make_network_node': 'bd660d7ea4f79e6f389dee789eeb6dcb459a1a813dcfd9c2140e49be6a367afc',
+        '_network_origin': 'e8c3b4a33515b6a1ebd9686ae3119e40985a5e5b6ddb1aa026497fde74c55bbc',
+        'backend_available': '7235730e0f6bd7883bf95ab05b5135f60be2e6649c621fc605eb11db641f3aa6',
+        'make_cache_node': '391364a755ef6da56916f8b7af25487d1a353b9c09a33d7a5a2a8054d430e180',
+    }
+
+
+def _partial_body_drift(after, drift):
+    """Inject one independent loss, edit or addition into a private body map."""
+    if drift == 'removed':
+        after.pop('_network_origin')
+    elif drift == 'changed':
+        after['_network_origin'] = 'unreviewed body'
+    elif drift == 'added':
+        after['unreviewed_helper'] = 'new body'
+    return after
+
+
+@pytest.mark.parametrize('drift,expected', [
+    ('none', ([], [], [])), ('removed', (['_network_origin'], [], [])),
+    ('changed', ([], [], ['_network_origin'])), ('added', ([], ['unreviewed_helper'], [])),
+])
+def test_reviewed_partial_backend_bodies_remain_exact(drift, expected):
+    before = _bodies(LEGACY / '_cache_partial_helpers_flat.py')
+    after = _partial_body_drift(_bodies(CACHEMX / '_cache_partial_helpers.py'), drift)
+    additions, lost, unexpected, changed = _move_drift('_cache_partial_helpers', before, after)
+    assert additions == DECLARED_ADDITIONS['_cache_partial_helpers']
+    assert (lost, unexpected, changed) == expected
+
+
+def test_a_missing_moved_definition_reports_loss_not_a_key_error():
+    assert _move_drift('_cachemx', {'missing': 'body'}, {}) == (
+        DECLARED_ADDITIONS['_cachemx'], ['missing'], [], [])
+
+
+def test_fingerprints_ignore_empty_dump_fields_but_preserve_call_semantics():
+    """Python's empty-field formatting must not change a reviewed fingerprint."""
+    complete = ast.parse('authorize()').body[0].value
+    omitted = ast.parse('authorize()').body[0].value
+    del omitted.keywords
+    assert _portable_body_ast(complete) == _portable_body_ast(omitted)
+    changed = ast.parse('bypass()').body[0].value
+    assert _portable_body_ast(complete) != _portable_body_ast(changed)
 
 
 def _suite_env(extra=None):
@@ -296,7 +394,7 @@ def test_every_consumer_of_the_flat_spelling_still_imports_it():
 # error
 # ---------------------------------------------------------------------------
 
-def test_a_missing_client_binary_skips_naming_the_path_it_wanted():
+def test_a_missing_client_binary_skips_naming_the_path_it_wanted(monkeypatch):
     """``_require_binaries`` must say *which* path was absent.
 
     This is the message that would have been the entire visible symptom of the
@@ -313,15 +411,15 @@ def test_a_missing_client_binary_skips_naming_the_path_it_wanted():
     import _cachemx as cx
 
     bogus = str(TESTS / "no-such-tree" / "bin" / "xrdcp")
-    saved = cx.XRDCP
-    cx.XRDCP = bogus
+    # This control only checks filesystem metadata; no binary is launched.
+    # Satisfy the earlier nginx prerequisite independently of installed builds
+    # so its absence cannot mask the missing-client diagnostic under test.
+    monkeypatch.setattr(cx, "NGINX_BIN", sys.executable)
+    monkeypatch.setattr(cx, "XRDCP", bogus)
     ran = False
-    try:
-        with pytest.raises(pytest.skip.Exception) as excinfo:
-            cx._require_binaries()
-        ran = True
-    finally:
-        cx.XRDCP = saved
+    with pytest.raises(pytest.skip.Exception) as excinfo:
+        cx._require_binaries()
+    ran = True
     assert ran, "the skip was not caught here"
     assert bogus in str(excinfo.value), (
         "the skip does not name the path: %s" % excinfo.value)

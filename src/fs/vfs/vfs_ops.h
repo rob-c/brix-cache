@@ -185,6 +185,13 @@ ngx_int_t brix_vfs_setxattr(brix_vfs_ctx_t *ctx, const char *name,
     const void *value, size_t len, int flags);
 ngx_int_t brix_vfs_removexattr(brix_vfs_ctx_t *ctx, const char *name);
 
+/* Portable local lock-store transaction; NGX_DECLINED/ENOTSUP requests the
+ * existing driver/broker xattr path, never an authorization bypass.
+ * NULL expected requires absence; NULL replacement means compare-and-remove. */
+#include "core/compat/lock_record.h"
+ngx_int_t brix_vfs_lock_store_update(brix_vfs_ctx_t *ctx,
+    const brix_lock_record_t *expected, const brix_lock_record_t *replacement);
+
 /* Open-handle (fd) xattr variants: operate on an fd the VFS already opened
  * confined (so confinement travels with the descriptor — no path to re-resolve).
  * For get/list `ctx` is optional, used only to attribute the OP_XATTR

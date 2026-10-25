@@ -151,7 +151,7 @@ class TestWhereTheDefaultIs:
     def test_the_ssi_reader_agrees_with_the_ssi_table(self):
         """brix_ssi_executor_enum spells its values as bare 0 and 1, and ssi.c
         compares against a bare 1.  Nothing links the two, so assert the link."""
-        assert _enum_table("src/protocols/root/stream/module.c",
+        assert _enum_table("src/protocols/root/stream/module_enums.c",
                            "brix_ssi_executor_enum")["prod"] == 1
         assert re.search(r"conf->ssi_cta_executor == 1", _source(
             "src/protocols/ssi/ssi.c")), \
@@ -165,7 +165,7 @@ class TestWhereTheDefaultIs:
 class TestTheTwoStsTables:
     """brix_backend_s3_sts_flavor is declared on the http plane off
     brix_sts_flavor_enum and on the stream plane off a deliberate copy
-    (module.c:69 says so in as many words, because the http table is
+    (module_enums.c owns the stream copy, because the http table is
     file-static).  Two tables for one directive name is a sync hazard with no
     compiler behind it — these are the assertions that stand in for one."""
 

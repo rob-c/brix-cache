@@ -447,15 +447,22 @@ def load_frame(node_stack):
 
 
 @pytest.fixture
-def cms_server_ep(lifecycle):
+def cms_server_ep(lifecycle, request, tmp_path):
     """A dedicated nginx CMS *server* whose frame parser we probe directly.
     Yields the full endpoint (port + prefix, for error-log asserts)."""
+    security_line = ""
+    if getattr(request, "param", None) == "sss":
+        from cms_mesh_lib import gen_sss_keytab
+        keytab = gen_sss_keytab(str(tmp_path / "cms.keytab"))
+        assert keytab is not None, "could not mint the private CMS SSS fixture"
+        security_line = f'brix_cms_server_sss_keytab "{keytab}";'
     return lifecycle.start(NginxInstanceSpec(
         name="lc-cms-wire-server",
         template="nginx_cms_wire_server.conf",
         protocol="root",
         readiness="tcp",
         reason="CMS wire/Pup conformance: server-side frame parser.",
+        template_values={"CMS_SECURITY_LINE": security_line},
     ))
 
 
@@ -472,7 +479,17 @@ def _node_login_dialog(port, login_payload):
     before probing LOAD/AVAIL handling."""
     sock = socket.create_connection((H, port), timeout=8)
     sock.settimeout(8)
-    sock.sendall(_build_frame(0, CMS_RR_LOGIN, 0, login_payload))
+    try:
+        sock.sendall(_build_frame(0, CMS_RR_LOGIN, 0, login_payload))
+        reply = _recv_frame(sock)
+        assert reply is not None and reply[:3] == (0, CMS_RR_LOGIN, 0), \
+            f"missing manager LOGIN acknowledgment: {reply!r}"
+        decoded = _decode_login(reply[3])
+        assert decoded["version"] == CMS_LOGIN_VERSION and decoded["sid"]
+        assert decoded["_tail_pos"] == len(reply[3])
+    except BaseException:
+        sock.close()
+        raise
     return sock
 
 

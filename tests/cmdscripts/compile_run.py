@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 import os
+import shlex
+import shutil
 import subprocess
 
 
@@ -85,32 +87,91 @@ def sanitizer_link_flags(args: list[str]) -> list[str]:
 #: with "implicit declaration of function 'htobe64'" in a header the source
 #: never named.  ./config gets it from nginx's own ``-D_GNU_SOURCE``; a line
 #: assembled here has to say it.
-PLATFORM_HOST_FLAGS = (
-    ["-DBRIX_PLATFORM_HOST=darwin", "-D_DARWIN_C_SOURCE"]
-    if sys.platform == "darwin"
-    else ["-DBRIX_PLATFORM_HOST=linux", "-D_DEFAULT_SOURCE"])
+def platform_host_name(system: str | None = None) -> str:
+    """Select the actual supported host; an unknown Unix is never Linux."""
+    system = sys.platform if system is None else system
+    if system.startswith("freebsd"):
+        return "freebsd"
+    for spelling, host in (("linux", "linux"), ("darwin", "darwin"), ("win32", "windows")):
+        if system == spelling:
+            return host
+    raise ValueError(f"unsupported native PAL host: {system}")
+
+
+PLATFORM_HOST_FLAGS = [f"-DBRIX_PLATFORM_HOST={platform_host_name()}"]
+if sys.platform == "darwin":
+    PLATFORM_HOST_FLAGS.append("-D_DARWIN_C_SOURCE")
+elif sys.platform == "linux":
+    PLATFORM_HOST_FLAGS.append("-D_DEFAULT_SOURCE")
 
 
 #: The PAL host bodies a standalone build must link when it calls ``brix_plat_*``
 #: (the module and client Makefiles compile the whole ``<host>/`` directory; a
 #: hand-rolled test build lists only what it needs).
-PAL_HOST_DIR = f"src/platform/{'darwin' if sys.platform == 'darwin' else 'linux'}"
+PAL_HOST_DIR = f"src/platform/{platform_host_name()}"
 
 
 #: The CLIENT PAL host bodies (client/lib/platform/<host>/), which carry the
 #: client-only verbs: FUSE option support, host mount options, unmount tiers.
-CLIENT_PAL_HOST_DIR = (
-    f"client/lib/platform/{'darwin' if sys.platform == 'darwin' else 'linux'}")
+CLIENT_PAL_HOST_DIR = f"client/lib/platform/{platform_host_name()}"
 
 
 def client_pal_host_sources(*names: str) -> list[str]:
-    """``client/lib/platform/<host>/<name>.c`` for each body the build needs."""
-    return [f"{CLIENT_PAL_HOST_DIR}/{name}.c" for name in names]
+    """Include the shared BSD FUSE owner whenever the client POSIX body is used."""
+    sources = [f"{CLIENT_PAL_HOST_DIR}/{name}.c" for name in names]
+    host = CLIENT_PAL_HOST_DIR.rsplit("/", 1)[-1]
+    if "posix" in names and host in ("darwin", "freebsd"):
+        sources.append("client/lib/platform/fuse_bsd.c")
+    return sources
 
 
 def pal_host_sources(*names: str) -> list[str]:
     """``src/platform/<host>/<name>.c`` for each wrapper the build calls into."""
     return [f"{PAL_HOST_DIR}/{name}.c" for name in names]
+
+
+def confined_open_link_args() -> list[str]:
+    """Link the real confined-open closure without unrelated protocol operations.
+
+    Object-linked publish tests also exercise metadata carry-over. Compile the
+    shared open/resolution kernels with section GC rather than replacing that
+    boundary with a test double or importing every unrelated namespace verb.
+    """
+    discard = '-Wl,-dead_strip' if sys.platform == 'darwin' else '-Wl,--gc-sections'
+    sources = ('resolve_confined_ops.c', 'resolve_confined_helpers.c', 'helpers.c')
+    return ['-ffunction-sections', '-fdata-sections', discard,
+            *(str(REPO_ROOT / 'src/fs/path' / name) for name in sources),
+            str(REPO_ROOT / 'src/core/compat/hex.c'),
+            str(REPO_ROOT / 'tests/c/confined_open_link_stubs.c')]
+
+
+def pal_host_libraries(*names: str) -> list[str]:
+    """Libraries owned by selected PAL wrappers, matching their native build."""
+    if platform_host_name() == 'darwin' and 'posix_wrapper' in names:
+        return ['-framework', 'Security']
+    return []
+
+
+def module_shared_platform_sources() -> list[str]:
+    """Match config: Darwin/Windows's module PAL already owns these symbols."""
+    if platform_host_name() in ('linux', 'freebsd'):
+        return ['shared/cvmfs/platform/platform.c']
+    return []
+
+
+def pal_xattr_sources(system: str | None = None) -> list[str]:
+    """FreeBSD's Linux-shaped xattr names need an out-of-line native adapter.
+
+    Other hosts use libc or inline ABI shims. Standalone CVMFS publishers do
+    not link the client archive that normally supplies the FreeBSD adapter.
+    """
+    host = platform_host_name(system)
+    return [f"src/platform/{host}/xattr_wrapper.c"] if host == "freebsd" else []
+
+
+def pal_xattr_addons(base: Path) -> list[Path]:
+    """Object-linked consumers need the same out-of-line owner as source builds."""
+    return [base / pal_host_addon(Path(source).stem) for source in pal_xattr_sources()]
 
 
 def pal_host_addon(name: str) -> str:
@@ -153,8 +214,54 @@ def weak_undefined_flags(*symbols: str) -> list[str]:
     return [f"-Wl,-U,_{name}" for name in symbols]
 
 
+def openssl_compile_args(args: list[str]) -> list[str]:
+    """Use selected OpenSSL headers and libraries together for standalone units.
+
+    EL8's parallel OpenSSL3 and Homebrew's keg-only SDK cannot be found through
+    bare -lcrypto alone. Preserve missing-metadata failures instead of skipping
+    a compile, and leave units without a crypto dependency untouched.
+    """
+    return _pkg_compile_args(args, {"-lcrypto", "-lssl"}, "openssl")
+
+
+def _pkg_compile_args(args, selected, package):
+    """A selected SDK contributes both headers and libraries, or neither."""
+    if not selected.intersection(args) or shutil.which("pkg-config") is None:
+        return list(args)
+    probe = run(["pkg-config", "--cflags", "--libs", package])
+    if probe.returncode != 0 or not probe.stdout.strip():
+        return list(args)
+    return [argument for argument in args if argument not in selected] + shlex.split(probe.stdout)
+
+
+def library_compile_args(args):
+    """Discover non-system prefixes only for explicitly requested dependencies."""
+    selected = openssl_compile_args(_client_platform_args(args))
+    for library, package in (("-lsqlite3", "sqlite3"), ("-lzstd", "libzstd"),
+                             ("-lcurl", "libcurl"), ("-ljansson", "jansson"),
+                             ("-lxml2", "libxml-2.0"), ("-llz4", "liblz4"),
+                             ("-l:liblz4.so.1", "liblz4"),
+                             ("-lbrotlienc", "libbrotlienc"),
+                             ("-lbrotlidec", "libbrotlidec"),
+                             ("-lbrotlicommon", "libbrotlicommon"),
+                             ("-lepoll-shim", "epoll-shim")):
+        selected = _pkg_compile_args(selected, {library}, package)
+    return selected
+
+
+def _client_platform_args(args, system=None):
+    """FreeBSD client headers require the same epoll-shim SDK as client/Makefile."""
+    system = sys.platform if system is None else system
+    if not system.startswith("freebsd"):
+        return list(args)
+    if not any("client/" in str(argument) for argument in args):
+        return list(args)
+    return [*args, "-lepoll-shim"] if "-lepoll-shim" not in args else list(args)
+
+
 def compile_binary(output: Path, args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess:
-    return run(["gcc", *PLATFORM_HOST_FLAGS, *args, *sanitizer_link_flags(args),
+    compiler = os.environ.get("CC", "cc" if sys.platform.startswith("freebsd") else "gcc")
+    return run([compiler, *PLATFORM_HOST_FLAGS, *library_compile_args(args), *sanitizer_link_flags(args),
                 "tests/c/brix_log_link_stubs.c", "-o", str(output)], cwd=cwd)
 
 

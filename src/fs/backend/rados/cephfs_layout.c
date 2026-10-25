@@ -253,7 +253,7 @@ cephfs_decode_xattrs(cephfs_denc_t *d, cephfs_xattr_t *out, uint32_t max,
     n = cephfs_denc_u32(d);
     if (!cephfs_denc_ok(d)) { return -1; }
     for (i = 0; i < n; i++) {
-        const char *nm, *vl;
+        const char *nm = NULL, *vl = NULL;
         uint32_t    nl = 0, vlen = 0;
 
         cephfs_denc_str(d, &nm, &nl);     /* xattr name (string)            */

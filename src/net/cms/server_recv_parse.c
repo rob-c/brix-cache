@@ -77,6 +77,7 @@ cms_srv_read_string(const u_char **p, const u_char *end,
     len = ngx_brix_cms_get16(*p);
     *p += 2;
     if ((size_t) (end - *p) < len) { *p = end; return 0; }
+    if (len > 0 && (*p)[len - 1] != '\0') { *p = end; return 0; }
     *out = *p;
     *out_len = len;
     *p += len;
@@ -105,23 +106,38 @@ cms_srv_read_string(const u_char **p, const u_char *end,
  * cms_srv_login_scalars — decode the fixed PT_SHORT/PT_INT scalar prologue of
  * the LOGIN payload (Version..sPort), capturing free_mb/util_pct/port on ctx.
  * Splitting the scalar block from the string/paths negotiation keeps each
- * piece independently checkable.  Advances *p past the block; tlv_read_next()
- * self-terminates on a short buffer so missing fields decode as 0.
+ * piece independently checkable. Missing/wrongly typed fields are not zero:
+ * they are an incomplete handshake and must not create a selectable node.
+ * WHAT: Return 1 only for the complete supported scalar schema, otherwise 0.
+ * WHY: A truncated LOGIN must not become a default-port/root-path registration.
+ * HOW: Check every field's expected tag and width, then publish decoded values.
  */
-static void
+static int
 cms_srv_login_scalars(brix_cms_srv_ctx_t *ctx,
     const u_char **p, const u_char *end)
 {
-    /* version */   (void) tlv_read_next(p, end);
-    ctx->login_mode = tlv_read_next(p, end);   /* Mode (kYR_* role bits) */
-    /* holdtime */  (void) tlv_read_next(p, end);
-    /* tSpace  */   (void) tlv_read_next(p, end);
-    ctx->free_mb  = tlv_read_next(p, end);     /* fSpace  */
-    ctx->min_free_mb = tlv_read_next(p, end);  /* mSpace (§2.4 floor) */
-    /* fsNum   */   (void) tlv_read_next(p, end);
-    ctx->util_pct = tlv_read_next(p, end);     /* fsUtil  */
-    ctx->port     = (uint16_t) tlv_read_next(p, end); /* dPort */
-    /* sPort   */   (void) tlv_read_next(p, end);
+    const u_char tags[] = {
+        CMS_PT_SHORT, CMS_PT_INT, CMS_PT_INT, CMS_PT_INT, CMS_PT_INT,
+        CMS_PT_INT, CMS_PT_SHORT, CMS_PT_SHORT, CMS_PT_SHORT, CMS_PT_SHORT
+    };
+    uint32_t values[sizeof(tags)];
+
+    for (size_t index = 0; index < sizeof(tags); index++) {
+        size_t width = tags[index] == CMS_PT_SHORT ? 3 : 5;
+        if ((size_t) (end - *p) < width || **p != tags[index]) {
+            return 0;
+        }
+        values[index] = tlv_read_next(p, end);
+    }
+    if (values[0] != CMS_LOGIN_VERSION) {
+        return 0;
+    }
+    ctx->login_mode = values[1];
+    ctx->free_mb = values[4];
+    ctx->min_free_mb = values[5];
+    ctx->util_pct = values[7];
+    ctx->port = (uint16_t) values[8];
+    return 1;
 }
 
 /*
@@ -262,8 +278,8 @@ int
 cms_srv_parse_login(brix_cms_srv_ctx_t *ctx,
     const u_char *payload, size_t payload_len)
 {
-    const u_char  *p   = payload;
-    const u_char  *end = payload + payload_len;
+    const u_char  *p;
+    const u_char  *end;
     const u_char  *sid;
     const u_char  *paths;
     const u_char  *tok;
@@ -274,14 +290,20 @@ cms_srv_parse_login(brix_cms_srv_ctx_t *ctx,
     u_char        *dst_end;
     size_t         i;
 
-    cms_srv_login_scalars(ctx, &p, end);
+    if (payload == NULL || payload_len > NGX_BRIX_CMS_MAX_FRAME) {
+        return 0;
+    }
+    p = payload;
+    end = payload + payload_len;
+    if (!cms_srv_login_scalars(ctx, &p, end)) {
+        return 0;
+    }
 
     /* SID (ignored) then Paths (extracted); ifList ignored, envCGI scanned
      * for the vnid token below. */
-    (void) cms_srv_read_string(&p, end, &sid, &sid_len);
-    if (!cms_srv_read_string(&p, end, &paths, &paths_len)) {
-        paths = NULL;
-        paths_len = 0;
+    if (!cms_srv_read_string(&p, end, &sid, &sid_len)
+        || !cms_srv_read_string(&p, end, &paths, &paths_len)) {
+        return 0;
     }
 
     /*

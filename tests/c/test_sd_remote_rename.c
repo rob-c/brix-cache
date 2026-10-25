@@ -2,13 +2,15 @@
  * remote-origin (s3://) driver's namespace-mutation slots — mkdir, rename,
  * rmdir (unlink is_dir) and directory-aware stat.
  *
- * S3 has no directories, so BriX models a folder as a zero-byte "path/" marker
- * object (src/fs/backend/remote/sd_remote_meta.c + sd_remote_write.c):
+ * S3 has no directories, so BriX models empty folders with zero-byte "path/"
+ * marker objects and non-empty external folders as implicit prefixes
+ * (src/fs/backend/remote/sd_remote_meta.c + sd_remote_write.c):
  *   - mkdir   PUTs the marker (idempotent: an existing marker is EEXIST);
  *   - rename  copies+deletes (S3 has no atomic move) a file, or an EMPTY
  *             directory marker; a NON-empty directory reports ENOTSUP;
  *   - rmdir   (unlink is_dir=1) DELETEs the "path/" marker, not a file key;
- *   - stat    recognises the marker as a directory and the export root always.
+ *   - stat    recognises marker and implicit-prefix directories, with exact
+ *             objects winning collisions and typed failures preserved.
  *
  * The test builds a real brix_sd_instance_t via brix_sd_remote_create with an
  * injected fake transport. HEAD existence is driven by a registry of "existing"
@@ -35,6 +37,8 @@
 
 static int  g_put_status = 200;   /* status for object/copy/marker PUTs      */
 static int  g_del_status = 200;   /* status for DELETE                       */
+static int  g_head_status;        /* non-zero overrides registry HEAD status */
+static int  g_list_status = 200;  /* status for ListObjectsV2 GET            */
 static int  g_list_child = 0;     /* 1 => the ListObjectsV2 page has a child  */
 static int  g_put_calls, g_del_calls, g_head_calls, g_get_calls;
 static char g_last_method[16];
@@ -123,12 +127,13 @@ fake_request(void *tctx, const char *host, int port, int tls,
 
     if (strcmp(method, "HEAD") == 0) {
         g_head_calls++;
-        resp->status = exist_has(path_and_query) ? 200 : 404;
+        resp->status = g_head_status != 0
+            ? g_head_status : (exist_has(path_and_query) ? 200 : 404);
         return 0;
     }
     if (strcmp(method, "GET") == 0) {          /* ListObjectsV2 */
         g_get_calls++;
-        resp->status = 200;
+        resp->status = g_list_status;
         return 0;
     }
     if (strcmp(method, "DELETE") == 0) {
@@ -207,6 +212,8 @@ reset_capture(void)
     g_last_path[0] = '\0';
     g_copy_source[0] = '\0';
     g_last_body_len = 0;
+    g_head_status = 0;
+    g_list_status = 200;
     g_list_child = 0;
     exist_reset();
     errno = 0;
@@ -214,8 +221,8 @@ reset_capture(void)
 
 /* ---- mkdir --------------------------------------------------------------- */
 
-/* Test 1 (success): mkdir on an absent path PUTs the zero-byte "path/" marker
- * (one existence HEAD that 404s, then one 0-byte PUT to the marker key). */
+/* Test 1 (success): mkdir on an absent path classifies file, marker, and
+ * implicit-prefix absence before PUTting the zero-byte "path/" marker. */
 static void
 test_mkdir_creates_marker(void)
 {
@@ -230,7 +237,8 @@ test_mkdir_creates_marker(void)
     rc = inst->driver->mkdir(inst, "/newdir", 0755);
 
     assert(rc == NGX_OK);
-    assert(g_head_calls == 1);                       /* idempotency probe */
+    assert(g_head_calls == 2);                       /* file + marker probes */
+    assert(g_get_calls == 1);                        /* implicit prefix probe */
     assert(g_put_calls == 1);                        /* the marker PUT */
     assert(strcmp(g_last_method, "PUT") == 0);
     assert(strstr(g_last_path, "/test-bucket/newdir/") != NULL);  /* trailing / */
@@ -256,7 +264,8 @@ test_mkdir_existing_eexist(void)
 
     assert(rc == NGX_ERROR);
     assert(errno == EEXIST);
-    assert(g_head_calls == 1);
+    assert(g_head_calls == 2);                        /* file miss, marker hit */
+    assert(g_get_calls == 0);
     assert(g_put_calls == 0);                         /* never overwrites */
 
     printf("  ok   2: mkdir on existing marker -> EEXIST, no PUT\n");
@@ -323,8 +332,8 @@ test_rename_dir_notsup_and_missing(void)
     brix_sd_remote_destroy(inst);
 }
 
-/* Test 5 (error): noreplace refuses when the destination already exists
- * (POSC/O_EXCL) — a HEAD-before-move existence check, no copy/delete. */
+/* Test 5 (error): noreplace refuses every destination namespace shape
+ * (POSC/O_EXCL) — exact object and implicit directory, with no copy/delete. */
 static void
 test_rename_noreplace_eexist(void)
 {
@@ -342,7 +351,15 @@ test_rename_noreplace_eexist(void)
     assert(errno == EEXIST);
     assert(g_put_calls == 0 && g_del_calls == 0);
 
-    printf("  ok   5: rename noreplace over existing dst -> EEXIST\n");
+    reset_capture();
+    g_list_child = 1;                                /* implicit dst prefix */
+    rc = inst->driver->rename(inst, "/a.txt", "/prefix", 1 /* noreplace */);
+    assert(rc == NGX_ERROR);
+    assert(errno == EEXIST);
+    assert(g_head_calls == 2 && g_get_calls == 1);
+    assert(g_put_calls == 0 && g_del_calls == 0);
+
+    printf("  ok   5: rename noreplace rejects object + implicit dst\n");
     brix_sd_remote_destroy(inst);
 }
 
@@ -389,9 +406,138 @@ test_rmdir_marker_and_dir_stat(void)
     brix_sd_remote_destroy(inst);
 }
 
+/* Test 7 (success + collision): a markerless external prefix stats as a
+ * directory through a max-keys=1 LIST. If the exact object also exists, it
+ * wins deterministically as a regular file and no prefix probe is issued. */
+static void
+test_stat_implicit_prefix_and_exact_object_wins(void)
+{
+    brix_sd_instance_t *inst = build_instance();
+    brix_sd_stat_t      st;
+    ngx_int_t           rc;
+
+    assert(inst != NULL);
+
+    reset_capture();
+    g_list_child = 1;
+    rc = inst->driver->stat(inst, "/olddir", &st);
+    assert(rc == NGX_OK);
+    assert(st.is_dir && (st.mode & S_IFMT) == S_IFDIR);
+    assert(g_head_calls == 2);
+    assert(g_get_calls == 1);
+    assert(strstr(g_last_path, "max-keys=1") != NULL);
+    assert(strstr(g_last_path, "prefix=olddir%2F") != NULL);
+
+    reset_capture();
+    exist_add("/test-bucket/olddir");
+    g_list_child = 1;
+    rc = inst->driver->stat(inst, "/olddir", &st);
+    assert(rc == NGX_OK);
+    assert(st.is_reg && (st.mode & S_IFMT) == S_IFREG);
+    assert(g_head_calls == 1);
+    assert(g_get_calls == 0);
+
+    printf("  ok   7: implicit prefix -> dir; exact object wins collision\n");
+    brix_sd_remote_destroy(inst);
+}
+
+/* Test 8 (error): an absent object, marker, and prefix is ENOENT only after
+ * all three probes report absence. */
+static void
+test_stat_missing_is_enoent(void)
+{
+    brix_sd_instance_t *inst = build_instance();
+    brix_sd_stat_t      st;
+    ngx_int_t           rc;
+
+    assert(inst != NULL);
+
+    reset_capture();
+    rc = inst->driver->stat(inst, "/absent", &st);
+    assert(rc == NGX_ERROR);
+    assert(errno == ENOENT);
+    assert(g_head_calls == 2);
+    assert(g_get_calls == 1);
+
+    printf("  ok   8: absent object + marker + prefix -> ENOENT\n");
+    brix_sd_remote_destroy(inst);
+}
+
+/* Test 9 (security-neg): HEAD or LIST authorization failures remain EACCES;
+ * neither is allowed to fall through to a misleading ENOENT. A generic origin
+ * failure likewise remains EIO. */
+static void
+test_stat_probe_failures_are_typed(void)
+{
+    brix_sd_instance_t *inst = build_instance();
+    brix_sd_stat_t      st;
+    ngx_int_t           rc;
+
+    assert(inst != NULL);
+
+    reset_capture();
+    g_head_status = 403;
+    rc = inst->driver->stat(inst, "/private", &st);
+    assert(rc == NGX_ERROR);
+    assert(errno == EACCES);
+    assert(g_head_calls == 1 && g_get_calls == 0);
+
+    reset_capture();
+    g_list_status = 403;
+    rc = inst->driver->stat(inst, "/private-prefix", &st);
+    assert(rc == NGX_ERROR);
+    assert(errno == EACCES);
+    assert(g_head_calls == 2 && g_get_calls == 1);
+
+    reset_capture();
+    g_list_status = 500;
+    rc = inst->driver->stat(inst, "/broken-prefix", &st);
+    assert(rc == NGX_ERROR);
+    assert(errno == EIO);
+
+    printf("  ok   9: HEAD/LIST denial and origin errors stay typed\n");
+    brix_sd_remote_destroy(inst);
+}
+
+/* Test 10 (corner): mkdir refuses an existing implicit directory rather than
+ * manufacturing a marker, and a denied existence probe prevents its PUT. */
+static void
+test_mkdir_implicit_and_denied_refused(void)
+{
+    brix_sd_instance_t *inst = build_instance();
+    ngx_int_t           rc;
+
+    assert(inst != NULL);
+
+    reset_capture();
+    g_list_child = 1;
+    rc = inst->driver->mkdir(inst, "/olddir", 0755);
+    assert(rc == NGX_ERROR);
+    assert(errno == EEXIST);
+    assert(g_put_calls == 0);
+
+    reset_capture();
+    exist_add("/test-bucket/file");
+    rc = inst->driver->mkdir(inst, "/file", 0755);
+    assert(rc == NGX_ERROR);
+    assert(errno == EEXIST);
+    assert(g_head_calls == 1 && g_get_calls == 0);
+    assert(g_put_calls == 0);
+
+    reset_capture();
+    g_head_status = 403;
+    rc = inst->driver->mkdir(inst, "/private", 0755);
+    assert(rc == NGX_ERROR);
+    assert(errno == EACCES);
+    assert(g_put_calls == 0);
+
+    printf("  ok  10: mkdir rejects implicit/exact paths and denied probe\n");
+    brix_sd_remote_destroy(inst);
+}
+
 /* ---- security-neg: fallback_deny credential ----------------------------- */
 
-/* Test 7 (security-neg): a fallback_deny credential of a kind this S3 backend
+/* Test 11 (security-neg): a fallback_deny credential of a kind this S3 backend
  * cannot use (no s3_ak/s3_sk) is refused with EACCES before any origin contact
  * — the cred slot must never silently fall back to the shared service key. */
 static void
@@ -421,7 +567,7 @@ test_cred_deny_refuses(void)
     assert(errno == EACCES);
     assert(g_head_calls == 0 && g_put_calls == 0 && g_del_calls == 0);
 
-    printf("  ok   7: fallback_deny cred -> EACCES (no wire I/O)\n");
+    printf("  ok  11: fallback_deny cred -> EACCES (no wire I/O)\n");
     brix_sd_remote_destroy(inst);
 }
 
@@ -435,6 +581,10 @@ main(void)
     test_rename_dir_notsup_and_missing();
     test_rename_noreplace_eexist();
     test_rmdir_marker_and_dir_stat();
+    test_stat_implicit_prefix_and_exact_object_wins();
+    test_stat_missing_is_enoent();
+    test_stat_probe_failures_are_typed();
+    test_mkdir_implicit_and_denied_refused();
     test_cred_deny_refuses();
     printf("test_sd_remote_rename: ALL PASS\n");
     return 0;

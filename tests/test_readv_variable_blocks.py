@@ -25,8 +25,8 @@ import pytest
 from settings import HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 
-# Reuse the proven static-link probes from the libbrix test.
-from test_libbrix import _codec_link_libs, _krb5_link_libs, _uring_link_libs
+# Reuse libbrix's generated downstream dependency contract.
+from test_libbrix import _in_tree_static_private_flags
 
 def _check_test_variable_and_capped_blocks_1(r):
     assert r.returncode == 0, f"demo failed: {r.stderr}\n{r.stdout}"
@@ -78,8 +78,7 @@ def demo_bin(tmp_path_factory):
            # by libbrix.  Repeat libbrix after it for single-pass static
            # linkers, matching client/Makefile's documented BRIX_LIBS order.
            DEMO_SRC, LIBXRDC, LIBXRDPROTO, LIBXRDC,
-           "-lssl", "-lcrypto", "-lz",
-           *_codec_link_libs(), *_krb5_link_libs(), *_uring_link_libs(),
+           *_in_tree_static_private_flags(),
            "-lpthread", "-ldl", "-o", out]
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
     if proc.returncode != 0:

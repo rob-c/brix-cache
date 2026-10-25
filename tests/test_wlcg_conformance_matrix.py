@@ -34,6 +34,10 @@ def fleet(tmp_path_factory):
     else:
         root = x509forge.build_all(tmp_path_factory.mktemp("matrix"),
                                    ALL_CLAUSES)
+    errors = root / "build_errors.tsv"
+    assert not errors.exists(), errors.read_text()
+    rows = json.loads((root / "manifest.json").read_text())
+    assert sorted(row["id"] for row in rows) == sorted(clause.id for clause in ALL_CLAUSES)
     f = ConformanceFleet(root)
     f.start()
     yield root, f

@@ -24,12 +24,29 @@
 #include "fs/backend/sd.h"   /* brix_sd_obj_t + driver vtable (ngx-free fallback) */
 
 #include <stddef.h>
+#include <limits.h>
 #include <sys/types.h>   /* ssize_t, off_t */
 
 /*
  * Convention: all int-returning verbs return 0 on success and -1 on error with
  * errno set. This is value-compatible with the server's NGX_OK/NGX_ERROR (0/-1).
  */
+
+/* WHAT: Refuse an unrepresentable signed file extent before backend dispatch.
+ * WHY: Besides C overflow, an out-of-range native write can raise SIGXFSZ and
+ * kill a worker. HOW: Compare unsigned length with the remaining off_t range;
+ * never form off + len first. Shared by client/core I/O and server writers. */
+static inline int
+xvfs_check_extent(off_t off, size_t len)
+{
+    const uintmax_t maximum = ((uintmax_t) 1 << (sizeof(off_t) * CHAR_BIT - 1)) - 1;
+
+    if (off < 0 || (uintmax_t) len > maximum - (uintmax_t) off) {
+        errno = EINVAL;
+        return -1;
+    }
+    return 0;
+}
 
 /*
  * Full read: loop (EINTR-retried) until `len` bytes are read or EOF. A short

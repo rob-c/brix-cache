@@ -35,6 +35,7 @@
 
 int __real_fsync(int fd);
 
+
 static int    g_dir_fail_errno;      /* force DIRECTORY fsyncs to fail with this */
 static int    g_dir_count;
 static ino_t  g_dir_ino[16];
@@ -56,6 +57,7 @@ __wrap_fsync(int fd)
     }
     return __real_fsync(fd);
 }
+
 
 /* ---- cross-TU spies ----------------------------------------------------- */
 
@@ -101,9 +103,6 @@ int brix_imp_setxattr(const char *p, const char *n, const void *v, size_t z, int
 { (void) p; (void) n; (void) v; (void) z; (void) f; abort(); }
 int brix_imp_removexattr(const char *p, const char *n)
 { (void) p; (void) n; abort(); }
-int brix_resolved_relative_to_root(ngx_log_t *l, const char *r,
-    const char *p, char *o, size_t z)
-{ (void) l; (void) r; (void) p; (void) o; (void) z; abort(); }
 
 int
 brix_chmod_confined_canon(ngx_log_t *log, const char *root_canon,
@@ -173,8 +172,13 @@ main(void)
     rootfd = brix_beneath_open_root(g_root);
     assert(rootfd >= 0);
     errno = 0;
+#ifdef TEST_DARWIN_FSYNC
+    /* Darwin's PAL opens a readable directory; Linux has path-only handles. */
+    assert(__real_fsync(rootfd) == 0);
+#else
     assert(__real_fsync(rootfd) == -1);
     assert(errno == EBADF);
+#endif
     close(rootfd);
 
     /* 2. SUCCESS: one publish → exactly one directory fsync, on the PARENT of

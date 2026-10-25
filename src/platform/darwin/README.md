@@ -9,7 +9,7 @@ live in [platform_api.h](../platform_api.h) and [platform.h](../platform.h).
 | --- | --- |
 | [host.h](host.h), [host_endian.h](host_endian.h), [host_posix.h](host_posix.h), [host_api.h](host_api.h) | The Darwin answer to the PAL interface: platform flags and `BRIX_HAS_*` gates, OSByteOrder natives plus the `<endian.h>` names, the Linux-shaped xattr calls / missing constants / openat2 ABI, and the Apple Silicon extensions (ARM64). |
 | [host_info.c](host_info.c) | Host identity plus CMS sysload: CPU/load (sysctl/getloadavg), memory and paging (Mach host statistics), and 64-bit non-loopback `NET_RT_IFLIST2` network counters. |
-| [posix_wrapper.c](posix_wrapper.c) | macOS descriptor, sendfile, randomness, xattr, and process adapters, with explicit unsupported-operation returns. |
+| [posix_wrapper.c](posix_wrapper.c) | macOS descriptor, sendfile, randomness, xattr and native `TCP_CONNECTION_INFO` byte/RTT adapters, with explicit unsupported-operation returns. |
 | [path_wrapper.c](path_wrapper.c) | The openat2(2) emulation (a component walk on an fd stack giving the RESOLVE_BENEATH / IN_ROOT / NO_SYMLINKS verdicts), the confined stat, renameatx_np and the birth time. |
 | [process_wrapper.c](process_wrapper.c) | Wake-descriptor pipes, accept + FD_CLOEXEC, LOCAL_PEERCRED, close-from loops, getgrouplist, `_NSGetExecutablePath` and `kern.bootsessionuuid`; libc-only, also linked by the native client. |
 | [storage_wrapper.c](storage_wrapper.c) | DKIOCGETBLOCK* size, bounded positional copy, APFS preallocation, preadv, write(2) for O_APPEND handles, pipe + fcntl; libc-only, also linked by the native client. Descriptor sealing remains unavailable. |
@@ -58,3 +58,17 @@ therefore rejects `brix_prepare_command`, `brix_frm_stagecmd`,
 An environment-selected FRM exec adapter fails startup with `ENOTSUP`, while
 request-selected `oidc-agent` and `token-exchange` delegation fail explicitly.
 In-process FRM library adapters and network/storage features remain available.
+
+The sendfile adapter respects the caller's byte count and preserves partial
+progress on interrupt/backpressure. `brix_plat_execvpe` uses PATH-searching
+`posix_spawnp` with `POSIX_SPAWN_SETEXEC`, preserving process-replacement
+semantics; this does not bypass the worker's deny-exec sandbox. A single-fd
+Linux eventfd is unavailable (`ENOTSUP`); portable wakeups must use the paired
+`brix_plat_wakefd_*` interface instead of a read-only, leaking pipe imitation.
+
+Firefly socket usage reads Darwin's real TCP transmit/receive byte counters and
+converts its millisecond RTT to microseconds through `brix_plat_tcp_stats`.
+Unavailable or invalid socket queries fail with zeroed outputs. Descriptor
+interval closure uses bounded snapshots of native open descriptors (without
+post-fork allocation), with a portable scan fallback if a complete interval
+cannot be proved closed. It never uses a guessed Linux syscall number.

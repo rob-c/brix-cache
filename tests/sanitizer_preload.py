@@ -17,6 +17,34 @@ from __future__ import annotations
 import functools
 import os
 import subprocess
+import tempfile
+from pathlib import Path
+
+
+def _leak_runtime_supported() -> bool:
+    """Probe the selected runtime, without downgrading unexpected failures.
+
+    Apple ARM64's ASan aborts for detect_leaks=1, and container root does not
+    necessarily own CAP_SYS_PTRACE. An empty instrumented program distinguishes
+    those environment limitations from leaks in a real test program.
+    """
+    with tempfile.TemporaryDirectory(prefix="brix-lsan-probe-") as directory:
+        binary = str(Path(directory) / "probe")
+        try:
+            built = subprocess.run(
+                [os.environ.get("CC", "cc"), "-x", "c", "-fsanitize=address",
+                 "-o", binary, "-"], input="int main(void) { return 0; }\n",
+                capture_output=True, text=True, timeout=30)
+            if built.returncode != 0:
+                return True  # Actual compile tests must still report failures.
+            checked = subprocess.run(
+                [binary], env={**os.environ, "ASAN_OPTIONS": "detect_leaks=1"},
+                capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            return True  # Do not misclassify unrelated failures as unsupported.
+    limitations = ("detect_leaks is not supported on this platform",
+                   "LeakSanitizer has encountered a fatal error")
+    return not any(message in checked.stderr for message in limitations)
 
 
 @functools.lru_cache(maxsize=1)
@@ -28,8 +56,11 @@ def leak_detection_available() -> bool:
     exit with "LeakSanitizer has encountered a fatal error ... does not work
     under ptrace".  That turns EVERY instrumented binary's exit into a spurious
     non-zero, which is indistinguishable from the failure the test is looking
-    for.  Root keeps CAP_SYS_PTRACE whatever the scope says.
+    for. Runtime support is checked first: container root may lack CAP_SYS_PTRACE,
+    and some ASan runtimes do not implement leak detection at all.
     """
+    if not _leak_runtime_supported():
+        return False
     if os.geteuid() == 0:
         return True
     try:

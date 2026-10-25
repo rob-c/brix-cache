@@ -22,6 +22,8 @@ import pytest
 
 from cmdscripts.compile_run import PLATFORM_HOST_FLAGS, pal_host_sources
 
+pytestmark = pytest.mark.timeout(180)
+
 
 def _guard_capture_bin_1(cc):
     if cc is None:

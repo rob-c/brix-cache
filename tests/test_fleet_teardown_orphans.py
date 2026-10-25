@@ -18,6 +18,7 @@ Coverage:
     by argv or by inherited environment, and must not reap it.
 """
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -26,6 +27,10 @@ import time
 import pytest
 
 import fleet_orphans as FO
+
+# Real host-wide ownership snapshots must not race unrelated test exec/fork
+# activity. Every case still creates and checks its competing private actors.
+pytestmark = pytest.mark.serial
 
 
 def _wait_until(predicate, timeout=5.0, interval=0.05):
@@ -41,7 +46,12 @@ def _wait_until(predicate, timeout=5.0, interval=0.05):
 def _py_copy(directory, name="nginx"):
     """A copy of the python interpreter named <name> (comm == <name>)."""
     exe = os.path.join(directory, name)
-    shutil.copy(os.path.realpath(sys.executable), exe)
+    interpreter = Path(sys.executable).resolve()
+    if sys.platform == "darwin" and hasattr(sys, "_framework"):
+        # Homebrew's bin/python is a launcher that re-execs Python.app,
+        # discarding the copied daemon identity. Copy the actual interpreter.
+        interpreter = (Path(sys.base_prefix) / "Resources/Python.app/Contents/MacOS/Python")
+    shutil.copy(interpreter, exe)
     os.chmod(exe, 0o755)
     return exe
 
@@ -84,11 +94,56 @@ def _spawn_env(py_exe, root):
 
 
 def _reap(*procs):
+    """Signal only our Popen children, then confirm exit before ownership scans."""
     for proc in procs:
         try:
             proc.kill()
         except OSError:
             pass
+    for proc in procs:
+        proc.wait(timeout=5)
+
+
+def test_fixture_reap_waits_for_every_owned_child():
+    """Every supplied child is signalled before any wait; no process scan occurs."""
+    from types import SimpleNamespace
+
+    events = []
+    children = [SimpleNamespace(
+        kill=lambda label=label: events.append(('kill', label)),
+        wait=lambda timeout, label=label: events.append(('wait', label, timeout)),
+    ) for label in ('first', 'second')]
+    _reap(*children)
+    assert events == [('kill', 'first'), ('kill', 'second'),
+                      ('wait', 'first', 5), ('wait', 'second', 5)]
+
+
+def test_fixture_reap_confirms_an_already_exited_child():
+    """A concurrent exit still gets reaped, without retrying a PID-based signal."""
+    from types import SimpleNamespace
+
+    waits = []
+
+    def exited():
+        raise ProcessLookupError('fixture already exited')
+
+    _reap(SimpleNamespace(kill=exited, wait=lambda timeout: waits.append(timeout)))
+    assert waits == [5]
+
+
+def test_fixture_reap_timeout_remains_an_error():
+    """A child that never exits cannot be treated as a completed cleanup."""
+    from types import SimpleNamespace
+
+    verdict = subprocess.TimeoutExpired('owned-fixture', 5)
+
+    def stalled(timeout):
+        assert timeout == 5
+        raise verdict
+
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        _reap(SimpleNamespace(kill=lambda: None, wait=stalled))
+    assert caught.value is verdict
 
 
 def _at_least_two_orphans(marker):
@@ -139,10 +194,7 @@ def test_detects_and_reaps_own_argv_process(marker_dir):
         assert survivors == [], f"reap left survivors: {survivors}"
         assert _wait_until(lambda: proc.poll() is not None, timeout=3.0) is not None
     finally:
-        try:
-            proc.kill()
-        except OSError:
-            pass
+        _reap(proc)
 
 
 def test_detects_worker_via_parent_argv(marker_dir):
@@ -155,10 +207,7 @@ def test_detects_worker_via_parent_argv(marker_dir):
         _assert_master_worker(found, marker_dir)
         _assert_reaped(marker_dir)
     finally:
-        try:
-            proc.kill()
-        except OSError:
-            pass
+        _reap(proc)
 
 
 def test_isolation_ignores_unmarked_and_other_roots(marker_dir):
@@ -172,10 +221,7 @@ def test_isolation_ignores_unmarked_and_other_roots(marker_dir):
         assert FO.find_orphans(other) == [], (
             "detector leaked across roots — matched an unrelated marker")
     finally:
-        try:
-            proc.kill()
-        except OSError:
-            pass
+        _reap(proc)
         FO.kill_orphans(marker_dir)
 
 

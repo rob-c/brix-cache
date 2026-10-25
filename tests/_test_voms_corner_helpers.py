@@ -31,6 +31,8 @@ from dataclasses import dataclass, field
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
+from brix_suite.security.x509.primitives import Cert, make_eec
+from cmdscripts.compile_run import openssl_compile_args
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FAKE = os.path.join(REPO, "utils", "voms_proxy_fake.py")
@@ -40,7 +42,6 @@ BASE_DN = "/DC=test/DC=corner"
 SIGNERS = ("rsa", "ec", "ed25519", "expired", "revoked", "rogue")
 _KEY_KIND = {"rsa": "rsa", "ec": "ec", "ed25519": "ed25519", "expired": "rsa",
              "revoked": "rsa", "rogue": "rsa"}
-_EXPIRED_WINDOW = ("-not_before", "20200101000000Z", "-not_after", "20200102000000Z")
 
 
 def _run(argv, **kw):
@@ -110,17 +111,41 @@ def _write_ca_req_conf(root: str) -> None:
                  "keyUsage = critical,keyCertSign,cRLSign\nsubjectKeyIdentifier = hash\n")
 
 
-def _issue(pki: Pki, name: str, kind: str, cn: str, *extra) -> None:
+def _issue_expired(pki: Pki, key: str, cert: str, cn: str) -> None:
+    """Forge real expiry without newer OpenSSL x509 date-setting CLI flags."""
+    with open(pki.ca_cert, "rb") as fh:
+        ca = x509.load_pem_x509_certificate(fh.read())
+    with open(pki.ca_key, "rb") as fh:
+        ca_key = serialization.load_pem_private_key(fh.read(), password=None)
+    issued = make_eec(
+        Cert(ca, ca_key), f"{BASE_DN}/CN={cn}",
+        # The forge uses a fixed 2026 epoch: these dates are already past in 2016.
+        not_before_days=-3650, not_after_days=-3649,
+        extra_ext=[(x509.AuthorityKeyIdentifier.from_issuer_public_key(
+            ca_key.public_key()), False)],
+    )
+    with open(key, "wb") as fh:
+        fh.write(issued.key_pem)
+    with open(cert, "wb") as fh:
+        fh.write(issued.pem)
+
+
+def _issue(pki: Pki, name: str, kind: str, cn: str) -> None:
     """Key + CSR + CA-signed certificate for signer `name` (or the user)."""
     key = os.path.join(pki.root, f"{name}.key")
     cert = os.path.join(pki.root, f"{name}.pem")
+    if name == "expired":
+        _issue_expired(pki, key, cert, cn)
+        pki.certs[name] = cert
+        pki.keys[name] = key
+        return
     csr = os.path.join(pki.root, f"{name}.csr")
     ext = os.path.join(pki.root, "ee_ext.conf")
     _gen_key(key, kind)
     _openssl("req", "-new", "-key", key, "-subj", f"{BASE_DN}/CN={cn}", "-out", csr)
     _openssl("x509", "-req", "-in", csr, "-CA", pki.ca_cert, "-CAkey", pki.ca_key,
              "-CAcreateserial", "-out", cert, "-days", "30", "-extensions", "v3",
-             "-extfile", ext, *extra)
+             "-extfile", ext)
     pki.certs[name] = cert
     pki.keys[name] = key
 
@@ -177,8 +202,7 @@ def make_pki(root: str) -> Pki:
     _write_ext_conf(os.path.join(root, "ee_ext.conf"))
     _issue_user(pki)
     for name in SIGNERS:
-        extra = _EXPIRED_WINDOW if name == "expired" else ()
-        _issue(pki, name, _KEY_KIND[name], f"voms-{name}.test.local", *extra)
+        _issue(pki, name, _KEY_KIND[name], f"voms-{name}.test.local")
     _write_crl(pki, pki.certs["revoked"])
     return pki
 
@@ -218,18 +242,13 @@ def make_vomsdir(pki: Pki) -> str:
 # harness
 # ---------------------------------------------------------------------------
 
-def _openssl_flags() -> list[str]:
-    prefix = "/usr/local/opt/openssl@3"
-    if os.path.isdir(os.path.join(prefix, "include")):
-        return [f"-I{prefix}/include", f"-L{prefix}/lib"]
-    return []
-
-
 def build_harness(out: str) -> str:
     """Compile shared/voms/voms_ac_check.c (the contract in the brief)."""
     srcs = [os.path.join(REPO, "shared", "voms", n) for n in ENGINE_SRCS]
-    _run(["cc", "-std=c11", "-D_GNU_SOURCE", "-Wall", "-Wextra", "-Werror",
-          "-I", os.path.join(REPO, "shared"), *_openssl_flags(), *srcs, "-lcrypto", "-o", out])
+    _run(openssl_compile_args([
+        "cc", "-std=c11", "-D_GNU_SOURCE", "-Wall", "-Wextra", "-Werror",
+        "-I", os.path.join(REPO, "shared"), "-I", os.path.join(REPO, "src"),
+        *srcs, "-lcrypto", "-o", out]))
     return out
 
 

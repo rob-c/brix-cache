@@ -195,6 +195,27 @@ def test_nginx_getattr_size_matches(data_file):
         assert st.st_size == want and not os.path.isdir(os.path.join(mnt, name))
 
 
+def test_nginx_http_identity_is_nonzero_and_stable(data_file):
+    """Unknown WebDAV ids use mount-local identity, not an unused inode zero."""
+    _require(SERVER_HOST, NGINX_HTTP_WEBDAV_PORT)
+    name, _ = data_file
+    with _mount(_nginx_http()) as mnt:
+        first = os.stat(os.path.join(mnt, name))
+        second = os.stat(os.path.join(mnt, name))
+        assert first.st_ino != 0 and first.st_ino == second.st_ino
+        assert name in os.listdir(mnt)
+
+
+def test_nginx_http_missing_object_is_not_an_identity_alias(data_file):
+    """An existing inode may never make a different missing path readable."""
+    _require(SERVER_HOST, NGINX_HTTP_WEBDAV_PORT)
+    name, _ = data_file
+    with _mount(_nginx_http()) as mnt:
+        assert os.stat(os.path.join(mnt, name)).st_size == len(_PAYLOAD)
+        with pytest.raises(FileNotFoundError):
+            os.stat(os.path.join(mnt, name + '.absent'))
+
+
 def test_nginx_cross_protocol_identical(data_file):
     """root:// and http/WebDAV return byte-identical content (comparison premise)."""
     _require(SERVER_HOST, NGINX_ANON_PORT)

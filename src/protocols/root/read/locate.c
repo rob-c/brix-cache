@@ -262,9 +262,10 @@ locate_check_data_server(locate_ctx_t *lc, ngx_int_t *out_rc)
  *       under) rather than the IP literal.
  * WHY:  This is the kXR_ok body a data server returns for its own file — the
  *       leading 'S' marks a server; the access char advertises read/write.
- * HOW:  Pure formatting over conf and c->local_sockaddr (one cached gethostname
- *       for the prefname path). Returns the snprintf length; the caller frames it
- *       as len+1 for brix_send_ok, exactly as the original inline code.
+ * HOW:  1. Materialize the accepted connection's actual local address through
+ *       nginx (a wildcard listener is not an advertised endpoint). 2. Format
+ *       its address or preferred identity. Return -1 on inspection failure;
+ *       otherwise return snprintf's length for the caller's framing checks.
  */
 static int
 locate_format_local(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
@@ -275,6 +276,9 @@ locate_format_local(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     struct sockaddr_in6 *sin6;
     uint16_t             port;
 
+    if (ngx_connection_local_sockaddr(c, NULL, 0) != NGX_OK) {
+        return -1;
+    }
     access_char = conf->common.allow_write ? 'w' : 'r';
 
     /* §2.18 kXR_prefname: emit the server's advertised name instead of the
@@ -330,13 +334,41 @@ locate_format_local(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     return snprintf(loc_buf, loc_sz, "S%clocalhost", access_char);
 }
 
+/* ---- Send a validated local locate endpoint ----
+ * WHAT: Send one bounded local endpoint or a defined I/O error.
+ * WHY: Direct and resumed CMS answers must share address and framing checks.
+ * HOW: 1. Inspect/format. 2. Refuse failed or truncated output. 3. Book and send.
+ */
+static ngx_int_t
+locate_send_local(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, int prefname, const char *path)
+{
+    char loc_buf[256];
+    int loc_len = locate_format_local(conf, c, prefname, loc_buf, sizeof(loc_buf));
+
+    if (loc_len < 0 || (size_t) loc_len >= sizeof(loc_buf)) {
+        brix_log_access(ctx, c, "LOCATE", path, NULL, 0, 0,
+                        "local endpoint unavailable", 0);
+        BRIX_OP_ERR(ctx, BRIX_OP_LOCATE);
+        return brix_send_error(ctx, c, kXR_IOError, "local endpoint unavailable");
+    }
+    if (path != NULL) {
+        brix_log_access(ctx, c, "LOCATE", path, loc_buf, 1, 0, NULL, 0);
+    }
+    BRIX_OP_OK(ctx, BRIX_OP_LOCATE);
+    return brix_send_ok(ctx, c, loc_buf, (uint32_t) (loc_len + 1));
+}
+
+/* ---- Resolve a locate request ----
+ * WHAT: Answer from a manager, map or the authorized local storage endpoint.
+ * WHY: Namespace and authorization precede local endpoint disclosure.
+ * HOW: 1. Resolve. 2. Try manager routes. 3. Check storage and send locally.
+ */
 ngx_int_t
 brix_handle_locate(brix_ctx_t *ctx, ngx_connection_t *c,
                      ngx_stream_brix_srv_conf_t *conf)
 {
     char         reqpath_buf[BRIX_MAX_PATH + 1];
-    char         loc_buf[256];
-    int          loc_len;
     ngx_int_t    out_rc = NGX_OK;
     locate_ctx_t lc = {
         .ctx = ctx,
@@ -363,12 +395,7 @@ brix_handle_locate(brix_ctx_t *ctx, ngx_connection_t *c,
         return out_rc;
     }
 
-    loc_len = locate_format_local(conf, c, lc.prefname, loc_buf, sizeof(loc_buf));
-
-    brix_log_access(ctx, c, "LOCATE", reqpath_buf, loc_buf, 1, 0, NULL, 0);
-    BRIX_OP_OK(ctx, BRIX_OP_LOCATE);
-
-    return brix_send_ok(ctx, c, loc_buf, (uint32_t) (loc_len + 1));
+    return locate_send_local(ctx, c, conf, lc.prefname, reqpath_buf);
 }
 
 /* brix_locate_answer_self — see locate.h.  Reads kXR_prefname straight from
@@ -378,14 +405,8 @@ ngx_int_t
 brix_locate_answer_self(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
-    char      loc_buf[256];
-    int       loc_len;
     uint16_t  options;
 
     options = (uint16_t) ((ctx->recv.hdr_buf[4] << 8) | ctx->recv.hdr_buf[5]);
-    loc_len = locate_format_local(conf, c, (options & kXR_prefname) != 0,
-                                  loc_buf, sizeof(loc_buf));
-    BRIX_OP_OK(ctx, BRIX_OP_LOCATE);
-
-    return brix_send_ok(ctx, c, loc_buf, (uint32_t) (loc_len + 1));
+    return locate_send_local(ctx, c, conf, (options & kXR_prefname) != 0, NULL);
 }

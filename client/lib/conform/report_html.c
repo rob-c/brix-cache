@@ -1,5 +1,6 @@
 /* Phase-118 standalone HTML report renderer. */
 #include "conform/report_internal.h"
+#include "conform/report_fields.h"
 
 /* WHAT: Escape untrusted text for an HTML text node. WHY: Targets and remote
  * evidence must never become active report markup. HOW: Encode five metachars. */
@@ -39,13 +40,20 @@ brix_conform_report_html(FILE *out, const brix_conform_report_meta *meta,
         "code{white-space:pre-wrap}</style></head><body>"
         "<h1>BriX protocol-conformance report</h1><dl><dt>Target</dt><dd>", out);
     html_text(out, meta->target);
-    fputs("</dd><dt>Profile</dt><dd>", out); html_text(out, meta->profile);
-    fputs("</dd><dt>Shape</dt><dd>", out); html_text(out, meta->shape);
-    fputs("</dd><dt>Budget</dt><dd>", out); html_text(out, meta->budget);
-    fputs("</dd><dt>Reference</dt><dd>", out); html_text(out, meta->reference);
-    fputs("</dd><dt>Run key</dt><dd><code>", out); html_text(out, meta->run_key);
-    fputs("</code></dd><dt>Timestamp</dt><dd>", out); html_text(out, meta->timestamp);
-    fputs("</dd><dt>Tool version</dt><dd>", out); html_text(out, meta->tool_version);
+    {
+        const brix_conform_report_field fields[] = {
+            { "</dd><dt>Profile</dt><dd>", meta->profile },
+            { "</dd><dt>Shape</dt><dd>", meta->shape },
+            { "</dd><dt>Budget</dt><dd>", meta->budget },
+            { "</dd><dt>Reference</dt><dd>", meta->reference },
+            { "</dd><dt>Run key</dt><dd><code>", meta->run_key },
+            { "</code></dd><dt>Timestamp</dt><dd>", meta->timestamp },
+            { "</dd><dt>Tool version</dt><dd>", meta->tool_version },
+        };
+
+        brix_conform_report_fields(out, fields,
+            sizeof(fields) / sizeof(fields[0]), html_text);
+    }
     for (index = 0; index < meta->negative_verify_count; index++) {
         fputs("</dd><dt>Negative verification</dt><dd>", out);
         html_text(out, meta->negative_verify[index]);

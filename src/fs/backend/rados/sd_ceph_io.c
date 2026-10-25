@@ -518,12 +518,14 @@ sd_ceph_enumerate(brix_sd_instance_t *inst, int want_stat,
 
 /* sd_ceph_truncate_path_io — path-native truncate on a caller-chosen ioctx.
  * WHAT: resize the object backing `path` to `len`, with no open handle involved.
- * WHY: RADOS gives truncate as a plain object op (rados_trunc), so the VFS's
+ * WHY: RADOS gives truncate as an object op, so the VFS's
  *   open+ftruncate+close fallback would cost two extra round trips and would need
  *   write access to a file the caller only wants shortened. The ioctx is a
  *   parameter because the identity a RADOS op asserts at the OSDs is the ioctx it
  *   runs on and nothing else — see sd_ceph_ns_cred.c.
- * HOW: build the export-prefixed key, then one rados_trunc; a negative return is
+ * HOW: Build the export-prefixed key, then atomically assert existence and
+ *   truncate in one compound write. Bare rados_trunc creates absent objects;
+ *   a separate stat would race a concurrent delete. Negative returns are
  *   translated to errno by sd_ceph_set_errno. Striped files are out of scope: the
  *   flat driver stores one object per file, and a striper layout would need the
  *   tail stripes removed too, which rados_trunc cannot express.
@@ -533,6 +535,8 @@ sd_ceph_truncate_path_io(sd_ceph_state_t *st, rados_ioctx_t io, const char *path
     off_t len)
 {
     char oid[1024];
+    rados_write_op_t operation;
+    int result;
 
     if (len < 0) {
         errno = EINVAL;
@@ -541,7 +545,16 @@ sd_ceph_truncate_path_io(sd_ceph_state_t *st, rados_ioctx_t io, const char *path
     if (sd_ceph_key(st->key_prefix, path, oid, sizeof(oid)) != 0) {
         return NGX_ERROR;
     }
-    if (sd_ceph_set_errno(rados_trunc(io, oid, (uint64_t) len))) {
+    operation = rados_create_write_op();
+    if (operation == NULL) {
+        errno = ENOMEM;
+        return NGX_ERROR;
+    }
+    rados_write_op_assert_exists(operation);
+    rados_write_op_truncate(operation, (uint64_t) len);
+    result = rados_write_op_operate(operation, io, oid, NULL, 0);
+    rados_release_write_op(operation);
+    if (sd_ceph_set_errno(result)) {
         return NGX_ERROR;
     }
     return NGX_OK;

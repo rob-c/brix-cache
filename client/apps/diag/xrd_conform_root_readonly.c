@@ -8,7 +8,7 @@
  *      execute one explicitly selected clause, and distinguish EROFS from
  *      authorization, missing-object, and unexpectedly successful mutation.
  */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
 typedef void (*readonly_probe_fn)(xrd_conform_execution *, brix_conn *);
 
@@ -187,6 +187,83 @@ probe_readonly_pgwrite(xrd_conform_execution *execution, brix_conn *connection)
     grade_readonly(execution, "PGW-013", rc, kxr, message);
 }
 
+typedef enum {
+    READONLY_PATH_TRUNCATE,
+    READONLY_PATH_MKDIR,
+    READONLY_PATH_REMOVE,
+    READONLY_PATH_CHMOD
+} readonly_path_operation;
+
+/* WHAT: Execute one typed metadata mutation against a scratch-confined path.
+ * WHY: These probes share policy setup, but must retain each typed wire API.
+ * HOW: Dispatch the closed operation enum; refuse an unrecognized operation.
+ */
+static int
+readonly_path_call(brix_conn *connection, const xrd_conform_scratch_object *object,
+    readonly_path_operation operation, brix_status *status)
+{
+    switch (operation) {
+    case READONLY_PATH_TRUNCATE:
+        return brix_truncate(connection, object->path, 0, status);
+    case READONLY_PATH_MKDIR:
+        return brix_mkdir(connection, object->path, 0755, 0, status);
+    case READONLY_PATH_REMOVE:
+        return brix_rm(connection, object->path, status);
+    case READONLY_PATH_CHMOD:
+        return brix_chmod(connection, object->path, 0600, status);
+    }
+    brix_status_set(status, XRDC_EUSAGE, 0, "invalid readonly mutation");
+    return -1;
+}
+
+/* WHAT: Undo a successful mkdir/chmod without replacing the original verdict.
+ * WHY: An unexpectedly writable fixture must not retain avoidable side effects.
+ * HOW: Keep the existing rmdir/default-mode cleanup, using a separate status.
+ */
+static void
+readonly_path_restore(brix_conn *connection,
+    const xrd_conform_scratch_object *object,
+    readonly_path_operation operation)
+{
+    brix_status ignored;
+    brix_status_clear(&ignored);
+    if (operation == READONLY_PATH_MKDIR) {
+        (void) brix_rmdir(connection, object->path, &ignored);
+    } else if (operation == READONLY_PATH_CHMOD) {
+        (void) brix_chmod(connection, object->path, 0644, &ignored);
+    }
+}
+
+/* WHAT: Run and grade a path mutation under the read-only policy contract.
+ * WHY: Path capability, request budget and first-response ownership are common
+ * invariants, not per-operation implementations that should drift apart.
+ * HOW: Build the fixed fixture path, reserve, execute, preserve, clean up and
+ * grade the exact first response as fsReadOnly (never authorization/not-found).
+ */
+static void
+probe_readonly_path(xrd_conform_execution *execution, brix_conn *connection,
+    readonly_path_operation operation, const char *clause)
+{
+    xrd_conform_scratch_object object;
+    brix_status status;
+    brix_status first;
+    const char *leaf = operation == READONLY_PATH_MKDIR
+        ? "brix-conform-readonly-newdir" : "brix-conform-readonly-file";
+    int result;
+
+    if (readonly_path(execution, leaf, &object) != 0) {
+        return;
+    }
+    brix_status_clear(&status);
+    result = readonly_reserve(execution, 0, &status)
+        ? readonly_path_call(connection, &object, operation, &status) : -1;
+    first = status;
+    if (result == 0) {
+        readonly_path_restore(connection, &object, operation);
+    }
+    grade_readonly(execution, clause, result, first.kxr, first.msg);
+}
+
 /* ---- Probe path truncate refusal on a read-only export ----
  *
  * WHAT: Grades TRN-006 against an existing scratch-derived file.
@@ -194,19 +271,9 @@ probe_readonly_pgwrite(xrd_conform_execution *execution, brix_conn *connection)
  * HOW: Issue a zero-size typed truncate and require its status to be fsReadOnly.
  */
 static void
-probe_readonly_truncate(xrd_conform_execution *execution,
-    brix_conn *connection)
+probe_readonly_truncate(xrd_conform_execution *execution, brix_conn *connection)
 {
-    xrd_conform_scratch_object object;
-    brix_status status;
-    int rc;
-
-    if (readonly_path(execution, "brix-conform-readonly-file", &object) != 0)
-        return;
-    brix_status_clear(&status);
-    rc = readonly_reserve(execution, 0, &status)
-        ? brix_truncate(connection, object.path, 0, &status) : -1;
-    grade_readonly(execution, "TRN-006", rc, status.kxr, status.msg);
+    probe_readonly_path(execution, connection, READONLY_PATH_TRUNCATE, "TRN-006");
 }
 
 /* ---- Probe mkdir refusal on a read-only export ----
@@ -219,21 +286,7 @@ probe_readonly_truncate(xrd_conform_execution *execution,
 static void
 probe_readonly_mkdir(xrd_conform_execution *execution, brix_conn *connection)
 {
-    xrd_conform_scratch_object object;
-    brix_status status;
-    char message[160];
-    int rc;
-    int kxr;
-
-    if (readonly_path(execution, "brix-conform-readonly-newdir", &object) != 0)
-        return;
-    brix_status_clear(&status);
-    rc = readonly_reserve(execution, 0, &status)
-        ? brix_mkdir(connection, object.path, 0755, 0, &status) : -1;
-    kxr = status.kxr;
-    snprintf(message, sizeof(message), "%.159s", status.msg);
-    if (rc == 0) brix_rmdir(connection, object.path, &status);
-    grade_readonly(execution, "MKD-005", rc, kxr, message);
+    probe_readonly_path(execution, connection, READONLY_PATH_MKDIR, "MKD-005");
 }
 
 /* ---- Probe rename refusal on a read-only export ----
@@ -274,16 +327,7 @@ probe_readonly_move(xrd_conform_execution *execution, brix_conn *connection)
 static void
 probe_readonly_remove(xrd_conform_execution *execution, brix_conn *connection)
 {
-    xrd_conform_scratch_object object;
-    brix_status status;
-    int rc;
-
-    if (readonly_path(execution, "brix-conform-readonly-file", &object) != 0)
-        return;
-    brix_status_clear(&status);
-    rc = readonly_reserve(execution, 0, &status)
-        ? brix_rm(connection, object.path, &status) : -1;
-    grade_readonly(execution, "RM-007", rc, status.kxr, status.msg);
+    probe_readonly_path(execution, connection, READONLY_PATH_REMOVE, "RM-007");
 }
 
 /* ---- Probe chmod refusal on a read-only export ----
@@ -296,21 +340,7 @@ probe_readonly_remove(xrd_conform_execution *execution, brix_conn *connection)
 static void
 probe_readonly_chmod(xrd_conform_execution *execution, brix_conn *connection)
 {
-    xrd_conform_scratch_object object;
-    brix_status status;
-    char message[160];
-    int rc;
-    int kxr;
-
-    if (readonly_path(execution, "brix-conform-readonly-file", &object) != 0)
-        return;
-    brix_status_clear(&status);
-    rc = readonly_reserve(execution, 0, &status)
-        ? brix_chmod(connection, object.path, 0600, &status) : -1;
-    kxr = status.kxr;
-    snprintf(message, sizeof(message), "%.159s", status.msg);
-    if (rc == 0) brix_chmod(connection, object.path, 0644, &status);
-    grade_readonly(execution, "CHM-003", rc, kxr, message);
+    probe_readonly_path(execution, connection, READONLY_PATH_CHMOD, "CHM-003");
 }
 
 /* ---- Probe prepare-stage refusal on a read-only export ----
@@ -398,16 +428,10 @@ static int
 locate_promises_write(const char *reply)
 {
     const char *cursor = reply;
+    const char *start;
+    size_t length;
 
-    while (cursor != NULL && *cursor != '\0') {
-        const char *start;
-        size_t length;
-
-        while (*cursor == ' ' || *cursor == '\t' || *cursor == '\n') cursor++;
-        start = cursor;
-        while (*cursor != '\0' && *cursor != ' ' && *cursor != '\t'
-            && *cursor != '\n') cursor++;
-        length = (size_t) (cursor - start);
+    while (xrd_conform_next_locate_token(&cursor, &start, &length)) {
         if (length > 2 && start[1] == 'w') return 1;
     }
     return 0;

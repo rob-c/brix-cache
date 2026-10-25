@@ -97,7 +97,7 @@ def report_other_clouds():
         elif 'Microsoft' in result.stdout:
             print("\n✓ Running on Azure (ARM64)")
 
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired):
         pass
 
 

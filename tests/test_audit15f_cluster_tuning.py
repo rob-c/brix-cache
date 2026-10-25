@@ -48,7 +48,8 @@ import pytest
 
 from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN, BIND_HOST, SERVER_HOST
-from _test_audit15f_helpers import SS_BIN, socket_timers
+from _test_audit15f_helpers import (socket_timers, socket_observation_available,
+                                   native_tcp_observer)
 from _test_cms_parity_wave_helpers import (FakeNode, _load_payload,
                                            _wait_selectable, CMS_RR_LOAD)
 
@@ -236,11 +237,11 @@ def test_the_anonymous_cluster_view_never_leaks_the_node_port(lifecycle):
 
 # ── brix_cms_server_tcp_*: the accept leg's dead-peer options ─────────────
 
-def test_the_accept_leg_carries_the_configured_keepalive_timer(lifecycle):
+def test_the_accept_leg_carries_the_configured_keepalive_timer(lifecycle, native_tcp_observer):
     """success: with the flag on, the manager's accepted socket is armed with
     SO_KEEPALIVE + the tight probe schedule (ss shows the keepalive timer)."""
-    if not os.path.exists(SS_BIN):
-        pytest.skip("ss(8) not available")
+    if not socket_observation_available():
+        pytest.skip("native TCP socket observer not available")
     ep = _mgr(lifecycle, "audit-15f cms accept-leg keepalive on",
               srv_extra="brix_cms_server_tcp_keepalive on;\n"
                         "        brix_cms_server_tcp_user_timeout 4s;")
@@ -248,25 +249,25 @@ def test_the_accept_leg_carries_the_configured_keepalive_timer(lifecycle):
     try:
         _wait_servers(ep.extra_ports["HTTP_PORT"], 1)
         rest = socket_timers(local_port=ep.extra_ports["CMS_PORT"],
-                             peer_port=node.sock.getsockname()[1])
+                             peer_port=node.sock.getsockname()[1], observer=native_tcp_observer)
         assert "keepalive" in rest, rest
     finally:
         node.close()
 
 
-def test_without_the_flag_the_accept_leg_has_no_keepalive_timer(lifecycle):
+def test_without_the_flag_the_accept_leg_has_no_keepalive_timer(lifecycle, native_tcp_observer):
     """negative control: the same node, the same manager, the flag off — no
     keepalive timer on the accepted socket, and the node still registers (the
     option is hardening, never a precondition for joining)."""
-    if not os.path.exists(SS_BIN):
-        pytest.skip("ss(8) not available")
+    if not socket_observation_available():
+        pytest.skip("native TCP socket observer not available")
     ep = _mgr(lifecycle, "audit-15f cms accept-leg keepalive off",
               srv_extra="brix_cms_server_tcp_keepalive off;")
     node = FakeNode(ep.extra_ports["CMS_PORT"], HOT_PORT)
     try:
         _wait_servers(ep.extra_ports["HTTP_PORT"], 1)
         rest = socket_timers(local_port=ep.extra_ports["CMS_PORT"],
-                             peer_port=node.sock.getsockname()[1])
+                             peer_port=node.sock.getsockname()[1], observer=native_tcp_observer)
         assert "keepalive" not in rest, rest
     finally:
         node.close()

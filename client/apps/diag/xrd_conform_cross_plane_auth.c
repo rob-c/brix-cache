@@ -63,14 +63,22 @@ web_denied(xrd_conform_execution *execution, const char *target,
     return matched;
 }
 
+static int
+denied_fixture_row_active(xrd_conform_execution *execution)
+{
+    const brix_conform_result *row = xrd_conform_result_find(execution,
+        "XPR-005");
+
+    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED
+        && execution->run->denied_fixture_count != 0;
+}
+
 /* WHAT: Check one explicitly paired denied identity on ROOT, HTTP and S3.
  * WHY: Independent 403 fixtures cannot establish identity or policy pairing.
  * HOW: Require one operator-labelled endpoint per plane and exact spellings. */
 void
 xrd_conform_probe_denied_fixtures(xrd_conform_execution *execution)
 {
-    const brix_conform_result *row = xrd_conform_result_find(execution,
-        "XPR-005");
     const char *root;
     const char *http;
     const char *s3;
@@ -78,8 +86,7 @@ xrd_conform_probe_denied_fixtures(xrd_conform_execution *execution)
     size_t matched = 0;
     char received[80];
 
-    if (row == NULL || row->verdict == BRIX_CONFORM_VERDICT_SKIPPED
-        || execution->run->denied_fixture_count == 0) return;
+    if (!denied_fixture_row_active(execution)) return;
     root = denied_target(execution->run, "root");
     http = denied_target(execution->run, "http");
     s3 = denied_target(execution->run, "s3");

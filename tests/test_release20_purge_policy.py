@@ -37,6 +37,7 @@ from brix_suite.fd_probe import (parse_identity, write_fd_probe,
                                  write_identity_probe)
 from test_release20_frm_knobs import _inherited_fds, _server_descriptors
 from lib_py.util import budget_scale
+from lib_py.worker_exec import assert_worker_exec_config
 
 # Each case boots an instance and waits for a purge pass to log its verdict;
 # the default 30 s is under this file's own longest internal wait, so a loaded
@@ -273,12 +274,20 @@ def _polprog(tmp_path, body):
     return _program(tmp_path, "polprog.sh", body)
 
 
+def _worker_output(tmp_path, name):
+    """Path writable by the privilege-dropped policy program."""
+    return tmp_path / "tape" / ".online" / name
+
+
 def test_polprog_chooses_among_its_own_candidates(lifecycle, tmp_path):
     """(success) `atlas 50% 0% polprog`: the engine hands the program every
     atlas copy as `<group> <touched> <size> <key>`, releases exactly the keys
     the decision file names, books the rest as unapproved and removes both
     exchange files."""
-    aside = tmp_path / "candidates.copy"
+    # The policy program runs as the nginx worker, not as the pytest user.
+    # Keep its diagnostic output beside the worker-owned exchange files: a
+    # pytest tmp directory is deliberately not writable after privilege drop.
+    aside = _worker_output(tmp_path, "candidates.copy")
     prog = _polprog(tmp_path, f'cp "$1" {aside}\n'
                               'printf "/atlas/a2\\n/atlas/a3\\n" > "$2"')
     base, _victim, elog = _lab(lifecycle, tmp_path,
@@ -332,7 +341,9 @@ def test_failing_polprog_fails_closed_for_its_groups_only(lifecycle, tmp_path):
 def test_hung_polprog_is_killed_at_the_exec_deadline(lifecycle, tmp_path):
     """(error) the program runs under brix_frm_copy_timeout: a hung one is
     SIGKILLed, the pass completes fail-closed, and the child is gone."""
-    pidfile = tmp_path / "polprog.pid"
+    # The privilege-dropped worker can write beside the policy exchange files,
+    # but not in pytest's private per-test parent directory.
+    pidfile = _worker_output(tmp_path, "polprog.pid")
     prog = _polprog(tmp_path, f'echo $$ > {pidfile}\nexec sleep 300')
     # The deadline scales with the host: a fixed 2 s can expire before a
     # loaded machine has even scheduled the program's first line, and then it
@@ -392,7 +403,7 @@ def test_the_policy_program_inherits_no_server_descriptors(lifecycle, tmp_path):
     """(security-neg) the program runs with stdin/stdout/stderr only -- the
     exec adapter's spawn hygiene (own session, fds above 2 closed) covers it
     exactly as it covers the stage command."""
-    fds = tmp_path / "fds.txt"
+    fds = _worker_output(tmp_path, "fds.txt")
     prog = write_fd_probe(tmp_path / "polprog.py", fds, decision_arg=2)
     _run_polprog_once(lifecycle, tmp_path, prog)
     listing = fds.read_text()
@@ -404,7 +415,7 @@ def test_the_policy_program_leads_its_own_session(lifecycle, tmp_path):
     """(security-neg) the program is a session and process-group leader with
     no controlling terminal, so the deadline kill reaches everything it
     started and it shares no terminal with the server."""
-    out = tmp_path / "identity.txt"
+    out = _worker_output(tmp_path, "identity.txt")
     probe = write_identity_probe(tmp_path / "identity.py")
     _run_polprog_once(lifecycle, tmp_path, _polprog(
         tmp_path, f'echo $$ > {out}\n{probe} >> {out}\n: > "$2"'))
@@ -421,12 +432,13 @@ def test_grammar_accepts_the_full_form(tmp_path):
                        "brix_frm_purge_policy atlas 90% 70% hold 2h polprog; "
                        "brix_frm_purge_policy * 10g 8g; "
                        "brix_frm_purge_polprog /bin/true;")
-    assert rc == 0, out
+    assert_worker_exec_config(rc, out)
 
 
 def test_polprog_without_a_polprog_rule_warns(tmp_path):
     rc, out = _nginx_t(tmp_path, "brix_frm_purge_polprog /bin/true;")
-    assert rc == 0 and "the program never runs" in out, out
+    assert_worker_exec_config(rc, out)
+    assert "the program never runs" in out, out
 
 
 REJECTED = [

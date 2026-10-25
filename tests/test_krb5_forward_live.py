@@ -2,18 +2,18 @@
 
 forward.c's brix_krb5_deleg_to_origin() has always compiled, but nothing has
 ever driven it against a real KDC. THIS suite closes that loop: it stands up a
-fully *unprivileged* MIT Kerberos KDC (no root, no system krb5.conf) inside a
-user namespace, mints three separate identities — a client user (alice), a
+fully *unprivileged* MIT Kerberos KDC (no root, no system krb5.conf) in a private
+test directory, mints three separate identities — a client user (alice), a
 gateway service and an origin service — and then runs the PRODUCTION origin-leg
 code AS alice against the origin, verifying an in-process GSSAPI acceptor keyed
 by the origin keytab observes alice's identity on the far side.
 
-Why user namespaces: `unshare -Ur` maps our unprivileged uid to root *inside*
-the namespace so the KDC owns its database/keytabs/stash cleanly and the three
-principals act as genuinely distinct accounts (distinct keytabs + ccaches),
-all without touching the host or needing privilege. The KDC listens on a high
-port in the shared network namespace, so the harness (run outside the ns) still
-reaches it over localhost.
+The database, keytabs, stash and ccaches are all owned by the test user and
+isolated by explicit KRB5_CONFIG / KRB5_KDC_PROFILE paths. The three identities
+are distinct Kerberos principals, not OS users; no root namespace is needed.
+The KDC listens on a high loopback port, including on macOS where Linux user
+namespaces do not exist. Tool discovery uses the shared MIT implementation
+selector, never Apple's incompatible Heimdal tools.
 
 Ritual (success / origin-binding-neg / auth-precondition-neg):
   success   — alice → origin: the acceptor sees alice@REALM;
@@ -30,7 +30,6 @@ mirroring test_sts_minio_live.py / test_ceph_live.py — not a TEST_REGISTRY sui
 from __future__ import annotations
 
 import os
-import shutil
 import socket
 import subprocess
 import time
@@ -39,7 +38,8 @@ from pathlib import Path
 import pytest
 
 from cmdscripts.c_auth_units import NGX_SRC, OBJS
-from cmdscripts.compile_run import REPO_ROOT, run
+from cmdscripts.compile_run import PLATFORM_HOST_FLAGS, REPO_ROOT, run
+from brix_suite.security.kdc import krb5_tool
 from settings import HOST         # env-overridable host (the sanctioned idiom)
 
 def _expression_1(kdc):
@@ -63,10 +63,6 @@ def _guard_krb5_lab_2(reason):
     if reason:
         pytest.skip(reason)
 
-def _guard_krb5_lab_3():
-    if not _userns_works():
-        pytest.skip("unprivileged user namespaces (unshare -Ur) unavailable")
-
 def _guard_krb5_lab_4():
     if _port_open(KDC_PORT):
         pytest.skip(f"port {KDC_PORT} already in use — a KDC may be running")
@@ -77,7 +73,7 @@ def _guard_krb5_lab_5(harness, hreason):
 
 def _guard_krb5_lab_6(prov):
     if prov.returncode != 0:
-        pytest.skip(f"KDC provisioning failed: {(prov.stderr or prov.stdout)[-2000:]}")
+        pytest.fail(f"KDC provisioning failed: {(prov.stderr or prov.stdout)[-2000:]}")
 
 
 # One fixed-port KDC and realm must serve every module-scoped lab consumer.
@@ -93,23 +89,18 @@ BAD_PW = "wrong-password-xxxxxxxxxxxx"
 ORIGIN_PRINC = f"host/origin.brix.test@{REALM}"
 GATEWAY_PRINC = f"xrootd/gateway.brix.test@{REALM}"
 
-KRB5_TOOLS = ("krb5kdc", "kadmin.local", "kdb5_util", "unshare")
+KRB5_TOOLS = ("krb5kdc", "kadmin.local", "kdb5_util")
 
 
 # ---- environment probes ---------------------------------------------------
 
 def _which(name: str) -> str | None:
-    # KDC binaries commonly live in sbin, which may be off a login PATH.
-    return shutil.which(name) or shutil.which(name, path="/usr/sbin:/sbin:/usr/local/sbin")
+    return krb5_tool(name)
 
 
 def _tools_present() -> str | None:
     missing = [t for t in KRB5_TOOLS if _which(t) is None]
     return None if not missing else "missing krb5 tooling: " + " ".join(missing)
-
-
-def _userns_works() -> bool:
-    return run(["unshare", "-Ur", "true"]).returncode == 0
 
 
 def _port_open(port: int) -> bool:
@@ -166,8 +157,7 @@ def _write_configs(lab: Path) -> dict[str, str]:
 
 
 def _provision(lab: Path, env: dict[str, str]) -> subprocess.CompletedProcess:
-    """Create the KDC database and the three principals, unprivileged, inside a
-    user namespace (uid → root). Runs to completion before the KDC boots."""
+    """Create the private realm as the test user before its KDC boots."""
     kdb5_util = _which("kdb5_util")
     kadmin = _which("kadmin.local")
     origin_kt = lab / "origin.keytab"
@@ -181,13 +171,13 @@ def _provision(lab: Path, env: dict[str, str]) -> subprocess.CompletedProcess:
         f'"{kadmin}" -r {REALM} -q "ktadd -k {origin_kt} host/origin.brix.test"',
         f'"{kadmin}" -r {REALM} -q "ktadd -k {gateway_kt} xrootd/gateway.brix.test"',
     ])
-    return run(["unshare", "-Ur", "bash", "-c", script], env=env)
+    return run(["bash", "-c", script], env=env)
 
 
 def _boot_kdc(env: dict[str, str]) -> subprocess.Popen:
     krb5kdc = _which("krb5kdc")
     return subprocess.Popen(
-        ["unshare", "-Ur", "--kill-child", krb5kdc, "-n"],
+        [krb5kdc, "-n"],
         cwd=str(REPO_ROOT),
         env={**os.environ, **env},
         stdout=subprocess.PIPE,
@@ -226,10 +216,12 @@ def _build_harness(dst: Path) -> tuple[Path | None, str]:
         return None, "build nginx first (missing krb5/" + ", ".join(missing) + ")"
     binary = dst / "krb5_forward_live"
     cmd = [
-        "gcc", "-O", "-Wall",
+        "gcc", "-O", "-Wall", *PLATFORM_HOST_FLAGS,
         "-I", "src",
         "-I", str(NGX_SRC / "src/core"),
         "-I", str(NGX_SRC / "src/event"),
+        "-I", str(NGX_SRC / "src/event/modules"),
+        "-I", str(NGX_SRC / "src/event/quic"),
         "-I", str(NGX_SRC / "src/os/unix"),
         "-I", str(NGX_SRC / "src/stream"),
         "-I", str(OBJS),
@@ -240,6 +232,7 @@ def _build_harness(dst: Path) -> tuple[Path | None, str]:
         str(kxr),
         str(carry),
         str(apreq),
+        str(OBJS / "src/core/ngx_string.o"),
         *_krb5_config(["--libs", "gssapi"],
                       ["-lgssapi_krb5", "-lkrb5", "-lk5crypto", "-lcom_err"]),
         "-lpthread",
@@ -247,7 +240,7 @@ def _build_harness(dst: Path) -> tuple[Path | None, str]:
     ]
     built = run(cmd, cwd=REPO_ROOT, env={"TMPDIR": "/tmp"})
     if built.returncode != 0:
-        return None, f"harness compile failed: {(built.stderr or built.stdout)[-2000:]}"
+        pytest.fail(f"harness compile failed: {(built.stderr or built.stdout)[-2000:]}")
     return binary, ""
 
 
@@ -258,7 +251,6 @@ def krb5_lab(tmp_path_factory):
     _guard_krb5_lab_1()
     reason = _tools_present()
     _guard_krb5_lab_2(reason)
-    _guard_krb5_lab_3()
     _guard_krb5_lab_4()
 
     lab = tmp_path_factory.mktemp("krb5_lab")
@@ -283,7 +275,7 @@ def krb5_lab(tmp_path_factory):
             out = ""
             if _expression_1(kdc):
                 out = kdc.stdout.read()[-2000:]
-            pytest.skip(f"KDC never came up on {KDC_PORT}: {out}")
+            pytest.fail(f"KDC never came up on {KDC_PORT}: {out}")
 
         yield {
             "harness": harness,

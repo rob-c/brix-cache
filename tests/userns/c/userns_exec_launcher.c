@@ -38,6 +38,8 @@
 #include <unistd.h>
 #include <sys/mount.h>
 #include <sys/wait.h>
+#include "subid_ranges.h"
+#include "nss_isolation.h"
 
 #define SKIP_CODE 42
 
@@ -60,25 +62,31 @@ run_cmd(char *const argv[])
     return WIFEXITED(st) ? WEXITSTATUS(st) : -1;
 }
 
-/* inside-0 -> caller uid; inside-1.. -> the subuid range (100000 + 65536). */
+/* inside-0 -> caller uid; inside-1.. -> the caller's allocated subid ranges. */
 static int
 apply_maps(pid_t child)
 {
     char pidbuf[32], ru[32], rg[32];
+    char uid_start[32], gid_start[32];
+
+    if (brix_test_subid_start("/etc/subuid", uid_start, sizeof(uid_start)) != 0
+        || brix_test_subid_start("/etc/subgid", gid_start, sizeof(gid_start)) != 0) {
+        return -1;
+    }
 
     snprintf(pidbuf, sizeof(pidbuf), "%d", (int) child);
     snprintf(ru, sizeof(ru), "%u", (unsigned) getuid());
     snprintf(rg, sizeof(rg), "%u", (unsigned) getgid());
     {
         char *a[] = { "newuidmap", pidbuf, "0", ru, "1",
-                      "1", "100000", "65536", NULL };
+                      "1", uid_start, "65536", NULL };
         if (run_cmd(a) != 0) {
             return -1;
         }
     }
     {
         char *a[] = { "newgidmap", pidbuf, "0", rg, "1",
-                      "1", "100000", "65536", NULL };
+                      "1", gid_start, "65536", NULL };
         if (run_cmd(a) != 0) {
             return -1;
         }
@@ -127,6 +135,10 @@ main(int argc, char **argv)
 
         if (mount("none", "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0) {
             fprintf(stderr, "SKIP: MS_PRIVATE remount failed: %s\n", strerror(errno));
+            _exit(SKIP_CODE);
+        }
+        if (brix_test_isolate_nscd() != 0) {
+            fprintf(stderr, "SKIP: private NSS cache isolation failed: %s\n", strerror(errno));
             _exit(SKIP_CODE);
         }
         if (mount(argv[1], "/etc/passwd", NULL, MS_BIND, NULL) != 0

@@ -35,7 +35,6 @@ import requests
 
 from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN, HOST, BIND_HOST
-from port_ladder import PORT_LAST
 from utils.make_token import TokenIssuer
 from test_phase25_ratelimit import (
     _start_http,
@@ -105,9 +104,8 @@ def _tree_witness(root):
 def test_webdav_read_only_rejects_writes_serves_reads(lifecycle, tmp_path):
     """Success + error path (WebDAV): reads flow, every write method is 403,
     and the store on disk is untouched afterwards."""
-    port = _start_http(lifecycle, tmp_path, "lc-audit15-readonly-http-reload",
-                       _RO_KNOBS, seed_files=(("seed.txt", SEED),),
-                       port=PORT_LAST + 1)
+    port = _start_http(lifecycle, tmp_path, "lc-audit15-readonly-http",
+                       _RO_KNOBS, seed_files=(("seed.txt", SEED),))
     base = f"http://{HOST}:{port}"
     data = tmp_path / "data"
 
@@ -130,8 +128,7 @@ def test_webdav_control_without_read_only_accepts_put(lifecycle, tmp_path):
     """Negative control: the identical instance minus read_only accepts the
     same PUT — proving the 403s above are the read_only override at work."""
     port = _start_http(lifecycle, tmp_path,
-                       "lc-audit15-readonly-http-ctl-reload", _RW_KNOBS,
-                       port=PORT_LAST + 2)
+                       "lc-audit15-readonly-http-ctl", _RW_KNOBS)
     r = requests.put(f"http://{HOST}:{port}/new.txt", data=b"payload", timeout=5)
     assert r.status_code in (200, 201, 204), r.status_code
     assert (tmp_path / "data" / "new.txt").read_bytes() == b"payload"
@@ -147,8 +144,7 @@ def test_root_read_only_write_open_refused_read_open_ok(lifecycle, tmp_path):
     knobs = ("        brix_allow_write on;\n"
              "        brix_read_only on;\n")
     port = _start_stream(lifecycle, data,
-                         "lc-audit15-readonly-stream-reload", knobs, "",
-                         port=PORT_LAST + 3)
+                         "lc-audit15-readonly-stream", knobs, "")
     s = _xrd_login(HOST, port)
     try:
         st_r, b_r = _xrd_open(s, "/seed.bin")
@@ -211,8 +207,8 @@ def test_read_only_refuses_the_whole_dav_mutation_surface(lifecycle, tmp_path):
     just as loudly as a 200 would be.
     """
     port = _start_http(lifecycle, tmp_path,
-                       "lc-audit15-readonly-dav-surface-reload", _RO_KNOBS,
-                       seed_files=(("seed.txt", SEED),), port=PORT_LAST + 4)
+                       "lc-audit15-readonly-http", _RO_KNOBS,
+                       seed_files=(("seed.txt", SEED),))
     base = f"http://{HOST}:{port}"
     data = tmp_path / "data"
 
@@ -235,8 +231,8 @@ def test_writable_control_accepts_the_dav_lock_surface(lifecycle, tmp_path):
     with a lock token rather than 403, proving the refusals above come from the
     policy and not from an unimplemented or globally broken lock path."""
     port = _start_http(lifecycle, tmp_path,
-                       "lc-audit15-readonly-dav-ctl-reload", _RW_KNOBS,
-                       seed_files=(("seed.txt", SEED),), port=PORT_LAST + 5)
+                       "lc-audit15-readonly-http-ctl", _RW_KNOBS,
+                       seed_files=(("seed.txt", SEED),))
     r = requests.request("LOCK", f"http://{HOST}:{port}/seed.txt",
                          data=_LOCKINFO.encode(),
                          headers={"Content-Type": "text/xml",
@@ -286,7 +282,7 @@ _S3_MUTATIONS = (
 )
 
 
-def _start_s3(lifecycle, tmp_path, name, knobs, port):
+def _start_s3(lifecycle, tmp_path, name, knobs, port=None):
     data = tmp_path / "data"
     data.mkdir(exist_ok=True)
     (data / "seed.txt").write_text(SEED)
@@ -302,8 +298,8 @@ def test_read_only_refuses_the_whole_s3_mutation_surface(lifecycle, tmp_path):
     """Error + security-negative (S3): every mutating S3 request is refused
     with an S3-shaped 403 AccessDenied, and afterwards the export holds exactly
     the seed — no object, no tag sidecar, no multipart upload directory."""
-    port, data = _start_s3(lifecycle, tmp_path, "lc-audit15-readonly-s3-reload",
-                           _S3_RO_KNOBS, PORT_LAST + 6)
+    port, data = _start_s3(lifecycle, tmp_path, "lc-audit15-readonly-http",
+                           _S3_RO_KNOBS)
     base = f"http://{HOST}:{port}/robucket"
 
     before = _tree_witness(data)
@@ -329,8 +325,8 @@ def test_writable_s3_control_accepts_the_same_object_put(lifecycle, tmp_path):
     """Success control: the identical endpoint minus read_only accepts the very
     first request of the sweep, proving the 403s are the policy and not a
     broken or unauthenticated S3 write path."""
-    port, data = _start_s3(lifecycle, tmp_path, "lc-audit15-readonly-s3-ctl-reload",
-                           _S3_RW_KNOBS, PORT_LAST + 7)
+    port, data = _start_s3(lifecycle, tmp_path, "lc-audit15-readonly-http-ctl",
+                           _S3_RW_KNOBS)
     r = requests.put(f"http://{HOST}:{port}/robucket/written.txt",
                      data=b"payload", timeout=5)
     assert r.status_code == 200, (r.status_code, r.text[:200])
@@ -359,7 +355,7 @@ def test_writable_s3_control_accepts_the_same_object_put(lifecycle, tmp_path):
 _RELOAD_TIMEOUT = 20.0
 
 
-def _start_dav_endpoint(lifecycle, tmp_path, name, knobs, port):
+def _start_dav_endpoint(lifecycle, tmp_path, name, knobs, port=None):
     """Same instance the surface tests use, but handing back the endpoint —
     a reload needs the rendered config path and the pidfile, not just a port."""
     data = tmp_path / "data"
@@ -414,8 +410,8 @@ def test_a_reload_can_open_a_read_only_export(lifecycle, tmp_path):
     much worse property.
     """
     endpoint, data = _start_dav_endpoint(
-        lifecycle, tmp_path, "lc-audit15-readonly-reload-open",
-        _RO_KNOBS, PORT_LAST + 8)
+        lifecycle, tmp_path, "lc-audit15-readonly-http",
+        _RO_KNOBS)
     base = f"http://{HOST}:{endpoint.port}"
 
     assert requests.put(f"{base}/before.txt", data=b"x",
@@ -438,8 +434,8 @@ def test_a_reload_can_close_a_writable_export(lifecycle, tmp_path):
     read-only export is still an export.
     """
     endpoint, data = _start_dav_endpoint(
-        lifecycle, tmp_path, "lc-audit15-readonly-reload-close",
-        _RW_KNOBS, PORT_LAST + 9)
+        lifecycle, tmp_path, "lc-audit15-readonly-http-ctl",
+        _RW_KNOBS)
     base = f"http://{HOST}:{endpoint.port}"
 
     assert requests.put(f"{base}/before.txt", data=b"payload",
@@ -478,7 +474,7 @@ _TOK_ISSUER = "https://phase105.example/"
 _TOK_AUD = "phase105"
 
 
-def _start_token_endpoint(lifecycle, tmp_path, name, read_only, port):
+def _start_token_endpoint(lifecycle, tmp_path, name, read_only, port=None):
     """A token-trusting WebDAV export with `brix_webdav_auth required`, so the
     bearer below is genuinely validated rather than waved through."""
     issuer = TokenIssuer(str(tmp_path / "tokens"), issuer=_TOK_ISSUER,
@@ -519,8 +515,8 @@ def test_a_write_scoped_token_cannot_bypass_endpoint_read_only(lifecycle,
     token really is accepted.
     """
     endpoint, data, issuer = _start_token_endpoint(
-        lifecycle, tmp_path, "lc-audit15-readonly-token-scope",
-        read_only=True, port=PORT_LAST + 10)
+        lifecycle, tmp_path, "lc-audit15-readonly-http",
+        read_only=True)
     base = f"http://{HOST}:{endpoint.port}"
     bearer = _write_bearer(issuer)
 
@@ -550,8 +546,8 @@ def test_the_same_token_writes_once_read_only_is_lifted(lifecycle, tmp_path):
     above to the endpoint policy rather than to anything about the token, the
     scope parser, or the auth mode."""
     endpoint, data, issuer = _start_token_endpoint(
-        lifecycle, tmp_path, "lc-audit15-readonly-token-scope-ctl",
-        read_only=False, port=PORT_LAST + 11)
+        lifecycle, tmp_path, "lc-audit15-readonly-http-ctl",
+        read_only=False)
 
     r = requests.put(f"http://{HOST}:{endpoint.port}/written.txt",
                      data=b"scoped", headers=_write_bearer(issuer), timeout=5)
@@ -574,8 +570,8 @@ def test_the_same_token_writes_once_read_only_is_lifted(lifecycle, tmp_path):
 def test_read_only_leaves_every_read_verb_working(lifecycle, tmp_path):
     """Success control across the read surface of a read-only export."""
     port = _start_http(lifecycle, tmp_path,
-                       "lc-audit15-readonly-read-surface", _RO_KNOBS,
-                       seed_files=(("seed.txt", SEED),), port=PORT_LAST + 12)
+                       "lc-audit15-readonly-http", _RO_KNOBS,
+                       seed_files=(("seed.txt", SEED),))
     base = f"http://{HOST}:{port}"
 
     assert requests.get(f"{base}/seed.txt", timeout=5).text == SEED
@@ -648,9 +644,9 @@ def test_every_refusal_happens_at_the_edge_not_the_vfs(lifecycle, tmp_path):
     and before any body was read.  The family itself must be present with the
     closed vocabulary, or the tripwire is dark rather than quiet."""
     port = _start_http(lifecycle, tmp_path,
-                       "lc-audit15-readonly-metric-tripwire", _RO_KNOBS,
+                       "lc-audit15-readonly-http", _RO_KNOBS,
                        extra_locations=_METRICS_LOCATION,
-                       seed_files=(("seed.txt", SEED),), port=PORT_LAST + 13)
+                       seed_files=(("seed.txt", SEED),))
     base = f"http://{HOST}:{port}"
 
     _fire_refused_sweep(base)

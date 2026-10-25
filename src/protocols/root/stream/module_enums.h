@@ -11,6 +11,10 @@
 
 extern ngx_conf_enum_t brix_cns_modes[];
 extern ngx_conf_enum_t brix_auth_modes[];
+extern ngx_conf_enum_t brix_ssi_executor_enum[];
+extern ngx_conf_enum_t brix_stream_backend_delegation_enum[];
+extern ngx_conf_enum_t brix_stream_sts_flavor_enum[];
+extern ngx_conf_enum_t brix_stream_credential_fallback_enum[];
 /* Engine/audit tables are the shared XrdAcc ones (defined in acc/config.c,
  * also declared in acc/acc.h): brix_authdb_engine's value set is exactly
  * brix_acc_format_modes (native|xrdacc). Externs here so this fragment does

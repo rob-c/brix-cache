@@ -56,7 +56,13 @@ from upstream_protocol_stubs import (
     REDIRECT_TARGET_PORT,
 )
 
-pytestmark = pytest.mark.timeout(60)
+pytestmark = [
+    pytest.mark.timeout(60),
+    # Every case owns one of a small, fixed set of proxy/stub processes.  Keep
+    # the module on one xdist worker so fixture teardown cannot stop a backend
+    # while another case is using it.
+    pytest.mark.xdist_group("upstream-redirect"),
+]
 
 # Stub daemon writes received auth credentials here so tests can verify
 # nginx forwarded the right token from its brix_upstream_token_file.

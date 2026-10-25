@@ -17,6 +17,7 @@
 #define _POSIX_C_SOURCE 200809L         /* gmtime_r under -std=c11 */
 #endif
 #include "cvmfs/signature/sign.h"
+#include "auth/crypto/key_compat.h"
 #include "cvmfs/signature/manifest.h"
 #include "cvmfs/signature/whitelist.h"
 #include "cvmfs/signature/verify.h"
@@ -136,13 +137,13 @@ static int rp_load_keys(const char *keys_dir, const char *fqrn, int generate,
     if (mkdir(keys_dir, 0700) != 0 && errno != EEXIST)
         return rp_err("cannot create keys dir", keys_dir);
     if (*master == NULL) {
-        *master = EVP_RSA_gen(2048);
+        *master = brix_crypto_rsa_keygen(2048);
         if (*master == NULL || rp_write_pem(p.masterkey, *master, 1) != 0
             || rp_write_pem(p.masterpub, *master, 0) != 0)
             return rp_err("master key generation failed", NULL);
     }
     if (*certpk == NULL) {
-        *certpk = EVP_RSA_gen(2048);
+        *certpk = brix_crypto_rsa_keygen(2048);
         if (*certpk == NULL || rp_write_pem(p.certkey, *certpk, 1) != 0
             || rp_write_cert(p.cert, *certpk, fqrn) != 0)
             return rp_err("certificate generation failed", NULL);

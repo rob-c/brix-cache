@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import grp
+import pwd
 import re
 import subprocess
 
@@ -33,6 +35,21 @@ def nginx_default_worker_user(nginx_bin: str) -> str:
     """Return nginx's compiled worker account, with the module fallback."""
     fallback = os.environ.get("BRIX_WORKER_USER", "nobody")
     return _compiled_user(nginx_bin) or fallback
+
+
+def nginx_default_worker_group(nginx_bin: str) -> str:
+    """Return the primary group of the selected worker account.
+
+    Debian-family systems deliberately pair ``nobody`` with ``nogroup``.
+    Emitting a one-argument nginx ``user`` directive makes nginx fall back to
+    its compiled group name (usually ``nobody``), which need not exist.
+    """
+    user = nginx_default_worker_user(nginx_bin)
+    fallback = os.environ.get("BRIX_WORKER_GROUP", user)
+    try:
+        return grp.getgrgid(pwd.getpwnam(user).pw_gid).gr_name
+    except KeyError:
+        return fallback
 
 
 def nginx_worker_user(config_path: str, nginx_bin: str) -> str:

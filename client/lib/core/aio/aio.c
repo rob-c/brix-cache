@@ -161,7 +161,19 @@ loop_drain_commands(brix_loop *l)
 }
 
 
-/* loop */
+/* ---- Dispatch readiness before executing lifetime-changing commands ----
+ *
+ * WHAT: Run the loop until STOP, consuming each collected I/O batch before
+ * commands can destroy connections referenced by that batch.
+ *
+ * WHY: CQE validation and epoll collection establish pointer validity only at
+ * collection time. Draining CLOSE first frees those pointers before dispatch;
+ * a wakeup and a ready connection in the same batch made aio_smoke crash.
+ *
+ * HOW: 1. Collect and dispatch readiness while connection storage remains live.
+ *      2. Drain queued control/submission commands, then honor STOP.
+ *      3. Maintain remaining live connections and deadlines; clean up on exit.
+ */
 void *
 loop_thread(void *arg)
 {
@@ -172,11 +184,6 @@ loop_thread(void *arg)
     while (!l->stop) {
         int n = io_engine_wait(l, events, AIO_MAXEV, timeout);
 
-        loop_drain_commands(l);
-        if (l->stop) {
-            break;
-        }
-
         for (int i = 0; i < n; i++) {
             void *ptr = events[i].data.ptr;
             if (ptr == l) {                 /* eventfd wakeup */
@@ -186,6 +193,11 @@ loop_thread(void *arg)
                 continue;
             }
             aconn_handle_io((brix_aconn *) ptr, events[i].events);
+        }
+
+        loop_drain_commands(l);
+        if (l->stop) {
+            break;
         }
 
         /* adopt finished reconnects + send heartbeats on idle links */

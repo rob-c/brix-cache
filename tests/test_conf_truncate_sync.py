@@ -1,4 +1,6 @@
 from split_continuation import reexport as _reexport
+from lib_py.reference_host import reference_disk_stat
+from lib_py.reference_host import fixture_read_bytes
 def _check_test_truncate_sparse_huge_1(rc_o, rc_f):
     assert (rc_o == 0) == (rc_f == 0), f"sparse truncate success differs ours={rc_o} off={rc_f}"
 
@@ -29,8 +31,7 @@ def test_truncate_path_size_and_zerofill(srv, n, s, label):
     rc, o, e = fs(srv["our"], "truncate", wire, str(s))
     assert rc == 0, f"truncate N={n} -> S={s}: {o}{e}"
     assert os.path.getsize(disk) == s, f"on-disk size {os.path.getsize(disk)} != {s}"
-    with open(disk, "rb") as f:
-        got = f.read()
+    got = fixture_read_bytes(disk)
     if s <= n:
         assert got == det_bytes(n, seed=n)[:s], "kept-prefix bytes corrupted on shrink"
     else:
@@ -53,8 +54,7 @@ def test_truncate_path_extend_differential(srv, n, extra):
         f"extend success differs: ours={rc_o} stock={rc_f} {o_o}{e_o}|{o_f}{e_f}"
     if rc_o == 0:
         for url, w in ((srv["our"], our_w), (srv["off"], off_w)):
-            with open(disk_for(srv, url, w), "rb") as f:
-                b = f.read()
+            b = fixture_read_bytes(disk_for(srv, url, w))
             assert len(b) == s, f"{url} extend size {len(b)} != {s}"
             assert b[:n] == det_bytes(n, seed=1), f"{url} extend corrupted prefix"
             assert b[n:] == b"\x00" * extra, f"{url} extend hole not zero"
@@ -80,8 +80,7 @@ def test_truncate_handle_raw_wire(srv, n, s):
     finally:
         s_sock.close()
     assert os.path.getsize(disk) == s, f"handle-truncate size {os.path.getsize(disk)} != {s}"
-    with open(disk, "rb") as f:
-        got = f.read()
+    got = fixture_read_bytes(disk)
     if s <= n:
         assert got == det_bytes(n, seed=5)[:s], "handle-truncate corrupted kept prefix"
     else:
@@ -108,8 +107,8 @@ def test_truncate_handle_matches_path_route(srv):
         s_sock.close()
     # path route
     assert fs(srv["our"], "truncate", p_wire, str(s))[0] == 0
-    with open(our_disk(srv, h_wire), "rb") as a, open(our_disk(srv, p_wire), "rb") as b:
-        assert a.read() == b.read(), "handle-route and path-route truncate diverge"
+    assert fixture_read_bytes(our_disk(srv, h_wire)) == fixture_read_bytes(
+        our_disk(srv, p_wire)), "handle-route and path-route truncate diverge"
 
 
 # =========================================================================== #
@@ -156,7 +155,7 @@ def test_truncate_sparse_huge(srv, huge):
         return
     for url, w in ((srv["our"], our_w), (srv["off"], off_w)):
         disk = disk_for(srv, url, w)
-        stt = os.stat(disk)
+        stt = reference_disk_stat(disk)
         _check_test_truncate_sparse_huge_2(huge, stt, url)
         # sparse: allocated blocks must be far smaller than the apparent size.
         allocated = stt.st_blocks * 512
@@ -192,8 +191,7 @@ def test_sparse_write_at_offset(srv, offset, wlen):
         finally:
             s_sock.close()
     for url, w in ((srv["our"], our_w), (srv["off"], off_w)):
-        with open(disk_for(srv, url, w), "rb") as f:
-            b = f.read()
+        b = fixture_read_bytes(disk_for(srv, url, w))
         def _assert_test_sparse_write_at_offset_1():
             assert len(b) == offset + wlen, f"{url} size {len(b)} != {offset + wlen}"
             assert b[:offset] == b"\x00" * offset, f"{url} sparse hole before write not zero"
@@ -201,8 +199,8 @@ def test_sparse_write_at_offset(srv, offset, wlen):
         _assert_test_sparse_write_at_offset_1()
         assert b[offset:] == payload, f"{url} written bytes wrong"
     # cross-check both servers produced identical files
-    with open(our_disk(srv, our_w), "rb") as a, open(off_disk(srv, off_w), "rb") as b:
-        assert md5(a.read()) == md5(b.read()), "sparse-write files diverge our vs stock"
+    assert md5(fixture_read_bytes(our_disk(srv, our_w))) == md5(
+        fixture_read_bytes(off_disk(srv, off_w))), "sparse-write files diverge our vs stock"
 
 
 # =========================================================================== #
@@ -229,8 +227,7 @@ def test_partial_noncontiguous_writes(srv, idx, regions, total):
             assert st == kXR_ok, f"{who} close failed: err={_err(body)}"
         finally:
             s_sock.close()
-        with open(disk_for(srv, url, wire), "rb") as f:
-            got = f.read()
+        got = fixture_read_bytes(disk_for(srv, url, wire))
         assert len(got) == total, f"{who} partial size {len(got)} != {total}"
         assert md5(got) == md5(expected), f"{who} partial-write content mismatch"
 
@@ -259,8 +256,7 @@ def test_overlapping_writes(srv, idx, a_off, a, b_off, b):
             assert _close(s_sock, fh)[0] == kXR_ok, f"{who} close"
         finally:
             s_sock.close()
-        with open(disk_for(srv, url, wire), "rb") as f:
-            got = f.read()
+        got = fixture_read_bytes(disk_for(srv, url, wire))
         assert got == expected, f"{who} overlapping-write final bytes wrong"
 
 
@@ -316,8 +312,7 @@ def test_sync_then_write_then_close_final_content(srv):
             assert _close(s_sock, fh)[0] == kXR_ok
         finally:
             s_sock.close()
-        with open(disk_for(srv, url, wire), "rb") as f:
-            got = f.read()
+        got = fixture_read_bytes(disk_for(srv, url, wire))
         assert got == a + b, f"{who} write-sync-write-close final content wrong"
 
 
@@ -353,8 +348,8 @@ def test_size_matrix_upload_roundtrip_our(srv, tmp_path, n):
     dl = str(tmp_path / f"sm_our_dl_{n}.bin")
     rc, o, e = cp("-f", f"{srv['our']}/{wire}", dl)
     assert rc == 0, f"download N={n} from OUR failed: {o}{e}"
-    with open(src, "rb") as a, open(dl, "rb") as b:
-        assert md5(a.read()) == md5(b.read()), f"N={n} roundtrip integrity mismatch"
+    assert md5(fixture_read_bytes(src)) == md5(fixture_read_bytes(dl)), \
+        f"N={n} roundtrip integrity mismatch"
 
 
 @pytest.mark.parametrize("n", _SIZES)
@@ -372,8 +367,7 @@ def test_size_matrix_differential_our_vs_stock(srv, tmp_path, n):
     b = str(tmp_path / f"sm_diff_dl_off_{n}.bin")
     assert cp("-f", f"{srv['our']}/{our_w}", a)[0] == 0
     assert cp("-f", f"{srv['off']}/{off_w}", b)[0] == 0
-    with open(src, "rb") as fs_, open(a, "rb") as fa, open(b, "rb") as fb:
-        want, ga, gb = md5(fs_.read()), md5(fa.read()), md5(fb.read())
+    want, ga, gb = (md5(fixture_read_bytes(path)) for path in (src, a, b))
     assert ga == want, f"N={n}: OUR roundtrip differs from source"
     assert gb == want, f"N={n}: STOCK roundtrip differs from source"
     assert ga == gb, f"N={n}: OUR vs STOCK downloads differ"

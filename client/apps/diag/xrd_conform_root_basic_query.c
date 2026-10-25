@@ -79,13 +79,44 @@ strict_unsigned(const char *value)
 }
 
 static void
+probe_crc_variants(xrd_conform_execution *execution, brix_conn *connection,
+    const char *path)
+{
+    char crc64[129];
+    char crc64nvme[129];
+    char reason[64];
+    brix_status status;
+    int rc;
+
+    if (!xrd_conform_basic_reserve(execution, reason)) return;
+    brix_status_clear(&status);
+    rc = brix_query_cksum(connection, path, "crc64", crc64, sizeof(crc64),
+        &status);
+    if (rc == 0 && xrd_conform_basic_reserve(execution, reason)) {
+        brix_status_clear(&status);
+        rc = brix_query_cksum(connection, path, "crc64nvme", crc64nvme,
+            sizeof(crc64nvme), &status);
+        if (rc == 0)
+            xrd_conform_basic_grade(execution, "QRY-005",
+                strcmp(crc64, crc64nvme) != 0,
+                "crc64-polynomials-produce-distinct-digests", &status);
+        else
+            xrd_conform_result_set(execution, "QRY-005",
+                BRIX_CONFORM_VERDICT_INCONCLUSIVE,
+                "crc64nvme-not-available", NULL, status.msg);
+    } else if (rc != 0) {
+        xrd_conform_result_set(execution, "QRY-005",
+            BRIX_CONFORM_VERDICT_INCONCLUSIVE,
+            "crc64-not-available", NULL, status.msg);
+    }
+}
+
+static void
 probe_query(xrd_conform_execution *execution, brix_conn *connection,
     const char *path)
 {
     char reply[512];
     char digest[129];
-    char crc64[129];
-    char crc64nvme[129];
     char reason[64];
     brix_status status;
     unsigned long long total;
@@ -114,27 +145,7 @@ probe_query(xrd_conform_execution *execution, brix_conn *connection,
             status.kxr == kXR_Unsupported ? "sha256-not-advertised"
                                           : "checksum-query-failed",
             NULL, status.msg);
-    if (!xrd_conform_basic_reserve(execution, reason)) return;
-    brix_status_clear(&status);
-    rc = brix_query_cksum(connection, path, "crc64", crc64, sizeof(crc64),
-        &status);
-    if (rc == 0 && xrd_conform_basic_reserve(execution, reason)) {
-        brix_status_clear(&status);
-        rc = brix_query_cksum(connection, path, "crc64nvme", crc64nvme,
-            sizeof(crc64nvme), &status);
-        if (rc == 0)
-            xrd_conform_basic_grade(execution, "QRY-005",
-                strcmp(crc64, crc64nvme) != 0,
-                "crc64-polynomials-produce-distinct-digests", &status);
-        else
-            xrd_conform_result_set(execution, "QRY-005",
-                BRIX_CONFORM_VERDICT_INCONCLUSIVE,
-                "crc64nvme-not-available", NULL, status.msg);
-    } else if (rc != 0) {
-        xrd_conform_result_set(execution, "QRY-005",
-            BRIX_CONFORM_VERDICT_INCONCLUSIVE,
-            "crc64-not-available", NULL, status.msg);
-    }
+    probe_crc_variants(execution, connection, path);
     if (!xrd_conform_basic_reserve(execution, reason)) return;
     brix_status_clear(&status);
     rc = brix_query_cksum(connection, path, "brix-unknown", digest,

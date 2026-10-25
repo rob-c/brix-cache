@@ -17,17 +17,19 @@ Run (against a module rebuilt with the extensions, e.g. a private server):
     PYTHONPATH=tests python3 -m pytest tests/test_xrootdfs_ext.py -v -p no:xdist
 """
 import os
+import pwd
 import shutil
 import socket
 import stat as statmod
 import subprocess
 from brix_suite.client_build import client_make
+from brix_suite.worker_identity import nginx_default_worker_user
 import time
 
 import pytest
 
 from lib_py import fuse_host
-from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
+from settings import DATA_ROOT, NGINX_ANON_PORT, NGINX_BIN, SERVER_HOST
 
 def _guard_built_1():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
@@ -112,6 +114,9 @@ def seed():
     path = os.path.join(DATA_ROOT, name)
     with open(path, "wb") as fh:
         fh.write(b"vendor-ext-payload\n")
+    if os.geteuid() == 0:
+        worker = pwd.getpwnam(nginx_default_worker_user(str(NGINX_BIN)))
+        os.chown(path, worker.pw_uid, worker.pw_gid)
     artifacts = [path, path + ".lnk", path + ".hard", path + ".dangling"]
     yield name
     for a in artifacts:

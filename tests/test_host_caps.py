@@ -1,5 +1,6 @@
 """Host-specific fixed-fleet capability selection."""
 from types import SimpleNamespace
+import pytest
 
 from brix_suite import host_caps
 
@@ -31,3 +32,35 @@ def test_missing_kdc_tooling_drops_kdc_and_dependants(monkeypatch):
     assert [spec.name for spec in kept] == ["main"]
     assert "MIT KDC tooling" in dropped["krb5-kdc"]
     assert dropped["krb5"].startswith("requires krb5-kdc:")
+
+
+@pytest.mark.parametrize("directive", ["brix_prepare_command", "brix_frm_stagecmd",
+                                      "brix_frm_purge_polprog", "brix_cms_perf_pgm",
+                                      "brix_cms_fsxeq"])
+def test_worker_program_capabilities_match_the_host(monkeypatch, directive):
+    for platform in ("linux", "darwin"):
+        monkeypatch.setattr(host_caps.sys, "platform", platform)
+        reason = host_caps.configuration_unavailable_reason(f"stream {{ {directive} /bin/true; }}")
+        assert (reason is not None) is (platform == "darwin")
+
+
+def test_comments_and_quoted_values_cannot_disable_a_working_server(monkeypatch):
+    monkeypatch.setattr(host_caps.sys, "platform", "darwin")
+    assert host_caps.configuration_unavailable_reason(
+        '# brix_prepare_command /bin/false;\nset $note "brix_frm_stagecmd /bin/true";') is None
+    host_caps.template_unavailable_reason.cache_clear()
+    assert host_caps.template_unavailable_reason("nginx_prepare_staging.conf") is None
+
+
+@pytest.mark.parametrize("backend", ["frm://exec/data", "tape://hpss/data", "frm://cta/data"])
+def test_external_mss_backends_are_capability_gated(monkeypatch, backend):
+    monkeypatch.setattr(host_caps.sys, "platform", "darwin")
+    assert host_caps.configuration_unavailable_reason(f"brix_storage_backend {backend};")
+
+
+@pytest.mark.parametrize("text", ['brix_storage_backend posix:/tmp/frm://exec;',
+                                  'brix_storage_backend frm://executor/data;',
+                                  'brix_frm_stagecmd "unterminated'])
+def test_unrelated_or_malformed_config_is_left_to_nginx(monkeypatch, text):
+    monkeypatch.setattr(host_caps.sys, "platform", "darwin")
+    assert host_caps.configuration_unavailable_reason(text) is None

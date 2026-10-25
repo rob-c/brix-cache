@@ -60,9 +60,8 @@ def _server_up():
 
 
 pytestmark = pytest.mark.skipif(
-    not os.path.exists(XRDCP)
-    or not _server_up()
-    or not os.path.exists(os.path.join(DATA_DIR, "test.txt")),
+    "not os.path.exists(XRDCP) or not _server_up() "
+    "or not os.path.exists(os.path.join(DATA_DIR, 'test.txt'))",
     reason="needs built xrdcp + running anon root:// server on :11094 with fixtures",
 )
 

@@ -13,6 +13,7 @@
  * Exit 0 iff every replayed case matches; nonzero on any mismatch.
  */
 #include "auth/crypto/store_policy.h"
+#include "auth/crypto/store_compat.h"
 
 #include <openssl/pem.h>
 #include <openssl/x509_vfy.h>
@@ -90,9 +91,9 @@ store_for_group(const group_cfg_t *g, int allow_proxy)
         return NULL;
     }
     if (g->use_bundle) {
-        X509_STORE_load_file(cached->store, bundle);
+        brix_crypto_store_load_file(cached->store, bundle);
     } else {
-        X509_STORE_load_path(cached->store, cadir);
+        brix_crypto_store_load_path(cached->store, cadir);
         if (g->crl_mode != BRIX_CRL_MODE_OFF) {
             crl_count = load_crls(cached->store, cadir);
         }

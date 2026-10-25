@@ -63,6 +63,19 @@ sd_s3_open_read(const sd_s3_open_params *p, char *errbuf, size_t errcap)
     return f;
 }
 
+/* ---- Read object size without losing the typed HEAD failure --------------
+ *
+ * WHAT: Returns 0 with the object's Content-Length, or -1 with errno mapped
+ *       from the HEAD response or transport failure.
+ *
+ * WHY: Namespace callers distinguish a genuine 404 from authorization and
+ *      origin failures. Response cleanup must not clobber that distinction.
+ *
+ * HOW: 1. Reuse a cached size when available.
+ *      2. Sign and issue HEAD, mapping non-200 status through the shared map.
+ *      3. Preserve mapped errno across response cleanup.
+ *      4. Cache and return Content-Length from a successful response.
+ */
 int
 sd_s3_size(sd_s3_file *f, int64_t *out_size, char *errbuf, size_t errcap)
 {
@@ -85,7 +98,10 @@ sd_s3_size(sd_s3_file *f, int64_t *out_size, char *errbuf, size_t errcap)
     }
     if (resp.status != 200) {
         int rc = sd_s3_status_err(resp.status, "HEAD", f->key, errbuf, errcap);
+        int saved_errno = errno;
+
         f->transport->resp_free(&resp);
+        errno = saved_errno;
         return rc;
     }
     if (f->transport->resp_header(&resp, "Content-Length", cl, sizeof(cl)) == 0) {

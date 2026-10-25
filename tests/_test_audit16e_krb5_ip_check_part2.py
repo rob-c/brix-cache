@@ -134,8 +134,11 @@ class TestTheCheckWithAnAddressedTicket:
         cannot be alerted on; the ERR record names the address that was turned
         away, which is the one fact an operator needs."""
         ticket = _addressed_ticket(planes.tmp_path)
+        before = len(planes.accesslog("on").splitlines())
         assert _refused(_relayed(planes, planes.on, ticket, "stat", READ_FILE))
-        entries = _error_entries(planes.accesslog("on"))
+        entries = wait_for_log_value(
+            lambda: planes.accesslog("on").splitlines(),
+            lambda rows: _error_entries("\n".join(rows)), before=before)
         assert entries, (
             "the enabled plane logged no refusal at all\n"
             f"{planes.accesslog('on')}\n{planes.errlog()}")

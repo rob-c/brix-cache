@@ -207,7 +207,7 @@ gsi_build_dh_public(brix_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    if (!EVP_PKEY_get_bn_param(dhkey, "pub", &pub_bn)) {
+    if (!brix_crypto_dh_public(dhkey, &pub_bn)) {
         brix_evp_pkey_free(dhkey);
         return NGX_ERROR;
     }

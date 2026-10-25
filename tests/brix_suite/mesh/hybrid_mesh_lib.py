@@ -51,6 +51,7 @@ from brix_suite.mesh.cms_mesh_lib import (
 )
 from brix_suite.settings import BIND_HOST
 from brix_suite.mesh.mesh_config import render
+from lib_py.reference_host import reference_listener_args
 
 # --------------------------------------------------------------------------- #
 # Scratch root + dedicated port band
@@ -198,10 +199,11 @@ def launch_xrootd(m, label, cfg_text):
     cfg = m.write(f"{label}.cfg", cfg_text)
     clog = os.path.join(m.root, "logs", f"{label}-cmsd.log")
     xlog = os.path.join(m.root, "logs", f"{label}-xrootd.log")
+    ip_args = reference_listener_args(HOST)
     runas = runas_args(m.root)
-    subprocess.run([CMSD_BIN, *runas, "-c", cfg, "-n", label, "-l", clog, "-b"],
+    subprocess.run([CMSD_BIN, *ip_args, *runas, "-c", cfg, "-n", label, "-l", clog, "-b"],
                    check=False, start_new_session=True, cwd=m.root)
-    subprocess.run([BRIX_BIN, *runas, "-c", cfg, "-n", label, "-l", xlog, "-b"],
+    subprocess.run([BRIX_BIN, *ip_args, *runas, "-c", cfg, "-n", label, "-l", xlog, "-b"],
                    check=False, start_new_session=True, cwd=m.root)
 
 

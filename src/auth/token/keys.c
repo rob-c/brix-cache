@@ -1,26 +1,24 @@
 /* Public-key construction for JWKS entries (RSA and EC P-256).
  *
  * WHAT: Converts base64url-encoded JWK key parameters into OpenSSL EVP_PKEY objects.
- * RSA path: decode n/e from base64url → BIGNUMs → OSSL_PARAM_BLD → EVP_PKEY_fromdata(RSA);
+ * RSA path: decode n/e from base64url → BIGNUMs → version-neutral key import;
  * EC P-256 path: decode x/y from base64url → uncompressed 65-byte point (0x04||x||y) →
- *   OSSL_PARAM_BLD with group name P-256 → EVP_PKEY_fromdata(EC).
+ *   version-neutral P-256 key import.
  *
  * WHY: JWKS keys arrive as base64url-encoded n/e (RSA) or x/y (EC) strings in JSON.
  * The token layer needs OpenSSL EVP_PKEY handles to verify RS256 signatures via
  * brix_token_verify_signature(). These functions bridge JWK wire format → OpenSSL native.
  *
  * HOW: Both functions use b64url_decode() for base64url→binary conversion, then
- * OSSL_PARAM_BLD/OSSL_PARAM_BLD_to_param() to build key parameters, and
- * EVP_PKEY_CTX_new_from_name() + EVP_PKEY_fromdata() to construct the final handle.
- * All intermediate BIGNUMs/params/bld are freed before return. */
+ * auth/crypto/jwk_compat.h for native provider or 1.1.1 public-key construction.
+ * All intermediate BIGNUMs are freed before return. */
 
 #include "core/compat/log_event.h"
 #include "token_internal.h"
 #include "b64url.h"
 
 #include <openssl/bn.h>
-#include <openssl/core_names.h>
-#include <openssl/param_build.h>
+#include "auth/crypto/jwk_compat.h"
 #include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* WHAT: Construct OpenSSL RSA public key from base64url-encoded modulus (n) and
@@ -36,9 +34,6 @@ brix_token_rsa_pubkey_from_ne(const char *n_b64, size_t n_b64_len,
     u_char   n_bin[512], e_bin[16];
     ssize_t  n_len, e_len;
     BIGNUM  *bn_n, *bn_e;
-    OSSL_PARAM_BLD *bld;
-    OSSL_PARAM     *params;
-    EVP_PKEY_CTX   *pctx;
     EVP_PKEY       *pkey;
 
     n_len = b64url_decode(n_b64, n_b64_len, n_bin, sizeof(n_bin));
@@ -57,27 +52,7 @@ brix_token_rsa_pubkey_from_ne(const char *n_b64, size_t n_b64_len,
         return NULL;
     }
 
-    bld = OSSL_PARAM_BLD_new();
-    if (bld == NULL) {
-        BN_free(bn_n);
-        BN_free(bn_e);
-        return NULL;
-    }
-
-    OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_N, bn_n);
-    OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_E, bn_e);
-    params = OSSL_PARAM_BLD_to_param(bld);
-
-    pkey = NULL;
-    pctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
-    if (pctx != NULL) {
-        EVP_PKEY_fromdata_init(pctx);
-        EVP_PKEY_fromdata(pctx, &pkey, EVP_PKEY_PUBLIC_KEY, params);
-        brix_evp_pkey_ctx_free(pctx);
-    }
-
-    OSSL_PARAM_free(params);
-    OSSL_PARAM_BLD_free(bld);
+    pkey = brix_crypto_rsa_public(bn_n, bn_e);
     BN_free(bn_n);
     BN_free(bn_e);
 
@@ -96,10 +71,6 @@ brix_token_ec_pubkey_from_xy(const char *x_b64, size_t x_b64_len,
     u_char          x_bin[32], y_bin[32];
     ssize_t         x_len, y_len;
     u_char          pub_point[65];  /* 0x04 || x (32) || y (32) */
-    OSSL_PARAM_BLD *bld;
-    OSSL_PARAM     *params;
-    EVP_PKEY_CTX   *pctx;
-    EVP_PKEY       *pkey;
 
     x_len = b64url_decode(x_b64, x_b64_len, x_bin, sizeof(x_bin));
     y_len = b64url_decode(y_b64, y_b64_len, y_bin, sizeof(y_bin));
@@ -113,26 +84,5 @@ brix_token_ec_pubkey_from_xy(const char *x_b64, size_t x_b64_len,
     ngx_memcpy(pub_point + 1,  x_bin, 32);
     ngx_memcpy(pub_point + 33, y_bin, 32);
 
-    bld = OSSL_PARAM_BLD_new();
-    if (bld == NULL) {
-        return NULL;
-    }
-
-    OSSL_PARAM_BLD_push_utf8_string(bld, OSSL_PKEY_PARAM_GROUP_NAME, "P-256", 0);
-    OSSL_PARAM_BLD_push_octet_string(bld, OSSL_PKEY_PARAM_PUB_KEY,
-                                     pub_point, sizeof(pub_point));
-    params = OSSL_PARAM_BLD_to_param(bld);
-
-    pkey = NULL;
-    pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
-    if (pctx != NULL) {
-        EVP_PKEY_fromdata_init(pctx);
-        EVP_PKEY_fromdata(pctx, &pkey, EVP_PKEY_PUBLIC_KEY, params);
-        brix_evp_pkey_ctx_free(pctx);
-    }
-
-    OSSL_PARAM_free(params);
-    OSSL_PARAM_BLD_free(bld);
-
-    return pkey;
+    return brix_crypto_p256_public(pub_point, sizeof(pub_point));
 }

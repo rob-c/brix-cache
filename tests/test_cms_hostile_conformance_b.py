@@ -243,23 +243,23 @@ class TestNodeLegEsotericManager:
 
     def test_manager_space_query_answered(self, hostile_node):
         """kYR_space is answered with a kYR_avail reply echoing the streamid."""
-        hostile_node.send_to_node(_SID | 0x37, CMS_RR_SPACE, 0)
-        fr = hostile_node.collect_reply(CMS_RR_AVAIL, timeout=6)
+        before = hostile_node.send_to_node(_SID | 0x37, CMS_RR_SPACE, 0)
+        fr = hostile_node.collect_reply(CMS_RR_AVAIL, timeout=6, after=before)
         assert fr is not None, "kYR_space drew no kYR_avail reply"
         assert fr[0] == (_SID | 0x37)
 
     def test_manager_stats_query_answered(self, hostile_node):
         """kYR_stats is answered with a kYR_data stats document."""
-        hostile_node.send_to_node(_SID | 0x38, CMS_RR_STATS, 0)
-        assert hostile_node.collect_reply(CMS_RSP_DATA, timeout=6) is not None, \
+        before = hostile_node.send_to_node(_SID | 0x38, CMS_RR_STATS, 0)
+        assert hostile_node.collect_reply(CMS_RSP_DATA, timeout=6, after=before) is not None, \
             "kYR_stats drew no kYR_data reply"
 
     def test_manager_update_answered_with_status(self, hostile_node):
         """kYR_update makes the node resend its state as a kYR_status frame.
-        collect_reply baselines at call time, so a login-time status already
-        counted does not satisfy this — only the update-driven one does."""
-        hostile_node.send_to_node(_SID | 0x39, CMS_RR_UPDATE, 0)
-        assert hostile_node.collect_reply(CMS_RR_STATUS, timeout=6) is not None, \
+        Use the pre-send baseline: neither a login-time status nor a missed
+        fast response may answer this check."""
+        before = hostile_node.send_to_node(_SID | 0x39, CMS_RR_UPDATE, 0)
+        assert hostile_node.collect_reply(CMS_RR_STATUS, timeout=6, after=before) is not None, \
             "kYR_update drew no kYR_status reply"
 
     def test_malformed_forwarded_ops_dropped(self, hostile_node):

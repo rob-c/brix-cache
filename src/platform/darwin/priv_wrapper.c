@@ -21,6 +21,18 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+/* WHAT: Refuse unsupported process-descriptor ownership.
+ * WHY: A numeric pid is not an equivalent lifetime capability.
+ * HOW: Return ENOTSUP instead of silently substituting fork. */
+pid_t brix_plat_broker_fork(int *process_fd)
+{ (void) process_fd; errno = ENOTSUP; return -1; }
+
+/* WHAT: Refuse the fixed-identity Capsicum helper boundary.
+ * WHY: Seatbelt/uid transitions do not implement this native contract.
+ * HOW: Return ENOTSUP; no success-shaped emulation is permitted. */
+int brix_plat_broker_confine(int channel, int rootfd, int logfd)
+{ (void) channel; (void) rootfd; (void) logfd; errno = ENOTSUP; return -1; }
+
 /* Darwin exposes no authoritative getres* interface.  Refuse these Linux
  * contracts instead of fabricating a saved ID that may still be privileged. */
 int

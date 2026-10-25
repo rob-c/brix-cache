@@ -69,6 +69,12 @@ typedef struct {
     char    error_msg[128];
 } brix_cksum_aio_t;
 
+/* One reusable, connection-owned checksum/scan task. Returns NULL on allocation
+ * failure or an overlapping active task. Call only from the event-loop thread;
+ * the caller must bind its callbacks before posting. Storage is released when
+ * the connection pool is destroyed, never from an embedded event callback. */
+ngx_thread_task_t *brix_query_checksum_task(ngx_connection_t *c, size_t size);
+
 /* kXR_Qcksum async functions — defined in checksum_qcksum_async.c */
 /* Thread-pool worker: computes the checksum of t->fd into t->resp, or sets
  * t->error_code (kXR_*) + t->error_msg on failure. `data` is brix_cksum_aio_t.

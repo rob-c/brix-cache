@@ -32,7 +32,7 @@
  * Create an event notification fd
  *
  * Linux: eventfd(initial_value, flags)
- * macOS: pipe-based implementation
+ * macOS: unsupported (ENOTSUP); use the paired notification-channel PAL
  * Windows: pipe-based emulation
  *
  * Windows Implementation:
@@ -55,7 +55,7 @@ int brix_plat_eventfd(unsigned int initial_value, int flags);
  * Write to eventfd (Windows-specific helper)
  *
  * Linux: write(efd, &value, sizeof(value))
- * macOS: write to pipe
+ * macOS: unsupported; use the paired notification-channel PAL
  * Windows: Protected write to emulated eventfd counter
  *
  * Windows Implementation:
@@ -74,7 +74,7 @@ int brix_plat_eventfd_write(int efd, uint64_t value);
  * Read from eventfd (Windows-specific helper)
  *
  * Linux: read(efd, &value, sizeof(value))
- * macOS: read from pipe
+ * macOS: unsupported; use the paired notification-channel PAL
  * Windows: Protected read from emulated eventfd counter
  *
  * Windows Implementation:
@@ -93,7 +93,7 @@ int brix_plat_eventfd_read(int efd, uint64_t *value);
  * Close eventfd (Windows-specific helper)
  *
  * Linux: close(efd)
- * macOS: close(pipe_fd)
+ * macOS: unsupported; no descriptor is created
  * Windows: Full cleanup of eventfd emulation structure
  *
  * Windows Implementation:

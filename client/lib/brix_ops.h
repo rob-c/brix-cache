@@ -8,6 +8,8 @@
 
 /* ---- ops_meta.c ---- */
 int brix_stat(brix_conn *c, const char *path, brix_statinfo *out, brix_status *st);
+/* Decode the shared NUL-terminated stat-line grammar; no transport or I/O. */
+int brix_statinfo_parse(const char *line, brix_statinfo *out);
 /* lstat — do not follow a final symlink (kXR_statNoFollow). A symlink reports the
  * kXR_other flag with size = target length; against a server without the vendor
  * extension the option is ignored and this behaves like brix_stat. */

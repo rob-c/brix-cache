@@ -201,6 +201,47 @@ probe_stat_forms(xrd_conform_execution *execution, brix_conn *connection,
         "statx-flags-agree-with-stat", "statx-flags-disagree-with-stat");
 }
 
+static void
+grade_primary_stat(xrd_conform_execution *execution,
+    const brix_statinfo *first, int first_ok, uint64_t size, time_t now)
+{
+    grade(execution, "STA-002", first_ok && first->size >= 0
+        && (uint64_t) first->size == size, "stat-size-matches-read",
+        "stat-size-mismatch");
+    grade(execution, "STA-003", first_ok
+        && (first->flags & (kXR_isDir | kXR_other)) == 0,
+        "regular-file-flags", "unexpected-file-type-flags");
+    grade(execution, "STA-009", first_ok && first->mtime > 0
+        && now != (time_t) -1 && first->mtime <= now + 300,
+        "plausible-unix-mtime", "implausible-unix-mtime");
+    grade(execution, "STA-010", first_ok
+        && (first->flags & kXR_offline) == 0,
+        "readable-object-not-marked-offline", "online-object-marked-offline");
+    grade(execution, "STA-001", first_ok && first->size >= 0,
+        "stat-line-size-before-flags", "stat-line-order-invalid");
+}
+
+static void
+probe_missing_stat(xrd_conform_execution *execution, brix_conn *connection,
+    const char *path, brix_statinfo *info)
+{
+    static const char *const missing_ids[] = { "STA-007", "ERR-001" };
+    brix_status status;
+    char missing[XRDC_PATH_MAX];
+
+    if ((size_t) snprintf(missing, sizeof(missing), "%s.brix-missing-%.8s",
+            path, execution->run->key_hex) >= sizeof(missing)) return;
+    if (!reserve_stat(execution, missing_ids,
+            sizeof(missing_ids) / sizeof(missing_ids[0]))) return;
+    brix_status_clear(&status);
+    grade(execution, "STA-007",
+        brix_stat(connection, missing, info, &status) != 0
+            && status.kxr == kXR_NotFound,
+        "missing-stat-kXR_NotFound", "missing-stat-wrong-answer");
+    grade(execution, "ERR-001", status.kxr == kXR_NotFound,
+        "ENOENT-mapped-kXR_NotFound", "ENOENT-mapping-mismatch");
+}
+
 /* WHAT: Exercise stat size/type/time/stability and missing-path mapping.
  * WHY: These assertions are fully observable through the typed metadata API.
  * HOW: Stat twice, compare learned body size, then stat a keyed absent sibling. */
@@ -213,10 +254,8 @@ xrd_conform_probe_stat(xrd_conform_execution *execution,
         "STA-001", "STA-002", "STA-003", "STA-009", "STA-010", "STA-014"
     };
     static const char *const second_ids[] = { "STA-014" };
-    static const char *const missing_ids[] = { "STA-007", "ERR-001" };
     brix_statinfo first, second, root;
     brix_status status;
-    char missing[XRDC_PATH_MAX];
     time_t now = time(NULL);
     int first_ok;
     int second_ok;
@@ -233,19 +272,7 @@ xrd_conform_probe_stat(xrd_conform_execution *execution,
         sizeof(second_ids) / sizeof(second_ids[0]));
     second_ok = second_reserved
         && brix_stat(connection, path, &second, &status) == 0;
-    grade(execution, "STA-002", first_ok && first.size >= 0
-        && (uint64_t) first.size == size, "stat-size-matches-read",
-        "stat-size-mismatch");
-    grade(execution, "STA-003", first_ok
-        && (first.flags & (kXR_isDir | kXR_other)) == 0,
-        "regular-file-flags", "unexpected-file-type-flags");
-    grade(execution, "STA-009", first_ok && first.mtime > 0
-        && now != (time_t) -1 && first.mtime <= now + 300,
-        "plausible-unix-mtime", "implausible-unix-mtime");
-    grade(execution, "STA-010", first_ok && (first.flags & kXR_offline) == 0,
-        "readable-object-not-marked-offline", "online-object-marked-offline");
-    grade(execution, "STA-001", first_ok && first.size >= 0,
-        "stat-line-size-before-flags", "stat-line-order-invalid");
+    grade_primary_stat(execution, &first, first_ok, size, now);
     root_reserved = reserve_stat(execution, second_ids,
         sizeof(second_ids) / sizeof(second_ids[0]));
     if (root_reserved) {
@@ -262,15 +289,5 @@ xrd_conform_probe_stat(xrd_conform_execution *execution,
         probe_stat_forms(execution, connection, file, path, &first);
         probe_stat_boundaries(execution, connection, path, &first);
     }
-    if ((size_t) snprintf(missing, sizeof(missing), "%s.brix-missing-%.8s",
-            path, execution->run->key_hex) >= sizeof(missing)) return;
-    if (!reserve_stat(execution, missing_ids,
-            sizeof(missing_ids) / sizeof(missing_ids[0]))) return;
-    brix_status_clear(&status);
-    grade(execution, "STA-007",
-        brix_stat(connection, missing, &first, &status) != 0
-            && status.kxr == kXR_NotFound,
-        "missing-stat-kXR_NotFound", "missing-stat-wrong-answer");
-    grade(execution, "ERR-001", status.kxr == kXR_NotFound,
-        "ENOENT-mapped-kXR_NotFound", "ENOENT-mapping-mismatch");
+    probe_missing_stat(execution, connection, path, &first);
 }

@@ -7,6 +7,10 @@
 /* Sanitize a path string for safe logging (replaces control chars). */
 size_t brix_sanitize_log_string(const char *in, char *out, size_t outsz);
 
+/* Preserve directory intent before canonicalisation removes trailing '/'.
+ * Pure spelling check; NULL/empty => false. Defined in unified_build.c. */
+ngx_flag_t brix_has_trailing_slash_cstr(const char *path);
+
 /* Normalize a policy-style path (collapse "..", trailing slashes). */
 ngx_int_t brix_normalize_policy_path(ngx_pool_t *pool,
     const ngx_str_t *src, ngx_str_t *dst);
@@ -168,6 +172,10 @@ char *brix_realpath_existing(const char *path, char *resolved);
 /* As above but <root_canon> is already canonical (skips the realpath). */
 int brix_open_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, int flags, mode_t mode);
+/* Convert an already resolved path to its checked export-relative key.
+ * Returns 1, or 0 with EXDEV/ENAMETOOLONG; never truncate or escape the root. */
+int brix_resolved_relative_to_root(ngx_log_t *log, const char *root_canon,
+    const char *resolved, char *rel, size_t relsz);
 /* Confined unlinkat of <resolved>; <is_dir> != 0 sets AT_REMOVEDIR (rmdir).
  * Returns 0 or -1 with errno set. */
 int brix_unlink_confined_canon(ngx_log_t *log, const char *root_canon,

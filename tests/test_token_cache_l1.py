@@ -67,6 +67,11 @@ def test_cached_read_token_denied_write(issuer):
     """A read-only token cached by a successful GET must still be DENIED a PUT —
     proves the cache stores the real scopes and the write-scope check still runs."""
     token = issuer.generate(scope="storage.read:/")
+    local = os.path.join(DATA_ROOT, "l1_should_not_exist.txt")
+    try:
+        os.unlink(local)
+    except FileNotFoundError:
+        pass
     # Prime the cache with a successful read.
     assert _get(token).status_code == 200
     # Same token, now a write — must be refused for lack of write scope.
@@ -79,7 +84,7 @@ def test_cached_read_token_denied_write(issuer):
     assert resp.status_code in (401, 403), \
         f"cached read token must not gain write access (got {resp.status_code})"
     # Make sure nothing was written.
-    assert not os.path.exists(os.path.join(DATA_ROOT, "l1_should_not_exist.txt"))
+    assert not os.path.exists(local)
 
 
 def test_write_token_cached_allows_write(issuer):

@@ -44,6 +44,14 @@ from settings import (
     SERVER_HOST,
 )
 
+# This 4,700+ case corpus deliberately hammers the shared, long-lived fleet.
+# Running one copy per xdist worker after the rest of the parallel lane has
+# accumulated process/socket churn can exhaust the fleet and turn every
+# concurrent group into a cascade of connection failures.  Preserve the full
+# corpus, but isolate it in the suite's serial lane.
+pytestmark = [pytest.mark.serial,
+              pytest.mark.xdist_group("fuzz-binary-conformance")]
+
 # Cleartext XRootD stream listeners (all begin with the same 20-byte handshake).
 def _step_require_and_verify_1(sock):
     try:

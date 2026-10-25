@@ -41,13 +41,13 @@ Three results are worth stating out loud:
     three ways — the exposure, then the two defences.
 
 A NOTE ON THE TWO CORRUPTION RATES. The proxy flips at `pct * 10000` ppm per
-byte, so one flat rate cannot address both questions: a rate high enough to
-mangle a few-hundred-byte handshake with certainty destroys the payload tests'
-premise, and a rate low enough to spare the handshake leaves the credential
-intact most of the time. Hence `CORRUPT_PCT` (handshake regime) and
+byte, so one flat rate cannot address both questions: a high handshake rate
+destroys the payload tests' premise, and a low rate leaves credentials intact
+most of the time. Hence `CORRUPT_PCT` (TLS record regime) and
 `CORRUPT_PAYLOAD_PCT` (payload regime) — 1000x apart, each chosen so its own
-tests are deterministic. Picking one rate for both is how these tests were first
-written, and it produced a suite that failed on a coin toss.
+tests are distinct. A percentage cannot guarantee damage to a short credential.
+The token-login negative instead rewrites a known signature fragment and requires
+the proxy's replacement counter to witness actual credential mutation.
 
 Trio per CLAUDE.md:
   * success   — clean transfers on both legs are byte-exact through the proxy,
@@ -64,6 +64,7 @@ Run:
 """
 import hashlib
 import os
+import re
 import subprocess
 import sys
 
@@ -306,9 +307,51 @@ def test_tls_never_delivers_corrupted_bytes(tls_leg):
 
 def test_token_login_corrupted_in_flight_is_refused(token_leg):
     """The credential itself is mangled on the way up: refuse, deliver nothing."""
-    token_leg.fp.set_corrupt(CORRUPT_PCT, "up")
+    assert token_leg.copy() == (0, True, True), "valid credential control failed"
+    needle, replacement = _signature_rewrite(token_leg.token)
+    before = _replacement_count(token_leg.fp)
+    reply = token_leg.fp.ctl(f"replace str:{needle} str:{replacement} up")
+    assert reply.startswith("ok"), reply
     rc, exact, delivered = token_leg.copy()
+    assert _replacement_count(token_leg.fp) > before, "JWT wire mutation never fired"
     assert rc != 0 and not exact and not delivered
+
+
+def _signature_rewrite(token):
+    """Change real signature bits, not unused final base64 padding bits."""
+    parts = token.split(".")
+    if len(parts) != 3 or re.fullmatch(r"[A-Za-z0-9_-]{8,}", parts[2]) is None:
+        raise ValueError("fixture needs an unpadded JWT signature of at least eight characters")
+    needle = parts[2][:8]
+    replacement = ("A" if needle[0] != "A" else "B") + needle[1:]
+    return needle, replacement
+
+
+def _replacement_count(proxy):
+    """Require the real relay's substring-mutation witness, never infer it."""
+    match = re.search(r"\breplaced=(\d+)\b", proxy.ctl("status"))
+    assert match is not None, "fault proxy omitted its replacement counter"
+    return int(match.group(1))
+
+
+def test_signature_rewrite_preserves_framing_and_changes_decoded_bits():
+    """Success: only the signature changes and its first decoded byte differs."""
+    import base64
+    needle, replacement = _signature_rewrite("header.payload.ABCDEFGHIJKLMNOP")
+    assert len(needle) == len(replacement) == 8
+    assert base64.urlsafe_b64decode(needle) != base64.urlsafe_b64decode(replacement)
+
+
+def test_signature_rewrite_refuses_missing_signature():
+    """Error: a bad fixture cannot masquerade as an injected credential fault."""
+    with pytest.raises(ValueError):
+        _signature_rewrite("header.payload.")
+
+
+def test_signature_rewrite_refuses_control_channel_injection():
+    """Negative: token content cannot become an extra fault-proxy command."""
+    with pytest.raises(ValueError):
+        _signature_rewrite("header.payload.ABCDEFGH\nclear")
 
 
 def test_missing_token_is_refused(token_leg):

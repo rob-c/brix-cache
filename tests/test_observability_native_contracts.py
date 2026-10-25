@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import subprocess
+import sys
 
 import pytest
 
@@ -30,6 +31,7 @@ def test_scitags_wire_encoding(pmark_binary, experiment, activity, expected):
 
 
 @pytest.mark.parametrize('case', ['probe-success', 'probe-denied', 'lease'])
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux IPv6 flow-label lease API")
 def test_flowlabel_syscall_contract(pmark_binary, case):
     """Check labels, cached probe refusal, and metric outcomes through stubs."""
     _run(pmark_binary, case)

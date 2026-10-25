@@ -217,6 +217,71 @@ ci_contains(const char *hay, const char *needle)
  * HOW: Parse bounded hexadecimal sizes, require CRLF at every boundary, copy
  *      complete chunks, and require the terminal zero chunk plus empty trailer.
  */
+static int
+chunk_hex_value(unsigned char byte)
+{
+    if (byte >= '0' && byte <= '9') return byte - '0';
+    if (byte >= 'a' && byte <= 'f') return byte - 'a' + 10;
+    if (byte >= 'A' && byte <= 'F') return byte - 'A' + 10;
+    return -1;
+}
+
+static int
+chunk_size_line(const char *body, size_t length, size_t *input,
+    size_t *chunk_size)
+{
+    size_t digits = 0;
+
+    *chunk_size = 0;
+    while (*input < length) {
+        int value = chunk_hex_value((unsigned char) body[*input]);
+
+        if (value < 0) break;
+        if (*chunk_size > (SIZE_MAX - (unsigned) value) / 16U) return -1;
+        *chunk_size = *chunk_size * 16U + (unsigned) value;
+        digits++;
+        (*input)++;
+    }
+    if (digits == 0) return -1;
+    if (*input < length && body[*input] != '\r' && body[*input] != ';')
+        return -1;
+    while (*input < length && body[*input] != '\r') {
+        unsigned char byte = (unsigned char) body[*input];
+
+        if (byte < 0x20 || byte > 0x7e) return -1;
+        (*input)++;
+    }
+    if (*input + 2 > length || body[*input] != '\r'
+        || body[*input + 1] != '\n') return -1;
+    *input += 2;
+    return 0;
+}
+
+static int
+chunk_trailers(const char *body, size_t length, size_t *input)
+{
+    for (;;) {
+        size_t line_start = *input;
+        int colon = 0;
+
+        while (*input < length && body[*input] != '\r') {
+            unsigned char byte = (unsigned char) body[*input];
+
+            if (byte == ':') colon = 1;
+            if ((byte < 0x20 && byte != '\t') || byte > 0x7e) return -1;
+            (*input)++;
+        }
+        if (*input + 2 > length || body[*input] != '\r'
+            || body[*input + 1] != '\n') return -1;
+        if (*input == line_start) {
+            *input += 2;
+            return *input == length ? 0 : -1;
+        }
+        if (!colon) return -1;
+        *input += 2;
+    }
+}
+
 int
 dechunk(char *body, size_t length, size_t *plain_length)
 {
@@ -225,58 +290,13 @@ dechunk(char *body, size_t length, size_t *plain_length)
 
     while (input < length) {
         size_t chunk_size = 0;
-        size_t digits = 0;
 
-        while (input < length) {
-            unsigned char byte = (unsigned char) body[input];
-            unsigned value;
-
-            if (byte >= '0' && byte <= '9') value = byte - '0';
-            else if (byte >= 'a' && byte <= 'f') value = byte - 'a' + 10U;
-            else if (byte >= 'A' && byte <= 'F') value = byte - 'A' + 10U;
-            else break;
-            if (chunk_size > (SIZE_MAX - value) / 16U) return -1;
-            chunk_size = chunk_size * 16U + value;
-            digits++;
-            input++;
-        }
-        if (digits == 0) return -1;
-        if (input < length && body[input] != '\r' && body[input] != ';')
-            return -1;
-        while (input < length && body[input] != '\r') {
-            unsigned char byte = (unsigned char) body[input];
-
-            if (byte < 0x20 || byte > 0x7e) return -1;
-            input++;
-        }
-        if (input + 2 > length || body[input] != '\r'
-            || body[input + 1] != '\n') return -1;
-        input += 2;
+        if (chunk_size_line(body, length, &input, &chunk_size) != 0) return -1;
         if (chunk_size == 0) {
-            for (;;) {
-                size_t line_start = input;
-                int colon = 0;
-
-                while (input < length && body[input] != '\r') {
-                    unsigned char byte = (unsigned char) body[input];
-
-                    if (byte == ':') colon = 1;
-                    if ((byte < 0x20 && byte != '\t') || byte > 0x7e)
-                        return -1;
-                    input++;
-                }
-                if (input + 2 > length || body[input] != '\r'
-                    || body[input + 1] != '\n') return -1;
-                if (input == line_start) {
-                    input += 2;
-                    if (input != length) return -1;
-                    body[output] = '\0';
-                    *plain_length = output;
-                    return 0;
-                }
-                if (!colon) return -1;
-                input += 2;
-            }
+            if (chunk_trailers(body, length, &input) != 0) return -1;
+            body[output] = '\0';
+            *plain_length = output;
+            return 0;
         }
         if (chunk_size > length - input || input + chunk_size + 2 > length)
             return -1;

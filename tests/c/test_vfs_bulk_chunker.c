@@ -451,6 +451,7 @@ driver_reset(void)
     g_drv.unlink_many = spy_unlink_many;
 
     memset(&g_leaf, 0, sizeof(g_leaf));
+    g_leaf.log = ngx_cycle->log;
     g_leaf.driver = &g_drv;
 }
 
@@ -877,7 +878,10 @@ test_secneg_depth_beyond_the_cap_is_eloop_and_removes_nothing(void)
 
     errno = 0;
     assert(brix_vfs_rmtree_dispatch(&g_leaf, &g_drv, "/d", NULL) == NGX_ERROR);
-    assert(errno == ELOOP && "a chain past BRIX_FS_TREE_MAX_DEPTH is refused");
+    /* Darwin's shorter PATH_MAX rejects this chain before the depth cap.
+     * Both guards must reject the bomb before deleting any child. */
+    assert(errno == (PATH_MAX <= 2 * BRIX_FS_TREE_MAX_DEPTH
+                     ? ENAMETOOLONG : ELOOP));
     assert(tree_live() == levels
            && "a directory bomb is refused whole — never half-removed");
     assert(g_unlink_calls == 0 && g_unlink_many_calls == 0);
@@ -908,6 +912,26 @@ test_secneg_dtype_is_a_hint_and_never_authority(void)
 }
 
 static void
+test_secneg_overlong_child_never_reaches_a_mutation_slot(void)
+{
+    char parent[PATH_MAX], child[PATH_MAX + 8];
+
+    reset_all();
+    parent[0] = '/';
+    memset(parent + 1, 'd', sizeof(parent) - 3);
+    parent[sizeof(parent) - 2] = '\0';
+    assert(snprintf(child, sizeof(child), "%s/file", parent) > PATH_MAX);
+    tree_add(parent, 1);
+    tree_add(child, 0);
+
+    errno = 0;
+    assert(brix_vfs_rmtree_dispatch(&g_leaf, &g_drv, parent, NULL) == NGX_ERROR);
+    assert(errno == ENAMETOOLONG);
+    assert(tree_live() == 2);
+    assert(g_unlink_calls == 0 && g_unlink_many_calls == 0);
+}
+
+static void
 test_secneg_the_metric_carries_the_count_in_the_value(void)
 {
     size_t i;
@@ -930,6 +954,11 @@ test_secneg_the_metric_carries_the_count_in_the_value(void)
 int
 main(void)
 {
+    ngx_log_t log = {0};
+    ngx_cycle_t cycle = {0};
+
+    cycle.log = &log;
+    ngx_cycle = &cycle;
     test_success_children_are_gone_before_every_directory();
     test_success_window_fills_at_exactly_the_constant();
     test_success_dispatch_falls_back_without_the_capability();
@@ -944,9 +973,10 @@ main(void)
     test_secneg_every_flush_is_prefilled_with_cancelled();
     test_secneg_depth_beyond_the_cap_is_eloop_and_removes_nothing();
     test_secneg_dtype_is_a_hint_and_never_authority();
+    test_secneg_overlong_child_never_reaches_a_mutation_slot();
     test_secneg_the_metric_carries_the_count_in_the_value();
 
     tree_reset();
-    printf("vfs_bulk_chunker: 13 cases OK\n");
+    printf("vfs_bulk_chunker: 14 cases OK\n");
     return 0;
 }

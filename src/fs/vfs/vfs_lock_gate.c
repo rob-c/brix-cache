@@ -123,6 +123,31 @@ brix_vfs_lock_probe_level(brix_vfs_ctx_t *ctx, const brix_vfs_lock_walk_t *w)
     return NGX_OK;
 }
 
+/* ---- Probe the object this namespace mutation actually changes ----
+ * WHAT: Admit a verified trailing symlink for REMOVE without reading its
+ *       referent's attributes; otherwise retain the normal lock probe.
+ * WHY: Unlink removes the link, not its target. Following its target can
+ *      disclose outside metadata or incorrectly prevent removal of the link.
+ * HOW: 1. At the exact REMOVE target only, probe without following links.
+ *      2. Skip that link's referent. 3. Still check every ancestor normally.
+ *      Failed probes never supply proof: the existing fail-closed read runs.
+ */
+static ngx_int_t
+brix_vfs_lock_probe_mutation(brix_vfs_ctx_t *ctx,
+    const brix_vfs_lock_walk_t *walk, brix_vfs_mutation_op_t op)
+{
+    if (op == BRIX_VFS_MUTATE_REMOVE && walk->check_len == walk->path_len) {
+        brix_vfs_stat_t target = { 0 };
+
+        if (brix_vfs_probe(ctx, 1 /* nofollow */, &target) == NGX_OK
+            && S_ISLNK(target.mode))
+        {
+            return NGX_OK;
+        }
+    }
+    return brix_vfs_lock_probe_level(ctx, walk);
+}
+
 /* Shared refusal tail: book the per-proto refusal metric (in BOTH strict and
  * advisory — the advisory count is what tells an operator the relaxed mode is
  * masking real contention), then refuse (strict: EBUSY) or warn-and-admit
@@ -210,7 +235,7 @@ brix_vfs_lock_walk_gate(brix_vfs_ctx_t *ctx, brix_vfs_mutation_op_t op,
             break;   /* chain above proven lock-free earlier this sweep */
         }
 
-        rc = brix_vfs_lock_probe_level(ctx, &w);
+        rc = brix_vfs_lock_probe_mutation(ctx, &w, op);
         if (rc == NGX_BUSY) {
             *clean = 0;
             return brix_vfs_lock_refuse(ctx, op, mode);

@@ -5,7 +5,6 @@ from __future__ import annotations
 import http.client
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 
@@ -16,7 +15,7 @@ from pki_helpers import ensure_test_pki
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import (
-    BIND_HOST, CA_DIR, NGINX_BIN, PKI_DIR, PROXY_STD, SERVER_CERT,
+    BIND_HOST, CA_DIR, NGINX_BIN, PKI_DIR, SERVER_CERT,
     SERVER_HOST, SERVER_KEY, USER_CERT, USER_KEY, VOMSDIR,
 )
 
@@ -87,6 +86,30 @@ def _make_proxy(vo: str, destination: Path, cert: Path, key: Path) -> None:
     )
 
 
+def _make_plain_proxy(destination: Path) -> None:
+    """Mint an unadorned proxy owned exclusively by this lifecycle lab.
+
+    The standing fleet's ``proxy_std.pem`` is shared mutable state.  Copying it
+    here made this late-running serial test depend on whatever an earlier GSI
+    test had done to that credential.  A freshly minted proxy has the same
+    non-VOMS identity while giving the outbound backend a private lifetime,
+    key, and ownership contract.
+    """
+    env = os.environ.copy()
+    env["X509_CERT_DIR"] = CA_DIR
+    result = subprocess.run(
+        ["xrdgsiproxy", "init", "-cert", USER_CERT, "-key", USER_KEY,
+         "-out", str(destination), "-valid", "2:00"],
+        input="\n\n", capture_output=True, text=True, timeout=60, env=env,
+        check=False,
+    )
+    if result.returncode != 0 or not destination.is_file():
+        raise RuntimeError(
+            "could not mint lifecycle plain proxy:\n"
+            f"{result.stderr}{result.stdout}"
+        )
+
+
 def _prepare_credentials() -> tuple[Path, Path]:
     if not _VOMS_PROXY.is_file():
         pytest.skip("utils/voms_proxy_fake.py is unavailable")
@@ -101,8 +124,8 @@ def _prepare_credentials() -> tuple[Path, Path]:
     _make_proxy("cms", cms, cert, key)
     # These two are named by brix_credential { x509_proxy ...; } and opened by
     # the de-escalated worker at upstream-login time, so they belong to it —
-    # unlike the shared proxy_std.pem below, which the root-run native clients
-    # of every other test present and must therefore keep owning.
+    # The root-run native clients in other tests still need their shared
+    # proxy_std.pem to retain its original ownership.
     handoff_proxy_file(atlas)
     handoff_proxy_file(cms)
     return atlas, cms
@@ -124,13 +147,11 @@ class _VomsLab:
         # fetch then dies "materialise failed ... (13: Permission denied)" and
         # answers 502 — which is not the 200/404 any of these cases is about.
         open_tree_for_worker(tmp)
-        # The plain arm presents the fleet's standard proxy, and the worker is
-        # what opens it — but brix_open_credfile(secret=1) insists a proxy be
-        # owned by the euid opening it, so handing over the shared file would
-        # break the root-run native clients of every other test.  Give this arm
-        # its own copy instead and hand that to the worker.
+        # The plain arm needs a private, freshly minted proxy.  Reusing the
+        # standing fleet credential couples this late serial fixture to prior
+        # GSI tests and has produced repeatable full-suite-only 502s.
         plain = tmp / "proxy_plain.pem"
-        shutil.copyfile(PROXY_STD, plain)
+        _make_plain_proxy(plain)
         handoff_proxy_file(plain)
         harness = LifecycleHarness()
         endpoint = harness.start(NginxInstanceSpec(

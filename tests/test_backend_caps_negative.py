@@ -89,9 +89,10 @@ class _Caps:
         self.origin = pathlib.Path(tmp_path) / "origin"
         self.staged = pathlib.Path(tmp_path) / "export-staged"
         self.direct = pathlib.Path(tmp_path) / "export-direct"
-        for d in (self.origin, self.staged, self.direct):
+        self.stage_store = pathlib.Path(tmp_path) / "stage-store"
+        for d in (self.origin, self.staged, self.direct, self.stage_store):
             d.mkdir(parents=True, exist_ok=True)
-        worker_reachable(self.origin, self.staged, self.direct)
+        worker_reachable(self.origin, self.staged, self.direct, self.stage_store)
         self.ports = {}
 
     def start(self):
@@ -104,6 +105,7 @@ class _Caps:
                 "ORIGIN_DATA": str(self.origin),
                 "EXPORT_STAGED": str(self.staged),
                 "EXPORT_DIRECT": str(self.direct),
+                "STAGE_STORE": str(self.stage_store),
             },
             reason="root:// exports backed by an http origin, to refuse the "
                    "capabilities sd_http does not advertise",

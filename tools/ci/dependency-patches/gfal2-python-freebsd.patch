@@ -1,0 +1,5 @@
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -27 +27 @@
+-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
++if(APPLE AND "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")

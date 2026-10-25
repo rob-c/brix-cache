@@ -1,34 +1,11 @@
 /* Phase-118 ROOT login, session-id quality and lifecycle probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "protocols/root/protocol/bootstrap_pack.h"
 #include "protocols/root/protocol/codec/wire_codec.h"
 #include "protocols/root/protocol/sec_protocol.h"
 
-static void
-grade(xrd_conform_execution *execution, const char *id, int pass,
-    const char *success, const char *failure)
-{
-    xrd_conform_result_set(execution, id,
-        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
-             : BRIX_CONFORM_VERDICT_DIVERGENT,
-        pass ? success : failure, NULL, NULL);
-}
 
-static int
-active(xrd_conform_execution *execution, const char *id)
-{
-    brix_conform_result *row = xrd_conform_result_find(execution, id);
 
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
-
-static void
-grade_active(xrd_conform_execution *execution, const char *id, int pass,
-    const char *success, const char *failure)
-{
-    if (!active(execution, id)) return;
-    grade(execution, id, pass, success, failure);
-}
 
 static int
 connect_aux(xrd_conform_execution *execution, const brix_url *url,
@@ -137,12 +114,12 @@ probe_session_ids(xrd_conform_execution *execution, const brix_url *url,
         if (memcmp(ids[0], ids[index], 8) != 0) shared_prefix = 0;
     }
     unique = session_ids_unique(ids, count);
-    grade(execution, "LOG-001", count > 0 && !malformed_length,
+    xrd_conform_grade(execution, "LOG-001", count > 0 && !malformed_length,
         "session-id-is-16-bytes",
         "session-id-missing");
-    grade(execution, "LOG-002", count >= 2 && unique,
+    xrd_conform_grade(execution, "LOG-002", count >= 2 && unique,
         "independent-session-ids-differ", "duplicate-session-id");
-    grade(execution, "LOG-003", count == 64 && unique && !increasing
+    xrd_conform_grade(execution, "LOG-003", count == 64 && unique && !increasing
         && !decreasing && !shared_prefix, "session-ids-pass-quality-checks",
         count == 64 ? "predictable-or-low-entropy-session-ids"
                     : "session-id-sample-incomplete");
@@ -154,7 +131,7 @@ probe_login_shapes(xrd_conform_execution *execution, const brix_url *url)
     int short_name = login_with_name(execution, url, "a");
     int full_name = login_with_name(execution, url, "12345678");
 
-    grade(execution, "LOG-007", short_name && full_name,
+    xrd_conform_grade(execution, "LOG-007", short_name && full_name,
         "short-and-full-usernames-accepted", "username-shape-refused");
 }
 
@@ -175,7 +152,7 @@ probe_prelogin_auth(xrd_conform_execution *execution, const brix_url *url)
             &wire_status, &status);
         brix_close(&connection);
     }
-    grade(execution, "LOG-013", rc == -1,
+    xrd_conform_grade(execution, "LOG-013", rc == -1,
         "prelogin-auth-refused", "prelogin-auth-accepted");
 }
 
@@ -195,7 +172,7 @@ probe_second_login(xrd_conform_execution *execution, const brix_url *url)
             &wire_status, &status);
         brix_close(&connection);
     }
-    grade(execution, "LOG-014", rc == -1,
+    xrd_conform_grade(execution, "LOG-014", rc == -1,
         "second-login-refused", "second-login-reidentified-session");
 }
 
@@ -250,17 +227,17 @@ probe_endsess(xrd_conform_execution *execution, const brix_url *url)
         brix_close(&second);
         brix_close(&first);
     }
-    grade_active(execution, "LOG-018", current, "current-session-ended",
+    xrd_conform_grade_active(execution, "LOG-018", current, "current-session-ended",
         "current-session-survived-endsess");
-    grade_active(execution, "ENV-003", current, "current-session-ended",
+    xrd_conform_grade_active(execution, "ENV-003", current, "current-session-ended",
         "current-session-survived-endsess");
-    grade_active(execution, "LOG-019", foreign,
+    xrd_conform_grade_active(execution, "LOG-019", foreign,
         "foreign-cleanup-preserved-carrier",
         "foreign-cleanup-deauthenticated-carrier");
-    grade_active(execution, "ENV-004", foreign,
+    xrd_conform_grade_active(execution, "ENV-004", foreign,
         "foreign-cleanup-preserved-carrier",
         "foreign-cleanup-deauthenticated-carrier");
-    grade_active(execution, "LOG-020", random_noop, "unknown-session-was-noop",
+    xrd_conform_grade_active(execution, "LOG-020", random_noop, "unknown-session-was-noop",
         "unknown-session-acted-as-wildcard");
 }
 
@@ -330,10 +307,10 @@ probe_security_claims(xrd_conform_execution *execution,
     char received[96];
     int covered;
 
-    grade_active(execution, "LOG-004", strstr(primary->sec_list, "&P=") != NULL,
+    xrd_conform_grade_active(execution, "LOG-004", strstr(primary->sec_list, "&P=") != NULL,
         "security-continuation-names-mechanism",
         "security-continuation-names-no-mechanism");
-    if (!active(execution, "LOG-005")) return;
+    if (!xrd_conform_row_active(execution, "LOG-005")) return;
     if (execution->run->auth_fixture_count == 0) {
         xrd_conform_result_set(execution, "LOG-005",
             BRIX_CONFORM_VERDICT_INCONCLUSIVE,
@@ -437,10 +414,10 @@ finalize_mechanism_specific_rows(xrd_conform_execution *execution,
         working_ztn_fixture = auth_fixture_completes(execution, fixture);
     }
     if (have_ztn)
-        grade_active(execution, "LOG-021", 1,
+        xrd_conform_grade_active(execution, "LOG-021", 1,
             "bearer-auth-advertised-as-ztn", NULL);
     else if (have_ztn_fixture && working_ztn_fixture)
-        grade_active(execution, "LOG-021", 0,
+        xrd_conform_grade_active(execution, "LOG-021", 0,
             "bearer-auth-advertised-as-ztn",
             "working-bearer-fixture-not-advertised-as-ztn");
     else if (have_ztn_fixture)
@@ -457,7 +434,7 @@ finalize_mechanism_specific_rows(xrd_conform_execution *execution,
                      : "claim-absent:ztn");
 }
 
-/* WHAT: Complete one legacy GSI exchange and grade its captured transcript.
+/* WHAT: Complete one legacy GSI exchange and xrd_conform_grade its captured transcript.
  * WHY: LOG-009..012 describe the pre-signed-DH wire variant and cannot be
  *      inferred from source or from a modern signed-DH session.
  * HOW: Force only this isolated connection to version 10300, then consume the
@@ -484,16 +461,16 @@ probe_gsi_transcript(xrd_conform_execution *execution, const brix_url *url)
                 "gsi-legacy-transcript-unavailable");
         return;
     }
-    grade_active(execution, "LOG-009", connection.gsi_login_challenge_text,
+    xrd_conform_grade_active(execution, "LOG-009", connection.gsi_login_challenge_text,
         "gsi-login-challenge-is-plain-text",
         "gsi-login-challenge-is-binary");
-    grade_active(execution, "LOG-010", connection.gsi_server_dh_plain,
+    xrd_conform_grade_active(execution, "LOG-010", connection.gsi_server_dh_plain,
         "gsi-puk-carried-dh-public",
         "gsi-puk-did-not-carry-dh-public");
-    grade_active(execution, "LOG-011", connection.gsi_unpadded_secret,
+    xrd_conform_grade_active(execution, "LOG-011", connection.gsi_unpadded_secret,
         "legacy-gsi-derived-unpadded-secret",
         "legacy-gsi-padding-rule-diverged");
-    grade_active(execution, "LOG-012", connection.gsi_server_key_persisted,
+    xrd_conform_grade_active(execution, "LOG-012", connection.gsi_server_key_persisted,
         "server-dh-key-survived-auth-round-trips",
         "server-dh-key-continuity-unproven");
     brix_close(&connection);
@@ -529,12 +506,74 @@ probe_signature_baseline(xrd_conform_execution *execution,
         }
         brix_close(&connection);
     }
-    grade_active(execution, "SIG-001", negative,
+    xrd_conform_grade_active(execution, "SIG-001", negative,
         "unsigned-required-request-returned-sigver-error",
         "unsigned-required-request-not-classified-as-sigver-error");
-    grade_active(execution, "SIG-002", positive,
+    xrd_conform_grade_active(execution, "SIG-002", positive,
         "correctly-signed-request-served",
         "correctly-signed-request-refused");
+}
+
+static void
+probe_signature_family(xrd_conform_execution *execution, const brix_url *url,
+    const brix_conn *primary)
+{
+    if (!xrd_conform_family_active(execution, "SIG")) return;
+    if (primary->sec_list[0] != '\0' && !signing_claimed(primary)) {
+        set_signature_family(execution, BRIX_CONFORM_VERDICT_SKIPPED,
+            "claim-absent:request-signing");
+        return;
+    }
+    if (!signing_claimed(primary)) return;
+    if (!primary->signing_active) {
+        set_signature_family(execution, BRIX_CONFORM_VERDICT_INCONCLUSIVE,
+            "signing-claim-present:no-session-signing-key");
+        return;
+    }
+    probe_signature_baseline(execution, url);
+    xrd_conform_probe_sigver_active(execution, url);
+    xrd_conform_probe_sigver_bound(execution, url);
+    if (primary->protocol_body_len < 14
+        || primary->protocol_body[8] != 'S'
+        || !(primary->protocol_body[11] & kXR_secOFrce)) {
+        xrd_conform_result_set(execution, "SIG-010",
+            BRIX_CONFORM_VERDICT_SKIPPED,
+            "claim-absent:secOFrce", NULL, NULL);
+        return;
+    }
+    xrd_conform_probe_sigver_unencrypted(execution, url);
+}
+
+static void
+probe_login_security(xrd_conform_execution *execution, const brix_url *url,
+    const brix_conn *primary)
+{
+    int login_active = xrd_conform_family_active(execution, "LOG");
+
+    if (login_active && (xrd_conform_row_active(execution, "LOG-004")
+            || xrd_conform_row_active(execution, "LOG-005")))
+        probe_security_claims(execution, primary);
+    if (login_active && primary->sec_list[0] != '\0')
+        xrd_conform_probe_login_auth_negatives(execution, url);
+    if (login_active && brix_sec_proto_advertised(primary->sec_list, "gsi",
+            NULL, 0))
+        probe_gsi_transcript(execution, url);
+    if (login_active) xrd_conform_probe_login_abilities(execution, url);
+}
+
+static void
+probe_login_session(xrd_conform_execution *execution, const brix_url *url,
+    const brix_conn *primary)
+{
+    if (xrd_conform_row_active(execution, "LOG-001") || xrd_conform_row_active(execution, "LOG-002")
+        || xrd_conform_row_active(execution, "LOG-003"))
+        probe_session_ids(execution, url, primary);
+    if (xrd_conform_row_active(execution, "LOG-007")) probe_login_shapes(execution, url);
+    if (xrd_conform_row_active(execution, "LOG-013")) probe_prelogin_auth(execution, url);
+    if (xrd_conform_row_active(execution, "LOG-014")) probe_second_login(execution, url);
+    if (xrd_conform_row_active(execution, "LOG-018") || xrd_conform_row_active(execution, "LOG-019")
+        || xrd_conform_row_active(execution, "LOG-020") || xrd_conform_row_active(execution, "ENV-003")
+        || xrd_conform_row_active(execution, "ENV-004")) probe_endsess(execution, url);
 }
 
 void
@@ -547,49 +586,10 @@ xrd_conform_probe_login(xrd_conform_execution *execution, const brix_url *url,
 
     if (!login_active && !signature_active && !envelope_active) return;
     if (login_active || signature_active) skip_absent_security(execution, primary);
-    if (signature_active && primary->sec_list[0] != '\0'
-        && !signing_claimed(primary))
-        set_signature_family(execution, BRIX_CONFORM_VERDICT_SKIPPED,
-            "claim-absent:request-signing");
-    else if (signature_active && signing_claimed(primary)) {
-        if (primary->signing_active) {
-            probe_signature_baseline(execution, url);
-            xrd_conform_probe_sigver_active(execution, url);
-            xrd_conform_probe_sigver_bound(execution, url);
-            if (primary->protocol_body_len < 14
-                || primary->protocol_body[8] != 'S'
-                || !(primary->protocol_body[11] & kXR_secOFrce))
-            {
-                xrd_conform_result_set(execution, "SIG-010",
-                    BRIX_CONFORM_VERDICT_SKIPPED,
-                    "claim-absent:secOFrce", NULL, NULL);
-            } else {
-                xrd_conform_probe_sigver_unencrypted(execution, url);
-            }
-        } else {
-            set_signature_family(execution, BRIX_CONFORM_VERDICT_INCONCLUSIVE,
-                "signing-claim-present:no-session-signing-key");
-        }
-    }
+    probe_signature_family(execution, url, primary);
     if (!login_active && !envelope_active) return;
-    if (login_active && (active(execution, "LOG-004")
-            || active(execution, "LOG-005")))
-        probe_security_claims(execution, primary);
-    if (login_active && primary->sec_list[0] != '\0')
-        xrd_conform_probe_login_auth_negatives(execution, url);
-    if (login_active && brix_sec_proto_advertised(primary->sec_list, "gsi",
-            NULL, 0))
-        probe_gsi_transcript(execution, url);
-    if (login_active) xrd_conform_probe_login_abilities(execution, url);
-    if (active(execution, "LOG-001") || active(execution, "LOG-002")
-        || active(execution, "LOG-003"))
-        probe_session_ids(execution, url, primary);
-    if (active(execution, "LOG-007")) probe_login_shapes(execution, url);
-    if (active(execution, "LOG-013")) probe_prelogin_auth(execution, url);
-    if (active(execution, "LOG-014")) probe_second_login(execution, url);
-    if (active(execution, "LOG-018") || active(execution, "LOG-019")
-        || active(execution, "LOG-020") || active(execution, "ENV-003")
-        || active(execution, "ENV-004")) probe_endsess(execution, url);
+    probe_login_security(execution, url, primary);
+    probe_login_session(execution, url, primary);
     if (!login_active) return;
     finalize_mechanism_specific_rows(execution, primary);
     set_if_pending(execution, "LOG-008", BRIX_CONFORM_VERDICT_INCONCLUSIVE,

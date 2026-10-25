@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import signal
 import subprocess
+import tempfile
 import time
 
 
@@ -175,6 +176,14 @@ def _wait_master_exit(launcher, master):
 
 def _stop_nginx(launcher, spec, endpoint):
     master = launcher._read_pid(endpoint.pidfile)
+    if master is None:
+        if not Path(endpoint.prefix).is_dir():
+            return
+        from brix_suite.registry import declared_ports
+
+        if not _candidate_pids(spec, declared_ports,
+                               getattr(launcher, '_teardown_listeners', None)):
+            return
     group = _owned_master_group(master, endpoint)
     _signal_nginx_quit(launcher, spec, endpoint, master)
     launcher._kill_pidfile(endpoint.pidfile, signal.SIGTERM, process_group=True)
@@ -186,6 +195,43 @@ def _stop_nginx(launcher, spec, endpoint):
     _terminate_owned_group(group)
     launcher._reap_orphan_nginx_workers(spec)
     launcher._wait_ports_released(spec)
+    _unlink_exited_master_pidfile(launcher, endpoint.pidfile, master)
+
+
+def _unlink_exited_master_pidfile(launcher, pidfile, master):
+    """Remove only this stopped master's stale marker, never a live/successor PID.
+
+    A forced BSD master exit can leave its pidfile behind. A later fixture then
+    preserves that prefix and mistakes previous-instance logs for current work.
+    Keep all logs; normal fresh registration owns any subsequent prefix cleanup.
+    """
+    if master is None:
+        return
+    if launcher._read_pid(pidfile) != master:
+        return
+    if not launcher._process_exited(master):
+        return
+    Path(pidfile).unlink(missing_ok=True)
+
+
+def retire_inactive_prefix(prefix, pidfile):
+    """Give a new fixture fresh state while retaining all old diagnostics.
+
+    Recursive deletion can fail halfway through a read-only public-CA tree,
+    leaving an old error.log that falsely satisfies current log assertions.
+    Rename the exact inactive prefix into a private history directory instead.
+    A present pidfile never licenses retirement, even if it looks stale.
+    """
+    directory, marker = Path(prefix), Path(pidfile)
+    if not directory.name or marker.parent.parent != directory:
+        raise ValueError('pidfile must belong to the exact server prefix')
+    if not directory.exists() or marker.exists():
+        return None
+    history = Path(tempfile.mkdtemp(prefix=directory.name + '.history-',
+                                   dir=directory.parent))
+    retired = history / 'prefix'
+    directory.rename(retired)
+    return retired
 
 
 def stop(launcher, name, namespace):
@@ -204,8 +250,28 @@ def stop(launcher, name, namespace):
     _stop_nginx(launcher, spec, endpoint)
 
 
+def close_owned_harness(harness, unregister):
+    """Release every registration, then preserve the first interrupt verdict."""
+    interrupted = None
+    for name in reversed(harness._names):
+        try:
+            harness.launcher.stop(name)
+        except Exception:
+            pass
+        except BaseException as error:
+            if interrupted is None:
+                interrupted = error
+        finally:
+            unregister(name)
+    harness._names.clear()
+    if interrupted is not None:
+        raise interrupted
+
+
 def _candidate_pids(spec, declared_ports, listeners=None):
     from lib_py.util import pids_on_port
+    from brix_suite.orphans import find_orphans
+    from brix_suite.settings import TEST_ROOT
 
     candidates = set()
     for port in declared_ports(spec):
@@ -213,15 +279,19 @@ def _candidate_pids(spec, declared_ports, listeners=None):
             candidates.update(pids_on_port(port))
         else:
             candidates.update(listeners.get(port, ()))
-    return candidates
+    if not candidates:
+        return candidates
+    owned = {pid for pid, command in find_orphans(TEST_ROOT)}
+    return candidates & owned
 
 
 def _process_title(pid):
     try:
         import server_launcher as launcher
+        from lib_py.process_host import procfs_available
 
         path_type = getattr(launcher, "Path", Path)
-        if not os.path.isdir("/proc"):
+        if not procfs_available():
             from lib_py.util import process_cmdline  # noqa: PLC0415
             return process_cmdline(pid)
         return path_type(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ")
@@ -231,11 +301,12 @@ def _process_title(pid):
 
 def reap_orphan_nginx_workers(spec, declared_ports, listeners=None):
     from lib_py.util import kill_pid_list
+    from lib_py.process_host import nginx_worker_title
 
     workers = [
         pid
         for pid in _candidate_pids(spec, declared_ports, listeners)
-        if _process_title(pid).strip().startswith(b"nginx: worker process")
+        if nginx_worker_title(_process_title(pid))
     ]
     if workers:
         kill_pid_list(workers)
@@ -251,7 +322,7 @@ def _master_pid(endpoint):
 
 def _process_rows():
     return subprocess.run(
-        ["ps", "-o", "pid=,ppid=,command=", "-e"],
+        ["ps", "-A", "-ww", "-o", "pid=", "-o", "ppid=", "-o", "command="],
         capture_output=True,
         text=True,
         check=False,

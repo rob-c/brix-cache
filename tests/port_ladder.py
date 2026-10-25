@@ -8,15 +8,18 @@ The old values remain beside their owning constants/ledger entries in
 the historical ports used while each test was developed; this module only
 translates those named allocations onto a compact per-run lane.
 
-## One packed lane, zero overlaps — BY CONSTRUCTION
+## One packed lane, checked against the actual consumers
 
-The lane is carved into ordered category *segments* declared in ``_LADDER`` as
-``(name, width)``.  Segment OFFSETS ARE DERIVED cumulatively (``_build_ladder``),
-so the lane is always contiguous with zero gaps AND zero overlaps: bump a width
-and every later segment shifts automatically — there is no hand-maintained offset
-to edit into an overlap, and ``PORT_COUNT`` is simply the sum of the widths.  A
-category that adds a test server bumps ONLY its own width.  ``tests/
-test_port_ladder.py`` asserts this so a future edit that breaks it fails loudly.
+The offset shards declare ordered category segments. Historical categories
+retain explicit offsets, whose contiguity is checked by test_port_ladder.py.
+CVMFS takes its width from the consumer's pure catalogue; interoperability
+begins immediately after it and PORT_COUNT follows the final category. Adding
+a CVMFS block therefore grows the reservation and shifts later allocations
+without a second manual width edit. The tests check actual block/matrix ports,
+not just a self-consistent but undersized ledger.
+
+Main-only proof lanes may set TEST_MOCK_PORT_WIDTH=0. Their mock allocator
+then refuses every draw; full suites retain the default 16384-slot mock band.
 
 Width history (each bump = a test subject added; the ladder is packed, so a width
 change is an intentional compatibility event):
@@ -31,6 +34,8 @@ change is an intentional compatibility event):
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 
 PORT_START = int(os.environ.get("TEST_PORT_START", "10000"))
 
@@ -47,7 +52,19 @@ PORT_LAST = PORT_START + PORT_COUNT
 # a compatibility spelling).  Keeping this pool after the named ledger means
 # the full range is still controlled by TEST_PORT_START while static ledger
 # checks retain their exact, contiguous PORT_FIRST..PORT_LAST contract.
-MOCK_PORT_OFFSET, MOCK_PORT_WIDTH = PORT_COUNT, 16384
+def configured_mock_width(value):
+    """A partial fleet may disable mocks, never allocate outside its ledger."""
+    try:
+        width = int(value)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError("TEST_MOCK_PORT_WIDTH must be an integer in 0..16384") from error
+    if not 0 <= width <= 16384:
+        raise RuntimeError("TEST_MOCK_PORT_WIDTH must be an integer in 0..16384")
+    return width
+
+
+MOCK_PORT_OFFSET = PORT_COUNT
+MOCK_PORT_WIDTH = configured_mock_width(os.environ.get("TEST_MOCK_PORT_WIDTH", "16384"))
 MOCK_PORT_FIRST = PORT_START + MOCK_PORT_OFFSET + 1
 MOCK_PORT_LAST = PORT_START + MOCK_PORT_OFFSET + MOCK_PORT_WIDTH
 TOTAL_PORT_COUNT = MOCK_PORT_OFFSET + MOCK_PORT_WIDTH
@@ -64,22 +81,58 @@ if not 1024 <= PORT_FIRST <= MOCK_PORT_LAST <= 65535:
 EPHEMERAL_RANGE_PATH = "/proc/sys/net/ipv4/ip_local_port_range"
 
 
-def read_ephemeral_range(path=EPHEMERAL_RANGE_PATH):
-    """The kernel's outbound source-port range, or None when it cannot be read.
-
-    None means "do not judge": a container without the sysctl, or a non-Linux
-    host, must still import the ladder and collect tests.
-    """
+def _parse_port_pair(parts):
+    """Return only a complete ascending pair of legal TCP port numbers."""
     try:
-        with open(path, encoding="utf-8") as fh:
-            lo, hi = (int(part) for part in fh.read().split()[:2])
-    except (OSError, ValueError):
+        lo, hi = map(int, parts)
+    except ValueError:
         return None
     return (lo, hi) if 0 < lo <= hi <= 65535 else None
 
 
+def _native_ephemeral_range(host):
+    """Read the default BSD range, not its optional high-port-only range."""
+    if not (host.startswith('freebsd') or host == 'darwin'):
+        return None
+    utility = '/sbin/sysctl' if host.startswith('freebsd') else '/usr/sbin/sysctl'
+    try:
+        result = subprocess.run(
+            [utility, '-n', 'net.inet.ip.portrange.first',
+             'net.inet.ip.portrange.last'], capture_output=True, text=True,
+            check=True, timeout=2)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    return _parse_port_pair(result.stdout.split())
+
+
+def read_ephemeral_range(path=EPHEMERAL_RANGE_PATH):
+    """The kernel's outbound source-port range, or None when it cannot be read.
+
+    BSD reads its native default range when Linux procfs is absent. None means
+    "do not judge" only when neither native interface can establish the range.
+    An explicit fixture path never falls back to this host's kernel settings.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            parts = fh.read().split()[:2]
+    except (OSError, ValueError):
+        return _native_ephemeral_range(sys.platform) if path == EPHEMERAL_RANGE_PATH else None
+    return _parse_port_pair(parts)
+
+
+def _ephemeral_lane_hint(floor, port_count):
+    """Never suggest a lower base when even the lowest lane cannot fit."""
+    highest = floor - port_count - 1
+    if highest < 1024:
+        return (f'No supported TEST_PORT_START fits the complete {port_count}-port '
+                f'ledger below {floor}; select a smaller explicit test reservation '
+                'or reconfigure the default ephemeral range in an isolated test VM.')
+    return (f'Choose a base at or below {highest} so the complete {port_count}-port '
+            'ledger clears the floor (10000 is the default).')
+
+
 def check_lane_clears_ephemeral_range(port_start, port_count, ephemeral_range):
-    """Raise RuntimeError if this lane's FIXED listens fall in the outbound range.
+    """Raise RuntimeError if the requested listener span reaches outbound ports.
 
     Pure and fully parameterised so the pins can judge synthetic lanes: the
     module-body call below is the only place that supplies live values.  An
@@ -87,10 +140,10 @@ def check_lane_clears_ephemeral_range(port_start, port_count, ephemeral_range):
     — the check has already run by the time a test can patch — so the decision
     lives here and the module body is the one-line caller.
 
-    Only PORT_FIRST..PORT_LAST is judged.  The mock window is deliberately
-    excluded: ``ephemeral_port.free_port`` draws it bottom-up, so its nominal
-    top is reached only by a run holding thousands of simultaneous leases, and
-    refusing on a reservation rather than an occupancy is a false positive.
+    The import-time caller includes the full mock reservation. Leases are
+    session-unique, not kernel-reserved: even a single mock lease that reaches
+    the outbound range can collide with a client socket. A long suite reaches
+    thousands of leases without holding them simultaneously.
     """
     if ephemeral_range is None:
         return
@@ -99,13 +152,12 @@ def check_lane_clears_ephemeral_range(port_start, port_count, ephemeral_range):
     if last < lo:
         return
     raise RuntimeError(
-        f"TEST_PORT_START={port_start} puts fixed server listens "
+        f"TEST_PORT_START={port_start} puts test listener allocations "
         f"{max(port_start + 1, lo)}..{min(last, hi)} inside this host's "
-        f"ephemeral port range {lo}..{hi} ({EPHEMERAL_RANGE_PATH}); the kernel "
+        f"ephemeral port range {lo}..{hi} (kernel default range); the kernel "
         f"hands those numbers to outbound sockets, so binds fail intermittently "
-        f"with EADDRINUSE while ss shows the port free. Choose a base at or "
-        f"below {max(1024, lo - port_count - 1)} so the {port_count}-port named "
-        f"ledger clears the floor (10000 is the default)."
+        f"with EADDRINUSE while a socket inspection shows the port free. "
+        + _ephemeral_lane_hint(lo, port_count)
     )
 
 
@@ -114,7 +166,7 @@ def check_lane_clears_ephemeral_range(port_start, port_count, ephemeral_range):
 # that suite, and at a bad base the fleet boot wedges before its assertion is
 # ever reached.  Every lane imports the ladder before any server starts.
 EPHEMERAL_RANGE = read_ephemeral_range()
-check_lane_clears_ephemeral_range(PORT_START, PORT_COUNT, EPHEMERAL_RANGE)
+check_lane_clears_ephemeral_range(PORT_START, TOTAL_PORT_COUNT, EPHEMERAL_RANGE)
 
 
 _load_port_ladder_ext(globals(), __file__, "port_ladder_part2.py")

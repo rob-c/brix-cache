@@ -335,9 +335,14 @@ b->last_buf = 1;
 
 ### Cleartext Buffers
 
-File-backed buffers with sendfile. Never mix memory-backed and file-backed in the same chain for a single response.
+File-backed buffers with sendfile when the open descriptor's PAL policy permits
+it. FreeBSD ZFS's verified sendfile/write deadlock requires bounded buffered
+output instead. This is a filesystem safety decision, not permission to bypass
+the VFS or reopen a pathname. HTTP applies it to the request-local copy filter;
+root:// uses its existing buffered/windowed read strategy.
 
-**Invariant:** TLS: `b->memory=1` only; cleartext: file-backed+sendfile; never mix.
+**Invariant:** TLS remains memory-backed; cleartext uses sendfile only when safe,
+otherwise bounded buffered output. Never mix the two body-serving strategies.
 
 ---
 
@@ -488,7 +493,7 @@ class Test<Feature>:
 These are non-negotiable correctness requirements:
 
 1. **pgread/pgwrite → kXR_status(4007) framing + per-page CRC32c required.** Every page-mode read and write must include status framing and CRC32c integrity checks.
-2. **TLS: `b->memory=1` only; cleartext: file-backed+sendfile; never mix.** Buffer type must match transport layer.
+2. **TLS remains memory-backed; cleartext uses file-backed/sendfile only when the PAL permits it, otherwise bounded buffered output; never mix body-serving strategies.** Buffer type must match transport and filesystem safety.
 3. **`conf->allow_write` checked globally before token scope.** Write permission gate is first, then scope enforcement.
 4. **All wire paths → resolve_path() before open() — no exceptions.** Path resolution and confinement check precedes every file open.
 

@@ -92,6 +92,28 @@ t_ipv6(void)
 
 /* ---- 3. the reply cannot make us exceed the table ----------------------- */
 static void
+t_ipv4_compatible(void)
+{
+    char reply[] = "Sw[::127.0.0.1]:1094 Sr127.0.0.1:1094 Sr[::1]:1094";
+    dirfan_node nodes[DIRFAN_MAX_NODES];
+    brix_url url;
+    size_t count = dirfan_nodes_from_locate(reply, nodes, DIRFAN_MAX_NODES);
+
+    check(count == 2, "compatible IPv4 and native IPv4 holders deduplicate");
+    check(strcmp(nodes[0].host, "127.0.0.1") == 0,
+          "stock compatible location is dialed as IPv4");
+    check(strcmp(nodes[1].host, "::1") == 0,
+          "native IPv6 loopback is not converted to IPv4");
+    memset(&url, 0, sizeof(url));
+    snprintf(url.host, sizeof(url.host), "::127.0.0.1.invalid");
+    dirfan_normalize_endpoint(&url);
+    check(strcmp(url.host, "::127.0.0.1.invalid") == 0,
+          "a hostname lookalike cannot redirect normalization to loopback");
+}
+
+
+/* ---- 3. the reply cannot make us exceed the table ----------------------- */
+static void
 t_cap(void)
 {
     char        reply[16 * 1024];
@@ -180,6 +202,7 @@ main(void)
 {
     t_token_selection();
     t_ipv6();
+    t_ipv4_compatible();
     t_cap();
     t_hostile();
     t_dedup();

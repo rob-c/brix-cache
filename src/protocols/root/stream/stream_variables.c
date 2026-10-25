@@ -515,19 +515,20 @@ static ngx_stream_variable_t  brix_stream_variables[] = {
 };
 
 
+#define BRIX_VARIABLE_TYPE ngx_stream_variable_t
+#define BRIX_VARIABLE_ADD ngx_stream_add_variable
+#define BRIX_VARIABLE_REGISTER brix_stream_register_variables
+#define BRIX_VARIABLE_LINKAGE static
+#include "core/compat/register_variables.inc"
+#undef BRIX_VARIABLE_TYPE
+#undef BRIX_VARIABLE_ADD
+#undef BRIX_VARIABLE_REGISTER
+#undef BRIX_VARIABLE_LINKAGE
+
+/* WHAT: Register the stream table. WHY: Keep its callback types distinct.
+ * HOW: Instantiate the shared policy with the native stream variable API. */
 ngx_int_t
 brix_stream_add_variables(ngx_conf_t *cf)
 {
-    ngx_stream_variable_t *v, *nv;
-
-    for (v = brix_stream_variables; v->name.len; v++) {
-        nv = ngx_stream_add_variable(cf, &v->name, v->flags);
-        if (nv == NULL) {
-            return NGX_ERROR;
-        }
-        nv->get_handler = v->get_handler;
-        nv->data = v->data;
-    }
-
-    return NGX_OK;
+    return brix_stream_register_variables(cf, brix_stream_variables);
 }

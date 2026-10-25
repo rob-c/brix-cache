@@ -130,7 +130,7 @@ def _has_complete_content(path: Path, content: bytes) -> bool:
 
 def _xrdcp_tpc(mode: str, src: str, dst: str):
     return _run(
-        [XRDCP_BIN, "-f", "-s", "--tpc", mode, src, dst],
+        [XRDCP_BIN, "-f", "--tpc", mode, src, dst],
         timeout=40,
     )
 
@@ -383,7 +383,7 @@ NATIVE_XRDCP = str(
 def _native_xrdcp_tpc(src: str, dst: str):
     if not os.path.exists(NATIVE_XRDCP):
         pytest.skip("native xrdcp not built (make -C client)")
-    return _run([NATIVE_XRDCP, "-f", "-s", "--tpc", "only", src, dst], timeout=40)
+    return _run([NATIVE_XRDCP, "-f", "--tpc", "only", src, dst], timeout=40)
 
 
 class TestNativeClientRootTPC:

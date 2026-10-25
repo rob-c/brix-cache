@@ -13,7 +13,8 @@ means no reserve at all.
 The six contract rows, over the raw kXR wire (instance topology in
 tests/configs/nginx_p107_reserve.conf):
 
-  success   a declared 8 MiB on `posix` preallocates (st_blocks) while the
+  success   where independently supported, a declared 8 MiB on `posix`
+            preallocates (st_blocks) while the
             4 KiB actually written lands byte-exact — the declaration is a
             hint, never a truncation;
   success   a 200 GB declaration over a `remote` (s3://) export opens, writes
@@ -33,22 +34,29 @@ tests/configs/nginx_p107_reserve.conf):
   sec-neg   a read-only front refuses with kXR_fsReadOnly BEFORE the reserve
             is reachable — its export root stays empty.
 
-The EOPNOTSUPP-advisory arm cannot be reached from a live fleet (every
-exportable filesystem here implements fallocate), so its shape is pinned
-statically against vfs_open.c / sd_cache_forward.c below.
+Where native KEEP_SIZE reservation is unavailable, the same live test verifies
+the explicit EOPNOTSUPP advisory contract instead. An independent native probe
+prevents a broken PAL from hiding a supported feature. The real PAL must leave
+existing bytes, inode, offset, size and allocation unchanged when refusing.
+No skip and no temporary file-size extension emulates the missing capability.
 
 Run:
     TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest tests/test_vfs_reserve.py -v
 """
 import os
+import errno
+import json
 import pathlib
 import socket
 import struct
+import subprocess
+import tempfile
 
 import pytest
 
 from server_launcher import LifecycleHarness, NginxInstanceSpec
 from settings import BIND_HOST, HOST, NGINX_BIN
+from cmdscripts.compile_run import compile_binary, pal_host_sources
 
 pytestmark = [pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness,
@@ -67,6 +75,73 @@ kXR_protocol, kXR_login, kXR_open, kXR_write, kXR_close = \
 kXR_ok, kXR_error = 0, 4003
 kXR_NoSpace, kXR_overQuota, kXR_fsReadOnly = 3009, 3021, 3025
 kXR_open_updt, kXR_new, kXR_delete = 0x0020, 0x0008, 0x0002
+
+
+@pytest.fixture(scope="module")
+def native_reserve_probe(tmp_path_factory):
+    """Link the production adapter without replacing its reserve primitive."""
+    output = tmp_path_factory.mktemp('native-reserve') / 'probe'
+    result = compile_binary(output, ['-std=gnu11', '-Wall', '-Wextra', '-Werror',
+        '-Isrc', 'tests/c/native_reserve_probe.c', *pal_host_sources('storage_wrapper')])
+    assert result.returncode == 0, result.stdout + result.stderr
+    return output
+
+
+def _run_reserve_probe(binary, directory, mode):
+    """Inspect only bounded owned fixtures on the export's actual filesystem."""
+    payload = _bytes(4096, 37)
+    with tempfile.TemporaryFile(dir=directory) as target:
+        target.write(payload)
+        target.flush()
+        before = os.fstat(target.fileno())
+        result = subprocess.run([str(binary), mode, str(target.fileno()), str(8 * MIB)],
+            pass_fds=(target.fileno(),), capture_output=True, text=True, timeout=15)
+        assert result.returncode == 0, result.stdout + result.stderr
+        after = os.fstat(target.fileno())
+        assert os.lseek(target.fileno(), 0, os.SEEK_CUR) == len(payload), 'reservation changed the file offset'
+        target.seek(0)
+        assert target.read(len(payload)) == payload
+        assert (before.st_dev, before.st_ino, before.st_mode, before.st_uid, before.st_gid) == (
+                after.st_dev, after.st_ino, after.st_mode, after.st_uid, after.st_gid)
+        return dict(json.loads(result.stdout), before=before, after=after)
+
+
+def _native_keep_size(record):
+    """Only documented unsupported results may select the refusal contract."""
+    if record['result'] != 0:
+        assert record['errno'] in (errno.ENOTSUP, errno.EOPNOTSUPP, errno.ENOSYS), record
+        assert record['after'].st_size == record['before'].st_size
+        return False
+    if record['semantics'] == 'changes-eof':
+        assert record['after'].st_size == 8 * MIB, 'native EOF-extension oracle changed'
+        return False
+    assert record['semantics'] == 'keep-size'
+    assert record['after'].st_size == record['before'].st_size
+    assert record['after'].st_blocks * 512 >= 8 * MIB
+    return True
+
+
+def _assert_pal_result(supported, record):
+    """A silent successful no-op and a falsely unsupported PAL both fail."""
+    if supported:
+        assert record['result'] == 0, record
+        return
+    assert record['result'] == -1 and record['errno'] in (errno.ENOTSUP, errno.EOPNOTSUPP), record
+
+
+def _reserve_capability(binary, directory):
+    """Require the real adapter to agree with an independent native operation."""
+    supported = _native_keep_size(_run_reserve_probe(binary, directory, 'native'))
+    record = _run_reserve_probe(binary, directory, 'pal')
+    _assert_pal_result(supported, record)
+    before, after = record['before'], record['after']
+    assert after.st_size == before.st_size, 'PAL changed EOF while reserving'
+    if supported:
+        assert after.st_blocks * 512 >= 8 * MIB
+    else:
+        assert (after.st_blocks, after.st_mtime_ns, after.st_ctime_ns) == (
+                before.st_blocks, before.st_mtime_ns, before.st_ctime_ns)
+    return supported
 
 
 @pytest.fixture(scope="module")
@@ -192,11 +267,14 @@ def _advisory_lines(error_log):
 # success
 # --------------------------------------------------------------------------- #
 
-def test_declared_size_preallocates_posix(reserve_srv):
-    """(success) a declared 8 MiB preallocates the blocks up front
-    (fallocate KEEP_SIZE: st_blocks grows, st_size does not) while the 4 KiB
-    actually written lands byte-exact — the declaration is a hint that must
-    never truncate, extend or corrupt the object."""
+def test_declared_size_honors_native_reservation_contract(reserve_srv, native_reserve_probe, request):
+    """(success/unsupported) allocate when supported, otherwise explicitly
+    refuse the primitive and continue the byte-exact advisory write. Neither
+    case may truncate, extend or corrupt data based only on a size hint."""
+    supported = _reserve_capability(native_reserve_probe, reserve_srv['dirs']['posix_root'])
+    capability = {True: 'supported', False: 'unsupported'}[supported]
+    request.node.user_properties.append(('keep_size_reservation', capability))
+    before = _advisory_lines(reserve_srv['error_log'])
     payload = _bytes(4096, 3)
     sock = _connect(reserve_srv["port"])
     try:
@@ -210,15 +288,45 @@ def test_declared_size_preallocates_posix(reserve_srv):
     assert f.read_bytes() == payload, "declared-size upload not byte-exact"
     st = f.stat()
     assert st.st_size == 4096, "the declaration must not change st_size"
-    assert st.st_blocks * 512 >= 8 * MIB, (
-        f"declared 8 MiB but only {st.st_blocks * 512} bytes allocated — "
-        "the reserve never reached fallocate")
+    if supported:
+        assert st.st_blocks * 512 >= 8 * MIB, (
+            f"declared 8 MiB but only {st.st_blocks * 512} bytes allocated — "
+            "the reserve never reached fallocate")
+        assert _advisory_lines(reserve_srv['error_log']) == before
+    else:
+        new = _advisory_lines(reserve_srv['error_log'])[len(before):]
+        assert len(new) == 1 and f'({errno.EOPNOTSUPP}:' in new[0], new
+        assert '8388608 bytes failed, open proceeds' in new[0]
+
+
+@pytest.mark.parametrize('supported,result,error', [
+    (True, -1, errno.EOPNOTSUPP), (False, 0, 0), (False, -1, errno.EIO),
+])
+def test_incorrect_pal_results_cannot_turn_a_missing_feature_into_a_pass(supported, result, error):
+    with pytest.raises(AssertionError):
+        _assert_pal_result(supported, {'result': result, 'errno': error})
+
+
+def test_arbitrary_native_errors_do_not_downgrade_the_capability():
+    with pytest.raises(AssertionError):
+        _native_keep_size({'result': -1, 'errno': errno.EIO})
+
+
+@pytest.mark.parametrize('arguments', [
+    ('unknown', '0', '1'), ('native', '-1', '1'), ('pal', '0', '8388609'),
+    ('native', '0', '-1'), ('pal', '0', '1garbage'), ('native', '0', '0'),
+])
+def test_probe_rejects_invalid_modes_descriptors_and_unbounded_sizes(native_reserve_probe, arguments):
+    result = subprocess.run([str(native_reserve_probe), *arguments],
+                            capture_output=True, text=True, timeout=5)
+    assert result.returncode == 2 and result.stdout == '', result
 
 
 def test_no_declaration_reserves_nothing(reserve_srv):
     """(success) no declared size => no reserve dispatch at all: the file's
     allocation matches the bytes written, and no advisory-reserve line was
     logged (a reserve called with 0 would fail EINVAL and log one)."""
+    before = _advisory_lines(reserve_srv["error_log"])
     payload = _bytes(4096, 5)
     sock = _connect(reserve_srv["port"])
     try:
@@ -233,8 +341,8 @@ def test_no_declaration_reserves_nothing(reserve_srv):
     assert f.stat().st_blocks * 512 < MIB, (
         "an undeclared open preallocated — reserve dispatched without a "
         "declaration")
-    assert _advisory_lines(reserve_srv["error_log"]) == [], (
-        "an advisory-reserve failure was logged on the undeclared plane")
+    assert _advisory_lines(reserve_srv["error_log"]) == before, (
+        "an advisory-reserve failure was newly logged on the undeclared plane")
 
 
 def test_remote_200gb_declaration_completes(reserve_srv):
@@ -296,8 +404,7 @@ def test_oversized_declaration_fails_open_and_releases(reserve_srv):
 
 
 def test_advisory_contract_is_pinned():
-    """(error, static) the EOPNOTSUPP-advisory arm is unreachable from a live
-    fleet (every exportable fs here implements fallocate), so pin its shape:
+    """(error, static) supplement the native EOPNOTSUPP behavioral check:
     ONLY ENOSPC/EDQUOT fail the open, everything else logs at info and
     proceeds — at both dispatch sites — and the cache decorator's parity slot
     answers a direct dispatch honestly instead of pretending to reserve."""
@@ -339,7 +446,7 @@ def test_lying_declaration_does_not_move_quota(reserve_srv):
     far below the bytes actually written does NOT raise the quota ceiling —
     the write still refuses kXR_overQuota at the real boundary.  (The other
     direction — a declaration far ABOVE the bytes written neither truncates
-    nor extends — is test_declared_size_preallocates_posix.)"""
+    nor extends — is test_declared_size_honors_native_reservation_contract.)"""
     port = reserve_srv["extras"]["QUOTA_PORT"]
     for name, asize in (("q_zero.bin", 0), ("q_small.bin", 32 * 1024)):
         sock = _connect(port)

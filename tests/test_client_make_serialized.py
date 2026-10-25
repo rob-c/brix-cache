@@ -109,7 +109,9 @@ def test_lock_symlink_is_refused_without_touching_target(tmp_path):
     lock.symlink_to(target)
     with pytest.raises(OSError) as caught:
         client_build._open_tree_lock(lock)
-    assert caught.value.errno == errno.ELOOP
+    # FreeBSD reports EMLINK for this O_NOFOLLOW refusal; neither may follow
+    # the link or alter its target.
+    assert caught.value.errno in {errno.ELOOP, errno.EMLINK}
     assert target.read_bytes() == b"unchanged"
 
 
@@ -147,3 +149,23 @@ def test_bare_make_detector_fires_on_the_shape(tmp_path):
     (tmp_path / "test_clean.py").write_text(
         'from brix_suite.client_build import client_make\nclient_make("client", "xrd")\n')
     assert _bare_make_sites(tmp_path) == ["test_offender.py"]
+
+
+def test_native_freebsd_client_build_selects_gnu_make(monkeypatch):
+    monkeypatch.setattr(client_build.sys, 'platform', 'freebsd15')
+    monkeypatch.setattr(client_build.shutil, 'which', lambda name:
+                        '/native/bin/gmake' if name == 'gmake' else None)
+    assert client_build._make_program() == '/native/bin/gmake'
+
+
+def test_missing_native_gnu_make_never_falls_back_to_bsd_make(monkeypatch):
+    monkeypatch.setattr(client_build.sys, 'platform', 'freebsd15')
+    monkeypatch.setattr(client_build.shutil, 'which', lambda name: None)
+    with pytest.raises(FileNotFoundError, match='GNU make'):
+        client_build._make_program()
+
+
+def test_other_hosts_keep_their_existing_make_contract(monkeypatch):
+    monkeypatch.setattr(client_build.sys, 'platform', 'linux')
+    monkeypatch.setattr(client_build.shutil, 'which', lambda name: None)
+    assert client_build._make_program() == 'make'

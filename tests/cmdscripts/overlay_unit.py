@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cmdscripts.compile_run import REPO_ROOT, compile_binary, result, run
+from cmdscripts.compile_run import REPO_ROOT, compile_binary, pal_xattr_sources, result, run
 
 
 def run_checks(base: Path) -> list[tuple[bool, str]]:
@@ -29,13 +29,14 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
             "client/lib/fs/overlay.c",
             # copy-up / nameset helpers split out of overlay.c into a sibling TU.
             "client/lib/fs/overlay_copyup.c",
+            *pal_xattr_sources(),
         ],
         cwd=REPO_ROOT,
     )
     if built.returncode != 0:
         return [result(False, f"compile overlay unit failed: {(built.stderr or built.stdout)[-2000:]}")]
     ran = run([str(binary)], cwd=REPO_ROOT)
-    return [result(ran.returncode == 0, f"overlay unit exited {ran.returncode}: {(ran.stderr or ran.stdout)[-2000:]}")]
+    return [result(ran.returncode == 0, f"overlay unit exited {ran.returncode}: {(ran.stdout + ran.stderr)[-4000:]}")]
 
 
 def entry(argv: list[str]) -> int:

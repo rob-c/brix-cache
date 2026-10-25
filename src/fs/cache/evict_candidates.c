@@ -266,6 +266,7 @@ brix_cache_add_candidate(brix_cache_evict_list_t *list, const char *path,
     char                           *copy;
     size_t                          len;
     size_t                          new_cap;
+    size_t                          slot;
 
     if (list->protect_path != NULL
         && strcmp(path, list->protect_path) == 0)
@@ -287,7 +288,7 @@ brix_cache_add_candidate(brix_cache_evict_list_t *list, const char *path,
          * call's `copy` (released in reality by brix_cache_free_candidates).
          * Suppress exactly that diagnostic at its emission points. */
 #pragma GCC diagnostic push
-#if defined(__GNUC__) && !defined(__clang__)
+#if defined(__GNUC__) && __GNUC__ >= 10 && !defined(__clang__)
 #pragma GCC diagnostic ignored "-Wanalyzer-malloc-leak"
 #endif
         if (new_cap > BRIX_EVICT_MAX_CANDIDATES
@@ -329,12 +330,13 @@ brix_cache_add_candidate(brix_cache_evict_list_t *list, const char *path,
     }
     memcpy(copy, path, len + 1);
 
-    list->elts[list->nelts].path  = copy;
-    list->elts[list->nelts].size  = st->st_size;
-    list->elts[list->nelts].atime = st->st_atime;
-    list->elts[list->nelts].mtime = st->st_mtime;
-    list->evicted[list->nelts]    = 0;
-    list->nelts++;
+    slot = list->nelts;
+    list->elts[slot].path  = copy;
+    list->elts[slot].size  = st->st_size;
+    list->elts[slot].atime = st->st_atime;
+    list->elts[slot].mtime = st->st_mtime;
+    list->evicted[slot]    = 0;
+    list->nelts = slot + 1;
 
     return NGX_OK;
 }

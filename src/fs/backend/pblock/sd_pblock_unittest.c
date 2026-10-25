@@ -88,13 +88,19 @@ read_file(brix_sd_instance_t *inst, const char *path, char *buf, size_t cap)
 }
 
 int
-main(void)
+main(int argc, char **argv)
 {
     char                    root[] = "/tmp/pb_ut.XXXXXX";
     brix_sd_pblock_conf_t conf = {0};
     brix_sd_instance_t    inst = {0};
 
     D = &brix_sd_pblock_driver;
+    if (argc == 3 && strcmp(argv[1], "--process-writer") == 0) {
+        return pbut_process_writer(argv[2]);
+    }
+    if (argc != 1) {
+        return 2;
+    }
 
     CHECK(mkdtemp(root) != NULL, "mkdtemp");
     conf.root = root;
@@ -117,7 +123,7 @@ main(void)
     test_staged(&inst);
     test_unlink(&inst);
     test_threads(&inst);
-    test_processes(root, &inst);
+    test_processes(root, &inst, argv[0]);
 
     D->cleanup(&inst);
     test_fsync_durability(root);

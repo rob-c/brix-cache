@@ -314,6 +314,7 @@ def sweep_server():
             protocol="root",
             readiness="tcp",
             reason="CMS hostile-network conformance: server-leg opcode/size sweep.",
+            template_values={"CMS_SECURITY_LINE": ""},
         ))
         yield ep
     finally:

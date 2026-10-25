@@ -59,6 +59,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, python3
 Recommends: brix-xrootdfs-fuse (= ${binary:Version}),
             brix-cvmfs-fuse (= ${binary:Version})
 Provides: nginx-xrootd-client (= ${binary:Version})
+Conflicts: xrootd-client
 Description: BriX-Cache clean-room native XRootD client tools (xrdcp, xrdfs, ...)
  Native command-line XRootD clients built clean-room on the in-tree protocol
  core (libbrix + libxrdproto) with NO libXrdCl / libXrdSec dependency:
@@ -153,7 +154,7 @@ Package: brix-cache-tests
 Architecture: all
 Depends: ${misc:Depends},
          nginx-mod-brix-cache (= ${source:Version}),
-         brix-cache-client (= ${source:Version}),
+         brix-cache-client-compat (= ${source:Version}),
          nginx,
          python3,
          python3-pytest,

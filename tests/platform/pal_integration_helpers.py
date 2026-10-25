@@ -9,6 +9,8 @@ def normalize_platform(system):
         plat_name = "linux"
     elif system == "darwin":
         plat_name = "darwin"
+    elif system.startswith("freebsd"):
+        plat_name = "freebsd"
     elif system == "windows" or system.startswith("win"):
         plat_name = "windows"
     else:

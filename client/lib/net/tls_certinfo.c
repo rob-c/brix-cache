@@ -11,6 +11,7 @@
  *       file-size cap; see brix_tls_peer_cert_info() there historically.
  */
 #include "brix.h"
+#include "auth/crypto/name_compat.h"
 
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
@@ -71,8 +72,8 @@ brix_tls_peer_cert_info(const brix_conn *c, brix_cert_info *out)
         return -1;
     }
     out->have = 1;
-    X509_NAME_oneline(X509_get_subject_name(cert), out->subject, sizeof(out->subject));
-    X509_NAME_oneline(X509_get_issuer_name(cert),  out->issuer,  sizeof(out->issuer));
+    brix_crypto_name_oneline(X509_get_subject_name(cert), out->subject, sizeof(out->subject));
+    brix_crypto_name_oneline(X509_get_issuer_name(cert), out->issuer, sizeof(out->issuer));
     out->self_signed = (X509_check_issued(cert, cert) == X509_V_OK);
     out->host_match  = (c->host[0] != '\0'
                         && X509_check_host(cert, c->host, 0, 0, NULL) == 1);

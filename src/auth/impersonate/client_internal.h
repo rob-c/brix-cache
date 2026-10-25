@@ -26,6 +26,11 @@
 #include <stddef.h>              /* size_t */
 #include <stdint.h>              /* uint32_t, int64_t */
 
+/* Shared local codec, also used by fixed-identity helper channels. */
+int imp_write_full(int fd, const void *buf, size_t length);
+int imp_recv_reply(int fd, imp_rep_t *rep, int *out_fd, char *data_buf,
+                   size_t data_bufsz);
+
 /* Build a request frame for the current principal (client.c). */
 void imp_build_req(imp_req_t *req, uint32_t op, const char *path,
                    const char *path2, uint32_t flags, uint32_t mode,

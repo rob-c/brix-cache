@@ -1,11 +1,5 @@
 /* Phase-118 externally observed errno-to-kXR fixture probes. */
-#include "xrd_conform_internal.h"
-
-typedef struct {
-    const char *name;
-    const char *clause;
-    uint16_t    expected;
-} error_fixture_spec;
+#include "xrd_conform_error_fixtures.h"
 
 typedef struct {
     int         present;
@@ -17,86 +11,8 @@ typedef struct {
     char        message[128];
 } error_fixture_observation;
 
-/* WHAT: Return the immutable errno-fixture vocabulary and its row count.
- * WHY: The hard no-new-globals rule keeps even read-only tables owned by a
- *      function, while every parser/probe still shares one authoritative list.
- * HOW: Initialize one function-local constant array and return its base. */
-static const error_fixture_spec *
-error_specs(size_t *count)
-{
-    static const error_fixture_spec specs[] = {
-        { "ENOENT", "ERR-001", kXR_NotFound },
-    { "EINVAL", "ERR-002", kXR_ArgInvalid },
-    { "EPERM", "ERR-003", kXR_NotAuthorized },
-    { "EACCES", "ERR-004", kXR_NotAuthorized },
-    { "EROFS", "ERR-005", kXR_fsReadOnly },
-    { "EEXIST", "ERR-006", kXR_ItExists },
-    { "ENOTEMPTY", "ERR-007", kXR_ItExists },
-    { "EISDIR", "ERR-008", kXR_isDirectory },
-    { "ENAMETOOLONG", "ERR-009", kXR_ArgTooLong },
-    { "EIO", "ERR-010", kXR_IOError },
-    { "ENOMEM", "ERR-011", kXR_NoMemory },
-    { "ENOBUFS", "ERR-012", kXR_NoMemory },
-    { "ENOSPC", "ERR-013", kXR_NoSpace },
-    { "EDQUOT", "ERR-014", kXR_overQuota },
-    { "ENOTSUP", "ERR-015", kXR_Unsupported },
-    { "EBADF", "ERR-016", kXR_FileNotOpen },
-    { "ETIMEDOUT", "ERR-017", kXR_ReqTimedOut },
-    { "ETIME", "ERR-018", kXR_TimerExpired },
-    { "ECANCELED", "ERR-019", kXR_Cancelled },
-    { "ETXTBSY", "ERR-020", kXR_inProgress },
-    { "EBADRQC", "ERR-021", kXR_InvalidRequest },
-    { "ENOTBLK", "ERR-022", kXR_NotFile },
-    { "ENODEV", "ERR-023", kXR_FSError },
-    { "EFAULT", "ERR-024", kXR_ServerError },
-    { "EDOM", "ERR-025", kXR_ChkSumErr },
-    { "EILSEQ", "ERR-026", kXR_SigVerErr },
-    { "ERANGE", "ERR-027", kXR_DecryptErr },
-    { "EUSERS", "ERR-028", kXR_Overloaded },
-    { "ENOATTR", "ERR-029", kXR_AttrNotFound },
-    { "EPROTOTYPE", "ERR-030", kXR_TLSRequired },
-    { "EADDRNOTAVAIL", "ERR-031", kXR_noReplicas },
-    { "EAUTH", "ERR-032", kXR_AuthFailed },
-    { "EIDRM", "ERR-033", kXR_Impossible },
-    { "ENOTTY", "ERR-034", kXR_Conflict },
-    { "ETOOMANYREFS", "ERR-035", kXR_TooManyErrs },
-    { "ENETUNREACH", "ERR-036", kXR_noserver },
-    { "EHOSTUNREACH", "ERR-036", kXR_noserver },
-    { "ECONNREFUSED", "ERR-036", kXR_noserver },
-        { "DEFAULT", "ERR-037", kXR_FSError },
-    };
 
-    *count = sizeof(specs) / sizeof(specs[0]);
-    return specs;
-}
 
-/* WHAT: Locate the immutable fixture descriptor for one exact errno label.
- * WHY: CLI parsing and execution must accept the same closed vocabulary.
- * HOW: Compare bounded input against each literal without requiring a NUL. */
-static const error_fixture_spec *
-find_spec(const char *name, size_t length)
-{
-    const error_fixture_spec *specs;
-    size_t count;
-    size_t index;
-
-    specs = error_specs(&count);
-    for (index = 0; index < count; index++)
-        if (strlen(specs[index].name) == length
-            && memcmp(specs[index].name, name, length) == 0)
-            return &specs[index];
-    return NULL;
-}
-
-/* WHAT: Validate one --error-fixture errno spelling.
- * WHY: A typo must fail before any network operation rather than leave a row
- *      silently inconclusive.
- * HOW: Delegate to the single immutable descriptor table. */
-int
-xrd_conform_error_fixture_name_valid(const char *name, size_t length)
-{
-    return name != NULL && find_spec(name, length) != NULL;
-}
 
 /* WHAT: Report whether labelled fixtures replace the ordinary object probe.
  * WHY: A deliberately failing target cannot supply the readable baseline used
@@ -258,7 +174,7 @@ grade_mapping(xrd_conform_execution *execution, const char *clause,
     size_t matched = 0;
     char received[96];
 
-    specs = error_specs(&count);
+    specs = xrd_conform_error_specs(&count);
     for (index = 0; index < count; index++) {
         if (strcmp(specs[index].clause, clause) != 0) continue;
         required++;
@@ -281,6 +197,54 @@ grade_mapping(xrd_conform_execution *execution, const char *clause,
         "every required labelled fixture returns its exact kXR code", received);
 }
 
+typedef struct {
+    size_t efault;
+    size_t unexpected_server_error;
+    size_t present;
+    size_t readable;
+    size_t safe;
+    size_t deterministic;
+    size_t in_range;
+} error_common_counts;
+
+static error_common_counts
+count_common(const error_fixture_spec *specs, size_t count,
+    const error_fixture_observation observations[])
+{
+    error_common_counts totals = { 0, 0, 0, 0, 0, 0, 0 };
+    size_t index;
+
+    for (index = 0; index < count; index++) {
+        if (!observations[index].present) continue;
+        totals.present++;
+        totals.readable += observations[index].readable ? 1U : 0U;
+        totals.safe += observations[index].safe ? 1U : 0U;
+        totals.deterministic += observations[index].deterministic ? 1U : 0U;
+        totals.in_range += observations[index].failed
+            && observations[index].code >= kXR_ArgInvalid
+            && observations[index].code < kXR_ERRFENCE ? 1U : 0U;
+        if (strcmp(specs[index].name, "EFAULT") == 0
+            && observations[index].code == kXR_ServerError) totals.efault++;
+        if (strcmp(specs[index].name, "EFAULT") != 0
+            && observations[index].code == kXR_ServerError)
+            totals.unexpected_server_error++;
+    }
+    return totals;
+}
+
+static void
+grade_common_row(xrd_conform_execution *execution, const char *id,
+    size_t matched, size_t present, const char *success, const char *failure,
+    const char *expected, const char *received)
+{
+    int pass = matched == present;
+
+    xrd_conform_result_set(execution, id,
+        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
+             : BRIX_CONFORM_VERDICT_DIVERGENT,
+        pass ? success : failure, expected, received);
+}
+
 /* WHAT: Grade cross-cutting envelope, disclosure and determinism assertions.
  * WHY: These properties apply to every observed mapping, not one errno row.
  * HOW: Fold only present observations and require all of them to satisfy each. */
@@ -290,65 +254,33 @@ grade_common(xrd_conform_execution *execution,
 {
     const error_fixture_spec *specs;
     size_t count;
-    size_t index;
-    size_t efault = 0;
-    size_t unexpected_server_error = 0;
-    size_t present = 0;
-    size_t readable = 0;
-    size_t safe = 0;
-    size_t deterministic = 0;
-    size_t in_range = 0;
+    error_common_counts totals;
     char received[96];
 
-    specs = error_specs(&count);
-    for (index = 0; index < count; index++) {
-        if (!observations[index].present) continue;
-        present++;
-        readable += observations[index].readable ? 1U : 0U;
-        safe += observations[index].safe ? 1U : 0U;
-        deterministic += observations[index].deterministic ? 1U : 0U;
-        in_range += observations[index].failed
-            && observations[index].code >= kXR_ArgInvalid
-            && observations[index].code < kXR_ERRFENCE ? 1U : 0U;
-        if (strcmp(specs[index].name, "EFAULT") == 0
-            && observations[index].code == kXR_ServerError) efault++;
-        if (strcmp(specs[index].name, "EFAULT") != 0
-            && observations[index].code == kXR_ServerError)
-            unexpected_server_error++;
-    }
-    if (present == 0) return;
+    specs = xrd_conform_error_specs(&count);
+    totals = count_common(specs, count, observations);
+    if (totals.present == 0) return;
     snprintf(received, sizeof(received), "fixtures=%zu readable=%zu safe=%zu",
-        present, readable, safe);
-    xrd_conform_result_set(execution, "ERR-039",
-        readable == present ? BRIX_CONFORM_VERDICT_CONFORMANT
-                            : BRIX_CONFORM_VERDICT_DIVERGENT,
-        readable == present ? "all-error-messages-readable"
-                            : "unreadable-error-message",
+        totals.present, totals.readable, totals.safe);
+    grade_common_row(execution, "ERR-039", totals.readable, totals.present,
+        "all-error-messages-readable", "unreadable-error-message",
         "non-empty printable NUL-terminated message", received);
-    xrd_conform_result_set(execution, "ERR-040",
-        safe == present ? BRIX_CONFORM_VERDICT_CONFORMANT
-                        : BRIX_CONFORM_VERDICT_DIVERGENT,
-        safe == present ? "no-high-confidence-disclosure-marker"
-                        : "error-message-disclosure-marker",
+    grade_common_row(execution, "ERR-040", totals.safe, totals.present,
+        "no-high-confidence-disclosure-marker",
+        "error-message-disclosure-marker",
         "no host filesystem path or credential marker", received);
-    xrd_conform_result_set(execution, "ERR-041",
-        deterministic == present ? BRIX_CONFORM_VERDICT_CONFORMANT
-                                 : BRIX_CONFORM_VERDICT_DIVERGENT,
-        deterministic == present ? "all-fixtures-deterministic"
-                                 : "fixture-answer-changed",
+    grade_common_row(execution, "ERR-041", totals.deterministic,
+        totals.present, "all-fixtures-deterministic", "fixture-answer-changed",
         "two fresh sessions return the same code and message", received);
-    xrd_conform_result_set(execution, "ERR-045",
-        in_range == present ? BRIX_CONFORM_VERDICT_CONFORMANT
-                            : BRIX_CONFORM_VERDICT_DIVERGENT,
-        in_range == present ? "all-error-codes-inside-fence"
-                            : "error-code-outside-fence",
+    grade_common_row(execution, "ERR-045", totals.in_range, totals.present,
+        "all-error-codes-inside-fence", "error-code-outside-fence",
         "3000 <= code < kXR_ERRFENCE", received);
-    if (efault != 0 || unexpected_server_error != 0)
+    if (totals.efault != 0 || totals.unexpected_server_error != 0)
         xrd_conform_result_set(execution, "ERR-038",
-            efault != 0 && unexpected_server_error == 0
+            totals.efault != 0 && totals.unexpected_server_error == 0
                 ? BRIX_CONFORM_VERDICT_CONFORMANT
                 : BRIX_CONFORM_VERDICT_DIVERGENT,
-            efault != 0 && unexpected_server_error == 0
+            totals.efault != 0 && totals.unexpected_server_error == 0
                 ? "server-error-confined-to-efault-fixture"
                 : "server-error-observed-outside-efault-fixture",
             "only the labelled EFAULT fixture returns kXR_ServerError",
@@ -371,7 +303,7 @@ grade_collapses(xrd_conform_execution *execution,
     size_t matched = 0;
     char received[96];
 
-    specs = error_specs(&count);
+    specs = xrd_conform_error_specs(&count);
     for (index = 0; index < count; index++) {
         int member = strcmp(specs[index].name, "EPERM") == 0
             || strcmp(specs[index].name, "EACCES") == 0
@@ -396,6 +328,46 @@ grade_collapses(xrd_conform_execution *execution,
         received);
 }
 
+static int
+cross_verb_open(xrd_conform_execution *execution, brix_conn *connection,
+    const char *path, brix_status *status)
+{
+    brix_file file;
+    char reason[64];
+
+    if (!xrd_conform_reserve(execution, 0, reason, sizeof(reason))) return 0;
+    brix_status_clear(status);
+    if (brix_file_open_read(connection, path, &file, status) != 0)
+        return status->kxr;
+    brix_file_close(connection, &file, status);
+    return 0;
+}
+
+static int
+cross_verb_stat(xrd_conform_execution *execution, brix_conn *connection,
+    const char *path, brix_status *status)
+{
+    brix_statinfo info;
+    char reason[64];
+
+    if (!xrd_conform_reserve(execution, 0, reason, sizeof(reason))) return 0;
+    brix_status_clear(status);
+    return brix_stat(connection, path, &info, status) != 0 ? status->kxr : 0;
+}
+
+static int
+cross_verb_query(xrd_conform_execution *execution, brix_conn *connection,
+    const char *path, brix_status *status)
+{
+    char reply[64];
+    char reason[64];
+
+    if (!xrd_conform_reserve(execution, 0, reason, sizeof(reason))) return 0;
+    brix_status_clear(status);
+    return brix_query(connection, kXR_Qopaquf, path, reply, sizeof(reply),
+        status) != 0 ? status->kxr : 0;
+}
+
 /* WHAT: Exercise open, stat and query against one policy-denied path.
  * WHY: ERR-042 requires a remotely observed cross-verb answer, not three
  *      independent source-level mappings.
@@ -406,11 +378,7 @@ grade_cross_verb(xrd_conform_execution *execution, const char *target)
 {
     brix_url url;
     brix_conn connection;
-    brix_file file;
-    brix_statinfo info;
     brix_status status;
-    char reply[64];
-    char reason[64];
     int open_code = 0;
     int stat_code = 0;
     int query_code = 0;
@@ -422,21 +390,11 @@ grade_cross_verb(xrd_conform_execution *execution, const char *target)
     brix_status_clear(&status);
     connected = brix_endpoint_parse(target, &url, &status) == 0
         && brix_connect(&connection, &url, &execution->run->opts, &status) == 0;
-    if (connected && xrd_conform_reserve(execution, 0, reason, sizeof(reason))) {
-        brix_status_clear(&status);
-        if (brix_file_open_read(&connection, url.path, &file, &status) != 0)
-            open_code = status.kxr;
-        else brix_file_close(&connection, &file, &status);
-    }
-    if (connected && xrd_conform_reserve(execution, 0, reason, sizeof(reason))) {
-        brix_status_clear(&status);
-        if (brix_stat(&connection, url.path, &info, &status) != 0)
-            stat_code = status.kxr;
-    }
-    if (connected && xrd_conform_reserve(execution, 0, reason, sizeof(reason))) {
-        brix_status_clear(&status);
-        if (brix_query(&connection, kXR_Qopaquf, url.path, reply,
-                sizeof(reply), &status) != 0) query_code = status.kxr;
+    if (connected) {
+        open_code = cross_verb_open(execution, &connection, url.path, &status);
+        stat_code = cross_verb_stat(execution, &connection, url.path, &status);
+        query_code = cross_verb_query(execution, &connection, url.path,
+            &status);
     }
     if (connected) brix_close(&connection);
     snprintf(received, sizeof(received), "open=%d stat=%d query=%d",
@@ -542,14 +500,14 @@ xrd_conform_probe_error_fixtures(xrd_conform_execution *execution)
     size_t spec_index;
     const char *denied_target = NULL;
 
-    specs = error_specs(&spec_count);
+    specs = xrd_conform_error_specs(&spec_count);
     memset(observations, 0, sizeof(observations));
     for (fixture_index = 0;
             fixture_index < execution->run->error_fixture_count;
             fixture_index++) {
         const xrd_conform_error_fixture *fixture =
             &execution->run->error_fixtures[fixture_index];
-        const error_fixture_spec *spec = find_spec(fixture->errno_name,
+        const error_fixture_spec *spec = xrd_conform_error_spec_find(fixture->errno_name,
             strlen(fixture->errno_name));
 
         if (spec == NULL || fixture->is_http) continue;

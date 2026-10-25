@@ -5,26 +5,36 @@
  * HMAC-SHA256 for GSI kXR_sigver request signing, and plain SHA-256 for
  * digest computation.
  *
- * EVP_MAC and EVP_MD objects are fetched once at worker init
- * (brix_crypto_init) and freed at worker exit (brix_crypto_cleanup).
- * Each per-request call creates a lightweight CTX from the singleton,
- * avoiding the registry search and allocation cost of EVP_MAC_fetch per call.
+ * On OpenSSL 3+, EVP_MAC/EVP_MD objects are fetched once at worker init
+ * and freed at worker exit. OpenSSL 1.1.1 uses its native HMAC interface
+ * and a borrowed built-in SHA-256 descriptor; borrowed algorithms are never
+ * freed. Both backends share the same initialized-lifetime and output contract.
  */
 
 #include "crypto.h"
 #include <openssl/evp.h>
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <openssl/core_names.h>
+#else
+#include <openssl/hmac.h>
+#endif
+#include <limits.h>
 #include <sys/mman.h>   /* madvise/mlock (F3 secret-page guard) */
 #include <unistd.h>     /* sysconf(_SC_PAGESIZE) */
 #include <stdint.h>
 #include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
 static EVP_MAC *s_hmac_mac;
 static EVP_MD  *s_sha256_md;
+#else
+static const EVP_MD *s_sha256_md;
+#endif
 
 int
 brix_crypto_init(void)
 {
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
     EVP_MAC *hmac_mac;
     EVP_MD *sha256_md;
 
@@ -40,28 +50,37 @@ brix_crypto_init(void)
     s_hmac_mac = hmac_mac;
     s_sha256_md = sha256_md;
     return 1;
+#else
+    s_sha256_md = EVP_sha256();
+    return s_sha256_md != NULL;
+#endif
 }
 
 void
 brix_crypto_cleanup(void)
 {
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
     EVP_MAC_free(s_hmac_mac);
     s_hmac_mac = NULL;
     EVP_MD_free(s_sha256_md);
+#endif
     s_sha256_md = NULL;
 }
 
-int
-brix_hmac_sha256(const uint8_t *key, size_t keylen,
-                   const uint8_t *data, size_t datalen,
-                   uint8_t out[32])
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+/* ---- Compute one provider-backed HMAC ----
+ * WHAT: Return 1 after producing 32 bytes, otherwise 0; arguments are validated.
+ * WHY: Keep native context ownership separate from the public bounds contract.
+ * HOW: 1. Create context. 2. Initialize/update/finalize. 3. Free on every path.
+ */
+static int
+brix_hmac_native(const uint8_t *key, size_t keylen,
+                 const uint8_t *data, size_t datalen, uint8_t out[32])
 {
     EVP_MAC_CTX *ctx;
     OSSL_PARAM   params[2];
     size_t       outlen = 32;
     int          ok = 0;
-
-    if (s_hmac_mac == NULL) { return 0; }
 
     params[0] = OSSL_PARAM_construct_utf8_string("digest", "SHA256", 0);
     params[1] = OSSL_PARAM_construct_end();
@@ -70,13 +89,57 @@ brix_hmac_sha256(const uint8_t *key, size_t keylen,
     if (ctx
         && EVP_MAC_init(ctx, key, keylen, params) == 1
         && EVP_MAC_update(ctx, data, datalen) == 1
-        && EVP_MAC_final(ctx, out, &outlen, 32) == 1)
+        && EVP_MAC_final(ctx, out, &outlen, 32) == 1 && outlen == 32)
     {
         ok = 1;
     }
 
     EVP_MAC_CTX_free(ctx);
     return ok;
+}
+#else
+/* ---- Compute one legacy HMAC using a private context ----
+ * WHAT: Return 1 after producing 32 bytes, otherwise 0; arguments are validated.
+ * WHY: Avoid shared mutable HMAC state and the legacy NULL-key reuse behavior.
+ * HOW: 1. Create context. 2. Initialize/update/finalize. 3. Free on every path.
+ */
+static int
+brix_hmac_native(const uint8_t *key, size_t keylen,
+                 const uint8_t *data, size_t datalen, uint8_t out[32])
+{
+    HMAC_CTX *context;
+    unsigned int outlen = 0;
+    int ok = 0;
+    context = HMAC_CTX_new();
+    if (context != NULL && HMAC_Init_ex(context, key, (int) keylen, s_sha256_md, NULL) == 1
+        && HMAC_Update(context, data, datalen) == 1
+        && HMAC_Final(context, out, &outlen) == 1 && outlen == 32) {
+        ok = 1;
+    }
+    HMAC_CTX_free(context);
+    return ok;
+}
+#endif
+
+/* ---- Enforce one MAC argument and lifecycle contract across versions ----
+ * WHAT: Return 1 for a complete HMAC, 0 for invalid arguments or native failure.
+ * WHY: Never truncate hostile size_t key lengths or reuse an implicit old key.
+ * HOW: 1. Check bounds/pointers/lifetime. 2. Normalize an empty key. 3. Dispatch.
+ */
+int
+brix_hmac_sha256(const uint8_t *key, size_t keylen,
+                   const uint8_t *data, size_t datalen, uint8_t out[32])
+{
+    const uint8_t empty_key = 0;
+
+    if (s_sha256_md == NULL || out == NULL || keylen > INT_MAX
+        || (key == NULL && keylen != 0) || (data == NULL && datalen != 0)) {
+        return 0;
+    }
+    if (key == NULL) {
+        key = &empty_key;
+    }
+    return brix_hmac_native(key, keylen, data, datalen, out);
 }
 
 int

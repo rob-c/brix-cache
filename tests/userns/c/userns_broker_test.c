@@ -56,6 +56,8 @@
 
 #include "impersonate.h"
 #include "impersonate_proto.h"
+#include "subid_ranges.h"
+#include "nss_isolation.h"
 
 /* In-ns test uids/gids (well inside the subuid range). */
 #define UID_ALICE 1001
@@ -155,7 +157,13 @@ static int
 apply_maps(pid_t child)
 {
     char pidbuf[32], ru[32], rg[32];
+    char uid_start[32], gid_start[32];
     int  rc;
+
+    if (brix_test_subid_start("/etc/subuid", uid_start, sizeof(uid_start)) != 0
+        || brix_test_subid_start("/etc/subgid", gid_start, sizeof(gid_start)) != 0) {
+        return -1;
+    }
 
     snprintf(pidbuf, sizeof(pidbuf), "%d", (int) child);
     snprintf(ru, sizeof(ru), "%u", (unsigned) getuid());
@@ -163,7 +171,7 @@ apply_maps(pid_t child)
 
     {
         char *uargv[] = { "newuidmap", pidbuf, "0", ru, "1",
-                          "1", "100000", "65536", NULL };
+                          "1", uid_start, "65536", NULL };
         rc = run_cmd(uargv);
         if (rc != 0) {
             return -1;
@@ -171,7 +179,7 @@ apply_maps(pid_t child)
     }
     {
         char *gargv[] = { "newgidmap", pidbuf, "0", rg, "1",
-                          "1", "100000", "65536", NULL };
+                          "1", gid_start, "65536", NULL };
         rc = run_cmd(gargv);
         if (rc != 0) {
             return -1;
@@ -809,6 +817,10 @@ in_ns_main(void)
             fprintf(stderr, "SKIP: cannot write fake passwd/group\n");
             return SKIP_CODE;
         }
+    }
+    if (brix_test_isolate_nscd() != 0) {
+        fprintf(stderr, "SKIP: private NSS cache isolation failed: %s\n", strerror(errno));
+        return SKIP_CODE;
     }
     if (mount(passwd_path, "/etc/passwd", NULL, MS_BIND, NULL) != 0
         || mount(group_path, "/etc/group", NULL, MS_BIND, NULL) != 0)

@@ -203,6 +203,9 @@ def _start_peered_node(lifecycle, name, template, template_values, reason,
     if not peer.have_connection(timeout=20.0):
         peer.close()
         pytest.skip(f"{name} never opened a CMS connection to the peer")
+    if peer.wait_for_code(CMS_RR_LOGIN, timeout=20.0) is None:
+        peer.close()
+        pytest.fail(f"{name} connected but never sent its initial CMS LOGIN")
     return peer
 
 

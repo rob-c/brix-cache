@@ -1,4 +1,7 @@
 /* changeset.c — upper-tree → publish changeset. See changeset.h. */
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 700               /* POSIX mode type constants, including S_IFDIR */
+#endif
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L         /* *at() + fdopendir under -std=c11 */
 #endif

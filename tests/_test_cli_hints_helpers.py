@@ -29,6 +29,7 @@ import sys
 import tempfile
 
 import pytest
+from lib_py.client_toolchain import client_static_dependency_flags
 
 # Defined here (not only in the parent test module) so this helper's own
 # functions resolve it: reexport copies helper->test, so a name the helper USES
@@ -69,15 +70,14 @@ def _compile_probe(tmp_dir: pathlib.Path) -> pathlib.Path:
             str(PROBE_SRC),
             str(client_lib),
             str(proto_lib),
-            "-lssl", "-lcrypto", "-lz",
+            *_probe_link_libraries(),
             # libbrix.a may come from a --coverage build; linking with
             # --coverage satisfies its __gcov_* references and is inert
             # for uninstrumented objects.
             "--coverage",
             "-o", str(probe_out),
         ], capture_output=True, text=True, timeout=30)
-    if result.returncode != 0:
-        pytest.skip(f"could not compile envalias_probe: {result.stderr[:500]}")
+    assert result.returncode == 0, f"could not compile envalias_probe: {result.stderr}"
     return probe_out
 
 
@@ -133,7 +133,7 @@ def _compile_suggest_probe(tmp_dir: pathlib.Path) -> pathlib.Path:
     proto_lib  = CLIENT_DIR / ".." / "shared" / "xrdproto" / "libxrdproto.a"
     probe_out  = tmp_dir / "suggest_probe"
     _require_suggest_inputs(client_lib, proto_lib)
-    extra_libs = _suggest_link_libraries()
+    extra_libs = _probe_link_libraries()
 
     cmd = [
         "cc", "-std=c11", "-Wall",
@@ -150,10 +150,7 @@ def _compile_suggest_probe(tmp_dir: pathlib.Path) -> pathlib.Path:
     ] + extra_libs + ["-o", str(probe_out)]
 
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-    if result.returncode != 0:
-        pytest.skip(
-            f"could not compile suggest_probe: {result.stderr[:500]}"
-        )
+    assert result.returncode == 0, f"could not compile suggest_probe: {result.stderr}"
     return probe_out
 
 
@@ -166,11 +163,9 @@ def _require_suggest_inputs(client_lib, proto_lib):
         pytest.skip(f"probe source not found: {SUGGEST_PROBE_SRC}")
 
 
-def _suggest_link_libraries():
-    libraries = ["-lssl", "-lcrypto", "-lz"]
-    for name in ["krb5", "k5crypto", "com_err", "zstd", "lzma", "uring"]:
-        libraries.append(f"-l{name}")
-    return libraries
+def _probe_link_libraries():
+    """Use the archive's real optional dependencies, never an invented Linux set."""
+    return client_static_dependency_flags(CLIENT_DIR)
 
 
 @pytest.fixture(scope="session")

@@ -241,17 +241,9 @@ def _send_certreq(s, version):
 
 
 def _free_port(port):
-    """Kill any stale listener on ``port`` and wait until it is free, so a leaked
-    server from a prior run can't masquerade for the one we are about to start."""
-    for pid in pids_on_port(port):
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except OSError:
-            pass
-    for _ in range(20):
-        if not pids_on_port(port):
-            return
-        time.sleep(0.1)
+    """Refuse occupied ports; a port number never authorizes killing its owner."""
+    if pids_on_port(port):
+        raise RuntimeError(f"refusing to reuse occupied GSI fixture port {port}")
 
 
 def _wait_listen(proc, port, what):
@@ -265,7 +257,7 @@ def _wait_listen(proc, port, what):
         except OSError:
             pass
         time.sleep(0.1)
-    proc.terminate()
+    _terminate(proc)
     raise AssertionError(f"{what} did not come up on {port}")
 
 
@@ -277,6 +269,7 @@ def _terminate(proc):
         proc.wait(timeout=5)
     except subprocess.TimeoutExpired:
         proc.kill()
+        proc.wait(timeout=5)
 
 
 # --------------------------------------------------------------------------- #

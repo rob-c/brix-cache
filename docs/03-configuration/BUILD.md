@@ -957,7 +957,7 @@ On this 8 GiB host, module compilation uses two jobs and pytest uses two
 workers, with the harness's separate serial lanes preserved.
 
 Additional dependencies installed for this verification were matching
-`libubsan`, `strace`, and the declared optional Python `psutil` and `numpy`
+`libubsan`, `strace`, and Python `psutil` (now required) and optional `numpy`
 packages. `gfal2-plugin-http` and `gfal2-plugin-gridftp` supply the GFAL
 protocol handlers used by the DAVS and GridFTP interoperability cells.
 Clang 21.1.8, `clang-tools-extra`, and `lcov` were installed for the
@@ -1101,12 +1101,16 @@ export PATH="$PWD/build/alma9-full-venv/bin:$PATH"
 Keep the external GFAL commands on their distro Python interpreter; the
 harness removes venv Python-library overrides for those subprocesses. Installing
 the system `python3-*` packages alone does not populate the Python 3.12 venv.
-`requirements-optional.txt` now includes `psutil` and `numpy`, which were also
+At this checkpoint `requirements-optional.txt` gained `psutil` and `numpy`, which were also
 needed to exercise the platform tests instead of skipping them.
 
 The verified venv contains Python 3.12.14, pytest 9.1.1, pytest-xdist 3.8.0,
 pytest-timeout 2.4.0, pytest-rerunfailures 16.6.1, XRootD 6.1.1,
 cryptography 46.0.7, pyOpenSSL 25.3.0, psutil 7.2.2, and numpy 2.5.3.
+
+`psutil` has since moved to `requirements.txt`: native interface discovery and
+actual worker saved-identity inspection require it. Installing the declared
+test requirements must enable those checks rather than silently skip them.
 `pip check` reports no broken requirements. Use the checked-in requirement
 bounds when recreating it; do not substitute the stock Python 3.9 pytest stack.
 
@@ -1254,8 +1258,8 @@ path (`/usr/local/lib/pkgconfig` plus Homebrew's macOS SDK shim directory).
 ### 12a. Required from Homebrew
 
 ```bash
-brew install pkgconf openssl@3 pcre2 zstd brotli jansson krb5
-export PKG_CONFIG_PATH="$(brew --prefix krb5)/lib/pkgconfig"
+brew install pkgconf openssl@3 pcre2 zstd brotli jansson krb5 sqlite
+export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig:$(brew --prefix krb5)/lib/pkgconfig:$(brew --prefix sqlite)/lib/pkgconfig"
 ```
 
 | `pkg-config` name | Formula | Verified version | Role |
@@ -1287,11 +1291,20 @@ linked. With the keg on the path the probe yields
 ### 12c. Satisfied by the macOS SDK
 
 `zlib` (1.2.12), `bzip2` (1.0.8), `libxml-2.0` (2.9.13), `libcurl` (8.7.1)
-and `sqlite3` (3.43.2) all resolve through Homebrew's SDK shim
+and `sqlite3` (3.43.2, in the original September recording) resolve through Homebrew's SDK shim
 `.pc` directory without any formula. The corresponding formulae (`zlib`,
 `bzip2`, `libxml2`, `curl`, `sqlite`) are keg-only and are not needed;
 installing them has no effect unless their kegs are also added to
 `PKG_CONFIG_PATH`.
+
+**October 2026 correction for the server's pblock backend:** use Homebrew
+`sqlite` and put its keg on `PKG_CONFIG_PATH`, as in §12a above. On the tested
+macOS 27.2 host, opening a pblock catalog in an nginx worker crashed inside
+Apple's SQLite `openDatabase`/OS logging path. The same real cache/stage flow
+passes with Homebrew SQLite 3.54.0. The module's configure probe now consumes
+the selected SQLite headers and libraries together; the Darwin verifier
+supplies the Homebrew keg. A successful SDK compile alone was not sufficient
+runtime evidence.
 
 ### 12d. Linux-only, no Homebrew equivalent
 
@@ -1389,3 +1402,283 @@ Darwin residue table contains 13 explicit `ENOTSUP`/`ENOSYS` sites; these are
 documented unsupported contracts, not silent-success branches. An Intel runtime
 claim still requires an Intel Homebrew nginx host and is not inferred from this
 ARM64 result.
+
+## 14. Cross-platform v2.0 validation — in progress (2026-10-17)
+
+These are retained engineering baselines, **not a green release certification**.
+Subsequent fixes and focused checks do not retroactively change their counts.
+Fresh full reruns must establish the final result for each target.
+
+| Completed baseline | Passed | Failed | Errors | Skipped | Total records |
+|---|---:|---:|---:|---:|---:|
+| macOS ARM64, latest completed frozen-source baseline | 45,770 | 3 | 0 | 2,105 | 47,878 |
+| NixOS ARM64, latest completed frozen-source baseline | 46,644 | 8 | 21 | 1,210 | 47,883 |
+| Alma8 ARM64 userland in Podman, latest frozen-source baseline | 46,316 | 9 | 13 | 1,545 | 47,883 |
+| Alma9 ARM64, latest completed frozen-source baseline | 46,511 | 31 | 0 | 1,326 | 47,868 |
+| Alma10 ARM64, latest completed baseline | 46,812 | 0 | 3 | 1,007 | 47,822 |
+| Ubuntu24 ARM64, latest frozen-source baseline | 46,448 | 9 | 16 | 1,410 | 47,883 |
+| Ubuntu26 ARM64, latest frozen-source baseline | 46,341 | 7 | 13 | 1,522 | 47,883 |
+| Fedora Rawhide ARM64, latest completed frozen-source baseline | 46,600 | 11 | 26 | 1,246 | 47,883 |
+
+These runs use the runner's four standard lanes, which include both fast and
+slow tests. They exclude `suite_job` compiler/analyzer wrappers unless
+`--include-suite-jobs` is enabled; `tests/userns` also needs a separate invocation.
+Passing the standard lanes alone is not evidence that these omitted jobs passed.
+Supplemental runs must retain their own collection, outcome and skip counts.
+
+Five earlier macOS baseline failure areas subsequently passed a 41-test live rerun.
+This includes deterministic JWT signature corruption with a positive clean-copy
+control and a real fault-proxy replacement counter: random bit corruption is not
+evidence that a short authentication credential was actually changed. Rawhide's
+nine failure areas subsequently passed a 48-test rerun; its separate root-only
+multi-user run passed 259 tests. Neither focused run replaces a fresh full run.
+NixOS separately passed all nine standalone namespace tests and 259 root-only
+multi-user tests. Its namespace fixtures now use the caller's actual subordinate
+ID allocations and isolate the host nscd socket only inside private mounts.
+The duplication guard still reports shared-helper extraction opportunities;
+the native complexity, size, build-source coverage and documentation-link
+guards pass separately.
+
+The live Ceph follow-up passed all five oracle checks plus six harness-contract
+checks. It uses a native ARM64 Linux build image with librados/striper/CephFS
+and an x86-64 demo-cluster oracle in Docker; this is not native macOS Ceph
+support. Drivers and rescue tools take their source closure from the client
+Makefile. Path-native RADOS truncate atomically asserts existence before resizing,
+so a missing object returns ENOENT instead of being created; caller-scoped CephX
+write denial remains enforced by the actual cluster.
+
+CMS interoperability follow-ups add the required manager LOGIN acknowledgment
+after authentication/admission, strict mandatory scalar/string parsing, and
+refusal of a repeated LOGIN during an outstanding SSS challenge. The challenge
+bypass regression fails against the retained old module and passes after the
+fix. Broader wire and reference-node reruns remain separate evidence.
+
+Counts are JUnit testcase records across the four standard lanes, not deduplicated
+test IDs or feature counts. Expected failures are included in skipped; unexpected
+passes are included in passed. Setup/teardown error records can add a record for
+an otherwise passing test. Root-only and focused runs are separate evidence and
+must not simply be added to this table's totals. In particular, a 99% pass rate
+among executed tests is not a 99% execution rate across collected tests.
+
+An earlier macOS baseline failure was an auxiliary native binary without
+external-SDK runtime paths; its corrected build and fanout checks pass. The
+latest completed frozen-source run instead retains three source-quality failures:
+two Python path-complexity checks and one CMS native-complexity check. Their
+current-source repairs pass the corresponding guards separately.
+Alma10's three remaining setup errors were native units linking a coarse nginx
+string object without its allocation dependencies; units now compile the real
+selected SDK string source with section garbage collection. An earlier Ubuntu24
+baseline failure exposed an actual async-client use-after-free: queued CLOSE commands
+freed connection pointers before the collected readiness batch was dispatched.
+The deterministic regression fails against the old ordering and passes after
+dispatch is moved before control commands. Real io_uring, TLS fallback, native
+build-graph and deferred-reply follow-ups pass 69 checks (three macOS-only skips).
+Fresh current-source full runs remain necessary; these repairs do not rewrite
+the retained baseline counts.
+
+Coverage follow-ups separate client and server bearer-file permissions: stock
+ztn correctly refuses the shared worker-readable fixture, so client conformance
+now receives an owner-only copy without changing the server's credential. The
+previously skipped token tier ran 186 passing cases on Ubuntu24, with two explicit
+checksum-capability skips. Security readiness marks are evaluated at execution
+time instead of import, before fleet startup; a separate macOS main-server run
+passed all 53 selected credential/XML/path checks. These are additional runs,
+not replacements for baseline skip counts.
+
+The CVMFS conformance consumer had grown to 29 twenty-port blocks plus 48 matrix
+ports while its reservation still covered only 588 ports. Its last forty ports
+overlapped differential interoperability listeners. The catalogue is now shared
+with the ledger, its full 628-port reservation is derived from that catalogue,
+and interoperability and mock allocations follow it. Boundary checks verify
+the real consumers, not merely a self-consistent ledger. Earlier full snapshots
+retain the old allocation and therefore cannot certify this coverage repair.
+
+The Ubuntu24 CVMFS composition oracle subsequently passed all four live cases:
+comparison with Podman's flattened tree, execution from the BriX FUSE rootfs,
+unavailable-origin rejection, and corrupted-object rejection. Seven harness
+regressions pass separately. The command-less fixture image needs an explicit
+command for `podman create`; rootless access to the FUSE mount needs
+`user_allow_other` in the dedicated VM's `/etc/fuse.conf`. The rootfs leg uses
+a short private Podman runtime, resolves the OCI tag symlink before parsing
+`:O`, and stops only its own pause namespace. It does not migrate shared
+container state. BriX runs natively on ARM64; the official CVMFS service image
+used as an independent oracle runs through QEMU x86-64 user-mode emulation.
+Neither this focused result nor the emulator establishes native ARM64 support
+for that external container image.
+
+The independent Go-HEP v0.40.0 tools were built natively for Darwin ARM64 and
+as static Linux ARM64 executables; all ten interoperability checks passed on
+both macOS and Ubuntu24. Installing Go alone does not enable these cases:
+`TEST_GOHEP_BIN` must point at the built `xrd-ls` and `xrd-cp` tools.
+Separate privileged multi-user runs passed all 259 cases on each of Ubuntu24,
+Ubuntu26, Alma10 and the Alma8 userland container.
+
+The NixOS checksum/write interoperability follow-up passed all 181 checks;
+180 had skipped in the frozen run after the undersized CVMFS band collided
+with their listeners. Kerberos reference tests now discover the installed
+security framework and its same-ABI plugin, including an explicit plugin
+directory rather than assuming `/usr/lib64`. Both NixOS and macOS passed
+nine live reference/delegation cases plus nineteen library-layout and runtime
+readiness contracts (28/28 each). The Kerberos fixture's outer ceiling now
+includes its existing 180-second native-build budget; wire operation deadlines
+are unchanged. Native-client refresh/robustness marks likewise defer their
+service and fixture checks until execution; ten live macOS cases pass separately.
+Those ten native-client cases also passed separately on NixOS.
+
+The standalone namespace suite subsequently passed all nine cases on each of
+Alma8 userland, Alma9, Alma10, Ubuntu24 and Ubuntu26. On Ubuntu the stock global
+AppArmor restriction initially skipped two cases. A temporary, explicitly entered
+test-process profile used Ubuntu's documented
+[per-application user-namespace permission](https://documentation.ubuntu.com/release-notes/24.04/)
+to run the proofs as the ordinary validation user. The named profile was removed
+after each run and the global restriction was verified unchanged. This is not
+evidence that production packages bypass Ubuntu's namespace policy.
+
+The upstream MinIO image tags were no longer anonymously downloadable from
+Quay or Docker Hub during this validation. A local ARM64 oracle was built from
+the official [RELEASE.2025-10-15T17-29-55Z source](https://github.com/minio/minio/releases/tag/RELEASE.2025-10-15T17-29-55Z),
+whose checksum-verified Go module is
+`v0.0.0-20251015172955-9e49d5e7a648`. `BRIX_MINIO_IMAGE` selects that cached,
+versioned image explicitly; an absent requested image cannot silently fall
+back to another tag. The standalone STS harness now compiles the complete
+production STS/DNS-pin closure against the selected nginx SDK, rather than
+skipping after a missing DNS symbol. Only the absent nginx loop/cache are
+substituted; real hostname resolution still uses BriX's libc DNS seam.
+All nine DNS, MinIO STS and live gateway checks passed on both Ubuntu24 and
+macOS. The image is a local test oracle, not an upstream-provided binary or a
+new BriX runtime dependency; its provenance does not establish ongoing MinIO
+maintenance or suitability for production deployments.
+
+GSI TPC follow-ups removed a hard-coded `/usr/lib64` plugin directory and
+Linux-only `ss` readiness probes. The reference security library and GSI plugin
+now come from the same installed ABI; they cannot mix Nix's ABI-5 server with
+the Python wheel's ABI-6 libraries. All five delegation/outbound TPC cases
+passed on Ubuntu24, macOS and NixOS (NixOS additionally passed four layout
+contracts). These were actual protocol exchanges, not startup-only checks.
+The GSI fixtures' outer ceilings now include their existing bounded PKI-tool
+budgets (60/90 seconds per invocation), rather than cancelling certificate
+generation at the default 30 seconds. Wire-operation deadlines are unchanged;
+all five live cases pass separately after this fixture-budget correction.
+
+The kill tracer's optional process-group discovery is now bounded to one
+second; a stalled diagnostic must not prevent the original termination call.
+NixOS's renewal/cleanup follow-up passed 15 cases. Rawhide's 13 OCI setup errors
+and three timeout failures passed all 16 focused reproductions with unchanged
+code after the guest logged scheduler lag and a backwards clock jump. Those
+observations do not rewrite the failed full-run records or prove a universal
+timing cause. Ubuntu24's unchanged rate-limit cases passed a separate rerun at
+roughly 4,400 served requests/second; their 2,000-request/second acceptance
+threshold was not lowered.
+
+A subsequent NixOS follow-up reproduced two POSC conformance failures caused by
+an uninitialized caller-owned status after successful client operations. The
+probe now clears that status before starting, retaining real server refusals.
+Four explicit success/error/authorization regressions, the two original failing
+cases and fourteen collection checks passed together (20/20) on both NixOS and
+macOS. Collection-only subprocesses now bound `--confcutdir` to their declared
+root so pytest does not enumerate inaccessible ancestor directories. Rawhide's
+six daemonized FUSE checks also passed an unchanged isolated rerun; the earlier
+full-run write failure remains retained evidence, not retroactively green.
+
+Stream-log follow-ups select a new transferred-byte session instead of the last
+TCP readiness close, and wait for the current query's checksum row rather than
+accepting an older session. The JSON observer uses the existing structured-log
+decoder and a complete JSON decoder, enabling two previously skipped assertions;
+missing access records now fail those checks. Ten observer regressions cover
+delayed writes, stale evidence, malformed records and braces inside string values.
+The combined logging/observer checks pass separately; these do not rewrite the
+retained full-run logging failure or the earlier skip counts.
+
+A later macOS full-run lane exposed stale GSI ownership-test models, four
+intentional DNS/OCI literals missing the existing host-literal annotations,
+and a historical cache-helper move check that did not replay the approved
+client-build locking change. The move check now recognizes only that exact
+transformation; deadline changes and rollback to unlocked execution still fail.
+GSI fixture models follow the installed-library contract and explicitly reject
+foreign-listener killing. All 79 related contracts pass in separate macOS and
+Alma9 runs.
+Directory-listing size comparisons now seed a private directory and compare
+each server's individual stat result, avoiding unrelated concurrent root entries;
+the two live reference comparisons and three isolation regressions pass together
+on both macOS and Alma9.
+
+Full-run source snapshots remain frozen. Repairs made after a run started are
+verified separately in an independent source copy, with a rebuilt native client,
+an explicit file/hash manifest, and separate JUnit reports. Those supplemental
+counts do not replace failed full-run records or certify a new complete run.
+Current-source Alma9 and Alma10 full reruns are queued behind their existing
+fleets; other targets retain their full runs followed by these supplemental
+checks. No second full fleet is started in an already occupied guest.
+
+Alma8 uses a dedicated AlmaLinux 8 container on an Alma10 Linux 6.12 host kernel;
+it does not certify an Alma8 kernel or broaden the existing EL8 client-package
+support boundary. Native macOS uses Homebrew nginx 1.31.6 source and configure
+arguments, both BriX modules, Homebrew SQLite 3.54.0, and the native client. Its
+nginx/module OpenSSL ABI follows Homebrew nginx; the client independently uses
+its selected OpenSSL 3 SDK. FSKit availability requires an actual mount probe,
+not merely an installed or registered macFUSE bundle.
+
+The follow-up work includes a bounded iterative WebDAV directory walk, native
+TCP accounting and descriptor closure through the PAL, semaphore-free SHM mutex
+creation, explicit standalone HTTPS trust selection, and malformed deferred-AIO
+reply rejection. S3/XML HEAD replies now suppress their body and preserve header
+send errors: wire-level regressions fail against the retained old module and
+pass against the corrected module without disabling HTTP connection reuse.
+
+EL8 follow-ups cover versioned glibc stat entry points in the preload PAL,
+native-layout validation, original-libc fallback, and unchanged non-prefix path
+semantics. Static consumers receive pthread and selected external SDK/runtime
+paths from `libbrix.pc`; live FUSE consumers use that same dependency contract.
+VOMS expiry fixtures no longer require new OpenSSL CLI date-setting options.
+The private MIT Kerberos lab runs as its ordinary owner without an unnecessary
+Linux namespace prerequisite, retaining wrong-password and wrong-principal tests.
+
+VM listeners are isolated from Lima's host port forwarding so parallel fleets
+do not capture one another's ports. Run only one full fleet in a guest at a
+time: a follow-up Alma9 run was invalidated by kernel OOM kills when two fleets
+shared 12 GiB. Its partial reports are retained but excluded from certification;
+the guest was increased to 20 GiB and six CPUs for a clean rerun. Lifecycle-only
+focused checks can prepare fixtures without booting another full fleet.
+Reference XRootD also has a Unix admin-socket path-length limit: NixOS uses a
+short private bind alias under the validation user's home rather than a deeply
+nested test-root spelling. A startup-only run rejected by that limit is not a
+completed test baseline.
+On Linux, the complete listener reservation, including mock leases, must fit
+below the kernel's outgoing source-port floor. A base of 30000 left named
+listeners safe but caused later mock binds to collide; the import-time guard
+now checks the complete reservation. Use the default base of 10000 for full
+guest suites, not a range that overlaps ephemeral client ports.
+The single-server lane-ownership proof reserves its own explicit sixteen-slot
+mock budget for transient child-import readiness probes, rather than claiming
+a second full mock fleet. Its complete interval is disjoint from the parent's
+full reservation and below the ephemeral floor; excess draws still fail closed.
+All twenty live and boundary checks passed separately on macOS and Alma10.
+This does not shrink the default full-suite reservation or replace full-run
+results. macOS FUSE coverage remains pending operator enablement of FSKit.
+Linux validation trees use disk-backed XFS
+where the suite exercises large xattrs; Rawhide's previous tmpfs-exhausted run
+is not valid platform evidence. Ubuntu's stock `fusermount3` AppArmor profile
+does not permit arbitrary `/var/tmp` mountpoints: bind the private XFS tree under
+the validation user's home directory and set `TEST_ROOT` to that home path.
+A real nested CVMFS automount passed all 13 checks there on Ubuntu26 without
+relaxing AppArmor policy. Diagnostic environment fixtures must use pytest-owned
+temporary paths and an explicit public-variable allowlist, never dump inherited
+credentials into shared `/tmp` filenames. Source snapshots, per-lane XML, failure records,
+skip reasons, disk telemetry and focused rerun logs are retained under the
+ignored `build/release-validation` workspace and each VM's private validation
+directories. No project Git write is authorized; the operator approved Git
+writes only inside disposable test fixture repositories.
+
+## 15. OpenSSL 1.1.1 and FreeBSD native targets — in progress
+
+[OpenSSL 1.1.1 on Alma8](OPENSSL111.md) now has a version-neutral wrapper
+backend, real full-server/client builds and native crypto/proxy proofs. The
+AGPL licence is unchanged; legacy-linked release distribution remains gated
+pending licensing review. Its canonical full-suite run is still in progress.
+
+[FreeBSD 15+](FREEBSD.md) now has native server/client adapters, a repeatable
+build-and-test entry point and dedicated ARM64/x86-64 CI lanes. Native ARM64
+module-load and byte-exact transfer proofs also pass under the installed nginx
+package. The target guide records the tested scope and explicit limitations;
+it does not claim Linux capability/broker parity or a completed full-suite
+certification.

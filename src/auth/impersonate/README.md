@@ -18,7 +18,7 @@ Operator guide: [`docs/06-authentication/impersonation.md`](../../../docs/06-aut
 
 ## Architecture
 
-Workers stay **unprivileged**. In `map` mode a small **root broker**
+Workers stay **unprivileged**. On Linux, in `map` mode a small **root broker**
 (double-forked à la `src/fs/xfer/xfer_mover_agent.c`, SHM-safe) performs each open/metadata
 syscall under `setfsuid`/`setfsgid`/`setgroups` and returns the resulting fd to
 the worker via `SCM_RIGHTS`. The data plane (`pread`/`pwrite`/`sendfile`/AIO)
@@ -47,6 +47,9 @@ its own export rootfd, so a worker bug cannot escape the export root.
 | `idmap.c` | identity → `{uid, gid, gids}` (grid-mapfile + `getpwnam` + policy + TTL cache) |
 | `broker.c` | the privileged root broker: the request loop `imp_serve_one`, fd passing, and the `SO_PEERCRED` trust gate `imp_peer_allowed` (owns the `imp_base_*`/`imp_self_uid`/`allow_uid` state). *(Phase 38: split.)* |
 | `broker_creds.c` | the privilege transitions: cap-drop, drop-to-service-user, setuid/setgid capset, impersonate/restore. *(Phase 38 split of `broker.c`.)* |
+| `broker_fixed.h` | Bounded fixed-identity helper ownership and dispatch contract. |
+| `broker_fixed.c` | Native account snapshot, exact credential selection and non-root supervisor lifecycle. |
+| `broker_fixed_spawn.c` | Irreversible saved-ID/group drop, owned helper creation and post-confinement readiness. |
 | `broker_ops.c` | the confined FS op dispatcher `imp_do_op` (openat2/open-parent/stat/rename/xattr under `RESOLVE_BENEATH`). *(Phase 38 split of `broker.c`.)* |
 | `broker_internal.h` | Private split contract shared by `broker*.c` (the `extern` broker-state decls + prototypes). |
 | `client.c` | worker-side broker client: per-request principal, op round-trips, reconnect |
@@ -97,6 +100,45 @@ its own export rootfd, so a worker bug cannot escape the export root.
 
 ## Tests
 
+### Native FreeBSD credential model
+
+FreeBSD does not emulate Linux `capget`/`capset`. Its `map` model instead
+requires an explicit, dedicated non-root `brix_idmap_broker_user`, distinct from
+the nginx worker. During trusted startup, the root master creates helpers for
+the eligible local account snapshot. Each helper permanently sets every
+real/effective/saved uid/gid and its exact supplementary groups, verifies
+no-new-privileges, seals unrelated descriptors and enters Capsicum with only
+its export/channel/log authority. The supervising broker also permanently
+drops to its service identity and closes its own export-root descriptor.
+Neither component serving requests retains saved root or a credential-switch
+capability. Linux's existing capability model is unchanged.
+
+Requests retain the existing peer gate, principal mapper, reserved/service-id
+floor, bounded codec and confined operation dispatcher. Selection requires the
+complete uid/gid/group multiset, not only a matching uid. Unknown or changed
+credentials and dead helpers fail closed; mutations are not replayed by the
+internal helper transport. Native process descriptors terminate only the owned
+helper on last close, including supervisor death. Helpers may idle indefinitely;
+the bounded reply wait does not expire an idle helper.
+
+The startup catalogue is bounded to 256 candidate account names after numeric
+floor and worker/broker exclusions. Excess or failed enumeration refuses
+startup. Newly added accounts and changed credential sets require a broker
+restart; normal idmap TTL rules still apply. This is a deliberate bounded
+startup model, not a lazy root-spawning fallback. FreeBSD filesystem creation
+normally inherits the parent directory gid, even without setgid: integration
+tests independently probe that native rule instead of forcing Linux ownership
+semantics onto the server.
+
+Mapped POSIX lock transactions execute the existing inode-bound store inside
+the selected fixed-identity helper. On the tested FreeBSD 15.1/OpenZFS 2.4.2
+host, native fd xattrs on ZFS `xattr=dir` return `ECAPMODE` inside Capsicum,
+even without descriptor-rights restrictions. UFS passes the independent native
+probe and mapped WebDAV lock controls, as does the host's separate default-SA
+ZFS dataset for these small records. A 65536-byte SA-to-directory spill still
+fails in Capsicum. The ZFS directory-storage incompatibility remains open;
+neither worker-identity xattrs nor an unconstrained helper is a fallback.
+
 [`tests/userns/`](../../../tests/userns/) — runs the real broker+client+idmap under
 an **unprivileged user namespace** (subuid range via `newuidmap`/`newgidmap` +
 a bind-mounted fake `/etc/passwd`, no `nss_wrapper`), proving ownership, DAC
@@ -117,4 +159,5 @@ validation and an idmap unit test ([`tests/c/idmap_test.c`](../../../tests/c/idm
 | `lifecycle_broker.c` | master-side privileged-broker spawn for map-mode impersonation (phase 40). |
 | `lifecycle_internal.h` | shared state for the impersonation nginx-lifecycle glue. |
 | `lifecycle_worker.c` | worker privilege hardening and identity-transition policy. |
+| `lifecycle.c` | Impersonation configuration, including confined-worker account selection and config-time runtime uid/gid resolution. Privilege transitions remain in `lifecycle_worker.c`. |
 | `lifecycle_worker_caps.c` | PAL-backed worker capability-state inspection. |

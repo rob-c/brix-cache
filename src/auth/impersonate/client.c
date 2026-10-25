@@ -172,16 +172,17 @@ brix_imp_clear_principal(void)
 
 
 /* Write exactly n bytes.  Returns 0 ok, -1 error. */
-static int
+int
 imp_write_full(int fd, const void *buf, size_t n)
 {
     const u_char *p = buf;
     size_t        sent = 0;
 
     while (sent < n) {
-        ssize_t w = write(fd, p + sent, n - sent);
-        if (w < 0) {
-            if (errno == EINTR) { continue; }
+        ssize_t w = send(fd, p + sent, n - sent, MSG_NOSIGNAL);
+        if (w <= 0) {
+            if (w < 0 && errno == EINTR) { continue; }
+            if (w == 0) { errno = EIO; }
             return -1;
         }
         sent += (size_t) w;
@@ -194,7 +195,7 @@ imp_write_full(int fd, const void *buf, size_t n)
  * the trailing data payload (IMP_REP_HAS_DATA, READLINK target) into data_buf.
  * Returns 0 on success (*out_fd is the received fd or -1), -1 on IO error.
  */
-static int
+int
 imp_recv_reply(int fd, imp_rep_t *rep, int *out_fd, char *data_buf,
                size_t data_bufsz)
 {

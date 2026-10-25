@@ -50,6 +50,9 @@ void
 cms_srv_frame_login(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     const u_char *payload, size_t payload_len)
 {
+    if (brix_cms_srv_require_login_state(ctx) != NGX_OK) {
+        return;
+    }
     if (!cms_srv_parse_login(ctx, payload, payload_len)) {
         BRIX_LOG(NGX_LOG_WARN, ctx->c->log, 0,
                       "brix: CMS server: malformed LOGIN from %s",

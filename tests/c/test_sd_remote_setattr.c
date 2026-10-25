@@ -30,10 +30,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/xattr.h>
 
 #include <ngx_config.h>
 #include <ngx_core.h>
+#include "platform/platform_api.h"
 #include "fs/backend/remote/sd_remote.h"
 #include "fs/backend/sd_cred_types.h"    /* brix_sd_cred_t (deny-gate leg) */
 #include "fs/backend/meta_advisory.h"    /* advisory blob encode/decode */
@@ -335,7 +335,7 @@ test_setxattr_preserves_siblings(void)
     store_seed("/test-bucket/a.txt", "keep", "original");
     store_seed("/test-bucket/a.txt", BRIX_META_ADVISORY_S3META, blob);
 
-    rc = inst->driver->setxattr(inst, "/a.txt", "user.new", "hello", 5, 0);
+    rc = (inst->driver->setxattr)(inst, "/a.txt", "user.new", "hello", 5, 0);
     assert(rc == NGX_OK);
     assert(g_put_calls == 1);                 /* exactly one REPLACE */
     assert(strcmp(g_last_method, "PUT") == 0);
@@ -363,13 +363,13 @@ test_setxattr_flag_semantics(void)
     store_reset();
     store_seed("/test-bucket/a.txt", "have", "v");
 
-    rc = inst->driver->setxattr(inst, "/a.txt", "user.have", "x", 1,
+    rc = (inst->driver->setxattr)(inst, "/a.txt", "user.have", "x", 1,
                                 XATTR_CREATE);
     assert(rc == NGX_ERROR && errno == EEXIST);
     assert(g_put_calls == 0);
 
     reset_capture();
-    rc = inst->driver->setxattr(inst, "/a.txt", "user.missing", "x", 1,
+    rc = (inst->driver->setxattr)(inst, "/a.txt", "user.missing", "x", 1,
                                 XATTR_REPLACE);
     assert(rc == NGX_ERROR && errno == ENODATA);
     assert(g_put_calls == 0);
@@ -395,7 +395,7 @@ test_setxattr_rejects_bad_input(void)
     store_reset();
     store_seed("/test-bucket/a.txt", "keep", "v");
 
-    rc = inst->driver->setxattr(inst, "/a.txt", "system.posix_acl", "x", 1, 0);
+    rc = (inst->driver->setxattr)(inst, "/a.txt", "system.posix_acl", "x", 1, 0);
     assert(rc == NGX_ERROR && errno == ENOTSUP);
     assert(g_head_calls == 0 && g_put_calls == 0);
 
@@ -404,7 +404,7 @@ test_setxattr_rejects_bad_input(void)
      * REPRESENT is "unfit here": the xmeta carrier's xattr->sidecar fallback
      * (xmeta_xattr_unfit) rides on ENOTSUP/E2BIG but hard-fails on EINVAL, and
      * the old EINVAL broke every binary cinfo store over an sd_remote store. */
-    rc = inst->driver->setxattr(inst, "/a.txt", "user.bad", "a\nb", 3, 0);
+    rc = (inst->driver->setxattr)(inst, "/a.txt", "user.bad", "a\nb", 3, 0);
     assert(rc == NGX_ERROR && errno == ENOTSUP);
     assert(g_head_calls == 0 && g_put_calls == 0);
 
@@ -413,7 +413,7 @@ test_setxattr_rejects_bad_input(void)
      * x-amz-meta header.  It must map to ENOTSUP so the carrier falls back to
      * the ".cinfo" sidecar rather than hard-failing the store (bug 26). */
     reset_capture();
-    rc = inst->driver->setxattr(inst, "/a.txt", "user.cinfo", "a\0b", 3, 0);
+    rc = (inst->driver->setxattr)(inst, "/a.txt", "user.cinfo", "a\0b", 3, 0);
     assert(rc == NGX_ERROR && errno == ENOTSUP);
     assert(g_head_calls == 0 && g_put_calls == 0);
 
@@ -423,7 +423,7 @@ test_setxattr_rejects_bad_input(void)
         char big[4096];
         memset(big, 'x', sizeof(big));
         reset_capture();
-        rc = inst->driver->setxattr(inst, "/a.txt", "user.big",
+        rc = (inst->driver->setxattr)(inst, "/a.txt", "user.big",
                                     big, sizeof(big), 0);
         assert(rc == NGX_ERROR && errno == E2BIG);
         assert(g_head_calls == 0 && g_put_calls == 0);
@@ -452,14 +452,14 @@ test_removexattr(void)
     store_seed("/test-bucket/a.txt", "drop", "gone");
     store_seed("/test-bucket/a.txt", "keep", "stay");
 
-    rc = inst->driver->removexattr(inst, "/a.txt", "user.drop");
+    rc = (inst->driver->removexattr)(inst, "/a.txt", "user.drop");
     assert(rc == NGX_OK);
     assert(g_put_calls == 1);
     assert(store_get("drop") == NULL);        /* removed */
     assert(store_get("keep") != NULL);        /* sibling preserved */
 
     reset_capture();
-    rc = inst->driver->removexattr(inst, "/a.txt", "user.notthere");
+    rc = (inst->driver->removexattr)(inst, "/a.txt", "user.notthere");
     assert(rc == NGX_ERROR && errno == ENODATA);
     assert(g_put_calls == 0);
 
@@ -601,7 +601,7 @@ test_noraw_transport_notsup(void)
     store_reset();
     store_seed("/test-bucket/a.txt", "keep", "v");
 
-    rc = inst->driver->setxattr(inst, "/a.txt", "user.x", "y", 1, 0);
+    rc = (inst->driver->setxattr)(inst, "/a.txt", "user.x", "y", 1, 0);
     assert(rc == NGX_ERROR && errno == ENOTSUP);
     assert(g_put_calls == 0);
 

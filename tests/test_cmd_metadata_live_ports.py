@@ -15,6 +15,11 @@ def test_metadata_live_ports_are_importable():
     }
 
 
+def test_metadata_live_ports_owns_one_unique_port_per_listener():
+    assert len(metadata_live_ports._PORTS) == 4
+    assert len(set(metadata_live_ports._PORTS)) == 4
+
+
 @pytest.mark.optin
 @pytest.mark.parametrize("scenario", sorted(metadata_live_ports.SCENARIOS))
 def test_metadata_live_port_scenario(scenario: str):

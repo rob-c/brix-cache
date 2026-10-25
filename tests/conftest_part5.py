@@ -116,6 +116,28 @@ def _xdist_fleet_wait_seconds() -> int:
         return 900
 
 
+def _xdist_fleet_owner_path() -> Path:
+    return Path(REGISTRY_ROOT) / ".xdist-fleet-owner"
+
+
+def _claim_xdist_fleet_start() -> bool:
+    """Atomically elect the one process allowed to launch the shared fleet."""
+    path = _xdist_fleet_owner_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return False
+    os.close(fd)
+    return True
+
+
+def _worker_may_start_xdist_fleet(config) -> bool:
+    """Only gw0 may recover when the controller collection hook never fires."""
+    workerinput = getattr(config, "workerinput", None) or {}
+    return workerinput.get("workerid") == "gw0"
+
+
 # optionalhook: this hook only exists while xdist is loaded.  Declaring it
 # unconditionally makes pluggy reject the whole conftest under `-p no:xdist`
 # ("unknown hook ... in plugin tests.conftest"), which killed every nested
@@ -148,10 +170,8 @@ def pytest_xdist_node_collection_finished(node, ids):
             "xdist fleet startup needs an explicit -n worker count so it can "
             "wait for collection from every worker"
         )
-    specs, stable_path = _start_xdist_fleet()
+    specs, _ = _start_xdist_fleet(config)
     node.config._nginx_xrootd_selected_registry_specs = specs
-    stable_path.parent.mkdir(parents=True, exist_ok=True)
-    stable_path.write_text("stable\n", encoding="utf-8")
     _xdist_fleet_started = True
 
 
@@ -165,10 +185,13 @@ def _skip_xdist_fleet_start(config) -> bool:
     ))
 
 
-def _start_xdist_fleet():
+def _start_xdist_fleet(config=None):
     """Start the shared fleet and return its specs and stability marker."""
     error_path = Path(REGISTRY_ROOT) / ".xdist-fleet-error"
     stable_path = Path(REGISTRY_ROOT) / ".xdist-fleet-stable"
+    if not _claim_xdist_fleet_start():
+        _wait_for_xdist_fleet(config, allow_fallback=False)
+        return _specs_to_boot(()), stable_path
     error_path.unlink(missing_ok=True)
     stable_path.unlink(missing_ok=True)
     try:
@@ -176,6 +199,7 @@ def _start_xdist_fleet():
         _start_all_resilient(specs)
         _require_fleet_startup_stability()
         _capture_fleet_baseline()
+        stable_path.write_text("stable\n", encoding="utf-8")
     except Exception as exc:
         error_path.parent.mkdir(parents=True, exist_ok=True)
         error_path.write_text(str(exc), encoding="utf-8")
@@ -257,21 +281,26 @@ def _finish_worker_collection(session) -> None:
     if _read_worker_usage_error(_node_testrunuid(session.config)) is not None:
         return
     _chdir_scratch()
-    _wait_for_xdist_fleet()
+    _wait_for_xdist_fleet(session.config)
     read_manifest()
 
 
-def _wait_for_xdist_fleet() -> None:
+def _wait_for_xdist_fleet(config=None, *, allow_fallback=True) -> None:
     """Wait for the controller's stable marker or propagate its failure."""
     error_path = Path(REGISTRY_ROOT) / ".xdist-fleet-error"
     stable_path = Path(REGISTRY_ROOT) / ".xdist-fleet-stable"
     deadline = time.time() + _xdist_fleet_wait_seconds()
+    fallback_at = time.time() + 2.0
     while time.time() < deadline:
         if stable_path.exists():
             return
         if error_path.exists():
             message = error_path.read_text(encoding="utf-8")
             raise pytest.UsageError(f"xdist fleet coordinator failed: {message}")
+        if (allow_fallback and time.time() >= fallback_at
+                and _worker_may_start_xdist_fleet(config)):
+            _start_xdist_fleet(config)
+            return
         time.sleep(0.1)
     raise pytest.UsageError(
         "timed out waiting for the xdist controller to start the complete test fleet"

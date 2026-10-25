@@ -63,7 +63,7 @@ enum {
     IMP_OP_LISTXATTR  = 18, /* flistxattr -> NUL-separated names via reply payload */
     IMP_OP_RENAME_NOREPLACE = 19,/* renameat2(RENAME_NOREPLACE): create-if-absent;
                                   * EEXIST when dest exists (S3 If-None-Match:*) */
-    IMP_OP_RENAME_EXCHANGE  = 20 /* renameat2(RENAME_EXCHANGE): atomic two-name
+    IMP_OP_RENAME_EXCHANGE  = 20,/* renameat2(RENAME_EXCHANGE): atomic two-name
                                   * swap (2.0 F21).  UNLIKE the NOREPLACE arm
                                   * this NEVER degrades to plain renames when the
                                   * kernel or filesystem lacks the flag — it
@@ -72,6 +72,9 @@ enum {
                                   * handed a window in which neither name
                                   * resolves (sd.h exchange contract,
                                   * phase-107 §3.5). */
+    IMP_OP_LOCK_STORE = 21 /* fixed lock key; length=expected bytes, inbound
+                           * payload=[expected][replacement], either may be
+                           * empty but not both. Exact persisted-record CAS. */
 };
 
 /* SETATTR (imp_req_t.attr_flags): which attributes to apply. */

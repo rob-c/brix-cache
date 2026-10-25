@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from brix_suite.registry import NginxInstanceSpec
 from brix_suite.settings import (
+    DATA_ROOT,
     NGINX_ANON_PORT,
     PROXY_NGINX_PORT,
     REF_BRIX_GSI_PORT,
@@ -36,7 +37,10 @@ def core_specs() -> list[NginxInstanceSpec]:
             template="nginx_shared.conf",
             port=NGINX_ANON_PORT,
             protocol="root",
-            data_root=shared_data,
+            # The opt-in external-reference lane maps DATA_ROOT to native
+            # storage. Keep the server on the same export the tests seed;
+            # only the independent oracle uses the shared fixture view.
+            data_root=DATA_ROOT,
             readiness="root",
             tags=("core", "critical"),
             reason="Main shared nginx — all standard listen ports.",

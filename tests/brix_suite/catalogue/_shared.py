@@ -31,6 +31,10 @@ __all__ = [
 
 
 def _data(name: str) -> str:
+    if name in ('data-interop-our', 'data-compress'):
+        from lib_py.reference_host import reference_brix_data_root
+
+        return reference_brix_data_root(os.path.join(TEST_ROOT, name), TEST_ROOT)
     return os.path.join(TEST_ROOT, name)
 
 
@@ -63,9 +67,23 @@ _STAGE_HOOK = os.path.join(TEST_ROOT, "dedicated", "prepare-command", "stage_hoo
 
 
 def _xrdcp_bin() -> str:
+    """The reference server's TPC helper must be its stock --server tool.
+
+    XRDCP_BIN selects the client under test, whose CLI is independent of the
+    reference server's private helper mode. Never feed that override back into
+    the oracle's own TPC configuration.
+    """
     import shutil
 
-    return shutil.which(os.environ.get("XRDCP_BIN", "xrdcp")) or "xrdcp"
+    explicit = os.environ.get("TEST_REF_XRDCP_BIN")
+    if explicit:
+        return shutil.which(explicit) or explicit
+    reference = shutil.which(S.BRIX_BIN)
+    if reference:
+        sibling = os.path.join(os.path.dirname(reference), "xrdcp")
+        if os.access(sibling, os.X_OK):
+            return sibling
+    return shutil.which("xrdcp") or "xrdcp"
 
 
 def _ded(
@@ -142,12 +160,12 @@ def _nginx_has_krb5() -> bool:
 
 def _links_krb5(path: str) -> bool:
     """Require a successful dependency probe with a resolved Kerberos library."""
+    from lib_py.util import linked_libraries
+
     try:
-        probe = subprocess.run(["ldd", path], capture_output=True, text=True,
-                               timeout=10)
-    except (OSError, subprocess.SubprocessError):
+        libraries = linked_libraries(path, check=True)
+    except (OSError, subprocess.SubprocessError, ValueError):
         return False
-    if probe.returncode != 0:
-        return False
-    return re.search(r"(?m)^\s*libkrb5\.so(?:\.\d+)*\s+=>\s+/",
-                     probe.stdout) is not None
+    return re.search(
+        r"(?m)^\s*(?:libkrb5\.so(?:\.\d+)*\s+=>\s+/"
+        r"|/[^\n]*libkrb5(?:\.[\d.]+)?\.dylib\b)", libraries) is not None

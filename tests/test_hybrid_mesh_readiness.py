@@ -62,3 +62,49 @@ def test_readiness_probe_error_is_propagated_unchanged(monkeypatch):
         subject._require_hybrid_mesh.__wrapped__()
     assert caught.value is error
     assert calls == ports[:1]
+
+
+@pytest.mark.parametrize("host,family", [("127.0.0.1", "v4"), ("::1", "v6"),  # net-literal-allow: address-family classification corpus
+                                        ("fixture.invalid", None)])  # net-literal-allow: configuration-only address-family vectors
+def test_hybrid_reference_launch_matches_numeric_endpoint(tmp_path, monkeypatch,
+                                                        host, family):
+    """Both reference daemons use the same address family as their front doors."""
+    from brix_suite.mesh import hybrid_mesh_lib as mesh
+    calls = []
+    monkeypatch.setattr(mesh, "HOST", host)
+    monkeypatch.setattr(mesh, "CMSD_BIN", "/official/cmsd")
+    monkeypatch.setattr(mesh, "BRIX_BIN", "/official/xrootd")
+    monkeypatch.setattr(mesh, "runas_args", lambda _root: [])
+    monkeypatch.setattr(mesh.subprocess, "run", lambda argv, **kw: calls.append((argv, kw)))
+
+    def write(name, text):
+        path = tmp_path / name
+        path.write_text(text)
+        return str(path)
+
+    mesh.launch_xrootd(SimpleNamespace(root=str(tmp_path), write=write), "probe",
+                       "fixture configuration\n")
+    assert len(calls) == 2
+    assert [argv[0] for argv, _kw in calls] == ["/official/cmsd", "/official/xrootd"]
+    for argv, kwargs in calls:
+        assert ("-I" in argv) == (family is not None)
+        if family is not None:
+            assert argv[argv.index("-I") + 1] == family
+        assert kwargs == dict(check=False, start_new_session=True, cwd=str(tmp_path))
+        assert Path(argv[argv.index("-c") + 1]).read_text() == "fixture configuration\n"
+
+
+def test_hybrid_reference_launch_error_is_not_hidden(tmp_path, monkeypatch):
+    """A missing reference daemon remains an error, not a ready topology."""
+    from brix_suite.mesh import hybrid_mesh_lib as mesh
+    error = FileNotFoundError("missing native reference")
+    monkeypatch.setattr(mesh, "runas_args", lambda _root: [])
+
+    def failed(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(mesh.subprocess, "run", failed)
+    with pytest.raises(FileNotFoundError) as caught:
+        mesh.launch_xrootd(SimpleNamespace(root=str(tmp_path), write=lambda *_: "unused"),
+                           "probe", "fixture\n")
+    assert caught.value is error

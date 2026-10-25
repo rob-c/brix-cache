@@ -65,7 +65,9 @@ void test_staged(brix_sd_instance_t *inst);
 void test_unlink(brix_sd_instance_t *inst);
 void test_fsync_durability(const char *root);
 void test_threads(brix_sd_instance_t *inst);
-void test_processes(const char *root, brix_sd_instance_t *inst);
+#define PBUT_PROCESS_OPS 25
+int  pbut_process_writer(const char *root);
+void test_processes(const char *root, brix_sd_instance_t *inst, const char *program);
 
 /* ---- block striping group ---- */
 void test_block_striping(void);

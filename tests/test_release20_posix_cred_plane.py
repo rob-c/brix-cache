@@ -223,22 +223,47 @@ def _renameat2(old: str, new: str, flags: int) -> int:
     return rc if rc == 0 else -ctypes.get_errno()
 
 
-def test_renameat2_exchange_swaps_both_names(tmp_path):
+def _exchange_identity(path):
+    """Capture the name's inode and bytes independently of the rename result."""
+    metadata = path.stat()
+    return metadata.st_dev, metadata.st_ino, path.read_bytes()
+
+
+@pytest.fixture
+def exchange_capability(tmp_path):
+    """Probe two existing names; unsupported exchange must mutate neither."""
+    first, second = tmp_path / 'probe-first', tmp_path / 'probe-second'
+    first.write_bytes(b'first')
+    second.write_bytes(b'second')
+    before = _exchange_identity(first), _exchange_identity(second)
+    result = _renameat2(str(first), str(second), RENAME_EXCHANGE)
+    after = _exchange_identity(first), _exchange_identity(second)
+    if result == 0:
+        assert after == before[::-1], 'native exchange did not swap both inodes'
+    else:
+        assert result in (-errno.ENOSYS, -errno.EINVAL, -errno.EOPNOTSUPP), result
+        assert after == before, 'unsupported exchange changed a name or its bytes'
+    return result
+
+
+def test_renameat2_exchange_swaps_both_names(tmp_path, exchange_capability):
     """SUCCESS: the swap the broker performs.  Asserted on the CONTENT behind
     each name, not on a return code -- an exchange that left both names
     resolving to their original inodes would still return 0."""
     a, b = tmp_path / "a", tmp_path / "b"
     a.write_text("alpha")
     b.write_text("beta")
+    before = _exchange_identity(a), _exchange_identity(b)
     rc = _renameat2(str(a), str(b), RENAME_EXCHANGE)
-    if rc == -errno.ENOSYS or rc == -errno.EINVAL:
-        pytest.skip("kernel/filesystem here has no RENAME_EXCHANGE")
-    assert rc == 0
+    assert rc == exchange_capability
+    if exchange_capability != 0:
+        assert (_exchange_identity(a), _exchange_identity(b)) == before
+        return
     assert a.read_text() == "beta"
     assert b.read_text() == "alpha"
 
 
-def test_renameat2_exchange_refuses_a_missing_destination(tmp_path):
+def test_renameat2_exchange_refuses_a_missing_destination(tmp_path, exchange_capability):
     """ERROR + SECURITY-NEGATIVE: an exchange needs BOTH names to exist.  A
     plain rename would have succeeded here by MOVING the source, so the source
     surviving in place is the observable proof that no rename fallback ran --
@@ -246,11 +271,10 @@ def test_renameat2_exchange_refuses_a_missing_destination(tmp_path):
     kernel instead of against the text."""
     a, b = tmp_path / "a", tmp_path / "gone"
     a.write_text("alpha")
+    before = _exchange_identity(a)
     rc = _renameat2(str(a), str(b), RENAME_EXCHANGE)
-    if rc == -errno.ENOSYS:
-        pytest.skip("kernel/filesystem here has no RENAME_EXCHANGE")
-    assert rc == -errno.ENOENT
-    assert a.read_text() == "alpha"
+    assert rc == (exchange_capability or -errno.ENOENT)
+    assert _exchange_identity(a) == before
     assert not b.exists()
 
 

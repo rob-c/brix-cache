@@ -33,7 +33,7 @@ from cmdscripts.brixcvmfs_live import (
     _wait_mounted,
 )
 from cmdscripts.live_common import mount_options, LiveFailure, LiveRun
-from lib_py.fuse_host import with_host_mount_opts
+from lib_py.fuse_host import mount_device_access_disabled, with_host_mount_opts
 
 
 def _expression_1(checks, cachebase):
@@ -50,8 +50,8 @@ def _expression_2(repo_farm):
 
 def _expression_3(checks, opts):
     return (
-        checks.append(("nosuid" in opts and "nodev" in opts,
-                                   "child mount hardened with nosuid,nodev"))
+        checks.append(("nosuid" in opts and mount_device_access_disabled(opts),
+                       "child mount has nosuid and device access disabled"))
     )
 
 def _expression_4(rc, name, cachebase):

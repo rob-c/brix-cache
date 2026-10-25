@@ -285,7 +285,10 @@ def _mark_path_groups(item, name):
     if "/resilience/" in path:
         _add_xdist_group(item, "resilience-dedicated")
     if name.startswith("test_cvmfs_"):
-        _add_xdist_group(item, "cvmfs-fixed-ports", suffix=True)
+        # xdist joins all marker names: adding a shared marker to distinct
+        # module groups still creates distinct scheduling keys. Fixed-port
+        # co-owners must replace, rather than augment, those module groups.
+        _force_xdist_group(item, "cvmfs-fixed-ports")
     if name.startswith("test_ci_guards"):
         _add_xdist_group(item, "ci-guards", suffix=True)
 

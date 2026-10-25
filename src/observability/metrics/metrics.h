@@ -443,6 +443,8 @@ ngx_int_t  brix_track_vo_activity(ngx_brix_metrics_t *shm,
     const char *vo_name, size_t bytes_tx, size_t bytes_rx);
 ngx_int_t  brix_track_unique_user(ngx_brix_metrics_t *shm,
     const char *identity, size_t identity_len);
+void brix_track_auth_identity(ngx_brix_metrics_t *shm, const char *vo,
+    size_t vo_capacity, const char *identity, size_t identity_capacity);
 
 #include "metrics_macros.h"
 

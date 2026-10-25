@@ -85,23 +85,35 @@ static void store_repo_name(cvmfs_whitelist_t *out,
 }
 
 /*
- * WHAT: Store a valid leading fingerprint token from a whitelist line.
- * WHY:  Fingerprint lines may carry whitespace and trailing comments.
- * HOW:  Bound the first token, validate its grammar, and append within the cap.
+ * WHAT: Return the bounded leading fingerprint token length.
+ * WHY:  Whitespace and comments are not part of a certificate fingerprint.
+ * HOW:  Stop at a separator without reading beyond the supplied line span.
  */
-static void store_fingerprint(cvmfs_whitelist_t *out,
-                              const unsigned char *line, size_t len) {
+static size_t fingerprint_token_length(const unsigned char *line, size_t len) {
     size_t token_len = 0;
-    size_t copy_len;
 
     while (token_len < len && line[token_len] != ' ' &&
            line[token_len] != '\t' && line[token_len] != '#')
         token_len++;
-    if (!is_fp_line(line, token_len) || out->n_fingerprints >= 16)
+    return token_len;
+}
+
+/*
+ * WHAT: Cache the first bounded fingerprint tokens without truncation.
+ * WHY:  Most whitelists are small; a longer token must not become a trusted
+ *       certificate's fingerprint merely by truncating its suffix.
+ * HOW:  Validate the complete token and copy only if a full cache slot fits.
+ */
+static void store_fingerprint(cvmfs_whitelist_t *out,
+                              const unsigned char *line, size_t len) {
+    size_t token_len = fingerprint_token_length(line, len);
+    size_t slots = sizeof(out->fingerprints) / sizeof(out->fingerprints[0]);
+
+    if (!is_fp_line(line, token_len) ||
+        token_len >= sizeof(out->fingerprints[0]) || out->n_fingerprints >= slots)
         return;
-    copy_len = token_len < 59 ? token_len : 59;
-    memcpy(out->fingerprints[out->n_fingerprints], line, copy_len);
-    out->fingerprints[out->n_fingerprints][copy_len] = '\0';
+    memcpy(out->fingerprints[out->n_fingerprints], line, token_len);
+    out->fingerprints[out->n_fingerprints][token_len] = '\0';
     out->n_fingerprints++;
 }
 
@@ -190,10 +202,48 @@ int cvmfs_whitelist_parse(const unsigned char *buf, size_t len,
     return parse_signed_tail(buf, len, marker, out);
 }
 
+/*
+ * WHAT: Match a complete fingerprint anywhere in the parsed signed body.
+ * WHY:  The inline cache is not an interoperability limit or an allowlist cap;
+ *       signature bytes and hash-line text must never supply extra entries.
+ * HOW:  Walk only the bounded body before its marker and compare whole tokens.
+ */
+static int body_lists_fingerprint(const cvmfs_whitelist_t *whitelist,
+                                  const char *fingerprint) {
+    size_t query_length = strlen(fingerprint);
+    size_t offset = 0;
+    size_t line_number = 0;
+    size_t body_length = whitelist->signed_body_len - 3;
+
+    while (offset < body_length) {
+        size_t end = offset;
+        while (end < body_length && whitelist->signed_body[end] != '\n')
+            end++;
+        const unsigned char *line = whitelist->signed_body + offset;
+        size_t token_length = fingerprint_token_length(line, end - offset);
+        if (line_number != 0 && !is_expiry_line(line, end - offset) &&
+            token_length == query_length && is_fp_line(line, token_length) &&
+            strncasecmp((const char *) line, fingerprint, token_length) == 0)
+            return 1;
+        line_number++;
+        offset = end + 1;
+    }
+    return 0;
+}
+
+/*
+ * WHAT: Test exact case-insensitive membership without an entry-count limit.
+ * WHY:  A legitimate signing certificate can appear after sixteen rotations.
+ * HOW:  Search the inline cache, then the original bounded signed body.
+ */
 int cvmfs_whitelist_lists_fp(const cvmfs_whitelist_t *w, const char *fp_hex) {
+    if (fp_hex == NULL || fp_hex[0] == '\0')
+        return 0;
     for (size_t i = 0; i < w->n_fingerprints; i++)
         if (strcasecmp(w->fingerprints[i], fp_hex) == 0) return 1;
-    return 0;
+    if (w->signed_body == NULL || w->signed_body_len < 3)
+        return 0;
+    return body_lists_fingerprint(w, fp_hex);
 }
 
 int cvmfs_whitelist_expired(const cvmfs_whitelist_t *w, long now_utc) {

@@ -15,6 +15,8 @@ clientconf_env``.
 import os
 import shutil
 import subprocess
+import tempfile
+from contextlib import contextmanager
 from brix_suite.client_build import client_make
 from concurrent.futures import ThreadPoolExecutor
 
@@ -55,8 +57,43 @@ def _build_our_clients():
     return proc.returncode == 0
 
 
+def _session_endpoints(private_directory):
+    """Give stock ztn an owner-only client copy, not the worker-readable JWT.
+
+    The shared fixture stays readable by nginx's de-escalated worker. Stock
+    ztn correctly refuses that mode, so client credentials need a separate
+    owner-only inode. Never chmod or reassign the shared server credential.
+    """
+    endpoints = dict(E.BY_KEY)
+    if not os.path.isfile(E.TOKEN_FILE):
+        return endpoints
+    descriptor, filename = tempfile.mkstemp(prefix="bearer-", dir=private_directory)
+    with os.fdopen(descriptor, "wb") as output, open(E.TOKEN_FILE, "rb") as source:
+        shutil.copyfileobj(source, output)
+    token = E.TOKEN
+    auth = dict(token._auth, BEARER_TOKEN_FILE=filename)
+    endpoints[token.key] = E.Endpoint(token.key, token.host, token.port,
+                                     caps=token.caps, auth=auth, scheme=token.scheme)
+    return endpoints
+
+
+@contextmanager
+def _client_credential_directory(tmp_path_factory):
+    """Keep private copies in the credential fixture's own namespace.
+
+    The optional external reference can read only the proven shared fixture
+    tree, not the native server's separate pytest temp directory. A private
+    0700 sibling directory retains that confinement and the token's 0600 mode.
+    Missing fixture credentials stay missing; no ambient token is substituted.
+    """
+    parent = os.path.dirname(E.TOKEN_FILE) if os.path.isfile(E.TOKEN_FILE) \
+        else tmp_path_factory.getbasetemp()
+    with tempfile.TemporaryDirectory(prefix='clientconf-credentials-', dir=parent) as directory:
+        yield directory
+
+
 @pytest.fixture(scope="session")
-def clientconf_env():
+def clientconf_env(tmp_path_factory):
     """Seed corpus + discover healthy endpoints once per session."""
     _guard_clientconf_env_1()
 
@@ -67,14 +104,17 @@ def clientconf_env():
         pytest.skip("cannot seed corpus under %s: %s" % (DATA_ROOT, e))
 
     stock = E.stock_xrdfs()
-    healthy = set()
-    for ep in E.ENDPOINTS:
-        _guard_clientconf_env_2(stock, ep, healthy)
+    with _client_credential_directory(tmp_path_factory) as directory:
+        endpoints = _session_endpoints(directory)
+        healthy = set()
+        for ep in endpoints.values():
+            _guard_clientconf_env_2(stock, ep, healthy)
 
-    _guard_clientconf_env_3(healthy)
+        _guard_clientconf_env_3(healthy)
 
-    return {
-        "healthy": healthy,
-        "worker": _worker_id(),
-        "stock_xrdfs": stock,
-    }
+        yield {
+            "healthy": healthy,
+            "worker": _worker_id(),
+            "stock_xrdfs": stock,
+            "endpoints": endpoints,
+        }

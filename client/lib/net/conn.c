@@ -104,6 +104,33 @@ brix_web_proxy_pem(char *buf, size_t buflen)
     return buf;
 }
 
+static int
+brix_bringup_tls(brix_conn *c, brix_status *st)
+{
+    int have_tls = (c->server_flags & kXR_haveTLS) != 0;
+    int goto_tls = (c->server_flags & kXR_gotoTLS) != 0;
+
+    if (c->opts.diagnostic_no_tls_upgrade) {
+        return 0;
+    }
+    if (goto_tls || (c->want_tls && have_tls)) {
+        const char *ca = brix_resolve_ca_dir(c->opts.ca_dir);
+        return brix_tls_upgrade(c, !c->opts.insecure_tls,
+                                c->opts.verify_host, ca, st);
+    }
+    if (!c->want_tls || have_tls) {
+        return 0;
+    }
+    if (!c->tls_strict && c->opts.notlsok) {
+        return 0;
+    }
+
+    brix_status_set(st, XRDC_EAUTH, 0,
+                    "server offers no TLS; refusing cleartext "
+                    "(use --notlsok with root:// to override)");
+    return -1;
+}
+
 /* Establish the session on the already-set c->host/c->port using c->want_tls +
  * c->opts: connect → handshake → [TLS] → login → auth. Resets per-connection state
  * so it is safe to call again from brix_reconnect after a redirect. */
@@ -164,28 +191,9 @@ brix_bringup_ex(brix_conn *c, int want_login, brix_status *st)
     }
 
     /* TLS decision — never silently downgrade. */
-    {
-        int have_tls = (c->server_flags & kXR_haveTLS) != 0;
-        int goto_tls = (c->server_flags & kXR_gotoTLS) != 0;
-        if (c->opts.diagnostic_no_tls_upgrade) {
-            /* Explicit conformance fixture: stay incapable of upgrading.  The
-             * entry gate above guarantees no credential can be selected. */
-        } else if (goto_tls || (c->want_tls && have_tls)) {
-            const char *ca = brix_resolve_ca_dir(c->opts.ca_dir);
-            if (brix_tls_upgrade(c, !c->opts.insecure_tls, c->opts.verify_host, ca, st) != 0) {
-                brix_close(c);
-                return -1;
-            }
-        } else if (c->want_tls && !have_tls) {
-            if (c->tls_strict || !c->opts.notlsok) {
-                brix_status_set(st, XRDC_EAUTH, 0,
-                                "server offers no TLS; refusing cleartext "
-                                "(use --notlsok with root:// to override)");
-                brix_close(c);
-                return -1;
-            }
-            /* root:// + --notlsok: proceed cleartext. */
-        }
+    if (brix_bringup_tls(c, st) != 0) {
+        brix_close(c);
+        return -1;
     }
     c->diag.phase_ns[2] = brix_mono_ns();   /* tls negotiated (==tcp if cleartext) */
 

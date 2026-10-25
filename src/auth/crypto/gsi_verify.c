@@ -24,6 +24,7 @@
 #include "gsi_verify.h"
 
 #include "auth/crypto/store_policy.h"
+#include "auth/crypto/name_compat.h"
 #include "core/compat/log_diag.h"
 
 #include <openssl/x509v3.h>   /* EXFLAG_PROXY, X509_get_extension_flags */
@@ -159,12 +160,11 @@ brix_gsi_enforce_cert_policy(X509_STORE_CTX *vctx, X509 *leaf, ngx_log_t *log,
  * HOW:  Walk the verified chain leaf..root; the first cert WITHOUT the RFC 3820
  *       proxy flag (EXFLAG_PROXY) is the EEC (a proxy's issuer is its EEC or a
  *       parent proxy, never a trust anchor — the same walk shape as the signing
- *       policy check above).  Copy its subject via X509_NAME_oneline.  Fall
- *       back to the already-extracted leaf DN when the chain is unavailable or
- *       every entry looks like a proxy (defensive: never leave eec_buf empty on
- *       an otherwise-verified chain).
+ *       policy check above). Render its complete subject through the shared
+ *       canonical-name seam. Missing EECs and bounded-output failures are
+ *       authentication errors, never substituted or truncated leaf identities.
  */
-static void
+static ngx_int_t
 brix_gsi_extract_eec_dn(X509_STORE_CTX *vctx, brix_gsi_verify_result_t *res)
 {
     STACK_OF(X509) *chain = X509_STORE_CTX_get0_chain(vctx);
@@ -177,23 +177,15 @@ brix_gsi_extract_eec_dn(X509_STORE_CTX *vctx, brix_gsi_verify_result_t *res)
         if (X509_get_extension_flags(cert) & EXFLAG_PROXY) {
             continue;                       /* proxy layer — keep walking up */
         }
-        {
-            char *dn = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
-
-            if (dn != NULL) {
-                ngx_cpystrn((u_char *) res->eec_buf, (u_char *) dn,
-                            sizeof(res->eec_buf));
-                OPENSSL_free(dn);
-                return;
-            }
-        }
-        break;                              /* found the EEC but oneline failed */
+        return brix_crypto_name_oneline(X509_get_subject_name(cert),
+                    res->eec_buf, sizeof(res->eec_buf)) != NULL ? NGX_OK : NGX_ERROR;
     }
 
-    /* No non-proxy cert reachable (or oneline failed): the leaf DN is the best
-     * available identity — never leave the stable-identity buffer empty. */
+    /* No non-proxy cert reachable: retain the already-bounded leaf identity.
+     * A rendering failure above is different and must never substitute a leaf. */
     ngx_cpystrn((u_char *) res->eec_buf, (u_char *) res->dn_buf,
                 sizeof(res->eec_buf));
+    return NGX_OK;
 }
 
 /*
@@ -379,9 +371,8 @@ brix_gsi_enforce_legacy_policy(X509_STORE_CTX *vctx, X509 *leaf, int mode,
  *      caller has a configured limit (verify_depth > 0).
  *   5. Call X509_verify_cert(); on failure extract the error code, log it, and
  *      return NGX_ERROR.
- *   6. On success extract the subject DN from the leaf via X509_NAME_oneline,
- *      copy to res->dn_buf (truncating safely if oversized), free the
- *      OpenSSL-allocated string, and return NGX_OK.
+ *   6. Render complete version-neutral leaf/EEC identities into bounded output;
+ *      refuse unrepresentable names rather than authenticating a prefix.
  */
 ngx_int_t
 brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
@@ -391,7 +382,6 @@ brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
     int client_purpose)
 {
     X509_STORE_CTX *vctx;
-    char           *dn_str;
     int             ok;
     int             legacy = brix_store_legacy_proxy(store);
 
@@ -467,16 +457,18 @@ brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
         return NGX_ERROR;
     }
 
-    dn_str = X509_NAME_oneline(X509_get_subject_name(leaf), NULL, 0);
-    if (dn_str != NULL) {
-        ngx_cpystrn((u_char *) res->dn_buf, (u_char *) dn_str,
-                    sizeof(res->dn_buf));
-        OPENSSL_free(dn_str);
-    }
-
     /* P80.11: derive the stable EEC identity from the verified chain (still
-     * live) before releasing vctx; falls back to dn_buf, just set above. */
-    brix_gsi_extract_eec_dn(vctx, res);
+     * live) before releasing vctx. Neither identity may be truncated. */
+    if (brix_crypto_name_oneline(X509_get_subject_name(leaf), res->dn_buf,
+                                sizeof(res->dn_buf)) == NULL
+        || brix_gsi_extract_eec_dn(vctx, res) != NGX_OK)
+    {
+        X509_STORE_CTX_free(vctx);
+        ngx_memzero(res, sizeof(*res));
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
+                 "brix: GSI identity name is missing or exceeds the supported bound");
+        return NGX_ERROR;
+    }
 
     X509_STORE_CTX_free(vctx);
 

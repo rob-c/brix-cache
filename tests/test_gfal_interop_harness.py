@@ -99,3 +99,55 @@ def test_python_and_library_injection_are_isolated(tmp_path, monkeypatch, name):
     assert os.environ[name] == value
     assert env["X509_USER_PROXY"] == str(tmp_path / "proxy.pem")
     assert env["X509_CERT_DIR"] == str(tmp_path / "ca")
+
+
+@pytest.mark.parametrize("answering", [True, False])
+def test_listener_probe_checks_the_actual_gfal_endpoint(monkeypatch, answering):
+    calls = []
+
+    def probe(host, port):
+        calls.append((host, port))
+        return answering
+
+    monkeypatch.setattr(interop, "tcp_answering", probe)
+    assert interop._port_open(interop.NGINX_WEBDAV_PORT) is answering
+    assert calls == [(interop.HOST, interop.NGINX_WEBDAV_PORT)]
+
+
+def test_listener_probe_does_not_hide_invalid_endpoint_errors(monkeypatch):
+    def probe(host, port):
+        raise ValueError("invalid endpoint")
+
+    monkeypatch.setattr(interop, "tcp_answering", probe)
+    with pytest.raises(ValueError, match="invalid endpoint"):
+        interop._port_open(interop.NGINX_ANON_PORT)
+
+
+def _local_pair(tmp_path):
+    return {side + '_data': str(tmp_path / side) for side in ('our', 'off')}
+
+
+def test_namespace_fixture_seeds_both_exports_without_a_transfer(tmp_path, monkeypatch):
+    def no_transfer(*args, **kwargs):
+        pytest.fail('namespace fixture must not depend on a successful transfer')
+
+    monkeypatch.setattr(conformance, '_gfal', no_transfer)
+    paths = conformance._seed_scratch_file(_local_pair(tmp_path), 'seed', 'a/b', b'\x00exact')
+    assert len(paths) == 2 and paths[0] != paths[1]
+    assert all(conformance.fixture_read_bytes(path) == b'\x00exact' for path in paths)
+
+
+def test_namespace_fixture_rejects_stale_or_wrong_seed_bytes(tmp_path):
+    ctx = _local_pair(tmp_path)
+    paths = conformance._seed_scratch_file(ctx, 'seed', 'file', b'first')
+    with pytest.raises(AssertionError, match='scratch fixture bytes differ'):
+        conformance._seed_scratch_file(ctx, 'seed', 'file', b'other')
+    assert all(conformance.fixture_read_bytes(path) == b'first' for path in paths)
+
+
+@pytest.mark.parametrize('name,relative', [('../outside', 'file'), ('seed', '../file'),
+                                        ('seed', '/absolute'), ('seed', 'a//b')])
+def test_namespace_fixture_refuses_escaping_or_ambiguous_names(tmp_path, name, relative):
+    with pytest.raises(ValueError, match='confined path components'):
+        conformance._seed_scratch_file(_local_pair(tmp_path), name, relative, b'bad')
+    assert list(tmp_path.iterdir()) == []

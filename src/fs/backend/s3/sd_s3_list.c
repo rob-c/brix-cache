@@ -154,3 +154,60 @@ sd_s3_list_page(const sd_s3_open_params *p, const char *prefix,
     sd_s3_close(f);
     return 0;
 }
+
+/* ---- Probe a prefix with one bounded ListObjectsV2 result ----------------
+ *
+ * WHAT: Returns 1 when S3 reports an object or CommonPrefix under `prefix`,
+ *       0 for an empty result, or -1 with errno mapped from the origin.
+ *
+ * WHY: A filesystem-shaped adapter must recognize externally populated S3
+ *      prefixes without downloading a full page merely to prove existence.
+ *      The probe is also the authority boundary: 403 and transport failures
+ *      remain errors rather than being misreported as absence.
+ *
+ * HOW: 1. Build a delimited ListObjectsV2 request with max-keys=1.
+ *      2. Fetch the signed response through the shared request path.
+ *      3. Treat either Contents or CommonPrefixes as proof of existence.
+ *      4. Release response and handle while preserving the typed result.
+ */
+int
+sd_s3_prefix_exists(const sd_s3_open_params *p, const char *prefix,
+    char *errbuf, size_t errcap)
+{
+    char            qs[S3L_QS_CAP];
+    brix_s3_resp_t  resp;
+    sd_s3_file     *f = NULL;
+    const char     *body;
+    size_t          body_len = 0;
+    int             exists;
+    int             rc;
+
+    if (p == NULL || prefix == NULL) {
+        errno = EINVAL;
+        sd_s3_set_err(errbuf, errcap, "s3 prefix probe: bad parameters");
+        return -1;
+    }
+    if (sd_s3l_build_query_limit(prefix, strlen(prefix), "",
+            1 /* delimited */, 1, qs, sizeof(qs), errbuf, errcap) != 0)
+    {
+        return -1;
+    }
+    rc = sd_s3l_fetch(p, qs, &f, &resp, errbuf, errcap);
+    if (rc != 0) {
+        return rc;
+    }
+    if (f == NULL) {
+        errno = EIO;
+        sd_s3_set_err(errbuf, errcap,
+                      "s3 prefix probe: fetch returned no handle");
+        return -1;
+    }
+
+    body = f->transport->resp_body(&resp, &body_len);
+    exists = body != NULL
+        && (sd_s3l_find(body, body_len, "<Contents>") != NULL
+            || sd_s3l_find(body, body_len, "<CommonPrefixes>") != NULL);
+    f->transport->resp_free(&resp);
+    sd_s3_close(f);
+    return exists;
+}

@@ -11,6 +11,7 @@
  * Exit 0 = all checks pass.
  */
 #include "cvmfs/signature/sign.h"
+#include "auth/crypto/key_compat.h"
 #include "cvmfs/signature/manifest.h"
 #include "cvmfs/signature/whitelist.h"
 #include "cvmfs/signature/verify.h"
@@ -69,7 +70,11 @@ static void test_load_key(EVP_PKEY *pk) {
 
     EVP_PKEY *back = cvmfs_sign_load_key(path);
     CHECK(back != NULL, "load_key reads a PEM private key");
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
     CHECK(back != NULL && EVP_PKEY_eq(back, pk) == 1, "load_key round-trips the key");
+#else
+    CHECK(back != NULL && EVP_PKEY_cmp(back, pk) == 1, "load_key round-trips the key");
+#endif
     EVP_PKEY_free(back);
     unlink(path);
     CHECK(cvmfs_sign_load_key(path) == NULL, "load_key on a missing file fails");
@@ -198,8 +203,8 @@ static void test_whitelist(EVP_PKEY *master, const unsigned char *master_pub, in
 }
 
 int main(void) {
-    EVP_PKEY *certpk = EVP_RSA_gen(2048);
-    EVP_PKEY *master = EVP_RSA_gen(2048);
+    EVP_PKEY *certpk = brix_crypto_rsa_keygen(2048);
+    EVP_PKEY *master = brix_crypto_rsa_keygen(2048);
     if (certpk == NULL || master == NULL) { fprintf(stderr, "keygen failed\n"); return 1; }
 
     unsigned char cert_pem[8192], master_pub[4096];

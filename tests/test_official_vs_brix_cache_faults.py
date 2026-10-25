@@ -20,7 +20,7 @@ WHY:  the whole point of a read-through cache in front of a flaky/​distant
       origin is decoupling: once a file is resident, a delivery to a client
       must not depend on the origin link being healthy.  These tests pin that
       promise against the exact wire pathologies a plain server cannot survive,
-      using ONLY the stock `/usr/bin/xrdcp` so the result is about the SERVER,
+      using ONLY the runner-selected stock `xrdcp` so the result is about the SERVER,
       not this repo's client.
 
       The official legs are marked xfail(strict): we ASSERT the stock server
@@ -35,7 +35,7 @@ NOTE ON LATENCY: on a cache hit the open path still probes the origin for
       does.  The brix legs therefore run with a generous client timeout — the
       guarantee under test is correct DELIVERY, not latency.
 
-Skips cleanly when the official `xrootd` server, the official `/usr/bin/xrdcp`,
+Skips cleanly when the official `xrootd` server, the selected official `xrdcp`,
 the repo nginx, or the fault proxy is absent.
 
 Run:
@@ -52,10 +52,11 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "resilience"))
 from resilience.servers import XrootdAnon, FaultProxy, seed_file, FAULT_PROXY  # noqa: E402
 from server_registry import NginxInstanceSpec  # noqa: E402
+from brix_suite.catalogue._shared import _xrdcp_bin  # noqa: E402
 
 # Stock client + server ONLY — the whole comparison is about the server, so we
 # deliberately do NOT use this repo's xrdcp here.
-OFFICIAL_XRDCP = "/usr/bin/xrdcp"
+OFFICIAL_XRDCP = _xrdcp_bin()
 XROOTD = shutil.which("xrootd")
 
 from settings import HOST

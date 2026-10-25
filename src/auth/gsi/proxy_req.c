@@ -160,7 +160,7 @@ pxr_keygen(X509 *parent)
     if (e == NULL || ctx == NULL || !BN_set_word(e, 0x10001)
         || EVP_PKEY_keygen_init(ctx) <= 0
         || EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, bits) <= 0
-        || EVP_PKEY_CTX_set1_rsa_keygen_pubexp(ctx, e) <= 0
+        || !brix_crypto_rsa_keygen_exponent(ctx, e)
         || EVP_PKEY_keygen(ctx, &key) <= 0) {
         brix_evp_pkey_free(key);
         key = NULL;

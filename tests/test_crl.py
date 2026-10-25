@@ -67,16 +67,15 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # TestCRLReload is an ordered pair (accept-before-reload, reject-after) that
 # mutates the one shared CRL-reload instance; free scheduling runs the pair
 # on different workers in either order — keep the module on one worker.
-pytestmark = pytest.mark.xdist_group("crl")
+pytestmark.append(pytest.mark.xdist_group("crl"))
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 
-PROXY_PEM  = PROXY_STD
-
 CRL_DIR    = os.path.join(TEST_ROOT, "generated-crl")
 CRL_PEM    = os.path.join(CRL_DIR, "crl.pem")
+PROXY_PEM  = os.path.join(CRL_DIR, "client-proxy.pem")
 
 CRL_HOST   = HOST
 
@@ -187,6 +186,12 @@ def _wait_revoked_accepted(port, timeout=12):
 def crl_file():
     """Generate a CRL revoking the test user certificate."""
     generate_crl(CA_CERT, CA_KEY, USER_CERT, CRL_PEM)
+    # Client authentication must not read the fleet-wide proxy while other
+    # workers are rotating or handing it to a de-escalated nginx worker.
+    # Freeze a private copy for this ordered CRL lane instead.
+    import shutil
+    shutil.copyfile(PROXY_STD, PROXY_PEM)
+    os.chmod(PROXY_PEM, 0o600)
     return CRL_PEM
 
 
@@ -258,10 +263,12 @@ def crl_reload_nginx(crl_file):
     # now-empty dir) before the reload tests run. A fixed short sleep races the
     # ~2s reload interval and leaves test_initially_accepts_revoked_cert seeing a
     # stale CRL from a prior run.
-    if not _wait_revoked_accepted(CRL_RELOAD_PORT):
+    initially_accepted = _wait_revoked_accepted(CRL_RELOAD_PORT)
+    if not initially_accepted:
         pytest.fail("CRL reload did not reach the CRL-free ready state within 12 seconds")
 
-    yield {**info, "crl_src": crl_file}
+    yield {**info, "crl_src": crl_file,
+           "initially_accepted": initially_accepted}
 
 
 # =========================================================================
@@ -459,19 +466,8 @@ class TestCRLReload:
     @pytest.mark.registry_server("crl-reload")
     def test_initially_accepts_revoked_cert(self, crl_reload_nginx):
         """Before CRL is placed, revoked cert should be accepted."""
-        env = os.environ.copy()
-        env["X509_CERT_DIR"]     = os.path.join(PKI_DIR, "ca")
-        env["X509_USER_PROXY"]   = PROXY_PEM
-        env["XrdSecPROTOCOL"]    = "gsi"
-        env["XrdSecGSISRVNAMES"] = "*"
-
-        result = subprocess.run(
-            ["xrdfs", f"root://{url_host(HOST)}:{CRL_RELOAD_PORT}", "stat",
-             "/test.txt"],
-            capture_output=True, text=True, timeout=10, env=env,
-        )
-        assert result.returncode == 0, (
-            f"should accept before CRL is loaded: {result.stderr}"
+        assert crl_reload_nginx["initially_accepted"], (
+            "should accept before CRL is loaded"
         )
 
     @pytest.mark.registry_server("crl-reload")

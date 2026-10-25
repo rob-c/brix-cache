@@ -12,7 +12,8 @@ def _check_test_cache_pblock_pblock_flow_2(messages):
     assert "warm hit byte-exact with the backend file hidden" in messages
 
 
-pytestmark = pytest.mark.xdist_group("cmd-cache_pblock_pblock")
+pytestmark = [pytest.mark.xdist_group("cmd-cache_pblock_pblock"),
+              pytest.mark.timeout(180)]
 
 
 def test_cache_pblock_pblock_flow(tmp_path):

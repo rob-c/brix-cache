@@ -15,6 +15,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "auth/crypto/name_compat.h"
+
 enum {
     GFTP_GSI_TLS = 0,
     GFTP_GSI_CSR,
@@ -490,7 +492,7 @@ gftp_gsi_peer_dn(gftp_gsi_t *gsi, char *buf, size_t cap)
     if (peer == NULL) {
         return -1;
     }
-    X509_NAME_oneline(X509_get_subject_name(peer), buf, (int) cap);
+    brix_crypto_name_oneline(X509_get_subject_name(peer), buf, cap);
     X509_free(peer);
     return (buf[0] != '\0') ? 0 : -1;
 }

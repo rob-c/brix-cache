@@ -22,10 +22,9 @@
  *       helper, so each wrapper inherits libc's prototype; BRIXPOSIX_WRAP names
  *       the wrapper itself per host.
  *
- * Scope (first cut): the READ path. Files opened for write under the prefix fall
- * through to libc (a documented follow-up), as do fopen/mmap and the legacy
- * __xstat() routing (modern glibc exports stat/lstat/fstat as real symbols, which
- * we interpose directly).
+ * The stat family, including legacy glibc __xstat entry points, uses one shared
+ * mapping body; host ABI resolution stays in the preload PAL. Stdio and writes
+ * have their own wrappers, while mmap is not provided by this shim.
  *
  * Clean-room: composes the public libbrix API + dlsym only; no XrdPosix code.
  */

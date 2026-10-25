@@ -84,6 +84,59 @@ brix_file_pgwrite(brix_conn *connection, brix_file *file, int64_t offset,
     return -1;
 }
 
+/* The sanitizer retains these unselected download adapters on some hosts.
+ * Keep every outside-the-fixture I/O boundary fatal, not a success stub. */
+int
+brix_file_open_opaque(brix_conn *connection, const char *path, const char *opaque,
+    int write, int force, int posc, brix_file *file, brix_status *status)
+{
+    (void) connection; (void) path; (void) opaque; (void) write;
+    (void) force; (void) posc; (void) file; (void) status;
+    abort();
+}
+
+int
+brix_file_open_read(brix_conn *connection, const char *path, brix_file *file,
+    brix_status *status)
+{
+    (void) connection; (void) path; (void) file; (void) status;
+    abort();
+}
+
+ssize_t
+brix_file_read(brix_conn *connection, brix_file *file, int64_t offset,
+    void *buffer, size_t length, brix_status *status)
+{
+    (void) connection; (void) file; (void) offset;
+    (void) buffer; (void) length; (void) status;
+    abort();
+}
+
+ssize_t
+brix_file_pgread(brix_conn *connection, brix_file *file, int64_t offset,
+    void *buffer, size_t length, brix_status *status)
+{
+    (void) connection; (void) file; (void) offset;
+    (void) buffer; (void) length; (void) status;
+    abort();
+}
+
+ssize_t
+brix_vfs_pread(brix_vfs_file *file, int64_t offset, void *buffer, size_t length,
+    brix_status *status)
+{
+    (void) file; (void) offset; (void) buffer; (void) length; (void) status;
+    abort();
+}
+
+int
+brix_vfs_pwrite(brix_vfs_file *file, int64_t offset, const void *buffer,
+    size_t length, brix_status *status)
+{
+    (void) file; (void) offset; (void) buffer; (void) length; (void) status;
+    abort();
+}
+
 /* WHAT: Classify a write connection. WHY: Check round-robin order, not a count.
  * HOW: 1. Record primary calls. 2. Match each secondary against its chunk slot. */
 static int

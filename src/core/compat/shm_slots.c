@@ -47,9 +47,13 @@
 static ngx_int_t
 brix_shm_table_mutex_create(ngx_shmtx_t *mtx, ngx_slab_pool_t *sp)
 {
+    /* Skip nginx's sem_init entirely, including its unsupported Darwin path.
+     * Restore the finite spin budget before the mutex can be used. */
+    mtx->spin = (ngx_uint_t) -1;
     if (ngx_shmtx_create(mtx, &sp->lock, NULL) != NGX_OK) {
         return NGX_ERROR;
     }
+    mtx->spin = 2048;
 #if (NGX_HAVE_POSIX_SEM)
     mtx->semaphore      = 0;
     sp->mutex.semaphore = 0;

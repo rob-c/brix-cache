@@ -4,6 +4,23 @@
 
 #include <openssl/ssl.h>
 
+/* WHAT: Build isolated TLS-1.2 diagnostic options without changing the run.
+ * WHY: Legacy-floor and renegotiation controls require the same handshake
+ * policy, but must never lower the authentication policy of the real client.
+ * HOW: Copy options, disable capture/retries, and constrain only the probe.
+ */
+static brix_opts
+tls12_probe_options(const xrd_conform_execution *execution)
+{
+    brix_opts options = execution->run->opts;
+    options.capture = NULL;
+    options.no_retry = 1;
+    options.insecure_tls = 1;
+    options.verify_host = 0;
+    options.tls_max_version = TLS1_2_VERSION;
+    return options;
+}
+
 /* WHAT: Return whether one selected row still needs a probe result.
  * WHY: Multi-target runs revisit this module and must preserve earlier evidence.
  * HOW: Accept only an existing, non-skipped, provisional row. */
@@ -82,18 +99,13 @@ probe_certificate(xrd_conform_execution *execution, const brix_url *url,
 static void
 probe_protocol_floor(xrd_conform_execution *execution, const brix_url *url)
 {
-    brix_opts options = execution->run->opts;
+    brix_opts options = tls12_probe_options(execution);
     brix_conn connection;
     brix_status status;
     int control;
     int legacy;
 
     if (!pending(execution, "TLS-006")) return;
-    options.capture = NULL;
-    options.no_retry = 1;
-    options.insecure_tls = 1;
-    options.verify_host = 0;
-    options.tls_max_version = TLS1_2_VERSION;
     brix_status_clear(&status);
     control = brix_connect_no_login(&connection, url, &options, &status) == 0;
     if (control) brix_close(&connection);
@@ -123,18 +135,13 @@ probe_protocol_floor(xrd_conform_execution *execution, const brix_url *url)
 static void
 probe_renegotiation(xrd_conform_execution *execution, const brix_url *url)
 {
-    brix_opts options = execution->run->opts;
+    brix_opts options = tls12_probe_options(execution);
     brix_conn connection;
     brix_status status;
     int connected;
     int result;
 
     if (!pending(execution, "TLS-008")) return;
-    options.capture = NULL;
-    options.no_retry = 1;
-    options.insecure_tls = 1;
-    options.verify_host = 0;
-    options.tls_max_version = TLS1_2_VERSION;
     brix_status_clear(&status);
     connected = brix_connect_no_login(&connection, url, &options, &status) == 0;
     if (!connected) {
@@ -158,6 +165,28 @@ probe_renegotiation(xrd_conform_execution *execution, const brix_url *url)
         "client-initiated renegotiation refused", status.msg);
 }
 
+static void *
+authenticated_baseline_session(const brix_url *url, const brix_opts *options,
+    brix_status *status, int *baseline)
+{
+    brix_conn baseline_connection = { 0 };
+    brix_statinfo info;
+    void *session;
+    int connected;
+
+    baseline_connection.io.fd = -1;
+    brix_status_clear(status);
+    connected = brix_connect(&baseline_connection, url, options, status) == 0;
+    *baseline = connected;
+    if (connected) {
+        *baseline = brix_stat(&baseline_connection, url->path, &info,
+            status) == 0;
+    }
+    session = *baseline ? brix_tls_session_get(&baseline_connection) : NULL;
+    if (connected) brix_close(&baseline_connection);
+    return session;
+}
+
 /* WHAT: Resume an authenticated TLS session while suppressing application auth.
  * WHY: TLS resumption may restore transport parameters, never ROOT identity or
  *      authorization state from the connection that minted the ticket.
@@ -169,14 +198,12 @@ probe_resumed_identity(xrd_conform_execution *execution, const brix_url *url,
     const brix_conn *authenticated)
 {
     brix_opts options = execution->run->opts;
-    brix_conn baseline_connection = { 0 };
     brix_conn resumed;
     brix_statinfo info;
     brix_status status;
     void *session;
     char reason[64];
     int baseline;
-    int connected;
     int denied;
 
     if (!pending(execution, "TLS-009")
@@ -190,16 +217,7 @@ probe_resumed_identity(xrd_conform_execution *execution, const brix_url *url,
     options.capture = NULL;
     options.no_retry = 1;
     options.tls_resume_session = NULL;
-    baseline_connection.io.fd = -1;
-    brix_status_clear(&status);
-    connected = brix_connect(&baseline_connection, url, &options, &status) == 0;
-    baseline = connected;
-    if (connected) {
-        baseline = brix_stat(&baseline_connection, url->path, &info,
-            &status) == 0;
-    }
-    session = baseline ? brix_tls_session_get(&baseline_connection) : NULL;
-    if (connected) brix_close(&baseline_connection);
+    session = authenticated_baseline_session(url, &options, &status, &baseline);
     if (session == NULL) {
         xrd_conform_result_set(execution, "TLS-009",
             BRIX_CONFORM_VERDICT_INCONCLUSIVE,

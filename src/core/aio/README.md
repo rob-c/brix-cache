@@ -80,9 +80,10 @@ This is the `root://` stream data plane. It serves `kXR_read`, `kXR_readv`,
 The handler bodies live in [`../read/`](../../protocols/root/read/README.md),
 [`../write/`](../../protocols/root/write/README.md), and [`../dirlist/`](../../protocols/root/dirlist/README.md);
 they validate/auth/resolve the request, populate a per-task context struct, and
-post here. If no thread pool is configured (or its queue is full) each call site
-falls back to synchronous I/O, so the subsystem is an optimisation, not a
-dependency — except for `brix_cache`, which **requires** a working pool
+post here. The data-I/O call sites retain synchronous fallbacks for an absent
+or full pool. Checksum queries are deliberately different: a full configured
+pool returns `kXR_wait` instead of computing on the event loop; only an absent
+pool selects their synchronous path. `brix_cache` **requires** a working pool
 (enforced at config time in `config.c`).
 
 Beyond the offload, this directory owns the **shared response-chain builders**
@@ -105,7 +106,7 @@ All code here compiles only under `NGX_THREADS`.
 | `write.c` | `kXR_write`/`kXR_pgwrite`/`kXR_writev` workers/callbacks. `brix_write_aio_thread`/`_done` (single `pwrite`) and `brix_writev_write_aio_thread`/`_done` (multi-segment `pwrite` loop + optional per-fd `fsync`). On success updates byte counters, write-through dirty marking, and the write recovery journal. |
 | `readv.c` | `kXR_readv` worker/callback. `brix_readv_aio_thread` fills the pre-laid-out segment payloads via `brix_readv_read_segments` (defined in [`src/protocols/root/read/readv.c`](../../protocols/root/read/README.md)); `brix_readv_aio_done` builds the chain and updates per-handle counters. |
 | `dirlist.c` | `kXR_dirlist` worker/callback. `brix_dirlist_aio_thread` opens the dir, iterates entries, runs optional `fstatat` + `brix_dirlist_checksum_token`, and builds the *complete* wire response (oksofar chunks + final ok) into one buffer. `brix_dirlist_aio_done` queues it. Caps output at `BRIX_DIRLIST_AIO_RESPONSE_MAX` (4 MiB → `E2BIG`). |
-| `resume.c` | Shared completion plumbing. `brix_aio_restore_stream`/`_restore_request` (re-seat streamid / reset to `XRD_ST_REQ_HEADER`, with `destroyed` guard), `brix_aio_post_task` (post to pool, set `XRD_ST_AIO`, fall back to sync on NULL/full pool), `brix_aio_resume` (re-arm write vs read event after a `_done`). |
+| `resume.c` | Shared completion plumbing. `brix_aio_restore_stream`/`_restore_request` (re-seat streamid / reset to `XRD_ST_REQ_HEADER`, with `destroyed` guard), `brix_aio_post_task` (post to pool and set `XRD_ST_AIO`, or report not-posted so the caller selects retry/fallback), `brix_aio_resume` (re-arm write vs read event after a `_done`). |
 | `config.c` | `brix_configure_thread_pools`: postconfiguration pass that resolves each XRootD stream server's pool name (or `"default"`) to a concrete `ngx_thread_pool_t`. Hard-fails (`NGX_LOG_EMERG`) if `brix_cache` is enabled without a pool; otherwise just disables async I/O with a notice. |
 
 ### Other files
@@ -261,8 +262,9 @@ postconfiguration ([`../config/`](../config/README.md)); the resolved
    update counters, resume) in the appropriate file (or a new `.c`).
 3. From the handler body: validate + confine path + auth on the main thread,
    fill the struct, `brix_task_bind(task, _thread, _done)`,
-   `brix_aio_post_task(...)`; provide a synchronous fallback for the
-   no-pool / queue-full case.
+   `brix_aio_post_task(...)`; handle not-posted explicitly. Do not turn a full
+   checksum queue into event-loop computation: return a bounded retry response.
+   Keep any supported no-pool fallback distinct from queue backpressure.
 4. In `_done`, call `brix_aio_restore_request` first, reuse a `buffers.c`
    builder if the wire format allows, and end with `brix_aio_resume`.
 5. If you added a new `.c`, register it in the top-level **`config`** file

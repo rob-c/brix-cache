@@ -107,8 +107,8 @@ def _split_hostport(url):
 # Local source bytes (identical on both data dirs).                           #
 # --------------------------------------------------------------------------- #
 def _local(ctx, name):
-    with open(os.path.join(ctx["our_data"], name), "rb") as f:
-        return f.read()
+    from lib_py.reference_host import fixture_read_bytes
+    return fixture_read_bytes(os.path.join(ctx["our_data"], name))
 
 
 # --------------------------------------------------------------------------- #

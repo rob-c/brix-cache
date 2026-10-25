@@ -25,9 +25,10 @@
  *       is routed to the privileged broker, which re-confines under its own
  *       export rootfd (openat2 RESOLVE_BENEATH) and performs the f*xattr as the
  *       mapped user — so the lock/dead-property xattr lands with, and is
- *       DAC-checked for, the real user (not the unprivileged worker).  When
- *       impersonation is off the behaviour is byte-for-byte the prior raw
- *       path-based syscall, so the non-impersonated path is unchanged.
+ *       DAC-checked for, the real user (not the unprivileged worker). Without
+ *       impersonation, the same confined-open boundary pins a descriptor and
+ *       every operation uses f*xattr; a lexical prefix or an earlier stat is
+ *       not sufficient protection against traversal or symlink replacement.
  *
  * WHY: WebDAV LOCK tokens and PROPPATCH dead-properties are stored as `user.*`
  *       xattrs on the resource.  Without broker routing the worker (svc) would
@@ -44,6 +45,82 @@ typedef enum {
     XATTR_OP_REMOVE,
     XATTR_OP_LIST,
 } xattr_confined_op_t;
+
+/* One attribute operation's borrowed input/output buffers; no ownership escapes. */
+typedef struct {
+    const char *name;
+    const void *setval;
+    void       *buf;
+    size_t      len;
+    int         flags;
+} xattr_io_t;
+
+/* ---- Apply an attribute operation to an already confined descriptor ----
+ * WHAT: Return the native f*xattr result without reopening a pathname.
+ * WHY: A path-based syscall could follow a link swapped in after resolution.
+ * HOW: 1. Select the operation. 2. Pass the borrowed buffers to its fd API.
+ */
+static ssize_t
+xattr_descriptor_op(xattr_confined_op_t op, int descriptor, const xattr_io_t *io)
+{
+    switch (op) {
+    case XATTR_OP_SET:
+        return fsetxattr(descriptor, io->name, io->setval, io->len, io->flags);
+    case XATTR_OP_GET:
+        return fgetxattr(descriptor, io->name, io->buf, io->len);
+    case XATTR_OP_REMOVE:
+        return fremovexattr(descriptor, io->name);
+    default:
+        return flistxattr(descriptor, io->buf, io->len);
+    }
+}
+
+/* ---- Open the attribute target through the existing confinement boundary ----
+ * WHAT: Return a confined descriptor, or -1 with the authoritative open errno.
+ * WHY: Attribute writes on write-only files must not require data-read rights;
+ *      directories still need the read-side open that their kernel permits.
+ * HOW: 1. Try a nonblocking read open. 2. On EACCES only, mutators may try a
+ *      nonblocking write open. 3. Leave all other confinement errors unchanged.
+ */
+static int
+xattr_open_target(xattr_confined_op_t op, ngx_log_t *log,
+    const char *root_canon, const char *resolved)
+{
+    int descriptor = brix_open_confined_canon(log, root_canon, resolved,
+                                             O_RDONLY | O_NONBLOCK | O_CLOEXEC, 0);
+
+    if (descriptor < 0 && errno == EACCES
+        && (op == XATTR_OP_SET || op == XATTR_OP_REMOVE)) {
+        return brix_open_confined_canon(log, root_canon, resolved,
+                                        O_WRONLY | O_NONBLOCK | O_CLOEXEC, 0);
+    }
+    return descriptor;
+}
+
+/* ---- Own a confined descriptor for one non-impersonated attribute operation ----
+ * WHAT: Return the fd operation's result and preserve its failure errno.
+ * WHY: Every local attribute caller needs the same race-resistant boundary.
+ * HOW: 1. Open beneath the root. 2. Operate on that fd. 3. Close on every path.
+ */
+static ssize_t
+xattr_local_op(xattr_confined_op_t op, ngx_log_t *log, const char *root_canon,
+    const char *resolved, const xattr_io_t *io)
+{
+    int descriptor = xattr_open_target(op, log, root_canon, resolved);
+    ssize_t result;
+    int saved_errno;
+
+    if (descriptor < 0) {
+        return -1;
+    }
+    result = xattr_descriptor_op(op, descriptor, io);
+    saved_errno = errno;
+    close(descriptor);
+    if (result < 0) {
+        errno = saved_errno;
+    }
+    return result;
+}
 
 /* Shared worker: one imp-gate + root-relative resolution, then dispatch.
  * setval is the SET payload, buf the GET/LIST output buffer; len carries the
@@ -68,12 +145,8 @@ xattr_confined_op(xattr_confined_op_t op, ngx_log_t *log,
         default:              return brix_imp_listxattr(rel, buf, len);
         }
     }
-    switch (op) {
-    case XATTR_OP_SET:    return setxattr(resolved, name, setval, len, flags);
-    case XATTR_OP_GET:    return getxattr(resolved, name, buf, len);
-    case XATTR_OP_REMOVE: return removexattr(resolved, name);
-    default:              return listxattr(resolved, buf, len);
-    }
+    xattr_io_t io = { name, setval, buf, len, flags };
+    return xattr_local_op(op, log, root_canon, resolved, &io);
 }
 
 int

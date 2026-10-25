@@ -324,6 +324,50 @@ write_reproducer_stream(FILE *output,
     return fflush(output) == 0 && fsync(fileno(output)) == 0 ? 0 : -1;
 }
 
+static int
+reproducer_args_valid(const char *out_dir, const char *clause_id,
+    const brix_conform_reproducer_frame *frames, size_t frame_count,
+    char *name, size_t name_size)
+{
+    return out_dir != NULL && clause_id != NULL && frames != NULL
+        && frame_count != 0
+        && (size_t) snprintf(name, name_size, "%s.xrdcap", clause_id)
+            < name_size;
+}
+
+static int
+reproducer_finish(FILE *output, int dirfd, const char *name, int failed,
+    int saved, char *error, size_t error_size)
+{
+    if (fclose(output) != 0 && !failed) {
+        failed = 1;
+        saved = errno;
+    }
+    if (!failed && fsync(dirfd) != 0) {
+        failed = 1;
+        saved = errno;
+    }
+    if (failed) {
+        unlinkat(dirfd, name, 0);
+    }
+    if (close(dirfd) != 0 && !failed) {
+        failed = 1;
+        saved = errno;
+    }
+    if (failed && error != NULL && error_size > 0) {
+        snprintf(error, error_size, "reproducer artifact failed: %s",
+                 strerror(saved));
+    }
+    if (!failed && error != NULL && error_size > 0) {
+        error[0] = '\0';
+    }
+    if (failed) {
+        errno = saved;
+        return -1;
+    }
+    return 0;
+}
+
 /* WHAT: Publish minimized hostile requests as one standalone XRDCAP1 file.
  * WHY: ADV findings need exact, credential-free bytes that the normal playback
  *      command can re-issue without depending on the runner's private staging.
@@ -340,10 +384,8 @@ brix_conform_capture_reproducer(const char *out_dir, const char *clause_id,
     int failed;
     int saved;
 
-    if (out_dir == NULL || clause_id == NULL || frames == NULL
-        || frame_count == 0
-        || (size_t) snprintf(name, sizeof(name), "%s.xrdcap", clause_id)
-            >= sizeof(name)) {
+    if (!reproducer_args_valid(out_dir, clause_id, frames, frame_count,
+                               name, sizeof(name))) {
         errno = EINVAL;
         return -1;
     }
@@ -366,25 +408,8 @@ brix_conform_capture_reproducer(const char *out_dir, const char *clause_id,
     }
     failed = write_reproducer_stream(output, frames, frame_count) != 0;
     saved = failed ? (errno == 0 ? EIO : errno) : 0;
-    if (fclose(output) != 0 && !failed) {
-        failed = 1;
-        saved = errno;
-    }
-    if (!failed && fsync(dirfd) != 0) {
-        failed = 1;
-        saved = errno;
-    }
-    if (failed) unlinkat(dirfd, name, 0);
-    if (close(dirfd) != 0 && !failed) {
-        failed = 1;
-        saved = errno;
-    }
-    if (failed && error != NULL && error_size > 0)
-        snprintf(error, error_size, "reproducer artifact failed: %s",
-            strerror(saved));
-    if (!failed && error != NULL && error_size > 0) error[0] = '\0';
-    if (failed) errno = saved;
-    return failed ? -1 : 0;
+    return reproducer_finish(output, dirfd, name, failed, saved, error,
+                             error_size);
 }
 
 /* WHAT: Verify a published capture has no metadata/session request. WHY: The

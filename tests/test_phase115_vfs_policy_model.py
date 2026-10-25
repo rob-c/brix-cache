@@ -39,13 +39,17 @@ import os
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
+from lib_py.nginx_build import configured_dependency_includes
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX_SRC = os.environ.get("TEST_NGINX_SRC", "/tmp/nginx-1.28.3")
+NGINX_OBJS = os.environ.get("TEST_NGINX_OBJS",
+                           os.path.join(NGINX_SRC, "objs"))
 CC = os.environ.get("CC", "cc")
 
 MODEL_C = os.path.join(REPO, "tests/c/vfs_policy_model_test.c")
@@ -181,18 +185,21 @@ def _skip_unless_buildable():
 
 
 def _inc_flags():
-    subs = ["src/core", "src/event", "src/event/modules", "src/os/unix",
-            "objs", "src/stream"]
+    subs = ["src/core", "src/event", "src/event/modules", "src/event/quic",
+            "src/os/unix", "src/stream"]
     return ([f"-I{os.path.join(NGINX_SRC, s)}" for s in subs]
+            + [f"-I{NGINX_OBJS}"]
             + [f"-I{os.path.join(REPO, 'src')}",
                f"-I{os.path.join(REPO, 'shared')}",
                # A mutant is compiled from a temp directory, so the kernel's
                # own quote-relative includes need their home named.
-               f"-I{os.path.join(REPO, 'src/fs/vfs')}"])
+               f"-I{os.path.join(REPO, 'src/fs/vfs')}"]
+            + configured_dependency_includes(Path(NGINX_OBJS) / 'Makefile',
+                                             Path(NGINX_SRC)))
 
 
 def _build(driver_c, policy_c, out_bin):
-    """Compile one driver against one policy kernel.  None on a build failure."""
+    """Compile one driver against one policy kernel; return status + output."""
     # The kernel reaches platform/platform.h, which selects its <host>/host.h
     # from -DBRIX_PLATFORM_HOST alone and #errors without it (INVARIANT 14).
     # ./config passes it for the module build; a line assembled here has to
@@ -201,7 +208,7 @@ def _build(driver_c, policy_c, out_bin):
            "-o", str(out_bin), str(driver_c), str(policy_c)]
     build = subprocess.run(cmd, capture_output=True, text=True, timeout=180,
                            cwd=REPO)
-    return None if build.returncode != 0 else build.stderr
+    return build.returncode, build.stdout + build.stderr
 
 
 def _run(binary, sweep=None):
@@ -227,9 +234,10 @@ def _kill(table, name, work, driver=MODEL_C):
     """Build+run one mutant; returns (rc, text, checks that objected)."""
     mutant = _mutate(table, name, work)
     binary = work / f"{name}.bin"
-    err = _build(driver, mutant, binary)
-    assert err is not None, (
-        f"mutant {name!r} did not compile, so killing it would prove nothing")
+    build_rc, build_text = _build(driver, mutant, binary)
+    assert build_rc == 0, (
+        f"mutant {name!r} did not compile, so killing it would prove nothing:\n"
+        f"{build_text}")
     sweep = table[name][2]
     rc, text = _run(binary, sweep)
     return rc, text, set(re.findall(r"^FAIL \[([TS]\d+)\]", text, re.M))
@@ -240,7 +248,8 @@ def model_bin(tmp_path_factory):
     """The checker compiled against the kernel as shipped."""
     _skip_unless_buildable()
     out = tmp_path_factory.mktemp("p115-w95") / "model"
-    assert _build(MODEL_C, POLICY_C, out) is not None, "the checker did not build"
+    build_rc, build_text = _build(MODEL_C, POLICY_C, out)
+    assert build_rc == 0, f"the checker did not build:\n{build_text}"
     return out
 
 
@@ -371,8 +380,10 @@ def test_exhaustiveness_catches_what_the_sampled_unit_cannot(work, mutant):
     mutant_c = _mutate(SMUGGLERS, mutant, work)
 
     unit_bin = work / f"{mutant}.unit.bin"
-    assert _build(PHASE105_UNIT_C, mutant_c, unit_bin) is not None, \
-        "the phase-105 unit did not build against the mutant"
+    build_rc, build_text = _build(PHASE105_UNIT_C, mutant_c, unit_bin)
+    assert build_rc == 0, (
+        "the phase-105 unit did not build against the mutant:\n"
+        f"{build_text}")
     unit_rc, unit_text = _run(unit_bin)
     assert unit_rc == 0, (
         "the phase-105 unit killed a magic-constant mutant — exhaustive "

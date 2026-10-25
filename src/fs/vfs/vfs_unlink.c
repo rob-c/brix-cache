@@ -106,14 +106,21 @@ brix_vfs_driver_rmtree(brix_sd_instance_t *leaf, const brix_sd_driver_t *drv,
             while ((drc = drv->readdir(dir, &de)) == NGX_OK) {
                 char child[PATH_MAX];
 
-                ngx_snprintf((u_char *) child, sizeof(child), "%s/%s%Z",
-                             (logical[0] == '/' && logical[1] == '\0')
-                                 ? "" : logical,
-                             de.name);
+                if (brix_fs_join_path(
+                        (logical[0] == '/' && logical[1] == '\0') ? "" : logical,
+                        de.name, child, sizeof(child)) != NGX_OK)
+                {
+                    drv->closedir(dir);
+                    errno = ENAMETOOLONG;
+                    return NGX_ERROR;
+                }
                 if (brix_vfs_driver_rmtree(leaf, drv, child, cred, depth + 1)
                     != NGX_OK)
                 {
+                    int saved_errno = errno;
+
                     drv->closedir(dir);
+                    errno = saved_errno;
                     return NGX_ERROR;
                 }
             }
@@ -174,8 +181,10 @@ brix_vfs_delete_via_driver(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
     if (brix_path_resolved_to_pfn(ctx, path, logical, sizeof(logical))
         != NGX_OK)
     {
+        saved_errno = errno;
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE,
-                                NULL, 0, NGX_ERROR, errno, start);
+                                NULL, 0, NGX_ERROR, saved_errno, start);
+        errno = saved_errno;
         return NGX_ERROR;
     }
 
@@ -188,6 +197,7 @@ brix_vfs_delete_via_driver(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
             brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE,
                                       NULL, 0, NGX_ERROR, saved_errno,
                                       start);
+            errno = saved_errno;
             return NGX_ERROR;
         }
     }
@@ -215,6 +225,10 @@ brix_vfs_delete_via_driver(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
     }
     brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE, NULL, 0,
                               rc, saved_errno, start);
+    /* Observation may execute libc/logging paths that overwrite errno.  The
+     * HTTP/XRootD edge maps errno after this helper returns, so preserve the
+     * backend's namespace result (not an observer's incidental errno). */
+    errno = saved_errno;
     return rc;
 }
 
@@ -277,6 +291,7 @@ brix_vfs_delete_via_namespace(brix_vfs_ctx_t *ctx, unsigned recursive,
     saved_errno = errno;
     brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE, NULL, 0,
                               NGX_ERROR, saved_errno, start);
+    errno = saved_errno;
     return NGX_ERROR;
 }
 
@@ -317,6 +332,7 @@ brix_vfs_delete(brix_vfs_ctx_t *ctx, unsigned recursive,
         saved_errno = errno;
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE, NULL, 0,
                                   NGX_ERROR, saved_errno, start);
+        errno = saved_errno;
         return NGX_ERROR;
     }
 
@@ -327,6 +343,7 @@ brix_vfs_delete(brix_vfs_ctx_t *ctx, unsigned recursive,
         saved_errno = errno;
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE, NULL, 0,
                                   NGX_ERROR, saved_errno, start);
+        errno = saved_errno;
         return NGX_ERROR;
     }
 
@@ -335,6 +352,7 @@ brix_vfs_delete(brix_vfs_ctx_t *ctx, unsigned recursive,
         saved_errno = errno;
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE, NULL, 0,
                                   NGX_ERROR, saved_errno, start);
+        errno = saved_errno;
         return NGX_ERROR;
     }
 
@@ -353,6 +371,7 @@ brix_vfs_delete(brix_vfs_ctx_t *ctx, unsigned recursive,
             saved_errno = errno;
             brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE, NULL, 0,
                                       NGX_ERROR, saved_errno, start);
+            errno = saved_errno;
             return NGX_ERROR;
         }
     }

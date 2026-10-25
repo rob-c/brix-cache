@@ -1,10 +1,9 @@
 /*
  * client/lib/platform/darwin/posix.c - darwin bodies only the native client needs
  *
- * WHAT: brix_plat_umount / brix_plat_umount_expire for the automounter, the
- *       unprivileged FUSE unmount command tier and the macFUSE mount options. Every other PAL body the
- *       client calls is linked from src/platform/darwin/{storage,process}_wrapper.c
- *       (client/Makefile PLATFORM_SRCS), so there is one body per host.
+ * WHAT: Native unmount and macFUSE mount options. Shared BSD FUSE policy lives
+ *       in ../fuse_bsd.c; other PAL bodies are linked from the module's
+ *       src/platform/darwin/{storage,process}_wrapper.c via PLATFORM_SRCS.
  * WHY:  Client code may not name the host unmount call itself.
  * HOW:  unmount(2) for the syscall; macFUSE has no fusermount, the owner of
  *       a mount unmounts it with plain umount(8), and there is no lazy detach
@@ -27,43 +26,6 @@ brix_plat_umount(const char *path, int lazy)
 {
     /* no lazy detach on Darwin: MNT_FORCE is the closest for the EBUSY retry */
     return unmount(path, lazy ? MNT_FORCE : 0);
-}
-
-int
-brix_plat_umount_expire(const char *path)
-{
-    (void) path;
-    errno = EPERM;   /* no idle expiry: callers disable it as unprivileged Linux does */
-    return -1;
-}
-
-int
-brix_plat_fuse_umount_argv(const char *path, int lazy, int tier, char **argv)
-{
-    int n = 0;
-
-    if (tier != 0) {
-        return 0;
-    }
-    argv[n++] = (char *) "umount";
-    if (lazy) {
-        argv[n++] = (char *) "-f";
-    }
-    argv[n++] = (char *) path;
-    argv[n] = NULL;
-    return n;
-}
-
-/* macFUSE unmounts when the daemon exits and rejects the Linux libfuse
- * spelling that asks for exactly that ("fuse: unknown option(s): `-o
- * auto_unmount'"), so the element is dropped rather than passed through. */
-int
-brix_plat_fuse_opt_supported(const char *opt)
-{
-    if (opt == NULL || opt[0] == '\0') {
-        return 0;
-    }
-    return strcmp(opt, "auto_unmount") != 0;
 }
 
 const char *

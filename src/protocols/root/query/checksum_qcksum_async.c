@@ -18,6 +18,86 @@
 #include "core/aio/aio.h"
 #include "fs/vfs/vfs.h"   /* brix_vfs_close — release the path-based read handle */
 
+/* One slot per connection, shared by the serialized checksum query forms.
+ * Keeping it behind a pool cleanup avoids a public connection-layout change. */
+typedef struct {
+    ngx_thread_task_t *task;
+    size_t capacity;
+} brix_checksum_task_slot_t;
+
+/* WHAT: Release a connection's checksum task after its deferred I/O is done.
+ * WHY: The embedded event must not be freed from its own completion callback.
+ * HOW: 1. Free its heap block at connection-pool teardown. 2. Retire the slot. */
+static void
+brix_checksum_task_cleanup(void *data)
+{
+    brix_checksum_task_slot_t *slot = data;
+
+    if (slot->task != NULL) {
+        ngx_free(slot->task);
+        slot->task = NULL;
+    }
+    slot->capacity = 0;
+}
+
+/* WHAT: Find or register the one checksum-task owner on a connection pool.
+ * WHY: Queue-overflow retries must not allocate a fresh task on every request;
+ * ngx_pfree cannot reclaim small pool allocations on large-page hosts.
+ * HOW: 1. Match this concern's cleanup handler. 2. Allocate one zeroed slot. */
+static brix_checksum_task_slot_t *
+brix_checksum_task_slot(ngx_connection_t *c)
+{
+    ngx_pool_cleanup_t *cleanup;
+
+    for (cleanup = c->pool->cleanup; cleanup != NULL; cleanup = cleanup->next) {
+        if (cleanup->handler == brix_checksum_task_cleanup) {
+            return cleanup->data;
+        }
+    }
+    cleanup = ngx_pool_cleanup_add(c->pool, sizeof(brix_checksum_task_slot_t));
+    if (cleanup == NULL) {
+        return NULL;
+    }
+    ngx_memzero(cleanup->data, sizeof(brix_checksum_task_slot_t));
+    cleanup->handler = brix_checksum_task_cleanup;
+    return cleanup->data;
+}
+
+/* WHAT: Obtain an inactive reusable checksum/scan task, or NULL on failure.
+ * WHY: Both accepted queries and busy retries need bounded connection memory;
+ * a queued task's event/context must remain untouched until completion.
+ * HOW: 1. Find its owner. 2. Reject overlap. 3. Grow before replacing the old
+ * block. 4. Reset inactive storage and expose the requested context. */
+ngx_thread_task_t *
+brix_query_checksum_task(ngx_connection_t *c, size_t size)
+{
+    brix_checksum_task_slot_t *slot;
+    ngx_thread_task_t *task;
+
+    if (size > SIZE_MAX - sizeof(ngx_thread_task_t)) {
+        return NULL;
+    }
+    slot = brix_checksum_task_slot(c);
+    if (slot == NULL) {
+        return NULL;
+    }
+    if (slot->task != NULL && slot->task->event.active) {
+        return NULL;
+    }
+    if (slot->task == NULL || slot->capacity < size) {
+        task = ngx_alloc(sizeof(ngx_thread_task_t) + size, c->log);
+        if (task == NULL) {
+            return NULL;
+        }
+        brix_checksum_task_cleanup(slot);
+        slot->task = task;
+        slot->capacity = size;
+    }
+    ngx_memzero(slot->task, sizeof(ngx_thread_task_t) + size);
+    slot->task->ctx = slot->task + 1;
+    return slot->task;
+}
+
 
 /*
  * brix_cksum_aio_thread — runs on a thread-pool worker.

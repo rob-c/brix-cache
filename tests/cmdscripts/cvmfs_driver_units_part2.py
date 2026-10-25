@@ -76,6 +76,8 @@ def _compile_check_binaries(context):
             "-Wall",
             "-I",
             "shared",
+            "-I",
+            "src",
             "tests/cvmfs/brix_mkrepo.c",
             "shared/cvmfs/grammar/hash.c",
             "shared/cvmfs/object/object.c",
@@ -98,7 +100,7 @@ def _compile_check_binaries(context):
 
 def _start_check_server(web, port):
     return subprocess.Popen(
-        ["python3", "-m", "http.server", str(port), "--bind", BIND_HOST],
+        [sys.executable, "-m", "http.server", str(port), "--bind", BIND_HOST],
         cwd=str(web),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

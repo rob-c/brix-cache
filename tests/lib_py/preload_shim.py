@@ -43,6 +43,22 @@ def wrap_name(symbol: str) -> str:
     return f"brixposix_{symbol}" if IS_DARWIN else symbol
 
 
+def stdio_directory_exports(host: str | None = None) -> set[str]:
+    """Native libc names everywhere; the glibc LFS aliases only on Linux.
+
+    FreeBSD uses 64-bit off_t through the ordinary libc ABI and does not
+    provide fopen64/freopen64/readdir64. Requiring those symbols there tests
+    a foreign ABI, not whether interposition is complete.
+    """
+    host = sys.platform if host is None else host
+    ordinary = ('opendir', 'readdir', 'readdir_r', 'closedir', 'rewinddir',
+                'telldir', 'seekdir', 'dirfd', 'fopen', 'freopen')
+    exported = {('brixposix_' + name) if host == 'darwin' else name for name in ordinary}
+    if host.startswith('linux'):
+        exported.update(('readdir64', 'fopen64', 'freopen64'))
+    return exported
+
+
 def preload_env(env: dict | None = None, *chain: str) -> dict:
     """``env`` (default: a copy of os.environ) with the shim, and any objects
     in ``chain`` before it (sanitizer runtimes), inserted the host's way."""

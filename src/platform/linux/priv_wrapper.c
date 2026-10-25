@@ -97,4 +97,15 @@ brix_plat_crypt(const char *key, const char *setting)
     return crypt(key, setting);
 }
 
+/* WHAT: Refuse unsupported owned-process confinement primitives.
+ * WHY: Process descriptors/Capsicum are not Linux credential capabilities.
+ * HOW: Return ENOTSUP; the existing Linux capability broker stays unchanged. */
+pid_t brix_plat_broker_fork(int *process_fd)
+{ (void) process_fd; errno = ENOTSUP; return -1; }
+
+/* WHAT: Refuse a native helper sandbox unavailable on this host.
+ * WHY: Never attest a successful no-op boundary. HOW: Return ENOTSUP. */
+int brix_plat_broker_confine(int channel, int rootfd, int logfd)
+{ (void) channel; (void) rootfd; (void) logfd; errno = ENOTSUP; return -1; }
+
 #endif /* BRIX_PLATFORM_LINUX */

@@ -20,8 +20,14 @@ f = client.File()
 # lstrip: exactly two slashes after the authority — see mu_authz_lib.adapters.
 st, _ = f.open(url + "//" + path.lstrip("/"), OpenFlags.NEW | OpenFlags.WRITE)
 if st.ok:
-    f.write(data)
-    f.close()
+    written, _ = f.write(data)
+    closed, _ = f.close()
+    if not written.ok:
+        st = written
+    elif not closed.ok:
+        st = closed
+if not st.ok:
+    print(st, file=sys.stderr)
 sys.exit(0 if st.ok else 3)
 '''
 

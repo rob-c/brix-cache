@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from lib_py.reference_host import assert_backing_size_parity, fixture_read_bytes
 _reexport(globals(), "_test_conf_gfal_ops_helpers")
 
 pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_gfal_ops")]
@@ -66,14 +67,16 @@ def test_ls_name_set(ctx, path):
 
 @pytest.mark.parametrize("path", ["", "sub", "deep/a/b/c", "many"])
 def test_ls_long_names_and_sizes(ctx, path):
-    """gfal-ls -l: name→size mapping must match stock exactly."""
+    """Files match exactly; directory sizes must equal their real backing inode."""
     our, off = _both(ctx, lambda s: ("gfal-ls", "-l", _url(ctx, s, path)))
     _assert_rc_and_errcat(our, off, f"ls -l {path}")
     assert our[0] == 0
     ours, offs = _parse_ls_l(our[1]), _parse_ls_l(off[1])
     assert set(ours) == set(offs), \
         f"ls -l {path} names our={set(ours)} off={set(offs)}"
-    assert ours == offs, f"ls -l {path} sizes our={ours} off={offs}"
+    for name in ours:
+        assert_backing_size_parity(ctx, path.rstrip('/') + '/' + name,
+                                  ours[name], offs[name])
 
 
 def test_ls_long_root_sizes_match_expected(ctx):
@@ -156,7 +159,7 @@ def test_sum_md5_matches_python(ctx, path):
     rc, out, err = _gfal("gfal-sum", _url(ctx, "our", path), "md5")
     assert rc == 0, f"gfal-sum md5 failed: {err}"
     gfal_d = _sum_digest(out)
-    want = hashlib.md5(open(os.path.join(ctx["our_data"], path), "rb").read()).hexdigest()
+    want = hashlib.md5(fixture_read_bytes(os.path.join(ctx["our_data"], path))).hexdigest()
     assert gfal_d == want, f"md5 {path} gfal={gfal_d} python={want}"
 
 
@@ -232,7 +235,7 @@ def test_copy_upload_then_download_roundtrip(ctx, size, tmp_path):
             rc, _o, err = _gfal("gfal-copy", "-f",
                                 _scratch(ctx, s, f"cp{size}") + "/u.bin", str(dl))
             assert rc == 0, f"download {s} {size} failed: {err}"
-            assert dl.read_bytes() == src.read_bytes(), \
+            assert fixture_read_bytes(dl) == fixture_read_bytes(src), \
                 f"round-trip {s} size={size} not byte-identical"
     finally:
         _both(ctx, lambda s: ("gfal-rm", "-r", _scratch(ctx, s, f"cp{size}")))
@@ -243,12 +246,12 @@ def test_copy_upload_then_download_roundtrip(ctx, size, tmp_path):
 def test_copy_download_tree_file_byte_identical(ctx, path, tmp_path):
     """Download an existing tree file from each server; both must equal the
     on-disk source bytes (and therefore each other)."""
-    want = open(os.path.join(ctx["our_data"], path), "rb").read()
+    want = fixture_read_bytes(os.path.join(ctx["our_data"], path))
     for s in ("our", "off"):
         dl = tmp_path / f"{s}_{path.replace('/', '_')}"
         rc, _o, err = _gfal("gfal-copy", "-f", _url(ctx, s, path), str(dl))
         assert rc == 0, f"download {s} {path} failed: {err}"
-        assert dl.read_bytes() == want, f"download {s} {path} not byte-identical"
+        assert fixture_read_bytes(dl) == want, f"download {s} {path} not byte-identical"
 
 
 @pytest.mark.parametrize("path", ["nope.txt", "no_such_dir/x.bin"])
@@ -304,33 +307,32 @@ def test_copy_server_to_server_third_party(ctx):
 # gfal-rename
 # --------------------------------------------------------------------------- #
 def test_rename_file(ctx):
-    """gfal-rename of an uploaded file: rc match stock; renamed target stats
+    """gfal-rename of a seeded file: rc match stock; renamed target stats
     equal on both; old name gone on both."""
     _both(ctx, lambda s: ("gfal-mkdir", "-p", _scratch(ctx, s, "rn")))
     try:
-        # seed an identical file on both via a tiny local upload
-        seed = os.path.join(ctx["our_data"], "..", "rn_seed.bin")  # unused path guard
-        tmp = tempfile.NamedTemporaryFile(delete=False)
-        tmp.write(b"rename-payload-0123456789"); tmp.close()
-        try:
-            _both(ctx, lambda s: ("gfal-copy", "-f", tmp.name,
-                                  _scratch(ctx, s, "rn") + "/a.bin"))
-            our, off = _both(ctx, lambda s: ("gfal-rename",
-                                             _scratch(ctx, s, "rn") + "/a.bin",
-                                             _scratch(ctx, s, "rn") + "/b.bin"))
-            _assert_rc_and_errcat(our, off, "rename a->b")
-            assert our[0] == 0
-            # new name present, old name gone — both servers agree
-            nour, noff = _both(ctx, lambda s: ("gfal-stat",
-                                               _scratch(ctx, s, "rn") + "/b.bin"))
-            _assert_rc_and_errcat(nour, noff, "stat renamed")
-            assert nour[0] == 0
-            oour, ooff = _both(ctx, lambda s: ("gfal-stat",
-                                               _scratch(ctx, s, "rn") + "/a.bin"))
-            _assert_rc_and_errcat(oour, ooff, "stat old name gone")
-            assert oour[0] != 0
-        finally:
-            os.unlink(tmp.name)
+        payload = b"rename-payload-0123456789"
+        paths = _seed_scratch_file(ctx, "rn", "a.bin", payload)
+        our, off = _both(ctx, lambda s: ("gfal-rename",
+                                         _scratch(ctx, s, "rn") + "/a.bin",
+                                         _scratch(ctx, s, "rn") + "/b.bin"))
+        _assert_rc_and_errcat(our, off, "rename a->b")
+        assert our[0] == 0
+        # New name present, old name gone — both servers agree on the wire
+        # and both backing objects retain the exact independently seeded bytes.
+        nour, noff = _both(ctx, lambda s: ("gfal-stat",
+                                           _scratch(ctx, s, "rn") + "/b.bin"))
+        _assert_rc_and_errcat(nour, noff, "stat renamed")
+        assert nour[0] == 0
+        assert _parse_stat(nour[1]).get('size') == str(len(payload))
+        assert _parse_stat(noff[1]).get('size') == str(len(payload))
+        oour, ooff = _both(ctx, lambda s: ("gfal-stat",
+                                           _scratch(ctx, s, "rn") + "/a.bin"))
+        _assert_rc_and_errcat(oour, ooff, "stat old name gone")
+        assert oour[0] != 0
+        for path in paths:
+            assert not os.path.lexists(path)
+            assert fixture_read_bytes(os.path.join(os.path.dirname(path), 'b.bin')) == payload
     finally:
         _both(ctx, lambda s: ("gfal-rm", "-r", _scratch(ctx, s, "rn")))
 

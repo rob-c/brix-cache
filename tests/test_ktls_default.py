@@ -35,6 +35,7 @@ from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
 # root:// TLS context.  Emitted to stderr during `nginx -t` (config-parse
 # NOTICEs use the init-cycle log, before error_log takes effect).
 KTLS_NOTICE = "kernel-TLS (kTLS) requested"
+KTLS_UNAVAILABLE = "kTLS is unavailable in this OpenSSL build"
 
 
 @pytest.fixture(autouse=True)
@@ -80,7 +81,8 @@ def _parse(tmp_path, ktls_line):
 def test_ktls_on_requests_offload(tmp_path):
     result, out = _parse(tmp_path, "brix_ktls on;")
     assert result.returncode == 0, out
-    assert KTLS_NOTICE in out, ("brix_ktls on must request kTLS", out)
+    assert (KTLS_NOTICE in out) != (KTLS_UNAVAILABLE in out), (
+        "brix_ktls on must report offload support or explicit userspace fallback", out)
 
 
 # --------------------------------------------------------------------------- #

@@ -168,6 +168,17 @@ static int read_chunked(cvmfs_client_t *cl, cvmfs_catalog_t *cat,
                         unsigned char *buf, size_t *outlen, long now) {
     chunk_read_t read_state;
 
+    /*
+     * WHAT: Initialise the complete caller-visible chunk-read window.
+     * WHY: A malformed catalog can contain holes.  The overlap callback writes
+     *      chunks at their logical offsets while reporting their byte count;
+     *      without this initialisation, FUSE could expose untouched buffer
+     *      bytes when a later chunk makes the returned count span a hole.
+     * HOW: Zero the bounded request buffer before enumerating chunks.  Valid
+     *      contiguous maps overwrite every returned byte, while a gap is
+     *      deterministic zero-fill rather than process-memory disclosure.
+     */
+    memset(buf, 0, len);
     memset(&read_state, 0, sizeof(read_state));
     read_state.cl = cl;
     read_state.offset = offset;

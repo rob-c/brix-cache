@@ -31,189 +31,151 @@ sd_remote_params_cred(sd_s3_open_params *p, const char *ak, const char *sk,
     if (session != NULL) { p->session_token = session; }
 }
 
-/* HEAD `objpath` under the (already cred-applied) params: 1 = object exists,
- * 0 = absent (or HEAD failed). Best-effort existence probe for the stat/mkdir/
- * rename gates below. */
+/* ---- Probe one object while preserving absence versus failure ------------
+ *
+ * WHAT: Returns 1 when the params-addressed object exists, 0 only for a
+ *       genuine ENOENT, or -1 with errno preserved for every other failure.
+ *       When size_out is non-NULL, a successful probe stores the object size.
+ *
+ * WHY: Namespace fallbacks may try a marker or prefix only after a missing
+ *      object. Treating AccessDenied or an origin failure as absence both
+ *      weakens fail-closed behavior and returns misleading 404 responses.
+ *
+ * HOW: 1. Bind a read handle without performing I/O.
+ *      2. Issue the shared HEAD/size request.
+ *      3. Preserve errno across handle cleanup.
+ *      4. Collapse only ENOENT to the absent result.
+ */
 static int
-sd_remote_head_exists(const sd_s3_open_params *p)
+sd_remote_head_probe(const sd_s3_open_params *p, int64_t *size_out)
 {
     char        errbuf[256];
     sd_s3_file *s3;
     int64_t     size = 0;
-    int         exists;
+    int         rc;
+    int         saved_errno;
 
     s3 = sd_s3_open_read(p, errbuf, sizeof(errbuf));
     if (s3 == NULL) {
+        if (errno == 0) {
+            errno = ENOMEM;
+        }
+        return -1;
+    }
+    errno = 0;
+    rc = sd_s3_size(s3, &size, errbuf, sizeof(errbuf));
+    saved_errno = errno;
+    sd_s3_close(s3);
+    if (rc == 0) {
+        if (size_out != NULL) {
+            *size_out = size;
+        }
+        return 1;
+    }
+    if (saved_errno == ENOENT) {
+        errno = ENOENT;
         return 0;
     }
-    exists = sd_s3_size(s3, &size, errbuf, sizeof(errbuf)) == 0;
-    sd_s3_close(s3);
-    return exists;
+    errno = saved_errno != 0 ? saved_errno : EIO;
+    return -1;
 }
 
-/* ---- xattr surface: x-amz-meta-* as the `user.` namespace --------------
+/* ---- Build the bucket-root params and normalized directory prefix --------
  *
- * getxattr("user.<name>") reads x-amz-meta-<name> via a signed HEAD;
- * listxattr enumerates every x-amz-meta-* header (needs a transport with the
- * optional resp_headers_raw slot — without it sd_s3_list_meta reports
- * ENOTSUP). Both open the object read-only just for the HEAD, mirroring the
- * stat body below.
+ * WHAT: Returns 0 with params targeting the caller-owned bucket-root buffer
+ *       and `prefix` holding the slash-terminated export-relative key, or -1
+ *       with errno set.
  *
- * The HEAD signs with the per-user ak/sk/region/session when the caller passes
- * them (NULL = the instance's static service credential), exactly as the stat
- * and mutation bodies do. Reading metadata is a read of the user's data, and
- * while these two slots had no *_cred sibling brix_sd_{get,list}xattr_maybe_cred
- * fell through to the plain slot for every caller it could not refuse: a user
- * presenting perfectly good S3 keys had the read signed as the EXPORT, so it
- * returned attributes that identity's own keys would have been denied. (The
- * forwarder's fallback_deny backstop already refused a credential it could not
- * route — that arm was never the hole; the silent service-key signing was.) */
-static sd_s3_file *
-sd_remote_meta_open(brix_sd_instance_t *inst, const char *path,
-    const char *ak, const char *sk, const char *region, const char *session)
+ * WHY: Prefix probes and child enumeration must sign the same bucket-root URI
+ *      and normalize paths identically, including per-user credentials.
+ *
+ * HOW: 1. Remove leading path separators.
+ *      2. Copy the relative key and append one trailing separator.
+ *      3. Build the bucket root in caller-owned storage so params->key remains
+ *         valid through the subsequent request.
+ *      4. Bind S3 params and apply credential overrides.
+ */
+static int
+sd_remote_prefix_params(const brix_sd_remote_cfg_t *cfg, const char *path,
+    const char *ak, const char *sk, const char *region, const char *session,
+    sd_s3_open_params *params, char *root, size_t root_cap,
+    char *prefix, size_t prefix_cap)
 {
-    const brix_sd_remote_cfg_t *cfg = inst->state;
-    sd_s3_open_params           p;
-    char                        objpath[768];
-    char                        errbuf[256];
+    const char *relative = path != NULL ? path : "/";
+    size_t      path_len;
+    int         root_len;
 
-    sd_remote_s3_key(cfg, path, objpath, sizeof(objpath));
-    sd_remote_s3_params(cfg, objpath, &p);
-    sd_remote_params_cred(&p, ak, sk, region, session);
-    return sd_s3_open_read(&p, errbuf, sizeof(errbuf));
-}
-
-static ssize_t
-sd_remote_getxattr_impl(brix_sd_instance_t *inst, const char *path,
-    const char *name, void *buf, size_t cap,
-    const char *ak, const char *sk, const char *region, const char *session)
-{
-    char           val[2048];
-    char           errbuf[256];
-    sd_s3_meta_buf dst = { val, sizeof(val) };
-    sd_s3_file    *s3;
-    ssize_t        n;
-
-    if (strncmp(name, "user.", 5) != 0 || name[5] == '\0') {
-        errno = ENODATA;      /* only the user. namespace maps to x-amz-meta- */
+    while (*relative == '/') {
+        relative++;
+    }
+    path_len = strlen(relative);
+    if (path_len + 1 >= prefix_cap) {
+        errno = ENAMETOOLONG;
         return -1;
     }
-    s3 = sd_remote_meta_open(inst, path, ak, sk, region, session);
-    if (s3 == NULL) {
-        errno = ENOMEM;
+    memcpy(prefix, relative, path_len);
+    if (path_len > 0 && prefix[path_len - 1] != '/') {
+        prefix[path_len++] = '/';
+    }
+    prefix[path_len] = '\0';
+
+    root_len = snprintf(root, root_cap, "/%s/", cfg->bucket);
+    if (root_len < 0 || (size_t) root_len >= root_cap) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    sd_remote_s3_params(cfg, root, params);
+    sd_remote_params_cred(params, ak, sk, region, session);
+    return 0;
+}
+
+/* ---- Probe an implicit S3 directory prefix ------------------------------
+ *
+ * WHAT: Returns 1 when at least one key exists under `path/`, 0 when none
+ *       exists, or -1 with errno preserved from the bounded list request.
+ *
+ * WHY: External S3 writers commonly create child keys without zero-byte
+ *      directory markers. BriX must give those listable prefixes coherent
+ *      filesystem stat semantics without turning list denial into absence.
+ *
+ * HOW: Build credential-scoped bucket params and issue a max-keys=1 prefix
+ *      probe through the shared S3 ListObjectsV2 implementation.
+ */
+static int
+sd_remote_implicit_dir_exists(const brix_sd_remote_cfg_t *cfg,
+    const char *path, const char *ak, const char *sk, const char *region,
+    const char *session)
+{
+    sd_s3_open_params params;
+    char              root[300];
+    char              prefix[768];
+    char              errbuf[256];
+
+    if (sd_remote_prefix_params(cfg, path, ak, sk, region, session,
+            &params, root, sizeof(root), prefix, sizeof(prefix)) != 0)
+    {
         return -1;
     }
     errno = 0;
-    n = sd_s3_get_meta(s3, name + 5, &dst, errbuf, sizeof(errbuf));
-    sd_s3_close(s3);
-    if (n < 0) {
-        if (errno == 0) { errno = EIO; }
-        return -1;
-    }
-    if (n == 0) {
-        errno = ENODATA;      /* HEAD ok, attribute absent */
-        return -1;
-    }
-    if (buf == NULL || cap == 0) {
-        return n;             /* getxattr(2) size probe */
-    }
-    if ((size_t) n > cap) {
-        errno = ERANGE;
-        return -1;
-    }
-    memcpy(buf, val, (size_t) n);
-    return n;
+    return sd_s3_prefix_exists(&params, prefix, errbuf, sizeof(errbuf));
 }
 
-ssize_t
-sd_remote_getxattr(brix_sd_instance_t *inst, const char *path,
-    const char *name, void *buf, size_t cap)
-{
-    return sd_remote_getxattr_impl(inst, path, name, buf, cap,
-                                   NULL, NULL, NULL, NULL);
-}
-
-/* Cred-scoped getxattr: the HEAD runs as the requesting user. Gate semantics
- * identical to sd_remote_stat_cred — a cred this S3-only backend cannot use is
- * refused under fallback_deny rather than signed with the service credential. */
-ssize_t
-sd_remote_getxattr_cred(brix_sd_instance_t *inst, const char *path,
-    const char *name, void *buf, size_t cap, const brix_sd_cred_t *cred)
-{
-    int gate = sd_remote_cred_gate(cred);
-
-    if (gate > 0) {
-        return sd_remote_getxattr_impl(inst, path, name, buf, cap,
-            cred->s3_ak, cred->s3_sk, cred->s3_region, cred->s3_session);
-    }
-    if (gate < 0) {
-        errno = EACCES;
-        return -1;
-    }
-    return sd_remote_getxattr_impl(inst, path, name, buf, cap,
-                                   NULL, NULL, NULL, NULL);
-}
-
-static ssize_t
-sd_remote_listxattr_impl(brix_sd_instance_t *inst, const char *path,
-    void *buf, size_t cap,
-    const char *ak, const char *sk, const char *region, const char *session)
-{
-    char        errbuf[256];
-    sd_s3_file *s3;
-    ssize_t     n;
-
-    s3 = sd_remote_meta_open(inst, path, ak, sk, region, session);
-    if (s3 == NULL) {
-        errno = ENOMEM;
-        return -1;
-    }
-    errno = 0;
-    n = sd_s3_list_meta(s3, buf, cap, errbuf, sizeof(errbuf));
-    sd_s3_close(s3);
-    if (n < 0 && errno == 0) {
-        errno = EIO;
-    }
-    return n;
-}
-
-ssize_t
-sd_remote_listxattr(brix_sd_instance_t *inst, const char *path,
-    void *buf, size_t cap)
-{
-    return sd_remote_listxattr_impl(inst, path, buf, cap,
-                                    NULL, NULL, NULL, NULL);
-}
-
-/* Cred-scoped listxattr: enumerating an object's metadata keys is as much a
- * read of the user's object as getxattr, so it takes the same gate. */
-ssize_t
-sd_remote_listxattr_cred(brix_sd_instance_t *inst, const char *path,
-    void *buf, size_t cap, const brix_sd_cred_t *cred)
-{
-    int gate = sd_remote_cred_gate(cred);
-
-    if (gate > 0) {
-        return sd_remote_listxattr_impl(inst, path, buf, cap,
-            cred->s3_ak, cred->s3_sk, cred->s3_region, cred->s3_session);
-    }
-    if (gate < 0) {
-        errno = EACCES;
-        return -1;
-    }
-    return sd_remote_listxattr_impl(inst, path, buf, cap,
-                                    NULL, NULL, NULL, NULL);
-}
-
-/* Shared stat body: HEAD the object, optionally signing with a per-user
- * ak/sk/region override (NULL = the instance's static service credential).
+/* ---- Classify a remote S3 namespace path --------------------------------
  *
- * S3 has no directories, so classification is by object shape (#4): the export
- * root is always a directory; a "path" object is a regular file; failing that a
- * "path/" marker object is a directory. Directory recognition relies on the
- * marker this driver's mkdir (and put_inner parent-prefix creation) writes — an
- * externally-created prefix with children but no marker stats as ENOENT here,
- * though opendir still lists it. */
+ * WHAT: Fills `out` for a regular object, explicit marker directory, implicit
+ *       non-empty prefix, or export root. Returns NGX_ERROR with typed errno
+ *       for absence, denial, malformed paths, or origin failures.
+ *
+ * WHY: XRootD/WebDAV clients require list and stat to describe one coherent
+ *      hierarchy. S3 markers preserve empty directories, while implicit
+ *      prefixes make externally populated non-empty trees interoperable.
+ *
+ * HOW: 1. Synthesize the export root.
+ *      2. HEAD `path`; an exact object wins and is a regular file.
+ *      3. HEAD `path/`; an explicit marker is a directory.
+ *      4. Probe one key beneath `path/`; any result is an implicit directory.
+ *      5. Return ENOENT only after all authoritative probes report absence.
+ */
 static ngx_int_t
 sd_remote_stat_impl(brix_sd_instance_t *inst, const char *path,
     brix_sd_stat_t *out, const char *ak, const char *sk, const char *region,
@@ -222,9 +184,8 @@ sd_remote_stat_impl(brix_sd_instance_t *inst, const char *path,
     const brix_sd_remote_cfg_t *cfg = inst->state;
     sd_s3_open_params             p;
     char                          objpath[768];
-    char                          errbuf[256];
-    sd_s3_file                   *s3;
     int64_t                       size = 0;
+    int                           probe;
 
     /* The export root is a directory with no backing marker object. */
     if (path == NULL || path[0] == '\0'
@@ -240,29 +201,46 @@ sd_remote_stat_impl(brix_sd_instance_t *inst, const char *path,
     sd_remote_s3_key(cfg, path, objpath, sizeof(objpath));
     sd_remote_s3_params(cfg, objpath, &p);
     sd_remote_params_cred(&p, ak, sk, region, session);
-    s3 = sd_s3_open_read(&p, errbuf, sizeof(errbuf));
-    if (s3 != NULL) {
-        int ok = sd_s3_size(s3, &size, errbuf, sizeof(errbuf)) == 0;
-
-        sd_s3_close(s3);
-        if (ok) {
-            memset(out, 0, sizeof(*out));
-            out->size   = (off_t) size;
-            out->mode   = S_IFREG | 0444;
-            out->is_reg = 1;
-            return NGX_OK;
-        }
+    probe = sd_remote_head_probe(&p, &size);
+    if (probe > 0) {
+        memset(out, 0, sizeof(*out));
+        out->size   = (off_t) size;
+        out->mode   = S_IFREG | 0444;
+        out->is_reg = 1;
+        return NGX_OK;
+    }
+    if (probe < 0) {
+        return NGX_ERROR;
     }
 
     /* (2) directory: HEAD the "path/" folder marker. */
     sd_remote_s3_dirkey(cfg, path, objpath, sizeof(objpath));
     sd_remote_s3_params(cfg, objpath, &p);
     sd_remote_params_cred(&p, ak, sk, region, session);
-    if (sd_remote_head_exists(&p)) {
+    probe = sd_remote_head_probe(&p, NULL);
+    if (probe > 0) {
         memset(out, 0, sizeof(*out));
         out->mode   = S_IFDIR | 0755;
         out->is_dir = 1;
         return NGX_OK;
+    }
+    if (probe < 0) {
+        return NGX_ERROR;
+    }
+
+    /* (3) directory: any descendant makes path/ an implicit prefix. */
+    probe = sd_remote_implicit_dir_exists(cfg, path, ak, sk, region, session);
+    if (probe > 0) {
+        memset(out, 0, sizeof(*out));
+        out->mode   = S_IFDIR | 0755;
+        out->is_dir = 1;
+        return NGX_OK;
+    }
+    if (probe < 0) {
+        if (errno == 0) {
+            errno = EIO;
+        }
+        return NGX_ERROR;
     }
 
     errno = ENOENT;
@@ -307,7 +285,8 @@ sd_remote_stat_cred(brix_sd_instance_t *inst, const char *path,
  *       mkdir slot (ENOSYS). Advertising CAP_DIRS_WRITE also turns on put_inner's
  *       S3-PUT parent-prefix creation, which drives this same slot; a working
  *       marker mkdir keeps that cap self-consistent.
- * HOW:  HEAD the marker for idempotency, then a single zero-byte PUT.
+ * HOW:  Classify the complete namespace path, refuse any existing file or
+ *       directory, then issue a single zero-byte marker PUT.
  */
 static ngx_int_t
 sd_remote_mkdir_impl(brix_sd_instance_t *inst, const char *path,
@@ -318,15 +297,22 @@ sd_remote_mkdir_impl(brix_sd_instance_t *inst, const char *path,
     char                          dirkey[768];
     char                          errbuf[256];
     sd_s3_file                   *s3;
+    brix_sd_stat_t                existing;
+    ngx_int_t                     stat_rc;
+
+    stat_rc = sd_remote_stat_impl(inst, path, &existing,
+                                  ak, sk, region, session);
+    if (stat_rc == NGX_OK) {
+        errno = EEXIST;
+        return NGX_ERROR;
+    }
+    if (errno != ENOENT) {
+        return NGX_ERROR;
+    }
 
     sd_remote_s3_dirkey(cfg, path, dirkey, sizeof(dirkey));
     sd_remote_s3_params(cfg, dirkey, &p);
     sd_remote_params_cred(&p, ak, sk, region, session);
-
-    if (sd_remote_head_exists(&p)) {
-        errno = EEXIST;
-        return NGX_ERROR;
-    }
 
     s3 = sd_s3_open_write(&p, 0, SD_REMOTE_MARKER_PART, errbuf, sizeof(errbuf));
     if (s3 == NULL) {
@@ -389,28 +375,18 @@ sd_remote_prefix_has_child(const brix_sd_remote_cfg_t *cfg, const char *path,
     const char *ak, const char *sk, const char *region, const char *session)
 {
     sd_s3_open_params  p;
-    const char        *rel = (path != NULL) ? path : "/";
     char               root[300];
     char               prefix[768];
     char               cont_out[2048];
     char               errbuf[256];
-    size_t             n;
     int                truncated = 0;
     int                found = 0;
 
-    while (*rel == '/') { rel++; }
-    n = strlen(rel);
-    if (n + 1 >= sizeof(prefix)) {
-        errno = ENAMETOOLONG;
+    if (sd_remote_prefix_params(cfg, path, ak, sk, region, session,
+            &p, root, sizeof(root), prefix, sizeof(prefix)) != 0)
+    {
         return -1;
     }
-    memcpy(prefix, rel, n);
-    if (n > 0 && prefix[n - 1] != '/') { prefix[n++] = '/'; }
-    prefix[n] = '\0';
-
-    snprintf(root, sizeof(root), "/%s/", cfg->bucket);   /* bucket-root canon URI */
-    sd_remote_s3_params(cfg, root, &p);
-    sd_remote_params_cred(&p, ak, sk, region, session);
 
     errno = 0;
     if (sd_s3_list_page(&p, prefix, "", sd_remote_rename_child_cb, &found,
@@ -467,14 +443,18 @@ sd_remote_rename_impl(brix_sd_instance_t *inst, const char *src,
     char                          srckey[768];
     char                          dstkey[768];
     int                           has;
+    int                           probe;
+    brix_sd_stat_t                dst_stat;
 
-    /* noreplace (POSC/O_EXCL): refuse if the destination file already exists. */
+    /* noreplace (POSC/O_EXCL): refuse every destination namespace shape. */
     if (noreplace) {
-        sd_remote_s3_key(cfg, dst, dstkey, sizeof(dstkey));
-        sd_remote_s3_params(cfg, dstkey, &p);
-        sd_remote_params_cred(&p, ak, sk, region, session);
-        if (sd_remote_head_exists(&p)) {
+        if (sd_remote_stat_impl(inst, dst, &dst_stat,
+                ak, sk, region, session) == NGX_OK)
+        {
             errno = EEXIST;
+            return NGX_ERROR;
+        }
+        if (errno != ENOENT) {
             return NGX_ERROR;
         }
     }
@@ -483,12 +463,16 @@ sd_remote_rename_impl(brix_sd_instance_t *inst, const char *src,
     sd_remote_s3_key(cfg, src, srckey, sizeof(srckey));
     sd_remote_s3_params(cfg, srckey, &p);
     sd_remote_params_cred(&p, ak, sk, region, session);
-    if (sd_remote_head_exists(&p)) {
+    probe = sd_remote_head_probe(&p, NULL);
+    if (probe > 0) {
         sd_remote_s3_key(cfg, dst, dstkey, sizeof(dstkey));
         sd_remote_s3_params(cfg, dstkey, &p);
         sd_remote_params_cred(&p, ak, sk, region, session);
         return sd_remote_copy_then_delete(cfg, &p, srckey,
                                           ak, sk, region, session);
+    }
+    if (probe < 0) {
+        return NGX_ERROR;
     }
 
     /* (2) directory: a non-empty prefix has no atomic move. */
@@ -505,7 +489,11 @@ sd_remote_rename_impl(brix_sd_instance_t *inst, const char *src,
     sd_remote_s3_dirkey(cfg, src, srckey, sizeof(srckey));
     sd_remote_s3_params(cfg, srckey, &p);
     sd_remote_params_cred(&p, ak, sk, region, session);
-    if (!sd_remote_head_exists(&p)) {
+    probe = sd_remote_head_probe(&p, NULL);
+    if (probe < 0) {
+        return NGX_ERROR;
+    }
+    if (probe == 0) {
         errno = ENOENT;   /* neither file, nor children, nor a marker */
         return NGX_ERROR;
     }

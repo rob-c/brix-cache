@@ -120,9 +120,14 @@ def test_no_retry_fails_fast(fleet, name):
     """The escape hatch: XRDC_MAX_STALL_MS=0 restores the legacy fail-fast path —
     a sever fails the transfer immediately rather than retrying."""
     with servers.FaultProxy(fleet[name]) as fp:
-        fp.set_loss(15)
+        # A probabilistic loss setting may deliver a complete clean transfer.
+        # Sever during the data phase, as in the recovery control above, so
+        # this assertion measures disabled retries rather than random luck.
+        fp.set_truncate(512 * 1024, "down")
         ok, elapsed, nbytes, why = measure(fp.url(), FILE_PATH, SIZE, TIMEOUT,
                                            client_max_stall_ms=0)
+        faults = fp.counters()
+    assert faults.get("severs_total", 0) > 0, f"{name}: fault did not fire"
     assert not ok, f"{name}: expected fail-fast with resilience off, got success"
     assert why != "timeout", f"{name}: hung instead of failing fast"
     assert nbytes < SIZE

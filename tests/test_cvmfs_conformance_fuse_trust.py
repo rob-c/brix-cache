@@ -123,12 +123,14 @@ def test_mount_missing_content_object_read_errors(bin_mount):
                                     _broken_whitelist_sig, _broken_catalog_obj],
                          ids=["wrong_pubkey", "manifest_sig", "whitelist_sig", "catalog_obj"])
 def test_broken_repo_mount_refused_no_orphan(bin_mount, broken):
+    from cmdscripts.live_common import mount_options
+
     web, pub = broken()
     with _Mount(bin_mount, web, pub) as m:
         if m.proc is not None:
             m.proc.wait(30)
         assert not m.mounted, "broken repo must NOT mount"
-        assert m.mnt not in open("/proc/mounts").read(), "orphaned mount left behind!"
+        assert mount_options(m.mnt) is None, "orphaned mount left behind!"
         assert os.listdir(m.mnt) == [], "mountpoint not empty after refusal"
         assert m.proc.returncode not in (None, 0), "refused mount must exit nonzero"
 

@@ -255,6 +255,43 @@ def open_fails(port, path, *, timeout=15.0):
 
 # ── a paced http:// origin ───────────────────────────────────────────────────
 
+class _PacedHTTPServer(ThreadingHTTPServer):
+    """Close owned keep-alive sockets as well as the listener on shutdown.
+
+    ThreadingHTTPServer's daemon handlers otherwise outlive server_close and
+    keep answering requests after a test declares the origin unreachable.
+    """
+
+    def __init__(self, address, handler):
+        self._clients = set()
+        self._client_lock = threading.Lock()
+        super().__init__(address, handler)
+
+    def get_request(self):
+        connection, address = super().get_request()
+        with self._client_lock:
+            self._clients.add(connection)
+        return connection, address
+
+    def shutdown_request(self, request):
+        try:
+            super().shutdown_request(request)
+        finally:
+            with self._client_lock:
+                self._clients.discard(request)
+
+    def server_close(self):
+        super().server_close()
+        with self._client_lock:
+            connections = tuple(self._clients)
+        for connection in connections:
+            try:
+                connection.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            self.shutdown_request(connection)
+
+
 class PacedSource(BaseHTTPRequestHandler):
     """An http:// origin that answers HEAD/ranged-GET like a static server but
     writes the body in `server.chunk`-sized pieces `server.delay` seconds
@@ -374,7 +411,7 @@ class PacedSource(BaseHTTPRequestHandler):
 
 def serve_paced(port, payload, *, chunk=65536, delay=0.0):
     """Start a `PacedSource` on `port` and return it."""
-    server = ThreadingHTTPServer((HOST, port), PacedSource)
+    server = _PacedHTTPServer((HOST, port), PacedSource)
     server.daemon_threads = True
     server.recorded = []
     server.payload = payload

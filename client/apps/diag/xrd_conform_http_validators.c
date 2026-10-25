@@ -1,5 +1,5 @@
 /* Phase-118 HTTP conditional-request validator probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
 #include <zlib.h>
 
@@ -149,13 +149,6 @@ xrd_conform_probe_http_boundaries(xrd_conform_execution *execution,
         "bytes=2-1", 1);
 }
 
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
-
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
 static int
 header_value_safe(const char *value)
@@ -275,7 +268,7 @@ probe_accept_encoding(xrd_conform_execution *execution,
     int rc;
     int pass = 0;
 
-    if (!row_active(execution, "HTR-020")) return;
+    if (!xrd_conform_row_active(execution, "HTR-020")) return;
     memset(&response, 0, sizeof(response));
     brix_status_clear(&status);
     rc = xrd_conform_http_request_fields(execution, url, "GET", token,
@@ -301,6 +294,56 @@ probe_accept_encoding(xrd_conform_execution *execution,
 }
 
 static void
+build_excessive_range_fields(char fields[8192], int *valid)
+{
+    size_t used;
+    unsigned index;
+
+    used = (size_t) snprintf(fields, 8192, "Range: bytes=0-0");
+    for (index = 1; index < 257 && used < 8192; index++)
+        used += (size_t) snprintf(fields + used, 8192 - used, ",0-0");
+    *valid = index == 257 && used + 2 < 8192;
+    if (*valid) snprintf(fields + used, 8192 - used, "\r\n");
+}
+
+static int
+whole_response_matches(const brix_http_resp *response,
+    const brix_http_resp *baseline)
+{
+    return response->status == 200
+        && response->body_len == baseline->body_len
+        && (response->body_len == 0 || memcmp(response->body,
+            baseline->body, response->body_len) == 0);
+}
+
+static void
+grade_excessive_range_response(xrd_conform_execution *execution,
+    brix_http_resp *response, const brix_http_resp *baseline)
+{
+    char content_type[128] = "";
+    int whole = whole_response_matches(response, baseline);
+    int refused = response->status == 416;
+
+    brix_http_header(response, "Content-Type", content_type,
+        sizeof(content_type));
+    if (!whole && !refused && response->status == 206
+        && strncmp(content_type, "multipart/byteranges", 20) == 0) {
+        xrd_conform_result_set(execution, "HTR-012",
+            BRIX_CONFORM_VERDICT_INCONCLUSIVE,
+            "multipart-range-limit-needs-completeness-parser", NULL,
+            content_type);
+        return;
+    }
+    xrd_conform_result_set(execution, "HTR-012",
+        whole || refused ? BRIX_CONFORM_VERDICT_CONFORMANT
+                         : BRIX_CONFORM_VERDICT_DIVERGENT,
+        whole ? "excessive-range-set-returned-whole-object"
+              : refused ? "excessive-range-set-refused"
+                        : "excessive-range-set-truncated",
+        "HTTP 200 whole body or HTTP 416", NULL);
+}
+
+static void
 probe_excessive_ranges(xrd_conform_execution *execution,
     const brix_weburl *url, const char *token,
     const brix_http_resp *baseline)
@@ -308,25 +351,17 @@ probe_excessive_ranges(xrd_conform_execution *execution,
     char fields[8192];
     brix_http_resp response;
     brix_status status;
-    char content_type[128] = "";
-    size_t used;
-    unsigned index;
     int rc;
-    int whole;
-    int refused;
+    int valid;
 
-    if (!row_active(execution, "HTR-012")) return;
-    used = (size_t) snprintf(fields, sizeof(fields), "Range: bytes=0-0");
-    for (index = 1; index < 257 && used < sizeof(fields); index++)
-        used += (size_t) snprintf(fields + used, sizeof(fields) - used,
-            ",0-0");
-    if (index != 257 || used + 2 >= sizeof(fields)) {
+    if (!xrd_conform_row_active(execution, "HTR-012")) return;
+    build_excessive_range_fields(fields, &valid);
+    if (!valid) {
         xrd_conform_result_set(execution, "HTR-012",
             BRIX_CONFORM_VERDICT_INCONCLUSIVE,
             "local-range-set-construction-failed", NULL, NULL);
         return;
     }
-    snprintf(fields + used, sizeof(fields) - used, "\r\n");
     memset(&response, 0, sizeof(response));
     brix_status_clear(&status);
     rc = xrd_conform_http_request_fields(execution, url, "GET", token,
@@ -337,29 +372,7 @@ probe_excessive_ranges(xrd_conform_execution *execution,
             "range-set-not-observed", NULL, status.msg);
         return;
     }
-    whole = rc == 0 && response.status == 200
-        && response.body_len == baseline->body_len
-        && (response.body_len == 0 || memcmp(response.body,
-            baseline->body, response.body_len) == 0);
-    refused = rc == 0 && response.status == 416;
-    brix_http_header(&response, "Content-Type", content_type,
-        sizeof(content_type));
-    if (!whole && !refused && response.status == 206
-        && strncmp(content_type, "multipart/byteranges", 20) == 0) {
-        xrd_conform_result_set(execution, "HTR-012",
-            BRIX_CONFORM_VERDICT_INCONCLUSIVE,
-            "multipart-range-limit-needs-completeness-parser", NULL,
-            content_type);
-        brix_http_resp_free(&response);
-        return;
-    }
-    xrd_conform_result_set(execution, "HTR-012",
-        whole || refused ? BRIX_CONFORM_VERDICT_CONFORMANT
-                         : BRIX_CONFORM_VERDICT_DIVERGENT,
-        whole ? "excessive-range-set-returned-whole-object"
-              : refused ? "excessive-range-set-refused"
-                        : "excessive-range-set-truncated",
-        "HTTP 200 whole body or HTTP 416", NULL);
+    grade_excessive_range_response(execution, &response, baseline);
     brix_http_resp_free(&response);
 }
 
@@ -376,8 +389,8 @@ xrd_conform_probe_http_validators(xrd_conform_execution *execution,
 
     probe_excessive_ranges(execution, url, token, baseline);
     probe_accept_encoding(execution, url, token, baseline);
-    if (!row_active(execution, "HTR-018")
-        && !row_active(execution, "HTR-019")) return;
+    if (!xrd_conform_row_active(execution, "HTR-018")
+        && !xrd_conform_row_active(execution, "HTR-019")) return;
     if (!brix_http_header(baseline, "ETag", etag, sizeof(etag))
         || !header_value_safe(etag)) {
         skip_validators(execution);

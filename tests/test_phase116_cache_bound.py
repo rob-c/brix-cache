@@ -55,6 +55,11 @@ def _start(lifecycle, tmp_path, lab, bound, reason):
     (data / "pub" / "f.txt").write_bytes(b"x\n")
     authdb = tmp_path / "authdb"
     authdb.write_text(f"h {GRANTED} /pub rl\n")
+    # The lifecycle worker is intentionally de-escalated.  Make this test's
+    # export traversable instead of depending on a prior fixture having
+    # widened pytest's default 0700 directory as an ordering side effect.
+    tmp_path.chmod(0o755)
+    data.chmod(0o755)
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-p116-dns-rev", template="nginx_lc_p116_dns_rev.conf",
         protocol="http", readiness="tcp", data_root=str(data),

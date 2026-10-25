@@ -98,6 +98,8 @@ def test_a_module_whose_docstring_names_no_file_is_left_alone(tmp_path):
 # --- half two: a README cites a file that exists ----------------------------
 
 def _repo_basenames() -> set:
+    if not (REPO / ".git").exists():
+        pytest.skip("source archive has no git index to audit")
     listing = subprocess.run(
         ["git", "ls-files"], cwd=REPO, capture_output=True, text=True, check=True)
     return {Path(line).name for line in listing.stdout.splitlines()}

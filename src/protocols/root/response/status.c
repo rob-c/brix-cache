@@ -184,3 +184,26 @@ brix_build_pgread_status(brix_ctx_t *ctx, int64_t file_offset,
     brix_build_pgread_status_sid(ctx->recv.cur_streamid, file_offset,
                                    total_with_crcs, kXR_FinalResult, out);
 }
+
+/* WHAT: Queue an empty pgread in the mandatory kXR_status/CRC envelope.
+ * WHY: Zero-length, unrepresentable-range and asynchronous EOF paths must not
+ * drift into generic kXR_ok/error framing or omit the status integrity fields.
+ * HOW: Allocate a self-contained header, use the authoritative builder, book
+ * the existing success metric and retain the caller's pipeline disposition.
+ */
+ngx_int_t
+brix_send_empty_pgread(brix_ctx_t *ctx, ngx_connection_t *c,
+    int64_t file_offset, ngx_flag_t pipelinable)
+{
+    ServerStatusResponse_pgRead *header = ngx_palloc(c->pool, sizeof(*header));
+
+    if (header == NULL) {
+        return NGX_ERROR;
+    }
+    brix_build_pgread_status(ctx, file_offset, 0, header);
+    BRIX_OP_OK(ctx, BRIX_OP_PGREAD);
+    if (pipelinable) {
+        ctx->out.resp_pipelinable = 1;
+    }
+    return brix_queue_response(ctx, c, (u_char *) header, sizeof(*header));
+}

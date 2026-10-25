@@ -1,0 +1,7 @@
+# Keep req's implicit extension defaults out of the canonical fixture CA.
+# All CA extensions are supplied exactly once by the explicit -addext options.
+[req]
+distinguished_name = fixture_dn
+prompt = no
+
+[fixture_dn]

@@ -34,6 +34,7 @@ Run:
 
 import os
 import re
+import shutil
 import subprocess
 from brix_suite.client_build import client_make
 import sys
@@ -70,15 +71,13 @@ def _run_env():
 
 @pytest.fixture(scope="module")
 def fanout_bin():
-    """Build only when missing — a failed link would delete a good pre-built
-    binary, and this suite's static half is worth running either way."""
-    out = b""
-    if not os.path.exists(FANOUT_BIN):
-        r = client_make(CLIENT_DIR, "dirfanout", env=_run_env(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=600)
-        out = r.stdout
-    if not os.path.exists(FANOUT_BIN):
-        pytest.skip("run `make -C client dirfanout`:\n"
-                    f"{out.decode(errors='replace')[-800:]}")
+    """Refresh the optional driver through its real dependency/link graph."""
+    if not shutil.which("cc"):
+        pytest.skip("a C compiler is required for the fanout kernel driver")
+    result = client_make(CLIENT_DIR, "dirfanout", env=_run_env(),
+                         capture_output=True, text=True, timeout=600)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert os.path.exists(FANOUT_BIN), "dirfanout target did not produce its driver"
     return FANOUT_BIN
 
 

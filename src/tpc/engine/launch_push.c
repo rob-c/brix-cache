@@ -55,48 +55,6 @@ tpc_push_refuse(brix_ctx_t *ctx, ngx_connection_t *c, const char *host,
     return NGX_OK;
 }
 
-/* WHAT: emit one fail2ban-parseable audit line for a push destination the
- * egress allowlist refused.
- * WHY: originating a push is exactly the request-forgery primitive the pull's
- * source guard exists to bound — the only difference is the direction bytes
- * move — so a refused destination is banworthy on the same contract
- * (signal=tpc_egress) and is counted by the same labelless metric (INVARIANT 8).
- * HOW: identical to launch_prepare.c's pull signal, with GUARD_OP_READ: the
- * client's request here is a read open. */
-static void
-tpc_push_egress_signal(brix_ctx_t *ctx, ngx_connection_t *c, const char *host)
-{
-    guard_request_t req;
-    char            line[512];
-    char            ip[64];
-    char            ts[sizeof("YYYY-MM-DDThh:mm:ss+00:00")];
-    char            hostbuf[256];
-    size_t          ip_len;
-    size_t          ts_len;
-
-    ip_len = ngx_min(c->addr_text.len, sizeof(ip) - 1);
-    ngx_memcpy(ip, c->addr_text.data, ip_len);
-    ip[ip_len] = '\0';
-
-    ts_len = ngx_min(ngx_cached_http_log_iso8601.len, sizeof(ts) - 1);
-    ngx_memcpy(ts, ngx_cached_http_log_iso8601.data, ts_len);
-    ts[ts_len] = '\0';
-
-    ngx_memzero(&req, sizeof(req));
-    req.ip           = ip;
-    req.proto        = "root";
-    req.op           = GUARD_OP_READ;    /* a push originates from a read open */
-    req.path         = hostbuf;
-    req.path_len     = brix_sanitize_log_string(host, hostbuf, sizeof(hostbuf));
-    req.cred_present = ctx->login.dn[0] != '\0' ? 1 : 0;
-    req.outcome      = OUTCOME_AUTHFAIL;
-    req.status_code  = kXR_NotAuthorized;
-
-    if (guard_audit_format(&req, GUARD_R_TPCEGRESS, ts, line, sizeof(line)) > 0) {
-        BRIX_LOG(NGX_LOG_WARN, c->log, 0, "%s", line);
-    }
-}
-
 /* WHAT: the security ladder, evaluated against the DESTINATION this server
  * would dial. NGX_OK to proceed; NGX_OK is never returned after a refusal —
  * *answered is set instead and holds the finished rc.
@@ -145,7 +103,7 @@ tpc_push_check_preconditions(brix_ctx_t *ctx, ngx_connection_t *c,
         != 0)
     {
         BRIX_SRV_METRIC_INC(ctx, tpc_egress_refused_total);
-        tpc_push_egress_signal(ctx, c, tpc->dst_host);
+        brix_tpc_egress_emit_signal(ctx, c, tpc->dst_host, GUARD_OP_READ);
         *answered = tpc_push_refuse(ctx, c, tpc->dst_host, kXR_NotAuthorized,
                                     egress_err);
         return NGX_ERROR;

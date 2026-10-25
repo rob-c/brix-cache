@@ -225,12 +225,9 @@ def _process_holds_path(entry, prefix):
 
 def _kill_orphans(subtree: Path) -> None:
     """Kill orphaned nginx workers holding files open under subtree (post kill -9)."""
-    prefix = str(subtree)
-    for entry in Path("/proc").iterdir():
-        if not entry.name.isdigit():
-            continue
-        if _process_holds_path(entry, prefix):
-            os.kill(int(entry.name), signal.SIGTERM)
+    from fleet_orphans import find_orphans
+    for pid, _description in find_orphans(str(subtree), {"nginx"}):
+        os.kill(pid, signal.SIGTERM)
 
 
 def _origin_conf(prefix: Path, port: int) -> Path:

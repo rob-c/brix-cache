@@ -1,5 +1,6 @@
 /* Phase-118 externally asserted kXR_open lifecycle fixtures. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
+#include "protocols/root/protocol/frame_hdr.h"
 #include "protocols/root/protocol/codec/wire_codec.h"
 
 #include <arpa/inet.h>
@@ -15,24 +16,7 @@ fixture_target(const xrd_conform_run *run, const char *kind)
     return NULL;
 }
 
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
 
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
-
-static int
-reserve_op(xrd_conform_execution *execution, size_t bytes,
-    brix_status *status)
-{
-    char reason[64];
-
-    if (xrd_conform_reserve(execution, bytes, reason, sizeof(reason))) return 1;
-    brix_status_set(status, XRDC_EUSAGE, 0, "%s", reason);
-    return 0;
-}
 
 static int
 connect_fixture(xrd_conform_execution *execution, const char *target,
@@ -56,12 +40,40 @@ open_write_refusal(xrd_conform_execution *execution, brix_conn *connection,
     brix_file file;
     int rc;
 
-    if (!reserve_op(execution, 0, status)) return -1;
+    if (!xrd_conform_reserve_status(execution, 0, status)) return -1;
     brix_status_clear(status);
     rc = brix_file_open_write(connection, object->path, 1, 0, &file, status);
-    if (rc == 0 && reserve_op(execution, 0, status))
+    if (rc == 0 && xrd_conform_reserve_status(execution, 0, status))
         brix_file_close(connection, &file, status);
     return rc;
+}
+
+static void
+readonly_attempt(xrd_conform_execution *execution, const char *target,
+    int anonymous_mode, const xrd_conform_scratch_object *object,
+    brix_url *url, brix_conn *connection, brix_status *status,
+    int *connected, int *rc, int *authenticated_identity)
+{
+    *connected = connect_fixture(execution, target, anonymous_mode, url,
+        connection, status) == 0;
+    if (!*connected) return;
+    if (!anonymous_mode)
+        *authenticated_identity = connection->diag.chosen_auth != NULL;
+    *rc = open_write_refusal(execution, connection, object, status);
+}
+
+static void
+readonly_cleanup(xrd_conform_execution *execution,
+    const xrd_conform_scratch_object *object, brix_conn *anonymous,
+    brix_conn *authenticated, brix_status *status, int anonymous_connected,
+    int authenticated_connected, int anonymous_rc, int authenticated_rc)
+{
+    if (authenticated_connected
+        && (anonymous_rc == 0 || authenticated_rc == 0)
+        && xrd_conform_reserve_status(execution, 0, status))
+        brix_rm(authenticated, object->path, status);
+    if (anonymous_connected) brix_close(anonymous);
+    if (authenticated_connected) brix_close(authenticated);
 }
 
 /* WHAT: Compare read-only policy before and after credential evaluation.
@@ -83,23 +95,16 @@ probe_readonly(xrd_conform_execution *execution, const char *target)
     int authenticated_identity = 0;
     char received[192];
 
-    if (!row_active(execution, "OPN-012") || target == NULL) return;
+    if (!xrd_conform_row_active(execution, "OPN-012") || target == NULL) return;
     if (brix_conform_scratch_path(execution->run->config.scratch,
             "brix-conform-open-readonly-order", object.path,
             sizeof(object.path)) != 0) return;
-    if (connect_fixture(execution, target, 1, &anonymous_url, &anonymous,
-            &anonymous_status) == 0) {
-        anonymous_connected = 1;
-        anonymous_rc = open_write_refusal(execution, &anonymous, &object,
-            &anonymous_status);
-    }
-    if (connect_fixture(execution, target, 0, &authenticated_url,
-            &authenticated, &authenticated_status) == 0) {
-        authenticated_connected = 1;
-        authenticated_identity = authenticated.diag.chosen_auth != NULL;
-        authenticated_rc = open_write_refusal(execution, &authenticated,
-            &object, &authenticated_status);
-    }
+    readonly_attempt(execution, target, 1, &object, &anonymous_url,
+        &anonymous, &anonymous_status, &anonymous_connected, &anonymous_rc,
+        &authenticated_identity);
+    readonly_attempt(execution, target, 0, &object, &authenticated_url,
+        &authenticated, &authenticated_status, &authenticated_connected,
+        &authenticated_rc, &authenticated_identity);
     snprintf(received, sizeof(received),
         "anonymous=%d/%d authenticated=%d/%d identity=%d",
         anonymous_rc, anonymous_status.kxr, authenticated_rc,
@@ -121,12 +126,9 @@ probe_readonly(xrd_conform_execution *execution, const char *target)
                  : "readonly-refusal-depended-on-credential",
             "anonymous and authenticated kXR_fsReadOnly", received);
     }
-    if (authenticated_connected
-        && (anonymous_rc == 0 || authenticated_rc == 0)
-        && reserve_op(execution, 0, &authenticated_status))
-        brix_rm(&authenticated, object.path, &authenticated_status);
-    if (anonymous_connected) brix_close(&anonymous);
-    if (authenticated_connected) brix_close(&authenticated);
+    readonly_cleanup(execution, &object, &anonymous, &authenticated,
+        &authenticated_status, anonymous_connected, authenticated_connected,
+        anonymous_rc, authenticated_rc);
 }
 
 static int
@@ -140,14 +142,37 @@ send_open_once(xrd_conform_execution *execution, brix_conn *connection,
     brix_resp_out response = { wire_status, body, body_length };
     uint16_t sid;
 
-    if (!reserve_op(execution, sizeof(request) + payload.len, status)) return -1;
-    memset(&request, 0, sizeof(request));
-    request.requestid = htons(kXR_open);
+    if (!xrd_conform_reserve_status(execution, sizeof(request) + payload.len, status)) return -1;
+    xrd_creq_begin(&request, sizeof(request), 0, kXR_open);
     xrdw_open_req_pack(&fields, ((ClientRequestHdr *) &request)->body);
     brix_status_clear(status);
-    if (brix_send(connection, (ClientRequestHdr *) &request, payload.data,
+    if (brix_send(connection, (ClientRequestHdr *) &request, &payload,
             &sid, status) != 0) return -1;
     return brix_recv(connection, sid, &response, status);
+}
+
+static int
+nowait_answer_defined(int connected, uint64_t elapsed_ms, int rc,
+    uint16_t wire_status, const brix_status *status)
+{
+    if (!connected || elapsed_ms > 2000) return 0;
+    if (rc == 0) return wire_status == kXR_ok || wire_status == kXR_wait;
+    return status->kxr > 0 && status->kxr != kXR_ServerError
+        && status->kxr != kXR_FSError;
+}
+
+static void
+close_open_response(xrd_conform_execution *execution, brix_conn *connection,
+    int rc, uint16_t wire_status, const uint8_t *body, uint32_t body_length,
+    brix_status *status)
+{
+    brix_file file = { { 0 }, 0, 0 };
+
+    if (rc != 0 || wire_status != kXR_ok || body_length < XRD_FHANDLE_LEN)
+        return;
+    memcpy(file.fhandle, body, XRD_FHANDLE_LEN);
+    if (xrd_conform_reserve_status(execution, 0, status))
+        brix_file_close(connection, &file, status);
 }
 
 /* WHAT: Require an asserted offline object to answer a nowait open promptly.
@@ -171,7 +196,7 @@ probe_staged_nowait(xrd_conform_execution *execution, const char *target)
     int defined;
     char received[160];
 
-    if (!row_active(execution, "OPN-020") || target == NULL) return;
+    if (!xrd_conform_row_active(execution, "OPN-020") || target == NULL) return;
     connected = connect_fixture(execution, target, 0, &url, &connection,
         &status) == 0;
     started = brix_mono_ns();
@@ -180,11 +205,8 @@ probe_staged_nowait(xrd_conform_execution *execution, const char *target)
             kXR_open_read | kXR_nowait, &wire_status, &body, &body_length,
             &status);
     if (started != 0) elapsed_ms = (brix_mono_ns() - started) / 1000000U;
-    defined = connected && elapsed_ms <= 2000
-        && ((rc == 0 && (wire_status == kXR_ok || wire_status == kXR_wait))
-            || (rc != 0 && status.kxr > 0
-                && status.kxr != kXR_ServerError
-                && status.kxr != kXR_FSError));
+    defined = nowait_answer_defined(connected, elapsed_ms, rc, wire_status,
+        &status);
     snprintf(received, sizeof(received), "elapsed_ms=%llu wire=%u kxr=%d",
         (unsigned long long) elapsed_ms, (unsigned) wire_status, status.kxr);
     xrd_conform_result_set(execution, "OPN-020",
@@ -193,16 +215,19 @@ probe_staged_nowait(xrd_conform_execution *execution, const char *target)
         defined ? "offline-nowait-returned-prompt-defined-answer"
                 : "offline-nowait-blocked-or-returned-undefined-answer",
         "first answer in <=2000ms", received);
-    if (rc == 0 && wire_status == kXR_ok
-        && body_length >= XRD_FHANDLE_LEN) {
-        brix_file file = { { 0 }, 0, 0 };
-
-        memcpy(file.fhandle, body, XRD_FHANDLE_LEN);
-        if (reserve_op(execution, 0, &status))
-            brix_file_close(&connection, &file, &status);
-    }
+    close_open_response(execution, &connection, rc, wire_status, body,
+        body_length, &status);
     free(body);
     if (connected) brix_close(&connection);
+}
+
+static int
+idle_answer_defined(int opened, ssize_t got, const brix_status *status)
+{
+    if (!opened) return 0;
+    if (got == 1) return 1;
+    return got < 0 && status->kxr > 0 && status->kxr != kXR_ServerError
+        && status->kxr != kXR_FSError;
 }
 
 /* WHAT: Exercise a handle after an asserted sub-two-second idle threshold.
@@ -224,18 +249,17 @@ probe_idle(xrd_conform_execution *execution, const char *target)
     int pass;
     char received[128];
 
-    if (!row_active(execution, "OPN-033") || target == NULL) return;
+    if (!xrd_conform_row_active(execution, "OPN-033") || target == NULL) return;
     connected = connect_fixture(execution, target, 0, &url, &connection,
         &status) == 0;
-    if (connected && reserve_op(execution, 0, &status)
+    if (connected && xrd_conform_reserve_status(execution, 0, &status)
         && brix_file_open_read(&connection, url.path, &file, &status) == 0) {
         opened = 1;
         while (nanosleep(&idle, &idle) != 0 && errno == EINTR) { }
-        if (reserve_op(execution, 1, &status))
+        if (xrd_conform_reserve_status(execution, 1, &status))
             got = brix_file_read(&connection, &file, 0, &byte, 1, &status);
     }
-    pass = opened && (got == 1 || (got < 0 && status.kxr > 0
-        && status.kxr != kXR_ServerError && status.kxr != kXR_FSError));
+    pass = idle_answer_defined(opened, got, &status);
     snprintf(received, sizeof(received), "opened=%d read=%lld kxr=%d",
         opened, (long long) got, status.kxr);
     xrd_conform_result_set(execution, "OPN-033",
@@ -245,7 +269,7 @@ probe_idle(xrd_conform_execution *execution, const char *target)
                          : "idle-handle-returned-defined-error")
              : "idle-handle-silently-invalidated",
         "two-second idle then byte or native kXR error", received);
-    if (opened && reserve_op(execution, 0, &status))
+    if (opened && xrd_conform_reserve_status(execution, 0, &status))
         brix_file_close(&connection, &file, &status);
     if (connected) brix_close(&connection);
 }

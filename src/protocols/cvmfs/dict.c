@@ -26,6 +26,7 @@
  */
 #include "core/compat/log_event.h"
 #include "cvmfs.h"
+#include "coding.h"
 #include "cvmfs_module_internal.h"
 
 #include "cvmfs/dict/dict.h"
@@ -352,84 +353,17 @@ brix_cvmfs_dict_handle(ngx_http_request_t *r,
 /* Stat the target and read it into fresh request-pool buffers (`*out` is
  * capped at srclen: the coded serve must WIN or compress fails).
  * -1 = identity serve. */
-static int
-cvmfs_dict_load(ngx_http_request_t *r, brix_vfs_file_t *fh,
-    brix_vfs_stat_t *vst, size_t *srclen, unsigned char **src,
-    unsigned char **out)
-{
-    size_t off, n;
 
-    if (brix_vfs_file_stat(fh, vst) != NGX_OK
-        || vst->is_directory
-        || vst->size <= 0
-        || (size_t) vst->size > CVMFS_DICT_MAX_OBJ)
-    {
-        return -1;
-    }
-    n = (size_t) vst->size;
-
-    *src = ngx_pnalloc(r->pool, n);
-    *out = ngx_pnalloc(r->pool, n);
-    if (*src == NULL || *out == NULL) {
-        return -1;
-    }
-    for (off = 0; off < n; ) {
-        ssize_t rd = brix_vfs_file_pread(fh, *src + off, n - off, (off_t) off);
-        if (rd <= 0) {
-            return -1;
-        }
-        off += (size_t) rd;
-    }
-    *srclen = n;
-    return 0;
-}
 
 /* Emit the committed dict-coded response (headers + single in-memory buf). */
 static ngx_int_t
 cvmfs_dict_emit(ngx_http_request_t *r, time_t mtime, const char *id,
     unsigned char *out, size_t srclen, size_t outlen)
 {
-    ngx_table_elt_t *h = NULL;
-    ngx_chain_t      chain;
-    ngx_buf_t       *b;
-    ngx_int_t        rc;
-
-    r->headers_out.status             = NGX_HTTP_OK;
-    r->headers_out.content_length_n   = (off_t) outlen;
-    r->headers_out.last_modified_time = mtime;
-    ngx_str_set(&r->headers_out.content_type, "application/octet-stream");
-    r->headers_out.content_type_len   = r->headers_out.content_type.len;
-
-    if (brix_http_set_header(r, "Content-Encoding", "zstd-dict", &h) != NGX_OK
-        || brix_http_set_header(r, "X-Brix-Dict-Id", id, NULL) != NGX_OK
-        || brix_http_set_header(r, "Vary", "X-Brix-Dict", NULL) != NGX_OK)
-    {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    r->headers_out.content_encoding = h;
-
-    b = ngx_calloc_buf(r->pool);
-    if (b == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    b->memory        = 1;
-    b->pos           = out;
-    b->last          = out + outlen;
-    b->start         = b->pos;
-    b->end           = b->last;
-    b->last_buf      = 1;
-    b->last_in_chain = 1;
-    chain.buf  = b;
-    chain.next = NULL;
-
-    BRIX_LOG(NGX_LOG_DEBUG, r->connection->log, 0,
-        "cvmfs-dict: coded serve %uz -> %uz id=%s", srclen, outlen, id);
-
-    rc = ngx_http_send_header(r);
-    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
-        return rc;
-    }
-    return ngx_http_output_filter(r, &chain);
+    const brix_cvmfs_coding_t coding = {
+        "zstd-dict", "X-Brix-Dict-Id", "X-Brix-Dict", "cvmfs-dict", "id"
+    };
+    return brix_cvmfs_coding_emit(r, &coding, mtime, id, out, srclen, outlen);
 }
 
 ngx_int_t
@@ -464,7 +398,7 @@ brix_cvmfs_dict_try_serve(ngx_http_request_t *r,
         return NGX_DECLINED;      /* unknown/superseded id → identity serve */
     }
 
-    if (cvmfs_dict_load(r, fh, &vst, &srclen, &src, &out) != 0) {
+    if (brix_cvmfs_coding_load(r, fh, &vst, CVMFS_DICT_MAX_OBJ, &srclen, &src, &out) != 0) {
         return NGX_DECLINED;
     }
 

@@ -32,6 +32,7 @@
 #include <sys/ucred.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <libproc.h>
 
 static void
 wakefd_apply(int fd, int flags)
@@ -127,6 +128,51 @@ brix_plat_peer_cred(int fd, uid_t *uid, gid_t *gid, pid_t *pid)
                ? peer : 0;
     }
     return 0;
+}
+
+/* ---- Close a descriptor interval using bounded native descriptor snapshots ----
+ * WHAT: Close only descriptors in the interval, or return -1 for fallback.
+ * WHY: Scanning a million possible fds per capture is needlessly expensive;
+ *      guessed Linux syscall numbers can invoke unrelated Darwin operations.
+ * HOW: Query the current process into a stack buffer, close matching fds, repeat
+ *      after a full batch. Never allocate in a multithreaded parent's fork child.
+ */
+int
+brix_plat_close_range(unsigned first, unsigned last)
+{
+    struct proc_fdinfo descriptors[256];
+
+    if (first > last) {
+        errno = EINVAL;
+        return -1;
+    }
+    for ( ;; ) {
+        int bytes = proc_pidinfo(getpid(), PROC_PIDLISTFDS, 0,
+                                 descriptors, sizeof(descriptors));
+        unsigned closed = 0;
+
+        if (bytes <= 0 || (size_t) bytes > sizeof(descriptors)) {
+            errno = EIO;
+            return -1;
+        }
+        for (size_t index = 0; index < (size_t) bytes / sizeof(descriptors[0]); index++) {
+            unsigned fd = (unsigned) descriptors[index].proc_fd;
+
+            if (fd >= first && fd <= last) {
+                if (close((int) fd) != 0) {
+                    return -1;
+                }
+                closed++;
+            }
+        }
+        if ((size_t) bytes < sizeof(descriptors)) {
+            return 0;
+        }
+        if (closed == 0) {
+            errno = EOVERFLOW;  /* unseen high fds may still be in the interval */
+            return -1;
+        }
+    }
 }
 
 int

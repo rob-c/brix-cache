@@ -1,6 +1,7 @@
 """Centralized test settings shared across test modules."""
 
 import os
+from lib_py.reference_host import reference_brix_data_root
 
 TEST_ROOT = os.path.abspath(os.path.expanduser(
     os.environ.get("TEST_ROOT", "/tmp/xrd-test")))
@@ -76,7 +77,7 @@ def url_host(h):
 
 
 PKI_DIR = os.path.join(TEST_ROOT, "pki")
-DATA_ROOT = os.path.join(TEST_ROOT, "data")
+DATA_ROOT = reference_brix_data_root(os.path.join(TEST_ROOT, "data"), TEST_ROOT)
 TOKENS_DIR = os.path.join(TEST_ROOT, "tokens")
 # The fleet logs the tests scrape (access/error/brix_access) are the main nginx's.
 # Under the registry launcher every instance writes to its own prefix
@@ -88,7 +89,7 @@ LOG_DIR = os.path.join(REGISTRY_ROOT, "main", "logs")
 # start_all_dedicated; tests attach to these fixed ports and only seed data).
 COMPRESS_WEBDAV_PORT = int(os.environ.get("TEST_COMPRESS_WEBDAV_PORT", "12960"))
 COMPRESS_S3_PORT = int(os.environ.get("TEST_COMPRESS_S3_PORT", "12961"))
-COMPRESS_DATA_ROOT = os.path.join(TEST_ROOT, "data-compress")
+COMPRESS_DATA_ROOT = reference_brix_data_root(os.path.join(TEST_ROOT, "data-compress"), TEST_ROOT)
 INTEROP_OUR_PORT = int(os.environ.get("TEST_INTEROP_OUR_PORT", "21200"))
 INTEROP_OFF_PORT = int(os.environ.get("TEST_INTEROP_OFF_PORT", "21201"))
 TMP_DIR = os.path.join(TEST_ROOT, "tmp")

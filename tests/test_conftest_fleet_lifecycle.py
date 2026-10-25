@@ -160,6 +160,7 @@ def test_leak_reaper_only_kills_exact_test_root(monkeypatch):
     scan so the SIGTERM→SIGKILL passes don't re-target it."""
     import fleet_orphans
 
+    monkeypatch.setattr(fleet_orphans, "_HAVE_PROCFS", True)
     killed = []
     cmdlines = {
         101: "nginx -p /tmp/brix-tests/lane-b/registry/main",   # ours
@@ -518,8 +519,10 @@ def test_controller_never_publishes_and_a_failed_worker_never_waits(
     conftest._publish_worker_usage_error(
         _worker_config("run-1"), pytest.UsageError("gate"))
     monkeypatch.setattr(conftest, "_chdir_scratch", lambda: None)
-    monkeypatch.setattr(conftest, "_wait_for_xdist_fleet",
-                        lambda: pytest.fail("waited for a fleet that never boots"))
+    monkeypatch.setattr(
+        conftest, "_wait_for_xdist_fleet",
+        lambda *args, **kwargs: pytest.fail("waited for a fleet that never boots"),
+    )
     conftest._finish_worker_collection(
         _Session(_worker_config("run-1"), items=[object()]))
 
@@ -531,6 +534,14 @@ def test_xdist_fleet_wait_timeout_defaults_to_fifteen_minutes(monkeypatch):
     assert conftest._xdist_fleet_wait_seconds() == 17
     monkeypatch.setenv("TEST_FLEET_START_TIMEOUT", "invalid")
     assert conftest._xdist_fleet_wait_seconds() == 900
+
+
+def test_only_gw0_may_recover_a_missing_controller_hook():
+    assert conftest._worker_may_start_xdist_fleet(_worker_config("run", 2)) is False
+    gw0 = _worker_config("run", 2)
+    gw0.workerinput["workerid"] = "gw0"
+    assert conftest._worker_may_start_xdist_fleet(gw0) is True
+    assert conftest._worker_may_start_xdist_fleet(_Config(numprocesses=2)) is False
 
 
 def test_collection_finish_skips_collect_only_and_empty_sessions(

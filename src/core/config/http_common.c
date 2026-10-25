@@ -20,6 +20,7 @@
 #include "core/http/http_peer_name.h"   /* PREACCESS reverse-DNS wait (phase-116) */
 #include "auth/protbind/protbind.h" /* brix_protbind_needs_hostname (phase-116) */
 #include "net/dns/dns.h"                /* brix_dns_backend_prepare (phase-116) */
+#include "tpc/common/identity_matrix.h" /* shared identity directive grammar */
 
 #include <stdio.h>
 #include <openssl/pem.h>

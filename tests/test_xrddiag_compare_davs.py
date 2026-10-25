@@ -17,14 +17,19 @@ Run (serial):
 """
 
 import os
+import ipaddress
 import shutil
 import subprocess
 from brix_suite.client_build import client_make
 
 import pytest
+from cryptography import x509
+from cryptography.x509.oid import ExtendedKeyUsageOID
 
 from server_registry import NginxInstanceSpec
 from settings import HOST
+from brix_suite.security.x509.primitives import make_ca, make_eec
+from brix_suite.security.x509.cadir import write_hashed_ca_dir
 
 def _guard_fixture_1():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
@@ -56,6 +61,21 @@ def fixture(lifecycle, tmp_path_factory):
     _guard_fixture_3()
 
     root = tmp_path_factory.mktemp("davs")
+    # The catalogue's SERVER_CERT is signed by the fleet CA that clients
+    # intentionally trust via X509_CERT_DIR. An independent CA is essential:
+    # rejecting a legitimately trusted fleet certificate is not a TLS test.
+    untrusted_ca = make_ca("/CN=xrddiag-private-test-ca")
+    server = make_eec(untrusted_ca, "/CN=xrddiag-private-server",
+                      eku=[ExtendedKeyUsageOID.SERVER_AUTH.dotted_string],
+                      extra_ext=[(x509.SubjectAlternativeName([
+                          x509.IPAddress(ipaddress.ip_address(HOST)),
+                      ]), False)])
+    server_cert, server_key = root / "server.pem", root / "server.key"
+    server_cert.write_bytes(server.pem)
+    server_key.write_bytes(server.key_pem)
+    server_key.chmod(0o600)
+    ca_dir = root / "private-ca"
+    write_hashed_ca_dir(ca_dir, untrusted_ca)
     dataR = root / "dataR"
     dataB = root / "dataB"
     dataR.mkdir()
@@ -74,13 +94,14 @@ def fixture(lifecycle, tmp_path_factory):
         data_root=str(dataR),
         # OK_PORT / BAD_PORT (the two WebDAV planes) come from the fixed-port
         # lifecycle ledger via lifecycle_ports_for("lc-xrddiag-compare-davs").
-        template_values={"DATA_B": str(dataB)},
+        template_values={"DATA_B": str(dataB), "SERVER_CERT": str(server_cert),
+                         "SERVER_KEY": str(server_key)},
         reason="root:// + two WebDAV planes (same data / different data) for the compare oracle.",
     ))
     yield {"rport": ep.port,
            "ok": ep.extra_ports["OK_PORT"],
            "bad": ep.extra_ports["BAD_PORT"],
-           "tls": ep.extra_ports["TLS_PORT"]}
+           "tls": ep.extra_ports["TLS_PORT"], "ca_dir": str(ca_dir)}
 
 
 def _cmp(fx, name, davs_port, timeout=30):
@@ -128,7 +149,7 @@ def test_davs_missing_clean_fail(fixture):
 
 def test_davs_tls_identical_matches(fixture):
     """success: same object over the HTTPS WebDAV plane (--davs-tls) agrees with
-    root://. Self-signed test cert → --no-verify-tls."""
+    root://. Private untrusted test CA → --no-verify-tls."""
     p = _cmp_tls(fixture, "match.bin", fixture["tls"], extra=("--no-verify-tls",))
     assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
     assert "[PASS] davs-tls" in p.stdout, p.stdout
@@ -137,11 +158,20 @@ def test_davs_tls_identical_matches(fixture):
 
 
 def test_davs_tls_verify_enforced(fixture):
-    """security-neg: with TLS verification ON (default), the self-signed cert
+    """security-neg: with TLS verification ON (default), the untrusted cert
     MUST be rejected — the oracle must not silently trust an unverified peer."""
     p = _cmp_tls(fixture, "match.bin", fixture["tls"])   # no --no-verify-tls
-    assert p.returncode != 0, f"self-signed cert accepted:\n{p.stdout}"
+    assert p.returncode != 0, f"untrusted private CA accepted:\n{p.stdout}"
     assert "[FAIL] davs-tls" in p.stdout, p.stdout
+
+
+def test_davs_tls_explicitly_trusted_private_ca_matches(fixture):
+    """Success: adding only this CA makes default verified TLS byte-exact."""
+    p = _cmp_tls(fixture, "match.bin", fixture["tls"],
+                 env={"X509_CERT_DIR": fixture["ca_dir"]})
+    assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
+    assert "[PASS] davs-tls" in p.stdout
+    assert "[PASS] davs-tls-md5" in p.stdout
 
 
 def test_davs_tls_connect_error_clean_fail(fixture):

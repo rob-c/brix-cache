@@ -28,6 +28,7 @@ import os
 import pytest
 
 import official_interop_lib as L
+from lib_py.reference_host import fixture_read_bytes
 
 pytestmark = [pytest.mark.xdist_group("conf_client"),
               pytest.mark.timeout(180),
@@ -74,8 +75,7 @@ def _stat_fields(out):
 
 
 def _read(p):
-    with open(p, "rb") as f:
-        return f.read()
+    return fixture_read_bytes(p)
 
 
 # =========================================================================== #

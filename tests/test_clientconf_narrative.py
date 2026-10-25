@@ -25,7 +25,7 @@ pytestmark = pytest.mark.timeout(300)
 def _ep(env, key="anon"):
     if key not in env["healthy"]:
         pytest.skip("endpoint %s not healthy" % key)
-    return E.BY_KEY[key]
+    return env.get("endpoints", E.BY_KEY)[key]
 
 
 def _md5(path):

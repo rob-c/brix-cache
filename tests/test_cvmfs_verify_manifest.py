@@ -28,6 +28,7 @@ per test so a torn-down instance can never answer for its successor.
 import itertools
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from contextlib import contextmanager
@@ -41,11 +42,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 from conformance_common import NGINX_BIN, PortBlock, srv_instance
 from repo_forge import Dir, File, RepoForge
 from settings import HOST
+from lib_py.util import budget_scale
 
 REPO = "test.cern.ch"
 
-pytestmark = pytest.mark.skipif(
-    not os.path.exists(NGINX_BIN), reason=f"nginx binary not found: {NGINX_BIN}")
+pytestmark = [
+    pytest.mark.skipif(
+        not os.path.exists(NGINX_BIN), reason=f"nginx binary not found: {NGINX_BIN}"),
+    pytest.mark.timeout(150 * budget_scale()),
+]
 
 
 class _FixedBlock(PortBlock):
@@ -87,13 +92,21 @@ def _srv(web, pub=None, **kw):
         yield srv
 
 
-def _get(srv, name, repo=REPO):
+def _get(srv, name, repo=REPO, transient_retries=0):
     url = f"http://{HOST}:{srv.nginx_port}/cvmfs/{repo}/{name}"
-    try:
-        with urllib.request.urlopen(url, timeout=25) as r:
-            return r.status, r.read()
-    except urllib.error.HTTPError as e:
-        return e.code, e.read()
+    for attempt in range(transient_retries + 1):
+        try:
+            # Signature verification is deliberately offloaded.  Under the full
+            # parallel suite its worker can wait behind CPU-heavy native tests,
+            # so use the suite's load scale instead of racing pytest's old cap.
+            with urllib.request.urlopen(url, timeout=60 * budget_scale()) as r:
+                return r.status, r.read()
+        except urllib.error.HTTPError as e:
+            body = e.read()
+            if e.code not in (502, 503, 504) or attempt == transient_retries:
+                return e.code, body
+            time.sleep(0.2 * (attempt + 1))
+    raise AssertionError("unreachable transient-retry state")
 
 
 def _tamper_lines(srv):
@@ -110,13 +123,13 @@ def test_verified_metadata_serves(tmp_path):
     manifest = forge.artifact_path("manifest").read_bytes()
     whitelist = forge.artifact_path("whitelist").read_bytes()
     with _srv(web, pub) as srv:
-        st, body = _get(srv, ".cvmfspublished")
+        st, body = _get(srv, ".cvmfspublished", transient_retries=3)
         assert st == 200 and body == manifest
-        st, body = _get(srv, ".cvmfswhitelist")
+        st, body = _get(srv, ".cvmfswhitelist", transient_retries=3)
         assert st == 200 and body == whitelist
         # the chain gate must not disturb ordinary CAS serving
         key = forge.root_catalog_hash
-        st, _ = _get(srv, f"data/{key[:2]}/{key[2:]}C")
+        st, _ = _get(srv, f"data/{key[:2]}/{key[2:]}C", transient_retries=3)
         assert st == 200
         assert _tamper_lines(srv) == []
     forge.close()

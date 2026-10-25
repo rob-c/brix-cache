@@ -226,11 +226,16 @@ class TestErrorStatusCodes:
         assert r.status_code == 404
 
     def test_put_to_existing_directory_no_crash(self):
-        _make_dir(f"/{_PFX}put_dir")
-        s = _session()
-        r = s.put(_url(f"/{_PFX}put_dir"), data=b"data")
-        # Putting data to an existing directory → 405, 409, or 500 (server error)
-        assert r.status_code in (405, 409, 500)
+        path = f"/{_PFX}put_dir"
+        _remove(path)
+        try:
+            _make_dir(path)
+            s = _session()
+            r = s.put(_url(path), data=b"data")
+            # Putting data to an existing directory → 405, 409, or 500.
+            assert r.status_code in (405, 409, 500)
+        finally:
+            _remove(path)
 
     def test_409_mkcol_parent_missing(self):
         s = _session()

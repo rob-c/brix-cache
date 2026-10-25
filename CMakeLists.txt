@@ -30,6 +30,10 @@ project(brix-cache C)
 
 include(GNUInstallDirs)
 include(ProcessorCount)
+find_program(BRIX_MAKE NAMES gmake make)
+if(NOT BRIX_MAKE)
+    message(FATAL_ERROR "GNU make is required to build nginx and the native tools")
+endif()
 ProcessorCount(NPROC)
 if(NPROC EQUAL 0)
     set(NPROC 1)
@@ -57,7 +61,11 @@ endif()
 # the RPM's client-tool paths (/usr/bin, /usr/lib64). Only forced when the user
 # did not pass -DCMAKE_INSTALL_PREFIX=... themselves.
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-    set(CMAKE_INSTALL_PREFIX "/usr" CACHE PATH
+    set(_brix_default_prefix "/usr")
+    if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+        set(_brix_default_prefix "/usr/local")
+    endif()
+    set(CMAKE_INSTALL_PREFIX "${_brix_default_prefix}" CACHE PATH
         "Install prefix (defaulted to /usr to overwrite the brix RPM)" FORCE)
     include(GNUInstallDirs)   # re-derive CMAKE_INSTALL_FULL_* against the new prefix
 endif()
@@ -104,9 +112,18 @@ endif()
 
 _brix_read_macro(_macro_moddir     "nginx_moddir"     "/usr/lib64/nginx/modules")
 _brix_read_macro(_macro_modconfdir "nginx_modconfdir" "/usr/share/nginx/modules")
+if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+    set(_macro_moddir "/usr/local/libexec/nginx")
+    set(_macro_modconfdir "/usr/local/etc/nginx/modules.d")
+endif()
 set(NGINX_SRC_DIR     "${_macro_srcdir}"     CACHE PATH "nginx source tree (distro nginx-mod-devel or unpacked upstream release)")
 set(NGINX_MOD_DIR     "${_macro_moddir}"     CACHE PATH "nginx module install dir")
 set(NGINX_MODCONF_DIR "${_macro_modconfdir}" CACHE PATH "nginx module-loader config dir")
+set(_brix_nginx_conf_dir "/etc/nginx")
+if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+    set(_brix_nginx_conf_dir "/usr/local/etc/nginx")
+endif()
+set(NGINX_CONFIG_DIR "${_brix_nginx_conf_dir}" CACHE PATH "nginx configuration root")
 
 if(BRIX_BUILD_MODULES)
     if(NGINX_SRC_DIR STREQUAL "" OR NOT EXISTS "${NGINX_SRC_DIR}/configure")
@@ -145,7 +162,13 @@ find_program(RPM_EXECUTABLE rpm)
 # for non-RPM dev builds, where rpm %{optflags} is unavailable.
 set(_default_optflags "-O2 -g -pipe -Wall -Werror=format-security -Wformat -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fstack-clash-protection -fcf-protection=full -march=x86-64-v2")
 set(_default_ldflags  "-Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack")
-if(RPM_EXECUTABLE)
+if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+    set(_default_optflags "-O2 -g -pipe -Wall -Werror=format-security -Wformat -D_FORTIFY_SOURCE=2 -fstack-protector-strong -I/usr/local/include")
+    set(_default_ldflags "-L/usr/local/lib -Wl,-z,relro -Wl,-z,now")
+endif()
+# Installing rpmbuild for packaging tests must not replace FreeBSD's native
+# compiler/hardening defaults with a foreign RPM macro configuration.
+if(RPM_EXECUTABLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
     execute_process(COMMAND ${RPM_EXECUTABLE} --eval "%{optflags}"
         OUTPUT_VARIABLE _rpm_optflags OUTPUT_STRIP_TRAILING_WHITESPACE)
     execute_process(COMMAND ${RPM_EXECUTABLE} --eval "%{build_ldflags}"
@@ -217,6 +240,8 @@ if(BRIX_BUILD_MODULES)
     _brix_shell_quote(MOD_OUT_SHELL "${MOD_OUT_DIR}")
     _brix_shell_quote(CC_OPT_SHELL "${BRIX_MODULE_CFLAGS} ${_pcre_cflags}")
     _brix_shell_quote(LD_OPT_SHELL "${BRIX_MODULE_LDFLAGS} -Wl,-E")
+    _brix_shell_quote(HASH_PYTHON_SHELL "${Python3_EXECUTABLE}")
+    _brix_shell_quote(MAKE_SHELL "${BRIX_MAKE}")
     set(NGINX_MAKE_TARGET modules)
     if(BRIX_BUILD_NGINX)
         set(NGINX_MAKE_TARGET build)
@@ -265,9 +290,11 @@ load_module \"${NGINX_MOD_DIR}/ngx_http_brix_xrdhttp_filter_module.so\";
     # Example server config, logrotate rule, and Grafana/Prometheus contrib
     # (same locations as the RPM). Absolute DESTINATIONs ignore the prefix.
     install(FILES "${REPO_ROOT}/contrib/brix-cache.conf.example"
-            DESTINATION "/etc/nginx/conf.d")
-    install(FILES "${REPO_ROOT}/contrib/logrotate.d/nginx-xrootd"
-            DESTINATION "/etc/logrotate.d")
+            DESTINATION "${NGINX_CONFIG_DIR}/conf.d")
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+        install(FILES "${REPO_ROOT}/contrib/logrotate.d/nginx-xrootd"
+                DESTINATION "/etc/logrotate.d")
+    endif()
     install(FILES "${REPO_ROOT}/contrib/grafana-dashboard.json"
                   "${REPO_ROOT}/contrib/prometheus-alerts.yml"
             DESTINATION "${CMAKE_INSTALL_FULL_DATADIR}/nginx-xrootd")
@@ -279,12 +306,17 @@ endif()
 # Post-install hint for overwriting a running install.
 # --------------------------------------------------------------------------
 if(BRIX_BUILD_MODULES)
+    set(_brix_reload_hint "sudo nginx -t && sudo systemctl reload nginx")
+    set(_brix_package_hint "Direct installation may overwrite package-owned files; use the native package manager to inspect divergence.")
+    if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+        set(_brix_reload_hint "sudo nginx -t && sudo service nginx reload")
+        set(_brix_package_hint "Direct installation is outside pkg's database; stage with DESTDIR for packaging.")
+    endif()
     install(CODE "
         message(STATUS \"\")
         message(STATUS \"BriX modules installed to ${NGINX_MOD_DIR}.\")
-        message(STATUS \"If nginx is running: sudo nginx -t && sudo systemctl reload nginx\")
-        message(STATUS \"(Overwrites files owned by an installed brix RPM; run\")
-        message(STATUS \" 'rpm -V nginx-mod-brix-cache' to see the divergence.)\")
+        message(STATUS \"If nginx is running: ${_brix_reload_hint}\")
+        message(STATUS \"${_brix_package_hint}\")
     ")
 endif()
 

@@ -192,14 +192,33 @@ sd_s3l_first_text(const char *scan, const char *end, const char *open_tag,
  * with no CommonPrefixes at all. Sort order is unaffected: dropping the
  * `delimiter` param removes a whole element rather than reordering any.
  * Returns 0, or -1 with errno + errbuf set. */
+/* ---- Build a bounded ListObjectsV2 canonical query -----------------------
+ *
+ * WHAT: Builds the sorted, encoded query for one flat or delimited list and
+ *       returns 0, or -1 with errno and errbuf set.
+ *
+ * WHY: Directory enumeration needs the normal page size while namespace
+ *      existence probes should ask the origin for exactly one matching key.
+ *      Sharing this builder keeps both requests byte-identical for SigV4.
+ *
+ * HOW: 1. Validate the requested S3 result bound.
+ *      2. RFC-3986 encode the prefix and optional continuation token.
+ *      3. Emit parameters in canonical lexical order.
+ */
 int
-sd_s3l_build_query(const char *prefix, size_t plen, const char *cont_in,
-    int delimited, char *qs, size_t qscap, char *errbuf, size_t errcap)
+sd_s3l_build_query_limit(const char *prefix, size_t plen,
+    const char *cont_in, int delimited, unsigned max_keys,
+    char *qs, size_t qscap, char *errbuf, size_t errcap)
 {
     char enc_prefix[3072];
     char enc_cont[3072];
     int  qn;
 
+    if (max_keys == 0 || max_keys > BRIX_S3_LIST_MAX_KEYS) {
+        errno = EINVAL;
+        sd_s3_set_err(errbuf, errcap, "s3 list: invalid max-keys");
+        return -1;
+    }
     if (brix_http_urlencode((const unsigned char *) prefix, plen,
             enc_prefix, sizeof(enc_prefix), NULL) < 0)
     {
@@ -222,7 +241,7 @@ sd_s3l_build_query(const char *prefix, size_t plen, const char *cont_in,
             enc_cont,
             enc_cont[0] ? "&" : "",
             delimited ? "delimiter=%2F&" : "",
-            BRIX_S3_LIST_MAX_KEYS,
+            max_keys,
             enc_prefix);
     if (qn < 0 || (size_t) qn >= qscap) {
         errno = ENAMETOOLONG;
@@ -230,6 +249,25 @@ sd_s3l_build_query(const char *prefix, size_t plen, const char *cont_in,
         return -1;
     }
     return 0;
+}
+
+/* ---- Build a normal-sized ListObjectsV2 canonical query -----------------
+ *
+ * WHAT: Builds a canonical query using the driver's standard page size and
+ *       returns 0, or -1 with errno and errbuf set.
+ *
+ * WHY: Existing paged callers should not know about the result-bound detail
+ *      introduced for single-key namespace probes.
+ *
+ * HOW: Delegate to the bounded builder with BRIX_S3_LIST_MAX_KEYS.
+ */
+int
+sd_s3l_build_query(const char *prefix, size_t plen, const char *cont_in,
+    int delimited, char *qs, size_t qscap, char *errbuf, size_t errcap)
+{
+    return sd_s3l_build_query_limit(prefix, plen, cont_in, delimited,
+                                    BRIX_S3_LIST_MAX_KEYS, qs, qscap,
+                                    errbuf, errcap);
 }
 
 /* Run one signed ListObjectsV2 GET. On success returns 0 with *f_out bound and

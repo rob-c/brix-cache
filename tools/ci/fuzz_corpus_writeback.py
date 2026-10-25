@@ -44,7 +44,7 @@ TESTS_DIR = REPO_ROOT / "tests"
 
 # Import the shared build recipes (single source of truth with the fuzz smoke).
 sys.path.insert(0, str(TESTS_DIR))
-from cmdscripts.fuzz_all import BUILD_ARGS, FUZZ_DIR  # noqa: E402
+from cmdscripts.fuzz_all import BUILD_ARGS, FUZZ_DIR, fuzz_build_args  # noqa: E402
 
 BOT_NAME = "brix-fuzz-corpus-bot"
 BOT_EMAIL = "brix-fuzz-corpus-bot@users.noreply.github.com"
@@ -67,7 +67,7 @@ def minimize_one(target: str, build_args: list[str], write: bool = False) -> tup
     corpus is overwritten with the minimal set only when `write` is True; a dry
     run (`write=False`) reports the delta without touching the working tree.
     """
-    built = _run(build_args, cwd=FUZZ_DIR)
+    built = _run(fuzz_build_args(build_args), cwd=FUZZ_DIR)
     if built.returncode != 0:
         return False, False, f"build {target} failed: {(built.stderr or built.stdout)[-800:]}"
     corpus = _corpus_dir(target)

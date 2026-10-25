@@ -13,18 +13,29 @@ import os
 from cmdscripts.compile_run import REPO_ROOT
 
 
+def _explicit_nginx_source():
+    """Keep each supported explicit source override authoritative."""
+    return (os.environ.get("TEST_NGINX_SRC") or os.environ.get("NGX_SRC")
+            or os.environ.get("NGINX_SRC"))
+
+
 def _default_nginx_source() -> Path:
-    override = os.environ.get("NGX_SRC")
+    override = _explicit_nginx_source()
     if override:
         return Path(override)
     candidates = (Path("/tmp/nginx-1.28.3"), Path("/tmp/nginx-1.24.0"))
     for candidate in candidates:
         if (candidate / "src/core/ngx_config.h").is_file():
             return candidate
+    return _distro_nginx_source(candidates[-1])
+
+
+def _distro_nginx_source(fallback):
+    """Locate packaged nginx headers only when no configured tree exists."""
     distro_headers = sorted(Path("/usr/src").glob("nginx-*/src/core/ngx_config.h"))
     if distro_headers:
         return distro_headers[-1].parents[2]
-    return candidates[-1]
+    return fallback
 
 
 DEFAULT_NGX_SRC = _default_nginx_source()

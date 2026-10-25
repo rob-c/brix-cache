@@ -50,6 +50,7 @@ and the global `allow_write` policy for write-mode opens.
 |---|---|
 | `open.h` | Declares the three open entry points (`brix_handle_open`, `brix_open_resolved_file`, `brix_open_cached_read`). |
 | `open_overview.c` | Module-level WHAT/WHY documentation for the open lifecycle; defines `open_extract_opaque()` (splits the CGI `?...` opaque string off the open payload, trimming a trailing NUL). |
+| `open_request_options.c` | Pure access-mode conflict detection and bounded opaque size/cache-hint interpretation. The request handler retains policy, authorization and path-resolution ordering. |
 | `open_request.c` | `brix_handle_open()` — the `kXR_open` protocol entry point: parses `ClientOpenRequest`, detects write-mode, parses TPC opaque params (destination *pull* vs source *serve* rendezvous via `tpc.key`/`tpc.dst`/`tpc.org`), runs manager-mode redirect / static-map / CMS-locate, strips the CGI query, validates depth, resolves the path (read = must-exist via `brix_stat_beneath`, write = `mkpath`-aware), runs the auth gate, then delegates to the cached-read or resolved-file opener. |
 | `open_resolved_file.c` | `brix_open_resolved_file()` — derives `open(2)` flags from XRootD options, builds the POSC staging temp path, runs the pre-flight existence/type checks through `brix_open_probe` (a `brix_vfs_probe` wrapper) — *export* paths only; the upload-stage partial check stays raw-as-worker (marked) — allocates an `fhandle` slot, opens the **export** target through the VFS (`brix_vfs_open_fd_at`) while the separate **cache**/**stage** domains are opened raw-as-worker (svc-owned, behind `vfs-seam-allow` markers; the VFS would mis-resolve them under impersonation), `fstat`s and rejects directories, initialises all per-handle bookkeeping (readable/writable, device/inode, cached size, read-ahead cursors, write-through, write-recovery journal, dashboard slot), evaluates the write-through decision, and assembles the `ServerOpenBody` (+ optional `retstat`) response. |
 | `open_cache.c` | `brix_open_cached_read()` — XCache read-open: runs the FULL three-tier auth gate (authdb + VO ACL + token scope, the 2026-07-06 cache-authz fix) against the **export-root** path, then serves a whole-file cache hit (`brix_open_resolved_file` with `is_write=0`) or triggers a background origin fill (`brix_cache_open_or_fill`, in `../cache/`). Slice/partial serving happens below the VFS in the composed `sd_cache` tier driver (`src/fs/backend/cache/`). |
@@ -66,6 +67,15 @@ and the global `allow_write` policy for write-mode opens.
 | `clone.c` / `clone.h` | `brix_handle_clone()` — `kXR_clone` (v5.2.0): batched server-side range copy (≤1024 `clone_item`s) from open source handles into one open destination handle via `brix_copy_range()` (`copy_file_range`/pread+pwrite fallback), validating each handle's read/write access. |
 
 ## Key types & data structures
+
+Read opens preserve directory intent from the CGI-stripped wire spelling.
+After authorization, `brix_open_read_target_guard()` refuses both directory
+targets and file-as-directory names such as `/file/`, including repeated
+trailing separators. Direct and cached reads share this guard before data
+serving/fill; ordinary file names and write-open semantics are unchanged.
+The trailing-separator predicate is the existing public path helper, not a
+second parser. A denied principal still receives the authorization refusal
+before any target-type or existence result.
 
 - **`brix_file_t`** (defined in `../types/`, table in `../connection/fd_table.c`): the
   per-handle state object indexed by the single-byte `fhandle[0]`, of which only slots

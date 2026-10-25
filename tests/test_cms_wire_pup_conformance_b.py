@@ -245,7 +245,7 @@ class TestForwardedNamespaceOps:
         made = os.path.join(_DIR, "node_data", "fwd_made")
         if os.path.isdir(made):
             os.rmdir(made)
-        node_stack.send_to_node(101, CMS_RR_MKDIR, 0,
+        before = node_stack.send_to_node(101, CMS_RR_MKDIR, 0,
                                 _fwd_a_payload(b"mgr", b"755", b"/fwd_made"))
         # Success is silent; poll the filesystem for the created directory.
         deadline = time.time() + 6.0
@@ -254,7 +254,7 @@ class TestForwardedNamespaceOps:
         def _assert_test_forwarded_mkdir_creates_dir_1():
             assert os.path.isdir(made), "node did not create the forwarded directory"
             # And it must NOT have sent an error for a valid op.
-            assert node_stack.collect_reply(CMS_RSP_ERROR, timeout=1.0) is None
+            assert node_stack.collect_reply(CMS_RSP_ERROR, timeout=1.0, after=before) is None
 
         _assert_test_forwarded_mkdir_creates_dir_1()
 
@@ -265,9 +265,9 @@ class TestForwardedNamespaceOps:
         escape = os.path.join(_DIR, "pwned")     # one level above node_data
         if os.path.isdir(escape):
             os.rmdir(escape)
-        node_stack.send_to_node(102, CMS_RR_MKDIR, 0,
+        before = node_stack.send_to_node(102, CMS_RR_MKDIR, 0,
                                 _fwd_a_payload(b"mgr", b"755", b"/../pwned"))
-        fr = node_stack.collect_reply(CMS_RSP_ERROR, timeout=6.0)
+        fr = node_stack.collect_reply(CMS_RSP_ERROR, timeout=6.0, after=before)
         assert fr is not None, "node must reply kYR_error for a traversal attempt"
         # The escape target must never have been created.
         assert not os.path.exists(escape), \
@@ -296,9 +296,9 @@ class TestRoleDirectiveNodeLeg:
         """kYR_state is in manVOps: a resident-path probe still draws kYR_have
         (the filter must not eat legitimate manager-leg traffic)."""
         sid = 0x61B00001
-        manager_node_stack.send_to_node(sid, CMS_RR_STATE, CMS_MOD_RAW,
+        before = manager_node_stack.send_to_node(sid, CMS_RR_STATE, CMS_MOD_RAW,
                                         b"/have_me.bin\x00")
-        reply = manager_node_stack.collect_reply(CMS_RR_HAVE, timeout=8.0)
+        reply = manager_node_stack.collect_reply(CMS_RR_HAVE, timeout=8.0, after=before)
         assert reply is not None, \
             "manVOps must still admit kYR_state on a manager-role node"
         assert reply[0] == sid
@@ -310,17 +310,17 @@ class TestRoleDirectiveNodeLeg:
         made = os.path.join(_DIR, "mgr_node_data", "mgr_no_mkdir")
         if os.path.isdir(made):
             os.rmdir(made)
-        manager_node_stack.send_to_node(
+        before = manager_node_stack.send_to_node(
             0x61B00002, CMS_RR_MKDIR, 0,
             _fwd_a_payload(b"mgr", b"755", b"/mgr_no_mkdir"))
         time.sleep(1.0)
         assert not os.path.isdir(made), \
             "manVOps filter breach: manager-role node executed kYR_mkdir"
-        assert manager_node_stack.collect_reply(CMS_RSP_ERROR, timeout=1.0) \
+        assert manager_node_stack.collect_reply(CMS_RSP_ERROR, timeout=1.0, after=before) \
             is None, "invalid ops are dropped, not answered with kYR_error"
         ping_sid = 0x61B00003
-        manager_node_stack.send_to_node(ping_sid, CMS_RR_PING, 0)
-        alive = manager_node_stack.collect_reply(CMS_RR_PONG, timeout=8.0)
+        before = manager_node_stack.send_to_node(ping_sid, CMS_RR_PING, 0)
+        alive = manager_node_stack.collect_reply(CMS_RR_PONG, timeout=8.0, after=before)
         assert alive is not None and alive[0] == ping_sid, \
             "connection must survive a dropped invalid op"
 

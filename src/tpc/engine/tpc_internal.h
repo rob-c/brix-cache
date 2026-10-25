@@ -18,6 +18,10 @@
 #include "tpc/common/credential.h"
 #include "tpc/common/registry.h"
 #include "tpc/common/metrics.h"
+#include "net/guard/guard.h"
+
+void brix_tpc_egress_emit_signal(brix_ctx_t *ctx, ngx_connection_t *connection,
+    const char *host, guard_op_class_t operation);
 #include "fs/vfs/vfs.h"
 #include "tpc/outbound/stream_plan.h"   /* TPC_STREAMS_MAX, read_args (F7) */
 

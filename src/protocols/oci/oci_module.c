@@ -19,6 +19,7 @@
  */
 
 #include "core/compat/log_event.h"
+#include "core/http/http_variables.h"
 #include "oci.h"
 #include "oci_module_internal.h"
 
@@ -81,21 +82,10 @@ static char *
 oci_conf_mirror(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_http_brix_oci_loc_conf_t *lcf = conf;
-    ngx_http_core_loc_conf_t     *clcf;
-    ngx_str_t                    *value = cf->args->elts;
-
     (void) cmd;
-    if (lcf->mirror != NGX_CONF_UNSET) {
-        return "is duplicate";
-    }
-
-    lcf->mirror     = 1;
-    lcf->mirror_url = value[1];
-
-    clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
-    clcf->handler = ngx_http_brix_oci_handler;
-
-    return NGX_CONF_OK;
+    return brix_http_mirror_configure(cf,
+        ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module),
+        &lcf->mirror, &lcf->mirror_url, ngx_http_brix_oci_handler);
 }
 
 
@@ -233,24 +223,6 @@ oci_conf_token_zone(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 /* ---- $oci_class ---------------------------------------------------------- */
 
-static ngx_int_t
-oci_var_set(ngx_http_request_t *r, ngx_http_variable_value_t *v,
-    const char *val)
-{
-    size_t   n = ngx_strlen(val);
-    u_char  *p = ngx_pnalloc(r->pool, n);
-
-    if (p == NULL) {
-        return NGX_ERROR;
-    }
-    ngx_memcpy(p, val, n);
-    v->data         = p;
-    v->len          = n;
-    v->valid        = 1;
-    v->no_cacheable = 0;
-    v->not_found    = 0;
-    return NGX_OK;
-}
 
 
 static ngx_int_t
@@ -262,9 +234,9 @@ oci_var_class(ngx_http_request_t *r, ngx_http_variable_value_t *v,
 
     (void) data;
     if (ctx == NULL || !ctx->classified) {
-        return oci_var_set(r, v, "-");
+        return brix_http_variable_copy(r, v, "-");
     }
-    return oci_var_set(r, v, brix_oci_class_str(ctx->req.cls));
+    return brix_http_variable_copy(r, v, brix_oci_class_str(ctx->req.cls));
 }
 
 
@@ -289,17 +261,7 @@ static ngx_http_variable_t  ngx_http_brix_oci_vars[] = {
 static ngx_int_t
 ngx_http_brix_oci_preconfiguration(ngx_conf_t *cf)
 {
-    ngx_http_variable_t *v, *nv;
-
-    for (v = ngx_http_brix_oci_vars; v->name.len; v++) {
-        nv = ngx_http_add_variable(cf, &v->name, v->flags);
-        if (nv == NULL) {
-            return NGX_ERROR;
-        }
-        nv->get_handler = v->get_handler;
-        nv->data        = v->data;
-    }
-    return NGX_OK;
+    return brix_http_register_variables(cf, ngx_http_brix_oci_vars);
 }
 
 

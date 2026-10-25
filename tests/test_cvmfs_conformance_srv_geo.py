@@ -147,7 +147,7 @@ def test_rtt_reachable_ranked_before_unreachable(rtt_srv, listener):
     st, _, body = geo_get(rtt_srv, f"{fresh_ip()}:8000,{l.token}")
     assert st == 200
     assert perm(body) == [2, 1], "reachable server must rank first"
-    assert l.count >= 1, "reachable server was never probed"
+    assert l.wait_count(1) >= 1, "reachable server was never probed"
 
 
 def test_rtt_unresolvable_ranked_after_reachable(rtt_srv, listener):
@@ -284,7 +284,7 @@ def test_cap_entry_within_cap_probed(cap_srv, listener):
     st, _, body = geo_get(
         cap_srv, f"geo-cap-a.invalid,{l.token},geo-cap-b.invalid")
     assert st == 200
-    assert perm(body)[0] == 2 and l.count >= 1
+    assert perm(body)[0] == 2 and l.wait_count(1) >= 1
 
 
 # --------------------------------------------------------------------------- #
@@ -358,14 +358,14 @@ def test_rtt_cache_no_reprobe_within_ttl(rtt_srv, listener):
     for _ in range(3):
         st, _, body = geo_get(rtt_srv, l.token)
         assert st == 200 and perm(body) == [1]
-    assert l.count == 1, "repeat query within geo_cache_ttl must not re-probe"
+    assert l.wait_count(1) == 1, "repeat query within geo_cache_ttl must not re-probe"
 
 
 def test_rtt_cache_is_per_host(rtt_srv, listener):
     a, b = listener(), listener()
     geo_get(rtt_srv, a.token)
     geo_get(rtt_srv, b.token)
-    assert (a.count, b.count) == (1, 1)
+    assert (a.wait_count(1), b.wait_count(1)) == (1, 1)
     st, _, body = geo_get(rtt_srv, f"{a.token},{b.token}")   # both cached now
     assert st == 200 and len(perm(body)) == 2
     assert (a.count, b.count) == (1, 1), "cached hosts were re-probed"
@@ -374,7 +374,7 @@ def test_rtt_cache_is_per_host(rtt_srv, listener):
 def test_ttl_expiry_reprobes(ttl_srv, listener):
     l = listener()
     geo_get(ttl_srv, l.token)
-    assert l.count == 1
+    assert l.wait_count(1) == 1
     time.sleep(1.8)                           # geo_cache_ttl 1s -> stale
     geo_get(ttl_srv, l.token)
-    assert l.count == 2, "expired cache entry must be re-probed"
+    assert l.wait_count(2) == 2, "expired cache entry must be re-probed"

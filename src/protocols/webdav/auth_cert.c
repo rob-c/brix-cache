@@ -6,6 +6,7 @@
 #include "webdav.h"
 #include "auth/crypto/gsi_verify.h"
 #include "auth/crypto/store_policy.h"
+#include "auth/crypto/name_compat.h"
 #include "core/ngx_brix_module.h"
 
 #include <ngx_http_ssl_module.h>
@@ -465,7 +466,7 @@ webdav_finish_verified_cert(ngx_http_request_t *r,
 {
     char *dn;
 
-    dn = X509_NAME_oneline(X509_get_subject_name(leaf), NULL, 0);
+    dn = brix_crypto_name_oneline(X509_get_subject_name(leaf), NULL, 0);
     if (dn != NULL) {
         if (webdav_mark_req_verified(r, ctx, dn, source) != NGX_OK) {
             OPENSSL_free(dn);
@@ -474,9 +475,9 @@ webdav_finish_verified_cert(ngx_http_request_t *r,
         (void) webdav_store_tls_auth_cache(r, ssl, conf, dn);
         OPENSSL_free(dn);
     } else {
-        if (webdav_mark_req_verified(r, ctx, "", source) != NGX_OK) {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
+        BRIX_LOG(NGX_LOG_ERR, r->connection->log, 0,
+                 "brix_webdav: cannot render verified certificate identity");
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     {

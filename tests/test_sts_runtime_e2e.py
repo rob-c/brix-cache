@@ -55,11 +55,11 @@ from server_registry import NginxInstanceSpec
 # the seeding path is identical to test_sts_minio_live and shares no drift
 # surface.
 from test_sts_minio_live import (
-    MINIO_IMAGES,
     REGION,
     ROOT_PW,
     ROOT_USER,
     _http,
+    _minio_images,
     _now,
     _pick_image,
     _sha,
@@ -98,7 +98,7 @@ def _guard_minio_store_3(runtime):
 def _guard_minio_store_4(image):
     if image is None:
         pytest.skip("no local minio image (expected one of: "
-                    + ", ".join(MINIO_IMAGES) + ")")
+                    + ", ".join(_minio_images()) + ")")
 
 def _guard_minio_store_5(cid):
     if not cid:

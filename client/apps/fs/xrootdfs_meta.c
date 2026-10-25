@@ -33,7 +33,7 @@ getattr_from_open_writer(struct fuse_file_info *fi, struct stat *stbuf)
 }
 
 int
-xfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
+xfs_getattr(uid_t caller_uid, const char *path, struct stat *stbuf, struct fuse_file_info *fi)
 {
     brix_statinfo si;
     brix_status   st;
@@ -55,7 +55,7 @@ xfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
     }
     char pbuf[XRDC_PATH_MAX];
     struct brix_fuse_ctx_stat a = { srv_path(path, pbuf, sizeof(pbuf)), &si };
-    int rc = xfs_meta(brix_fuse_op_lstat, &a, &st);   /* lstat: symlinks present as S_IFLNK */
+    int rc = xfs_meta(caller_uid, brix_fuse_op_lstat, &a, &st);   /* lstat: symlinks present as S_IFLNK */
     if (rc != 0) {
         /* A newly created file we still hold open is staged server-side until
          * close, so its final path is not yet visible to stat (ENOENT). Report
@@ -71,7 +71,7 @@ xfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
 
 
 int
-xfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
+xfs_readdir(uid_t caller_uid, const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
             struct fuse_file_info *fi, enum fuse_readdir_flags flags)
 {
     brix_dirent *ents = NULL;
@@ -93,7 +93,7 @@ xfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
          * holder are invisible.  --cluster-readdir asks every holder and unions
          * the answers; without it the single-node listing is kept verbatim (it
          * is one round trip, and a non-clustered mount needs nothing more). */
-        int rc = xfs_meta(g_dir_fanout ? brix_fuse_op_dirlist_all
+        int rc = xfs_meta(caller_uid, g_dir_fanout ? brix_fuse_op_dirlist_all
                                        : brix_fuse_op_dirlist, &a, &st);
         if (rc != 0) {
             return rc;
@@ -118,43 +118,43 @@ xfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
 
 
 int
-xfs_mkdir(const char *path, mode_t mode)
+xfs_mkdir(uid_t caller_uid, const char *path, mode_t mode)
 {
     if (g_web) return -EROFS;
     brix_status st; brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     struct brix_fuse_ctx_mkdir a = { srv_path(path, pbuf, sizeof(pbuf)), (int) (mode & 0777) };
     /* a re-issued mkdir whose first reply was lost reports EEXIST → success */
-    return xfs_meta_idem(brix_fuse_op_mkdir, &a, EEXIST, &st);
+    return xfs_meta_idem(caller_uid, brix_fuse_op_mkdir, &a, EEXIST, &st);
 }
 
 
 int
-xfs_unlink(const char *path)
+xfs_unlink(uid_t caller_uid, const char *path)
 {
     if (g_web) return -EROFS;
     brix_status st; brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     /* a re-issued rm whose first reply was lost reports ENOENT → success */
-    return xfs_meta_idem(brix_fuse_op_rm,
+    return xfs_meta_idem(caller_uid, brix_fuse_op_rm,
                          (void *) srv_path(path, pbuf, sizeof(pbuf)), ENOENT, &st);
 }
 
 
 int
-xfs_rmdir(const char *path)
+xfs_rmdir(uid_t caller_uid, const char *path)
 {
     if (g_web) return -EROFS;
     brix_status st; brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     /* a re-issued rmdir whose first reply was lost reports ENOENT → success */
-    return xfs_meta_idem(brix_fuse_op_rmdir,
+    return xfs_meta_idem(caller_uid, brix_fuse_op_rmdir,
                          (void *) srv_path(path, pbuf, sizeof(pbuf)), ENOENT, &st);
 }
 
 
 int
-xfs_rename(const char *from, const char *to, unsigned int flags)
+xfs_rename(uid_t caller_uid, const char *from, const char *to, unsigned int flags)
 {
     if (g_web) return -EROFS;
     if (flags != 0) {
@@ -166,31 +166,31 @@ xfs_rename(const char *from, const char *to, unsigned int flags)
                         srv_path(to, tbuf, sizeof(tbuf)) };
     /* a re-issued mv whose first reply was lost reports ENOENT (source already
      * renamed) → success */
-    return xfs_meta_idem(brix_fuse_op_mv, &a, ENOENT, &st);
+    return xfs_meta_idem(caller_uid, brix_fuse_op_mv, &a, ENOENT, &st);
 }
 
 
 int
-xfs_chmod(const char *path, mode_t mode, struct fuse_file_info *fi)
+xfs_chmod(uid_t caller_uid, const char *path, mode_t mode, struct fuse_file_info *fi)
 {
     if (g_web) return -EROFS;
     (void) fi;
     brix_status st; brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     struct brix_fuse_ctx_chmod a = { srv_path(path, pbuf, sizeof(pbuf)), (int) (mode & 0777) };
-    return xfs_meta(brix_fuse_op_chmod, &a, &st);
+    return xfs_meta(caller_uid, brix_fuse_op_chmod, &a, &st);
 }
 
 
 int
-xfs_truncate(const char *path, off_t size, struct fuse_file_info *fi)
+xfs_truncate(uid_t caller_uid, const char *path, off_t size, struct fuse_file_info *fi)
 {
     if (g_web) return -EROFS;
     (void) fi;
     brix_status st; brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     struct brix_fuse_ctx_trunc a = { srv_path(path, pbuf, sizeof(pbuf)), (int64_t) size };
-    return xfs_meta(brix_fuse_op_trunc, &a, &st);
+    return xfs_meta(caller_uid, brix_fuse_op_trunc, &a, &st);
 }
 
 
@@ -198,7 +198,7 @@ xfs_truncate(const char *path, off_t size, struct fuse_file_info *fi)
  * it; otherwise they succeed as no-ops so `cp -p` still works against a stock
  * server (XRootD has no base-protocol set-time/owner op). */
 int
-xfs_utimens(const char *path, const struct timespec tv[2],
+xfs_utimens(uid_t caller_uid, const char *path, const struct timespec tv[2],
             struct fuse_file_info *fi)
 {
     if (g_web) return -EROFS;
@@ -210,12 +210,12 @@ xfs_utimens(const char *path, const struct timespec tv[2],
     char pbuf[XRDC_PATH_MAX];
     struct brix_fuse_ctx_setattr a = { srv_path(path, pbuf, sizeof(pbuf)),
                              1, { tv[0], tv[1] }, 0, 0, 0 };
-    return xfs_meta(brix_fuse_op_setattr, &a, &st);
+    return xfs_meta(caller_uid, brix_fuse_op_setattr, &a, &st);
 }
 
 
 int
-xfs_chown(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi)
+xfs_chown(uid_t caller_uid, const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi)
 {
     if (g_web) return -EROFS;
     (void) fi;
@@ -230,13 +230,13 @@ xfs_chown(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi)
     a.set_owner = 1;
     a.uid = (uint32_t) uid;
     a.gid = (uint32_t) gid;
-    return xfs_meta(brix_fuse_op_setattr, &a, &st);
+    return xfs_meta(caller_uid, brix_fuse_op_setattr, &a, &st);
 }
 
 
 /* symlink / hard link / readlink — vendor extensions; ENOTSUP when unadvertised. */
 int
-xfs_symlink(const char *target, const char *linkpath)
+xfs_symlink(uid_t caller_uid, const char *target, const char *linkpath)
 {
     if (g_web) return -EROFS;
     if (!g_ext_symlink) {
@@ -248,7 +248,7 @@ xfs_symlink(const char *target, const char *linkpath)
     char lbuf[XRDC_PATH_MAX];
     struct brix_fuse_ctx_link2 a = { target, srv_path(linkpath, lbuf, sizeof(lbuf)) };
     /* a re-issued symlink whose first reply was lost reports EEXIST → success */
-    return xfs_meta_idem(brix_fuse_op_symlink, &a, EEXIST, &st);
+    return xfs_meta_idem(caller_uid, brix_fuse_op_symlink, &a, EEXIST, &st);
 }
 
 
@@ -274,14 +274,14 @@ xfs_symlink(const char *target, const char *linkpath)
  *      → -1.
  */
 static int
-xfs_readlink_one_attempt(const char *sp, char *buf, size_t size, brix_status *st)
+xfs_readlink_one_attempt(brix_pool *pool, const char *sp, char *buf, size_t size, brix_status *st)
 {
-    brix_conn *c = brix_pool_checkout(g_pool, st);
+    brix_conn *c = brix_pool_checkout(pool, st);
     if (c == NULL) {
         return brix_status_retryable(st) ? 0 : -1;
     }
     ssize_t n = brix_readlink(c, sp, buf, size, st);
-    brix_pool_checkin(g_pool, c, n >= 0 ? 1 : xfs_conn_healthy(st));
+    brix_pool_checkin(pool, c, n >= 0 ? 1 : xfs_conn_healthy(st));
     if (n >= 0) {
         return 1;   /* FUSE: buf is NUL-terminated on success */
     }
@@ -290,11 +290,16 @@ xfs_readlink_one_attempt(const char *sp, char *buf, size_t size, brix_status *st
 
 
 int
-xfs_readlink(const char *path, char *buf, size_t size)
+xfs_readlink(uid_t caller_uid, const char *path, char *buf, size_t size)
 {
     if (g_web) return -EINVAL;
     if (!g_ext_readlink || size == 0) {
         return -ENOTSUP;
+    }
+    brix_pool *pool;
+    int identity_rc = xfs_ident_get(caller_uid, &pool, NULL);
+    if (identity_rc != 0) {
+        return identity_rc;
     }
     brix_status st; brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
@@ -309,7 +314,7 @@ xfs_readlink(const char *path, char *buf, size_t size)
     for (attempt = 0; ; attempt++) {
         int done = deadline ? (brix_mono_ns() >= deadline) : (attempt >= max);
         if (attempt > 0) { brix_backoff_sleep_fast(attempt - 1); }
-        int r = xfs_readlink_one_attempt(sp, buf, size, &st);
+        int r = xfs_readlink_one_attempt(pool, sp, buf, size, &st);
         if (r > 0) {
             return 0;   /* FUSE: return 0 on success */
         }
@@ -321,7 +326,7 @@ xfs_readlink(const char *path, char *buf, size_t size)
 
 
 int
-xfs_statfs(const char *path, struct statvfs *stbuf)
+xfs_statfs(uid_t caller_uid, const char *path, struct statvfs *stbuf)
 {
     char               text[1024];
     brix_status        st;
@@ -337,7 +342,7 @@ xfs_statfs(const char *path, struct statvfs *stbuf)
     char pbuf[XRDC_PATH_MAX];
     struct ctx_qspace a = { srv_path((path && path[0]) ? path : "/", pbuf,
                                      sizeof(pbuf)), text, sizeof(text) };
-    int rc = xfs_meta(op_qspace, &a, &st);
+    int rc = xfs_meta(caller_uid, op_qspace, &a, &st);
     if (rc != 0) {
         return rc;
     }
@@ -354,7 +359,7 @@ xfs_statfs(const char *path, struct statvfs *stbuf)
 
 
 int
-xfs_access(const char *path, int mask)
+xfs_access(uid_t caller_uid, const char *path, int mask)
 {
     if (g_web) return (mask & W_OK) ? -EROFS : 0;
     brix_statinfo si;
@@ -366,5 +371,5 @@ xfs_access(const char *path, int mask)
     brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     struct brix_fuse_ctx_stat a = { srv_path(path, pbuf, sizeof(pbuf)), &si };
-    return xfs_meta(brix_fuse_op_stat, &a, &st);
+    return xfs_meta(caller_uid, brix_fuse_op_stat, &a, &st);
 }

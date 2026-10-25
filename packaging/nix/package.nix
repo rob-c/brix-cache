@@ -9,6 +9,7 @@ let
     filter = path: type:
       let
         name = baseNameOf path;
+        relative = lib.removePrefix ((toString src) + "/") (toString path);
         generatedSuffixes = [
           ".a"
           ".d"
@@ -34,6 +35,11 @@ let
           "result"
           "__pycache__"
         ])
+        # Development-only edits must not rebuild every native package. Keep
+        # client/tests (part of its independent source tree), deployment docs,
+        # migration tools and service units; only these root inputs are absent.
+        && !(lib.elem relative [ "tests" "flake.nix" "flake.lock" "packaging/nix" ])
+        && !(lib.hasPrefix "._" name)
         && !(lib.hasPrefix "result-" name)
         && !(lib.hasInfix ".so." name)
         && !(lib.hasInfix ".dylib." name)
@@ -141,6 +147,10 @@ let
     # default explicitly and keep one OpenSSL ABI in the server process.
     openssl = pkgs.openssl;
   }).overrideAttrs (old: {
+    # Build the available backend; runtime selection still defaults to the
+    # portable thread pool. Without this explicit configure opt-in liburing
+    # can be installed yet every server io_uring contract silently uses stubs.
+    BRIX_ENABLE_IO_URING = "1";
     # Module buildInputs supply the .pc files; pkg-config itself is a native
     # build tool and must be added to the resulting nginx derivation.
     nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.pkg-config ];
@@ -153,19 +163,16 @@ let
   # The installed nginx closure intentionally contains only runtime files.
   # Native self-contained seam tests additionally need nginx's source headers
   # and the generated ngx_auto_* headers from the exact release configuration.
-  # Preserve that configured tree in a development-only output rather than
-  # bloating the release package or reconstructing it imperatively in /tmp.
-  # Object-linked tests continue to skip when the runtime package deliberately
-  # omits intermediate addon objects.
+  # Preserve the fully built configured tree in a development-only output
+  # rather than bloating the release package or reconstructing it imperatively
+  # in /tmp.  Keeping the addon objects is intentional: the native contract
+  # tests link focused seam binaries from those exact objects, and an SDK that
+  # contains only headers turns supported functionality into false skips.
   nginx-brix-test-sdk = nginx-brix-cache.overrideAttrs (_old: {
     pname = "brix-cache-nginx-test-sdk";
     outputs = [ "out" ];
     allowedReferences = null;
     disallowedReferences = [ ];
-    buildPhase = ''
-      runHook preBuild
-      runHook postBuild
-    '';
     installPhase = ''
       mkdir -p "$out"
       cp -R . "$out/"

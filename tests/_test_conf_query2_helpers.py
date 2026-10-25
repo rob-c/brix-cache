@@ -235,5 +235,5 @@ def ref_crc32(data):
 
 def _data(ctx, name):
     import os
-    with open(os.path.join(ctx["our_data"], name), "rb") as f:
-        return f.read()
+    from lib_py.reference_host import fixture_read_bytes
+    return fixture_read_bytes(os.path.join(ctx["our_data"], name))

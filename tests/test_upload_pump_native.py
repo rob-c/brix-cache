@@ -15,7 +15,8 @@ def upload_pump_binary(native_compile):
     code = (root / "tests/c/upload_pump_test.c").read_text()
     return native_compile(
         "upload-pump", code,
-        ["client/lib/xfer/copy_pump.c", "client/lib/core/types/status.c"],
+        ["client/lib/xfer/copy_pump.c", "client/lib/core/types/status.c",
+         "src/core/compat/error_mapping.c", "src/core/compat/kxr_names.c"],
         ["-I" + str(root / "client/lib"), "-DXRDPROTO_NO_NGX",
          "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections",
          "-fsanitize=address,undefined", "-fno-sanitize-recover=all"],

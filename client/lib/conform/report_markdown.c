@@ -6,6 +6,7 @@
  * HOW: Escape table separators/newlines and stream rows in registry order.
  */
 #include "conform/report_internal.h"
+#include "conform/report_fields.h"
 
 #include <string.h>
 
@@ -47,14 +48,20 @@ brix_conform_report_markdown(FILE *out,
         fputs("\n- Also: ", out);
         markdown_text(out, meta->also_targets[index]);
     }
-    fputs("\n- Profile: ", out);
-    markdown_text(out, meta->profile); fputs("\n- Shape: ", out);
-    markdown_text(out, meta->shape); fputs("\n- Budget: ", out);
-    markdown_text(out, meta->budget); fputs("\n- Reference: ", out);
-    markdown_text(out, meta->reference); fputs("\n- Run key: ", out);
-    markdown_text(out, meta->run_key); fputs("\n- Timestamp: ", out);
-    markdown_text(out, meta->timestamp); fputs("\n- Tool version: ", out);
-    markdown_text(out, meta->tool_version);
+    {
+        const brix_conform_report_field fields[] = {
+            { "\n- Profile: ", meta->profile },
+            { "\n- Shape: ", meta->shape },
+            { "\n- Budget: ", meta->budget },
+            { "\n- Reference: ", meta->reference },
+            { "\n- Run key: ", meta->run_key },
+            { "\n- Timestamp: ", meta->timestamp },
+            { "\n- Tool version: ", meta->tool_version },
+        };
+
+        brix_conform_report_fields(out, fields,
+            sizeof(fields) / sizeof(fields[0]), markdown_text);
+    }
     for (index = 0; index < meta->negative_verify_count; index++) {
         fputs("\n- Negative verification: ", out);
         markdown_text(out, meta->negative_verify[index]);

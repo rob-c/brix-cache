@@ -27,6 +27,7 @@
  */
 #include "core/compat/log_event.h"
 #include "http_cache_fill.h"
+#include "http_serve_offload.h"
 #include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_* */
 #include "fs/backend/http/sd_http.h"    /* sd_http_n_endpoints (verify budget) */
 #include "fs/cache/fill_retry.h"        /* T20 classification + backoff */
@@ -164,26 +165,6 @@ brix_http_fill_cred_wipe(brix_http_fill_cred_t *cred)
 
 #if (NGX_THREADS)
 
-/* Lazily resolve the export's async thread pool: server postconfig fills only the
- * server-level loc_conf, so a nested location block resolves on first use (the
- * webdav/copy.c idiom). NULL when no pool is configured. */
-static ngx_thread_pool_t *
-brix_http_cache_fill_pool(ngx_http_brix_shared_conf_t *common)
-{
-    ngx_thread_pool_t *pool = common->thread_pool;
-
-    if (pool == NULL) {
-        static ngx_str_t  default_name = ngx_string("default");
-        ngx_str_t        *pname = common->thread_pool_name.len > 0
-                                  ? &common->thread_pool_name : &default_name;
-
-        pool = ngx_thread_pool_get((ngx_cycle_t *) ngx_cycle, pname);
-        if (pool != NULL) {
-            common->thread_pool = pool;
-        }
-    }
-    return pool;
-}
 
 ngx_int_t
 brix_http_cache_fill_if_needed(ngx_http_request_t *r,
@@ -238,7 +219,7 @@ brix_http_cache_fill_if_needed(ngx_http_request_t *r,
         return arc;
     }
 
-    pool = brix_http_cache_fill_pool(common);
+    pool = brix_http_thread_pool(common);
     if (pool == NULL) {
         /* No pool: nothing can run off-loop, so fall through to the inline path
          * (preserves the pre-SP2 behaviour - a remote miss may stall/fail). */

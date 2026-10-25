@@ -42,7 +42,7 @@ class TestFileCreate:
         assert status.ok, f"open DELETE failed: {status.message}"
         f.write(b"new", offset=0)
         f.close()
-        assert open(p, "rb").read() == b"new"
+        assert fixture_read_bytes(p) == b"new"
 
     def test_create_with_force_flag_overwrites(self):
         """FORCE flag opens existing file without failing."""
@@ -109,7 +109,7 @@ class TestFileWrite:
                OpenFlags.NEW | OpenFlags.UPDATE)
         f.write(b"WORLD", offset=6)
         f.close()
-        raw = open(disk(f"{PREFIX}offset.bin"), "rb").read()
+        raw = fixture_read_bytes(disk(f"{PREFIX}offset.bin"))
         assert raw == b"\x00" * 6 + b"WORLD"
 
     def test_write_overwrite_middle(self):
@@ -120,7 +120,7 @@ class TestFileWrite:
         f.open(f"{ANON_URL}//{PREFIX}mid.txt", OpenFlags.UPDATE)
         f.write(b"XRootD", offset=6)
         f.close()
-        assert open(p, "rb").read() == b"Hello XRootD"
+        assert fixture_read_bytes(p) == b"Hello XRootD"
 
     def test_write_multiple_chunks(self):
         """Write in several calls; verify the assembled file is correct."""
@@ -135,7 +135,7 @@ class TestFileWrite:
             offset += len(chunk)
         f.close()
         expected = b"".join(chunks)
-        assert open(disk(f"{PREFIX}chunks.bin"), "rb").read() == expected
+        assert fixture_read_bytes(disk(f"{PREFIX}chunks.bin")) == expected
 
     def test_write_large_file_md5(self):
         """Upload 30 MiB via xrdcp and verify MD5 integrity."""
@@ -259,7 +259,7 @@ class TestFileSync:
         f.write(content, offset=0)
         status, _ = f.sync()
         assert status.ok, f"sync failed: {status.message}"
-        assert open(disk(f"{PREFIX}sync.txt"), "rb").read() == content
+        assert fixture_read_bytes(disk(f"{PREFIX}sync.txt")) == content
         f.close()
 
     @pytest.mark.skipif(not RESUME_ON_AVAILABLE,
@@ -287,7 +287,7 @@ class TestFileSync:
         assert status.ok and data == content, "sync'd data must read back"
         f.close()
         # Synchronously committed to the final path on close.
-        assert open(disk(remote), "rb").read() == content
+        assert fixture_read_bytes(disk(remote)) == content
         os.unlink(disk(remote))
 
     def test_sync_on_read_only_file(self):
@@ -318,7 +318,7 @@ class TestFileTruncate:
         status, _ = f.truncate(13)
         assert status.ok, f"truncate failed: {status.message}"
         f.close()
-        assert open(disk(f"{PREFIX}trunc_shrink.txt"), "rb").read() == b"Hello, World!"
+        assert fixture_read_bytes(disk(f"{PREFIX}trunc_shrink.txt")) == b"Hello, World!"
 
     def test_truncate_extend_via_handle(self):
         """File.truncate() to a larger size zero-extends the file."""
@@ -330,7 +330,7 @@ class TestFileTruncate:
         status, _ = f.truncate(5)
         assert status.ok, f"truncate extend failed: {status.message}"
         f.close()
-        assert open(disk(f"{PREFIX}trunc_ext.bin"), "rb").read() == b"AB\x00\x00\x00"
+        assert fixture_read_bytes(disk(f"{PREFIX}trunc_ext.bin")) == b"AB\x00\x00\x00"
 
     def test_truncate_to_zero(self):
         """Truncate a file to zero bytes."""

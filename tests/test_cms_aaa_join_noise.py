@@ -57,6 +57,10 @@ class TestOutageAndRejoin:
         the read deadline: the join gauge falls to 0 — the node knows it is OUT
         of the mesh — while physics clients keep getting served."""
         assert site.peer.wait_frames(CMS_RR_LOGIN, 1, timeout=JOIN_TIMEOUT)
+        # ``hang`` black-holes newly accepted connections; freeze the
+        # manager-to-node half of the established relay as well so this is a
+        # real mid-session silence, then keep reconnect attempts black-holed.
+        site.link.ctl("stall down")
         site.link.ctl("hang")
 
         assert site.wait_registered(False, timeout=REJOIN_TIMEOUT), \

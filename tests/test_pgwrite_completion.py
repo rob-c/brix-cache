@@ -13,6 +13,7 @@ import sys
 import pytest
 
 from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
+from lib_py.nginx_build import configured_dependency_includes
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -24,11 +25,12 @@ def _nginx_include_flags():
     if not (build / "ngx_auto_config.h").is_file():
         pytest.skip("configured nginx headers unavailable")
     includes = [source / part for part in (
-        "src/core", "src/event", "src/event/modules", "src/os/unix",
+        "src/core", "src/event", "src/event/modules", "src/event/quic", "src/os/unix",
         "src/http", "src/http/modules", "src/stream",
     )]
     includes.extend((build, REPO / "src", REPO / "shared"))
-    return [f"-I{path}" for path in includes]
+    return [f"-I{path}" for path in includes] + configured_dependency_includes(
+        build / 'Makefile', source)
 
 
 def _completion_sources():

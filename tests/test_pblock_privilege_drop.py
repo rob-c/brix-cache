@@ -27,10 +27,13 @@ from __future__ import annotations
 
 import os
 import pwd
+import grp
 import shutil
+from pathlib import Path
 
 import pytest
 import requests
+import psutil
 
 import settings
 from server_launcher import LifecycleHarness
@@ -38,13 +41,20 @@ from server_registry import NginxInstanceSpec
 
 import impersonation_gridmap_helpers as H
 from settings import BIND_HOST
+from lib_py.process_host import nginx_worker_title
+from lib_py.util import process_cmdline
 
 def _check_test_pblock_blobs_and_db_never_root_owned_1(r):
     assert r.status_code in (200, 201, 204), r.text
 
 def _check_test_pblock_blobs_and_db_never_root_owned_2(content):
+    # nginx escapes quotes inside the structured message as ``\x22`` when the
+    # error log is written to a file; terminal-oriented builds may retain the
+    # literal quotes.  Both renderings describe the same audited drop event.
     assert ('dropped to "nobody"' in content                        # pblock drop
-            or 'dropped a root-capable worker to "nobody"' in content), \
+            or 'dropped a root-capable worker to "nobody"' in content
+            or r'dropped to \x22nobody\x22' in content
+            or r'dropped a root-capable worker to \x22nobody\x22' in content), \
         "expected the worker root->nobody drop to be logged"
 
 
@@ -58,6 +68,7 @@ pytestmark = [
 BIND = BIND_HOST
 BASE = os.path.join(settings.TEST_ROOT, "pbdrop")
 NOBODY_UID = pwd.getpwnam("nobody").pw_uid
+NOBODY_GID = pwd.getpwnam("nobody").pw_gid
 
 
 @pytest.fixture(scope="module")
@@ -82,6 +93,11 @@ def _mkexport(name: str, mode: int, owner_uid: int | None = None) -> str:
     os.makedirs(os.path.join(root, "harness_data"), exist_ok=True)
     if owner_uid is not None:
         os.chown(export, owner_uid, owner_uid)
+    else:
+        # BSD inherits the parent gid even without S_ISGID. Keep the successful
+        # storage fixture non-root-grouped; inspect actual worker IDs separately
+        # so inheritance cannot conceal a failed credential drop.
+        os.chown(export, -1, NOBODY_GID)
     os.chmod(export, mode)
     H.make_world_traversable(export)
     return export
@@ -98,7 +114,8 @@ def _start(harness, name: str, export: str, block_size: str = "64m"):
         protocol="http",
         data_root=os.path.join(BASE, name, "harness_data"),
         readiness="tcp",
-        template_values={"EXPORT": export, "BLOCK_SIZE": block_size},
+        template_values={"EXPORT": export, "BLOCK_SIZE": block_size,
+                         "ROOT_GROUP": grp.getgrgid(pwd.getpwnam('root').pw_gid).gr_name},
     ))
     # The worker drops to nobody, so its client-body temp dir (created root-owned
     # by the master) must be writable by that account for spooled (large) bodies —
@@ -131,6 +148,18 @@ def _assert_unprivileged(st: os.stat_result, where: str):
     assert st.st_uid == NOBODY_UID, (
         f"{where} should be owned by the dropped account nobody "
         f"(uid {NOBODY_UID}), got uid {st.st_uid}")
+    assert st.st_gid == NOBODY_GID, f"{where} has unexpected group {st.st_gid}"
+
+
+def _assert_worker_identity(prefix):
+    """Parent-gid inheritance is not evidence of actual process credentials."""
+    master = psutil.Process(int((Path(prefix) / 'logs/nginx.pid').read_text()))
+    workers = [child for child in master.children()
+               if nginx_worker_title(process_cmdline(child.pid))]
+    assert workers, 'the actual serving worker must be inspectable'
+    for worker in workers:
+        assert tuple(worker.uids()) == (NOBODY_UID,) * 3, 'worker retains foreign/saved uid'
+        assert tuple(worker.gids()) == (NOBODY_GID,) * 3, 'worker retains foreign/saved gid'
 
 
 def test_pblock_blobs_and_db_never_root_owned(harness):
@@ -141,6 +170,7 @@ def test_pblock_blobs_and_db_never_root_owned(harness):
 
     r = requests.put(f"{url}/object.dat", data=b"pblock-body-xyz", timeout=30)
     _check_test_pblock_blobs_and_db_never_root_owned_1(r)
+    _assert_worker_identity(prefix)
 
     blocks = _block_files(export)
     cats = _catalog_files(export)
@@ -169,11 +199,12 @@ def test_pblock_large_object_stripes_into_multiple_unprivileged_blocks(harness):
     """A >block_size object stripes into multiple block files, every one owned by
     the dropped unprivileged account — striping is on by default and never root."""
     export = _mkexport("stripe", 0o777)
-    url, _ = _start(harness, "pb-stripe", export, block_size="1m")
+    url, prefix = _start(harness, "pb-stripe", export, block_size="1m")
 
     body = b"S" * (3 * 1024 * 1024 + 4096)  # > 3 * 1 MiB blocks
     r = requests.put(f"{url}/big.bin", data=body, timeout=60)
     assert r.status_code in (200, 201, 204), r.text
+    _assert_worker_identity(prefix)
 
     blocks = _block_files(export)
     assert len(blocks) >= 3, (

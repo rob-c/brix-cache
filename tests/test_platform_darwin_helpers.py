@@ -41,6 +41,8 @@ static inline void vDSP_dotpr(const float *a, int ia, const float *b, int ib,
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+/* A private symbol prevents native ELF libc interposition bypassing the fixture. */
+#define sysctlbyname brix_fixture_sysctlbyname
 #include "src/platform/darwin/cpu_cache.h"
 #include "src/platform/darwin/sysctl_value.h"
 #define BRIX_PLATFORM_H

@@ -1,7 +1,26 @@
 #include "core/compat/log_event.h"
 #include "server.h"
+#include "server_recv_internal.h"
 #include "core/compat/net_target.h"
 #include "auth/sss/sss_internal.h"
+
+/* ---- Require a valid state for starting/repeating LOGIN ----
+ * WHAT: Return NGX_OK for a permitted state; otherwise log and close the peer.
+ * WHY: A repeated LOGIN must not bypass an outstanding SSS challenge; unknown
+ *      states must also fail closed rather than publish a selectable node.
+ * HOW: Allow NONE, REQUESTED and DONE only; refuse before parsing/registration.
+ */
+ngx_int_t
+brix_cms_srv_require_login_state(brix_cms_srv_ctx_t *ctx)
+{
+    if (ctx->auth_state == CMS_AUTH_NONE || ctx->auth_state == CMS_AUTH_REQUESTED
+        || ctx->auth_state == CMS_AUTH_DONE) {
+        return NGX_OK;
+    }
+    cms_srv_log_auth_fail(ctx, "login-during-auth");
+    cms_srv_fail_close(ctx, BRIX_SESS_END_ERROR);
+    return NGX_ERROR;
+}
 
 /*
  * server_auth.c — CMS registration authentication (Phase 28 W1).

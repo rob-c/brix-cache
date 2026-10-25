@@ -525,7 +525,7 @@ sd_s3_commit(sd_s3_file *f, char *errbuf, size_t errcap)
         char             auth[SD_S3_AUTH_HDRS_CAP];
         char             ck[9];
         brix_s3_resp_t resp;
-        int              sr;
+        int              sr, rc;
         /* #12: attach a signed x-amz-checksum-crc32 so the origin validates the
          * body and rejects a wire-corrupted PUT with 400 BadDigest. */
         if (f->put_checksum) {
@@ -545,9 +545,20 @@ sd_s3_commit(sd_s3_file *f, char *errbuf, size_t errcap)
             sd_s3_set_err(errbuf, errcap, "s3 PUT: sign failed");
             return -1;
         }
-        if (f->transport->request(f->tctx, f->host, f->port, f->tls, "PUT",
-                                  f->key, auth, f->put_buf, f->put_len,
-                                  f->timeout_ms, &resp, errbuf, errcap) != 0) {
+        rc = f->transport->request(f->tctx, f->host, f->port, f->tls, "PUT",
+                                   f->key, auth, f->put_buf, f->put_len,
+                                   f->timeout_ms, &resp, errbuf, errcap);
+        /* An unconditional whole-object PUT is idempotent. Retry once when the
+         * response is lost: the first request may already have published, and
+         * reporting failure would leave a visible object behind a failed PUT.
+         * Conditional publishes are never replayed because another writer may
+         * have satisfied or invalidated their predicate after the first leg. */
+        if (rc != 0 && f->cond_name[0] == '\0') {
+            rc = f->transport->request(f->tctx, f->host, f->port, f->tls,
+                "PUT", f->key, auth, f->put_buf, f->put_len, f->timeout_ms,
+                &resp, errbuf, errcap);
+        }
+        if (rc != 0) {
             return -1;
         }
         if (resp.status != 200) {

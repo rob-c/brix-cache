@@ -101,10 +101,12 @@ static int fl_components(fl_ctx_t *fx, const char *path,
     return (int) n;
 }
 
-/* Descend to the directory holding components[0..n-1], creating missing
- * intermediates (mode 0755). Every hop is openat(O_NOFOLLOW|O_DIRECTORY):
- * a symlink planted at any component is ELOOP — the containment wall.
- * Returns an owned fd or -1. */
+/* Descend through real directories without following archive-planted links.
+ * WHAT: Return an owned parent fd, or -1 with a bounded diagnostic.
+ * WHY: O_NOFOLLOW failures differ by host: ELOOP, ENOTDIR or EMLINK all
+ *      refuse the same unsafe descent; none permits a fallback traversal.
+ * HOW: 1. Duplicate the root. 2. Open/create each directory with O_NOFOLLOW.
+ *      3. Close the previous fd and report any refusal before continuing. */
 static int fl_descend(fl_ctx_t *fx, const char *const *comps, size_t n) {
     int    cur = dup(fx->root);
     size_t i;
@@ -130,7 +132,7 @@ static int fl_descend(fl_ctx_t *fx, const char *const *comps, size_t n) {
         close(cur);
         if (next < 0) {
             errno = saved;
-            if (errno == ELOOP || errno == ENOTDIR)
+            if (errno == ELOOP || errno == ENOTDIR || errno == EMLINK)
                 return fl_fail(fx, "containment: '%s' is not a real "
                                "directory (symlink escape refused)", comps[i],
                                "");

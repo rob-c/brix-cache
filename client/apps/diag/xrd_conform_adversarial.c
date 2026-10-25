@@ -1,5 +1,5 @@
 /* Phase-118 bounded, deterministic adversarial ROOT corpus. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "protocols/root/protocol/codec/wire_codec.h"
 #include "protocols/root/protocol/frame_hdr.h"
 
@@ -48,13 +48,6 @@ typedef struct {
     unsigned open_fds;
 } adv_metrics;
 
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
-
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
 static int
 adversarial_active(xrd_conform_execution *execution)
@@ -414,28 +407,20 @@ endpoint_alive(xrd_conform_execution *execution, const brix_url *url)
     return 1;
 }
 
-void
-xrd_conform_probe_adversarial(xrd_conform_execution *execution,
-    const brix_url *url, brix_conn *baseline, const char *path)
-{
-    brix_statinfo before, after;
-    brix_status status;
-    adv_metrics resources_before = { 0, 0 };
-    adv_metrics resources_after = { 0, 0 };
-    unsigned kind;
-    int before_ok;
-    int all_terminated = 1;
-    int all_alive = 1;
-    int classified = 1;
-    unsigned findings = 0;
-    unsigned minimized = 0;
-    int after_ok;
-    int resource_before_ok;
+typedef struct {
+    int all_terminated;
+    int all_alive;
+    int classified;
+    unsigned findings;
+    unsigned minimized;
+} adv_corpus_result;
 
-    if (!adversarial_active(execution)) return;
-    resource_before_ok = read_metrics(execution, &resources_before) == 0;
-    brix_status_clear(&status);
-    before_ok = brix_stat(baseline, path, &before, &status) == 0;
+static adv_corpus_result
+run_adversarial_cases(xrd_conform_execution *execution, const brix_url *url)
+{
+    adv_corpus_result result = { 1, 1, 1, 0, 0 };
+    unsigned kind;
+
     for (kind = 0; kind < ADV_CASE_COUNT; kind++) {
         adv_wire wire;
         adv_outcome outcome = { 0, 0, 0 };
@@ -444,67 +429,108 @@ xrd_conform_probe_adversarial(xrd_conform_execution *execution,
         if (build_case_wire(execution, url, (adv_case_kind) kind, &wire) == 0)
             outcome = run_wire(execution, url, &wire);
         finding = finding_class(&outcome);
-
-        all_terminated &= outcome.terminated;
-        classified &= !outcome.internal_error;
-        all_alive &= endpoint_alive(execution, url);
-        if (finding != ADV_FINDING_NONE) {
-            findings++;
-            if (row_active(execution, "ADV-008")
-                && minimize_finding(execution, url, &wire, finding)
-                && retain_reproducer(execution, &wire) == 0) minimized++;
-        }
+        result.all_terminated &= outcome.terminated;
+        result.classified &= !outcome.internal_error;
+        result.all_alive &= endpoint_alive(execution, url);
+        if (finding == ADV_FINDING_NONE) continue;
+        result.findings++;
+        if (xrd_conform_row_active(execution, "ADV-008")
+            && minimize_finding(execution, url, &wire, finding)
+            && retain_reproducer(execution, &wire) == 0)
+            result.minimized++;
     }
+    return result;
+}
+
+static void
+grade_corpus_health(xrd_conform_execution *execution,
+    const adv_corpus_result *result, int object_healthy,
+    const brix_status *status)
+{
+    xrd_conform_result_set(execution, "ADV-001",
+        result->all_terminated ? BRIX_CONFORM_VERDICT_CONFORMANT
+                               : BRIX_CONFORM_VERDICT_DIVERGENT,
+        result->all_terminated ? "adversarial-cases-terminated"
+                               : "adversarial-case-left-half-open",
+        "defined reply or prompt close", NULL);
+    xrd_conform_result_set(execution, "ADV-002",
+        result->all_alive ? BRIX_CONFORM_VERDICT_CONFORMANT
+                          : BRIX_CONFORM_VERDICT_DIVERGENT,
+        result->all_alive ? "endpoint-live-after-every-case"
+                          : "endpoint-unavailable-after-case", NULL, NULL);
+    xrd_conform_result_set(execution, "ADV-005",
+        object_healthy ? BRIX_CONFORM_VERDICT_CONFORMANT
+                       : BRIX_CONFORM_VERDICT_DIVERGENT,
+        object_healthy ? "baseline-object-healthy-after-corpus"
+                       : "baseline-object-changed-after-corpus", NULL,
+        status->msg);
+    xrd_conform_result_set(execution, "ADV-006",
+        result->classified ? BRIX_CONFORM_VERDICT_CONFORMANT
+                           : BRIX_CONFORM_VERDICT_DIVERGENT,
+        result->classified ? "no-internal-or-unclassified-errors"
+                           : "internal-or-unclassified-error-observed",
+        NULL, NULL);
+}
+
+static void
+grade_corpus_definition(xrd_conform_execution *execution,
+    const adv_corpus_result *result)
+{
+    int complete = generator_domains_complete(execution);
+    int deterministic = generator_is_deterministic(execution,
+        &execution->run->key);
+    int minimized = !xrd_conform_row_active(execution, "ADV-008")
+        || result->findings == result->minimized;
+    const char *minimize_reason = "finding-minimization-incomplete";
+
+    if (result->findings == 0)
+        minimize_reason = "no-findings-required-minimization";
+    else if (result->findings == result->minimized)
+        minimize_reason = "all-findings-minimized-for-replay";
+    xrd_conform_result_set(execution, "ADV-007",
+        complete ? BRIX_CONFORM_VERDICT_CONFORMANT
+                 : BRIX_CONFORM_VERDICT_DIVERGENT,
+        complete ? "corpus-domains-enumerated"
+                 : "corpus-domain-generation-failed",
+        "all uint16 opcodes, uint8 options and hostile shape classes", NULL);
+    xrd_conform_result_set(execution, "ADV-009",
+        deterministic ? BRIX_CONFORM_VERDICT_CONFORMANT
+                      : BRIX_CONFORM_VERDICT_DIVERGENT,
+        deterministic ? "run-key-reproduces-corpus"
+                      : "run-key-corpus-not-deterministic", NULL, NULL);
+    xrd_conform_result_set(execution, "ADV-008",
+        minimized ? BRIX_CONFORM_VERDICT_CONFORMANT
+                  : BRIX_CONFORM_VERDICT_DIVERGENT,
+        minimize_reason,
+        "deletion-minimal exact request bytes in ADV-008.xrdcap", NULL);
+}
+
+void
+xrd_conform_probe_adversarial(xrd_conform_execution *execution,
+    const brix_url *url, brix_conn *baseline, const char *path)
+{
+    brix_statinfo before, after;
+    brix_status status;
+    adv_metrics resources_before = { 0, 0 };
+    adv_metrics resources_after = { 0, 0 };
+    int before_ok;
+    int after_ok;
+    int resource_before_ok;
+    int object_healthy;
+    adv_corpus_result result;
+
+    if (!adversarial_active(execution)) return;
+    resource_before_ok = read_metrics(execution, &resources_before) == 0;
+    brix_status_clear(&status);
+    before_ok = brix_stat(baseline, path, &before, &status) == 0;
+    result = run_adversarial_cases(execution, url);
     brix_status_clear(&status);
     after_ok = brix_stat(baseline, path, &after, &status) == 0;
     grade_resources(execution, resource_before_ok,
         &resources_before, read_metrics(execution, &resources_after) == 0,
         &resources_after);
-    xrd_conform_result_set(execution, "ADV-001",
-        all_terminated ? BRIX_CONFORM_VERDICT_CONFORMANT
-                       : BRIX_CONFORM_VERDICT_DIVERGENT,
-        all_terminated ? "adversarial-cases-terminated"
-                       : "adversarial-case-left-half-open",
-        "defined reply or prompt close", NULL);
-    xrd_conform_result_set(execution, "ADV-002",
-        all_alive ? BRIX_CONFORM_VERDICT_CONFORMANT
-                  : BRIX_CONFORM_VERDICT_DIVERGENT,
-        all_alive ? "endpoint-live-after-every-case"
-                  : "endpoint-unavailable-after-case", NULL, NULL);
-    xrd_conform_result_set(execution, "ADV-005",
-        before_ok && after_ok && before.id == after.id
-            && before.size == after.size
-            ? BRIX_CONFORM_VERDICT_CONFORMANT
-            : BRIX_CONFORM_VERDICT_DIVERGENT,
-        before_ok && after_ok && before.id == after.id
-            && before.size == after.size
-            ? "baseline-object-healthy-after-corpus"
-            : "baseline-object-changed-after-corpus", NULL, status.msg);
-    xrd_conform_result_set(execution, "ADV-006",
-        classified ? BRIX_CONFORM_VERDICT_CONFORMANT
-                   : BRIX_CONFORM_VERDICT_DIVERGENT,
-        classified ? "no-internal-or-unclassified-errors"
-                   : "internal-or-unclassified-error-observed", NULL, NULL);
-    xrd_conform_result_set(execution, "ADV-007",
-        generator_domains_complete(execution)
-            ? BRIX_CONFORM_VERDICT_CONFORMANT
-            : BRIX_CONFORM_VERDICT_DIVERGENT,
-        generator_domains_complete(execution) ? "corpus-domains-enumerated"
-                                              : "corpus-domain-generation-failed",
-        "all uint16 opcodes, uint8 options and hostile shape classes", NULL);
-    xrd_conform_result_set(execution, "ADV-009",
-        generator_is_deterministic(execution, &execution->run->key)
-            ? BRIX_CONFORM_VERDICT_CONFORMANT
-            : BRIX_CONFORM_VERDICT_DIVERGENT,
-        generator_is_deterministic(execution, &execution->run->key)
-            ? "run-key-reproduces-corpus"
-            : "run-key-corpus-not-deterministic", NULL, NULL);
-    xrd_conform_result_set(execution, "ADV-008",
-        !row_active(execution, "ADV-008") || findings == minimized
-            ? BRIX_CONFORM_VERDICT_CONFORMANT
-            : BRIX_CONFORM_VERDICT_DIVERGENT,
-        findings == 0 ? "no-findings-required-minimization"
-            : findings == minimized ? "all-findings-minimized-for-replay"
-                                    : "finding-minimization-incomplete",
-        "deletion-minimal exact request bytes in ADV-008.xrdcap", NULL);
+    object_healthy = before_ok && after_ok && before.id == after.id
+        && before.size == after.size;
+    grade_corpus_health(execution, &result, object_healthy, &status);
+    grade_corpus_definition(execution, &result);
 }

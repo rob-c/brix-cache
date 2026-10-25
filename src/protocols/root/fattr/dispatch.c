@@ -205,7 +205,9 @@ fattr_fhandle_target(brix_ctx_t *ctx, ngx_connection_t *c,
  *       brix_extract_path validates, brix_beneath_full_path resolves beneath
  *       the export root, brix_auth_gate enforces READ for get/list and UPDATE
  *       for set/del, and a confined no-follow brix_vfs_stat verifies the path
- *       is within the export root (and exists) without a raw open_beneath.
+ *       is within the export root without a raw open_beneath. Get alone admits
+ *       ENOENT so the confined attribute reads report each missing target in
+ *       its vector slot; permission and confinement errors still stop here.
  *       The fattr ops then operate by path (through the same vctx) so a
  *       directory list can recurse. */
 static ngx_int_t
@@ -250,13 +252,16 @@ fattr_path_target(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     {
-        /* Confinement check via the VFS: a confined no-follow stat verifies
-         * the path is within the export root (and exists). */
+        /* A missing Get target is an attribute-level error. Preserve the
+         * initialized, authorized VFS context so each confined get records
+         * ENOENT in its own vector slot. Never admit other probe errors or
+         * change the target rules for List/Set/Del. */
         brix_vfs_stat_t vst;
 
         st->path = st->full_path;
         fattr_bind_vctx(ctx, c, conf, st);
-        if (brix_vfs_stat(&st->vctx, &vst) != NGX_OK) {
+        if (brix_vfs_stat(&st->vctx, &vst) != NGX_OK
+            && !(st->subcode == kXR_fattrGet && errno == ENOENT)) {
             BRIX_OP_ERR(ctx, BRIX_OP_FATTR);
             return fattr_fail(st, brix_send_error(ctx, c,
                                                     brix_kxr_from_errno(errno),

@@ -30,6 +30,7 @@
 #include "observability/sesslog/sesslog_ngx.h"
 #include "protocols/root/session/admin_socket.h"
 #include "net/cms/cms_admin.h"
+#include "net/cms/perf_pgm.h"
 #include "protocols/root/session/bind_migrate.h" /* §1.4 cross-worker bind */  /* §1.16 admin unix socket */
 #include "fs/vfs/vfs_backend_registry.h"   /* brix_vfs_backend_release_prefork */
 #include "core/compat/checksum_plugin.h" /* brix_cks_plugins_init_worker */
@@ -294,13 +295,43 @@ brix_stream_init_module(ngx_cycle_t *cycle)
     return NGX_OK;
 }
 
+static ngx_int_t
+brix_init_stream_servers(ngx_cycle_t *cycle,
+    ngx_stream_core_main_conf_t *cmcf,
+    ngx_stream_brix_srv_conf_t **gsi_xcf, ngx_uint_t *manager_seen)
+{
+    ngx_stream_core_srv_conf_t  **cscfp;
+    ngx_stream_brix_srv_conf_t   *xcf;
+    ngx_uint_t                    i;
+
+    cscfp = cmcf->servers.elts;
+    for (i = 0; i < cmcf->servers.nelts; i++) {
+        xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
+                                                   ngx_stream_brix_module);
+        brix_cms_role_worker_init(cycle, xcf);
+        if (xcf->manager_mode) {
+            *manager_seen = 1;
+        }
+        if (!xcf->common.enable) {
+            continue;
+        }
+        if (*gsi_xcf == NULL
+            && (xcf->auth == BRIX_AUTH_GSI || xcf->auth == BRIX_AUTH_BOTH
+                || brix_protbind_any_names(xcf->protbind, BRIX_AUTH_GSI)))
+        {
+            *gsi_xcf = xcf;
+        }
+        if (brix_init_one_server(cycle, xcf) != NGX_OK) {
+            return NGX_ERROR;
+        }
+    }
+    return NGX_OK;
+}
+
 ngx_int_t
 ngx_stream_brix_init_process(ngx_cycle_t *cycle)
 {
     ngx_stream_core_main_conf_t   *cmcf;
-    ngx_stream_core_srv_conf_t   **cscfp;
-    ngx_stream_brix_srv_conf_t  *xcf;
-    ngx_uint_t                     i;
     ngx_stream_brix_srv_conf_t  *gsi_xcf = NULL;  /* first GSI block: keypool cfg */
     ngx_uint_t                     manager_seen = 0;
     brix_phase_timer_t           pt;
@@ -361,8 +392,6 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
      * migration is disabled — single worker, or channel creation failed). */
     brix_bind_migrate_init_worker(cycle);
 
-    cscfp = cmcf->servers.elts;
-
     brix_proxy_pool_init();
 
     /*
@@ -377,40 +406,12 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
     }
     brix_phase_mark(&pt, "uring");
 
-    for (i = 0; i < cmcf->servers.nelts; i++) {
-        xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
-                                                   ngx_stream_brix_module);
-
-        /*
-         * CMS role proof + outbound-client bring-up runs for EVERY server
-         * block, BEFORE the common.enable gate.  A dedicated cms-only
-         * manager/sub-manager block (brix_cms_server on its own listen port)
-         * has the main data path disabled (common.enable off) yet still owns a
-         * cmsd role and an upstream client to start.  Worker-0-gated internally
-         * (single connection per node identity).
-         */
-        brix_cms_role_worker_init(cycle, xcf);
-
-        if (xcf->manager_mode) {
-            manager_seen = 1;   /* A4: arm the pending-locate reaper below */
-        }
-
-        if (!xcf->common.enable) {
-            continue;
-        }
-
-        if ((xcf->auth == BRIX_AUTH_GSI || xcf->auth == BRIX_AUTH_BOTH
-             || brix_protbind_any_names(xcf->protbind, BRIX_AUTH_GSI))
-            && gsi_xcf == NULL)
-        {
-            /* Phase 33: warm the GSI DH key pool below — keypool sizing +
-             * thread pool come from the first GSI block. */
-            gsi_xcf = xcf;
-        }
-
-        if (brix_init_one_server(cycle, xcf) != NGX_OK) {
-            return NGX_ERROR;
-        }
+    /* CMS role discovery runs for every block, including disabled data
+     * listeners; enabled blocks then execute the per-server init ladder. */
+    if (brix_init_stream_servers(cycle, cmcf, &gsi_xcf, &manager_seen)
+        != NGX_OK)
+    {
+        return NGX_ERROR;
     }
 
     brix_phase_mark(&pt, "servers");
@@ -446,7 +447,13 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
     return NGX_OK;
 }
 
-/* Per-worker teardown at exit: release process-scoped resources. */
+/* ---- Release this worker's process-scoped resources ----
+ * WHAT: Stops optional helpers, closes backend handles and releases crypto
+ *       state. Safe when a feature or the stream plane was never initialised.
+ * WHY: Worker exit must not strand monitor descendants or authenticated pools.
+ * HOW: 1. Flush/shut down process services. 2. Retire the external CMS monitor.
+ *      3. Close configured export handles. 4. Release crypto state.
+ */
 void
 brix_exit_process(ngx_cycle_t *cycle)
 {
@@ -477,6 +484,7 @@ brix_exit_process(ngx_cycle_t *cycle)
      * FIN) rather than leaving process-exit to reap them.  Idempotent and safe
      * when proxy mode was never used (the pool is simply empty). */
     brix_proxy_pool_shutdown();
+    brix_cms_perf_stop();
 
     /* Phase 44: tear down this worker's io_uring ring (no-op if never up). */
     brix_uring_exit_worker(cycle);

@@ -179,6 +179,12 @@ int sd_s3_list_page(const sd_s3_open_params *p, const char *prefix,
                     int *truncated, char *cont_out, size_t cont_cap,
                     char *errbuf, size_t errcap);
 
+/* Probe whether any object or common prefix exists under `prefix`, using a
+ * delimited ListObjectsV2 request with max-keys=1. Returns 1 when present,
+ * 0 when absent, or -1 with errno mapped from the origin response. */
+int sd_s3_prefix_exists(const sd_s3_open_params *p, const char *prefix,
+                        char *errbuf, size_t errcap);
+
 /* ---- flat object listing (ListObjectsV2, NO delimiter) --------------------
  * The same request without `delimiter`, so one page reports up to 1000 keys
  * under `prefix` at ANY depth — the shape driver->enumerate wants. `cb` fires

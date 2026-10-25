@@ -58,6 +58,12 @@ class _Server:
         (data / "pub" / "f.txt").write_bytes(b"x\n")
         authdb = tmp_path / "authdb"
         authdb.write_text(f"h {GRANTED} /pub rl\n")
+        # The nginx master starts as root but its worker is de-escalated.  This
+        # pytest-owned tree is an intentional server export, so make that
+        # access explicit instead of depending on another fixture having
+        # widened pytest's default 0700 directory first.
+        tmp_path.chmod(0o755)
+        data.chmod(0o755)
         self.ep = lifecycle.start(NginxInstanceSpec(
             name="lc-p116-dns-rev", template="nginx_lc_p116_dns_rev.conf",
             protocol="http", readiness="tcp", data_root=str(data),

@@ -101,6 +101,9 @@ getaddrinfo(const char *node, const char *service,
         if (family == AF_INET) {
             return EAI_NONAME;
         }
+        if (flags & AI_ADDRCONFIG) {
+            return EAI_ADDRFAMILY;
+        }
         *res = fake_ai(AF_INET6, &a6, port, socktype);
         return 0;
     }
@@ -147,6 +150,7 @@ test_literals(void)
     brix_resolve_addr  out[4];
     brix_resolve_err   err;
     char               buf[BRIX_RESOLVE_NTOP_LEN];
+    int                before;
 
     CHECK(brix_resolve("127.0.0.1", 1094, AF_UNSPEC, SOCK_STREAM,
                        BRIX_RESOLVE_NUMERIC, out, 4, &err) == 1);
@@ -161,6 +165,16 @@ test_literals(void)
     CHECK(strcmp(ntop(&out[0], buf), "::1") == 0);
     CHECK(brix_resolve_port((struct sockaddr *) &out[0].ss, out[0].len)
           == 443);
+
+    /* Numeric literals override ADDRCONFIG: minimal containers may have no
+     * configured global IPv6 address while ::1 is still reachable.  The
+     * automatically recognized literal also bypasses the positive cache. */
+    before = g_calls;
+    CHECK(brix_resolve("::1", 443, AF_UNSPEC, SOCK_STREAM,
+                       BRIX_RESOLVE_ADDRCONFIG, out, 4, &err) == 1);
+    CHECK(brix_resolve("::1", 443, AF_UNSPEC, SOCK_STREAM,
+                       BRIX_RESOLVE_ADDRCONFIG, out, 4, &err) == 1);
+    CHECK(g_calls == before + 2);
 
     /* a family filter that excludes the literal is "no address", not -1 */
     CHECK(brix_resolve("::1", 443, AF_INET, SOCK_STREAM, BRIX_RESOLVE_NUMERIC,
@@ -179,10 +193,17 @@ test_literals(void)
 }
 
 
+/* ---- Reject invalid resolver inputs without consulting DNS ----
+ * WHAT: Check bad host/port/output arguments and null-address formatting.
+ * WHY: Validation and formatting must remain safe on every sockaddr ABI.
+ * HOW: 1. Verify invalid resolution inputs never reach the fake resolver.
+ *      2. Format a null address into caller-owned, portable character storage.
+ */
 static void
 test_bad_args(void)
 {
     brix_resolve_addr  out[2];
+    char               invalid_address[8];
     int                before = g_calls;
 
     CHECK(brix_resolve(NULL, 80, AF_UNSPEC, SOCK_STREAM, 0, out, 2, NULL)
@@ -198,7 +219,8 @@ test_bad_args(void)
     CHECK(g_calls == before);                  /* rejected before libc */
 
     /* ntop / port on garbage never crash and never consult a resolver */
-    CHECK(strcmp(brix_resolve_ntop(NULL, 0, out[0].ss.__ss_padding, 8), "")
+    CHECK(strcmp(brix_resolve_ntop(NULL, 0, invalid_address,
+                                   sizeof(invalid_address)), "")
           == 0);
     CHECK(brix_resolve_port(NULL, 0) == -1);
 }

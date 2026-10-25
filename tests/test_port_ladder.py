@@ -13,8 +13,8 @@ interop workers). Two failure modes must never ship:
   * GAP / drift — a segment offset or PORT_COUNT that does not match the packed
     widths, wasting ports or mis-reporting the lane.
 
-The lane is meant to stay overlap-free BY CONSTRUCTION (offsets are derived from
-widths in port_ladder._build_ladder). These tests lock that invariant so an edit
+The lane must remain contiguous and large enough for its actual consumers.
+These tests lock that invariant so an edit
 by a future agent — hand-editing an offset, or adding a server config to a
 lifecycle ledger without bumping the matching width — fails HERE, loudly, instead
 of surfacing later as a mystery "Address already in use".
@@ -27,7 +27,7 @@ import port_ladder as pl
 
 
 # The ladder segments in packed order, read from the module's PUBLIC constants so
-# this is a genuine external check (not a re-read of the private _LADDER tuple).
+# this is a genuine external check of the composed offset shards.
 # Keep this list in the same order port_ladder declares the segments.
 SEGMENTS = [
     ("settings",             pl.SETTINGS_OFFSET,            pl.SETTINGS_WIDTH),
@@ -120,3 +120,33 @@ def test_lane_stays_inside_the_ephemeral_safe_window():
         f"TEST_PORT_START+3000 budget so a relocated lane cannot cross into a "
         f"neighbouring suite's band")
     assert 1024 <= pl.PORT_FIRST <= pl.PORT_LAST <= 65535
+
+
+def test_actual_cvmfs_catalogue_fits_its_declared_reservation():
+    """Success: every block plus every matrix slot belongs to CVMFS's ledger."""
+    from cvmfs import conformance_common as common
+    from cvmfs import conformance_ports as catalogue
+    expected = len(catalogue.CANONICAL_ORDER) * catalogue.BLOCK_WIDTH + catalogue.MATRIX_WIDTH
+    assert pl.CVMFS_CONFORMANCE_WIDTH == expected
+    assert common._CANONICAL_ORDER is catalogue.CANONICAL_ORDER
+    assert len(set(catalogue.CANONICAL_ORDER)) == len(catalogue.CANONICAL_ORDER)
+
+
+def test_cvmfs_matrix_cannot_consume_an_interoperability_listener():
+    """Error regression: the old 588-slot reservation overlapped forty ports."""
+    from cvmfs import conformance_common as common
+    import official_interop_lib as interop
+    matrix = set(range(common._MATRIX_BASE, common._MATRIX_BASE + common._MATRIX_WIDTH))
+    listeners = {interop.worker_port(base) for base in interop._INTEROP_BASES}
+    assert not matrix & listeners, "CVMFS matrix stole a differential listener"
+    assert max(matrix) < min(listeners)
+
+
+def test_cvmfs_consumers_cannot_escape_the_complete_named_lane():
+    """Security-negative: unledgered mock allocations cannot masquerade as free."""
+    from cvmfs import conformance_common as common
+    from cvmfs import conformance_ports as catalogue
+    last = common._MATRIX_BASE + catalogue.MATRIX_WIDTH - 1
+    assert pl.PORT_FIRST <= min(common.PORT_BLOCKS.values()) <= last <= pl.PORT_LAST
+    assert last < pl.MOCK_PORT_FIRST
+    assert pl.MOCK_PORT_FIRST == pl.PORT_LAST + 1

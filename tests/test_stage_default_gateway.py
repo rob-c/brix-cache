@@ -29,6 +29,7 @@ import shutil
 import stat
 import subprocess
 import textwrap
+import uuid
 
 import pytest
 
@@ -102,14 +103,25 @@ def clean_spool():
         shutil.rmtree(d, ignore_errors=True)
 
 
+def _assert_foreign_base_refusal(output, spool):
+    if not os.path.isdir(BASE) or os.access(BASE, os.W_OK | os.X_OK):
+        return False
+    assert BANNER not in output, output
+    assert "write staging stays OFF" in output, output
+    assert not os.path.lexists(spool), "must not adopt a foreign spool base"
+    return True
+
+
 def test_default_spool_created_and_banner(lifecycle, clean_spool):
-    """Success: no stage directive -> banner + managed 0700 spool directory."""
-    backend = f"https://{HOST}:39101/vo/stagedef"
+    """Create a managed spool, or fail closed if the host base is foreign."""
+    backend = f"https://{HOST}:39101/vo/stagedef-{uuid.uuid4().hex}"
     spool = _spool(backend)
     clean_spool.append(spool)
 
     code, out = _nginx_t(lifecycle, _spec("stage-default-on", backend))
     assert code == 0, f"gateway config with defaulted staging must pass:\n{out}"
+    if _assert_foreign_base_refusal(out, spool):
+        return
     assert BANNER in out, f"missing the default-staging banner:\n{out}"
     assert spool in out, f"banner must name the managed directory:\n{out}"
     assert "tmpfs" in out, f"banner must mention the tmpfs option:\n{out}"

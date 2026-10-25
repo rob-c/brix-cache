@@ -438,6 +438,33 @@ test_reference_projection(void)
     assert(strstr(rows[0].strict_reason, "de-facto-answer") != NULL);
 }
 
+/* WHAT: Read and close one report stream into bounded test storage.
+ * WHY: Every output format must apply the same read-error and terminator checks.
+ * HOW: Assert the stream, read at most capacity-1 bytes, terminate and close.
+ */
+static void
+read_report_stream(FILE *stream, char *body, size_t capacity)
+{
+    size_t count;
+    assert(stream != NULL && capacity > 0);
+    count = fread(body, 1, capacity - 1, stream);
+    assert(!ferror(stream));
+    body[count] = '\0';
+    assert(fclose(stream) == 0);
+}
+
+/* WHAT: Load one named bundle artifact through the common stream contract.
+ * WHY: All report formats need identical bounds and open-failure handling.
+ * HOW: Form a bounded path, open it, then delegate read/close ownership. */
+static void
+read_report_file(const char *directory, const char *name, char *body, size_t capacity)
+{
+    char path[256];
+    int length = snprintf(path, sizeof(path), "%s/%s", directory, name);
+    assert(length >= 0 && (size_t) length < sizeof(path));
+    read_report_stream(fopen(path, "r"), body, capacity);
+}
+
 static void
 test_report_bundle_and_symlink_refusal(void)
 {
@@ -450,7 +477,6 @@ test_report_bundle_and_symlink_refusal(void)
     char error[256];
     FILE *stream;
     char body[2048];
-    size_t got;
 
     memset(rows, 0, sizeof(rows));
     memset(&results, 0, sizeof(results));
@@ -490,12 +516,7 @@ test_report_bundle_and_symlink_refusal(void)
     assert(dir != NULL);
     assert(brix_conform_report_bundle(dir, &meta, &results, error,
         sizeof(error)) == 0);
-    snprintf(path, sizeof(path), "%s/report.json", dir);
-    stream = fopen(path, "r");
-    assert(stream != NULL);
-    got = fread(body, 1, sizeof(body) - 1, stream);
-    body[got] = '\0';
-    fclose(stream);
+    read_report_file(dir, "report.json", body, sizeof(body));
     assert(strstr(body, "\"schema\":\"brix.conform.v1\"") != NULL);
     assert(strstr(body, "\"tool_version\":\"test-version\"") != NULL);
     assert(strstr(body, "\"requests\":7,\"bytes\":4096") != NULL);
@@ -503,34 +524,22 @@ test_report_bundle_and_symlink_refusal(void)
         "\"https://localhost/fixture\",\"s3://localhost/fixture\"]") != NULL);
     assert(strstr(body, "\"skipped\":1") != NULL);
     assert(strstr(body, "\"negative_fixture\":") != NULL);
-    snprintf(path, sizeof(path), "%s/report.complete.json", dir);
-    stream = fopen(path, "r");
-    assert(stream != NULL);
-    got = fread(body, 1, sizeof(body) - 1, stream);
-    body[got] = '\0';
-    fclose(stream);
+    read_report_file(dir, "report.complete.json", body, sizeof(body));
     assert(strstr(body, "\"schema\":\"brix.conform.bundle.v1\"")
         != NULL);
     assert(strstr(body, "\"timestamp\":\"2026-10-04T00:00:00Z\"")
         != NULL);
-    snprintf(path, sizeof(path), "%s/report.md", dir);
-    stream = fopen(path, "r"); assert(stream != NULL);
-    got = fread(body, 1, sizeof(body) - 1, stream); body[got] = '\0';
-    fclose(stream);
+    read_report_file(dir, "report.md", body, sizeof(body));
     assert(strstr(body, "- Also: https://localhost/fixture") != NULL);
     assert(strstr(body, "Negative fixture") != NULL);
-    snprintf(path, sizeof(path), "%s/report.html", dir);
-    stream = fopen(path, "r"); assert(stream != NULL);
-    got = fread(body, 1, sizeof(body) - 1, stream); body[got] = '\0';
-    fclose(stream);
+    read_report_file(dir, "report.html", body, sizeof(body));
     assert(strstr(body, "<!doctype html>") != NULL);
     assert(strstr(body, "<th>Ecosystem</th><th>Strict</th>") != NULL);
     assert(strstr(body, "<th>Negative fixture</th>") != NULL);
     stream = tmpfile(); assert(stream != NULL);
     brix_conform_report_terminal(stream, &meta, &results);
     rewind(stream);
-    got = fread(body, 1, sizeof(body) - 1, stream); body[got] = '\0';
-    fclose(stream);
+    read_report_stream(stream, body, sizeof(body));
     assert(strstr(body, "xrd conform also=s3://localhost/fixture") != NULL);
     snprintf(path, sizeof(path), "%s/report.json", dir);
     assert(brix_conform_apply_baseline(path, &results, error,

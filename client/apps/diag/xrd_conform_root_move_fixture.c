@@ -1,15 +1,6 @@
 /* Phase-118 cross-export kXR_mv refusal fixture. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
-static int
-reserve_op(xrd_conform_execution *execution, brix_status *status)
-{
-    char reason[64];
-
-    if (xrd_conform_reserve(execution, 0, reason, sizeof(reason))) return 1;
-    brix_status_set(status, XRDC_EUSAGE, 0, "%s", reason);
-    return 0;
-}
 
 static int
 same_authority(const brix_url *source, const brix_url *destination)
@@ -27,13 +18,27 @@ defined_cross_export_refusal(int kxr)
 }
 
 static int
+move_row_active(const brix_conform_result *row)
+{
+    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
+}
+
+static int
+move_refused_safely(int move_rc, int move_kxr, int source_present,
+    int destination_present)
+{
+    return move_rc != 0 && defined_cross_export_refusal(move_kxr)
+        && source_present && !destination_present;
+}
+
+static int
 object_exists(xrd_conform_execution *execution, brix_conn *connection,
     const xrd_conform_scratch_object *object, brix_status *status)
 {
     brix_statinfo info;
 
     brix_status_clear(status);
-    return reserve_op(execution, status)
+    return xrd_conform_reserve_zero_status(execution, status)
         && brix_stat(connection, object->path, &info, status) == 0;
 }
 
@@ -46,13 +51,13 @@ create_source(xrd_conform_execution *execution, brix_conn *connection,
     int rc;
 
     brix_status_clear(status);
-    if (!reserve_op(execution, status)
+    if (!xrd_conform_reserve_zero_status(execution, status)
         || brix_file_open_write(connection, object->path, 1, 0, &file,
             status) != 0) return -1;
     rc = xrd_conform_reserve(execution, sizeof(payload), NULL, 0)
         ? brix_file_write(connection, &file, 0, payload, sizeof(payload),
             status) : -1;
-    if (!reserve_op(execution, status)
+    if (!xrd_conform_reserve_zero_status(execution, status)
         || brix_file_close(connection, &file, status) != 0) rc = -1;
     return rc;
 }
@@ -64,9 +69,9 @@ cleanup_objects(xrd_conform_execution *execution, brix_conn *connection,
 {
     brix_status status;
 
-    if (reserve_op(execution, &status))
+    if (xrd_conform_reserve_zero_status(execution, &status))
         brix_rm(connection, source->path, &status);
-    if (reserve_op(execution, &status))
+    if (xrd_conform_reserve_zero_status(execution, &status))
         brix_rm(connection, destination->path, &status);
 }
 
@@ -90,8 +95,9 @@ xrd_conform_probe_cross_export_move(xrd_conform_execution *execution)
     int move_kxr = 0;
     int source_present = 0;
     int destination_present = 0;
+    int pass;
 
-    if (row == NULL || row->verdict == BRIX_CONFORM_VERDICT_SKIPPED) return;
+    if (!move_row_active(row)) return;
     if (execution->run->move_fixture_target == NULL) return;
     brix_status_clear(&status);
     if (brix_endpoint_parse(execution->run->config.target, &source_url,
@@ -127,7 +133,7 @@ xrd_conform_probe_cross_export_move(xrd_conform_execution *execution)
         return;
     }
     brix_status_clear(&status);
-    if (reserve_op(execution, &status))
+    if (xrd_conform_reserve_zero_status(execution, &status))
         move_rc = brix_mv(&connection, source.path, destination.path, &status);
     move_kxr = status.kxr;
     source_present = object_exists(execution, &connection, &source, &status);
@@ -136,14 +142,12 @@ xrd_conform_probe_cross_export_move(xrd_conform_execution *execution)
     snprintf(received, sizeof(received),
         "mv=%d kxr=%d source=%d destination=%d", move_rc, move_kxr,
         source_present, destination_present);
+    pass = move_refused_safely(move_rc, move_kxr, source_present,
+        destination_present);
     xrd_conform_result_set(execution, "MV-005",
-        move_rc != 0 && defined_cross_export_refusal(move_kxr)
-            && source_present && !destination_present
-            ? BRIX_CONFORM_VERDICT_CONFORMANT
-            : BRIX_CONFORM_VERDICT_DIVERGENT,
-        move_rc != 0 && defined_cross_export_refusal(move_kxr)
-            && source_present && !destination_present
-            ? "cross-export-move-refused-without-copy"
+        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
+             : BRIX_CONFORM_VERDICT_DIVERGENT,
+        pass ? "cross-export-move-refused-without-copy"
             : "cross-export-move-was-undefined-or-mutated-state",
         "defined refusal; source=present destination=absent", received);
     cleanup_objects(execution, &connection, &source, &destination);

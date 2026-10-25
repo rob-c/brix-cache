@@ -12,6 +12,7 @@ import os
 import socket
 import stat
 import struct
+import shutil
 import tempfile
 import time
 
@@ -105,6 +106,8 @@ def _error_code(body: bytes) -> int:
 def _unlink_if_exists(path: str) -> None:
     try:
         os.unlink(path)
+    except IsADirectoryError:
+        shutil.rmtree(path)
     except FileNotFoundError:
         pass
 

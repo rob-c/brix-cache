@@ -66,6 +66,8 @@ The request/response-semantics files (`http_*`, `etag`) live in [`../http`](../h
 
 | File | Responsibility |
 |---|---|
+| `lock_key.h` / `lock_record.h` | Shared persistent lock-xattr key, bounds and record encoding. Protocol lock checks and the portable POSIX store read the same record; no shadow lock database. |
+| `register_variables.inc` | Typed function template instantiated separately for HTTP and stream variable registration. Preserves callback types, sentinel termination and allocation-error propagation without function-pointer casts. |
 | `shm_slots.c` | Slab-safe SHM table allocation (`brix_shm_table_*`) — see `shm_slots.h` and Invariant 10. |
 | `staged_file_commit.c` | `brix_commit_staged()` — cross-device / cross-backend staged-commit publish when a plain `rename(2)` cannot. |
 | `staged_file_reap.c` | Durable stage-out markers (`<stage_partial>.commit`) + the crash-safe commit reaper that finishes interrupted publishes. |

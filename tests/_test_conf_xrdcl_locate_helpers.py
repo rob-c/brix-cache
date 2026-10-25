@@ -129,8 +129,8 @@ def _locs(loc):
 
 
 def _read_bytes(ctx, path):
-    with open(os.path.join(ctx["our_data"], path.lstrip("/")), "rb") as f:
-        return f.read()
+    from lib_py.reference_host import fixture_read_bytes
+    return fixture_read_bytes(os.path.join(ctx["our_data"], path.lstrip("/")))
 
 
 def ref_adler32(data):

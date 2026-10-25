@@ -15,13 +15,16 @@ Run:  PYTHONPATH=tests pytest tests/test_brix_conformance.py -v
 """
 
 import os
+import pathlib
 import socket
 import struct
+import tempfile
 
 import pytest
 
+from official_interop_lib import worker_reachable
 from server_registry import NginxInstanceSpec
-from settings import BIND_HOST
+from settings import BIND_HOST, TEST_ROOT
 
 def _check_test_19_read_raw_data_2(data):
     assert len(data) == 1024, f"read returned {len(data)} bytes (want 1024)"
@@ -163,12 +166,17 @@ def _err(body):
 # self-provisioned anon server
 # --------------------------------------------------------------------------- #
 @pytest.fixture(scope="function")
-def server(lifecycle, tmp_path_factory):
+def server(lifecycle):
     global PORT
-    base = tmp_path_factory.mktemp("conf")
+    # nginx workers must not depend on pytest's private numbered-directory
+    # modes remaining widened across the separate `nginx -t` and live forks.
+    # TEST_ROOT is already a disposable suite-owned runtime tree.
+    base = pathlib.Path(tempfile.mkdtemp(prefix="conf-", dir=TEST_ROOT))
+    base.chmod(0o777)
     data = base / "data"
     (data / "sub").mkdir(parents=True)
     (data / "known.bin").write_bytes(bytes((i * 31 + 7) & 0xff for i in range(KNOWN_SIZE)))
+    worker_reachable(data, base)
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-xrootd-conformance",
         template="nginx_xrootd_conformance_self.conf",

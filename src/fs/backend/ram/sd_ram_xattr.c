@@ -16,6 +16,7 @@
  */
 
 #include "sd_ram_internal.h"
+#include "platform/platform_api.h"
 
 #include <errno.h>
 #include <stdlib.h>
@@ -150,7 +151,7 @@ sd_ram_xattr_put(sd_ram_ent_t *ent, const char *name, const void *val,
      * list as an escape, so it reports both leaking at the return below.
      * Suppress exactly that diagnostic, at exactly its emission point. */
 #pragma GCC diagnostic push
-#if defined(__GNUC__) && !defined(__clang__)
+#if defined(__GNUC__) && __GNUC__ >= 10 && !defined(__clang__)
 #pragma GCC diagnostic ignored "-Wanalyzer-malloc-leak"
 #endif
     if (x == NULL) {

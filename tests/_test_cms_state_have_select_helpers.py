@@ -330,13 +330,13 @@ def _login_payload():
 def _server_login(conn):
     """Drive the LOGIN handshake against the nginx CMS-server.  Returns True.
 
-    cms_srv_parse_login() is lenient (it always returns success and registers
-    the node) and the server sends NO immediate reply — it arms a ping timer.
-    There is therefore no reply frame to assert on here; admission is proven by
-    the subsequent _server_alive() liveness probe in each test.  A follow-up
-    benign LOAD frame is sent to confirm the post-login dispatch path accepts
-    data-node traffic without tearing the connection down."""
+    Admission requires the manager's explicit LOGIN acknowledgment. Consume
+    it here so later operation checks cannot mistake it for a heartbeat.
+    A follow-up benign LOAD confirms post-login dispatch stays usable."""
     _send_frame(conn, 0, CMS_RR_LOGIN, payload=_login_payload())
+    reply = _recv_frame(conn)
+    assert reply[:3] == (0, CMS_RR_LOGIN, 0) and reply[3], \
+        f"missing complete manager LOGIN acknowledgment: {reply!r}"
     # Benign LOAD: PT_SHORT count + 6 raw CPU bytes + PT_INT free_mb.  The
     # server's parser is lenient about a malformed count tag, so this never
     # closes the connection (verified against cms_srv_parse_load_free_mb).

@@ -22,6 +22,27 @@ def test_default_worker_identity_falls_back_when_binary_has_no_build_user(monkey
     assert worker_identity.nginx_default_worker_user("nginx") == "service-fallback"
 
 
+def test_default_worker_group_uses_accounts_primary_group(monkeypatch):
+    monkeypatch.setattr(worker_identity, "nginx_default_worker_user",
+                        lambda binary: "nobody")
+    monkeypatch.setattr(worker_identity.pwd, "getpwnam",
+                        lambda user: SimpleNamespace(pw_gid=65534))
+    monkeypatch.setattr(worker_identity.grp, "getgrgid",
+                        lambda gid: SimpleNamespace(gr_name="nogroup"))
+
+    assert worker_identity.nginx_default_worker_group("nginx") == "nogroup"
+
+
+def test_default_worker_group_fails_closed_to_named_fallback(monkeypatch):
+    monkeypatch.setattr(worker_identity, "nginx_default_worker_user",
+                        lambda binary: "missing-user")
+    monkeypatch.setattr(worker_identity.pwd, "getpwnam",
+                        lambda user: (_ for _ in ()).throw(KeyError(user)))
+    monkeypatch.setenv("BRIX_WORKER_GROUP", "safe-workers")
+
+    assert worker_identity.nginx_default_worker_group("nginx") == "safe-workers"
+
+
 def test_explicit_safe_user_overrides_binary_default(tmp_path, monkeypatch):
     config = tmp_path / "nginx.conf"
     config.write_text("user service;\nevents {}\n", encoding="utf-8")

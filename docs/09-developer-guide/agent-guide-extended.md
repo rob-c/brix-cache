@@ -26,7 +26,19 @@ CLAUDE.md is a **lookup reference**, not memorization material. If your context 
 
 ## INVARIANT 10 — SHM mutexes (full text)
 
-**SHM mutexes = spin+yield, NEVER the POSIX-semaphore mode.** Every module shared-memory table mutex MUST be created via `brix_shm_table_alloc()` / `brix_shm_table_mutex_create()` (`src/core/compat/shm_slots.c`), which clears `mtx->semaphore` after `ngx_shmtx_create()`. Stock `ngx_shmtx_create(…, NULL)` silently enables a POSIX semaphore whose wakeup path is **lost-wakeup-prone under high cross-worker contention**: a worker blocks in `sem_wait` forever with the lock already free (`*lock==0, *wait==0`), freezing the whole worker (it stops running its event loop) and stalling every connection pinned to it. This hit the hot `kXR_open` path (`brix_handle_mutex`) and caused 60–450s multi-worker connection stalls. Our critical sections are µs-held fixed-slot scans, so spin+yield is correct and cheaper. See [postmortem-shmtx-semaphore-stall.md](postmortem-shmtx-semaphore-stall.md).
+**SHM mutexes = spin+yield, NEVER the POSIX-semaphore mode.** Every module
+shared-memory table mutex MUST be created via `brix_shm_table_alloc()` /
+`brix_shm_table_mutex_create()` (`src/core/compat/shm_slots.c`). Creation uses
+nginx's no-semaphore sentinel to avoid `sem_init` entirely, restores the finite
+2048-spin budget before publishing the mutex, and clears semaphore mode on both
+the table handle and slab recovery handle. The sentinel is never the runtime
+spin budget. Stock `ngx_shmtx_create(…, NULL)` otherwise enables a POSIX semaphore
+whose wakeup path is **lost-wakeup-prone under high cross-worker contention**:
+a worker blocks in `sem_wait` forever with the lock already free
+(`*lock==0, *wait==0`), freezing its event loop and every pinned connection.
+This hit the hot `kXR_open` path (`brix_handle_mutex`) and caused 60–450s stalls.
+Our critical sections are µs-held fixed-slot scans, so spin+yield is correct and
+cheaper. See [postmortem-shmtx-semaphore-stall.md](postmortem-shmtx-semaphore-stall.md).
 
 ---
 
@@ -453,7 +465,10 @@ existing credential redaction. Guard: `tools/ci/check_logging_template.py`.
 
 **CRITICAL:**
 1. pgread/pgwrite → kXR_status(4007) framing + per-page CRC32c required
-2. TLS: `b->memory=1` only; cleartext: file-backed+sendfile; never mix
+2. TLS remains memory-backed; cleartext uses file-backed/sendfile when the PAL
+   permits it, otherwise bounded buffered output. FreeBSD ZFS's verified
+   sendfile/write deadlock is the scoped safety veto. Never mix body-serving
+   strategies or bypass VFS/auth policy to select the fallback.
 3. The endpoint write check runs globally BEFORE token scope. Since phase 105 the authority is the typed VFS mutation policy, not the `allow_write` bool — see INVARIANT 12 below; the protocol-edge gates remain as fast paths and may never disagree with it
 4. All wire paths → `resolve_path()` before `open()` — no exceptions
 

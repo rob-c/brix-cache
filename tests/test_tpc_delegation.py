@@ -34,14 +34,18 @@ import pytest
 from log_records import semantic_log_text
 
 from server_registry import NginxInstanceSpec
-from stock_xrootd_owner import StockXrootdOwner
+from stock_xrootd_owner import StockXrootdOwner, stock_gsi_layout
 from ephemeral_port import free_port
+from lib_py.util import wait_tcp
+from settings import HOST
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
+              # PKI setup has several explicit 90s tool budgets before wire I/O.
+              pytest.mark.timeout(300),
               pytest.mark.xdist_group("lc-tpc")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-XRDCP = "/usr/bin/xrdcp"          # STOCK client (knows GSI delegation)
+XRDCP = shutil.which("xrdcp") or "/usr/bin/xrdcp"  # STOCK client
 USER_DN = "/O=F6Test/CN=F6 User"
 GW_DN = "/O=F6Test/CN=tpc-gateway"
 
@@ -55,11 +59,7 @@ def _run(cmd, **kw):
 
 
 def _wait(port, tries=100):
-    for _ in range(tries):
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode == 0:
-            return True
-        time.sleep(0.1)
-    return False
+    return wait_tcp(HOST, port, timeout=tries * 0.1)
 
 
 @pytest.fixture
@@ -174,21 +174,24 @@ def _write_gridmap(base):
 
 def _write_gate_source_config(base, paths, gridmap, src_port):
     certs, srv = paths["certs"], paths["srv"]
+    layout = stock_gsi_layout()
+    if layout is None:
+        pytest.skip("stock XRootD security library and matching GSI plugin are missing")
+    security, plugins = layout
     config = base / "xrootd.cfg"
     config.write_text(
         f"xrd.port {src_port}\nall.export /data\noss.localroot {base}\n"
-        "xrootd.seclib libXrdSec.so\n"
-        f"sec.protocol /usr/lib64 gsi -certdir:{certs} "
+        f"xrootd.seclib {security}\n"
+        f"sec.protocol {plugins} gsi -certdir:{certs} "
         f"-cert:{srv / 'hostcert.pem'} -key:{srv / 'hostkey.pem'} "
         f"-gridmap:{gridmap} -d:2 -crl:0 -gmapopt:2 "
         "-dlgpxy:request -showdn:1 -exppxy:=creds\n"
-        "sec.protbind * only gsi\nofs.tpc ttl 300 300 pgm /usr/bin/xrdcp\n"
+        f"sec.protbind * only gsi\nofs.tpc ttl 300 300 pgm {XRDCP}\n"
         f"all.adminpath {paths['admin']}\nall.pidpath {paths['admin']}\n")
     return config
 
 
 def _start_gate_source(base, paths, gridmap, config, port, owner):
-    _run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"])
     argv = ["xrootd", "-c", str(config), "-l", str(base / "xrootd.log"),
             "-n", "src"]
     argv = _gate_source_argv(base, paths, gridmap, argv)

@@ -26,6 +26,7 @@ from settings import BIND_HOST, HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 from ephemeral_port import free_port          # firefly UDP sink (in-process mock)
 from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
+from test_tcp_stats_native import native_compile, tcp_stats_driver, transfer_accounting_contract
 
 def _check_test_firefly_scitag_override_1(states):
     assert "start" in states and "end" in states
@@ -97,7 +98,7 @@ def _serve(lifecycle, tmp_path, extra_loc):
         reason="SciTags packet-marking firefly emission over WebDAV"))
 
 
-def test_firefly_scitag_override(lifecycle, tmp_path):
+def test_firefly_scitag_override(lifecycle, tmp_path, tcp_stats_driver):
     """scitag.flow=129 → experiment 2, activity 1; start + end datagrams."""
     cap = FireflyCapture(FF_PORT)
     ep = _serve(lifecycle, tmp_path,
@@ -111,25 +112,42 @@ def test_firefly_scitag_override(lifecycle, tmp_path):
     finally:
         cap.close()
 
+    end = _assert_marked_fireflies(flies)
+    _assert_firefly_usage(end, transfer_accounting_contract(tcp_stats_driver))
+
+
+def _assert_marked_fireflies(flies):
+    """Require the complete start/end lifecycle and identity on every record."""
     states = [f["flow-lifecycle"]["state"] for f in flies]
     _check_test_firefly_scitag_override_1(states)
     for f in flies:
-        def _assert_test_firefly_scitag_override_2():
-            assert f["context"]["experiment-id"] == 2   # 129 >> 6
-            assert f["context"]["activity-id"] == 1      # 129 & 0x3f
+        _assert_firefly_context(f)
+    return _ended_firefly(flies)
 
-        _assert_test_firefly_scitag_override_2()
-        def _assert_test_firefly_scitag_override_3():
-            assert f["context"]["application"] == "pmark-test"
-            assert f["flow-id"]["protocol"] == "tcp"
 
-        _assert_test_firefly_scitag_override_3()
+def _ended_firefly(flies):
+    """An ended flow must publish an end timestamp rather than a start-only record."""
     end = [f for f in flies if f["flow-lifecycle"]["state"] == "end"][0]
-    def _assert_test_firefly_scitag_override_1():
-        assert "end-time" in end["flow-lifecycle"]
-        assert end["usage"]["sent"] > 0                  # TCP_INFO byte counts present
+    assert "end-time" in end["flow-lifecycle"]
+    return end
 
-    _assert_test_firefly_scitag_override_1()
+
+def _assert_firefly_context(fly):
+    """The explicit flow ID must retain its application and SciTags identity."""
+    assert fly["context"]["experiment-id"] == 2   # 129 >> 6
+    assert fly["context"]["activity-id"] == 1      # 129 & 0x3f
+    assert fly["context"]["application"] == "pmark-test"
+    assert fly["flow-id"]["protocol"] == "tcp"
+
+
+def _assert_firefly_usage(end, contract):
+    """Unavailable kernel counters stay zero; measured counters must be real."""
+    if contract == 'unsupported':
+        assert end['usage'] == dict(received=0, sent=0)
+        assert end['netlink']['rtt'] == 0
+    else:
+        assert contract == 'measured'
+        assert end["usage"]["sent"] > 0                  # TCP_INFO byte counts present
 
 
 def test_firefly_defsfile_mapping(lifecycle, tmp_path):

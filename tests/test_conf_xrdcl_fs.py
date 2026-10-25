@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from lib_py.reference_host import assert_backing_size_parity
 _reexport(globals(), "_test_conf_xrdcl_fs_helpers")
 
 pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_xrdcl_fs")]
@@ -52,7 +53,10 @@ def test_dirlist_stat_sizes(pair, path):
         sizes[tag] = {
             e.name: (e.statinfo.size if e.statinfo else None) for e in lst
         }
-    assert sizes["our"] == sizes["off"]
+    assert sizes["our"].keys() == sizes["off"].keys()
+    for name in sizes['our']:
+        assert_backing_size_parity(pair, path.rstrip('/') + '/' + name,
+                                  sizes['our'][name], sizes['off'][name])
 
 
 @pytest.mark.parametrize("path", STAT_DIRS)
@@ -125,7 +129,10 @@ def test_dirlist_recursive_stat_sizes(pair, path):
         rec[tag] = {
             e.name: (e.statinfo.size if e.statinfo else None) for e in lst
         }
-    assert rec["our"] == rec["off"]
+    assert rec["our"].keys() == rec["off"].keys()
+    for name in rec['our']:
+        assert_backing_size_parity(pair, path.rstrip('/') + '/' + name,
+                                  rec['our'][name], rec['off'][name])
 
 
 # --------------------------------------------------------------------------- #

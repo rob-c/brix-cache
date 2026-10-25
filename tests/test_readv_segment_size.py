@@ -22,6 +22,7 @@ import os
 from pathlib import Path
 
 import pytest
+psutil = pytest.importorskip("psutil", reason="RSS observations require the psutil test dependency")
 from XRootD import client
 from XRootD.client.flags import QueryCode
 
@@ -86,16 +87,9 @@ def test_official_vectorread_large_element(server16m):
 
 def _worker_rss_bytes(pidfile: str) -> int:
     master = int(Path(pidfile).read_text(encoding="ascii").strip())
-    children = Path(f"/proc/{master}/task/{master}/children")
-    pids = [int(value) for value in children.read_text().split()]
-    assert pids, "test nginx has no worker process"
-    total = 0
-    for pid in pids:
-        status = Path(f"/proc/{pid}/status").read_text()
-        rss_line = next(line for line in status.splitlines()
-                        if line.startswith("VmRSS:"))
-        total += int(rss_line.split()[1]) * 1024
-    return total
+    workers = psutil.Process(master).children()
+    assert workers, "test nginx has no worker process"
+    return sum(worker.memory_info().rss for worker in workers)
 
 
 def _open_test_file(url: str):

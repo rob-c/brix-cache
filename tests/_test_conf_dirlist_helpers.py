@@ -31,6 +31,7 @@ module skips without the stock xrootd toolchain.
 """
 
 import os
+from lib_py.reference_host import fixture_read_bytes
 import socket
 import struct
 import zlib
@@ -390,5 +391,4 @@ def _wire_dstat(port, path, with_cksum=False):
 ])
 
 def _adler32_hex(path):
-    with open(path, "rb") as f:
-        return f"{zlib.adler32(f.read()) & 0xffffffff:08x}"
+    return f"{zlib.adler32(fixture_read_bytes(path)) & 0xffffffff:08x}"

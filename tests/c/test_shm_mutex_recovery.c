@@ -84,7 +84,11 @@ main(void)
     void            *tbl;
     ngx_pid_t        worker = 9999;
 
-    ngx_cycle = NULL;                 /* success paths never dereference it */
+    ngx_log_t log = {0};
+    ngx_cycle_t cycle = {0};
+
+    cycle.log = &log;                 /* debug nginx logs even successful locks */
+    ngx_cycle = &cycle;
     ngx_pid   = 4242;
 
     ngx_memzero(zonebuf, sizeof(zonebuf));
@@ -95,10 +99,12 @@ main(void)
     /* Lay out the slab-pool header and create its own mutex over &sp->lock,
      * exactly as nginx's ngx_init_zone_pool() does before our init callback. */
     sp = (ngx_slab_pool_t *) zonebuf;
+    sp->mutex.spin = (ngx_uint_t) -1;
     if (ngx_shmtx_create(&sp->mutex, &sp->lock, NULL) != NGX_OK) {
         fprintf(stderr, "ngx_shmtx_create(sp->mutex) failed\n");
         return 2;
     }
+    sp->mutex.spin = 2048;
 
     zone.shm.addr   = zonebuf;
     zone.shm.exists = 0;

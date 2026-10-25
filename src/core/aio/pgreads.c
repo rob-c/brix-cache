@@ -125,16 +125,7 @@ brix_pgread_done_eof(brix_pgread_aio_t *t)
 {
     brix_ctx_t                  *ctx = t->ctx;
     ngx_connection_t              *c = t->c;
-    ServerStatusResponse_pgRead *hdr_buf;
-
-    hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));
-    if (hdr_buf) {
-        brix_build_pgread_status(ctx, t->offset, 0, hdr_buf);
-        BRIX_OP_OK(ctx, BRIX_OP_PGREAD);
-        /* Self-contained per-response palloc — safe to pipeline behind. */
-        ctx->out.resp_pipelinable = 1;
-        brix_queue_response(ctx, c, (u_char *) hdr_buf, sizeof(*hdr_buf));
-    }
+    (void) brix_send_empty_pgread(ctx, c, t->offset, 1);
     brix_release_read_buffer(ctx, c, t->scratch);
     brix_aio_resume(c);
 }

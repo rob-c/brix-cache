@@ -1,5 +1,5 @@
 /* Phase-118 isolated hostile ROOT framing and length probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "protocols/root/protocol/bootstrap_pack.h"
 #include "protocols/root/protocol/codec/wire_codec.h"
 #include "protocols/root/protocol/frame_hdr.h"
@@ -13,23 +13,6 @@ typedef struct {
     uint8_t body[512];
 } hostile_reply;
 
-static void
-grade(xrd_conform_execution *execution, const char *id, int pass,
-    const char *success, const char *failure)
-{
-    xrd_conform_result_set(execution, id,
-        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
-             : BRIX_CONFORM_VERDICT_DIVERGENT,
-        pass ? success : failure, NULL, NULL);
-}
-
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
-
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
 static int
 aux_connect(xrd_conform_execution *execution, const brix_url *url,
@@ -57,13 +40,6 @@ read_reply(brix_conn *connection, hostile_reply *reply, brix_status *status)
     return 0;
 }
 
-static int
-reserve(xrd_conform_execution *execution, size_t bytes)
-{
-    char reason[64];
-
-    return xrd_conform_reserve(execution, bytes, reason, sizeof(reason));
-}
 
 static void
 make_request(ClientRequestHdr *request, uint16_t sid, uint16_t opcode,
@@ -106,7 +82,7 @@ probe_path_shape(xrd_conform_execution *execution, const brix_url *url,
     int exchanged;
     int pass;
 
-    if (!reserve(execution, sizeof(request) + length)
+    if (!xrd_conform_reserve_probe(execution, sizeof(request) + length)
         || aux_connect(execution, url, &connection, &status) != 0) return;
     make_request(&request, 0x3100, opcode, (uint32_t) length);
     exchanged = exchange(&connection, &request, payload, length, &reply,
@@ -118,7 +94,7 @@ probe_path_shape(xrd_conform_execution *execution, const brix_url *url,
                     && xrd_get_u32_be(reply.body) != kXR_ArgMissing))
         : exchanged && (expected_error < 0 ? reply.status == kXR_error
                                            : reply_error(&reply, expected_error));
-    grade(execution, id, pass, "path-frame-shape-enforced",
+    xrd_conform_grade(execution, id, pass, "path-frame-shape-enforced",
         "path-frame-shape-misparsed");
     brix_close(&connection);
 }
@@ -132,18 +108,18 @@ probe_path_nuls(xrd_conform_execution *execution, const brix_url *url)
     if (length + 6 >= sizeof(payload)) return;
     memcpy(payload, url->path, length);
     payload[length] = '\0';
-    if (row_active(execution, "FRM-008"))
+    if (xrd_conform_row_active(execution, "FRM-008"))
         probe_path_shape(execution, url, "FRM-008", kXR_stat, payload,
             length + 1, -2);
     memcpy(payload + length + 1, "evil", 4);
-    if (row_active(execution, "FRM-009"))
+    if (xrd_conform_row_active(execution, "FRM-009"))
         probe_path_shape(execution, url, "FRM-009", kXR_stat, payload,
             length + 5, -1);
     payload[length + 1] = '\0';
-    if (row_active(execution, "FRM-010"))
+    if (xrd_conform_row_active(execution, "FRM-010"))
         probe_path_shape(execution, url, "FRM-010", kXR_stat, payload,
             length + 2, -1);
-    if (row_active(execution, "FRM-011"))
+    if (xrd_conform_row_active(execution, "FRM-011"))
         probe_path_shape(execution, url, "FRM-011", kXR_dirlist, payload, 0,
             kXR_ArgMissing);
 }
@@ -168,7 +144,7 @@ probe_short_payload(xrd_conform_execution *execution, const brix_url *url)
     const uint8_t partial[] = { '/', 'x' };
     int sent = 0;
 
-    if (reserve(execution, sizeof(request) + sizeof(partial))
+    if (xrd_conform_reserve_probe(execution, sizeof(request) + sizeof(partial))
         && aux_connect(execution, url, &connection, &status) == 0) {
         make_request(&request, 0x3200, kXR_stat, 8);
         sent = brix_write_full(&connection.io, &request, sizeof(request),
@@ -177,7 +153,7 @@ probe_short_payload(xrd_conform_execution *execution, const brix_url *url)
                 &status) == 0;
         brix_close(&connection);
     }
-    grade(execution, "FRM-012", sent
+    xrd_conform_grade(execution, "FRM-012", sent
         && fresh_connection_works(execution, url),
         "truncated-payload-left-no-state", "truncated-payload-wedged-server");
 }
@@ -196,7 +172,7 @@ probe_surplus_as_next_request(xrd_conform_execution *execution,
     int pass = 0;
 
     if (path_length >= XRDC_PATH_MAX
-        || !reserve(execution, sizeof(stat_request) + sizeof(ping_request)
+        || !xrd_conform_reserve_probe(execution, sizeof(stat_request) + sizeof(ping_request)
             + path_length)
         || aux_connect(execution, url, &connection, &status) != 0) return;
     make_request(&stat_request, 0x3300, kXR_stat, (uint32_t) path_length);
@@ -210,7 +186,7 @@ probe_surplus_as_next_request(xrd_conform_execution *execution,
         && read_reply(&connection, &first, &status) == 0
         && read_reply(&connection, &second, &status) == 0)
         pass = first.sid == 0x3300 && second.sid == 0x3301;
-    grade(execution, "FRM-013", pass, "surplus-parsed-as-next-frame",
+    xrd_conform_grade(execution, "FRM-013", pass, "surplus-parsed-as-next-frame",
         "surplus-silently-consumed");
     brix_close(&connection);
 }
@@ -225,13 +201,13 @@ probe_extreme_length(xrd_conform_execution *execution, const brix_url *url,
     hostile_reply reply;
     int pass = 0;
 
-    if (!reserve(execution, sizeof(request))
+    if (!xrd_conform_reserve_probe(execution, sizeof(request))
         || aux_connect(execution, url, &connection, &status) != 0) return;
     make_request(&request, 0x3400, kXR_stat, declared);
     if (brix_write_full(&connection.io, &request, sizeof(request), &status) == 0)
         pass = read_reply(&connection, &reply, &status) != 0
             || reply.status == kXR_error;
-    grade(execution, id, pass, "extreme-length-refused",
+    xrd_conform_grade(execution, id, pass, "extreme-length-refused",
         "extreme-length-not-refused");
     brix_close(&connection);
 }
@@ -247,7 +223,7 @@ probe_duplicate_outstanding(xrd_conform_execution *execution,
     hostile_reply first, second;
     int pass = 0;
 
-    if (!reserve(execution, sizeof(requests))
+    if (!xrd_conform_reserve_probe(execution, sizeof(requests))
         || aux_connect(execution, url, &connection, &status) != 0) return;
     xrd_pack_protocol_request(&requests[0], sid, 0);
     requests[1] = requests[0];
@@ -255,7 +231,7 @@ probe_duplicate_outstanding(xrd_conform_execution *execution,
         && read_reply(&connection, &first, &status) == 0
         && read_reply(&connection, &second, &status) == 0)
         pass = first.sid == 0x3500 && second.sid == 0x3500;
-    grade(execution, "FRM-007", pass, "streamid-reuse-produced-two-replies",
+    xrd_conform_grade(execution, "FRM-007", pass, "streamid-reuse-produced-two-replies",
         "streamid-reuse-silently-dropped-reply");
     brix_close(&connection);
 }
@@ -271,7 +247,7 @@ probe_bytewise(xrd_conform_execution *execution, const brix_url *url)
     size_t index;
     int pass = 0;
 
-    if (!reserve(execution, sizeof(request))
+    if (!xrd_conform_reserve_probe(execution, sizeof(request))
         || aux_connect(execution, url, &connection, &status) != 0) return;
     xrd_pack_protocol_request(&request, sid, 0);
     for (index = 0; index < sizeof(request); index++)
@@ -279,7 +255,7 @@ probe_bytewise(xrd_conform_execution *execution, const brix_url *url)
                 &status) != 0) break;
     if (index == sizeof(request) && read_reply(&connection, &reply, &status) == 0)
         pass = reply.sid == 0x3600 && reply.status == kXR_ok;
-    grade(execution, "FRM-020", pass, "all-header-splits-reassembled",
+    xrd_conform_grade(execution, "FRM-020", pass, "all-header-splits-reassembled",
         "bytewise-header-not-reassembled");
     brix_close(&connection);
 }
@@ -294,7 +270,7 @@ probe_slow_payload(xrd_conform_execution *execution, const brix_url *url)
     const uint8_t payload = '/';
     int pass = 0;
 
-    if (!reserve(execution, sizeof(request) + 1)
+    if (!xrd_conform_reserve_probe(execution, sizeof(request) + 1)
         || aux_connect(execution, url, &connection, &status) != 0) return;
     make_request(&request, 0x3700, kXR_stat, 1);
     if (brix_write_full(&connection.io, &request, sizeof(request), &status) == 0) {
@@ -303,7 +279,7 @@ probe_slow_payload(xrd_conform_execution *execution, const brix_url *url)
             && read_reply(&connection, &reply, &status) == 0)
             pass = reply.status == kXR_ok || reply.status == kXR_error;
     }
-    grade(execution, "FRM-021", pass, "slow-payload-terminated",
+    xrd_conform_grade(execution, "FRM-021", pass, "slow-payload-terminated",
         "slow-payload-left-slot-unresolved");
     brix_close(&connection);
 }
@@ -320,7 +296,7 @@ sigver_answer_defined(xrd_conform_execution *execution, const brix_url *url,
         .crypto = kXR_rsaKey_sig };
     int defined = 0;
 
-    if (!reserve(execution, sizeof(requests))
+    if (!xrd_conform_reserve_probe(execution, sizeof(requests))
         || aux_connect(execution, url, &connection, &status) != 0) {
         snprintf(received, received_size,
             "opcode=%u connect-or-budget-failed", (unsigned) kXR_sigver);
@@ -356,7 +332,7 @@ opcode_answer_defined(xrd_conform_execution *execution, const brix_url *url,
 
     if (opcode == kXR_sigver)
         return sigver_answer_defined(execution, url, received, received_size);
-    if (!reserve(execution, sizeof(request))
+    if (!xrd_conform_reserve_probe(execution, sizeof(request))
         || aux_connect(execution, url, &connection, &status) != 0) {
         snprintf(received, received_size, "opcode=%u connect-or-budget-failed",
             (unsigned) opcode);
@@ -403,25 +379,25 @@ void
 xrd_conform_probe_framing_hostile(xrd_conform_execution *execution,
     const brix_url *url)
 {
-    if (row_active(execution, "FRM-007"))
+    if (xrd_conform_row_active(execution, "FRM-007"))
         probe_duplicate_outstanding(execution, url);
-    if (row_active(execution, "FRM-008")
-        || row_active(execution, "FRM-009")
-        || row_active(execution, "FRM-010")
-        || row_active(execution, "FRM-011"))
+    if (xrd_conform_row_active(execution, "FRM-008")
+        || xrd_conform_row_active(execution, "FRM-009")
+        || xrd_conform_row_active(execution, "FRM-010")
+        || xrd_conform_row_active(execution, "FRM-011"))
         probe_path_nuls(execution, url);
-    if (row_active(execution, "FRM-012"))
+    if (xrd_conform_row_active(execution, "FRM-012"))
         probe_short_payload(execution, url);
-    if (row_active(execution, "FRM-013"))
+    if (xrd_conform_row_active(execution, "FRM-013"))
         probe_surplus_as_next_request(execution, url);
-    if (row_active(execution, "FRM-014"))
+    if (xrd_conform_row_active(execution, "FRM-014"))
         probe_extreme_length(execution, url, "FRM-014", UINT32_MAX);
-    if (row_active(execution, "FRM-015"))
+    if (xrd_conform_row_active(execution, "FRM-015"))
         probe_extreme_length(execution, url, "FRM-015", INT32_MAX);
-    if (row_active(execution, "FRM-019"))
+    if (xrd_conform_row_active(execution, "FRM-019"))
         probe_opcode_range(execution, url);
-    if (row_active(execution, "FRM-020"))
+    if (xrd_conform_row_active(execution, "FRM-020"))
         probe_bytewise(execution, url);
-    if (row_active(execution, "FRM-021"))
+    if (xrd_conform_row_active(execution, "FRM-021"))
         probe_slow_payload(execution, url);
 }

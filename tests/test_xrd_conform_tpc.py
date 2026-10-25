@@ -17,6 +17,11 @@ from test_xrd_conform_cache import EvictOrigin
 from test_xrd_conform_http_semantics import XRD, _clean_environment
 
 
+# Native rows deliberately share the fixed brix-conform-* scratch corpus.
+# Independent xdist workers must not remove a sibling row's source/destination.
+pytestmark = pytest.mark.xdist_group("xrd-conform-live")
+
+
 kXR_Unsupported = 3013
 kXR_IOError = 3007
 kXR_sync = 3016

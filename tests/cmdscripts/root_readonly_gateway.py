@@ -73,6 +73,7 @@ import time
 from cmdscripts import open_tree_for_worker, run
 from brix_suite.worker_identity import nginx_default_worker_user
 from fleet_ports import cmdscript_ports
+from lib_py.reference_host import reference_transport_directives
 from settings import BIND_HOST, HOST, NGINX_BIN
 
 import _test_a_robustness_helpers as H
@@ -146,7 +147,7 @@ def write_xrootd_config(prefix: Path, port: int) -> tuple[Path, Path, Path]:
         f"oss.localroot {data}\n"
         f"all.adminpath {admin}\n"
         f"all.pidpath {admin}\n"
-        "xrootd.async off\n",
+        + reference_transport_directives(disable_async=True),
         encoding="utf-8",
     )
     return conf, data, admin

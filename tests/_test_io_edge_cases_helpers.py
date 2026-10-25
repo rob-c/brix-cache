@@ -43,6 +43,7 @@ kXR_status    = 4007
 kXR_ChkSumErr   = 3019
 kXR_FileNotOpen = 3004
 kXR_IOError     = 3007
+kXR_ArgInvalid  = 3000
 
 kXR_open_read = 0x0010
 kXR_open_updt = 0x0020
@@ -138,7 +139,7 @@ def _read(sock, fhandle, offset, rlen, streamid=b"\x00\x03"):
 
 def _write(sock, fhandle, offset, data, streamid=b"\x00\x03"):
     req = struct.pack("!2sH4sqiI", streamid, kXR_write,
-                      fhandle, offset, len(data), len(data))
+                      fhandle, offset, 0, len(data))
     sock.sendall(req + data)
     return _read_response(sock)
 

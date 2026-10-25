@@ -33,6 +33,7 @@ URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 pytestmark = [
     pytest.mark.requires_local_server,
     pytest.mark.timeout(60),
+    pytest.mark.xdist_group("xattr-grammar"),
     pytest.mark.skipif(not os.path.exists(XRDFS),
                        reason="brix-xrdfs not built (client/bin/xrdfs)"),
 ]

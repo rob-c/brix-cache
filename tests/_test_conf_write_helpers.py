@@ -130,8 +130,8 @@ def md5(b):
 
 
 def read_disk(ctx, url, path):
-    with open(disk_for(ctx, url, path), "rb") as f:
-        return f.read()
+    from lib_py.reference_host import fixture_read_bytes
+    return fixture_read_bytes(disk_for(ctx, url, path))
 
 
 def both(ctx):

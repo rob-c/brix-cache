@@ -284,7 +284,13 @@ def test_xattr_set_replace_flag(temp_file):
     # Set initial value
     set_xattr_safe(temp_file, name, value1)
     
-    os.setxattr(str(temp_file), name, value2, flags=os.XATTR_REPLACE)
+    try:
+        os.setxattr(str(temp_file), name, value2, flags=os.XATTR_REPLACE)
+    except OSError as error:
+        if error.errno in (errno.ENOTSUP, errno.EOPNOTSUPP):
+            # Native FreeBSD contracts separately assert refusal without writes.
+            pytest.skip("host has no atomic conditional xattr update")
+        raise
     assert get_xattr_safe(temp_file, name) == value2
     with pytest.raises(OSError) as missing:
         os.setxattr(str(temp_file), "user.brix_missing", value2,

@@ -43,6 +43,11 @@ store, deciding soft-fail policy, mapping results to `kXR_NotAuthorized` vs HTTP
 
 | File | Responsibility |
 |------|---------------|
+| `key_compat.h` | Version-neutral OpenSSL 1.1.1/3+ public-key equality and owned DH public-number/peer construction; borrowed inputs never change ownership. |
+| `jwk_compat.h` | Version-neutral RSA/P-256 import for JWT keys; provider and legacy implementations share owned-result and error-cleanup contracts. |
+| `tls_compat.h` | Typed DNS/IP peer-name binding across OpenSSL ABIs and GridFTP data-channel EOF option selection; trust and control-channel policy remain with their existing owners. |
+| `store_compat.h` | Explicit CA file/directory loaders across OpenSSL 1.1.1/3+, with no implicit trust-path expansion. |
+| `name_compat.h` | One slash-form DN representation across OpenSSL ABIs for policy, identity mapping, proxy delegation, VOMS and GridFTP pins; literal separators cannot alias structural components, and bounded output refuses truncation. |
 | `gsi_verify.c` | `brix_gsi_verify_chain()` — the unified X509_STORE_CTX lifecycle: init with leaf + untrusted chain + CA store, set `X509_V_FLAG_ALLOW_PROXY_CERTS`, optional depth, `X509_verify_cert()`, then extract the leaf subject DN via `X509_NAME_oneline` into `res->dn_buf`. Owns nothing it is passed. |
 | `gsi_verify.h` | Declares `brix_gsi_verify_chain()` and the `brix_gsi_verify_result_t` output struct (`char dn_buf[1024]`). |
 | `pki_build.c` | `brix_build_ca_store()` — construct an `X509_STORE` from a CA dir and/or CA bundle file (falls back to system default paths if both NULL), apply caller `extra_flags`, then scan a CRL file or directory and, if any CRL loaded, enable `CRL_CHECK | CRL_CHECK_ALL | USE_DELTAS`. Internal `pki_load_crls*` scan `*.pem` and grid `*.r[0-9]` CRL files. |

@@ -8,6 +8,7 @@ import os
 import struct
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
+from _test_phase115_pgread_verify_helpers import crc32c
 
 def _expression_1(rc, data, output):
     return (
@@ -37,31 +38,42 @@ def _expression_4(results, data, output):
 XRDCINFO = REPO_ROOT / "client" / "bin" / "xrdcinfo"
 
 
-def write_cinfo(path: Path, flags: int, size: int, nblocks: int, bitmap: int) -> None:
-    header = struct.pack("<IHHIIQQQ", 0x58434931, 3, flags, 65536, 0, size, 0, nblocks)
-    path.write_bytes(header + b"\x00" * 64 + bytes([bitmap]))
+def write_cinfo(path: Path, size: int, bitmap: int) -> None:
+    """Write the current stock-v4 prefix with genuine Store/bitmap checksums."""
+    nblocks = (size + 65535) // 65536
+    store = struct.pack("<qqqqQIi", 65536, size, 0, 0, 0, 0, 0)
+    present = bitmap.to_bytes((nblocks + 7) // 8, "little")
+    path.write_bytes(struct.pack("<i", 4) + store
+                     + struct.pack("<I", crc32c(store)) + present
+                     + struct.pack("<I", crc32c(present))
+                     + struct.pack("<IHH", 0x31584358, 1, 0))
 
 
 def run_json(path: Path) -> tuple[int, dict[str, object] | None, str]:
     proc = run([str(XRDCINFO), str(path)], cwd=REPO_ROOT)
-    if proc.returncode != 0:
+    if not proc.stdout.strip():
         return proc.returncode, None, proc.stderr or proc.stdout
-    return 0, json.loads(proc.stdout), proc.stderr
+    try:
+        data = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return proc.returncode, None, proc.stderr or proc.stdout
+    return proc.returncode, data, proc.stderr
 
 
 def run_checks(base: Path) -> list[tuple[bool, str]]:
     if not os.access(XRDCINFO, os.X_OK):
         return [result(True, f"SKIP xrdcinfo not built: {XRDCINFO}")]
     partial = base / "p.cinfo"
-    write_cinfo(partial, flags=0x2, size=300000, nblocks=5, bitmap=0b00000110)
+    write_cinfo(partial, size=300000, bitmap=0b00000110)
     rc, data, output = run_json(partial)
     results = _expression_1(rc, data, output)
     complete = base / "c.cinfo"
-    write_cinfo(complete, flags=0x1, size=150000, nblocks=3, bitmap=0b00000111)
+    write_cinfo(complete, size=150000, bitmap=0b00000111)
     rc, data, output = run_json(complete)
     _expression_2(results, rc, data, output)
     _expression_3(results, rc, data)
     rc, data, output = run_json(base / "nope.cinfo")
+    results.append(result(rc == 3, f"absent exit status 3 (got {rc})"))
     _expression_4(results, data, output)
     return results
 

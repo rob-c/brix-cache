@@ -131,7 +131,7 @@ deliberately-invalid example or a metric a design doc has only proposed.
 | `ratelimit.c` | `brix_export_ratelimit_metrics()` — the four aggregate rate-limiter counters (throttled http/stream, LRU evictions, zone-full errors). Per-principal detail is dashboard-only. |
 | `unified.c` | The protocol-neutral write API (`brix_metric_op_done`/`_cache_result`/`_auth`/`_tpc`) and `brix_export_unified_metrics()`; folds legacy stream/webdav/s3 counters into the unified `proto`-labeled families and emits the latency histogram. Also the enum→string and `errno`/HTTP-status→error-class mappers. |
 | `access_log.c` | `brix_access_log_emit()` — emits one JSON access-log line per VFS op (ts, proto, op, path, bytes, latency, status, from_cache, auth method, subject) with `\uXXXX` escaping; this is where free-form identity/path safely lives. |
-| `tracking.c` | `brix_track_vo_activity()` and `brix_track_unique_user()` — maintain the bounded VO and unique-user LRU tables (FNV-1a identity hashing, overflow/eviction accounting) so high-cardinality identity never reaches a label. |
+| `tracking.c` | `brix_track_vo_activity()` and `brix_track_unique_user()` maintain bounded VO/user LRU tables (FNV-1a hashing, overflow/eviction accounting), so high-cardinality identity never reaches a label. `brix_track_auth_identity()` is the shared token/SSS bookkeeping owner; it bounds identity reads and preserves existing activity/auth counter semantics. |
 
 ### Other files
 

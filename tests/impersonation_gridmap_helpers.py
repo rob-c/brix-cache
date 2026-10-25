@@ -15,19 +15,23 @@ LifecycleHarness without disturbing the multi-user conformance fleet
 from __future__ import annotations
 
 import datetime as _dt
+import errno
 import hashlib
 import hmac
 import os
 import pwd
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
 from urllib.parse import quote
+import pytest
 
 from lib_py.util import nologin_shell
+from lib_py import account_host
 
 # utils/ lives at the repo root, one level above tests/.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -43,12 +47,13 @@ from utils.make_token import TokenIssuer  # noqa: E402
 ACCT_PREFIX = "brixgm_"
 
 # name -> uid (== gid).  All >= 1000 so the impersonation reserved-id floor
-# (brix_idmap_min_uid, hard-clamped to >=1000) admits them.  `-o` makes the ids
-# non-unique so a stray pre-existing account at the same number cannot fail us.
+# (brix_idmap_min_uid, hard-clamped to >=1000) admits them. Ids must be
+# unique: a foreign account/group collision must fail rather than alias it.
 ACCOUNTS: "dict[str, int]" = {
     "alice": 61001,
     "bob": 61002,
     "squash": 61003,
+    "broker": 61004,
 }
 
 
@@ -66,15 +71,15 @@ def gid_of(name: str) -> int:
 
 
 def _tools_present() -> bool:
-    return all(shutil.which(t) for t in ("useradd", "userdel", "groupadd", "groupdel"))
+    return account_host.available()
 
 
 def reap_accounts() -> None:
     """Remove every brixgm_* account/group. Idempotent; ignores failures."""
     for u in [p.pw_name for p in pwd.getpwall() if p.pw_name.startswith(ACCT_PREFIX)]:
-        subprocess.run(["userdel", "-r", u], capture_output=True)
+        subprocess.run(account_host.user_delete(u), capture_output=True)
     for name in ACCOUNTS:
-        subprocess.run(["groupdel", acct(name)], capture_output=True)
+        subprocess.run(account_host.group_delete(acct(name)), capture_output=True)
 
 
 def provision_accounts() -> None:
@@ -83,11 +88,10 @@ def provision_accounts() -> None:
     reap_accounts()
     for name, uid in ACCOUNTS.items():
         u = acct(name)
-        subprocess.run(["groupadd", "-o", "-g", str(uid), u],
+        subprocess.run(account_host.group_add(u, uid),
                        check=True, capture_output=True)
         subprocess.run(
-            ["useradd", "-M", "-N", "-o", "-u", str(uid), "-g", str(uid),
-             "-s", nologin_shell(), u],
+            account_host.user_add(u, uid, uid, nologin_shell()),
             check=True, capture_output=True)
 
 
@@ -232,6 +236,24 @@ def stat_export(export: str, rel: str) -> os.stat_result:
     return os.stat(os.path.join(export, rel.lstrip("/")))
 
 
+def native_creation_gid(export: str, logical: str) -> int:
+    """Probe this directory's real creation semantics under the mapped account.
+
+    BSD normally inherits the directory gid even without its setgid bit. A
+    direct, permanently dropped process is the oracle, not BriX's broker.
+    """
+    probe = str(Path(export) / f'.native-gid-{os.getpid()}-{time.time_ns()}')
+    program = ('import os,sys; p=sys.argv[1]; '
+               'f=os.open(p,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600); '
+               's=os.fstat(f); os.close(f); os.unlink(p); print(s.st_uid,s.st_gid)')
+    result = subprocess.run([os.path.realpath(sys.executable), '-c', program, probe],
+        user=uid_of(logical), group=gid_of(logical), extra_groups=[gid_of(logical)],
+        check=True, capture_output=True, text=True, timeout=10)
+    actual_uid, actual_gid = map(int, result.stdout.split())
+    assert actual_uid == uid_of(logical), 'independent identity probe did not drop uid'
+    return actual_gid
+
+
 # --------------------------------------------------------------------------- #
 # S3 SigV4 (header auth, UNSIGNED-PAYLOAD) — the access key is the principal    #
 # --------------------------------------------------------------------------- #
@@ -284,3 +306,116 @@ def reap_broker(sock_path: str) -> None:
         except (ProcessLookupError, PermissionError):
             return
         time.sleep(0.3)
+
+
+def _broker_pid(sock: str) -> int:
+    """Wait for this fixture's broker to record its owned process identity."""
+    for _ in range(50):
+        try:
+            return int(Path(sock + ".pid").read_text().strip())
+        except (FileNotFoundError, ValueError, OSError):
+            time.sleep(0.1)
+    raise AssertionError(f"broker never recorded a pid at {sock}.pid")
+
+
+def assert_mapped_read_ready(response, expected):
+    """TCP/PID publication precedes setup; require an actual mapped backend read."""
+    assert response.status_code == 200, (
+        f'broker readiness read failed with HTTP {response.status_code}')
+    assert response.content == expected, 'broker readiness read returned incorrect bytes'
+
+
+def _fd_targets(pid: int) -> "dict[int, str]":
+    """Read the actual native descriptor authority list, not a guessed empty set."""
+    if sys.platform.startswith('freebsd'):
+        from lib_py.process_host import native_descriptor_targets
+        return native_descriptor_targets(pid)
+    base = f"/proc/{pid}/fd"
+    if not os.path.isdir(base):
+        pytest.skip("descriptor introspection needs /proc (Linux)")
+    out = {}
+    for name in os.listdir(base):
+        try:
+            out[int(name)] = os.readlink(os.path.join(base, name))
+        except OSError:
+            continue
+    return out
+
+
+def _tcp_socket_inodes() -> "set[str]":
+    """Every TCP/TCP6 socket inode on the host, from /proc/net."""
+    out = set()
+    for name in ("/proc/net/tcp", "/proc/net/tcp6"):
+        try:
+            lines = Path(name).read_text().splitlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            fields = line.split()
+            if len(fields) > 9:
+                out.add(fields[9])
+    return out
+
+
+def _assert_stdio_is_null(targets: "dict[int, str]") -> None:
+    """Inherited stdio must not retain the launching supervisor's pipes."""
+    bad = {fd: targets.get(fd) for fd in (0, 1, 2)
+           if targets.get(fd) != "/dev/null"}
+    assert not bad, f"broker stdio is {bad}, not /dev/null"
+
+
+def _assert_no_network_socket(targets: "dict[int, str]") -> None:
+    """Local IPC is expected; inherited TCP listeners are forbidden authority."""
+    assert not any(target.startswith('network:') for target in targets.values()), targets
+    inodes = {t[len("socket:["):-1] for t in targets.values()
+              if t.startswith("socket:[")}
+    held = inodes & _tcp_socket_inodes()
+    assert not held, f"broker holds inherited TCP socket(s) {sorted(held)}: {targets}"
+
+
+def _is_export_object(target: str, root: str) -> bool:
+    """Distinguish a regular export file from its allowed directory anchor."""
+    real = os.path.realpath(target.removesuffix(" (deleted)"))
+    return real.startswith(root + os.sep) and os.path.isfile(real)
+
+
+def _assert_no_export_object(targets: "dict[int, str]", export: str) -> None:
+    """No inherited data handle may bypass mapped identity selection."""
+    root = os.path.realpath(export)
+    held = [target for target in targets.values() if _is_export_object(target, root)]
+    assert not held, f"broker holds inherited handle(s) on export object(s) {held}"
+
+
+def assert_listener_released(host, port):
+    """A reusable listener may replace TIME_WAIT, but never a live listener."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        probe.bind((host, port))
+        probe.listen(1)
+
+
+def listener_release_control(case, host):
+    """Prove release semantics against actual closed, active and TIME_WAIT sockets."""
+    from ephemeral_port import free_port
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind((host, free_port(host)))
+        server.listen(1)
+        port = server.getsockname()[1]
+        if case == 'active':
+            with pytest.raises(OSError) as refused:
+                assert_listener_released(host, port)
+            assert refused.value.errno == errno.EADDRINUSE
+            with socket.create_connection((host, port), timeout=2):
+                pass
+            return
+        if case == 'timewait':
+            with socket.create_connection((host, port), timeout=2) as client:
+                accepted, _peer = server.accept()
+                accepted.close()
+                assert client.recv(1) == b''
+        else:
+            assert case == 'closed'
+        server.close()
+        assert_listener_released(host, port)

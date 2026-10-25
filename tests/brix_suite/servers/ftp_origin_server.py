@@ -29,7 +29,7 @@ from pathlib import Path, PurePosixPath
 import socket
 import socketserver
 
-from ephemeral_port import free_port
+from ephemeral_port import bind_port
 from brix_suite.servers import ftp_origin_mode_e as eb
 from brix_suite.servers import ftp_origin_retrieve
 from brix_suite.servers import ftp_origin_striped as spas
@@ -87,13 +87,22 @@ class FtpOriginHandler(ftp_origin_retrieve.FtpOriginRetrieveMixin,
 
     def _open_data_listener(self) -> int:
         self._close_data_listener()
-        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listener.bind((self.server.bind_host, free_port()))
-        listener.listen(1)
-        listener.settimeout(self.timeout)
+        port, listener = bind_port(self._data_listener_at,
+                                   self.server.bind_host)
         self.data_listener = listener
-        return listener.getsockname()[1]
+        return port
+
+    def _data_listener_at(self, port: int):
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            listener.bind((self.server.bind_host, port))
+            listener.listen(1)
+            listener.settimeout(self.timeout)
+            return listener
+        except OSError:
+            listener.close()
+            raise
 
     def _data_connection(self):
         if self.data_listener is None:
@@ -441,7 +450,6 @@ class FtpOriginServer(socketserver.ThreadingTCPServer):
         if options:
             raise TypeError(f"unknown options {sorted(options)}")
         super().__init__((host, port), FtpOriginHandler)
-
 
 def _data_tls_context(cert: Path | None, key: Path | None):
     """A server-side TLS context for the PROT P data channel, or None.

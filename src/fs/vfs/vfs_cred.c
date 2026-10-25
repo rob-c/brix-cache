@@ -493,14 +493,11 @@ brix_vfs_cred_gate_active(brix_vfs_ctx_t *ctx)
  *       non-decorator instance) and return it.  Returns `top` unchanged when it
  *       is already the leaf, or NULL when `top` is NULL.
  *
- * WHY:  The stage and read-cache decorators relay namespace ops (stat/unlink/
- *       rename/…) to their source through the PLAIN slot — they do not have
- *       their own *_cred slots.  Calling brix_sd_<op>_maybe_cred on the TOP
- *       instance therefore always falls back to the plain relay (because the
- *       decorator's driver->stat_cred is NULL), so the credential is silently
- *       dropped even when use_cred=1.  Dispatching on the LEAF instead lets the
- *       forwarder find the leaf driver's *_cred slot (e.g. sd_xroot) and
- *       correctly present the per-user proxy to the remote origin.
+ * WHY:  Credential capability checks and origin namespace mutations need the
+ *       actual storage driver's policy, below cache/stage decorators. The
+ *       decorators now have credential-forwarding twins; read stat/probe must
+ *       retain that composed stack so metadata describes the cached bytes,
+ *       rather than stripping it with this helper.
  *
  * HOW:  Peel off stage and cache decorator layers using their published
  *       source-instance accessors (brix_sd_stage_source_instance /
@@ -537,10 +534,9 @@ brix_vfs_ns_leaf(brix_sd_instance_t *top)
  *       session to a per-user credential — the capability verdict for the
  *       namespace-op gate.
  *
- * WHY:  The stage and read-cache drivers are transparent decorators: they relay
- *       namespace ops (stat/unlink/rename/…) straight to their source driver via
- *       the plain slot.  They do NOT have their own *_cred slots — so we unwrap
- *       to the leaf and test IT.  The verdict is the SAME single question the
+ * WHY:  The stage and read-cache drivers forward credentials but do not define
+ *       which credential kinds the actual origin accepts. Unwrap to the leaf
+ *       for that capability verdict. The verdict is the SAME question the
  *       data-plane gate asks (vfs_leaf_per_user_capable): can this backend
  *       authenticate the origin leg as the inbound user?  A leaf that scopes
  *       opens/staged writes to the user but does NOT implement a namespace *_cred

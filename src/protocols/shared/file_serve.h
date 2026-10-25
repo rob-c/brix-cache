@@ -20,6 +20,16 @@ typedef void (*brix_http_pre_header_fn)(ngx_http_request_t *r,
     ngx_fd_t fd, off_t file_size, void *userdata);
 
 typedef struct {
+    int    range_result;   /* BRIX_SERVE_RANGE_* — for caller metric dispatch */
+    off_t  bytes_sent;     /* 0 if header_only / 416 / error                    */
+} brix_http_serve_result_t;
+
+/* Only a deferred send invokes this; synchronous callers retain their existing
+ * accounting path. The result is request-owned, never a saved caller stack. */
+typedef void (*brix_http_serve_deferred_fn)(ngx_http_request_t *r,
+    const brix_http_serve_result_t *result, ngx_int_t rc);
+
+typedef struct {
     uint8_t                    xfer_proto;    /* BRIX_XFER_PROTO_WEBDAV / _S3 */
     const char                *op_name;       /* "GET" / "GetObject"            */
     const char                *identity;      /* caller-resolved display string  */
@@ -27,12 +37,8 @@ typedef struct {
     ngx_flag_t                 compress;      /* phase-42: allow outbound codec  */
     brix_http_pre_header_fn  pre_header_send;
     void                      *pre_header_ud;
+    brix_http_serve_deferred_fn deferred_done;
 } brix_http_serve_opts_t;
-
-typedef struct {
-    int    range_result;   /* BRIX_SERVE_RANGE_* — for caller metric dispatch */
-    off_t  bytes_sent;     /* 0 if header_only / 416 / error                    */
-} brix_http_serve_result_t;
 
 /*
  * brix_http_serve_file_ranged — shared range-parse → headers → send pipeline.
@@ -44,7 +50,7 @@ typedef struct {
  * result->range_result and result->bytes_sent let the caller increment
  * protocol-specific range and bytes metrics.
  *
- * Returns NGX_OK, NGX_ERROR, or an HTTP status code (416, 500).
+ * Returns NGX_OK, NGX_DONE (deferred), NGX_ERROR, or an HTTP status code.
  */
 ngx_int_t brix_http_serve_file_ranged(ngx_http_request_t *r,
     brix_vfs_file_t *fh, const brix_vfs_stat_t *vst,

@@ -29,10 +29,12 @@ def _teardown_refusal(test_root, claimants):
 
 
 def _stop_registered_servers(test_root):
+    registry = Path(test_root) / "registry"
     run(
         [sys.executable, "-m", "cmdscripts.manage_test_servers", "stop-all"],
         cwd=REPO_ROOT / "tests",
-        env={"TEST_ROOT": str(test_root)},
+        env={"TEST_ROOT": str(test_root), "TEST_REGISTRY_ROOT": str(registry),
+             "TEST_REGISTRY_MANIFEST": str(registry / "manifest.json")},
     )
 
 
@@ -236,7 +238,7 @@ def _copy_nginx_source(nginx_src, build_root, destination):
         cwd=REPO_ROOT,
     )
     if copied.returncode != 0:
-        return result(True, f"SKIP rsync of nginx source failed: {_command_tail(copied, 2000)}")
+        return result(False, f"rsync of nginx source failed: {_command_tail(copied, 2000)}")
     return None
 
 
@@ -257,8 +259,8 @@ def _configure_dynamic(destination):
                                            " ".join(LZ4_LINK_FLAGS))},
     )
     if configured.returncode != 0:
-        message = f"SKIP configure --add-dynamic-module failed: {_command_tail(configured, 3000)}"
-        return result(True, message)
+        message = f"configure --add-dynamic-module failed: {_command_tail(configured, 3000)}"
+        return result(False, message)
     return None
 
 
@@ -273,7 +275,8 @@ def _compile_dynamic(destination):
 
 
 def _missing_codec_dependencies(text):
-    expected = ("libz.so", "libzstd", "liblzma", "libbrotlienc", "libbrotlidec", "libbz2")
+    zlib = "libz." if sys.platform == "darwin" else "libz.so"
+    expected = (zlib, "libzstd", "liblzma", "libbrotlienc", "libbrotlidec", "libbz2", "liblz4")
     return [library for library in expected if library not in text]
 
 
@@ -281,16 +284,53 @@ def _validate_dynamic(destination):
     stream_so = destination / "objs" / "ngx_stream_brix_module.so"
     if not stream_so.is_file():
         return result(False, "stream module .so not produced")
-    needed = run(["readelf", "-d", str(stream_so)], cwd=destination)
+    inspector = ["otool", "-L"] if sys.platform == "darwin" else ["readelf", "-d"]
+    needed = run([*inspector, str(stream_so)], cwd=destination)
+    if needed.returncode != 0:
+        return result(False, f"cannot inspect stream module dependencies: {_command_tail(needed, 2000)}")
     text = needed.stdout + needed.stderr
     missing = _missing_codec_dependencies(text)
     if missing:
-        message = f"codec DT_NEEDED entries missing from stream module: {', '.join(missing)}"
+        message = f"codec dependencies missing from stream module: {', '.join(missing)}"
         return result(False, message)
+    if sys.platform == "darwin":
+        return _load_dynamic(destination)
     ldd = run(["ldd", str(stream_so)], cwd=destination)
-    if "not found" in (ldd.stdout + ldd.stderr):
+    if ldd.returncode != 0 or "not found" in (ldd.stdout + ldd.stderr):
         return result(False, "stream module .so has unresolved shared library")
+    return _load_dynamic(destination)
+
+
+def _load_dynamic(destination):
+    """Dependency listings alone are insufficient: load the actual module set."""
+    from cmdscripts.live_common import inject_nginx_runtime_paths
+
+    modules = ("ngx_stream_module.so", "ngx_stream_brix_module.so",
+               "ngx_http_brix_xrdhttp_filter_module.so")
+    paths = [destination / "objs" / name for name in modules]
+    missing = _missing_module_paths(paths)
+    if missing:
+        return result(False, "dynamic module missing: " + ", ".join(missing))
+    conf = _write_load_config(destination, paths)
+    inject_nginx_runtime_paths(conf, destination)
+    loaded = run([str(destination / "objs/nginx"), "-t", "-p", str(destination),
+                  "-c", str(conf)], cwd=destination)
+    if loaded.returncode != 0:
+        return result(False, "dynamic module load failed: " + _command_tail(loaded, 3000))
     return None
+
+
+def _missing_module_paths(paths):
+    """A partial module build cannot supply valid load evidence."""
+    return [str(path) for path in paths if not path.is_file()]
+
+
+def _write_load_config(destination, paths):
+    """Render the whole dependency-ordered module set into a private config."""
+    conf = destination / "dynamic-load.conf"
+    conf.write_text("\n".join(f'load_module "{path}";' for path in paths)
+                    + "\nevents {}\nhttp {}\nstream {}\n")
+    return conf
 
 
 def _first_failure(stages):

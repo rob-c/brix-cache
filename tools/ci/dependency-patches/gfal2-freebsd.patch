@@ -1,0 +1,179 @@
+--- a/src/core/file/gfal_file_api.h
++++ b/src/core/file/gfal_file_api.h
+@@ -38 +38,3 @@
+-#if defined __APPLE__
++#if defined __FreeBSD__
++#include <gfal_freebsd_xattr.h>
++#elif defined __APPLE__
+--- a/src/core/posix/gfal_posix_api.h
++++ b/src/core/posix/gfal_posix_api.h
+@@ -40 +40,3 @@
+-#if defined __APPLE__
++#if defined __FreeBSD__
++#include <gfal_freebsd_xattr.h>
++#elif defined __APPLE__
+--- a/src/core/gfal_freebsd_xattr.h
++++ b/src/core/gfal_freebsd_xattr.h
+@@ -0,0 +1,124 @@
++/* Test-dependency portability bridge, kept outside BriX's production tree.
++ * Real extattr calls only. Conditional replacement has no native atomic
++ * equivalent and is refused; no check-then-write approximation is used. */
++#ifndef GFAL_FREEBSD_XATTR_H
++#define GFAL_FREEBSD_XATTR_H
++#include <sys/types.h>
++#include <sys/extattr.h>
++#include <errno.h>
++#include <stdlib.h>
++#include <string.h>
++
++#define XATTR_CREATE 1
++#define XATTR_REPLACE 2
++#define GFAL_BSD_ATTR_LIMIT (1024U * 1024U)
++
++static inline const char *gfal_bsd_attr_name(const char *name, int *space)
++{
++    const char *suffix = NULL;
++    if (name != NULL && strncmp(name, "user.", 5) == 0) {
++        *space = EXTATTR_NAMESPACE_USER;
++        suffix = name + 5;
++    } else if (name != NULL && strncmp(name, "system.", 7) == 0) {
++        *space = EXTATTR_NAMESPACE_SYSTEM;
++        suffix = name + 7;
++    }
++    if (suffix == NULL || suffix[0] == '\0' || strcmp(suffix, ".") == 0 ||
++        strcmp(suffix, "..") == 0 || strchr(suffix, '/') != NULL) {
++        errno = EINVAL;
++        return NULL;
++    }
++    return suffix;
++}
++
++static inline ssize_t gfal_bsd_getxattr(const char *path, const char *name,
++                                       void *value, size_t size)
++{
++    int space;
++    const char *suffix = gfal_bsd_attr_name(name, &space);
++    if (suffix == NULL) return -1;
++    if (value == NULL) {
++        if (size != 0) { errno = EFAULT; return -1; }
++        return extattr_get_file(path, space, suffix, NULL, 0);
++    }
++    /* One extra byte distinguishes full data from FreeBSD's short-buffer
++     * truncation in ONE syscall, including a concurrently growing value. */
++    size_t capacity = size < GFAL_BSD_ATTR_LIMIT ? size + 1 : GFAL_BSD_ATTR_LIMIT + 1;
++    void *scratch = malloc(capacity);
++    if (scratch == NULL) { errno = ENOMEM; return -1; }
++    ssize_t count = extattr_get_file(path, space, suffix, scratch, capacity);
++    int error = errno;
++    if (count >= 0 && (size_t) count > size) { count = -1; error = ERANGE; }
++    if (count >= 0 && (size_t) count == GFAL_BSD_ATTR_LIMIT + 1) {
++        count = -1; error = E2BIG;
++    }
++    if (count > 0) memcpy(value, scratch, (size_t) count);
++    free(scratch);
++    errno = error;
++    return count;
++}
++
++static inline int gfal_bsd_setxattr(const char *path, const char *name,
++                                   const void *value, size_t size, int flags)
++{
++    int space;
++    const char *suffix = gfal_bsd_attr_name(name, &space);
++    if (suffix == NULL) return -1;
++    if (flags < 0 || (flags & ~3) != 0 || flags == 3) { errno = EINVAL; return -1; }
++    if (flags != 0) { errno = EOPNOTSUPP; return -1; }
++    if (size > GFAL_BSD_ATTR_LIMIT) { errno = E2BIG; return -1; }
++    ssize_t count = extattr_set_file(path, space, suffix, value, size);
++    if (count < 0) return -1;
++    if ((size_t) count != size) { errno = EIO; return -1; }
++    return 0;
++}
++
++static inline ssize_t gfal_bsd_list_space(const char *path, int space,
++                                         const char *prefix, char *output,
++                                         size_t capacity, size_t *written)
++{
++    unsigned char *raw = (unsigned char *) malloc(GFAL_BSD_ATTR_LIMIT + 1);
++    if (raw == NULL) { errno = ENOMEM; return -1; }
++    ssize_t count = extattr_list_file(path, space, raw, GFAL_BSD_ATTR_LIMIT + 1);
++    int error = errno;
++    if (count < 0) {
++        free(raw);
++        if (space == EXTATTR_NAMESPACE_SYSTEM && (error == EPERM || error == EACCES)) return 0;
++        errno = error; return -1;
++    }
++    if ((size_t) count > GFAL_BSD_ATTR_LIMIT) {
++        free(raw); errno = E2BIG; return -1;
++    }
++    size_t cursor = 0, plen = strlen(prefix);
++    while (cursor < (size_t) count) {
++        size_t length = raw[cursor++];
++        if (length == 0 || length > (size_t) count - cursor ||
++            memchr(raw + cursor, '\0', length) != NULL) {
++            free(raw); errno = EIO; return -1;
++        }
++        size_t needed = plen + length + 1;
++        if (output != NULL) {
++            if (*written > capacity || needed > capacity - *written) {
++                free(raw); errno = ERANGE; return -1;
++            }
++            memcpy(output + *written, prefix, plen);
++            memcpy(output + *written + plen, raw + cursor, length);
++            output[*written + needed - 1] = '\0';
++        }
++        *written += needed;
++        cursor += length;
++    }
++    free(raw);
++    return 0;
++}
++
++static inline ssize_t gfal_bsd_listxattr(const char *path, char *output, size_t size)
++{
++    size_t written = 0;
++    if (output == NULL && size != 0) { errno = EFAULT; return -1; }
++    if (gfal_bsd_list_space(path, EXTATTR_NAMESPACE_USER, "user.", output, size, &written) < 0 ||
++        gfal_bsd_list_space(path, EXTATTR_NAMESPACE_SYSTEM, "system.", output, size, &written) < 0)
++        return -1;
++    return (ssize_t) written;
++}
++#endif
+--- a/src/plugins/file/gfal_file_plugin_main.c
++++ b/src/plugins/file/gfal_file_plugin_main.c
+@@ -29 +29,3 @@
+-#if defined __APPLE__
++#if defined __FreeBSD__
++#include <gfal_freebsd_xattr.h>
++#elif defined __APPLE__
+@@ -146 +148,3 @@
+-#ifdef __APPLE__
++#ifdef __FreeBSD__
++    const ssize_t res = gfal_bsd_getxattr(path + FILE_PREFIX_LEN, name, buff, s_buff);
++#elif defined __APPLE__
+@@ -161 +165,3 @@
+-#ifdef __APPLE__
++#ifdef __FreeBSD__
++    const ssize_t res = gfal_bsd_listxattr(path + FILE_PREFIX_LEN, list, s_list);
++#elif defined __APPLE__
+@@ -177 +183,3 @@
+-#ifdef __APPLE__
++#ifdef __FreeBSD__
++    const int res = gfal_bsd_setxattr(path + FILE_PREFIX_LEN, name, value, size, flags);
++#elif defined __APPLE__
+--- a/src/plugins/xrootd/gfal_xrootd_plugin_utils.cpp
++++ b/src/plugins/xrootd/gfal_xrootd_plugin_utils.cpp
+@@ -360 +360,6 @@
+-#if ((_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE) || defined(__APPLE__)
++#if defined(__FreeBSD__)
++    if (strerror_r(errcode, error_string, sizeof(error_string)) != 0) {
++        snprintf(error_string, sizeof(error_string), "errno %d", errcode);
++    }
++    error_string_ptr = error_string;
++#elif ((_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE) || defined(__APPLE__)
+--- a/src/plugins/xrootd/gfal_xrootd_plugin_interface.cpp
++++ b/src/plugins/xrootd/gfal_xrootd_plugin_interface.cpp
+@@ -560 +560,2 @@
+-    g_strlcpy(checksum_buffer, space + 1, buffer_length);
++    // The digest is inside the destination buffer: strlcpy forbids overlap.
++    memmove(checksum_buffer, space + 1, strlen(space + 1) + 1);

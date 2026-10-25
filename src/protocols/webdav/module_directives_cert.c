@@ -15,6 +15,7 @@
 #include "core/compat/log_event.h"
 #include "webdav_module_internal.h"
 #include "core/config/config.h"  /* brix_copy_conf_string */
+#include "auth/crypto/name_compat.h"
 
 #include <openssl/pem.h>         /* PEM_read_bio_X509 (client-cert-folder resolve) */
 #include <openssl/x509.h>
@@ -77,7 +78,7 @@ webdav_conf_probe_issuer_file(ngx_conf_t *cf, ngx_str_t *folder,
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     hash = X509_NAME_hash_ex(issuer, NULL, NULL, NULL);
 #else
-    hash = X509_NAME_hash(issuer);
+    hash = X509_NAME_hash((X509_NAME *) issuer); /* 1.1.1 reads through a non-const API */
 #endif
 
     buflen = folder->len + sizeof("/xxxxxxxx.9");
@@ -211,7 +212,7 @@ webdav_conf_client_cert_folder(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     rc = webdav_conf_probe_issuer_file(cf, &folder, issuer, &found);
 
     if (rc == NGX_DECLINED) {
-        X509_NAME_oneline(issuer, dn, sizeof(dn));
+        brix_crypto_name_oneline(issuer, dn, sizeof(dn));
         X509_free(leaf);
         BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
                            "brix_client_certificate_folder: no <hash>.N file "

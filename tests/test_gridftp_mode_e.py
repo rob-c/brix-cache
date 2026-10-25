@@ -109,11 +109,18 @@ def _mode_e_stor(gw, name, frames, eod_total=1, close_eof=True):
         try:
             ftp.putcmd("STOR " + name)
             assert ftp.getresp().startswith("150"), "expected 150 before data"
-            for frame in frames:
-                data.sendall(frame)
-            if close_eof:
-                data.sendall(_eb(EB_EOF | EB_EOD, 0, eod_total))
-            data.shutdown(socket.SHUT_WR)
+            try:
+                for frame in frames:
+                    data.sendall(frame)
+                if close_eof:
+                    data.sendall(_eb(EB_EOF | EB_EOD, 0, eod_total))
+                data.shutdown(socket.SHUT_WR)
+            except OSError:
+                # A receiver may close immediately after a malformed frame.
+                # The authoritative transfer verdict still arrives on the
+                # control channel; requiring a subsequent EOF write to work
+                # makes rejection timing an OS-dependent test outcome.
+                pass
             return _final_code(ftp)
         finally:
             data.close()

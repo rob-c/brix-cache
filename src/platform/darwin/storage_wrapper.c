@@ -29,6 +29,12 @@
 
 #define BRIX_DARWIN_COPY_BUFFER (256U * 1024U)
 
+/* WHAT: Retain sendfile for valid descriptor candidates.
+ * WHY: No filesystem restriction is established on this host.
+ * HOW: Reject the invalid-fd sentinel without changing errno or doing I/O. */
+int brix_plat_file_sendfile_safe(int fd)
+{ return fd >= 0; }
+
 static ssize_t
 darwin_copy_read(int fd, void *buf, size_t len, off_t *off)
 {
@@ -36,9 +42,57 @@ darwin_copy_read(int fd, void *buf, size_t len, off_t *off)
 }
 
 static ssize_t
+darwin_copy_read_retry(int fd, void *buf, size_t len, off_t *off)
+{
+    ssize_t nr;
+
+    do {
+        nr = darwin_copy_read(fd, buf, len, off);
+    } while (nr < 0 && errno == EINTR);
+    return nr;
+}
+
+static ssize_t
 darwin_copy_write(int fd, const void *buf, size_t len, off_t *off)
 {
     return off == NULL ? write(fd, buf, len) : pwrite(fd, buf, len, *off); /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
+}
+
+static int
+darwin_copy_write_all(int fd, const unsigned char *buffer, size_t len,
+    off_t *off, size_t *written)
+{
+    *written = 0;
+    while (*written < len) {
+        ssize_t nw = darwin_copy_write(fd, buffer + *written,
+                                       len - *written, off);
+
+        if (nw < 0 && errno == EINTR) {
+            continue;
+        }
+        if (nw <= 0) {
+            return -1;
+        }
+        *written += (size_t) nw;
+        if (off != NULL) {
+            *off += nw;
+        }
+    }
+    return 0;
+}
+
+static ssize_t
+darwin_copy_write_failure(size_t copied, size_t written, off_t *in_off)
+{
+    if (written != 0) {
+        copied += written;
+        if (in_off != NULL) {
+            *in_off += (off_t) written;
+        }
+    } else if (copied == 0) {
+        return -1;
+    }
+    return (ssize_t) copied;
 }
 
 int
@@ -87,29 +141,18 @@ brix_plat_copy_range(int in_fd, off_t *in_off,
         size_t  written = 0;
 
         if (wanted > BRIX_DARWIN_COPY_BUFFER) wanted = BRIX_DARWIN_COPY_BUFFER;
-        nr = darwin_copy_read(in_fd, buffer, wanted, in_off);
-        if (nr < 0 && errno == EINTR) continue;
+        nr = darwin_copy_read_retry(in_fd, buffer, wanted, in_off);
         if (nr <= 0) {
             if (nr < 0 && copied == 0) copied = (size_t) -1;
             break;
         }
-        while (written < (size_t) nr) {
-            ssize_t nw = darwin_copy_write(out_fd, buffer + written,
-                (size_t) nr - written, out_off);
-
-            if (nw < 0 && errno == EINTR) continue;
-            if (nw <= 0) {
-                if (written != 0) {
-                    copied += written;
-                    if (in_off != NULL) *in_off += (off_t) written;
-                } else if (copied == 0) {
-                    copied = (size_t) -1;
-                }
-                free(buffer);
-                return copied == (size_t) -1 ? -1 : (ssize_t) copied;
-            }
-            written += (size_t) nw;
-            if (out_off != NULL) *out_off += nw;
+        if (darwin_copy_write_all(out_fd, buffer, (size_t) nr, out_off,
+                                  &written) != 0)
+        {
+            ssize_t result = darwin_copy_write_failure(copied, written,
+                                                       in_off);
+            free(buffer);
+            return result;
         }
         copied += (size_t) nr;
         if (in_off != NULL) *in_off += nr;

@@ -13,6 +13,7 @@
  */
 
 #include "auth/crypto/store_policy.h"
+#include "auth/crypto/key_compat.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -30,7 +31,7 @@ throwaway_key(void)
     static EVP_PKEY *key;
 
     if (key == NULL) {
-        key = EVP_RSA_gen(2048);
+        key = brix_crypto_rsa_keygen(2048);
     }
     return key;
 }
@@ -71,7 +72,7 @@ name_of(const char *dc, const char *cn)
 
 /* `parent` + one CN. */
 static X509_NAME *
-child_name(const X509_NAME *parent, const char *cn)
+child_name(X509_NAME *parent, const char *cn)
 {
     X509_NAME *n = X509_NAME_dup(parent);
 

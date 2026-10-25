@@ -1,7 +1,7 @@
 """Server-side root:// ZIP member access (phase-57 W2): ?xrdcl.unzip=<member>.
 
-Self-contained: starts its own nginx (brix_zip_access on) over an export dir
-containing a real ZIP archive.
+Uses the fleet's dedicated ZIP server and seeds a real ZIP archive beneath
+its export; the test itself starts no nginx instance.
 
 IMPORTANT: the native/stock XrdCl client handles xrdcl.unzip CLIENT-SIDE (it
 reads the archive's central directory + member bytes and inflates locally), so a
@@ -15,7 +15,6 @@ import os
 import socket
 import struct
 import subprocess
-import time
 import zipfile
 from pathlib import Path
 
@@ -23,6 +22,7 @@ import pytest
 import requests
 
 from server_registry import get_server
+from lib_py.util import wait_tcp
 from settings import (HOST, TEST_ROOT, ZIP_ROOT_PORT as PORT,
                       ZIP_WEBDAV_PORT as HTTP_PORT, ZIP_S3_PORT as S3_PORT)
 
@@ -45,11 +45,8 @@ def _run(cmd, **kw):
 
 
 def _wait_listen(port, tries=80):
-    for _ in range(tries):
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode == 0:
-            return True
-        time.sleep(0.1)
-    return False
+    """Probe the actual endpoint with the shared bounded, portable helper."""
+    return wait_tcp(HOST, port, timeout=tries * 0.1)
 
 
 # ---- compact raw-wire client (parameterised by port) ----
@@ -130,7 +127,7 @@ def zipsrv():
         z.writestr(zi, DEFL)
     for p in (PORT, HTTP_PORT, S3_PORT):
         if not _wait_listen(p):
-            pytest.skip(f"fleet zip instance not listening on {p}")
+            pytest.fail(f"registered fleet zip instance not listening on {p}")
     yield {"base": str(TEST_ROOT), "data": data}
 
 

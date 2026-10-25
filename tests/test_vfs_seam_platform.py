@@ -32,6 +32,9 @@ def _source(root, name, body):
      "/* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation */"),
     ("src/platform/darwin/copy_range.c",
      "brix_platform_copy_range(in, off, out, off, len, flags);"),
+    ("src/platform/freebsd/storage_wrapper.c",
+     "return preadv(fd, iov, count, off); "
+     "/* vfs-seam-allow: SEAM_CORRECT - native PAL descriptor IO */"),
     ("src/protocols/webdav/get.c", "return brix_vfs_pread_full(f, b, n, off);"),
 ])
 def test_storage_owners_and_vfs_calls_pass(source_tree, path, body):
@@ -40,12 +43,13 @@ def test_storage_owners_and_vfs_calls_pass(source_tree, path, body):
     assert SEAM.current_bypasses() == []
 
 
+@pytest.mark.parametrize("host", ["linux", "freebsd"])
 @pytest.mark.parametrize("marker", [
     "", "/* vfs-seam-allow: NOT_STORAGE - unsupported byte exemption */",
     "/* vfs-seam-allow: SEAM_CORRECT_MISSPELLED - malformed */",
 ])
-def test_pal_raw_byte_call_requires_exact_owner_marker(source_tree, marker):
-    _source(source_tree, "src/platform/linux/posix_wrapper.c",
+def test_pal_raw_byte_call_requires_exact_owner_marker(source_tree, marker, host):
+    _source(source_tree, f"src/platform/{host}/posix_wrapper.c",
             "return sendfile(out, fd, off, len); " + marker)
     assert len(SEAM.current_raw_tier1()) == 1
 
@@ -53,6 +57,8 @@ def test_pal_raw_byte_call_requires_exact_owner_marker(source_tree, marker):
 @pytest.mark.parametrize("path", [
     "src/protocols/webdav/get.c", "src/platform/linux/unreviewed.c",
     "src/platform/linux/posix_wrapper.c_extra.c",
+    "src/platform/freebsd/unreviewed.c",
+    "src/platform/freebsd/storage_wrapper.c_extra.c",
 ])
 def test_marker_cannot_grant_raw_bytes_to_other_files(source_tree, path):
     _source(source_tree, path, "return pread(fd, buf, len, off); "
@@ -87,7 +93,8 @@ def test_pal_metadata_alias_requires_vfs_in_handler(source_tree, symbol):
 
 
 def test_pal_metadata_implementation_and_backend_pass(source_tree):
-    for path in ("src/platform/linux/posix_wrapper.c", "src/fs/backend/posix.c"):
+    for path in ("src/platform/linux/posix_wrapper.c",
+                 "src/platform/freebsd/xattr_wrapper.c", "src/fs/backend/posix.c"):
         _source(source_tree, path, "brix_plat_getxattr(path, name, buf, size);")
     assert SEAM.current_bypasses() == []
 

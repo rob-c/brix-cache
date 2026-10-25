@@ -25,8 +25,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-#define BRIX_LOCK_XATTR_KEY     "user.nginx_xrootd.lock"
-#define BRIX_LOCK_XATTR_MAXLEN  512
+#include "lock_key.h"
 
 typedef struct {
     char        token[64];           /* full opaquelocktoken:UUID string */
@@ -42,6 +41,9 @@ typedef struct {
                                       * placeholder on a non-existent resource
                                       * (RFC 4918 §9.10.1); reaped on UNLOCK/expiry
                                       * while the resource is still empty. */
+    size_t      observed_length;    /* exact read snapshot for compare/exchange;
+                                      * zero for a newly constructed record */
+    char        observed[BRIX_LOCK_XATTR_MAXLEN];
 } brix_lock_record_t;
 
 /* Serialise a lock record to the pipe-delimited xattr value form in

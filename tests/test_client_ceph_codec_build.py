@@ -3,8 +3,10 @@
 from pathlib import Path
 import shlex
 import subprocess
+import sys
 
 import pytest
+from brix_suite.client_build import client_make
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -16,11 +18,10 @@ def _compile_codecs(directory, flags):
     owned = directory / "apps/ceph"
     owned.mkdir(parents=True)
     (owned / "ngx_shim.h").symlink_to(REPO / "client/apps/ceph/ngx_shim.h")
-    command = ["make", "-f", str(REPO / "client/Makefile"), "-j1",
-               f"REPO={REPO}", f"CFLAGS={flags}",
-               *(f"apps/ceph/{name}.o" for name in CODECS)]
-    result = subprocess.run(command, cwd=directory, capture_output=True, text=True,
-                            timeout=60)
+    result = client_make(directory, "-f", str(REPO / "client/Makefile"), "-j1",
+                         f"REPO={REPO}", f"CFLAGS={flags}",
+                         *(f"apps/ceph/{name}.o" for name in CODECS),
+                         capture_output=True, text=True, timeout=60)
     return result, [owned / f"{name}.o" for name in CODECS]
 
 
@@ -32,11 +33,20 @@ def _link_and_run(directory, objects, name, flags):
                *(str(path) for path in objects), "-o", str(binary)]
     result = subprocess.run(command, capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stdout + result.stderr
-    header = subprocess.run(["readelf", "-d", str(binary)], capture_output=True,
-                            text=True, check=True).stdout
-    assert any("FLAGS_1" in line and "PIE" in line for line in header.splitlines())
+    _assert_pie(binary)
     result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def _assert_pie(binary):
+    """Inspect native object metadata rather than assuming an ELF host."""
+    if sys.platform == "darwin":
+        from lib_py.macho_hardening import check_binary
+        check_binary(binary, executable=True)
+    else:
+        header = subprocess.run(["readelf", "-d", str(binary)], capture_output=True,
+                                text=True, check=True).stdout
+        assert any("FLAGS_1" in line and "PIE" in line for line in header.splitlines())
 
 
 @pytest.mark.parametrize("flags", ["", SANITIZERS], ids=["normal", "sanitized"])

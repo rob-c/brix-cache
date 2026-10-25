@@ -18,6 +18,8 @@
 #include <string.h>
 #include <openssl/objects.h>
 
+#include "auth/crypto/name_compat.h"
+
 char *
 brix_voms_dn_oneline(const X509_NAME *name, char *buf, size_t cap)
 {
@@ -26,7 +28,7 @@ brix_voms_dn_oneline(const X509_NAME *name, char *buf, size_t cap)
     }
     buf[0] = '\0';
     if (name != NULL) {
-        X509_NAME_oneline(name, buf, (int) cap);
+        brix_crypto_name_oneline(name, buf, cap);
         buf[cap - 1] = '\0';
     }
     return buf;

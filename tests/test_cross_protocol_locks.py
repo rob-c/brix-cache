@@ -464,7 +464,10 @@ def test_path_truncate_refuses_locked_file_until_unlock(lock_srv):
     assert unlock_rc == 204
     status, _ = fs.truncate("/trunc.bin", 4)
     assert status.ok, f"the unlocked truncate still refused: {status.message}"
-    assert (lock_srv["dirs"]["shared"] / "trunc.bin").read_bytes() == b"0123"
+    truncated = lock_srv["dirs"]["shared"] / "trunc.bin"
+    assert truncated.stat().st_size == 4, "reference client sent the wrong truncate size"
+    with truncated.open('rb') as stream:
+        assert stream.read(5) == b"0123"
 
 
 def _bulk_delete_request(lock_srv, keys):

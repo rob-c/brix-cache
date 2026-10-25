@@ -25,7 +25,10 @@ import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from fleet_ports import cmdscript_ports
-from settings import BIND_HOST, CA_CERT, CA_DIR, CA_KEY, HOST, PROXY_STD, SERVER_CERT, SERVER_KEY
+from settings import (
+    BIND_HOST, CA_CERT, CA_DIR, CA_KEY, HOST, PROXY_STD, SERVER_CERT,
+    SERVER_KEY, TMP_DIR,
+)
 
 _PORTS = cmdscript_ports("user_backend_cred")
 
@@ -264,6 +267,7 @@ def multiuser_authz(nginx: Path | None = None, pytest_args: list[str] | None = N
         print("SKIP: the multi-user conformance suite requires root (real accounts + setfsuid)")
         print("Run: sudo -E env PYTHONPATH=tests python3 -m cmdscripts.user_backend_cred multiuser-authz")
         return SKIP
+    Path(TMP_DIR).mkdir(parents=True, exist_ok=True)
     _provision_multiuser_pki()
     _run_multiuser_c_unit()
     return _run_multiuser_pytest(pytest_args)

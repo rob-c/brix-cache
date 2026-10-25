@@ -15,8 +15,8 @@
 #include <openssl/opensslv.h>
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <openssl/provider.h>
-#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 #endif
+#include "auth/crypto/scoped.h"   /* destroyers are required on every OpenSSL ABI */
 
 /* Load the OpenSSL-3 "legacy" provider once (Blowfish lives there). Warm SHA2-256
  * from the default provider first so loading legacy does not become the only

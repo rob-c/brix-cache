@@ -1,5 +1,6 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_evil_actor_v3_helpers")
+from _test_proxy_mode_helpers import _read as _read_complete
 
 
 def _abandon_recall_waiter(srv):
@@ -263,20 +264,32 @@ def _frm_chaos_worker(srv, stop):
 def _http_abort_worker(srv, stop):
     while time.time() < stop:
         _https_get(srv.https_port, "/big.bin", abort_after=random.choice((4096, 65536)))
-        _https_get(srv.https_port, "/s3b/big.bin", abort_after=8192)
+        _https_get(srv.metrics_port, "/s3b/big.bin", abort_after=8192)
+
+
+def _control_root_read(connection, handle, expected_md5, errors):
+    """Validate a complete bounded reply, not its first continuation frame."""
+    status, data = _read_complete(connection, handle, 0, 65536,
+                                  sid=b"\x00\x0c", strict=True)
+    if status == kXR_ok and (len(data) != 65536
+            or hashlib.md5(data).hexdigest() != expected_md5):
+        errors.append("control_root corrupt")
 
 
 def _control_root_round(srv, expected_md5, errors):
+    connection = None
     try:
         connection, _ = _session(srv.root_port)
         _, status, body = _open(connection, "/big.bin", flags=OPEN_READ)
         if status == kXR_ok and len(body) >= 4:
-            _, _, data = _read(connection, body[:4], 0, 65536, sid=b"\x00\x0c")
-            if data and hashlib.md5(data).hexdigest() != expected_md5:
-                errors.append("control_root corrupt")
-        connection.close()
+            _control_root_read(connection, body[:4], expected_md5, errors)
+    except RuntimeError:
+        errors.append("control_root invalid framing")
     except Exception:
         pass
+    finally:
+        if connection is not None:
+            connection.close()
 
 
 def _control_root_worker(srv, stop, expected_md5, errors):
@@ -339,7 +352,8 @@ def _stage_durable_reqid(srv):
     _st2, second_reqid = _prepare_stage(owner, "/near001.dat")
     if st1 != kXR_ok or not reqid or reqid == "0":
         owner.close()
-        pytest.skip("FRM stage did not return a durable reqid (got %r)" % reqid)
+        pytest.fail("configured FRM stage returned no durable reqid "
+                    "(status=%r reply=%r)" % (st1, reqid))
     assert reqid != second_reqid, "stage reqids not unique"
     return owner, reqid
 

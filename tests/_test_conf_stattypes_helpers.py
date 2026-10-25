@@ -161,11 +161,13 @@ def _directories(root):
 
 
 def _fifos(root):
+    from lib_py.reference_host import reference_mkfifo
+
     created = []
     for name, mode in (("fifo1", 0o644), ("fifo_600", 0o600)):
         relative = f"/types/{name}"
         try:
-            os.mkfifo(root + relative, mode)
+            reference_mkfifo(root + relative, mode)
             created.append((relative, "other"))
         except OSError:
             pass

@@ -23,6 +23,8 @@ import time
 
 from settings import BIND_HOST, TEST_ROOT
 from stock_xrootd_owner import StockXrootdOwner as _StockServerOwner, _kill_proc
+from lib_py.reference_host import reference_brix_data_root, reference_transport_directives
+from brix_suite.mesh.cms_mesh_lib import _reference_ip_args
 
 def _phase_chown_stock_1(path, uid, gid):
     if _expression_2(path):
@@ -150,8 +152,8 @@ FLEET_OFF_PORT = _FLEET_OFF_PORT
 # freshness floor), listing differentials use a per-worker lroot_<tag> dir, and
 # harmonize_perms/chown_stock stat-and-skip so a concurrent re-seed never
 # bumps ctime under a running stat-parity test.
-FLEET_OUR_DATA = os.path.join(TEST_ROOT, "data-interop-our")
-FLEET_OFF_DATA = os.path.join(TEST_ROOT, "data-interop-off")
+# The parent owns both export roots, including the opt-in native-ZFS mapping.
+# A continuation must never replace those initialized paths with plain joins.
 
 # --------------------------------------------------------------------------- #
 # Differential-conformance ports: each test_conf_* module owns a FIXED pair of
@@ -184,6 +186,8 @@ def _chown_one(path, uid, gid):
 
 def chown_stock(*paths):
     """Best-effort ownership handoff to the stock server's service user."""
+    if os.geteuid() != 0:
+        return
     ids = _nobody_ids()
     if ids is None:
         return
@@ -203,6 +207,8 @@ def chown_brix(*paths):
     launcher so owner-gated differential operations exercise both servers
     under their real service identities.
     """
+    if os.geteuid() != 0:
+        return
     from brix_suite.worker_identity import nginx_default_worker_user
     from settings import NGINX_BIN
 
@@ -332,7 +338,7 @@ def start_pair(base=None, rich=True, our_port=None, off_port=None):
     try:
         if base is None:
             raise RuntimeError("interop pair requires a private base directory")
-        our_data = os.path.join(str(base), "our-data")
+        our_data = reference_brix_data_root(os.path.join(str(base), "our-data"), TEST_ROOT)
         off_data = os.path.join(str(base), "off-data")
         os.makedirs(our_data, exist_ok=True)
         os.makedirs(off_data, exist_ok=True)
@@ -452,9 +458,10 @@ def start_official_server(base, data, port=OFF_PORT):
                 f"oss.localroot {data}\n"
                 f"all.adminpath {admin}\n"
                 f"all.pidpath {admin}\n"
-                "xrootd.async off\n")
+                + reference_transport_directives(disable_async=True))
         owner.process = subprocess.Popen(
-            [OFF_XROOTD, "-c", cfg, "-l", os.path.join(base, "xrd.log")],
+            [OFF_XROOTD, "-c", cfg, "-l", os.path.join(base, "xrd.log"),
+             *_reference_ip_args()],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             start_new_session=True)
         if _wait(port):

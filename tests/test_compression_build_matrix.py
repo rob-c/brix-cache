@@ -13,25 +13,22 @@ Two build-time guards for the codec compile-gating contract (codec_core.h):
      deterministic, no external libs — runs by default.
 
   2. **Real `--with-compat` dynamic-module build + dlopen.**
-     `tests/build_dynamic_modules.sh` does a full isolated `--add-dynamic-module`
+     `cmdscripts.operator_build` does a full isolated `--add-dynamic-module`
      nginx build (never touching the harness binary) and asserts the compression
      codec libraries — including lz4 — are linked into the dynamic stream `.so`
-     as DT_NEEDED records and resolve at load (the reason BRIX_CODEC_LIBS is in
-     ngx_module_libs, not just CORE_LIBS).  Heavyweight (compiles nginx + all
-     modules), so it is OPT-IN via XRD_RUN_BUILD_MATRIX=1.
-
-     Note: that script intentionally does NOT require a full `nginx -t` dlopen of
-     the per-module .so set to succeed — that is blocked by a pre-existing,
-     non-compression circular cross-module symbol dependency of the multi-module
-     split (the harness ships static for this reason).  The script fails only if a
-     *codec* symbol is unresolved; this test mirrors that contract.
+     as ELF DT_NEEDED or Mach-O load records (the reason BRIX_CODEC_LIBS is in
+     ngx_module_libs, not just CORE_LIBS). All three modules must then load
+     together through a real `nginx -t`; an unresolved symbol or missing codec
+     is a failure, not an unavailable-feature skip. This heavyweight check is
+     part of the full suite and never modifies the running fleet's build.
 """
 
 import os
+import shlex
 import subprocess
 
 import pytest
-from cmdscripts.compile_run import LZ4_LINK_FLAGS
+from cmdscripts.compile_run import LZ4_LINK_FLAGS, library_compile_args
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CDIR = os.path.join(REPO, "tests", "c")
@@ -118,7 +115,7 @@ def test_codec_per_codec_drop_independence(tmp_path, dropped):
     binp = str(tmp_path / f"probe_drop_{dropped}")
     cc = subprocess.run([*cmd, "-o", binp, *libs], capture_output=True, text=True)
     if cc.returncode != 0:
-        pytest.skip(f"toolchain/codec dev lib unavailable for drop-{dropped}:\n{cc.stderr[:400]}")
+        pytest.fail(f"codec drop-{dropped} probe failed to compile:\n{cc.stderr[:1500]}")
 
     run = subprocess.run([binp], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, run.stderr
@@ -128,33 +125,24 @@ def test_codec_per_codec_drop_independence(tmp_path, dropped):
 
 def _drop_build_inputs(probe, dropped):
     cmd = [_cc(), "-std=c11", "-O2", "-Wall", "-Wextra", "-DBRIX_HAVE_ZLIB",
-           *_lz4_cflags(), "-I", CM, probe,
+           "-I", CM, probe,
            os.path.join(CM, "codec_core.c"), os.path.join(CM, "codec_zlib.c")]
     libs, kept = ["-lz"], []
     for name, flag, codec_libs in _OPT_CODECS:
         cmd.append(os.path.join(CM, _CODEC_SRC[name]))
         if name != dropped:
             cmd.append(f"-D{flag}")
-            libs.extend(codec_libs)
+            libs.extend(_codec_link_flags(name, codec_libs))
             kept.append(name)
     return cmd, libs, kept
 
 
-def _lz4_cflags():
-    configured = os.environ.get("BRIX_LZ4_CFLAGS", "")
-    if configured:
-        return [configured]
-    include = _find_lz4_include()
-    if include and include != "/usr/include":
-        return [f"-I{include}"]
-    return []
-
-
-def _find_lz4_include():
-    candidates = ("/usr/include", os.path.expanduser("~/miniconda3/include"),
-                  "/opt/conda/include")
-    return next((path for path in candidates
-                 if os.path.isfile(os.path.join(path, "lz4frame.h"))), None)
+def _codec_link_flags(name, libraries):
+    """Use shared SDK discovery, preserving the build's explicit LZ4 selection."""
+    if name == 'lz4' and (os.environ.get('BRIX_LZ4_CFLAGS')
+                          or os.environ.get('BRIX_LZ4_LIBS')):
+        return shlex.split(os.environ.get('BRIX_LZ4_CFLAGS', '')) + list(libraries)
+    return library_compile_args(libraries)
 
 
 def _assert_drop_matrix(available, kept, dropped, stdout):

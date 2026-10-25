@@ -109,6 +109,10 @@ def _metric(srv, name, driver):
 def _seed_tree(root, prefix):
     """3 levels: prefix/{f0, d1/{f1a, f1b, d2/{f2}}} — 4 files, 3 dirs."""
     (root / prefix / "d1" / "d2").mkdir(parents=True)
+    if os.geteuid() == 0:
+        for directory in (root / prefix, root / prefix / "d1",
+                          root / prefix / "d1" / "d2"):
+            directory.chmod(0o777)
     files = [f"{prefix}/f0.bin", f"{prefix}/d1/f1a.bin",
              f"{prefix}/d1/f1b.bin", f"{prefix}/d1/d2/f2.bin"]
     for f in files:

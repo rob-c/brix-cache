@@ -111,6 +111,12 @@ def find_obj(name: str) -> Path | None:
 HERMETIC_ENV = {"TMPDIR": "/tmp"}
 
 
+def _quic_include_flags() -> list[str]:
+    """Return the nginx QUIC include only when the SDK ships that directory."""
+    quic_dir = NGX_SRC / "src/event/quic"
+    return ["-I", str(quic_dir)] if quic_dir.is_dir() else []
+
+
 def _coverage_link_flags(args: list[str]) -> list[str]:
     """When a linked-in nginx object was built gcov-instrumented (a sibling
     `.gcno` sits next to it), the harness link line MUST also carry `--coverage`
@@ -157,7 +163,8 @@ def compile_and_run(binary: Path, args: list[str], env: dict[str, str] | None = 
     # PLATFORM_HOST_FLAGS: any tree header reaching platform/platform.h refuses
     # to compile without the host token (INVARIANT 14). ./config passes it for
     # the module build; a harness line assembled here has to pass it as well.
-    args = [*PLATFORM_HOST_FLAGS, *_coverage_link_flags(args),
+    args = [*PLATFORM_HOST_FLAGS, *_quic_include_flags(),
+            *_coverage_link_flags(args),
             *_sanitizer_link_flags(args), *args,
             "tests/c/brix_log_link_stubs.c"]
     built = run(["gcc", *args, "-o", str(binary)], cwd=REPO_ROOT, env=child_env)

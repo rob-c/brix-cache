@@ -72,6 +72,16 @@ brix_vfs_probe(brix_vfs_ctx_t *vfs, int nofollow, brix_vfs_stat_t *metadata)
 
 int brix_imp_client_active(void) { return 0; }
 
+/* WHAT: Abort if the unit unexpectedly enters a handle-based query.
+ * WHY: ELF sanitizer runtimes may retain those unrelated TU functions.
+ * HOW: Supply only their unreachable boundary, never a successful validator. */
+ngx_flag_t
+brix_validate_file_handle(brix_ctx_t *ctx, ngx_connection_t *connection,
+    int handle_index, const char *verb, ngx_uint_t operation, ngx_int_t *result)
+{
+    abort();
+}
+
 int
 brix_vfs_open_fd(ngx_log_t *log, const char *root, const char *path,
     int flags, mode_t mode)
@@ -129,8 +139,8 @@ main(int argc, char **argv)
     strcpy(config.common.root_canon, "/fixture");
     result = brix_query_xattr(&ctx, &connection, &config);
     assert(result == (scenario_is("success") ? NGX_OK : ctx.write_rc));
-    assert(ctx.metrics->op_ok[BRIX_OP_QUERY_XATTR] == scenario_is("success"));
-    assert(ctx.metrics->op_err[BRIX_OP_QUERY_XATTR] == !scenario_is("success"));
+    assert(ctx.metrics->op_ok[BRIX_OP_QUERY_XATTR] == (uint64_t) scenario_is("success"));
+    assert(ctx.metrics->op_err[BRIX_OP_QUERY_XATTR] == (uint64_t) !scenario_is("success"));
     free(ctx.metrics);
     return 0;
 }

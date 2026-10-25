@@ -11,6 +11,7 @@ invariant (no child is left for the parent to reap).
 import os
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -51,6 +52,7 @@ def spawn_bin(tmp_path_factory):
          # The runner execs through the PAL (brix_plat_execvpe), whose host
          # body lives in src/platform/<host>/posix_wrapper.c.
          *[os.path.join(REPO, rel) for rel in pal_host_sources("posix_wrapper")],
+         *(["-framework", "Security"] if sys.platform == "darwin" else []),
          "-o", out],
         capture_output=True, text=True)
     _guard_spawn_bin_3(r)

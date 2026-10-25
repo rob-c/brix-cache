@@ -20,19 +20,25 @@ is never matched.  That boundary is a WHOLE PATH, not a text fragment: see
 ``_owns``.
 """
 import os
+import re
 import signal
 import subprocess
+import sys
 import time
+from lib_py.process_host import native_process_table, procfs_available
 
-# Daemons a fleet launches.  Matched by EXACT process name (pgrep -x) so a
-# `python -m ... nginx` helper or an editor buffer named "xrootd" is never hit.
+# Daemons a fleet launches.  Matched by an EXACT process name or argv[0]
+# basename so a `python -m ... nginx` helper or an editor buffer named
+# "xrootd" is never hit.  The argv fallback matters for Nix wrappers: a copied
+# executable named `cmsd` re-execs the store interpreter, so Linux reports
+# `python3.13` in comm while preserving the exact `cmsd` invocation in argv[0].
 FLEET_EXES = ("nginx", "xrootd", "cmsd", "krb5kdc", "kadmind", "haproxy")
 FLEET_HELPER_MARKERS = ("/tests/",)
 
 
 #: procfs is the primary, read-only process source.  Hosts without it
 #: (Darwin/BSD) fall back to one ``ps`` snapshot per query burst below.
-_HAVE_PROCFS = os.path.isdir("/proc")
+_HAVE_PROCFS = procfs_available()
 
 
 def _all_pids():
@@ -52,22 +58,27 @@ def _refresh_ps_cache():
 
 
 def _ps_snapshot():
-    """Raw ``ps -axE`` lines (own-uid environment appended), or none."""
+    """Native BSD argv/environment rows; failed inspection is not an empty host."""
+    environment_flag = "-e" if sys.platform.startswith("freebsd") else "-E"
     try:
-        return subprocess.run(
-            ["ps", "-axE", "-ww", "-o", "pid=,ppid=,ucomm=,command="],
-            capture_output=True, text=True, check=False, timeout=10,
-        ).stdout.splitlines()
-    except (OSError, subprocess.SubprocessError):
-        return []
+        result = subprocess.run(
+            ["ps", "-ax", environment_flag, "-ww", "-o", "pid=", "-o", "ppid=",
+             "-o", "ucomm=", "-o", "command="],
+            capture_output=True, text=True, check=True, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise RuntimeError("cannot inspect native process ownership") from error
+    if not result.stdout.strip():
+        raise RuntimeError("native process ownership snapshot is empty")
+    return result.stdout.splitlines()
 
 
 def _ps_split_command(command):
-    """``ps -E`` command text → (argv, environ_tokens): the program word, then
-    argv words without '=', then KEY=VALUE words (a '-x=y' option stays argv)."""
-    tokens = command.split()
-    argv = tokens[:1] + [tok for tok in tokens[1:] if "=" not in tok]
-    env = [tok for tok in tokens[1:] if "=" in tok and not tok.startswith("-")]
+    """Darwin appends the environment; FreeBSD prepends it to the command."""
+    argv, env = [], []
+    for token in command.split():
+        destination = env if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", token) else argv
+        destination.append(token)
     return argv, env
 
 
@@ -93,8 +104,11 @@ def _ps_table():
     now = time.monotonic()
     if now - _PS_CACHE["at"] < _PS_TTL and _PS_CACHE["table"]:
         return _PS_CACHE["table"]
-    rows = (_ps_parse(line) for line in _ps_snapshot())
-    table = dict(row for row in rows if row is not None)
+    if sys.platform.startswith("freebsd"):
+        table = native_process_table()
+    else:
+        rows = (_ps_parse(line) for line in _ps_snapshot())
+        table = dict(row for row in rows if row is not None)
     _PS_CACHE["at"], _PS_CACHE["table"] = now, table
     return table
 
@@ -137,7 +151,7 @@ def _environ(pid):
     """Environment of ``pid`` as bytes, or empty bytes if unreadable."""
     if not _HAVE_PROCFS:
         row = _ps_table().get(int(pid))
-        return b"\x00".join(tok.encode("utf-8", "replace") for tok in row[3]) if row else b""
+        return b"\x00".join(tok.encode("utf-8", "replace") for tok in (row[3] or [])) if row else b""
     try:
         with open("/proc/%s/environ" % pid, "rb") as fh:
             return fh.read()
@@ -158,9 +172,16 @@ def _is_fleet_process(pid, cmd, exes):
     comm = _process_name(pid)
     if comm is None:
         return False
-    if _daemon_name_matches(comm, exes):
+    if (_daemon_name_matches(comm, exes)
+            or _argv_daemon_name_matches(pid, exes)):
         return True
     return _helper_matches(pid, comm, cmd)
+
+
+def _argv_daemon_name_matches(pid, exes):
+    arguments = _process_argv(pid)
+    return bool(arguments) and _daemon_name_matches(
+        os.path.basename(arguments[0]), exes)
 
 
 def _process_name(pid):
@@ -359,7 +380,7 @@ def _listener_pids_lsof(port):
     """Pids holding a TCP listener on ``port`` (hosts without /proc/net/tcp)."""
     try:
         out = subprocess.run(
-            ["lsof", "-nP", "-t", "-iTCP:%d" % int(port), "-sTCP:LISTEN"],
+            ["lsof", "-a", "-nP", "-t", "-iTCP:%d" % int(port), "-sTCP:LISTEN"],
             capture_output=True, text=True, check=False, timeout=10,
         ).stdout
     except (OSError, ValueError, subprocess.SubprocessError):
@@ -429,6 +450,19 @@ def _ancestry(pid=None):
     return chain
 
 
+def _require_readable_native_environment(pid):
+    """Refresh one unknown snapshot, but refuse a still-live unknown owner."""
+    row = _ps_table().get(int(pid))
+    if row is None or row[3] is not None:
+        return
+    _refresh_ps_cache()
+    row = _ps_table().get(int(pid))
+    if row is None:
+        return
+    if row[3] is None:
+        raise RuntimeError(f"cannot inspect an owned process environment (pid={pid})")
+
+
 def _declared_root(pid):
     """The value of ``TEST_ROOT`` in ``pid``'s environment, or None.
 
@@ -436,6 +470,8 @@ def _declared_root(pid):
     tree", which every daemon in a lane does.  Only a harness *declares* the
     lane, and it is the declaration that says who may end it.
     """
+    if not _HAVE_PROCFS:
+        _require_readable_native_environment(pid)
     for entry in _environ(pid).split(b"\x00"):
         if entry.startswith(b"TEST_ROOT="):
             value = entry[len(b"TEST_ROOT="):].decode("utf-8", "replace")
@@ -443,7 +479,20 @@ def _declared_root(pid):
     return None
 
 
-def lane_claimants(test_root, exes=FLEET_EXES, exclude_self=True):
+def _claimant_candidate(pid, command, exes, harness_only):
+    """Filter known non-harness programs before asking for their private env.
+
+    Unknown argv still requires inspection and may refuse cleanup. A visible
+    non-harness is not a lane owner merely because its environment is sealed.
+    """
+    if _is_fleet_process(pid, command, exes):
+        return False
+    if harness_only and command:
+        return _is_harness_cmd(command)
+    return True
+
+
+def lane_claimants(test_root, exes=FLEET_EXES, exclude_self=True, *, _harness_only=False):
     """LIVE processes that declare ``test_root`` as their own ``TEST_ROOT``.
 
     Excludes the fleet daemons themselves — they inherit the variable from the
@@ -464,9 +513,9 @@ def lane_claimants(test_root, exes=FLEET_EXES, exclude_self=True):
         if pid in mine:
             continue
         command = _cmdline(pid)
-        matches = all((not _is_fleet_process(pid, command, exes),
-                       _declared_root(pid) == marker))
-        if matches:
+        if not _claimant_candidate(pid, command, exes, _harness_only):
+            continue
+        if _declared_root(pid) == marker:
             claimants[pid] = command or "<pid %d>" % pid
     return sorted(claimants.items())
 
@@ -513,7 +562,7 @@ def lane_harnesses(test_root, exes=FLEET_EXES, exclude_self=True):
     operator view, and this answers "whose lane is it" for the reaper.
     """
     return [(pid, cmd)
-            for pid, cmd in lane_claimants(test_root, exes, exclude_self)
+            for pid, cmd in lane_claimants(test_root, exes, exclude_self, _harness_only=True)
             if _is_harness_cmd(cmd)]
 
 
@@ -524,6 +573,7 @@ def live_lanes(exes=FLEET_EXES):
     check to run BEFORE a reap, since it answers the question a per-root query
     cannot: not "who is in this lane" but "which lanes are anyone's".
     """
+    _refresh_ps_cache()
     lanes = {}
     for pid in _all_pids():
         cmd = _cmdline(pid)

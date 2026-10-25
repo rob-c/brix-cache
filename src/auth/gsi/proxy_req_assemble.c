@@ -70,7 +70,7 @@ asm_check_key_match(const asm_args *a, EVP_PKEY *reqkey)
     }
 
     ppub = X509_get_pubkey(proxy);
-    match = (ppub != NULL && EVP_PKEY_eq(ppub, reqkey) == 1);
+    match = brix_crypto_pkey_equal(ppub, reqkey);
     brix_evp_pkey_free(ppub);
     X509_free(proxy);
     BIO_free(pbio);

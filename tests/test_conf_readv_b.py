@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from lib_py.reference_host import fixture_read_bytes
 def _expression_1(size):
     return (
         16 if size > 65536 else 4
@@ -83,7 +84,7 @@ def test_readv_reassembly_equals_xrdcp(srv, tmp_path, name):
     dst = str(tmp_path / f"dl_{name}")
     rc, out, err = _expression_3(dst, name, srv)
     _check_test_readv_reassembly_equals_xrdcp_2(rc, name, out, err)
-    via_xrdcp = open(dst, "rb").read()
+    via_xrdcp = fixture_read_bytes(dst)
 
     def _assert_test_readv_reassembly_equals_xrdcp_1():
         assert via_readv == via_xrdcp, (
@@ -103,4 +104,4 @@ def test_oracle_stock_to_stock(srv, tmp_path):
     dst = str(tmp_path / "oracle.bin")
     rc, out, err = L.run([L.OFF_XRDCP, "-f", f"{srv['off']}//sz_4097.bin", dst])
     assert rc == 0, f"oracle stock->stock failed (tooling broken): {out}{err}"
-    assert open(dst, "rb").read() == _local(srv, "sz_4097.bin")
+    assert fixture_read_bytes(dst) == _local(srv, "sz_4097.bin")

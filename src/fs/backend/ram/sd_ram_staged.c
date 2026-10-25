@@ -267,7 +267,7 @@ sd_ram_dir_add(sd_ram_dir_t *d, const char *child, size_t cap)
      * parameter as an escape, so it reports `name` leaking at the return
      * below. Suppress exactly that diagnostic, at exactly its emission point. */
 #pragma GCC diagnostic push
-#if defined(__GNUC__) && !defined(__clang__)
+#if defined(__GNUC__) && __GNUC__ >= 10 && !defined(__clang__)
 #pragma GCC diagnostic ignored "-Wanalyzer-malloc-leak"
 #endif
     d->names[d->n] = name;

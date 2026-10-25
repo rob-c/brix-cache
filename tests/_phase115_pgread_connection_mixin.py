@@ -1,10 +1,15 @@
 """Behaviour shard loaded into the Phase-115 scripted origin."""
 
 class PgOriginConnectionMixin:
+    def _serve_accepted(self, conn, index):
+        """Initialize accepted-order state before the existing subclass hook."""
+        self._connection_context.index = index
+        self._initialize_connection_context()
+        self._serve(conn)
+
     def _serve(self, conn):
         conn.settimeout(15)
         try:
-            self._initialize_connection_context()
             self._reject_poisoned_connection()
             if not self._perform_handshake(conn):
                 return
@@ -19,9 +24,6 @@ class PgOriginConnectionMixin:
                 pass
 
     def _initialize_connection_context(self):
-        with self._lock:
-            self._connection_context.index = self.connections
-            self.connections += 1
         self._connection_context.postlogin_protocols = 0
         self._connection_context.corrupt_reads = False
         self._connection_context.pathid = 0

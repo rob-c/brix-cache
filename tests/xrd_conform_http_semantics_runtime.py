@@ -1,6 +1,6 @@
 """Runtime fixtures and command builders for HTTP semantic cases."""
-from test_xrd_conform_http_semantics import *
-from test_xrd_conform_http_semantics import _SemanticHandler
+from xrd_conform_http_semantics_fixture import *
+from xrd_conform_http_semantics_fixture import _SemanticHandler
 
 class SemanticOrigin:
     """Serve exact HTTP semantics selected by one named behavior."""

@@ -124,29 +124,44 @@ class ConnCounter:
 
     def __init__(self, ip: str, port: int = 8000):
         self.ip, self.port, self.count = ip, port, 0
-        self._lock = threading.Lock()
+        self._lock = threading.Condition()
+        self._stop = threading.Event()
         self._srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._srv.bind((ip, port))
+        self.port = self._srv.getsockname()[1]
         self._srv.listen(32)
-        threading.Thread(target=self._loop, daemon=True).start()
+        self._srv.settimeout(0.2)
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
 
     def _loop(self):
-        while True:
+        while not self._stop.is_set():
             try:
                 c, _ = self._srv.accept()
+            except socket.timeout:
+                continue
             except OSError:
                 return
             with self._lock:
                 self.count += 1
+                self._lock.notify_all()
             c.close()
+
+    def wait_count(self, expected, timeout=5.0):
+        """Observe accept(), which may run after nginx completed connect()."""
+        with self._lock:
+            self._lock.wait_for(lambda: self.count >= expected, timeout=timeout)
+            return self.count
 
     @property
     def token(self) -> str:
         return f"{self.ip}:{self.port}"
 
     def close(self):
+        self._stop.set()
         self._srv.close()
+        self._thread.join(timeout=1.0)
 
 
 class MiniOrigin:

@@ -2,22 +2,22 @@
 
 from __future__ import annotations
 
-import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from cmdscripts.compile_run import (REPO_ROOT, compile_binary, pal_host_addon,
+from cmdscripts.compile_run import (REPO_ROOT, compile_binary, confined_open_link_args,
+                                    pal_host_addon, pal_xattr_sources,
                                     result, run)
 from cmdscripts.command_results import print_results
 from cmdscripts.c_object_unit_results import (compile_failure, missing_objects,
                                               run_result)
+from cmdscripts.object_unit_interpose import fsync_interposer
 
-# Honour NGX_SRC (mirroring c_regression_units.py) so the unit runners link
-# against whichever configured build tree the caller points at — the shared
-# /tmp/nginx-1.28.3 by default, or a private tree during concurrent-session work.
-NGX_SRC = Path(os.environ.get("NGX_SRC", "/tmp/nginx-1.28.3"))
-OBJS = NGX_SRC / "objs"
-
+from cmdscripts.object_unit_layout import (
+    NGX_SRC, OBJS, addon, _inc, _NGX_CORE_INC, _NGX_HTTP_INC,
+    _NGX_LIB_OBJS, _ANON_FD_OBJECT, _ANON_FD_LINK,
+)
 
 @dataclass(frozen=True)
 class ObjectUnitSpec:
@@ -27,30 +27,6 @@ class ObjectUnitSpec:
     args: tuple[str, ...]
 
 
-def addon(path: str) -> Path:
-    return OBJS / "addon" / path
-
-
-def _inc(*dirs) -> tuple[str, ...]:
-    """Interleave ``-I`` flags for `dirs` (Paths or strings), in order."""
-    flags: list[str] = []
-    for d in dirs:
-        flags += ["-I", str(d)]
-    return tuple(flags)
-
-
-# The nginx header sets the object-linked units compile against, in the same
-# order the build tree uses; HTTP adds the stream/http trees for specs whose
-# structs reach past them.
-_NGX_CORE_INC = (NGX_SRC / "src/core", NGX_SRC / "src/event",
-                 NGX_SRC / "src/event/modules", NGX_SRC / "src/event/quic",
-                 NGX_SRC / "src/os/unix")
-_NGX_HTTP_INC = (NGX_SRC / "src/stream", NGX_SRC / "src/http",
-                 NGX_SRC / "src/http/modules")
-# ngx_string/palloc/alloc: the three libngx objects ngx_link_stubs.c leans on.
-_NGX_LIB_OBJS = (str(NGX_SRC / "objs/src/core/ngx_string.o"),
-                 str(NGX_SRC / "objs/src/core/ngx_palloc.o"),
-                 str(NGX_SRC / "objs/src/os/unix/ngx_alloc.o"))
 
 
 SPECS: dict[str, ObjectUnitSpec] = {
@@ -83,6 +59,8 @@ SPECS: dict[str, ObjectUnitSpec] = {
             "-O",
             "-Wall",
             "tests/c/test_cinfo.c",
+            "-Isrc",
+            *pal_xattr_sources(),
             str(addon("cache/cinfo.o")),
             str(addon("meta/xmeta.o")),
             str(addon("meta/xmeta_path.o")),
@@ -197,6 +175,8 @@ SPECS: dict[str, ObjectUnitSpec] = {
         ("-O", "-Wall",
          *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC),
          "tests/c/test_vfs_read_only_spy.c",
+         "src/core/compat/fs_walk.c",
+         *pal_xattr_sources(),
          # ngx_string/palloc/alloc reference these two globals; the shared
          # stub file is the sanctioned way to satisfy them.
          "tests/c/ngx_link_stubs.c",
@@ -218,9 +198,9 @@ SPECS: dict[str, ObjectUnitSpec] = {
         "vfs_authz_backstop",
         "test_vfs_authz_backstop",
         (addon("vfs/vfs_authz.o"),
-         NGX_SRC / "objs/src/core/ngx_string.o",
-         NGX_SRC / "objs/src/core/ngx_palloc.o",
-         NGX_SRC / "objs/src/os/unix/ngx_alloc.o"),
+         OBJS / "src/core/ngx_string.o",
+         OBJS / "src/core/ngx_palloc.o",
+         OBJS / "src/os/unix/ngx_alloc.o"),
         ("-O", "-Wall", "-Wextra", "-Werror",
          *_inc("src", REPO_ROOT / "shared", OBJS,
                *_NGX_CORE_INC, *_NGX_HTTP_INC),
@@ -250,6 +230,7 @@ SPECS: dict[str, ObjectUnitSpec] = {
         ("-O", "-Wall",
          *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC),
          "tests/c/test_vfs_new_mutator_gate.c",
+         "src/core/compat/fs_walk.c",
          "tests/c/ngx_link_stubs.c",
          str(addon("vfs/vfs_recall.o")),
          str(addon("vfs/vfs_unlink_many.o")),
@@ -271,8 +252,7 @@ SPECS: dict[str, ObjectUnitSpec] = {
             addon("vfs/vfs_open_handle.o"),
             addon("vfs/vfs_sync.o"),
             addon("vfs/vfs_policy.o"),
-            # brix_plat_anon_fd: host-free, so the dispatcher object.
-            addon("platform/platform.o"),
+            _ANON_FD_OBJECT,
         ),
         ("-O", "-Wall",
          *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC,
@@ -282,7 +262,7 @@ SPECS: dict[str, ObjectUnitSpec] = {
          str(addon("vfs/vfs_open_handle.o")),
          str(addon("vfs/vfs_sync.o")),
          str(addon("vfs/vfs_policy.o")),
-         str(addon("platform/platform.o"))),
+         str(_ANON_FD_OBJECT), *_ANON_FD_LINK),
     ),
     # Phase-107 W1 (C8/C9): the typed storage-domain assert. The real
     # vfs_policy_domain.o over the real kernel; the denial metric AND
@@ -403,10 +383,14 @@ SPECS: dict[str, ObjectUnitSpec] = {
          addon("path/resolve_confined_ops_xattr.o"), addon("path/beneath.o"),
          addon(pal_host_addon("path_wrapper"))),
         ("-O", "-Wall",
-         *_inc("src", OBJS, *_NGX_CORE_INC),
-         "-Wl,--wrap=fsync",
+         *_inc("src", OBJS, *_NGX_CORE_INC, NGX_SRC / "src/http",
+               NGX_SRC / "src/http/modules", NGX_SRC / "src/stream"),
+         *(("-DTEST_DARWIN_FSYNC",) if sys.platform == "darwin"
+           else ("-Wl,--wrap=fsync",)),
          "tests/c/test_publish_dirsync.c",
          "tests/c/ngx_link_stubs.c",
+         *confined_open_link_args(),
+         *pal_xattr_sources(),
          str(addon("compat/staged_file.o")),
          str(addon("path/resolve_confined_ops_xattr.o")),
          str(addon("path/beneath.o")),
@@ -559,6 +543,7 @@ SPECS: dict[str, ObjectUnitSpec] = {
          *_inc("src", REPO_ROOT / "shared", OBJS, *_NGX_CORE_INC,
                *_NGX_HTTP_INC),
          "tests/c/test_vfs_bulk_chunker.c",
+         "src/core/compat/fs_walk.c",
          "tests/c/ngx_link_stubs.c",
          str(addon("vfs/vfs_unlink_many.o")),
          *_NGX_LIB_OBJS),
@@ -586,14 +571,16 @@ def run_one(name: str, base: Path) -> list[tuple[bool, str]]:
     if missing:
         return [result(True, f"SKIP {name}: build required object(s) first: {', '.join(missing)}")]
     binary = base / spec.binary
-    built = compile_binary(binary, list(spec.args) + coverage_flags(spec.required),
+    extra, environment = fsync_interposer(name, base)
+    built = compile_binary(binary, list(spec.args) + extra + coverage_flags(spec.required),
                            cwd=REPO_ROOT)
     if built.returncode != 0:
         return compile_failure(name, built)
     # detect_leaks=0: an object-linked unit that inherits -fsanitize=address from
     # a contaminated tree must not fail on LeakSanitizer's exit report; real heap
     # errors still abort.
-    ran = run([str(binary)], cwd=REPO_ROOT, env={"ASAN_OPTIONS": "detect_leaks=0"})
+    ran = run([str(binary)], cwd=REPO_ROOT,
+              env={"ASAN_OPTIONS": "detect_leaks=0", **environment})
     return run_result(ran, name)
 
 

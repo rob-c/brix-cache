@@ -12,6 +12,7 @@
  * logic on the wire is the pytest e2e layer.
  */
 #include "auth/crypto/store_policy.h"
+#include "auth/crypto/store_compat.h"
 
 #include <openssl/pem.h>
 #include <openssl/x509_vfy.h>
@@ -75,6 +76,72 @@ load_nth_cert(const char *path, int n)
 }
 
 /* --- signing_policy decision tests --------------------------------------- */
+
+/* ---- Verify ordinary subject rendering on the linked OpenSSL ABI ----
+ * WHAT: Assert a normal slash-form DN and a null-name error result.
+ * WHY: Compatibility must retain existing policy spelling and output ownership.
+ * HOW: 1. Build a name. 2. Render it. 3. Verify failure clears stale output.
+ */
+static void
+test_dn_rendering_basics(void)
+{
+    X509_NAME *name = X509_NAME_new();
+    char output[256];
+
+    CHECK(name != NULL, "DN allocation");
+    CHECK(X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
+        (const unsigned char *) "Alice", -1, -1, 0), "DN ordinary attribute");
+    CHECK(strcmp(brix_x509_oneline(name, output, sizeof(output)), "/CN=Alice") == 0,
+          "DN ordinary slash-form unchanged");
+    CHECK(brix_x509_oneline(NULL, output, sizeof(output)) == output && output[0] == '\0',
+          "DN null input cannot retain another identity");
+    X509_NAME_free(name);
+}
+
+/* ---- Keep literal separators distinct from structural RDN/AVA boundaries ----
+ * WHAT: Assert escaped '/' and '+' values and real multi-valued RDN syntax.
+ * WHY: A subject value must not impersonate additional policy name components.
+ * HOW: 1. Build hostile values. 2. Append a real AVA. 3. Compare exact output.
+ */
+static void
+test_dn_rendering_delimiters(void)
+{
+    X509_NAME *name = X509_NAME_new();
+    char output[256];
+
+    CHECK(name != NULL, "DN delimiter allocation");
+    CHECK(X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
+        (const unsigned char *) "a/b+c", -1, -1, 0), "DN literal separators");
+    CHECK(strcmp(brix_x509_oneline(name, output, sizeof(output)), "/CN=a\\/b\\+c") == 0,
+          "DN literal separators are escaped on every ABI");
+    CHECK(X509_NAME_add_entry_by_txt(name, "OU", MBSTRING_ASC,
+        (const unsigned char *) "unit", -1, -1, -1), "DN real additional AVA");
+    CHECK(strcmp(brix_x509_oneline(name, output, sizeof(output)),
+                 "/CN=a\\/b\\+c+OU=unit") == 0,
+          "DN structural AVA separator is not value-escaped");
+    X509_NAME_free(name);
+}
+
+/* ---- Preserve legacy byte rendering and caller buffer bounds ----
+ * WHAT: Assert non-ASCII escaping and zero-capacity output remains untouched.
+ * WHY: Normalizing delimiters must not change ASN.1 byte spelling or overrun.
+ * HOW: 1. Build UTF-8. 2. Verify escaped bytes. 3. Exercise zero-length output.
+ */
+static void
+test_dn_rendering_encoding_and_bounds(void)
+{
+    X509_NAME *name = X509_NAME_new();
+    char output[256], sentinel = 'x';
+
+    CHECK(name != NULL, "DN encoding allocation");
+    CHECK(X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_UTF8,
+        (const unsigned char *) "\303\234ser", -1, -1, 0), "DN UTF8 attribute");
+    CHECK(strcmp(brix_x509_oneline(name, output, sizeof(output)),
+                 "/CN=\\xC3\\x9Cser") == 0, "DN non-ASCII byte spelling unchanged");
+    CHECK(brix_x509_oneline(name, &sentinel, 0) == &sentinel && sentinel == 'x',
+          "DN zero-size buffer is not written");
+    X509_NAME_free(name);
+}
 
 static void
 test_signing_policy_decisions(void)
@@ -202,7 +269,7 @@ test_store_configure(void)
     X509_STORE_free(store);
 
     store = X509_STORE_new();
-    X509_STORE_load_path(store, path_of("sp_in_namespace", "ca"));
+    brix_crypto_store_load_path(store, path_of("sp_in_namespace", "ca"));
     pol.sp_mode  = BRIX_SP_MODE_ON;
     pol.crl_mode = BRIX_CRL_MODE_TRY;
     CHECK(brix_store_configure(store, path_of("sp_in_namespace", "ca"),
@@ -224,7 +291,7 @@ test_store_configure(void)
      * the CRL flags regardless of crl_count, so both arms are observable on
      * the store itself. */
     store = X509_STORE_new();
-    X509_STORE_load_path(store, path_of("sp_in_namespace", "ca"));
+    brix_crypto_store_load_path(store, path_of("sp_in_namespace", "ca"));
     pol.sp_mode   = BRIX_SP_MODE_OFF;
     pol.crl_mode  = BRIX_CRL_MODE_REQUIRE;
     pol.crl_scope = BRIX_CRL_SCOPE_ALL;
@@ -240,7 +307,7 @@ test_store_configure(void)
     X509_STORE_free(store);
 
     store = X509_STORE_new();
-    X509_STORE_load_path(store, path_of("sp_in_namespace", "ca"));
+    brix_crypto_store_load_path(store, path_of("sp_in_namespace", "ca"));
     pol.crl_scope = BRIX_CRL_SCOPE_LAST;
     brix_store_configure(store, path_of("sp_in_namespace", "ca"), 0, 0, &pol,
                          NULL, NULL);
@@ -407,6 +474,9 @@ main(void)
         return 2;
     }
 
+    test_dn_rendering_basics();
+    test_dn_rendering_delimiters();
+    test_dn_rendering_encoding_and_bounds();
     test_signing_policy_decisions();
     test_store_attach();
     test_store_configure();

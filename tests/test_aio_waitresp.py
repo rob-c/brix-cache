@@ -26,6 +26,7 @@ Run:
 """
 
 import os
+import functools
 from pathlib import Path
 import shutil
 import socket
@@ -137,7 +138,12 @@ def _scripted_frames(scenario, sid):
         # the well-formed reply must still win.
         short = _hdr(sid, kXR_attn, 8) + struct.pack(">I", kXR_asynresp) + b"\x00" * 4
         lying = _asynresp_frame(sid, kXR_ok, b"xy", inner_dlen=0x00FFFFFF)
-        return [_waitresp_frame(sid), _asyncms_frame(sid), short, lying]
+        return [_waitresp_frame(sid), _asyncms_frame(sid), short, lying,
+                _asynresp_frame(sid, kXR_ok, b"final")]
+    if scenario == "lying_ok_then_error":
+        lying = _asynresp_frame(sid, kXR_ok, b"xy", inner_dlen=0x00FFFFFF)
+        denied = struct.pack(">I", 3010) + b"final denial"
+        return [_waitresp_frame(sid), lying, _asynresp_frame(sid, kXR_error, denied)]
     if scenario == "nested_attn":
         # asynresp whose inner status is itself kXR_attn: unwrapping must not
         # recurse; the request fails cleanly as a protocol error.
@@ -239,15 +245,14 @@ def _snapshot_driver(directory, source=DRIVER):
     raise RuntimeError(f"could not snapshot stable test driver: {source}")
 
 
+@functools.lru_cache(maxsize=1)
 def _ensure_driver():
-    """Build the driver on demand; skip when it cannot be built."""
-    if os.path.exists(DRIVER):
-        return
+    """Relink the real driver once per worker, failing on broken builds."""
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler / aio_waitresp not built")
-    client_make(CLIENT_DIR, "aio-waitresp", capture_output=True, text=True, timeout=240)
-    if not os.path.exists(DRIVER):
-        pytest.skip("aio_waitresp build failed")
+    built = client_make(CLIENT_DIR, "aio-waitresp", capture_output=True, text=True, timeout=240)
+    assert built.returncode == 0, built.stdout + built.stderr
+    assert os.path.exists(DRIVER), "aio_waitresp build produced no executable"
 
 
 def _run_mock(scenario, deadline_ms=30000):
@@ -310,6 +315,13 @@ def test_hostile_pushes_ignored_real_reply_wins():
     over-read); the well-formed asynresp still succeeds."""
     p = _run_mock("hostile_junk_then_ok")
     assert p.returncode == 0, f"stdout={p.stdout!r} stderr={p.stderr!r}"
+    assert "OK blen=5" in p.stdout, "the malformed two-byte reply must not complete the request"
+
+
+def test_truncated_success_cannot_hide_the_real_deferred_error():
+    p = _run_mock("lying_ok_then_error")
+    assert p.returncode == 1, p.stdout + p.stderr
+    assert "final denial" in p.stderr, p.stderr
 
 
 def test_nested_attn_rejected_cleanly():

@@ -28,13 +28,17 @@ conditional-request or ETag behaviour needs to change, it changes here once.
 `http_variables.c` owns registration and common handlers;
 `http_variable_identity.c` owns verified identity and configured-origin
 values; `http_variable_monitor.c` owns per-request I/O observations.
+HTTP front-ends reuse `brix_http_register_variables`; its typed loop shares
+the protocol-neutral registration template with stream variables.
+`brix_http_variable_copy` publishes an exact-length request-pool copy only
+after allocation succeeds, so a variable cannot borrow a mutable origin buffer.
 
 | File | Responsibility |
 |---|---|
 | `http_peer_name.c` / `http_peer_name.h` | phase-116 PREACCESS-phase reverse-DNS wait (`brix_http_peer_name_postconfiguration`): a location that consults the peer hostname (`brix_acc_resolve_hosts`, a protbind host template) holds the request until the PTR answer is cached, limit_req-style (`NGX_AGAIN` + `ngx_http_core_run_phases`), so the WebDAV/S3 handlers and the protbind check never block the loop. |
 | `http_headers.c` / `http_headers.h` | Case-insensitive `headers_in` lookup, `Authorization: Bearer` extraction, control-char validation, whitespace-trimmed value compare, response/request header insertion (`set_header`/`_str`/`_num`), and the canonical handler-rc→HTTP-status mapper `brix_http_effective_status` (keeps WebDAV/S3 metric buckets aligned). |
 | `http_body.c` / `http_body.h` | nginx request-body chain (`request_body->bufs`, mixed memory + spooled-to-file): summarise byte count/layout, write whole body to an fd (`copy_file_range` for file bufs, `pwrite` for memory), read all into one pool buffer, gzip/deflate **inflate**-to-fd, and the `ngx_http_read_client_request_body` dispatch wrapper. |
-| `http_file_response.c` / `http_file_response.h` | File-backed serving for WebDAV GET & S3 GET/HEAD: ETag/Content-Range header construction, the standard status+length+type+ETag block (`set_file_headers`), single-range send (`send_file_range`, sets `last_buf`, optional fd pool-cleanup), and multi-range chain append (`chain_append_file_range`). Uses nginx sendfile — see gotcha below. |
+| `http_file_response.c` / `http_file_response.h` | File/range serving, ETag/Content-Range headers, fd cleanup and multipart chain construction. `brix_http_output_file_chain` checks PAL filesystem safety and selects nginx's request-local bounded copy path when sendfile is unsafe. |
 | `http_conditionals.c` / `http_conditionals.h` | RFC 7232/9110 conditionals. `brix_http_eval_preconditions` is the full §13.2.2 evaluator (If-Match → If-Unmodified-Since → If-None-Match → If-Modified-Since precedence; `BRIX_HTTP_COND_READ` selects 304-for-GET vs 412-for-write outcomes, `_TIME` enables the date headers) — S3 GET/HEAD and conditional PUT route through it. `brix_http_check_etag_preconditions` is the ETag-only WebDAV-write subset; plus If-Modified-Since and WebDAV `Overwrite: F`. |
 | `http_query.c` / `http_query.h` | Bounded `?key=value` scanner over `r->args` (one `ngx_str_t`): case policy, percent-decode, `+`→space, NUL-reject, truncation, bare-flag detection. `brix_http_query_get`/`_has`. Drives S3 ListObjectsV2 / multipart query parsing and the S3 `response-*` header overrides. |
 | `http_xml.c` / `http_xml.h` | Incremental XML response chain builder (`chain_appendf`/`vappendf`, stack tmp[2048] → pool overflow), single-buffer XML send, and a protocol-agnostic `<Error><Code><Message>` sender (S3 + REST). |
@@ -92,7 +96,10 @@ from here except protocol-neutral constants (`etag.h`'s string builder;
   that is the response-splitting defence (see S3 `response-*` overrides).
 - **TLS vs cleartext buffers.** `http_file_response.c` builds file-backed
   buffers for the sendfile path; TLS responses must be memory-backed
-  (`b->memory=1`) per module Invariant #2 — never mix.
+  (`b->memory=1`) per module Invariant #2 — never mix serving strategies.
+  The scoped FreeBSD ZFS safety veto also requires bounded copying for
+  cleartext. It changes the request's copy-filter context, never a shared
+  connection flag, and preserves nginx's buffer/backpressure ownership.
 - **Blocking calls stay off the event loop.** The `pread`/`pwrite` loops in
   `http_body.c` block; call them from a thread-pool task or post-accept
   context only.

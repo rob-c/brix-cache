@@ -82,7 +82,7 @@ endif()
 # compiler output live.
 # --------------------------------------------------------------------------
 add_custom_target(brix-client-proto
-    COMMAND make -C "${REPO_ROOT}/shared/xrdproto" -j${NPROC} ${_client_make_flags}
+    COMMAND "${BRIX_MAKE}" -C "${REPO_ROOT}/shared/xrdproto" -j${NPROC} ${_client_make_flags}
     COMMENT "Building shared/xrdproto (protocol core)"
     USES_TERMINAL VERBATIM)
 
@@ -92,7 +92,7 @@ set(_brix_core_bins
     xrdmapc xrdgsitest xrdsssadmin-brix xrdstorascan)
 
 add_custom_target(brix-client-tools
-    COMMAND make -C "${REPO_ROOT}/client" -j${NPROC} ${_client_make_flags}
+    COMMAND "${BRIX_MAKE}" -C "${REPO_ROOT}/client" -j${NPROC} ${_client_make_flags}
     BYPRODUCTS
         "${REPO_ROOT}/client/bin/xrdcp"
         "${REPO_ROOT}/client/bin/xrdfs"
@@ -113,7 +113,7 @@ add_custom_command(TARGET brix-client-tools POST_BUILD
 
 if(BRIX_BUILD_CEPH_TOOLS)
     add_custom_target(brix-ceph-tools
-        COMMAND make -C "${REPO_ROOT}/client" ceph-tools -j${NPROC} ${_client_make_flags}
+        COMMAND "${BRIX_MAKE}" -C "${REPO_ROOT}/client" ceph-tools -j${NPROC} ${_client_make_flags}
         COMMENT "Building Ceph migration/rescue tools (client/apps/ceph)"
         USES_TERMINAL VERBATIM)
     add_dependencies(brix-ceph-tools brix-client-tools)
@@ -140,7 +140,7 @@ endif()
 # --------------------------------------------------------------------------
 if(BRIX_BUILD_COMPAT)
     add_custom_target(brix-client-compat
-        COMMAND make -C "${REPO_ROOT}/client" compat -j${NPROC} ${_client_make_flags}
+        COMMAND "${BRIX_MAKE}" -C "${REPO_ROOT}/client" compat -j${NPROC} ${_client_make_flags}
         COMMENT "Producing brix- prefixed compat tool links (client/bin/brix-*)"
         USES_TERMINAL VERBATIM)
     add_dependencies(brix-client-compat brix-client-tools)
@@ -181,8 +181,8 @@ endif()
 # reach them, so expose their clean targets explicitly.
 # --------------------------------------------------------------------------
 add_custom_target(brix-client-clean
-    COMMAND make -C "${REPO_ROOT}/client" clean
-    COMMAND make -C "${REPO_ROOT}/shared/xrdproto" clean
+    COMMAND "${BRIX_MAKE}" -C "${REPO_ROOT}/client" clean
+    COMMAND "${BRIX_MAKE}" -C "${REPO_ROOT}/shared/xrdproto" clean
     COMMENT "Cleaning client/ and shared/xrdproto/ build artifacts"
     USES_TERMINAL VERBATIM)
 
@@ -194,7 +194,7 @@ add_custom_target(brix-client-clean
 install(CODE "
     message(STATUS \"Installing client tools via client/Makefile install-bin\")
     execute_process(
-        COMMAND make -C \"${REPO_ROOT}/client\" install-bin
+        COMMAND \"${BRIX_MAKE}\" -C \"${REPO_ROOT}/client\" install-bin
                 DESTDIR=\$ENV{DESTDIR}
                 PREFIX=\"${CMAKE_INSTALL_PREFIX}\"
                 LIBDIR=\"${CMAKE_INSTALL_FULL_LIBDIR}\"

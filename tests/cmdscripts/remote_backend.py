@@ -10,6 +10,7 @@ import sys
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, random_file, sha256
+from lib_py.util import children_of
 from settings import BIND_HOST, HOST
 
 
@@ -29,6 +30,23 @@ def _guard_stage_reconcile_1(config, port, backend, run):
     if not backend.exists():
         run.start_nginx(run.root, config, port)
         time.sleep(1.5)
+
+
+def _crash_nginx_tree(master: int) -> None:
+    """Crash the owned master and its pre-fork children as one daemon.
+
+    After the master dies nginx workers keep inherited listeners open.  Some
+    restricted containers expose that listener through ``ss`` without its PID,
+    so the generic stale-port reaper cannot identify it.  Snapshotting children
+    while the master still owns them makes this crash test independent of that
+    optional kernel metadata and cannot select an unrelated process.
+    """
+    owned = [master, *sorted(children_of(master))]
+    for pid in owned:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 
 
 def _stream_config(run: LiveRun, root: Path, port: int, *, backend: int | None = None, writable: bool = False) -> Path:
@@ -188,7 +206,7 @@ http {{ client_body_temp_path {run.root}/tmp; server {{ listen {BIND_HOST}:{port
         digest = random_file(source, 350000)
         status = run.curl_status(f"http://{HOST}:{port}/o.bin", "-T", str(source))
         pid = int((run.root / "nginx.pid").read_text())
-        os.kill(pid, signal.SIGKILL)
+        _crash_nginx_tree(pid)
         time.sleep(0.2)
         backend = run.root / "backend/o.bin"
         journal = list((run.root / "journal").glob("*.req"))

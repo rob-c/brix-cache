@@ -108,7 +108,7 @@ frm_purge_push(frm_purge_scan_t *s, const char *rel, const struct stat *sb)
      * parameter as an escape, so it reports the strdup leaking at the return
      * below. Suppress exactly that diagnostic, at exactly its emission point. */
 #pragma GCC diagnostic push
-#if defined(__GNUC__) && !defined(__clang__)
+#if defined(__GNUC__) && __GNUC__ >= 10 && !defined(__clang__)
 #pragma GCC diagnostic ignored "-Wanalyzer-malloc-leak"
 #endif
     c = &s->v[s->n];

@@ -62,6 +62,73 @@ typedef struct {
     ngx_flag_t            recurse;
 } propfind_walk_ctx_t;
 
+/* Pool-owned DFS frames keep directory depth off the native thread stack. */
+typedef struct propfind_walk_frame_s propfind_walk_frame_t;
+struct propfind_walk_frame_s {
+    propfind_walk_frame_t *parent;
+    brix_vfs_dir_t        *directory;
+    const char            *path;
+    const char            *href;
+};
+
+/* ---- Open a confined directory on the walk's explicit stack ----
+ * WHAT: Push a directory, skip an unreadable subtree, or return NGX_ERROR on OOM.
+ * WHY: Darwin thread stacks are small; a remote origin controls apparent depth.
+ * HOW: 1. Apply the read gate. 2. Open through VFS. 3. Pool-own frame and paths.
+ */
+static ngx_int_t
+propfind_walk_push(const propfind_walk_ctx_t *w, propfind_walk_frame_t **stack,
+    const char *path, const char *href)
+{
+    ngx_http_brix_webdav_loc_conf_t *wdcf =
+        ngx_http_get_module_loc_conf(w->r, ngx_http_brix_webdav_module);
+    brix_vfs_ctx_t       vctx;
+    brix_vfs_dir_t      *directory;
+    propfind_walk_frame_t *frame;
+    size_t path_bytes = strlen(path) + 1;
+    size_t href_bytes = strlen(href) + 1;
+    char *storage;
+
+    if (brix_dirlist_access_ok(w->r->connection->log,
+                              wdcf->common.root_canon, path) != NGX_OK)
+    {
+        return NGX_OK;
+    }
+    propfind_dir_ctx(w->r, wdcf->common.root_canon, path, &vctx);
+    directory = brix_vfs_opendir(&vctx, NULL);
+    if (directory == NULL) {
+        return NGX_OK;
+    }
+    frame = ngx_palloc(propfind_pool(w->r), sizeof(*frame) + path_bytes + href_bytes);
+    if (frame == NULL) {
+        brix_vfs_closedir(directory, w->r->connection->log);
+        return NGX_ERROR;
+    }
+    storage = (char *) (frame + 1);
+    memcpy(storage, path, path_bytes);
+    memcpy(storage + path_bytes, href, href_bytes);
+    frame->path = storage;
+    frame->href = storage + path_bytes;
+    frame->directory = directory;
+    frame->parent = *stack;
+    *stack = frame;
+    return NGX_OK;
+}
+
+/* ---- Close explicit traversal frames ----
+ * WHAT: Pop one live frame; callers repeat this on completion or error.
+ * WHY: Every successfully opened directory needs exactly one VFS close.
+ * HOW: Save its parent, close the handle, and expose the parent as the top.
+ */
+static void
+propfind_walk_pop(const propfind_walk_ctx_t *w, propfind_walk_frame_t **stack)
+{
+    propfind_walk_frame_t *frame = *stack;
+
+    brix_vfs_closedir(frame->directory, w->r->connection->log);
+    *stack = frame->parent;
+}
+
 /*
  * WHAT: Decide whether a readdir entry is emitted at all.
  * WHY: readdir already drops "."/".."; PROPFIND additionally hides every other
@@ -107,17 +174,17 @@ propfind_build_child_href(const char *base_href, const char *name,
 }
 
 /*
- * WHAT: Recurse into a subdirectory child during a Depth: infinity walk.
+ * WHAT: Push a subdirectory child during a Depth: infinity walk.
  * WHY: Only directories are descended, only when recursion is enabled, and only
  *   while the cap has not been hit (re-checked here so a balanced tree cannot
  *   blow past max_entries via nested calls before the per-entry check fires).
  * HOW: Builds the trailing-slash subdir href; a truncated href is skipped
- *   (NGX_OK, matching the original). Delegates to propfind_walk and propagates
- *   its NGX_ERROR so the caller can close the open DIR without an fd leak.
+ *   (NGX_OK, matching the original), then pushes a VFS directory frame.
  */
 static ngx_int_t
 propfind_recurse_child(const propfind_walk_ctx_t *w,
-    const char *child_path, const char *child_href, const struct stat *csb)
+    propfind_walk_frame_t **stack, const char *child_path,
+    const char *child_href, const struct stat *csb)
 {
     char subdir_href[WEBDAV_MAX_PATH + 3];
 
@@ -131,8 +198,7 @@ propfind_recurse_child(const propfind_walk_ctx_t *w,
     {
         return NGX_OK;
     }
-    return propfind_walk(w->r, w->head, w->tail, child_path, subdir_href,
-                         w->entry_count, w->max_entries, w->req, w->recurse);
+    return propfind_walk_push(w, stack, child_path, subdir_href);
 }
 
 /*
@@ -147,14 +213,14 @@ propfind_recurse_child(const propfind_walk_ctx_t *w,
  *   the DIR before propagating it.
  */
 static ngx_int_t
-propfind_walk_emit(const propfind_walk_ctx_t *w, const char *dir_path,
-    const char *base_href, const ngx_str_t *name, const brix_vfs_stat_t *vst)
+propfind_walk_emit(const propfind_walk_ctx_t *w, propfind_walk_frame_t **stack,
+    const ngx_str_t *name, const brix_vfs_stat_t *vst)
 {
     char        child_path[WEBDAV_MAX_PATH];
     char        child_href[WEBDAV_MAX_PATH + 2];
     struct stat csb;
 
-    if (brix_fs_join_path(dir_path, (char *) name->data, child_path,
+    if (brix_fs_join_path((*stack)->path, (char *) name->data, child_path,
                           sizeof(child_path)) != NGX_OK)
     {
         return NGX_OK;
@@ -162,7 +228,7 @@ propfind_walk_emit(const propfind_walk_ctx_t *w, const char *dir_path,
 
     propfind_vfs_to_stat(vst, &csb);   /* no-follow lstat from readdir */
 
-    if (propfind_build_child_href(base_href, (char *) name->data,
+    if (propfind_build_child_href((*stack)->href, (char *) name->data,
                                   child_href, sizeof(child_href)) != NGX_OK)
     {
         return NGX_OK;   /* truncated href: skip this entry, do not corrupt it */
@@ -175,7 +241,7 @@ propfind_walk_emit(const propfind_walk_ctx_t *w, const char *dir_path,
     }
     (*w->entry_count)++;
 
-    return propfind_recurse_child(w, child_path, child_href, &csb);
+    return propfind_recurse_child(w, stack, child_path, child_href, &csb);
 }
 
 /*
@@ -194,36 +260,11 @@ propfind_walk(ngx_http_request_t *r,
               ngx_uint_t *entry_count, ngx_uint_t max_entries,
               const propfind_req_t *req, ngx_flag_t recurse)
 {
-    ngx_http_brix_webdav_loc_conf_t *wdcf =
-        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    const char         *root_canon = wdcf->common.root_canon;
-    brix_vfs_ctx_t      vctx;
-    brix_vfs_dir_t     *dh;
+    propfind_walk_frame_t *stack = NULL;
     ngx_str_t           name;
     brix_vfs_stat_t     vst;
     propfind_walk_ctx_t w;
-
-    /*
-     * Impersonation read-gate: verify the MAPPED user may READ this directory
-     * (kept as an explicit pre-check; brix_vfs_opendir below also opens AS that
-     * user via the broker, so an unreadable dir is skipped either way). No-op
-     * when impersonation is off; a denied dir is skipped, request not failed.
-     */
-    if (brix_dirlist_access_ok(r->connection->log, root_canon, dir_path)
-        != NGX_OK)
-    {
-        return NGX_OK;
-    }
-
-    /* Enumerate through the VFS: brix_vfs_opendir is impersonation-aware
-     * (broker fdopendir as the mapped user) and brix_vfs_readdir returns each
-     * name with a no-follow lstat — so a symlink lists as a plain resource and is
-     * never recursed, exactly as before. */
-    propfind_dir_ctx(r, root_canon, dir_path, &vctx);
-    dh = brix_vfs_opendir(&vctx, NULL);
-    if (dh == NULL) {
-        return NGX_OK;   /* unreadable subtree: skip, do not fail the request */
-    }
+    ngx_int_t rc;
 
     w.r = r;
     w.head = head;
@@ -233,7 +274,12 @@ propfind_walk(ngx_http_request_t *r,
     w.max_entries = max_entries;
     w.recurse = recurse;
 
-    while (brix_vfs_readdir(dh, &name, &vst) == NGX_OK) {
+    rc = propfind_walk_push(&w, &stack, dir_path, base_href);
+    while (rc == NGX_OK && stack != NULL) {
+        if (brix_vfs_readdir(stack->directory, &name, &vst) != NGX_OK) {
+            propfind_walk_pop(&w, &stack);
+            continue;
+        }
         if (!propfind_child_visible(&name)) {
             continue;
         }
@@ -245,16 +291,13 @@ propfind_walk(ngx_http_request_t *r,
             break;
         }
 
-        if (propfind_walk_emit(&w, dir_path, base_href, &name, &vst)
-            != NGX_OK)
-        {
-            brix_vfs_closedir(dh, r->connection->log);
-            return NGX_ERROR;
-        }
+        rc = propfind_walk_emit(&w, &stack, &name, &vst);
     }
 
-    brix_vfs_closedir(dh, r->connection->log);
-    return NGX_OK;
+    while (stack != NULL) {
+        propfind_walk_pop(&w, &stack);
+    }
+    return rc;
 }
 
 

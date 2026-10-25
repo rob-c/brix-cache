@@ -1,5 +1,5 @@
 /* Phase-118 advertised ROOT capability-to-behaviour audit. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
 #define CLM_EC_FLAG kXR_ecRedir
 #define CLM_KNOWN_FLAGS (kXR_isServer | kXR_isManager | kXR_attrCache \
@@ -8,24 +8,7 @@
     | kXR_suppgrw | kXR_supgpf | kXR_anongpf | kXR_haveTLS | kXR_gotoTLS \
     | kXR_tlsAny | kXR_tlsGPFA)
 
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
 
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
-
-static void
-grade(xrd_conform_execution *execution, const char *id, int pass,
-    const char *success, const char *failure)
-{
-    if (!row_active(execution, id)) return;
-    xrd_conform_result_set(execution, id,
-        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
-             : BRIX_CONFORM_VERDICT_DIVERGENT,
-        pass ? success : failure, NULL, NULL);
-}
 
 static void
 skip(xrd_conform_execution *execution, const char *id, const char *reason)
@@ -68,10 +51,10 @@ probe_role_claims(xrd_conform_execution *execution, const brix_conn *connection)
         && ((flags & kXR_attrProxy) == 0 || manager || server)
         && ((flags & kXR_attrCache) == 0 || server);
 
-    grade(execution, "CLM-002", role_served,
+    xrd_conform_grade_active(execution, "CLM-002", role_served,
         "advertised-role-behaviour-observed",
         "advertised-role-behaviour-missing");
-    grade(execution, "CLM-003", attributes,
+    xrd_conform_grade_active(execution, "CLM-003", attributes,
         "role-attributes-consistent", "role-attributes-contradict-role");
 }
 
@@ -89,9 +72,9 @@ probe_gpfile_claims(xrd_conform_execution *execution,
         skip(execution, "CLM-006", "fixture-unavailable:gpfile-response");
         return;
     }
-    grade(execution, "CLM-004", supported == state,
+    xrd_conform_grade_active(execution, "CLM-004", supported == state,
         "gpfile-claim-matches-behaviour", "gpfile-claim-diverges");
-    grade(execution, "CLM-006", anonymous ? supported && state : !state,
+    xrd_conform_grade_active(execution, "CLM-006", anonymous ? supported && state : !state,
         "anonymous-gpfile-claim-matches-behaviour",
         "anonymous-gpfile-claim-diverges");
 }
@@ -127,6 +110,40 @@ unclaimed_posc_refused(xrd_conform_execution *execution,
     return status.kxr == kXR_Unsupported ? 1 : -1;
 }
 
+static void
+cleanup_claim_object(xrd_conform_execution *execution,
+    brix_conn *connection, brix_file *file,
+    const xrd_conform_scratch_object *object, brix_status *status)
+{
+    if (reserve_claim(execution, 0))
+        brix_file_close(connection, file, status);
+    if (reserve_claim(execution, 0))
+        brix_rm(connection, object->path, status);
+}
+
+static int
+unclaimed_pgread_refused(xrd_conform_execution *execution,
+    brix_conn *connection, brix_file *file, brix_status *status)
+{
+    uint8_t observed;
+
+    if (!reserve_claim(execution, 1)) return -1;
+    brix_status_clear(status);
+    return brix_file_pgread(connection, file, 0, &observed, 1, status) < 0
+        && status->kxr == kXR_Unsupported;
+}
+
+static int
+unclaimed_pgwrite_refused(xrd_conform_execution *execution,
+    brix_conn *connection, brix_file *file, const uint8_t *byte,
+    brix_status *status)
+{
+    if (!reserve_claim(execution, 1)) return -1;
+    brix_status_clear(status);
+    return brix_file_pgwrite(connection, file, 0, byte, 1, status) != 0
+        && status->kxr == kXR_Unsupported;
+}
+
 static int
 unclaimed_page_io_refused(xrd_conform_execution *execution,
     brix_conn *connection)
@@ -135,7 +152,6 @@ unclaimed_page_io_refused(xrd_conform_execution *execution,
     xrd_conform_scratch_object object;
     brix_file file;
     brix_status status;
-    uint8_t observed = 0;
     int opened;
     int read_refused;
     int write_refused;
@@ -149,31 +165,15 @@ unclaimed_page_io_refused(xrd_conform_execution *execution,
     if (!opened) return -1;
     if (!reserve_claim(execution, 1)
         || brix_file_write(connection, &file, 0, &byte, 1, &status) != 0) {
-        if (reserve_claim(execution, 0))
-            brix_file_close(connection, &file, &status);
-        if (reserve_claim(execution, 0)) brix_rm(connection, object.path, &status);
+        cleanup_claim_object(execution, connection, &file, &object, &status);
         return -1;
     }
-    if (!reserve_claim(execution, 1)) {
-        if (reserve_claim(execution, 0))
-            brix_file_close(connection, &file, &status);
-        if (reserve_claim(execution, 0)) brix_rm(connection, object.path, &status);
-        return -1;
-    }
-    brix_status_clear(&status);
-    read_refused = brix_file_pgread(connection, &file, 0, &observed, 1,
-        &status) < 0 && status.kxr == kXR_Unsupported;
-    if (!reserve_claim(execution, 1)) {
-        if (reserve_claim(execution, 0))
-            brix_file_close(connection, &file, &status);
-        if (reserve_claim(execution, 0)) brix_rm(connection, object.path, &status);
-        return -1;
-    }
-    brix_status_clear(&status);
-    write_refused = brix_file_pgwrite(connection, &file, 0, &byte, 1,
-        &status) != 0 && status.kxr == kXR_Unsupported;
-    if (reserve_claim(execution, 0)) brix_file_close(connection, &file, &status);
-    if (reserve_claim(execution, 0)) brix_rm(connection, object.path, &status);
+    read_refused = unclaimed_pgread_refused(execution, connection, &file,
+        &status);
+    write_refused = unclaimed_pgwrite_refused(execution, connection, &file,
+        &byte, &status);
+    cleanup_claim_object(execution, connection, &file, &object, &status);
+    if (read_refused < 0 || write_refused < 0) return -1;
     return read_refused && write_refused ? 1 : 0;
 }
 
@@ -188,7 +188,7 @@ probe_clear_feature_claims(xrd_conform_execution *execution,
     int posc = 1;
     int page = 1;
 
-    if (!row_active(execution, "CLM-007")) return;
+    if (!xrd_conform_row_active(execution, "CLM-007")) return;
     if ((flags & kXR_supposc) == 0)
         posc = unclaimed_posc_refused(execution, connection);
     if ((flags & kXR_suppgrw) == 0)
@@ -197,7 +197,7 @@ probe_clear_feature_claims(xrd_conform_execution *execution,
         skip(execution, "CLM-007", "fixture-unavailable:clear-bit-verb");
         return;
     }
-    grade(execution, "CLM-007", gpfile > 0 && posc > 0 && page > 0,
+    xrd_conform_grade_active(execution, "CLM-007", gpfile > 0 && posc > 0 && page > 0,
         "all-unclaimed-feature-verbs-refused",
         "unclaimed-feature-verb-served");
 }
@@ -222,7 +222,7 @@ probe_tls_claim(xrd_conform_execution *execution, const brix_url *source,
     connected = brix_connect(&tls_connection, &tls_url,
         &options, &status) == 0;
     if (connected) brix_close(&tls_connection);
-    grade(execution, "CLM-005", connected,
+    xrd_conform_grade_active(execution, "CLM-005", connected,
         "advertised-tls-handshake-completed",
         "advertised-tls-handshake-failed");
 }
@@ -255,7 +255,7 @@ audit_skip_ledger(xrd_conform_execution *execution, uint32_t flags)
             && strncmp(row->reason, "claim-absent:", 13) == 0
             && !claim_skip_valid(row, flags)) valid = 0;
     }
-    grade(execution, "CLM-008", valid, "claim-skip-ledger-audited",
+    xrd_conform_grade_active(execution, "CLM-008", valid, "claim-skip-ledger-audited",
         "claim-skip-does-not-match-protocol-flags");
 }
 
@@ -266,18 +266,18 @@ xrd_conform_probe_claim_audit(xrd_conform_execution *execution,
     uint32_t flags;
     int version_ok;
 
-    if (!row_active(execution, "CLM-001")
-        && !row_active(execution, "CLM-002")
-        && !row_active(execution, "CLM-003")
-        && !row_active(execution, "CLM-004")
-        && !row_active(execution, "CLM-005")
-        && !row_active(execution, "CLM-006")
-        && !row_active(execution, "CLM-007")
-        && !row_active(execution, "CLM-008")
-        && !row_active(execution, "CLM-009")
-        && !row_active(execution, "CLM-010")) return;
+    if (!xrd_conform_row_active(execution, "CLM-001")
+        && !xrd_conform_row_active(execution, "CLM-002")
+        && !xrd_conform_row_active(execution, "CLM-003")
+        && !xrd_conform_row_active(execution, "CLM-004")
+        && !xrd_conform_row_active(execution, "CLM-005")
+        && !xrd_conform_row_active(execution, "CLM-006")
+        && !xrd_conform_row_active(execution, "CLM-007")
+        && !xrd_conform_row_active(execution, "CLM-008")
+        && !xrd_conform_row_active(execution, "CLM-009")
+        && !xrd_conform_row_active(execution, "CLM-010")) return;
     flags = connection->server_flags;
-    grade(execution, "CLM-001", (flags & ~CLM_KNOWN_FLAGS) == 0,
+    xrd_conform_grade_active(execution, "CLM-001", (flags & ~CLM_KNOWN_FLAGS) == 0,
         "all-advertised-bits-have-assessor-mappings",
         "unknown-advertised-capability-bit");
     probe_role_claims(execution, connection);
@@ -287,7 +287,7 @@ xrd_conform_probe_claim_audit(xrd_conform_execution *execution,
     audit_skip_ledger(execution, flags);
     version_ok = (flags & (kXR_suppgrw | kXR_supposc | kXR_supgpf)) == 0
         || connection->server_protocol >= 0x00000310U;
-    grade(execution, "CLM-010", version_ok,
+    xrd_conform_grade_active(execution, "CLM-010", version_ok,
         "protocol-version-covers-advertised-features",
         "feature-newer-than-advertised-protocol");
 }
@@ -304,9 +304,9 @@ xrd_conform_finalize_claim_audit(xrd_conform_execution *execution)
     int checksum = execution->query_checksum_claim_state;
     int tpc = execution->tpc_claim_behavior_state;
 
-    if (!row_active(execution, "CLM-009")) return;
+    if (!xrd_conform_row_active(execution, "CLM-009")) return;
     if (checksum < 0 || tpc < 0) {
-        grade(execution, "CLM-009", 0, NULL,
+        xrd_conform_grade_active(execution, "CLM-009", 0, NULL,
             "qconfig-claim-behaviour-mismatch");
         return;
     }
@@ -319,7 +319,7 @@ xrd_conform_finalize_claim_audit(xrd_conform_execution *execution)
                           : "tpc-claim-unobserved");
         return;
     }
-    grade(execution, "CLM-009", checksum > 0 && tpc > 0,
+    xrd_conform_grade_active(execution, "CLM-009", checksum > 0 && tpc > 0,
         "qconfig-claims-match-checksum-and-tpc-behaviour",
         "qconfig-claim-behaviour-mismatch");
 }

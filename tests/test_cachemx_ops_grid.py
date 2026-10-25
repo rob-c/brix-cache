@@ -25,6 +25,7 @@ import pytest
 
 import _cachemx as cx
 from _cachemx import mx  # noqa: F401
+from _test_audit15g_helpers import ReadError, ReadHandle
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cachemx")]
@@ -415,34 +416,68 @@ def test_s3_over_tls_unsigned_rejected(mx):
                              after) == 0
 
 
-def test_stream_range_read_books_exact_window(mx):
+@pytest.mark.parametrize('offset,length', [(0, 1), (1000, 250), (4095, 1)])
+def test_stream_range_read_books_exact_window(mx, offset, length):
     """A stream Range read books only the bytes in the window, not the whole
     file — the byte-exact counterpart of the HTTP Range cell."""
-    from XRootD import client
-
     n = cx.unique_name("rangestream")
     payload = mx.seed_origin(n, 4096)
     s = snap(mx)
-    f = client.File()
-    status, _ = f.open(mx.root_url("none", f"/{n}"))
-    assert status.ok, status.message
-    try:
-        rs, buf = f.read(1000, 250)
-        assert rs.ok, rs.message
-    finally:
-        f.close()
+    # This is a native ledger test, not an official-client interoperability
+    # verdict. Use the shared independent wire driver to send the exact range.
+    with ReadHandle(mx.port('PORT'), f'/{n}') as handle:
+        buf = handle.read(offset, length)
     cx.settle()
     after = cx.mfetch(mx.metrics)
 
-    # The window, not the file: 250 bytes off a 4096-byte object.  Booked on
+    # The window, not the file. Booked on
     # the posix backend ledger — the stream plane's proto-level byte fold only
     # moves once the object is resident, so the backend row is the byte-exact
     # one on a cold read.
-    assert bytes(buf) == payload[1000:1250]
+    assert bytes(buf) == payload[offset:offset + length]
     assert s.delta("brix_storage_io_bytes_read", {"backend": "posix"},
-                   after) == 250
+                   after) == length
     assert s.delta("brix_io_ops_total",
                    {**STREAM, "op": "read", "status": "ok"}, after) == 1
+
+
+def test_stream_negative_range_books_no_success_or_bytes(mx):
+    """A hostile signed offset is refused before data I/O; the session survives."""
+    name = cx.unique_name('rangerejected')
+    payload = mx.seed_origin(name, 4096)
+    with ReadHandle(mx.port('PORT'), '/' + name) as handle:
+        before = snap(mx)
+        content, error = handle.try_read(-1, 250)
+        assert error == 3000 and content == b'', 'negative offset was not refused'
+        cx.settle()
+        after = cx.mfetch(mx.metrics)
+        assert before.delta_or_absent('brix_storage_io_bytes_read',
+                                      {'backend': 'posix'}, after) == 0
+        assert before.delta_or_absent('brix_io_ops_total',
+            {**STREAM, 'op': 'read', 'status': 'ok'}, after) == 0
+        assert handle.read(0, 1) == payload[:1], 'refusal damaged the live session'
+
+
+def test_stream_range_path_escape_cannot_read_or_change_outside_sentinel(mx):
+    """An existing outside object cannot become a successful cached read."""
+    outside = mx.local_data.parent / cx.unique_name('rangeoutside')
+    sentinel = b'outside-export-must-stay-private'
+    outside.write_bytes(sentinel)
+    before = snap(mx)
+    try:
+        with pytest.raises(ReadError) as caught:
+            with ReadHandle(mx.port('PORT'), '/../' + outside.name):
+                pytest.fail('outside-export read handle was granted')
+        assert caught.value.errcode == 3000, 'traversal was not rejected as invalid'
+        cx.settle()
+        after = cx.mfetch(mx.metrics)
+        assert before.delta_or_absent('brix_storage_io_bytes_read',
+                                      {'backend': 'posix'}, after) == 0
+        assert before.delta_or_absent('brix_io_ops_total',
+            {**STREAM, 'op': 'read', 'status': 'ok'}, after) == 0
+        assert outside.read_bytes() == sentinel, 'outside sentinel changed'
+    finally:
+        outside.unlink()
 
 
 def test_webdav_over_remote_origin_miss_then_hit(mx):

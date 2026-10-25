@@ -1,5 +1,5 @@
 /* Phase-118 read-only ROOT query and environment control probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
 #include <arpa/inet.h>
 
@@ -30,19 +30,6 @@ xrd_conform_probe_fattr_support(xrd_conform_execution *execution,
         "implemented or kXR_Unsupported", status.msg);
 }
 
-/* ---- Reserve one control-plane exchange ----
- *
- * WHAT: Returns one when another request is within the configured ceiling.
- * WHY: Query/control probes must share the runner's hard resource envelope.
- * HOW: Charge a request with no response-body estimate through the common gate.
- */
-static int
-reserve_request(xrd_conform_execution *execution)
-{
-    char reason[64];
-
-    return xrd_conform_reserve(execution, 0, reason, sizeof(reason));
-}
 
 /* ---- Remove terminal line separators from a query value ----
  *
@@ -71,8 +58,7 @@ static int
 query_config(xrd_conform_execution *execution, brix_conn *connection,
     const char *keys, char *reply, size_t reply_size, brix_status *status)
 {
-    if (!reserve_request(execution)) return -1;
-    brix_status_clear(status);
+    if (!xrd_conform_reserve_zero_status(execution, status)) return -1;
     if (brix_query(connection, kXR_Qconfig, keys, reply, reply_size, status)
         != 0) return -1;
     trim_lines(reply);
@@ -100,54 +86,66 @@ optional_failed(char failure[256], const char *name,
  * WHY: Counting lines alone cannot prove request order or unknown-key continuity.
  * HOW: Query each key alone, query the pair, and compare the exact composition.
  */
+typedef struct {
+    char expected[512];
+    char combined[512];
+    brix_status status;
+} qconfig_pair_result;
+
+/* WHAT: Compare independently observed key/role values with their paired reply.
+ * WHY: Counting lines cannot prove key order or unknown-key continuity.
+ * HOW: Query both controls and the pair under the same budget, then compare
+ * the exact normalized composition, retaining error and successful evidence.
+ */
+static int
+query_config_role_pair(xrd_conform_execution *execution, brix_conn *connection,
+    const char *first_key, const char *pair, int require_first,
+    qconfig_pair_result *result)
+{
+    char first[256], second[256];
+    int written;
+
+    memset(result, 0, sizeof(*result));
+    if (query_config(execution, connection, first_key, first, sizeof(first),
+            &result->status) != 0
+        || query_config(execution, connection, "role", second, sizeof(second),
+            &result->status) != 0
+        || query_config(execution, connection, pair, result->combined,
+            sizeof(result->combined), &result->status) != 0) {
+        return 0;
+    }
+    if (require_first && first[0] == '\0') {
+        return 0;
+    }
+    written = snprintf(result->expected, sizeof(result->expected), "%s\n%s",
+        first, second);
+    return written >= 0 && (size_t) written < sizeof(result->expected)
+        && strcmp(result->combined, result->expected) == 0;
+}
+
+/* WHAT: Grade known-key ordering. WHY: Independent controls fix the oracle.
+ * HOW: Query the known pair and retain the same verdict/evidence vocabulary. */
 static void
 probe_qconfig_order(xrd_conform_execution *execution, brix_conn *connection)
 {
-    char first[256], second[256], combined[512], expected[512];
-    brix_status status;
-    int ok;
-
-    ok = query_config(execution, connection, "tpc", first, sizeof(first),
-            &status) == 0
-        && query_config(execution, connection, "role", second, sizeof(second),
-            &status) == 0
-        && query_config(execution, connection, "tpc role", combined,
-            sizeof(combined), &status) == 0;
-    if (ok) ok = (size_t) snprintf(expected, sizeof(expected), "%s\n%s",
-        first, second) < sizeof(expected) && strcmp(combined, expected) == 0;
-    xrd_conform_result_set(execution, "QRY-001",
-        ok ? BRIX_CONFORM_VERDICT_CONFORMANT
-           : BRIX_CONFORM_VERDICT_DIVERGENT,
-        ok ? "qconfig-lines-preserve-request-order"
-           : "qconfig-line-order-or-count-mismatch",
-        ok ? expected : NULL, ok ? combined : status.msg);
+    qconfig_pair_result result;
+    int ok = query_config_role_pair(execution, connection, "tpc", "tpc role", 0, &result);
+    xrd_conform_grade_comparison(execution, "QRY-001", ok,
+        "qconfig-lines-preserve-request-order", "qconfig-line-order-or-count-mismatch",
+        ok ? result.expected : NULL, ok ? result.combined : result.status.msg);
 }
 
-/* WHAT: Proves an unknown Qconfig key does not suppress a following known key.
- * WHY: Per-line errors must preserve the rest of a multi-key response.
- * HOW: Compare the combined response with two independent single-key replies. */
+/* WHAT: Grade unknown-key continuity. WHY: An unknown key cannot suppress role.
+ * HOW: Require a nonempty unknown-key reply and exact independent composition. */
 static void
 probe_qconfig_unknown(xrd_conform_execution *execution, brix_conn *connection)
 {
-    char first[256], second[256], combined[512], expected[512];
-    brix_status status;
-    int ok;
-
-    ok = query_config(execution, connection, "brix-conform-unknown", first,
-            sizeof(first), &status) == 0
-        && query_config(execution, connection, "role", second, sizeof(second),
-            &status) == 0
-        && query_config(execution, connection, "brix-conform-unknown role",
-            combined, sizeof(combined), &status) == 0;
-    if (ok) ok = first[0] != '\0'
-        && (size_t) snprintf(expected, sizeof(expected), "%s\n%s", first,
-            second) < sizeof(expected) && strcmp(combined, expected) == 0;
-    xrd_conform_result_set(execution, "QRY-014",
-        ok ? BRIX_CONFORM_VERDICT_CONFORMANT
-           : BRIX_CONFORM_VERDICT_DIVERGENT,
-        ok ? "unknown-qconfig-key-preserves-known-lines"
-           : "unknown-qconfig-key-disrupted-response",
-        ok ? expected : NULL, ok ? combined : status.msg);
+    qconfig_pair_result result;
+    int ok = query_config_role_pair(execution, connection, "brix-conform-unknown",
+        "brix-conform-unknown role", 1, &result);
+    xrd_conform_grade_comparison(execution, "QRY-014", ok,
+        "unknown-qconfig-key-preserves-known-lines", "unknown-qconfig-key-disrupted-response",
+        ok ? result.expected : NULL, ok ? result.combined : result.status.msg);
 }
 
 /* WHAT: Runs the two independent ordered Qconfig assertions.
@@ -172,8 +170,7 @@ optional_plain(xrd_conform_execution *execution, brix_conn *connection,
     brix_status status;
     int rc;
 
-    if (!reserve_request(execution)) return -1;
-    brix_status_clear(&status);
+    if (!xrd_conform_reserve_zero_status(execution, &status)) return -1;
     rc = brix_query(connection, infotype, argument, reply, sizeof(reply),
         &status);
     if (rc == 0 || status.kxr == kXR_Unsupported) return 1;
@@ -192,8 +189,7 @@ optional_file(xrd_conform_execution *execution, brix_conn *connection,
     brix_status status;
     int rc;
 
-    if (!reserve_request(execution)) return -1;
-    brix_status_clear(&status);
+    if (!xrd_conform_reserve_zero_status(execution, &status)) return -1;
     rc = brix_query_file(connection, file, infotype, NULL, 0, reply,
         sizeof(reply), &status);
     if (rc == 0 || status.kxr == kXR_Unsupported) return 1;
@@ -231,11 +227,8 @@ probe_optional_queries(xrd_conform_execution *execution, brix_conn *connection,
         failure);
     if (rc < 0) return;
     if (rc == 0 && ok) ok = 0;
-    xrd_conform_result_set(execution, "QRY-010",
-        ok ? BRIX_CONFORM_VERDICT_CONFORMANT
-           : BRIX_CONFORM_VERDICT_DIVERGENT,
-        ok ? "optional-queries-served-or-unsupported"
-           : "optional-query-returned-unexpected-error",
+    xrd_conform_grade_comparison(execution, "QRY-010", ok,
+        "optional-queries-served-or-unsupported", "optional-query-returned-unexpected-error",
         "success or kXR_Unsupported", ok ? NULL : failure);
 }
 
@@ -252,14 +245,11 @@ probe_set_unknown(xrd_conform_execution *execution, brix_conn *connection)
     brix_status status;
     int ok;
 
-    if (!reserve_request(execution)) return;
-    brix_status_clear(&status);
+    if (!xrd_conform_reserve_zero_status(execution, &status)) return;
     ok = brix_set_cmd(connection, "brix.conform.unknown=1", reply,
         sizeof(reply), &status) == 0;
-    xrd_conform_result_set(execution, "ENV-001",
-        ok ? BRIX_CONFORM_VERDICT_CONFORMANT
-           : BRIX_CONFORM_VERDICT_DIVERGENT,
-        ok ? "unknown-set-key-accepted" : "unknown-set-key-refused",
+    xrd_conform_grade_comparison(execution, "ENV-001", ok,
+        "unknown-set-key-accepted", "unknown-set-key-refused",
         "kXR_ok", ok ? reply : status.msg);
 }
 
@@ -278,7 +268,7 @@ probe_gpfile(xrd_conform_execution *execution, brix_conn *connection)
     brix_status status;
     int rc;
 
-    if (!reserve_request(execution)) return;
+    if (!xrd_conform_reserve_request(execution)) return;
     memset(&request, 0, sizeof(request));
     request.requestid = htons(kXR_gpfile);
     xrdw_empty_req_pack(request.body);
@@ -315,15 +305,12 @@ probe_checksum_scan(xrd_conform_execution *execution,
     brix_status status;
     int ok;
 
-    if (!reserve_request(execution)) return;
-    brix_status_clear(&status);
+    if (!xrd_conform_reserve_zero_status(execution, &status)) return;
     ok = brix_query(connection, kXR_Qckscan, path, reply, sizeof(reply),
             &status) == 0
         && reply[0] != '\0' && strstr(reply, path) != NULL;
-    xrd_conform_result_set(execution, "QRY-007",
-        ok ? BRIX_CONFORM_VERDICT_CONFORMANT
-           : BRIX_CONFORM_VERDICT_DIVERGENT,
-        ok ? "qckscan-returned-path-state" : "qckscan-response-invalid",
+    xrd_conform_grade_comparison(execution, "QRY-007", ok,
+        "qckscan-returned-path-state", "qckscan-response-invalid",
         "nonempty scan state naming target", ok ? reply : status.msg);
 }
 
@@ -338,16 +325,13 @@ probe_query_xattr(xrd_conform_execution *execution, brix_conn *connection,
     brix_status status;
     int ok;
 
-    if (!reserve_request(execution)) return;
-    brix_status_clear(&status);
+    if (!xrd_conform_reserve_zero_status(execution, &status)) return;
     ok = brix_query(connection, kXR_Qxattr, path, reply, sizeof(reply),
             &status) == 0
         && strstr(reply, "oss.type=") != NULL
         && strstr(reply, "oss.used=") != NULL;
-    xrd_conform_result_set(execution, "QRY-009",
-        ok ? BRIX_CONFORM_VERDICT_CONFORMANT
-           : BRIX_CONFORM_VERDICT_DIVERGENT,
-        ok ? "qxattr-returned-file-metadata" : "qxattr-response-invalid",
+    xrd_conform_grade_comparison(execution, "QRY-009", ok,
+        "qxattr-returned-file-metadata", "qxattr-response-invalid",
         "oss.type and oss.used", ok ? reply : status.msg);
 }
 
@@ -361,16 +345,13 @@ probe_query_stats(xrd_conform_execution *execution, brix_conn *connection)
     brix_status status;
     int ok;
 
-    if (!reserve_request(execution)) return;
-    brix_status_clear(&status);
+    if (!xrd_conform_reserve_zero_status(execution, &status)) return;
     ok = brix_query(connection, kXR_QStats, "a", reply, sizeof(reply),
             &status) == 0
         && strncmp(reply, "<statistics ", 12) == 0
         && strstr(reply, "</statistics>") != NULL;
-    xrd_conform_result_set(execution, "QRY-012",
-        ok ? BRIX_CONFORM_VERDICT_CONFORMANT
-           : BRIX_CONFORM_VERDICT_DIVERGENT,
-        ok ? "qstats-document-framing-valid" : "qstats-response-invalid",
+    xrd_conform_grade_comparison(execution, "QRY-012", ok,
+        "qstats-document-framing-valid", "qstats-response-invalid",
         "<statistics ...>...</statistics>", ok ? NULL : status.msg);
 }
 
@@ -384,15 +365,12 @@ probe_unknown_query(xrd_conform_execution *execution, brix_conn *connection)
     brix_status status;
     int ok;
 
-    if (!reserve_request(execution)) return;
-    brix_status_clear(&status);
+    if (!xrd_conform_reserve_zero_status(execution, &status)) return;
     ok = brix_query(connection, UINT16_MAX, "", reply, sizeof(reply),
             &status) != 0
         && status.kxr == kXR_ArgInvalid;
-    xrd_conform_result_set(execution, "QRY-013",
-        ok ? BRIX_CONFORM_VERDICT_CONFORMANT
-           : BRIX_CONFORM_VERDICT_DIVERGENT,
-        ok ? "unknown-query-type-refused" : "unknown-query-wrong-error",
+    xrd_conform_grade_comparison(execution, "QRY-013", ok,
+        "unknown-query-type-refused", "unknown-query-wrong-error",
         "kXR_ArgInvalid", status.msg);
 }
 

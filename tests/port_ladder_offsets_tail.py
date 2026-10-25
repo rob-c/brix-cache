@@ -209,7 +209,12 @@ LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1299, 221
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1520, 216
+# 2026-10-14: 216 -> 230 for tier_remote's five self-launched topologies.
+# Its legacy shell literals overlapped tier_stage_live when the two xdist
+# groups ran concurrently; all fourteen listeners now have owned lane slots.
+# 2026-10-14: 230 -> 234 for metadata_live_ports.  Its four absolute listeners
+# overlapped the packed registry lane under the default TEST_PORT_START.
+CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1520, 234
 # 2026-09-07: 1657 -> 1658, the running sum, for the F6 posix-origin slot in
 # the exclusive lane above (167 -> 168).
 # 2026-09-07: +2, the running sum, for the F8 plugin lab in the exclusive lane
@@ -236,7 +241,7 @@ CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1520, 216
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1736, 83
+CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1754, 83
 # 2026-09-07: 1740 -> 1741, the running sum, for the F6 posix-origin slot in
 # the exclusive lane above (167 -> 168).
 # 2026-09-07: +2, the running sum, for the F8 plugin lab in the exclusive lane
@@ -263,7 +268,7 @@ CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1736, 83
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1819, 23
+HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1837, 23
 # 2026-09-07: 1763 -> 1764, the running sum, for the F6 posix-origin slot in
 # the exclusive lane above (167 -> 168).
 # 2026-09-07: +2, the running sum, for the F8 plugin lab in the exclusive lane
@@ -290,7 +295,7 @@ HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1819, 23
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1842, 2
+PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1860, 2
 
 # CVMFS conformance mock-Stratum-1 + nginx port blocks (cvmfs/conformance_common.py
 # PORT_BLOCKS): 26 files x a 20-port block. Anchored into the ladder so every
@@ -324,7 +329,8 @@ PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1842, 2
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1844, 588
+from cvmfs.conformance_ports import CONFORMANCE_WIDTH as CVMFS_CONFORMANCE_WIDTH
+CVMFS_CONFORMANCE_OFFSET = 1862
 
 # Differential-interop per-file fixed ports (official_interop_lib.worker_port):
 # one slot per distinct conformance base (65 today), anchored here so they stay
@@ -360,7 +366,8 @@ CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1844, 588
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2432, 65
+INTEROP_WORKER_OFFSET = CVMFS_CONFORMANCE_OFFSET + CVMFS_CONFORMANCE_WIDTH
+INTEROP_WORKER_WIDTH = 65
 
 # 2026-08-31 (phase-106): shared lane +5 for the five nginx-integration nodes;
 # every lane below shifts by 5. Packed ladder — an intentional compatibility
@@ -458,4 +465,6 @@ INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2432, 65
 # 2026-09-19: +1 for lc-policy-rule-scope, the remote-backed webdav export that
 # pins a policy rule's path scope when root_canon is "/", 2492 -> 2493.
 # 2026-10-05: +2 for the Phase-118 WRT-007 fixture pair, 2493 -> 2495.
-PORT_COUNT = 2497
+# 2026-10-14: +14 for tier_remote and +4 for metadata_live_ports centrally
+# owned cmdscript listeners, PORT_COUNT 2497 -> 2515.
+PORT_COUNT = INTEROP_WORKER_OFFSET + INTEROP_WORKER_WIDTH

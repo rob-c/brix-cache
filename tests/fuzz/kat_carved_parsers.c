@@ -21,6 +21,7 @@
 
 #include "protocols/root/connection/recv_frame_bounds.h"
 #include "protocols/root/protocol/opcodes.h"
+#include "protocols/root/protocol/flags.h"
 #include "core/types/tunables.h"
 #include "auth/sss/sss_framing.h"
 #include "protocols/root/protocol/sss.h"

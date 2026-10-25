@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from lib_py.reference_host import fixture_read_bytes
 _reexport(globals(), "_test_conf_write_helpers")
 
 
@@ -189,8 +190,8 @@ def test_e2e_upload_roundtrip_our(srv, tmp_path, n):
     dl = str(tmp_path / f"e2e_our_dl_{n}.bin")
     rc, o, e = cp("-f", f"{srv['our']}/{wire}", dl)
     assert rc == 0, f"download N={n} from OUR failed: {o}{e}"
-    with open(src, "rb") as a, open(dl, "rb") as b:
-        assert md5(a.read()) == md5(b.read()), f"N={n} roundtrip integrity mismatch"
+    assert md5(fixture_read_bytes(src)) == md5(fixture_read_bytes(dl)), \
+        f"N={n} roundtrip integrity mismatch"
 
 
 @pytest.mark.parametrize("n", _E2E_SIZES)
@@ -202,8 +203,7 @@ def test_e2e_upload_differential(srv, tmp_path, n):
     assert cp("-f", src, f"{srv['off']}/{off_w}")[0] == 0, f"upload off N={n}"
     assert os.path.getsize(our_disk(srv, our_w)) == n
     assert os.path.getsize(off_disk(srv, off_w)) == n
-    with open(src, "rb") as fsrc:
-        want = md5(fsrc.read())
+    want = md5(fixture_read_bytes(src))
     assert md5(read_disk(srv, srv["our"], our_w)) == want, \
         f"N={n}: OUR uploaded bytes differ from source"
     assert md5(read_disk(srv, srv["off"], off_w)) == want, \

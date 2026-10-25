@@ -7,6 +7,7 @@ principal that collapses onto another's uid gets exactly that identity's access 
 Run: sudo -E env PYTHONPATH=tests pytest tests/test_mu_impersonation_e2e.py -v
 """
 import pytest
+import uuid
 
 from mu_authz_lib import fleet
 from mu_authz_lib.adapters import measure_root
@@ -16,9 +17,10 @@ from mu_authz_lib.putter import put_as, export_stat
 @pytest.mark.privileged
 def test_written_file_owned_by_mapped_uid(mu_fleet, cast):
     """A write as alice creates an export object owned by alice's real uid (impersonation)."""
-    ok = put_as(cast["alice"], "/cms/alice_wrote.dat", b"hello-from-alice", proto="root")
+    path = f"/cms/alice_wrote_{uuid.uuid4().hex}.dat"
+    ok = put_as(cast["alice"], path, b"hello-from-alice", proto="root")
     assert ok, "authorized write as alice must succeed"
-    st = export_stat("/cms/alice_wrote.dat")
+    st = export_stat(path)
     assert st.st_uid == cast["alice"].uid, (
         f"written bytes owned by uid {st.st_uid}, expected alice's uid {cast['alice'].uid}")
 

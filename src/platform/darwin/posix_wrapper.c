@@ -22,6 +22,43 @@
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+
+/* ---- Read Darwin's native TCP counters ----
+ * WHAT: Return byte counts and microsecond RTT, or -1 with zeroed outputs.
+ * WHY: Firefly must not publish fabricated zero usage on supported Darwin TCP.
+ * HOW: 1. Validate outputs. 2. Query the native struct. 3. Translate RTT units.
+ */
+int
+brix_plat_tcp_stats(int fd, uint64_t *sent, uint64_t *received, uint32_t *rtt_us)
+{
+    struct tcp_connection_info info;
+    socklen_t length = sizeof(info);
+
+    if (sent == NULL || received == NULL || rtt_us == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    *sent = 0;
+    *received = 0;
+    *rtt_us = 0;
+    memset(&info, 0, sizeof(info));
+    if (getsockopt(fd, IPPROTO_TCP, TCP_CONNECTION_INFO, &info, &length) != 0) {
+        return -1;
+    }
+    if (length < offsetof(struct tcp_connection_info, tcpi_rxbytes)
+                 + sizeof(info.tcpi_rxbytes)) {
+        errno = ENOTSUP;
+        return -1;
+    }
+    *sent = info.tcpi_txbytes;
+    *received = info.tcpi_rxbytes;
+    *rtt_us = info.tcpi_srtt > UINT32_MAX / 1000u
+              ? UINT32_MAX : info.tcpi_srtt * 1000u;
+    return 0;
+}
 
 /* ==========================================================================
  * FILE DESCRIPTOR OPERATIONS
@@ -123,19 +160,27 @@ brix_plat_sync_tree(int dirfd)
 ssize_t
 brix_plat_sendfile(int out_fd, int in_fd, off_t *offset, size_t count)
 {
-    off_t sbytes = 0;
-    int sfcount = 0;
-    struct sf_hdtr hdtr;
-    
-    memset(&hdtr, 0, sizeof(hdtr));
-    
-    /* macOS sendfile signature differs from Linux */
-    if (sendfile(in_fd, out_fd, *offset, &sbytes, &hdtr, sfcount) < 0) { /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
+    off_t sent;
+
+    if (offset == NULL || *offset < 0) {
+        errno = EINVAL;
         return -1;
     }
-    
-    *offset += sbytes;
-    return (ssize_t)sbytes;
+    if (count == 0) {
+        return 0;
+    }
+    /* Darwin treats a zero input length as "through EOF", not zero bytes.
+     * It also reports completed bytes alongside EAGAIN/EINTR: preserve that
+     * progress so a caller never retransmits a partially sent region. */
+    sent = count > (size_t) SSIZE_MAX ? (off_t) SSIZE_MAX : (off_t) count;
+    if (sendfile(in_fd, out_fd, *offset, &sent, NULL, 0) < 0 /* vfs-seam-allow: SEAM_CORRECT - PAL storage implementation beneath VFS */
+        && sent == 0)
+    {
+        return -1;
+    }
+
+    *offset += sent;
+    return (ssize_t) sent;
 }
 
 ssize_t
@@ -154,29 +199,13 @@ brix_plat_splice(int in_fd, int out_fd, size_t nbytes, unsigned int flags)
 int
 brix_plat_eventfd(unsigned int initial_value, int flags)
 {
-    int pipefd[2];
-    
-    /* macOS lacks eventfd - use pipe as fallback */
-    if (pipe(pipefd) < 0) {
-        return -1;
-    }
-    
-    /* Apply flags via fcntl */
-    if (flags & BRIX_EVENTFD_CLOEXEC) {
-        fcntl(pipefd[0], F_SETFD, FD_CLOEXEC);
-        fcntl(pipefd[1], F_SETFD, FD_CLOEXEC);
-    }
-    
-    if (flags & BRIX_EVENTFD_NONBLOCK) {
-        int fflags;
-        fflags = fcntl(pipefd[0], F_GETFL, 0);
-        fcntl(pipefd[0], F_SETFL, fflags | O_NONBLOCK);
-        fflags = fcntl(pipefd[1], F_GETFL, 0);
-        fcntl(pipefd[1], F_SETFL, fflags | O_NONBLOCK);
-    }
-    
-    /* Return read end - caller manages both ends */
-    return pipefd[0];
+    /* A pipe's read end is not a bidirectional eventfd counter. Returning it
+     * lost the write end and falsely certified an unusable notification fd.
+     * Portable callers use the existing paired notification-channel PAL. */
+    (void) initial_value;
+    (void) flags;
+    errno = ENOTSUP;
+    return -1;
 }
 
 /* ==========================================================================
@@ -308,35 +337,26 @@ brix_plat_flistxattr(int fd, char *list, size_t size)
 int
 brix_plat_execvpe(const char *file, char *const argv[], char *const envp[])
 {
-    /* macOS lacks execvpe - use posix_spawn for PATH search */
-    posix_spawn_file_actions_t fa;
+    /* SETEXEC replaces this process rather than spawning a surrogate child.
+     * In particular, preserve signal termination and PATH-search semantics;
+     * spawning + WEXITSTATUS lost both and changed the executed command PID. */
     posix_spawnattr_t attr;
     pid_t pid;
     int status;
     extern char **environ;
-    
-    if (posix_spawn_file_actions_init(&fa) != 0) {
-        return -1;
-    }
-    
-    if (posix_spawnattr_init(&attr) != 0) {
-        posix_spawn_file_actions_destroy(&fa);
-        return -1;
-    }
-    
-    status = posix_spawn(&pid, file, &fa, &attr, argv, envp ? envp : environ);
-    
-    posix_spawnattr_destroy(&attr);
-    posix_spawn_file_actions_destroy(&fa);
-    
+
+    status = posix_spawnattr_init(&attr);
     if (status != 0) {
         errno = status;
         return -1;
     }
-    
-    /* Wait for child - this blocks, but execvpe doesn't return either */
-    waitpid(pid, &status, 0);
-    
-    /* If we get here, child exited - mimic execvpe behavior */
-    _exit(WEXITSTATUS(status));
+    status = posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETEXEC);
+    if (status == 0) {
+        status = posix_spawnp(&pid, file, NULL, &attr, argv,
+                             envp != NULL ? envp : environ);
+    }
+    posix_spawnattr_destroy(&attr);
+    /* A successful SETEXEC never returns. Refuse an impossible success too. */
+    errno = status != 0 ? status : EIO;
+    return -1;
 }

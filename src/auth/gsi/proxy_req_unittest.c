@@ -215,7 +215,7 @@ static void test_sign_pxyreq(suite_t *s)
               "proxy issuer == EEC subject");
         CHECK(X509_verify(s->pxy, s->eeckey) == 1, "proxy signed by EEC key");
         EVP_PKEY *ppub = X509_get_pubkey(s->pxy);
-        CHECK(ppub && EVP_PKEY_eq(ppub, s->reqkey) == 1, "proxy pubkey == request key");
+        CHECK(brix_crypto_pkey_equal(ppub, s->reqkey), "proxy pubkey == request key");
         brix_evp_pkey_free(ppub);
         int crit_pci = 0, i;
         for (i = 0; i < X509_get_ext_count(s->pxy); i++) {
@@ -272,7 +272,7 @@ static void test_assemble_proxy(suite_t *s)
         BIO *b = BIO_new_mem_buf(s->cred, (int) cred_len);
         EVP_PKEY *ck = b ? PEM_read_bio_PrivateKey(b, NULL, NULL, NULL) : NULL;
         CHECK(ck != NULL, "assembled credential holds a private key");
-        CHECK(ck != NULL && EVP_PKEY_eq(ck, s->reqkey) == 1,
+        CHECK(brix_crypto_pkey_equal(ck, s->reqkey),
               "embedded private key == request key");
         brix_evp_pkey_free(ck);
         BIO_free(b);

@@ -38,6 +38,7 @@
 
 /* broker.c */
 int imp_peer_allowed(int conn_fd);
+void brix_imp_broker_seal_fds(int lfd, int rootfd, ngx_log_t *log);
 
 /* broker_creds.c */
 int imp_capset_setuid_setgid(int with_effective, ngx_log_t *log);

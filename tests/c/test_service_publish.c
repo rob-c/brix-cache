@@ -141,9 +141,6 @@ int brix_imp_setxattr(const char *p, const char *n, const void *v, size_t z, int
 { (void) p; (void) n; (void) v; (void) z; (void) f; abort(); }
 int brix_imp_removexattr(const char *p, const char *n)
 { (void) p; (void) n; abort(); }
-int brix_resolved_relative_to_root(ngx_log_t *l, const char *r,
-    const char *p, char *o, size_t z)
-{ (void) l; (void) r; (void) p; (void) o; (void) z; abort(); }
 
 /* The confined chmod broker is reached only under active impersonation with a
  * closed write fd; the service verb seals its own fd with fchmod first, so this
@@ -157,8 +154,6 @@ brix_chmod_confined_canon(ngx_log_t *log, const char *root, const char *res,
  * temp, so these are dead here. */
 int brix_sha256(const uint8_t *d, size_t n, uint8_t out[32])
 { (void) d; (void) n; (void) out; abort(); }
-void brix_hex_encode(const uint8_t *in, size_t n, char *out)
-{ (void) in; (void) n; (void) out; abort(); }
 
 /* Durable backend: REGISTRY is a durable domain and an unregistered root
  * defaults durable, so the C3 parent-dir barrier runs — as it will in

@@ -35,7 +35,7 @@ brix_gsi_cipher_public(EVP_PKEY *dh, size_t *outlen)
     char   *out = NULL;
     size_t  total;
 
-    if (!EVP_PKEY_get_bn_param(dh, OSSL_PKEY_PARAM_PUB_KEY, &pub)) {
+    if (!brix_crypto_dh_public(dh, &pub)) {
         return NULL;
     }
     phex = BN_bn2hex(pub);                 /* UPPERCASE hex, as XrdCrypto */
@@ -96,28 +96,8 @@ brix_gsi_cipher_parse_peer(const uint8_t *buf, size_t len)
     {
         BIO      *bio = BIO_new_mem_buf(buf, (int) pemlen);
         EVP_PKEY *params = bio ? PEM_read_bio_Parameters(bio, NULL) : NULL;
-        OSSL_PARAM     *pp = NULL, *pk = NULL, *merged = NULL;
-        OSSL_PARAM_BLD *bld = OSSL_PARAM_BLD_new();
-        EVP_PKEY_CTX   *ctx = NULL;
 
-        if (params != NULL && bld != NULL
-            && EVP_PKEY_todata(params, EVP_PKEY_KEY_PARAMETERS, &pp) == 1
-            && OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_PUB_KEY, bnpub) == 1
-            && (pk = OSSL_PARAM_BLD_to_param(bld)) != NULL
-            && (merged = OSSL_PARAM_merge(pp, pk)) != NULL) {
-            ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DH, NULL);
-            if (ctx != NULL && EVP_PKEY_fromdata_init(ctx) == 1) {
-                if (EVP_PKEY_fromdata(ctx, &peer, EVP_PKEY_PUBLIC_KEY,
-                                      merged) != 1) {
-                    peer = NULL;
-                }
-            }
-        }
-        brix_evp_pkey_ctx_free(ctx);
-        OSSL_PARAM_free(merged);
-        OSSL_PARAM_free(pk);
-        OSSL_PARAM_free(pp);
-        OSSL_PARAM_BLD_free(bld);
+        peer = brix_gsi_dh_build_peer(params, bnpub);
         brix_evp_pkey_free(params);
         BIO_free(bio);
     }
@@ -146,12 +126,14 @@ brix_gsi_cipher_default_list(void)
 void
 gsi_load_legacy_once(void)
 {
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
     static int tried = 0;
     if (!tried) {
         tried = 1;
         (void) OSSL_PROVIDER_load(NULL, "legacy");
         (void) OSSL_PROVIDER_load(NULL, "default");
     }
+#endif
 }
 
 

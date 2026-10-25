@@ -26,7 +26,8 @@ import zlib
 
 import pytest
 
-from cmdscripts.compile_run import PLATFORM_HOST_FLAGS
+from cmdscripts.compile_run import (PLATFORM_HOST_FLAGS, library_compile_args,
+                                    pal_xattr_sources)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHARED = os.path.join(REPO, "shared")
@@ -54,9 +55,11 @@ STARGZ_META = ("stargz.index.json", ".prefetch.landmark",
 
 def _build(cc, src, out):
     comp = subprocess.run(
-        [cc, "-Wall", "-Wextra", "-Werror", "-I", SHARED, "-I", SRC_DIR,
+        [cc, *library_compile_args([
+         "-Wall", "-Wextra", "-Werror", "-I", SHARED, "-I", SRC_DIR,
          *PLATFORM_HOST_FLAGS, "-o", out,
-         *src, "-lsqlite3", "-lcrypto", "-lz"],
+         *src, *(os.path.join(REPO, path) for path in pal_xattr_sources()),
+         "-lsqlite3", "-lcrypto", "-lz"])],
         capture_output=True, text=True)
     assert comp.returncode == 0, \
         "driver failed to COMPILE:\n%s" % comp.stderr
@@ -65,7 +68,7 @@ def _build(cc, src, out):
 
 @pytest.fixture(scope="module")
 def drivers(tmp_path_factory):
-    cc = shutil.which("gcc") or shutil.which("cc")
+    cc = shutil.which(os.environ.get("CC", "cc")) or shutil.which("gcc")
     if cc is None:
         pytest.skip("no C compiler")
     if not all(os.path.exists(s) for s in SGZ_SRC + FLAT_SRC):

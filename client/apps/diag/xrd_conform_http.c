@@ -335,6 +335,75 @@ probe_cross_plane_missing(xrd_conform_execution *execution,
     if (rc == 0) brix_http_resp_free(&response);
 }
 
+static void
+observe_web_baseline(xrd_conform_execution *execution,
+    const brix_weburl *url, const brix_http_resp *response)
+{
+    if (url->is_s3) execution->s3_size = response->body_len;
+    brix_s3_sha256_hex(response->body, response->body_len,
+        url->is_s3 ? execution->s3_digest : execution->http_digest);
+    if (url->is_s3) execution->have_s3 = 1;
+    else execution->have_http = 1;
+}
+
+static void
+run_web_baseline_probes(xrd_conform_execution *execution,
+    const brix_weburl *url, const char *token,
+    const brix_http_resp *response)
+{
+    xrd_conform_probe_http_boundaries(execution, url, token, response);
+    xrd_conform_probe_http_validators(execution, url, token, response);
+    xrd_conform_probe_http_semantics(execution, url, token, response);
+    xrd_conform_probe_s3_checksum(execution, url, response);
+    xrd_conform_probe_web_traversal(execution, url, token);
+    xrd_conform_probe_web_case(execution, url, token);
+    xrd_conform_probe_web_namespace(execution, url, token);
+    xrd_conform_probe_web_filenames(execution, url, token);
+    xrd_conform_probe_http_errors(execution, url, token, response);
+    xrd_conform_probe_webdav(execution, url, token, response);
+    xrd_conform_probe_http_create(execution, url, token);
+    probe_unknown_method(execution, url, token);
+    xrd_conform_probe_s3_auth(execution, url);
+    xrd_conform_probe_s3_readonly(execution, url);
+    xrd_conform_probe_s3_range_agreement(execution, url);
+    xrd_conform_probe_s3_missing_codes(execution, url);
+    xrd_conform_probe_s3_listing(execution, url);
+    xrd_conform_probe_s3_special_keys(execution, url);
+    xrd_conform_probe_s3_multipart(execution, url);
+    probe_cross_plane_missing(execution, url, token);
+}
+
+static void
+grade_web_prf(xrd_conform_execution *execution, const brix_weburl *url,
+    const brix_http_resp *response, int prf_proven)
+{
+    uint8_t *expected;
+    int exact;
+
+    if (!prf_proven) {
+        xrd_conform_result_set(execution,
+            url->is_s3 ? "S3-001" : "HTR-001",
+            BRIX_CONFORM_VERDICT_INCONCLUSIVE, "adopted-body-not-prf-proven",
+            NULL, NULL);
+        return;
+    }
+    expected = malloc(CONFORM_HTTP_PLANTED_SIZE);
+    if (expected != NULL)
+        brix_conform_fill(&execution->run->key, 0, expected,
+            CONFORM_HTTP_PLANTED_SIZE);
+    exact = expected != NULL
+        && response->body_len == CONFORM_HTTP_PLANTED_SIZE
+        && memcmp(response->body, expected, CONFORM_HTTP_PLANTED_SIZE) == 0;
+    free(expected);
+    xrd_conform_result_set(execution,
+        url->is_s3 ? "S3-001" : "HTR-001",
+        exact ? BRIX_CONFORM_VERDICT_CONFORMANT
+              : BRIX_CONFORM_VERDICT_DIVERGENT,
+        exact ? "planted-prf-object-byte-exact"
+              : "planted-prf-object-mismatch",
+        "65536 PRF bytes", NULL);
+}
+
 /* ---- Fetch and grade the adopted HTTP baseline ----
  *
  * WHAT: Returns zero after a complete GET and all supported boundary probes.
@@ -374,56 +443,9 @@ http_baseline_grade(xrd_conform_execution *execution, const brix_weburl *url,
         brix_http_resp_free(&response);
         return -1;
     }
-    if (url->is_s3) execution->s3_size = response.body_len;
-    brix_s3_sha256_hex(response.body, response.body_len,
-        url->is_s3 ? execution->s3_digest : execution->http_digest);
-    if (url->is_s3) execution->have_s3 = 1;
-    else execution->have_http = 1;
-    xrd_conform_probe_http_boundaries(execution, url, token, &response);
-    xrd_conform_probe_http_validators(execution, url, token, &response);
-    xrd_conform_probe_http_semantics(execution, url, token, &response);
-    xrd_conform_probe_s3_checksum(execution, url, &response);
-    xrd_conform_probe_web_traversal(execution, url, token);
-    xrd_conform_probe_web_case(execution, url, token);
-    xrd_conform_probe_web_namespace(execution, url, token);
-    xrd_conform_probe_web_filenames(execution, url, token);
-    xrd_conform_probe_http_errors(execution, url, token, &response);
-    xrd_conform_probe_webdav(execution, url, token, &response);
-    xrd_conform_probe_http_create(execution, url, token);
-    probe_unknown_method(execution, url, token);
-    xrd_conform_probe_s3_auth(execution, url);
-    xrd_conform_probe_s3_readonly(execution, url);
-    xrd_conform_probe_s3_range_agreement(execution, url);
-    xrd_conform_probe_s3_missing_codes(execution, url);
-    xrd_conform_probe_s3_listing(execution, url);
-    xrd_conform_probe_s3_special_keys(execution, url);
-    xrd_conform_probe_s3_multipart(execution, url);
-    probe_cross_plane_missing(execution, url, token);
-    if (prf_proven) {
-        uint8_t *expected = malloc(CONFORM_HTTP_PLANTED_SIZE);
-        int exact;
-
-        if (expected != NULL)
-            brix_conform_fill(&execution->run->key, 0, expected,
-                CONFORM_HTTP_PLANTED_SIZE);
-        exact = expected != NULL
-            && response.body_len == CONFORM_HTTP_PLANTED_SIZE
-            && memcmp(response.body, expected,
-                CONFORM_HTTP_PLANTED_SIZE) == 0;
-        free(expected);
-        xrd_conform_result_set(execution,
-            url->is_s3 ? "S3-001" : "HTR-001",
-            exact ? BRIX_CONFORM_VERDICT_CONFORMANT
-                  : BRIX_CONFORM_VERDICT_DIVERGENT,
-            exact ? "planted-prf-object-byte-exact"
-                  : "planted-prf-object-mismatch",
-            "65536 PRF bytes", NULL);
-    } else {
-        xrd_conform_result_set(execution,
-            url->is_s3 ? "S3-001" : "HTR-001",
-            BRIX_CONFORM_VERDICT_INCONCLUSIVE, "adopted-body-not-prf-proven",
-            NULL, NULL);
-    }
+    observe_web_baseline(execution, url, &response);
+    run_web_baseline_probes(execution, url, token, &response);
+    grade_web_prf(execution, url, &response, prf_proven);
     if (!url->is_s3) execution->http_size = response.body_len;
     brix_http_resp_free(&response);
     return 0;

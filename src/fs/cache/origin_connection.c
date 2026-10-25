@@ -1,5 +1,6 @@
 #include "core/compat/log_event.h"
 #include "cache_internal.h"
+#include "auth/crypto/tls_compat.h"
 #include "protocols/root/connection/netconnect.h"   /* shared outbound connect/I/O hardening */
 #include "core/compat/af_policy.h"        /* brix_af_policy_t origin family policy */
 #include "net/dns/dns.h"                  /* brix_dns_resolve_sync: the one DNS path */
@@ -132,7 +133,7 @@ brix_cache_origin_tls_upgrade(brix_cache_fill_t *t,
         ngx_memcpy(vhost, host->data, hl);
         vhost[hl] = '\0';
         SSL_set_hostflags(oc->ssl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
-        if (SSL_set1_host(oc->ssl, vhost) != 1) {
+        if (!brix_crypto_tls_peer_name(oc->ssl, vhost)) {
             brix_cache_set_error(t, kXR_ServerError, 0,
                                    "cache origin TLS host-verify setup failed");
             return -1;

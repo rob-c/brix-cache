@@ -68,15 +68,17 @@ ownership_success(void)
 static void
 ownership_allocation_failure(void)
 {
+    brix_sd_instance_t leaf = {0};
     brix_vfs_unlink_window_t *window = calloc(1, sizeof(*window));
 
     assert(window != NULL);
-    ownership_fail("strdup");
+    window->leaf = &leaf;
+    ownership_fail("ngx_alloc");
     assert(brix_vfs_unlink_window_add(window, "/missing") == NGX_ERROR);
     assert(window->n == 0 && errno == ENOMEM);
     ownership_fail(NULL);
     ownership_window_fill(window, 1);
-    ownership_fail("strdup");
+    ownership_fail("ngx_alloc");
     assert(brix_vfs_unlink_window_add(window, "/missing") == NGX_ERROR);
     assert(window->n == 1 && errno == ENOMEM);
     assert(strcmp(window->paths[0], "/member") == 0);

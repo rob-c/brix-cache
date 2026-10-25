@@ -1,5 +1,5 @@
 /* Phase-118 redirect, wait and asynchronous-attention conformance probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "protocols/root/protocol/frame_hdr.h"
 
 #include <arpa/inet.h>
@@ -14,19 +14,12 @@ typedef struct {
     uint8_t body[FLOW_BODY_MAX];
 } flow_reply;
 
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
-
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
 static void
 set_result(xrd_conform_execution *execution, const char *id, int pass,
     const char *success, const char *failure)
 {
-    if (!row_active(execution, id)) return;
+    if (!xrd_conform_row_active(execution, id)) return;
     xrd_conform_result_set(execution, id,
         pass ? BRIX_CONFORM_VERDICT_CONFORMANT
              : BRIX_CONFORM_VERDICT_DIVERGENT,
@@ -36,7 +29,7 @@ set_result(xrd_conform_execution *execution, const char *id, int pass,
 static void
 set_skip(xrd_conform_execution *execution, const char *id, const char *reason)
 {
-    if (!row_active(execution, id)) return;
+    if (!xrd_conform_row_active(execution, id)) return;
     xrd_conform_result_set(execution, id, BRIX_CONFORM_VERDICT_SKIPPED,
         reason, NULL, NULL);
 }
@@ -73,31 +66,12 @@ finalize_conditional_skips(xrd_conform_execution *execution)
         "fixture-required:load-shedding");
 }
 
-static int
-reserve_request(xrd_conform_execution *execution, size_t bytes)
-{
-    char reason[64];
-
-    return xrd_conform_reserve(execution, bytes, reason, sizeof(reason));
-}
 
 static int
 read_reply(brix_conn *connection, flow_reply *reply, brix_status *status)
 {
-    uint8_t header[XRD_RESPONSE_HDR_LEN];
-
-    memset(reply, 0, sizeof(*reply));
-    if (brix_read_full(&connection->io, header, sizeof(header), status) != 0)
-        return -1;
-    xrd_resp_hdr_unpack(header, &reply->sid, &reply->status, &reply->length);
-    if (reply->length > sizeof(reply->body)) {
-        brix_status_set(status, XRDC_EPROTO, 0,
-            "flow response body too large: %u", reply->length);
-        return -1;
-    }
-    if (reply->length > 0 && brix_read_full(&connection->io, reply->body,
-            reply->length, status) != 0) return -1;
-    return 0;
+    return xrd_conform_read_bounded_frame(connection, &reply->sid,
+        &reply->status, &reply->length, reply->body, sizeof(reply->body), status);
 }
 
 static int
@@ -108,7 +82,7 @@ send_stat(xrd_conform_execution *execution, brix_conn *connection,
     brix_payload payload;
     size_t length = strlen(path);
 
-    if (length > UINT32_MAX || !reserve_request(execution, length)) return -1;
+    if (length > UINT32_MAX || !xrd_conform_reserve_probe(execution, length)) return -1;
     memset(&request, 0, sizeof(request));
     request.requestid = htons(kXR_stat);
     payload.data = path;
@@ -145,12 +119,12 @@ probe_redirect_clear_fallback(xrd_conform_execution *execution,
     int connected;
     int served = 0;
 
-    if (!row_active(execution, "RDR-004")) return;
+    if (!xrd_conform_row_active(execution, "RDR-004")) return;
     clear.scheme = XRDC_SCHEME_ROOT;
     connected = connect_aux(execution, &clear, &connection, &status) == 0;
     if (connected) {
         brix_status_clear(&status);
-        served = reserve_request(execution, 0)
+        served = xrd_conform_reserve_probe(execution, 0)
             && brix_stat(&connection, path, &info, &status) == 0;
         brix_close(&connection);
     }
@@ -164,18 +138,72 @@ probe_redirect_clear_fallback(xrd_conform_execution *execution,
 }
 
 static void
+probe_redirect_opaque(xrd_conform_execution *execution,
+    brix_conn *connection, const brix_url *source, const char *opaque,
+    brix_status *status)
+{
+    char redirected_path[XRDC_PATH_MAX];
+    brix_file file;
+
+    if (opaque[0] == '\0'
+        || (size_t) snprintf(redirected_path, sizeof(redirected_path),
+            "%s?%s", source->path, opaque) >= sizeof(redirected_path)) {
+        set_skip(execution, "RDR-005", "fixture-absent:redirect-opaque");
+        return;
+    }
+    brix_status_clear(status);
+    if (xrd_conform_reserve_probe(execution, 0)
+        && brix_file_open_read(connection, redirected_path, &file,
+            status) == 0) {
+        brix_status close_status;
+
+        brix_status_clear(&close_status);
+        brix_file_close(connection, &file, &close_status);
+        set_result(execution, "RDR-005", 1, "redirect-opaque-honoured",
+            "redirect-opaque-not-honoured");
+        return;
+    }
+    set_result(execution, "RDR-005", 0, "redirect-opaque-honoured",
+        "redirect-opaque-not-honoured");
+}
+
+static void
+probe_connected_redirect(xrd_conform_execution *execution,
+    const brix_url *source, brix_conn *connection, const char *opaque,
+    brix_status *status)
+{
+    brix_statinfo info;
+    int served;
+
+    brix_status_clear(status);
+    served = xrd_conform_reserve_probe(execution, 0)
+        && brix_stat(connection, source->path, &info, status) == 0;
+    set_result(execution, "RDR-002", served, "redirect-target-served-path",
+        "redirect-target-did-not-serve-path");
+    if (served)
+        set_result(execution, "RDR-003", 1, "redirect-chain-converged",
+            "redirect-loop-or-budget-exhausted");
+    else if (status->kxr == XRDC_EREDIRECT)
+        set_result(execution, "RDR-003", 0, "redirect-chain-converged",
+            "redirect-loop-or-budget-exhausted");
+    if (source->scheme == XRDC_SCHEME_ROOTS)
+        set_result(execution, "RDR-004", served && connection->io.ssl != NULL,
+            "redirect-preserved-tls", "redirect-downgraded-tls");
+    else
+        set_skip(execution, "RDR-004", "not-applicable:cleartext-source");
+    probe_redirect_opaque(execution, connection, source, opaque, status);
+}
+
+static void
 probe_redirect_target(xrd_conform_execution *execution, const brix_url *source,
     const flow_reply *reply)
 {
-    char host[256], opaque[4096], redirected_path[XRDC_PATH_MAX];
+    char host[256], opaque[4096];
     brix_url target = *source;
     brix_conn connection;
-    brix_statinfo info;
-    brix_file file;
     brix_status status;
     int port = 0;
     int decoded;
-    int served = 0;
 
     decoded = xrd_redirect_body_decode(reply->body, reply->length, host,
         sizeof(host), &port, opaque, sizeof(opaque));
@@ -191,42 +219,8 @@ probe_redirect_target(xrd_conform_execution *execution, const brix_url *source,
     snprintf(target.host, sizeof(target.host), "%s", host);
     target.port = port;
     if (connect_aux(execution, &target, &connection, &status) == 0) {
-        brix_status_clear(&status);
-        served = reserve_request(execution, 0)
-            && brix_stat(&connection, source->path, &info, &status) == 0;
-        set_result(execution, "RDR-002", served,
-            "redirect-target-served-path", "redirect-target-did-not-serve-path");
-        if (served)
-            set_result(execution, "RDR-003", 1, "redirect-chain-converged",
-                "redirect-loop-or-budget-exhausted");
-        else if (status.kxr == XRDC_EREDIRECT)
-            set_result(execution, "RDR-003", 0, "redirect-chain-converged",
-                "redirect-loop-or-budget-exhausted");
-        if (source->scheme == XRDC_SCHEME_ROOTS)
-            set_result(execution, "RDR-004", served && connection.io.ssl != NULL,
-                "redirect-preserved-tls", "redirect-downgraded-tls");
-        else
-            set_skip(execution, "RDR-004", "not-applicable:cleartext-source");
-        if (opaque[0] != '\0'
-            && (size_t) snprintf(redirected_path, sizeof(redirected_path),
-                "%s?%s", source->path, opaque) < sizeof(redirected_path)) {
-            brix_status_clear(&status);
-            if (reserve_request(execution, 0)
-                && brix_file_open_read(&connection, redirected_path, &file,
-                    &status) == 0) {
-                brix_status close_status;
-
-                brix_status_clear(&close_status);
-                brix_file_close(&connection, &file, &close_status);
-                set_result(execution, "RDR-005", 1,
-                    "redirect-opaque-honoured", "redirect-opaque-not-honoured");
-            } else {
-                set_result(execution, "RDR-005", 0,
-                    "redirect-opaque-honoured", "redirect-opaque-not-honoured");
-            }
-        } else {
-            set_skip(execution, "RDR-005", "fixture-absent:redirect-opaque");
-        }
+        probe_connected_redirect(execution, source, &connection, opaque,
+            &status);
         brix_close(&connection);
     } else {
         set_result(execution, "RDR-002", 0,

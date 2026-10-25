@@ -178,6 +178,11 @@ def frm_recall(lifecycle, tmp_path):
     tape = d / "tape"; tape.mkdir()
     cache = d / "cache"; cache.mkdir()
     recall_log = d / "recall.log"
+    recall_log.write_text("")
+    # This is a non-secret test audit sink written by the always-de-escalated
+    # nginx worker and read by pytest.  Pre-create only this file as writable;
+    # the surrounding fixture tree remains traversal-only to the worker.
+    recall_log.chmod(0o666)
 
     (tape / "near.dat").write_bytes(TAPE_BYTES)
     (tape / "dedup.dat").write_bytes(TAPE_BYTES)

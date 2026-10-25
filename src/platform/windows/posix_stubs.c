@@ -18,6 +18,35 @@
 
 static int stub_enosys(void) { errno = ENOSYS; return -1; }
 
+/* WHAT: Keep the existing native transfer policy for valid fd candidates.
+ * WHY: The FreeBSD ZFS restriction does not apply to this adapter.
+ * HOW: Reject the invalid-fd sentinel without changing errno or doing I/O. */
+int brix_plat_file_sendfile_safe(int fd)
+{ return fd >= 0; }
+
+/* WHAT: Refuse interval closure. WHY: No native implementation yet.
+ * HOW: Preserve descriptors and return the standard unavailable result. */
+int brix_plat_close_range(unsigned first, unsigned last)
+{ (void) first; (void) last; return stub_enosys(); }
+
+/* ---- Refuse unavailable native TCP accounting ----
+ * WHAT: Return -1; valid output pointers receive zero counters.
+ * WHY: The planned Windows adapter cannot claim measured connection usage.
+ * HOW: Validate pointers, clear outputs and report the unsupported operation.
+ */
+int brix_plat_tcp_stats(int fd, uint64_t *sent, uint64_t *received, uint32_t *rtt_us)
+{
+    (void) fd;
+    if (sent == NULL || received == NULL || rtt_us == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    *sent = 0;
+    *received = 0;
+    *rtt_us = 0;
+    return stub_enosys();
+}
+
 int brix_plat_openat2(int rootfd, const char *rel, int flags, mode_t mode,
     uint64_t resolve)
 { (void) rootfd; (void) rel; (void) flags; (void) mode; (void) resolve; return stub_enosys(); }
@@ -74,6 +103,14 @@ int brix_plat_capget(struct __user_cap_header_struct *h, struct __user_cap_data_
 int brix_plat_capset(struct __user_cap_header_struct *h, struct __user_cap_data_struct *d)
 { (void) h; (void) d; return stub_enosys(); }
 const char *brix_plat_secure_getenv(const char *name) { return getenv(name); }
+/* WHAT: Refuse native process-descriptor/Capsicum contracts.
+ * WHY: No Windows implementation promises this boundary. HOW: ENOTSUP. */
+pid_t brix_plat_broker_fork(int *process_fd)
+{ (void) process_fd; errno = ENOTSUP; return -1; }
+/* WHAT: Refuse rather than attest unsupported helper confinement.
+ * WHY: A no-op is unsafe. HOW: Preserve explicit ENOTSUP. */
+int brix_plat_broker_confine(int channel, int rootfd, int logfd)
+{ (void) channel; (void) rootfd; (void) logfd; errno = ENOTSUP; return -1; }
 char *brix_plat_crypt(const char *key, const char *setting)
 { (void) key; (void) setting; errno = ENOSYS; return NULL; }
 

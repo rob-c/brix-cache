@@ -41,6 +41,7 @@
  * WHY: AIO dispatch detaches the payload buffer from ctx->recv.payload_buf so the main thread can safely begin reading the next request header while write happens in a worker thread. PFC write-through dirty state tracking accumulates wt_bytes_written and wt_dirty_offset for future close-time origin propagation — mirroring XrdPfcFile::m_bytesWritten, m_dirtyOffset semantics. Short-write detection catches disk-full conditions before silently truncating client data. */
 
 #include "core/ngx_brix_module.h"
+#include "fs/core/vfs_core.h"
 #include "protocols/ssi/ssi.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "wrts_journal.h"
@@ -401,15 +402,15 @@ brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c)
 									  BRIX_OP_WRITE, &rc)) {
 		return rc;
 	}
-	if (offset < 0) {
+	if (xvfs_check_extent(offset, wlen) != 0) {
 		snprintf(write_detail, sizeof(write_detail), "%lld+%zu",
 		         (long long) offset, wlen);
 		brix_log_access(ctx, c, "WRITE", ctx->files[idx].path,
 		                  write_detail, 0, kXR_ArgInvalid,
-		                  "negative write offset", 0);
+		                  "invalid write extent", 0);
 		BRIX_OP_ERR(ctx, BRIX_OP_WRITE);
 		return brix_send_error(ctx, c, kXR_ArgInvalid,
-		                       "negative write offset");
+		                       "invalid write extent");
 	}
 
 	/* INVARIANT 1 / hostile-network integrity: a cleartext kXR_write carries NO

@@ -153,6 +153,23 @@ report_directory_open(const char *out_dir,
     return dirfd;
 }
 
+static int
+report_bundle_fail(int dirfd, int remove_marker, const char *message,
+    char *error, size_t error_size)
+{
+    int saved = errno;
+
+    if (remove_marker) {
+        (void) report_bundle_marker_remove(dirfd);
+    }
+    close(dirfd);
+    if (error != NULL && error_size > 0) {
+        snprintf(error, error_size, "%s: %s", message, strerror(saved));
+    }
+    errno = saved;
+    return -1;
+}
+
 /* ---- Write the complete report artifact bundle ----
  *
  * WHAT: Returns zero after six durable artifacts and their commit marker.
@@ -169,47 +186,21 @@ brix_conform_report_bundle(const char *out_dir,
     dirfd = report_directory_open(out_dir, meta, results, error, error_size);
     if (dirfd < 0) return -1;
     if (report_bundle_marker_remove(dirfd) != 0) {
-        int saved = errno;
-
-        close(dirfd);
-        if (error != NULL && error_size > 0)
-            snprintf(error, error_size,
-                "cannot clear report completion marker: %s", strerror(saved));
-        errno = saved;
-        return -1;
+        return report_bundle_fail(dirfd, 0,
+            "cannot clear report completion marker", error, error_size);
     }
     if (report_all(dirfd, meta, results) != 0) {
-        int saved = errno;
-
-        close(dirfd);
-        if (error != NULL && error_size > 0)
-            snprintf(error, error_size, "cannot write report bundle: %s",
-                strerror(saved));
-        errno = saved;
-        return -1;
+        return report_bundle_fail(dirfd, 0, "cannot write report bundle",
+                                  error, error_size);
     }
     if (report_one(dirfd, BRIX_CONFORM_BUNDLE_MARKER, report_bundle_marker,
             meta, results) != 0) {
-        int saved = errno;
-
-        report_bundle_marker_remove(dirfd);
-        close(dirfd);
-        if (error != NULL && error_size > 0)
-            snprintf(error, error_size,
-                "cannot commit report bundle: %s", strerror(saved));
-        errno = saved;
-        return -1;
+        return report_bundle_fail(dirfd, 1, "cannot commit report bundle",
+                                  error, error_size);
     }
     if (fsync(dirfd) != 0) {
-        int saved = errno;
-
-        report_bundle_marker_remove(dirfd);
-        close(dirfd);
-        if (error != NULL && error_size > 0)
-            snprintf(error, error_size, "cannot sync report directory: %s",
-                strerror(saved));
-        errno = saved;
-        return -1;
+        return report_bundle_fail(dirfd, 1, "cannot sync report directory",
+                                  error, error_size);
     }
     close(dirfd);
     if (error != NULL && error_size > 0) error[0] = '\0';

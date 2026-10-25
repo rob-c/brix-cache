@@ -87,6 +87,27 @@ def test_token_origin_checks_namespace_access(monkeypatch, available, returncode
         assert "Permission denied" in reason
 
 
+@pytest.mark.parametrize(
+    "hop2,have_xrdhttp,have_xrdhttp_voms,expected,reason_fragment",
+    [
+        ("https", True, True, "SUPPORTED", ""),
+        ("https", True, False, "SKIP", "libXrdHttpVOMS"),
+        ("root", True, False, "SUPPORTED", ""),
+    ],
+)
+def test_pairing_a_gsi_requires_voms_extractor_only_for_https(
+        hop2, have_xrdhttp, have_xrdhttp_voms, expected, reason_fragment):
+    outcome, reason = helpers._ForwardHarnessMixinB._pairing_a_feasibility(
+        hop2,
+        "gsi",
+        have_xrootd=True,
+        have_xrdhttp=have_xrdhttp,
+        have_xrdhttp_voms=have_xrdhttp_voms,
+    )
+    assert outcome == expected
+    assert reason_fragment in reason
+
+
 @pytest.mark.optin
 @pytest.mark.timeout(600)
 @pytest.mark.parametrize(

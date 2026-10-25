@@ -43,7 +43,7 @@ from settings import HOST
 
 import _test_ultra_parallel_helpers as U
 
-pytestmark = [pytest.mark.slow, pytest.mark.timeout(3000),
+pytestmark = [pytest.mark.slow, pytest.mark.serial, pytest.mark.timeout(3000),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-ultra-parallel")]
 
@@ -162,8 +162,7 @@ def _spawn_mix(port, n, out, spread, jobs, heavy):
     finally:
         threading.stack_size(old)
     deadline = time.perf_counter() + U.OP_TIMEOUT * (jobs + 2) + 300
-    for t in threads:
-        t.join(timeout=max(1.0, deadline - time.perf_counter()))
+    U._join_until_deadline(threads, deadline)
 
 
 def _collect_mix(n, out, wall, jobs):

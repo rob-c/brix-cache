@@ -147,6 +147,7 @@ Summary:        BriX-Cache clean-room native XRootD client tools (xrdcp, xrdfs, 
 %{alma_platform_requires}
 Provides:       nginx-xrootd-client = %{version}-%{release}
 Obsoletes:      nginx-xrootd-client < 0.1.0-5
+Conflicts:      xrootd-client
 # 1.1.1-23: the two FUSE mounts split out into their own subpackages
 # (brix-xrootdfs-fuse, brix-cvmfs-fuse) so sites can deploy/test a mount tier
 # without the full CLI suite.  Recommends keeps the default `dnf install

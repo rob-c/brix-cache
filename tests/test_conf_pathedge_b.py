@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from lib_py.reference_host import fixture_read_bytes
 _reexport(globals(), "_test_conf_pathedge_helpers")
 
 pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_pathedge_b")]
@@ -159,11 +160,10 @@ def test_xrdcp_special_name_byte_exact(pair, name, tmp_path):
     assert _ok(rc_a) == _ok(rc_b), \
         f"DIVERGENCE xrdcp {name!r}: our rc={rc_a} stock rc={rc_b} ({ea}{eb})"
     if _ok(rc_a) and _ok(rc_b):
-        with open(a, "rb") as fa, open(b, "rb") as fb:
-            ga, gb = fa.read(), fb.read()
+        ga, gb = fixture_read_bytes(a), fixture_read_bytes(b)
         assert ga == gb, f"xrdcp {name!r} bytes differ between servers"
-        with open(os.path.join(pair["our_data"], name), "rb") as f:
-            assert ga == f.read(), f"xrdcp {name!r} not byte-exact vs disk"
+        assert ga == fixture_read_bytes(os.path.join(pair["our_data"], name)), \
+            f"xrdcp {name!r} not byte-exact vs disk"
 
 
 # =========================================================================== #

@@ -172,3 +172,42 @@ def test_items_without_a_lifecycle_argument_are_ignored():
     not_a_harness = SimpleNamespace(error_log_paths=lambda: {"x": Path("/nonexistent")})
     report = _run_hook(_item(not_a_harness), _report())
     assert report.sections == []
+
+
+def test_close_releases_every_registration_before_reraising_interrupt(monkeypatch):
+    """A timeout stopping one server cannot poison the next module's registry."""
+    stopped, released = [], []
+    interrupted = KeyboardInterrupt('fixture timeout surrogate')
+
+    def stop(name):
+        stopped.append(name)
+        if name == 'lc-last':
+            raise interrupted
+
+    monkeypatch.setattr(server_launcher, 'unregister', lambda name: released.append(name))
+    harness = LifecycleHarness.__new__(LifecycleHarness)
+    harness._names = ['lc-first', 'lc-last']
+    harness.launcher = SimpleNamespace(stop=stop)
+    with pytest.raises(KeyboardInterrupt) as error:
+        harness.close()
+    assert error.value is interrupted
+    assert stopped == released == ['lc-last', 'lc-first']
+    assert harness._names == []
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_close_releases_all_owned_names_after_normal_stop_or_error(monkeypatch, failed):
+    stopped, released = [], []
+
+    def stop(name):
+        stopped.append(name)
+        if failed:
+            raise OSError('owned child already gone')
+
+    monkeypatch.setattr(server_launcher, 'unregister', lambda name: released.append(name))
+    harness = LifecycleHarness.__new__(LifecycleHarness)
+    harness._names = ['lc-first', 'lc-last']
+    harness.launcher = SimpleNamespace(stop=stop)
+    harness.close()
+    assert stopped == released == ['lc-last', 'lc-first']
+    assert harness._names == []

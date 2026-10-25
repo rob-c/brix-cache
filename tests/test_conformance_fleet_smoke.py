@@ -18,10 +18,14 @@ pytestmark = [pytest.mark.x509conf, pytest.mark.slow, pytest.mark.serial,
 
 def test_fleet_serves_smoke(tmp_path):
     root = x509forge.build_all(tmp_path / "conf", ALL_CLAUSES)
+    errors = root / "build_errors.tsv"
+    assert not errors.exists(), errors.read_text()
+    rows = json.loads((root / "manifest.json").read_text())
+    assert sorted(row["id"] for row in rows) == sorted(clause.id for clause in ALL_CLAUSES)
     fleet = ConformanceFleet(root)
     fleet.start()
     try:
-        for r in json.loads((root / "manifest.json").read_text()):
+        for r in rows:
             if r["surface"] != "davs":
                 continue
             acc, code = fleet.verdict(r["cred"], r["group"])

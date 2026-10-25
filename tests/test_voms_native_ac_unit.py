@@ -43,7 +43,8 @@ def unit_binary(tmp_path_factory):
         pytest.skip("no C compiler on PATH")
     out = str(tmp_path_factory.mktemp("voms") / "voms_ut")
     build = subprocess.run([cc, "-std=c11", "-D_GNU_SOURCE", "-Wall", "-Wextra",
-                            "-Werror", "-I", SHARED, *_openssl_flags(), *SOURCES,
+                            "-Werror", "-I", SHARED, "-I", os.path.join(REPO, "src"),
+                            *_openssl_flags(), *SOURCES,
                             "-o", out, "-lcrypto"],
                            capture_output=True, text=True, timeout=300)
     if build.returncode != 0:

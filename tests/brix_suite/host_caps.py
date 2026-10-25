@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import functools
 import os
+import re
 import shutil
+import shlex
 import sys
 from typing import Callable, Iterable
 
@@ -33,11 +35,58 @@ def _worker_subprocess_supported() -> bool:
 
 #: (directive substring, human reason, probe) — a template containing the
 #: directive is unavailable when the probe is False.
-_DIRECTIVE_NEEDS: tuple[tuple[str, str, Callable[[], bool]], ...] = (
-    ("brix_prepare_command",
+_DIRECTIVE_NEEDS: tuple[tuple[str, str, Callable[[], bool]], ...] = tuple(
+    (directive,
      "hardened workers cannot execute subprocesses on this host",
-     _worker_subprocess_supported),
+     _worker_subprocess_supported)
+    for directive in ("brix_prepare_command", "brix_frm_stagecmd",
+                      "brix_frm_purge_polprog", "brix_cms_perf_pgm", "brix_cms_fsxeq")
 )
+
+
+def configuration_unavailable_reason(text: str) -> str | None:
+    """Probe real directives, never explanatory comments or quoted values."""
+    if _worker_subprocess_supported():
+        return None
+    try:
+        commands = list(_configuration_commands(text))
+    except ValueError:
+        return None  # nginx, not a capability probe, owns malformed syntax
+    for command in commands:
+        reason = _command_unavailable_reason(command)
+        if reason:
+            return reason
+    return None
+
+
+def _command_unavailable_reason(command):
+    """Check an already-tokenized command on a worker-exec-limited host."""
+    for directive, reason, probe in _DIRECTIVE_NEEDS:
+        if command[0] == directive and not probe():
+            return f"{directive}: {reason}"
+    return _external_storage_reason(command)
+
+
+def _external_storage_reason(command):
+    """Only actual exec-based storage adapters need a worker subprocess."""
+    if command[0] != "brix_storage_backend" or len(command) < 2:
+        return None
+    if re.match(r"^(frm|tape)://(exec|hpss|cta)(/|\?|$)", command[1]):
+        return "external MSS adapter: hardened workers cannot execute subprocesses on this host"
+    return None
+
+
+def _configuration_commands(text):
+    lexer = shlex.shlex(text, posix=True, punctuation_chars=";{}")
+    lexer.whitespace_split = True
+    command = []
+    for token in lexer:
+        if set(token) <= set(";{}"):
+            if command:
+                yield command
+            command = []
+        else:
+            command.append(token)
 
 
 @functools.lru_cache(maxsize=None)
@@ -49,10 +98,8 @@ def template_unavailable_reason(template: str) -> str | None:
             text = handle.read()
     except OSError:
         return None
-    for directive, reason, probe in _DIRECTIVE_NEEDS:
-        if directive in text and not probe():
-            return f"{template} uses {directive}: {reason}"
-    return None
+    reason = configuration_unavailable_reason(text)
+    return f"{template} uses {reason}" if reason else None
 
 
 #: Member kinds that exec a third-party daemon: kind → binary on PATH.

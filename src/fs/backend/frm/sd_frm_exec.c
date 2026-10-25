@@ -11,7 +11,6 @@
 #include "core/compat/subprocess.h"   /* shared SIGCHLD-safe reparented runner */
 #include "platform/platform_api.h"     /* brix_plat_renameat2 */
 
-#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -54,44 +53,17 @@ typedef struct {
  * program can reach client traffic. exec_spawn therefore closes every fd above
  * stderr in the child (after the caller's own dup2 actions) and starts it in a
  * new session, so pid == pgid and the deadline kill reaches the whole group.
- * glibc 2.34 has closefrom as a spawn action; older glibc gets one addclose
- * per descriptor the worker holds right now (the same set, via /proc). */
-#ifndef __GLIBC_PREREQ
-/* Not glibc - assume old interface */
-#define __GLIBC_PREREQ(major, minor) 0
-#endif
-#if __GLIBC_PREREQ(2, 34)
-static int
-exec_fa_close_inherited(posix_spawn_file_actions_t *fa)
-{
-    return posix_spawn_file_actions_addclosefrom_np(fa, 3);
-}
-#else
-static int
-exec_fa_close_inherited(posix_spawn_file_actions_t *fa)
-{
-    DIR           *d = opendir("/proc/self/fd");
-    struct dirent *e;
-    int            fd, rc = 0;
-
-    if (d == NULL) {
-        return errno;
-    }
-    while (rc == 0 && (e = readdir(d)) != NULL) {
-        fd = atoi(e->d_name);          /* "." and ".." read as 0: skipped */
-        if (fd >= 3 && fd != dirfd(d)) {
-            rc = posix_spawn_file_actions_addclose(fa, fd);
-        }
-    }
-    closedir(d);
-    return rc;                         /* a closed-by-then fd is ignored */
-}
-#endif
+ * Descriptor closure is owned by the PAL: native closefrom on FreeBSD,
+ * CLOEXEC_DEFAULT on Darwin, and closefrom or descriptor actions on Linux. */
 
 /* posix_spawn with the hygiene above, for the streaming `dread` path only —
  * every status-dependent verb goes through brix_subprocess_run instead (see
  * exec_run). `fa` may carry the caller's dup2/close actions (NULL = none).
- * 0 ok / -1 with errno. */
+ * WHAT: Return 0 after a confined spawn, or -1 with errno.
+ * WHY: A stage command must not inherit server sockets or client descriptors.
+ * HOW: 1. Initialise actions and attributes. 2. Configure the session and PAL
+ * descriptor closure. 3. Spawn only after every setup operation succeeds.
+ */
 int
 frm_exec_spawn(pid_t *pid, const char *prog, char *const argv[],
     posix_spawn_file_actions_t *fa)
@@ -101,15 +73,21 @@ frm_exec_spawn(pid_t *pid, const char *prog, char *const argv[],
     int                         rc;
 
     if (fa == NULL) {
-        posix_spawn_file_actions_init(&own);
+        rc = posix_spawn_file_actions_init(&own);
+        if (rc != 0) {
+            errno = rc;
+            return -1;
+        }
         fa = &own;
     }
-    rc = exec_fa_close_inherited(fa);
+    rc = posix_spawnattr_init(&attr);
     if (rc == 0) {
-        posix_spawnattr_init(&attr);
 #ifdef POSIX_SPAWN_SETSID
         rc = posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSID);
 #endif
+        if (rc == 0) {
+            rc = brix_plat_spawn_closefrom(fa, &attr, 3);
+        }
         if (rc == 0) {
             rc = posix_spawn(pid, prog, fa, &attr, argv, environ);
         }

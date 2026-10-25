@@ -353,7 +353,7 @@ arc_list_inner_cb(void *ud, const char *name, int is_dir)
      * parameter as an escape, so it reports the copy leaking at the return
      * below. Suppress exactly that diagnostic, at exactly its emission point. */
 #pragma GCC diagnostic push
-#if defined(__GNUC__) && !defined(__clang__)
+#if defined(__GNUC__) && __GNUC__ >= 10 && !defined(__clang__)
 #pragma GCC diagnostic ignored "-Wanalyzer-malloc-leak"
 #endif
     copy = strdup(name);

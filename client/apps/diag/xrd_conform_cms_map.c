@@ -4,6 +4,8 @@
 #include "core/progname.h"
 #include "platform/platform.h"
 
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/wait.h>
 
@@ -126,6 +128,34 @@ map_tool_args(const xrd_conform_execution *execution, char *tool,
     args[count] = NULL;
 }
 
+static int
+map_tool_read_all(int fd, char *output, size_t output_size, int *overflow)
+{
+    size_t used = 0;
+
+    while (used + 1 < output_size) {
+        ssize_t got = read(fd, output + used, output_size - used - 1);
+
+        if (got < 0 && errno == EINTR) continue;
+        if (got <= 0) break;
+        used += (size_t) got;
+    }
+    *overflow = used + 1 == output_size;
+    output[used] = '\0';
+    return 0;
+}
+
+static pid_t
+map_tool_wait(pid_t child, int *status)
+{
+    pid_t waited;
+
+    do {
+        waited = waitpid(child, status, 0);
+    } while (waited < 0 && errno == EINTR);
+    return waited;
+}
+
 /* WHAT: Execute the exact co-installed xrdmapc and capture bounded stdout.
  * WHY: Calling a parser in-process would make CMS-007 circular and could not
  *      detect packaging or CLI transformation drift.
@@ -143,7 +173,6 @@ run_map_tool(const xrd_conform_execution *execution, char *output,
     int overflow = 0;
     pid_t child;
     pid_t waited;
-    size_t used = 0;
 
     if (map_tool_path(tool, sizeof(tool)) != 0) return -2;
     map_tool_args(execution, tool, stall, sizeof(stall), args);
@@ -162,19 +191,9 @@ run_map_tool(const xrd_conform_execution *execution, char *output,
         _exit(127);
     }
     close(fds[1]);
-    while (used + 1 < output_size) {
-        ssize_t got = read(fds[0], output + used, output_size - used - 1);
-
-        if (got < 0 && errno == EINTR) continue;
-        if (got <= 0) break;
-        used += (size_t) got;
-    }
-    if (used + 1 == output_size) overflow = 1;
-    output[used] = '\0';
+    (void) map_tool_read_all(fds[0], output, output_size, &overflow);
     close(fds[0]);
-    do {
-        waited = waitpid(child, &status, 0);
-    } while (waited < 0 && errno == EINTR);
+    waited = map_tool_wait(child, &status);
     if (overflow || waited != child) return -1;
     return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -1;
 }

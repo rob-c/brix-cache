@@ -24,7 +24,7 @@ fd is a capability. Only the open + namespace + metadata ops are impersonated.
 
 ## How it works (architecture)
 
-Workers stay **fully unprivileged**. A small **root broker** does the privileged
+Workers stay **fully unprivileged**. On Linux a small **root broker** does the privileged
 work:
 
 ```
@@ -108,7 +108,7 @@ sets the unprivileged worker account, e.g. `user xrootd;`.
 | `brix_idmap_default_user <name>` | `map` | squash account for unmapped principals; **omit to deny** |
 | `brix_idmap_min_uid <N>` | `map` | reserved-uid floor; resolved uids below `N` (and uid 0) are denied (default 1000, hard-clamped to ≥1000) |
 | `brix_idmap_cache_ttl <secs>` | `map` | TTL of the principal→creds cache (default 600) |
-| `brix_idmap_broker_user <name>` | `map` | a dedicated **non-root** account the broker drops to (keeping only `CAP_SETUID`/`CAP_SETGID`) — see *Running the broker as non-root* below |
+| `brix_idmap_broker_user <name>` | `map` | a dedicated **non-root**, non-worker supervisor account; mandatory on FreeBSD (no credential-switch capabilities), optional on Linux (`CAP_SETUID`/`CAP_SETGID`) — see *Running the broker as non-root* below |
 | `brix_idmap_forbidden_users <csv>` | `map` | extra account **names** never allowed as a target (adds to the built-in list; the worker + broker accounts are always forbidden) |
 | `brix_idmap_forbidden_groups <csv>` | `map` | privileged group **names** (sudo/wheel/docker/…); a user who is a member of any — primary or supplementary — is denied even if the gid is ≥ the floor |
 
@@ -136,9 +136,31 @@ The data plane (reads/writes on open fds) is never brokered.
 
 ## Security model
 
+FreeBSD uses a different native model: a permanently non-root supervisor routes
+requests to startup-created, fixed-identity Capsicum helpers. Every serving uid
+and saved uid is unprivileged, and each helper's complete credential set is
+immutable. `brix_idmap_broker_user` is mandatory there. The account catalogue is
+bounded to 256 candidates; new or group-changed identities fail closed until
+broker restart (after the normal mapping-cache TTL). See the
+[FreeBSD platform guide](../03-configuration/FREEBSD.md) for validation status.
+Native directory-gid inheritance is retained rather than forcing Linux's
+default creation gid. The capability-broker caveat below describes Linux.
+
+Mapped POSIX WebDAV LOCK transactions use the same inode-bound portable store
+inside the mapped owner's helper; they never mutate as the worker. On the
+tested FreeBSD 15.1/OpenZFS 2.4.2 host, ZFS `xattr=dir` rejects native
+file-descriptor xattrs in Capsicum with `ECAPMODE`, even with unrestricted
+descriptor rights. That is an unresolved filesystem compatibility limit, not
+an authorization fallback: mapped locks fail closed there. The same native
+probe and mapped LOCK/refresh/UNLOCK/foreign-owner controls pass on UFS and
+the host's separate default-SA ZFS dataset. SA values through 32768 bytes
+pass the native probe; a 65536-byte directory spill still fails in Capsicum.
+Do not disable confinement or switch an existing dataset to `xattr=sa` to hide
+this result; the current host has separately reproduced SA readback problems.
+
 - **The master runs as root** — a larger surface; the module's master-side code is
   deliberately tiny (spawn + socket + rootfd).
-- **A broker compromise is root-equivalent** (`CAP_SETUID`). Mitigations: a tiny
+- **A Linux broker compromise is root-equivalent** (`CAP_SETUID`). Mitigations: a tiny
   audited broker, no network (AF_UNIX only), `0600` + `SO_PEERCRED` gate to the
   worker uid, all other caps dropped + `NO_NEW_PRIVS`, every request validated,
   bounded fixed-size frames, single-threaded (no `setfsuid` race).

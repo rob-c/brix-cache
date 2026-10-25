@@ -1,15 +1,6 @@
 /* Phase-118 scratch-confined ROOT namespace mutation probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
-static void
-grade(xrd_conform_execution *execution, const char *id, int pass,
-    const char *success, const char *failure, const brix_status *status)
-{
-    xrd_conform_result_set(execution, id,
-        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
-             : BRIX_CONFORM_VERDICT_DIVERGENT,
-        pass ? success : failure, NULL, status == NULL ? NULL : status->msg);
-}
 
 static int
 scratch_path(xrd_conform_execution *execution, const char *leaf,
@@ -19,16 +10,6 @@ scratch_path(xrd_conform_execution *execution, const char *leaf,
         object->path, sizeof(object->path));
 }
 
-static int
-reserve_op(xrd_conform_execution *execution, size_t bytes,
-    brix_status *status)
-{
-    char reason[64];
-
-    if (xrd_conform_reserve(execution, bytes, reason, sizeof(reason))) return 1;
-    brix_status_set(status, XRDC_EUSAGE, 0, "%s", reason);
-    return 0;
-}
 
 static int
 create_file(xrd_conform_execution *execution, brix_conn *connection,
@@ -39,12 +20,12 @@ create_file(xrd_conform_execution *execution, brix_conn *connection,
     int rc;
 
     brix_status_clear(status);
-    if (!reserve_op(execution, 0, status)) return -1;
+    if (!xrd_conform_reserve_status(execution, 0, status)) return -1;
     if (brix_file_open_write(connection, object->path, 1, 0, &file,
             status) != 0) return -1;
-    rc = reserve_op(execution, length, status)
+    rc = xrd_conform_reserve_status(execution, length, status)
         ? brix_file_write(connection, &file, 0, data, length, status) : -1;
-    if (!reserve_op(execution, 0, status)
+    if (!xrd_conform_reserve_status(execution, 0, status)
         || brix_file_close(connection, &file, status) != 0) rc = -1;
     return rc;
 }
@@ -54,7 +35,7 @@ mkdir_object(xrd_conform_execution *execution, brix_conn *connection,
     const xrd_conform_scratch_object *object, int mode, int parents,
     brix_status *status)
 {
-    if (!reserve_op(execution, 0, status)) return -1;
+    if (!xrd_conform_reserve_status(execution, 0, status)) return -1;
     return brix_mkdir(connection, object->path, mode, parents, status);
 }
 
@@ -62,7 +43,7 @@ static int
 remove_object(xrd_conform_execution *execution, brix_conn *connection,
     const xrd_conform_scratch_object *object, brix_status *status)
 {
-    if (!reserve_op(execution, 0, status)) return -1;
+    if (!xrd_conform_reserve_status(execution, 0, status)) return -1;
     return brix_rm(connection, object->path, status);
 }
 
@@ -70,7 +51,7 @@ static int
 rmdir_object(xrd_conform_execution *execution, brix_conn *connection,
     const xrd_conform_scratch_object *object, brix_status *status)
 {
-    if (!reserve_op(execution, 0, status)) return -1;
+    if (!xrd_conform_reserve_status(execution, 0, status)) return -1;
     return brix_rmdir(connection, object->path, status);
 }
 
@@ -79,7 +60,7 @@ move_objects(xrd_conform_execution *execution, brix_conn *connection,
     const xrd_conform_scratch_object *object,
     const xrd_conform_scratch_object *scratch_object, brix_status *status)
 {
-    if (!reserve_op(execution, 0, status)) return -1;
+    if (!xrd_conform_reserve_status(execution, 0, status)) return -1;
     return brix_mv(connection, object->path, scratch_object->path, status);
 }
 
@@ -87,7 +68,7 @@ static int
 chmod_object(xrd_conform_execution *execution, brix_conn *connection,
     const xrd_conform_scratch_object *object, int mode, brix_status *status)
 {
-    if (!reserve_op(execution, 0, status)) return -1;
+    if (!xrd_conform_reserve_status(execution, 0, status)) return -1;
     return brix_chmod(connection, object->path, mode, status);
 }
 
@@ -97,7 +78,7 @@ is_directory(xrd_conform_execution *execution, brix_conn *connection,
     brix_status *status)
 {
     brix_status_clear(status);
-    if (!reserve_op(execution, 0, status)) return 0;
+    if (!xrd_conform_reserve_status(execution, 0, status)) return 0;
     return brix_stat(connection, object->path, info, status) == 0
         && (info->flags & kXR_isDir) != 0;
 }
@@ -114,27 +95,35 @@ probe_mkdir(xrd_conform_execution *execution, brix_conn *connection,
     memset(&info, 0, sizeof(info));
     brix_status_clear(&status);
     rc = mkdir_object(execution, connection, base, 0750, 0, &status);
-    grade(execution, "MKD-001", rc == 0
+    xrd_conform_grade_status(execution, "MKD-001", rc == 0
         && is_directory(execution, connection, base, &info, &status),
         "mkdir-created-directory", "mkdir-did-not-create-directory", &status);
-    grade(execution, "MKD-006", info.have_ext == 0
+    xrd_conform_grade_status(execution, "MKD-006", info.have_ext == 0
         || (info.mode & 0777U) == 0750U,
         "created-mode-contained-defined-bits", "created-mode-mismatch", &status);
 
     brix_status_clear(&status);
     rc = mkdir_object(execution, connection, base, 0750, 0, &status);
-    grade(execution, "MKD-004", rc != 0 && status.kxr == kXR_ItExists,
+    xrd_conform_grade_status(execution, "MKD-004", rc != 0 && status.kxr == kXR_ItExists,
         "existing-path-refused", "existing-path-not-ItExists", &status);
 
     brix_status_clear(&status);
     rc = mkdir_object(execution, connection, nested, 0755, 0, &status);
-    grade(execution, "MKD-003", rc != 0 && status.kxr == kXR_NotFound,
+    xrd_conform_grade_status(execution, "MKD-003", rc != 0 && status.kxr == kXR_NotFound,
         "missing-parent-refused", "missing-parent-not-NotFound", &status);
     brix_status_clear(&status);
     rc = mkdir_object(execution, connection, nested, 0755, 1, &status);
-    grade(execution, "MKD-002", rc == 0
+    xrd_conform_grade_status(execution, "MKD-002", rc == 0
         && is_directory(execution, connection, nested, &info, &status),
         "mkdirpath-created-parents", "mkdirpath-failed", &status);
+}
+
+static int
+move_overwrite_consistent(int first, int second, int first_kxr,
+    int second_kxr)
+{
+    if (first == 0) return second == 0;
+    return second != 0 && first_kxr == second_kxr;
 }
 
 static void
@@ -156,16 +145,16 @@ probe_move(xrd_conform_execution *execution, brix_conn *connection,
     brix_status_clear(&status);
     rc = move_objects(execution, connection, source, target, &status);
     brix_status_clear(&status);
-    old_missing = reserve_op(execution, 0, &status)
+    old_missing = xrd_conform_reserve_status(execution, 0, &status)
         && brix_stat(connection, source->path, &info, &status) != 0
         && status.kxr == kXR_NotFound;
     brix_status_clear(&status);
-    target_ok = reserve_op(execution, 0, &status)
+    target_ok = xrd_conform_reserve_status(execution, 0, &status)
         && brix_stat(connection, target->path, &info, &status) == 0
         && info.size == (int64_t) sizeof(payload);
-    grade(execution, "MV-001", rc == 0 && old_missing && target_ok,
+    xrd_conform_grade_status(execution, "MV-001", rc == 0 && old_missing && target_ok,
         "rename-preserved-object", "rename-state-mismatch", &status);
-    grade(execution, "MV-002", rc == 0 && target_ok,
+    xrd_conform_grade_status(execution, "MV-002", rc == 0 && target_ok,
         "deployed-move-framing-accepted", "move-framing-refused", &status);
 
     create_file(execution, connection, source, payload, sizeof(payload),
@@ -179,10 +168,9 @@ probe_move(xrd_conform_execution *execution, brix_conn *connection,
     brix_status_clear(&status);
     overwrite_second = move_objects(execution, connection, source, target,
         &status);
-    grade(execution, "MV-003",
-        (overwrite_first == 0 && overwrite_second == 0)
-            || (overwrite_first != 0 && overwrite_second != 0
-                && first_kxr == status.kxr),
+    xrd_conform_grade_status(execution, "MV-003",
+        move_overwrite_consistent(overwrite_first, overwrite_second,
+                                  first_kxr, status.kxr),
         overwrite_first == 0 ? "existing-target-replaced-consistently"
                              : "existing-target-refused-consistently",
         "existing-target-policy-inconsistent", &status);
@@ -191,13 +179,13 @@ probe_move(xrd_conform_execution *execution, brix_conn *connection,
 
     brix_status_clear(&status);
     rc = move_objects(execution, connection, missing, source, &status);
-    grade(execution, "MV-004", rc != 0 && status.kxr == kXR_NotFound,
+    xrd_conform_grade_status(execution, "MV-004", rc != 0 && status.kxr == kXR_NotFound,
         "missing-source-refused", "missing-source-not-NotFound", &status);
 
     brix_status_clear(&status);
-    rc = reserve_op(execution, 0, &status)
+    rc = xrd_conform_reserve_status(execution, 0, &status)
         ? brix_mv(connection, target->path, "", &status) : -1;
-    grade(execution, "MV-007", rc != 0 && status.kxr == kXR_ArgMissing,
+    xrd_conform_grade_status(execution, "MV-007", rc != 0 && status.kxr == kXR_ArgMissing,
         "empty-move-path-refused", "empty-move-path-wrong-answer", &status);
 }
 
@@ -214,36 +202,36 @@ probe_remove(xrd_conform_execution *execution, brix_conn *connection,
     create_file(execution, connection, file, &byte, 1, &status);
     brix_status_clear(&status);
     rc = remove_object(execution, connection, file, &status);
-    grade(execution, "RM-001", rc == 0, "file-removed", "file-remove-failed",
+    xrd_conform_grade_status(execution, "RM-001", rc == 0, "file-removed", "file-remove-failed",
         &status);
 
     mkdir_object(execution, connection, empty, 0755, 1, &status);
     brix_status_clear(&status);
     rc = rmdir_object(execution, connection, empty, &status);
-    grade(execution, "RM-002", rc == 0, "empty-directory-removed",
+    xrd_conform_grade_status(execution, "RM-002", rc == 0, "empty-directory-removed",
         "empty-directory-remove-failed", &status);
 
     mkdir_object(execution, connection, nonempty, 0755, 1, &status);
     create_file(execution, connection, child, &byte, 1, &status);
     brix_status_clear(&status);
     rc = rmdir_object(execution, connection, nonempty, &status);
-    grade(execution, "RM-003", rc != 0 && status.kxr == kXR_ItExists,
+    xrd_conform_grade_status(execution, "RM-003", rc != 0 && status.kxr == kXR_ItExists,
         "nonempty-directory-ItExists", "nonempty-directory-wrong-error", &status);
     brix_status_clear(&status);
     mkdir_object(execution, connection, empty, 0755, 1, &status);
     brix_status_clear(&status);
     rc = remove_object(execution, connection, empty, &status);
-    grade(execution, "RM-004", rc == 0 || status.kxr == kXR_isDirectory,
+    xrd_conform_grade_status(execution, "RM-004", rc == 0 || status.kxr == kXR_isDirectory,
         rc == 0 ? "rm-removed-empty-directory"
                 : "rm-empty-directory-refused-as-directory",
         "rm-empty-directory-wrong-error", &status);
     brix_status_clear(&status);
     rc = rmdir_object(execution, connection, child, &status);
-    grade(execution, "RM-005", rc != 0, "rmdir-file-refused",
+    xrd_conform_grade_status(execution, "RM-005", rc != 0, "rmdir-file-refused",
         "rmdir-file-unlinked", &status);
     brix_status_clear(&status);
     rc = remove_object(execution, connection, missing, &status);
-    grade(execution, "RM-006", rc != 0 && status.kxr == kXR_NotFound,
+    xrd_conform_grade_status(execution, "RM-006", rc != 0 && status.kxr == kXR_NotFound,
         "missing-remove-NotFound", "missing-remove-wrong-error", &status);
     remove_object(execution, connection, child, &status);
     rmdir_object(execution, connection, nonempty, &status);
@@ -266,22 +254,22 @@ probe_chmod(xrd_conform_execution *execution, brix_conn *connection,
     rc = chmod_object(execution, connection, object, 0640, &status);
     brix_status_clear(&status);
     if (rc == 0) {
-        if (reserve_op(execution, 0, &status))
+        if (xrd_conform_reserve_status(execution, 0, &status))
             rc = brix_stat(connection, object->path, &info, &status);
         else
             rc = -1;
     }
-    grade(execution, "CHM-001", rc == 0
+    xrd_conform_grade_status(execution, "CHM-001", rc == 0
         && (info.have_ext == 0 || (info.mode & 0777U) == 0640U),
         "chmod-reflected-by-stat", "chmod-mode-mismatch", &status);
-    grade(execution, "CHM-002", rc == 0 && (info.mode & ~0777U) == 0,
+    xrd_conform_grade_status(execution, "CHM-002", rc == 0 && (info.mode & ~0777U) == 0,
         "mode-contained-defined-bits", "undefined-mode-bits-visible", &status);
 
     brix_status_clear(&status);
     rc = chmod_object(execution, connection, object, 0000, &status);
     brix_status_clear(&status);
     restored = chmod_object(execution, connection, object, 0644, &status) == 0;
-    grade(execution, "CHM-004", rc != 0 || restored,
+    xrd_conform_grade_status(execution, "CHM-004", rc != 0 || restored,
         "unreadable-mode-refused-or-reversible",
         "unreadable-mode-not-reversible", &status);
     remove_object(execution, connection, object, &status);
@@ -396,12 +384,12 @@ probe_directory_controls(xrd_conform_execution *execution,
             &status);
         if (rc == 0) created++;
     }
-    if (safe && created > 0 && reserve_op(execution, 0, &status)) {
+    if (safe && created > 0 && xrd_conform_reserve_status(execution, 0, &status)) {
         plain_rc = brix_dirlist(connection, base->path, 0, &plain,
             &plain_count, &status);
         safe = plain_rc == 0;
     }
-    if (safe && created > 0 && reserve_op(execution, 0, &status)) {
+    if (safe && created > 0 && xrd_conform_reserve_status(execution, 0, &status)) {
         dstat_rc = brix_dirlist(connection, base->path, 1, &dstat,
             &dstat_count, &status);
         safe = dstat_rc == 0
@@ -414,7 +402,7 @@ probe_directory_controls(xrd_conform_execution *execution,
         "dstat=%d/%zu[%s] kxr=%d",
         plain_rc, plain_count, plain_names, dstat_rc, dstat_count, dstat_names,
         status.kxr);
-    grade(execution, "DIR-004", safe,
+    xrd_conform_grade_status(execution, "DIR-004", safe,
         created > 0 ? "control-names-consistent-across-list-forms"
                     : "control-names-defined-refusal",
         failure, &status);
@@ -446,20 +434,20 @@ probe_directory_fixtures(xrd_conform_execution *execution,
         && create_file(execution, connection, &alpha, &byte, 1, &status) == 0
         && create_file(execution, connection, &beta, &byte, 1, &status) == 0
         && mkdir_object(execution, connection, &empty, 0755, 0, &status) == 0
-        && reserve_op(execution, 0, &status)
+        && xrd_conform_reserve_status(execution, 0, &status)
         && brix_dirlist(connection, base.path, 0, &entries, &count,
             &status) == 0)
         listed = has_exact_dir_names(entries, count);
-    grade(execution, "DIR-001", listed, "exclusive-directory-exact-names",
+    xrd_conform_grade_status(execution, "DIR-001", listed, "exclusive-directory-exact-names",
         "exclusive-directory-name-set-mismatch", &status);
     free(entries);
     entries = NULL;
     count = 0;
-    if (reserve_op(execution, 0, &status)
+    if (xrd_conform_reserve_status(execution, 0, &status)
         && brix_dirlist(connection, empty.path, 0, &entries, &count,
             &status) == 0)
         empty_listed = count == 0;
-    grade(execution, "DIR-005", empty_listed,
+    xrd_conform_grade_status(execution, "DIR-005", empty_listed,
         "empty-directory-success-zero-entries",
         "empty-directory-listing-mismatch", &status);
     free(entries);
@@ -471,18 +459,43 @@ probe_directory_fixtures(xrd_conform_execution *execution,
     rmdir_object(execution, connection, &base, &status);
 }
 
+static int
+namespace_mutation_active(xrd_conform_execution *execution)
+{
+    return xrd_conform_family_active(execution, "MKD")
+        || xrd_conform_family_active(execution, "MV")
+        || xrd_conform_family_active(execution, "RM")
+        || xrd_conform_family_active(execution, "CHM");
+}
+
+static int
+init_namespace_paths(xrd_conform_execution *execution,
+    xrd_conform_scratch_object *objects)
+{
+    static const char *const leaves[] = {
+        "brix-conform-ns", "brix-conform-ns/missing/child",
+        "brix-conform-ns/source", "brix-conform-ns/target",
+        "brix-conform-ns/absent", "brix-conform-ns/rm-file",
+        "brix-conform-ns/empty", "brix-conform-ns/nonempty",
+        "brix-conform-ns/nonempty/child", "brix-conform-ns/chmod"
+    };
+    size_t index;
+
+    for (index = 0; index < sizeof(leaves) / sizeof(leaves[0]); index++) {
+        if (scratch_path(execution, leaves[index], &objects[index]) != 0)
+            return -1;
+    }
+    return 0;
+}
+
 void
 xrd_conform_probe_namespace_mutations(xrd_conform_execution *execution,
     brix_conn *connection)
 {
-    xrd_conform_scratch_object base, nested, source, target, missing;
-    xrd_conform_scratch_object file, empty, nonempty, child, chmod_file;
+    xrd_conform_scratch_object objects[10];
     brix_status status;
 
-    if (!xrd_conform_family_active(execution, "MKD")
-        && !xrd_conform_family_active(execution, "MV")
-        && !xrd_conform_family_active(execution, "RM")
-        && !xrd_conform_family_active(execution, "CHM")
+    if (!namespace_mutation_active(execution)
         && !xrd_conform_family_active(execution, "DIR")) return;
     if (execution->run->config.only != NULL
         && strcmp(execution->run->config.only, "MV-005") == 0) return;
@@ -492,30 +505,17 @@ xrd_conform_probe_namespace_mutations(xrd_conform_execution *execution,
         xrd_conform_probe_large_dir(execution, connection);
     if (xrd_conform_family_active(execution, "DIR"))
         xrd_conform_probe_dir_10000(execution, connection);
-    if (!xrd_conform_family_active(execution, "MKD")
-        && !xrd_conform_family_active(execution, "MV")
-        && !xrd_conform_family_active(execution, "RM")
-        && !xrd_conform_family_active(execution, "CHM")) return;
-    if (scratch_path(execution, "brix-conform-ns", &base) != 0
-        || scratch_path(execution, "brix-conform-ns/missing/child", &nested) != 0
-        || scratch_path(execution, "brix-conform-ns/source", &source) != 0
-        || scratch_path(execution, "brix-conform-ns/target", &target) != 0
-        || scratch_path(execution, "brix-conform-ns/absent", &missing) != 0
-        || scratch_path(execution, "brix-conform-ns/rm-file", &file) != 0
-        || scratch_path(execution, "brix-conform-ns/empty", &empty) != 0
-        || scratch_path(execution, "brix-conform-ns/nonempty", &nonempty) != 0
-        || scratch_path(execution, "brix-conform-ns/nonempty/child", &child) != 0
-        || scratch_path(execution, "brix-conform-ns/chmod", &chmod_file) != 0)
-        return;
-    probe_mkdir(execution, connection, &base, &nested);
-    probe_move(execution, connection, &source, &target, &missing);
-    probe_remove(execution, connection, &file, &empty, &nonempty, &child,
-        &missing);
-    probe_chmod(execution, connection, &chmod_file);
+    if (!namespace_mutation_active(execution)) return;
+    if (init_namespace_paths(execution, objects) != 0) return;
+    probe_mkdir(execution, connection, &objects[0], &objects[1]);
+    probe_move(execution, connection, &objects[2], &objects[3], &objects[4]);
+    probe_remove(execution, connection, &objects[5], &objects[6], &objects[7],
+        &objects[8], &objects[4]);
+    probe_chmod(execution, connection, &objects[9]);
     brix_status_clear(&status);
-    remove_object(execution, connection, &target, &status);
-    rmdir_object(execution, connection, &nested, &status);
-    if (scratch_path(execution, "brix-conform-ns/missing", &nested) == 0)
-        rmdir_object(execution, connection, &nested, &status);
-    rmdir_object(execution, connection, &base, &status);
+    remove_object(execution, connection, &objects[3], &status);
+    rmdir_object(execution, connection, &objects[1], &status);
+    if (scratch_path(execution, "brix-conform-ns/missing", &objects[1]) == 0)
+        rmdir_object(execution, connection, &objects[1], &status);
+    rmdir_object(execution, connection, &objects[0], &status);
 }

@@ -69,10 +69,14 @@ def test_single_process_and_already_target_paths_are_terminally_confined():
     )
     assert "brix_plat_setresgid(target_gid, target_gid, target_gid)" in finish
     assert "brix_plat_setresuid(target_uid, target_uid, target_uid)" in finish
-    default_identity = _function(LIFECYCLE, "imp_worker_current_identity_safe")
-    assert "getpwuid(ruid)" in default_identity
-    assert "pw->pw_gid != rgid" in default_identity
-    assert "imp_worker_groups_allowed(pw->pw_name, rgid) == 1" in default_identity
     apply_drop = _function(LIFECYCLE, "imp_worker_apply_drop")
     terminal = apply_drop[apply_drop.index("imp_worker_drop_all_caps") :]
     assert terminal.index("return NGX_ERROR;") < terminal.index("return NGX_OK;")
+
+
+def test_default_worker_identity_is_fail_closed():
+    default_identity = _function(LIFECYCLE, "imp_worker_current_identity_safe")
+    assert "imp_worker_current_ids(&uid, &gid)" in default_identity
+    assert "getpwuid(uid)" in default_identity
+    assert "pw->pw_gid != gid" in default_identity
+    assert "imp_worker_groups_allowed(pw->pw_name, gid) == 1" in default_identity

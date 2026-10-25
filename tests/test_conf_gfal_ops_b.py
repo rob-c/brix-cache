@@ -4,13 +4,10 @@ _reexport(globals(), "_test_conf_gfal_ops_helpers")
 pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_gfal_ops_b")]
 
 def test_rm_file(ctx):
-    """gfal-rm of an uploaded file: rc match stock; file gone afterward."""
+    """gfal-rm of a byte-checked seeded file: rc match stock; file gone afterward."""
     _both(ctx, lambda s: ("gfal-mkdir", "-p", _scratch(ctx, s, "rmf")))
-    tmp = tempfile.NamedTemporaryFile(delete=False)
-    tmp.write(b"to-be-removed"); tmp.close()
     try:
-        _both(ctx, lambda s: ("gfal-copy", "-f", tmp.name,
-                              _scratch(ctx, s, "rmf") + "/x.bin"))
+        paths = _seed_scratch_file(ctx, "rmf", "x.bin", b"to-be-removed")
         our, off = _both(ctx, lambda s: ("gfal-rm",
                                          _scratch(ctx, s, "rmf") + "/x.bin"))
         _assert_rc_and_errcat(our, off, "rm file")
@@ -19,27 +16,24 @@ def test_rm_file(ctx):
                                            _scratch(ctx, s, "rmf") + "/x.bin"))
         _assert_rc_and_errcat(gour, goff, "stat after rm")
         assert gour[0] != 0
+        assert all(not os.path.lexists(path) for path in paths)
     finally:
-        os.unlink(tmp.name)
         _both(ctx, lambda s: ("gfal-rm", "-r", _scratch(ctx, s, "rmf")))
 
 
 def test_rm_dir_recursive(ctx):
     """gfal-rm -r of a populated dir tree: rc + category match stock; gone after."""
     _both(ctx, lambda s: ("gfal-mkdir", "-p", _scratch(ctx, s, "rmr") + "/a/b"))
-    tmp = tempfile.NamedTemporaryFile(delete=False)
-    tmp.write(b"deep-file"); tmp.close()
     try:
-        _both(ctx, lambda s: ("gfal-copy", "-f", tmp.name,
-                              _scratch(ctx, s, "rmr") + "/a/b/f.bin"))
+        paths = _seed_scratch_file(ctx, "rmr", "a/b/f.bin", b"deep-file")
         our, off = _both(ctx, lambda s: ("gfal-rm", "-r", _scratch(ctx, s, "rmr")))
         _assert_rc_and_errcat(our, off, "rm -r tree")
         assert our[0] == 0
         gour, goff = _both(ctx, lambda s: ("gfal-stat", _scratch(ctx, s, "rmr")))
         _assert_rc_and_errcat(gour, goff, "stat after rm -r")
         assert gour[0] != 0
+        assert all(not os.path.lexists(path) for path in paths)
     finally:
-        os.unlink(tmp.name)
         _both(ctx, lambda s: ("gfal-rm", "-r", _scratch(ctx, s, "rmr")))
 
 

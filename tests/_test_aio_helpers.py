@@ -20,10 +20,12 @@ import struct
 import socket
 import threading
 import time
+from contextlib import closing
 
 import pytest
 from XRootD import client
 from XRootD.client.flags import OpenFlags
+from lib_py.reference_host import reference_read_bytes, reference_write_target
 
 from settings import (
     NGINX_ANON_PORT,
@@ -69,14 +71,21 @@ def _upload(url, remote, data):
     f.close()
 
 
-def _read_file(url, remote):
-    f = client.File()
-    status, _ = f.open(f"{url}//{remote.lstrip('/')}", OpenFlags.READ)
-    assert status.ok, f"open failed: {status.message}"
-    status, data = f.read()
-    assert status.ok, f"read failed: {status.message}"
-    f.close()
-    return data
+def _read_file(url, remote, expected_size):
+    """Preserve exact-length checks without trusting a reference's EOF read."""
+    with closing(_open_rd(url, remote)) as stream:
+        return reference_read_bytes(stream, expected_size)
+
+
+@pytest.fixture
+def aio_write_target():
+    """Retire only this test's private write namespace, even after bad offsets.
+
+    A malformed native reference offset can leave a huge sparse object behind.
+    It must fail this test, not become a later whole-export checksum workload.
+    """
+    with reference_write_target(client.FileSystem(ANON_URL)) as target:
+        yield target
 
 
 def _open_rd(url, remote):

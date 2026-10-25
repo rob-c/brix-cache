@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from lib_py.reference_host import fixture_read_bytes
 _reexport(globals(), "_test_conf_sequences_helpers")
 
 pytestmark = [*pytestmark, pytest.mark.xdist_group("conf_sequences_b")]
@@ -95,14 +96,14 @@ def test_xrdcp_upload_stat_download_overwrite(srv, tmp_path, n):
         # download v1, md5 round-trip
         dl1 = str(tmp_path / f"dl1_{who}_{n}.bin")
         assert cp("-f", f"{url}/{wire}", dl1)[0] == 0, f"{who} download v1"
-        with open(src1, "rb") as a, open(dl1, "rb") as b:
-            assert md5(a.read()) == md5(b.read()), f"{who} v1 round-trip md5"
+        assert md5(fixture_read_bytes(src1)) == md5(fixture_read_bytes(dl1)), \
+            f"{who} v1 round-trip md5"
         # overwrite with v2 (-f), re-download, new md5
         assert cp("-f", src2, f"{url}/{wire}")[0] == 0, f"{who} overwrite v2"
         dl2 = str(tmp_path / f"dl2_{who}_{n}.bin")
         assert cp("-f", f"{url}/{wire}", dl2)[0] == 0, f"{who} download v2"
-        with open(src2, "rb") as a, open(dl2, "rb") as b:
-            assert md5(a.read()) == md5(b.read()), f"{who} v2 round-trip md5"
+        assert md5(fixture_read_bytes(src2)) == md5(fixture_read_bytes(dl2)), \
+            f"{who} v2 round-trip md5"
 
 
 # =========================================================================== #
@@ -141,8 +142,8 @@ def test_truncate_path_zero_then_rewrite(srv, n, n2):
             assert _close(s, fhw)[0] == kXR_ok, f"{who} close rewrite"
         finally:
             s.close()
-        with open(disk_for(srv, url, wire), "rb") as f:
-            assert f.read() == second, f"{who} rewrite content wrong"
+        assert fixture_read_bytes(disk_for(srv, url, wire)) == second, \
+            f"{who} rewrite content wrong"
 
 
 # =========================================================================== #
@@ -166,9 +167,8 @@ def test_write_to_closed_handle_errors_data_intact(srv):
         finally:
             s.close()
         # the previously written data must be intact and unchanged
-        with open(disk_for(srv, url, wire), "rb") as f:
-            assert f.read() == payload, \
-                f"{who} prior data corrupted by write to closed handle"
+        assert fixture_read_bytes(disk_for(srv, url, wire)) == payload, \
+            f"{who} prior data corrupted by write to closed handle"
     assert res["our"] == kXR_error, \
         f"OUR accepted write to a closed handle (st={res['our']})"
     assert res["off"] == kXR_error, \
@@ -293,8 +293,8 @@ def _pgwrite_one(srv, who, url, n, payload):
         _close(connection, read_handle)
     finally:
         connection.close()
-    with open(disk_for(srv, url, wire), "rb") as handle:
-        _require(handle.read() == payload, f"{who} pgwrite on-disk bytes wrong")
+    _require(fixture_read_bytes(disk_for(srv, url, wire)) == payload,
+             f"{who} pgwrite on-disk bytes wrong")
     return True
 
 

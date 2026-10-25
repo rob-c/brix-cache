@@ -318,11 +318,11 @@ ngx_int_t brix_pmark_map_codes(brix_pmark_conf_t *pm,
 
 typedef struct {
     uint64_t  bytes_recv;     /* tcpi_bytes_received (0 if unavailable) */
-    uint64_t  bytes_sent;     /* tcpi_bytes_acked                      */
-    uint32_t  rtt_us;         /* tcpi_rtt (microseconds)               */
+    uint64_t  bytes_sent;     /* native TCP byte counter               */
+    uint32_t  rtt_us;         /* native RTT, normalized to microseconds */
 } brix_pmark_sockstats_t;
 
-/* Read TCP_INFO byte/rtt counters for `fd` (Linux); zeroes the struct and
+/* Read native TCP byte/rtt counters for `fd`; zeroes the struct and
  * returns NGX_DECLINED where unavailable.  Never fails the caller. */
 ngx_int_t brix_pmark_sockstats(int fd, brix_pmark_sockstats_t *st);
 

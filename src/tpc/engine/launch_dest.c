@@ -43,22 +43,26 @@ tpc_destination_vfs_flags(uint16_t options)
     return flags;
 }
 
-/* Build the same identity/credential/delegation-bound VFS context as a normal
- * root:// write open.  TPC used to bypass this context and open a raw fd, which
- * made cache and non-POSIX destinations silently report success without storing
- * the object in their configured namespace. */
+/* ---- Bind the destination to the authenticated, confined VFS context ----
+ * WHAT: Initialize the destination's identity/credential/delegation-bound
+ *       context with its export-absolute path and carried mutation policy.
+ * WHY: Cache and non-POSIX backends must own storage, while ancestor-lock
+ *      checks need the confined path rather than a prematurely stripped key.
+ * HOW: 1. Initialize the VFS path and policy. 2. Bind the persistent root fd.
+ *      3. Bind backend credentials, minting policy and the authenticated session.
+ */
 static void
 tpc_destination_vfs_ctx(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const char *dst_path,
     brix_vfs_ctx_t *vctx)
 {
-    const char *logical = brix_vfs_export_relative_root(
-        dst_path, conf->common.root_canon);
-
+    /* Keep the confined export-absolute path for policy/ancestor-lock checks.
+     * The VFS alone strips the export root and applies N2N for driver keys;
+     * stripping here made local lock reads target an unrelated host path. */
     brix_vfs_ctx_init(vctx, c->pool, c->log, BRIX_PROTO_ROOT,
         conf->common.root_canon, NULL,
         brix_vfs_policy_from_write_enable(conf->common.allow_write),
-        0 /* is_tls */, ctx->identity, logical);
+        0 /* is_tls */, ctx->identity, dst_path);
     vctx->rootfd = conf->rootfd;
     brix_vfs_ctx_bind_backend_cred(vctx,
         &conf->common.storage_credential_dir,

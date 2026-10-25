@@ -6,11 +6,15 @@ is compiled against a Linux test adapter; this is not native Darwin validation.
 
 from pathlib import Path
 import subprocess
+import sys
 
 import pytest
 
 from csource_scan import function_body
 from test_platform_linux_native import native_compile
+
+pytestmark = pytest.mark.skipif(sys.platform != "linux",
+                                reason="Linux renameat2 syscall-interposition adapter")
 
 
 def _functions():

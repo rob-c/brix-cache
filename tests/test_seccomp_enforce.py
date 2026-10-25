@@ -18,6 +18,7 @@ without libseccomp (the worker then fails closed and never becomes ready).
 """
 
 import os
+import sys
 import time
 
 import pytest
@@ -95,6 +96,7 @@ def _await_filter_line(ep, mode, tries=40):
 # success: a real worker serves live traffic with the filter loaded.
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("mode", ["enforce", "audit"])
+@pytest.mark.skipif(sys.platform != "linux", reason="seccomp-BPF is a Linux-only security facility")
 def test_seccomp_serves_live(mode, tmp_path):
     try:
         harness, ep, _ = _start(mode, tmp_path)

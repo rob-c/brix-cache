@@ -43,41 +43,10 @@
      * above stays the outer gate; these can only narrow it.  BriX's spelling of
      * XRootD `ofs.tpc allow|require|restrict|oids`. ---- */
 
-    /* Who may TPC: `dn|group|host|vo <pattern>` pairs, ANDed on a line, ORed
-     * across lines.  Any rule at all makes the stage fail-closed. */
-    { ngx_string("brix_tpc_allow_identity"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_2MORE,
-      brix_tpc_conf_allow_identity,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      0,
-      NULL },
-
-    /* How they must have authenticated: `all|client|dest <auth>`.  `dest` binds
-     * the leg the peer server opened (tpc.org), never the client's own. */
-    { ngx_string("brix_tpc_require"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
-      brix_tpc_conf_require,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      0,
-      NULL },
-
-    /* Where: absolute logical path prefixes a TPC may touch.  Repeatable and
-     * every argument on a line is appended. */
-    { ngx_string("brix_tpc_restrict"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_1MORE,
-      brix_tpc_conf_restrict,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      0,
-      NULL },
-
-    /* Permit '*'-prefixed object-id TPC paths (default: off, as in stock).
-     * BriX exports no object-id namespace, so `on` only lifts the refusal. */
-    { ngx_string("brix_tpc_oids"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, common.tpc_oids),
-      NULL },
+    /* Shared who/how/where/object-id grammar; identity_matrix.h owns the
+     * same arities and setters for HTTP and stream, with plane-local offsets. */
+    BRIX_TPC_IDENTITY_DIRECTIVES(NGX_STREAM_SRV_CONF, NGX_STREAM_SRV_CONF_OFFSET,
+                                 ngx_stream_brix_srv_conf_t)
 
     /* §7 unary XrdSsi request/response over /.ssi/<service> (default: off). */
     { ngx_string("brix_ssi"),

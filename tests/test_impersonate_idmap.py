@@ -10,10 +10,14 @@ Skips cleanly when a C compiler or the nginx source tree is unavailable.
 """
 
 import os
+from pathlib import Path
 import shutil
 import subprocess
 
 import pytest
+
+from cmdscripts.compile_run import pal_host_sources
+from test_platform_linux_native import native_compile
 
 def _guard_test_idmap_unit_1():
     if not shutil.which(CC):
@@ -40,17 +44,13 @@ CC = os.environ.get("CC", "cc")
 def _inc_flags():
     base = NGINX_SRC
     subs = [
-        "src/core", "src/event", "src/event/modules", "src/os/unix",
+        "src/core", "src/event", "src/event/modules", "src/event/quic", "src/os/unix",
         "objs", "src/stream",
     ]
     return [f"-I{os.path.join(base, s)}" for s in subs] + [f"-I{os.path.join(REPO, 'src')}"]
 
 
-@pytest.mark.timeout(60)
-def test_idmap_unit(tmp_path):
-    _guard_test_idmap_unit_1()
-    _guard_test_idmap_unit_2()
-
+def _require_clean_identity():
     # The C test's happy-path checks resolve the CURRENT user through the idmap,
     # which (correctly, for security) REFUSES any user that is a member of a
     # reserved/low-gid or privileged group (wheel/sudo/adm/...) — those targets
@@ -74,18 +74,19 @@ def test_idmap_unit(tmp_path):
             "impersonate it, so the happy-path checks are not applicable — "
             "run as a clean user (uid>=1000, no privileged groups) to exercise them")
 
-    test_c = os.path.join(REPO, "tests/c/idmap_test.c")
-    imp = os.path.join(REPO, "src/auth/impersonate")
-    out_bin = str(tmp_path / "idmap_unit_test.bin")
 
-    cmd = [CC, "-O2", "-D_GNU_SOURCE", *_inc_flags(),
-           "-o", out_bin, test_c,
-           os.path.join(imp, "impersonate_state.c"),
-           os.path.join(imp, "idmap.c"),
-           os.path.join(imp, "idmap_denylist.c"),
-           os.path.join(imp, "idmap_gridmap.c")]
-    build = subprocess.run(cmd, capture_output=True, text=True)
-    _check_test_idmap_unit_1(build)
+@pytest.mark.timeout(60)
+def test_idmap_unit(tmp_path, native_compile):
+    _guard_test_idmap_unit_1()
+    _guard_test_idmap_unit_2()
+    _require_clean_identity()
+    test_c = os.path.join(REPO, "tests/c/idmap_test.c")
+    sources = ["src/auth/impersonate/" + name + ".c" for name in (
+        "impersonate_state", "idmap", "idmap_denylist", "idmap_gridmap")]
+    out_bin = native_compile("idmap-unit", Path(test_c).read_text(),
+                             [*sources, *pal_host_sources("process_wrapper")],
+                             ["-ffunction-sections", "-fdata-sections",
+                              "-Wl,--gc-sections"])
 
     run = subprocess.run([out_bin], capture_output=True, text=True, timeout=30)
     # The harness self-skips (rc 0, "SKIP:") when run as a sub-1000 uid.

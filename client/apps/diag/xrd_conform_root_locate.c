@@ -1,5 +1,5 @@
 /* Phase-118 locate endpoint follow-through probe. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "protocols/root/protocol/codec/wire_codec.h"
 #include "protocols/root/protocol/frame_hdr.h"
 
@@ -26,37 +26,30 @@ endpoint_compare(const void *left, const void *right)
     return strcmp((const char *) left, (const char *) right);
 }
 
-/* WHAT: Canonicalize a locate holder set independent of reply ordering.
- * WHY: Redundant managers may enumerate the same holders in different order.
- * HOW: Extract bounded S/s authorities, sort them, and join with newlines. */
-int
-xrd_conform_canonical_holder_set(const char *reply, char *canonical,
+static int
+next_holder(const char **cursor_ptr, const char **start_ptr,
+    size_t *length_ptr)
+{
+    const char *start;
+    size_t length;
+
+    while (xrd_conform_next_locate_token(cursor_ptr, &start, &length)) {
+        if (length > 2 && (start[0] == 'S' || start[0] == 's')) {
+            *start_ptr = start + 2;
+            *length_ptr = length - 2;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int
+join_holders(char endpoints[][320], size_t count, char *canonical,
     size_t canonical_size)
 {
-    char endpoints[CONFORM_LOCATE_ENDPOINT_MAX][320];
-    const char *cursor = reply;
-    size_t count = 0;
-    size_t used = 0;
     size_t index;
+    size_t used = 0;
 
-    while (cursor != NULL && *cursor != '\0') {
-        const char *start;
-        size_t length;
-
-        while (*cursor == ' ' || *cursor == '\t' || *cursor == '\n') cursor++;
-        start = cursor;
-        while (*cursor != '\0' && *cursor != ' ' && *cursor != '\t'
-            && *cursor != '\n') cursor++;
-        length = (size_t) (cursor - start);
-        if (length <= 2 || (start[0] != 'S' && start[0] != 's')) continue;
-        if (count >= CONFORM_LOCATE_ENDPOINT_MAX
-            || length - 2 >= sizeof(endpoints[0])) return -1;
-        memcpy(endpoints[count], start + 2, length - 2);
-        endpoints[count][length - 2] = '\0';
-        count++;
-    }
-    if (count == 0) return -1;
-    qsort(endpoints, count, sizeof(endpoints[0]), endpoint_compare);
     canonical[0] = '\0';
     for (index = 0; index < count; index++) {
         int written = snprintf(canonical + used, canonical_size - used,
@@ -67,6 +60,31 @@ xrd_conform_canonical_holder_set(const char *reply, char *canonical,
         used += (size_t) written;
     }
     return 0;
+}
+
+/* WHAT: Canonicalize a locate holder set independent of reply ordering.
+ * WHY: Redundant managers may enumerate the same holders in different order.
+ * HOW: Extract bounded S/s authorities, sort them, and join with newlines. */
+int
+xrd_conform_canonical_holder_set(const char *reply, char *canonical,
+    size_t canonical_size)
+{
+    char endpoints[CONFORM_LOCATE_ENDPOINT_MAX][320];
+    const char *cursor = reply;
+    size_t count = 0;
+    const char *start;
+    size_t length;
+
+    while (next_holder(&cursor, &start, &length)) {
+        if (count >= CONFORM_LOCATE_ENDPOINT_MAX
+            || length >= sizeof(endpoints[0])) return -1;
+        memcpy(endpoints[count], start, length);
+        endpoints[count][length] = '\0';
+        count++;
+    }
+    if (count == 0) return -1;
+    qsort(endpoints, count, sizeof(endpoints[0]), endpoint_compare);
+    return join_holders(endpoints, count, canonical, canonical_size);
 }
 
 static void
@@ -146,8 +164,7 @@ probe_manager_direct_service(xrd_conform_execution *execution,
         brix_close(&probe);
         return;
     }
-    memset(&request, 0, sizeof(request));
-    request.requestid = htons(kXR_open);
+    xrd_creq_begin(&request, sizeof(request), 0, kXR_open);
     xrdw_open_req_pack(&fields, ((ClientRequestHdr *) &request)->body);
     brix_status_clear(&status);
     if (brix_send(&probe, &request, &payload, &stream_id, &status) == 0
@@ -177,24 +194,15 @@ xrd_conform_first_data_endpoint(const char *reply, char *endpoint,
 {
     const char *cursor = reply;
 
-    while (cursor != NULL && *cursor != '\0') {
-        const char *start;
-        size_t length;
+    const char *start;
+    size_t length;
 
-        while (*cursor == ' ' || *cursor == '\t' || *cursor == '\n') cursor++;
-        start = cursor;
-        while (*cursor != '\0' && *cursor != ' ' && *cursor != '\t'
-            && *cursor != '\n') cursor++;
-        length = (size_t) (cursor - start);
-        if (length > 2 && (start[0] == 'S' || start[0] == 's')) {
-            length -= 2;
-            if (length >= endpoint_size) return -1;
-            memcpy(endpoint, start + 2, length);
-            endpoint[length] = '\0';
-            return 0;
-        }
+    if (!next_holder(&cursor, &start, &length) || length >= endpoint_size) {
+        return -1;
     }
-    return -1;
+    memcpy(endpoint, start, length);
+    endpoint[length] = '\0';
+    return 0;
 }
 
 /* WHAT: Prove that every advertised locate holder directly serves the path.
@@ -202,6 +210,38 @@ xrd_conform_first_data_endpoint(const char *reply, char *endpoint,
  *      the manager's holder set and cannot substantiate CMS-001.
  * HOW: Parse the bounded reply, cap fan-out, connect to each S/s endpoint and
  *      issue a direct stat without reusing the manager connection. */
+static int
+endpoint_serves_path(xrd_conform_execution *execution, const char *endpoint,
+    size_t endpoint_length, const char *path, const brix_opts *opts)
+{
+    char endpoint_text[320];
+    char url_text[CONFORM_LOCATE_URL_MAX];
+    char reason[64];
+    brix_url url;
+    brix_conn connection;
+    brix_statinfo info;
+    brix_status status;
+    int served = 0;
+
+    if (endpoint_length >= sizeof(endpoint_text)
+        || !xrd_conform_reserve(execution, 0, reason, sizeof(reason)))
+        return -1;
+    memcpy(endpoint_text, endpoint, endpoint_length);
+    endpoint_text[endpoint_length] = '\0';
+    if ((size_t) snprintf(url_text, sizeof(url_text), "root://%s%s",
+            endpoint_text, path) >= sizeof(url_text)) return -1;
+    brix_status_clear(&status);
+    if (brix_url_parse(url_text, &url, &status) == 0
+        && brix_connect(&connection, &url, opts, &status) == 0) {
+        if (xrd_conform_reserve(execution, 0, reason, sizeof(reason))) {
+            brix_status_clear(&status);
+            served = brix_stat(&connection, url.path, &info, &status) == 0;
+        }
+        brix_close(&connection);
+    }
+    return served;
+}
+
 static int
 verify_data_endpoints(xrd_conform_execution *execution, const char *reply,
     const char *path, char *received, size_t received_size,
@@ -214,55 +254,20 @@ verify_data_endpoints(xrd_conform_execution *execution, const char *reply,
     int malformed = 0;
 
     opts.capture = NULL;
-    while (cursor != NULL && *cursor != '\0') {
+    for (;;) {
         const char *start;
         size_t length;
+        int result;
 
-        while (*cursor == ' ' || *cursor == '\t' || *cursor == '\n') cursor++;
-        start = cursor;
-        while (*cursor != '\0' && *cursor != ' ' && *cursor != '\t'
-            && *cursor != '\n') cursor++;
-        length = (size_t) (cursor - start);
-        if (length <= 2 || (start[0] != 'S' && start[0] != 's')) continue;
+        if (!next_holder(&cursor, &start, &length)) break;
         if (holders >= CONFORM_LOCATE_ENDPOINT_MAX) {
             malformed = 1;
             break;
         }
-        {
-            char endpoint[320];
-            char url_text[CONFORM_LOCATE_URL_MAX];
-            char reason[64];
-            brix_url url;
-            brix_conn connection;
-            brix_statinfo info;
-            brix_status status;
-            size_t endpoint_length = length - 2;
-
-            holders++;
-            if (endpoint_length >= sizeof(endpoint)
-                || !xrd_conform_reserve(execution, 0, reason, sizeof(reason))) {
-                malformed = 1;
-                break;
-            }
-            memcpy(endpoint, start + 2, endpoint_length);
-            endpoint[endpoint_length] = '\0';
-            if ((size_t) snprintf(url_text, sizeof(url_text), "root://%s%s",
-                    endpoint, path) >= sizeof(url_text)) {
-                malformed = 1;
-                continue;
-            }
-            brix_status_clear(&status);
-            if (brix_url_parse(url_text, &url, &status) == 0
-                && brix_connect(&connection, &url, &opts, &status) == 0) {
-                if (xrd_conform_reserve(execution, 0, reason,
-                        sizeof(reason))) {
-                    brix_status_clear(&status);
-                    if (brix_stat(&connection, url.path, &info, &status) == 0)
-                        served++;
-                }
-                brix_close(&connection);
-            }
-        }
+        holders++;
+        result = endpoint_serves_path(execution, start, length, path, &opts);
+        if (result < 0) malformed = 1;
+        if (result > 0) served++;
     }
     snprintf(received, received_size, "holders=%zu served=%zu malformed=%d",
         holders, served, malformed);
@@ -432,6 +437,24 @@ connect_locate_fixture(xrd_conform_execution *execution, const char *target,
  * HOW: Query the asserted mutable fixture normally and with kXR_refresh, then
  *      require two successful but distinct replies. */
 static void
+grade_locate_refresh(xrd_conform_execution *execution, int connected,
+    int cached_rc, int refreshed_rc, const char *cached,
+    const char *refreshed, const char *received)
+{
+    int unavailable = !connected || cached_rc != 0 || refreshed_rc != 0;
+    int changed = !unavailable && strcmp(cached, refreshed) != 0;
+
+    xrd_conform_result_set(execution, "LOC-005",
+        unavailable ? BRIX_CONFORM_VERDICT_INCONCLUSIVE
+                    : changed ? BRIX_CONFORM_VERDICT_CONFORMANT
+                              : BRIX_CONFORM_VERDICT_DIVERGENT,
+        unavailable ? "mutable-locate-fixture-unavailable"
+                    : changed ? "refresh-returned-fresh-locate-answer"
+                              : "refresh-returned-cached-locate-answer",
+        "ordinary and refreshed locate replies differ", received);
+}
+
+static void
 probe_locate_refresh_fixture(xrd_conform_execution *execution,
     const char *target)
 {
@@ -467,18 +490,8 @@ probe_locate_refresh_fixture(xrd_conform_execution *execution,
         connected, cached_rc, refreshed_rc,
         cached_rc == 0 && refreshed_rc == 0
             && strcmp(cached, refreshed) != 0);
-    xrd_conform_result_set(execution, "LOC-005",
-        !connected || cached_rc != 0 || refreshed_rc != 0
-            ? BRIX_CONFORM_VERDICT_INCONCLUSIVE
-            : strcmp(cached, refreshed) != 0
-                ? BRIX_CONFORM_VERDICT_CONFORMANT
-                : BRIX_CONFORM_VERDICT_DIVERGENT,
-        !connected || cached_rc != 0 || refreshed_rc != 0
-            ? "mutable-locate-fixture-unavailable"
-            : strcmp(cached, refreshed) != 0
-                ? "refresh-returned-fresh-locate-answer"
-                : "refresh-returned-cached-locate-answer",
-        "ordinary and refreshed locate replies differ", received);
+    grade_locate_refresh(execution, connected, cached_rc, refreshed_rc,
+        cached, refreshed, received);
     if (connected) brix_close(&connection);
 }
 

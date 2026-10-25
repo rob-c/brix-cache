@@ -1,5 +1,5 @@
 /* Phase-118 bounded kXR_pgread geometry and structural probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
 #include <arpa/inet.h>
 
@@ -9,13 +9,6 @@ typedef struct {
     int stopped;
 } pg_grid_result;
 
-static int
-pg_bytes_match(ssize_t got, size_t length, const uint8_t *actual,
-    const uint8_t *expected)
-{
-    if (got != (ssize_t) length) return 0;
-    return length == 0 || memcmp(actual, expected, length) == 0;
-}
 
 static void
 set_named_case(xrd_conform_execution *execution, const char *id, int matches,
@@ -82,6 +75,32 @@ mark_status_failure(xrd_conform_execution *execution,
         NULL, status->msg);
 }
 
+static void
+grade_pgread_match(xrd_conform_execution *execution, const char *id,
+    int matches, ssize_t got, unsigned partial_frames,
+    const brix_status *status)
+{
+    if (!matches && status->kxr == XRDC_EINTEGRITY)
+        xrd_conform_result_set(execution, "PGR-021",
+            BRIX_CONFORM_VERDICT_CONFORMANT,
+            "injected-page-corruption-detected", NULL, status->msg);
+    else if (!matches && got >= 0)
+        xrd_conform_result_set(execution, "PGR-021",
+            BRIX_CONFORM_VERDICT_DIVERGENT,
+            "corrupt-bytes-carried-valid-page-crc", NULL, status->msg);
+    if (matches) {
+        mark_status_structure(execution);
+        xrd_conform_result_set(execution, "PGR-006",
+            BRIX_CONFORM_VERDICT_CONFORMANT,
+            partial_frames == 0 ? "single-frame-final-result"
+                                : "partial-frames-then-final-result",
+            NULL, NULL);
+    } else {
+        mark_status_failure(execution, status);
+    }
+    set_named_case(execution, id, matches, status);
+}
+
 static int
 pgread_matches(xrd_conform_execution *execution, brix_conn *connection,
     brix_file *file, const uint8_t *baseline, uint64_t size, uint64_t offset,
@@ -114,25 +133,9 @@ pgread_matches(xrd_conform_execution *execution, brix_conn *connection,
     brix_status_clear(&status);
     got = brix_file_pgread_profile(connection, file, (int64_t) offset, buffer,
         length, &partial_frames, &status);
-    matches = pg_bytes_match(got, length, buffer, baseline + offset);
+    matches = xrd_conform_bytes_match(got, length, buffer, baseline + offset);
     free(buffer);
-    if (!matches && status.kxr == XRDC_EINTEGRITY)
-        xrd_conform_result_set(execution, "PGR-021",
-            BRIX_CONFORM_VERDICT_CONFORMANT,
-            "injected-page-corruption-detected", NULL, status.msg);
-    else if (!matches && got >= 0)
-        xrd_conform_result_set(execution, "PGR-021",
-            BRIX_CONFORM_VERDICT_DIVERGENT,
-            "corrupt-bytes-carried-valid-page-crc", NULL, status.msg);
-    if (matches) {
-        mark_status_structure(execution);
-        xrd_conform_result_set(execution, "PGR-006",
-            BRIX_CONFORM_VERDICT_CONFORMANT,
-            partial_frames == 0 ? "single-frame-final-result"
-                                : "partial-frames-then-final-result",
-            NULL, NULL);
-    } else mark_status_failure(execution, &status);
-    set_named_case(execution, id, matches, &status);
+    grade_pgread_match(execution, id, matches, got, partial_frames, &status);
     return matches ? 1 : 0;
 }
 
@@ -384,31 +387,33 @@ probe_chunked_read(xrd_conform_execution *execution,
     unsigned partials = 0;
     ssize_t got;
     int exact;
+    int passed;
 
     if (!xrd_conform_reserve(execution, size, reason, sizeof(reason))) return 0;
     brix_status_clear(&status);
     got = brix_file_read_profile(connection, file, 0, buffer, size, &partials,
         &status);
     exact = got == (ssize_t) size && memcmp(buffer, baseline, size) == 0;
+    passed = exact && partials > 0;
     xrd_conform_result_set(execution, "RD-009",
-        exact && partials > 0 ? BRIX_CONFORM_VERDICT_CONFORMANT
-                              : BRIX_CONFORM_VERDICT_DIVERGENT,
-        exact && partials > 0 ? "oksofar-frames-then-byte-exact-final"
-                              : "large-read-framing-mismatch", NULL,
+        passed ? BRIX_CONFORM_VERDICT_CONFORMANT
+               : BRIX_CONFORM_VERDICT_DIVERGENT,
+        passed ? "oksofar-frames-then-byte-exact-final"
+               : "large-read-framing-mismatch", NULL,
         status.msg);
     xrd_conform_result_set(execution, "CHU-001",
-        exact && partials > 0 ? BRIX_CONFORM_VERDICT_CONFORMANT
-                              : BRIX_CONFORM_VERDICT_DIVERGENT,
-        exact && partials > 0 ? "partials-followed-by-one-terminal"
-                              : "partial-terminal-sequence-invalid",
+        passed ? BRIX_CONFORM_VERDICT_CONFORMANT
+               : BRIX_CONFORM_VERDICT_DIVERGENT,
+        passed ? "partials-followed-by-one-terminal"
+               : "partial-terminal-sequence-invalid",
         NULL, status.msg);
     xrd_conform_result_set(execution, "CHU-002",
-        exact && partials > 0 ? BRIX_CONFORM_VERDICT_CONFORMANT
-                              : BRIX_CONFORM_VERDICT_DIVERGENT,
-        exact && partials > 0 ? "every-partial-kept-request-streamid"
-                              : "partial-streamid-or-body-mismatch",
+        passed ? BRIX_CONFORM_VERDICT_CONFORMANT
+               : BRIX_CONFORM_VERDICT_DIVERGENT,
+        passed ? "every-partial-kept-request-streamid"
+               : "partial-streamid-or-body-mismatch",
         NULL, status.msg);
-    return exact && partials > 0;
+    return passed;
 }
 
 static void

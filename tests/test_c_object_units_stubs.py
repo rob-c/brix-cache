@@ -62,7 +62,7 @@ def test_every_driver_the_registry_object_references_is_a_backend_row():
     if not obj.exists():
         pytest.skip(f"{obj} not built")
     nm = subprocess.run(["nm", "-u", str(obj)], capture_output=True, text=True, check=True, timeout=30)
-    referenced = {m.group(1) for m in re.finditer(r"\bbrix_sd_(\w+)_driver\b", nm.stdout)}
+    referenced = {m.group(1) for m in re.finditer(r"\b_?brix_sd_(\w+)_driver\b", nm.stdout)}
     assert referenced, "sd_registry.o references no driver struct — the generated table is gone?"
     rows = _backend_rows(FS_LIST)
     assert referenced <= rows, f"referenced outside the row list: {sorted(referenced - rows)}"

@@ -26,6 +26,7 @@ Run:
   PYTHONPATH=tests python3 -m pytest tests/test_official_xrootd_resilience.py -v
 """
 import hashlib
+from contextlib import closing
 import os
 import shutil
 import socket
@@ -38,13 +39,9 @@ import time
 
 import pytest
 from lib_py import fuse_host
+from lib_py.reference_host import reference_listener_args, reference_transport_directives
 from settings import BIND_HOST, HOST
-
-def _phase_server_1(proc):
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+from stock_xrootd_owner import StockXrootdOwner
 
 
 def _guard_server_1():
@@ -112,6 +109,39 @@ def _ctl(port, cmd):
         return s.recv(128).decode().strip()
 
 
+def _require_reference_listener(process, port):
+    """Installed dependencies must become ready, not turn setup failures into skips."""
+    for _ in range(50):
+        if process.poll() is not None:
+            pytest.fail(f"installed xrootd exited before readiness: {process.returncode}")
+        if _port_up(port) and process.poll() is None:
+            return
+        time.sleep(0.2)
+    pytest.fail("installed xrootd did not start listening in time")
+
+
+def _start_reference(root, admin, port):
+    """Keep reference-only network and transport compatibility in its fixture."""
+    cfg = root / "xrootd.cfg"
+    cfg.write_text(
+        f"xrd.port {port}\n"
+        f"all.adminpath {admin}\n"
+        f"all.pidpath {admin}\n"
+        f"oss.localroot {root}\n"
+        "all.export /data\n"
+        "xrd.network nodnr\n" + reference_transport_directives())
+    argv = [XROOTD, *reference_listener_args(HOST), "-c", str(cfg),
+            "-l", str(root / "xrootd.log")]
+    if os.geteuid() == 0:
+        # Only these disposable reference fixtures are opened to the dropped user.
+        runas = os.environ.get("REF_RUNAS_USER", "nobody")
+        subprocess.run(["chmod", "-R", "a+rwX", str(root)], check=True)
+        shutil.chown(admin, runas)
+        argv += ["-R", runas]
+    return subprocess.Popen(argv, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL, start_new_session=True)
+
+
 @pytest.fixture(scope="module")
 def server(tmp_path_factory):
     """A real official xrootd serving a random 8 MiB file at /data/med.bin."""
@@ -119,49 +149,15 @@ def server(tmp_path_factory):
     root = tmp_path_factory.mktemp("xrdsrv")
     data = root / "data"
     data.mkdir()
-    admin = root / "admin"
-    admin.mkdir()
     blob = os.urandom(8 * 1024 * 1024)
     (data / "med.bin").write_bytes(blob)
     ref = hashlib.md5(blob).hexdigest()
 
     port = _free_port()
-    cfg = root / "xrootd.cfg"
-    cfg.write_text(
-        f"xrd.port {port}\n"
-        f"all.adminpath {admin}\n"
-        f"all.pidpath {admin}\n"
-        f"oss.localroot {root}\n"
-        f"all.export /data\n"
-        f"xrd.network nodnr\n"
-    )
-    log = root / "xrootd.log"
-    argv = [XROOTD, "-c", str(cfg), "-l", str(log)]
-    if os.geteuid() == 0:
-        # Official xrootd refuses to run as superuser. Drop to an unprivileged
-        # account with -R, and pre-open the paths that account must reach: the
-        # localroot data tree (readable), the adminpath/pidpath dir (writable),
-        # and the log dir (writable). Server is PLAIN (no GSI key) so that's all.
-        runas = os.environ.get("REF_RUNAS_USER", "nobody")
-        subprocess.run(["chmod", "-R", "a+rwX", str(root)])       # localroot + log dir
-        subprocess.run(["chmod", "-R", "a+rwX", str(admin)])      # adminpath / pidpath
-        argv += ["-R", runas]
-    proc = subprocess.Popen(argv,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    try:
-        for _ in range(50):
-            if _port_up(port):
-                break
-            if proc.poll() is not None:
-                tail = log.read_text()[-600:] if log.exists() else "(no log written)"
-                pytest.skip(f"xrootd failed to start:\n{tail}")
-            time.sleep(0.2)
-        else:
-            pytest.skip("xrootd did not start listening in time")
+    with closing(StockXrootdOwner()) as owner:
+        owner.process = _start_reference(root, owner.admin, port)
+        _require_reference_listener(owner.process, port)
         yield {"port": port, "ref": ref}
-    finally:
-        proc.terminate()
-        _phase_server_1(proc)
 
 
 @pytest.fixture(scope="module")

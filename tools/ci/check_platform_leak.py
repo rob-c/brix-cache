@@ -69,22 +69,25 @@ SOURCE_SUFFIXES = (".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp")
 OWNER_ROOTS = (
     Path("src/platform/linux"),
     Path("src/platform/darwin"),
+    Path("src/platform/freebsd"),
     Path("src/platform/windows"),
     Path("client/lib/platform/linux"),
     Path("client/lib/platform/darwin"),
+    Path("client/lib/platform/freebsd"),
     Path("shared/cvmfs/platform"),
 )
 
 DETECTION = re.compile(
     r"\b(?:__APPLE__|__MACH__|TARGET_OS_[A-Z_]+|__linux__|__linux\b|__gnu_linux__"
-    r"|__FreeBSD__|__NetBSD__|__OpenBSD__|__ANDROID__"
+    r"|__FreeBSD__|__FreeBSD_kernel__|__FreeBSD_version|__NetBSD__|__OpenBSD__|__ANDROID__"
     r"|_WIN32|_WIN64|__CYGWIN__|__MINGW(?:32|64)?__|_MSC_VER"
-    r"|BRIX_PLATFORM_(?:LINUX|DARWIN|MACOS|WINDOWS|APPLE))\b"
+    r"|BRIX_PLATFORM_(?:LINUX|DARWIN|MACOS|WINDOWS|APPLE|FREEBSD))\b"
 )
 HEADER = re.compile(
     r"^[ \t]*#[ \t]*include[ \t]*<("
     r"sys/xattr\.h|sys/event\.h|sys/epoll\.h|sys/eventfd\.h|sys/inotify\.h"
     r"|sys/sysmacros\.h|sys/sendfile\.h|sys/endian\.h|endian\.h"
+    r"|sys/extattr\.h|sys/procctl\.h|sys/ucred\.h|sys/user\.h|sys/disk\.h"
     r"|linux/[^>]+|mach/[^>]+|libkern/[^>]+|CoreFoundation/[^>]+"
     r"|TargetConditionals\.h|Availability[^>]*\.h"
     r"|windows\.h|winsock2\.h|ws2tcpip\.h|io\.h"

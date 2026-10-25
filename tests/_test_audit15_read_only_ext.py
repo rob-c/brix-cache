@@ -43,9 +43,8 @@ def _lock_after_read_sweep(base, data):
 def test_read_only_export_keeps_an_expired_lock_xattr(lifecycle, tmp_path):
     """Security-negative: expired-lock cleanup is a mutation, and a read-only
     endpoint performs none — not even against metadata it itself planted."""
-    port = _start_http(lifecycle, tmp_path, "lc-audit15-readonly-lock-reap",
-                       _RO_KNOBS, seed_files=(("seed.txt", SEED),),
-                       port=PORT_LAST + 14)
+    port = _start_http(lifecycle, tmp_path, "lc-audit15-readonly-http",
+                       _RO_KNOBS, seed_files=(("seed.txt", SEED),))
     data = tmp_path / "data"
     payload = _seed_expired_lock(data)
 
@@ -57,9 +56,8 @@ def test_read_only_export_keeps_an_expired_lock_xattr(lifecycle, tmp_path):
 def test_writable_export_reaps_the_same_expired_lock(lifecycle, tmp_path):
     """Success control: writes allowed, the identical stale record is reaped by
     the same read sweep."""
-    port = _start_http(lifecycle, tmp_path, "lc-audit15-rw-lock-reap",
-                       _RW_KNOBS, seed_files=(("seed.txt", SEED),),
-                       port=PORT_LAST + 15)
+    port = _start_http(lifecycle, tmp_path, "lc-audit15-readonly-http-ctl",
+                       _RW_KNOBS, seed_files=(("seed.txt", SEED),))
     data = tmp_path / "data"
     _seed_expired_lock(data)
 

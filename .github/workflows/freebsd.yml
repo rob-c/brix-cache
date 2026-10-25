@@ -1,0 +1,162 @@
+name: FreeBSD native server
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_level:
+        description: Native contracts or the canonical full testsuite
+        type: choice
+        options: [contracts, full]
+        default: contracts
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'shared/**'
+      - 'client/**'
+      - 'tests/**'
+      - 'config'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'tools/ci/freebsd_native.py'
+      - 'tools/ci/freebsd_gfal.py'
+      - 'tools/ci/freebsd_gridftp.py'
+      - 'tools/ci/dependency-patches/**'
+      - 'tools/ci/native_suite.py'
+      - 'tools/ci/freebsd_pending_peer.py'
+      - '.github/workflows/freebsd.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build and execute on FreeBSD 15.1
+        uses: vmactions/freebsd-vm@d800eb013575a88d2248a6a9bf5d018eb08b3357
+        with:
+          release: '15.1'
+          arch: ${{ matrix.arch }}
+          mem: 8192
+          cpu: 4
+          usesh: true
+          prepare: |
+            set -eu
+            pkg install -y bash cmake gmake pkgconf nginx pcre2 libepoll-shim \
+              curl libxml2 jansson sqlite3 krb5 zstd brotli liblz4 fusefs-libs3 \
+              python312 py312-pip py312-pytest py312-pytest-xdist \
+              py312-pytest-timeout py312-requests py312-cryptography py312-pyjwt \
+              py312-hypothesis py312-psutil py312-xattr py312-pyyaml py312-numpy \
+              py312-lizard py312-boto3 py312-requests-aws4auth py312-brotli \
+              py312-zstandard py312-crc32c xrootd py312-xrootd rust git \
+              haproxy minio minio-client nghttp2 squid varnish7 gcc lsof go \
+              rpm4 dpkg py312-fail2ban
+            pw useradd -n brixvalidate -u 2100 -m -s /bin/sh -w no
+            pw groupadd brixvalidate-extra -M brixvalidate
+            install -d -m 0700 -o brixvalidate -g brixvalidate /var/lib/brixcvmfs
+            # Leave headroom for native compiler processes and the live fleet.
+            # UFS-only guests do not have an ARC to configure.
+            if sysctl -n vfs.zfs.arc.max >/dev/null 2>&1; then
+              brix_arc_bytes=$(($(sysctl -n hw.physmem) / 8))
+              sysctl "vfs.zfs.arc.max=$brix_arc_bytes"
+            fi
+            if ! getent hosts "$(hostname)" >/dev/null; then
+              printf '127.0.0.1 %s\n' "$(hostname)" >> /etc/hosts
+            fi
+            kldload -n fusefs
+            sysctl vfs.usermount=1
+            chown brixvalidate:brixvalidate /dev/fuse
+            chmod 0600 /dev/fuse
+            if [ '${{ inputs.test_level || 'contracts' }}' = full ]; then
+              # GFAL's native interoperability plugins use real packaged APIs;
+              # the isolated bootstrap below does not replace system libraries.
+              pkg install -y glib json-c libuuid cryptopp openldap26-client \
+                nlohmann-json gsoap py312-boost-libs py312-setuptools py312-wheel
+              # Isolated test VM only: anonymous reference-daemon listeners
+              # must not draw from the named-and-mock fleet reservation.
+              sysctl net.inet.ip.portrange.first=32768
+              sysctl net.inet.ip.portrange.last=65535
+              # Exercise real EXDEV commits rather than assume Linux /dev/shm.
+              install -d -m 0700 -o brixvalidate -g brixvalidate /var/tmp/brix-cross-device-stage
+              mount -t tmpfs -o size=512m,nosuid,uid=2100,gid=2100,mode=0700 \
+                tmpfs /var/tmp/brix-cross-device-stage
+              python3.12 - <<'PY'
+            import ipaddress
+            import subprocess
+            # Two workers plus the canonical eight bounded replacement slots.
+            # Source-spread storm and reverse-DNS cases need .2 through .9.
+            addresses = [f'127.0.0.{number}' for number in range(2, 10)] + [
+                f'127.64.{worker}.{number}'
+                for worker in range(10) for number in range(1, 251)]
+            for address in addresses:
+                assert ipaddress.ip_address(address).is_loopback
+                subprocess.run(['/sbin/ifconfig', 'lo0', 'inet', address + '/32', 'alias'],
+                               check=True, timeout=5)
+            PY
+            fi
+          run: |
+            set -eu
+            fetch -o /var/tmp/nginx-1.30.5.tar.gz https://nginx.org/download/nginx-1.30.5.tar.gz
+            test "$(sha256 -q /var/tmp/nginx-1.30.5.tar.gz)" = \
+              '6c20565aa2325cb82216ae804f4a4ff1875179014759a381c42ddc8e11c4906d'
+            tar -xzf /var/tmp/nginx-1.30.5.tar.gz -C /var/tmp
+            chown -R brixvalidate:brixvalidate "$GITHUB_WORKSPACE"
+            su -l brixvalidate -c '/usr/local/bin/python3.12 -m venv --system-site-packages /home/brixvalidate/test-python'
+            su -l brixvalidate -c '/home/brixvalidate/test-python/bin/python -m pip install "radon>=6,<7" "complexipy>=6,<8" "pytest-rerunfailures>=16.4,<17" "pyOpenSSL>=23,<26"'
+            su -l brixvalidate -c 'env GOBIN=/tmp/gohep-bin go install go-hep.org/x/hep/xrootd/cmd/xrd-cp@v0.40.0 go-hep.org/x/hep/xrootd/cmd/xrd-ls@v0.40.0'
+            install -d -o brixvalidate -g brixvalidate "$GITHUB_WORKSPACE/build/freebsd"
+            env PYTHONPATH="$GITHUB_WORKSPACE/tests" \
+              PYTHONPYCACHEPREFIX=/tmp/brix-freebsd-root-pycache \
+              /home/brixvalidate/test-python/bin/python -m pytest --noconftest \
+              -c "$GITHUB_WORKSPACE/pytest.ini" -o addopts= \
+              -o cache_dir=/tmp/brix-freebsd-root-pytest-cache \
+              -o 'markers=uses_lifecycle_harness: lifecycle fixture test' \
+              --junitxml="$GITHUB_WORKSPACE/build/freebsd/native-device-policy.xml" \
+              "$GITHUB_WORKSPACE/tests/test_freebsd_native.py::test_native_non_devfs_device_nodes_cannot_access_devices"
+            if [ '${{ inputs.test_level || 'contracts' }}' = full ]; then
+              # No native ARM64 Helm package is available in every catalogue.
+              # Build the pinned renderer as the test user, never as root.
+              su -l brixvalidate -c 'env GOBIN=/home/brixvalidate/helm-deps/bin GOMAXPROCS=2 GOMEMLIMIT=2GiB GOFLAGS=-p=2 GOTOOLCHAIN=local go install helm.sh/helm/v4/cmd/helm@v4.3.1'
+              su -l brixvalidate -c "cd '$GITHUB_WORKSPACE' && /home/brixvalidate/test-python/bin/python tools/ci/freebsd_gfal.py --work-dir /home/brixvalidate/gfal-deps --jobs 1"
+              su -l brixvalidate -c "cd '$GITHUB_WORKSPACE' && /home/brixvalidate/test-python/bin/python tools/ci/freebsd_gridftp.py --work-dir /home/brixvalidate/gridftp-deps --jobs 1"
+              export PATH="/home/brixvalidate/helm-deps/bin:/home/brixvalidate/gridftp-deps/install/bin:$PATH"
+              # Root owns only the isolated VNET fixture. The build and suite
+              # run with the dedicated account's own non-wheel group list.
+              brix_suite_status=0
+              env PATH="/home/brixvalidate/gfal-deps/install/gfal2/bin:$PATH" \
+                XRD_NETWORKSTACK=IPv4 \
+                TEST_STAGE_DEVICE_ROOT=/var/tmp/brix-cross-device-stage \
+                TEST_GOHEP_BIN=/tmp/gohep-bin \
+                /home/brixvalidate/test-python/bin/python tools/ci/freebsd_pending_peer.py \
+                --user brixvalidate -- /home/brixvalidate/test-python/bin/python \
+                tools/ci/freebsd_native.py --nginx-source /var/tmp/nginx-1.30.5 \
+                --build-dir "$GITHUB_WORKSPACE/build/freebsd" --test-level full \
+                || brix_suite_status=$?
+              # The bounded, separate host-root lane proves saved-ID drop,
+              # mapped ownership and cross-user authorization with real users.
+              # Preserve its evidence even if the ordinary full lane is red.
+              env XRD_NETWORKSTACK=IPv4 TEST_GOHEP_BIN=/tmp/gohep-bin \
+                /home/brixvalidate/test-python/bin/python tools/ci/freebsd_native.py \
+                --nginx-source /var/tmp/nginx-1.30.5 \
+                --build-dir "$GITHUB_WORKSPACE/build/freebsd" \
+                --test-level privileged --no-build || brix_suite_status=$?
+              exit "$brix_suite_status"
+            else
+              su -l brixvalidate -c "cd '$GITHUB_WORKSPACE' && env XRD_NETWORKSTACK=IPv4 TEST_STAGE_DEVICE_ROOT=/var/tmp/brix-cross-device-stage TEST_GOHEP_BIN=/tmp/gohep-bin /home/brixvalidate/test-python/bin/python tools/ci/freebsd_native.py --nginx-source /var/tmp/nginx-1.30.5 --build-dir '$GITHUB_WORKSPACE/build/freebsd' --test-level contracts"
+            fi
+      - name: Preserve native test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: freebsd15-${{ matrix.arch }}-tests
+          path: |
+            build/freebsd/**/*.xml
+            build/freebsd/**/summary.json
+            build/freebsd/test-results/**/*.json
+            build/freebsd/test-results/**/*.jsonl

@@ -32,6 +32,7 @@ thread pool to the nginx event loop.
 | File | Responsibility |
 |---|---|
 | `launch_prepare.c` | The prepare pipeline (split verbatim out of launch.c on 2026-07-14 for file-size). |
+| `launch_dest.c` | Destination VFS context and random-write/staged open. Retains the confined export-absolute path for policy and ancestor locks; the VFS translates storage keys exactly once. |
 
 ## Invariants, security & gotchas
 
@@ -43,6 +44,9 @@ thread pool to the nginx event loop.
    (`src/protocols/webdav/tpc.c`, curl COPY with Source/Credential
    headers) are separate mechanisms — do not share state or auth logic
    between them.
+4. The destination VFS context retains the confined export path, not a stripped
+   storage key. Lock checks must reach the export root; backend/N2N key
+   translation belongs to the VFS and happens after those policy gates.
 
 ## See also
 

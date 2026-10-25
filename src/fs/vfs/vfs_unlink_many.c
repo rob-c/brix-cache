@@ -56,7 +56,7 @@ brix_vfs_unlink_window_reset(brix_vfs_unlink_window_t *w)
     size_t i;
 
     for (i = 0; i < w->n; i++) {
-        free((void *) w->paths[i]);
+        ngx_free((void *) w->paths[i]);
     }
     w->n = 0;
 }
@@ -129,6 +129,8 @@ static ngx_int_t
 brix_vfs_unlink_window_add(brix_vfs_unlink_window_t *w, const char *logical)
 {
     char *copy;
+    size_t len;
+    size_t slot;
 
     if (w->n == BRIX_SD_BULK_DELETE_WINDOW
         && brix_vfs_unlink_window_flush(w) != NGX_OK)
@@ -136,12 +138,20 @@ brix_vfs_unlink_window_add(brix_vfs_unlink_window_t *w, const char *logical)
         return NGX_ERROR;
     }
 
-    copy = strdup(logical);
+    len = strlen(logical);
+    if (len == (size_t) -1) {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+    copy = ngx_alloc(len + 1, w->leaf->log);
     if (copy == NULL) {
         errno = ENOMEM;
         return NGX_ERROR;
     }
-    w->paths[w->n++] = copy;
+    ngx_memcpy(copy, logical, len + 1);
+    slot = w->n;
+    w->paths[slot] = copy;
+    w->n = slot + 1;
     return NGX_OK;
 }
 
@@ -191,14 +201,21 @@ brix_vfs_rmtree_bulk(brix_sd_instance_t *leaf, const brix_sd_driver_t *drv,
             while ((drc = drv->readdir(dir, &de)) == NGX_OK) {
                 char child[PATH_MAX];
 
-                ngx_snprintf((u_char *) child, sizeof(child), "%s/%s%Z",
-                             (logical[0] == '/' && logical[1] == '\0')
-                                 ? "" : logical,
-                             de.name);
+                if (brix_fs_join_path(
+                        (logical[0] == '/' && logical[1] == '\0') ? "" : logical,
+                        de.name, child, sizeof(child)) != NGX_OK)
+                {
+                    drv->closedir(dir);
+                    errno = ENAMETOOLONG;
+                    return NGX_ERROR;
+                }
                 if (brix_vfs_rmtree_bulk(leaf, drv, child, cred, depth + 1, w)
                     != NGX_OK)
                 {
+                    int saved_errno = errno;
+
                     drv->closedir(dir);
+                    errno = saved_errno;
                     return NGX_ERROR;
                 }
             }

@@ -427,8 +427,14 @@ def _raw_http(method, raw_path, body=None, headers=None):
         conn.close()
 
 
-@pytest.mark.skipif(not _webdav_available(),
-                    reason="non-TLS WebDAV (8080) not reachable")
+@pytest.fixture()
+def require_webdav():
+    """Probe after session fleet setup, never during collection before startup."""
+    if not _webdav_available():
+        pytest.skip(f"non-TLS WebDAV ({NGINX_HTTP_WEBDAV_PORT}) not reachable")
+
+
+@pytest.mark.usefixtures("require_webdav")
 class TestWebDavTraversal:
 
     # Encoded forms reach the handler decoded, bypassing nginx's own URI

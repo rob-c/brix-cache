@@ -26,6 +26,8 @@ import sys
 
 import pytest
 
+from cmdscripts.object_unit_layout import _NGX_CORE_INC, _NGX_HTTP_INC, OBJS, _inc
+
 def _guard_test_userns_impersonation_end_to_end_1():
     if not shutil.which(CC):
         pytest.skip("no C compiler")
@@ -82,25 +84,20 @@ SRCS = [
     os.path.join(PLATFORM, "priv_wrapper.c"),
     os.path.join(PLATFORM, "path_wrapper.c"),
     os.path.join(PLATFORM, "posix_wrapper.c"),
+    os.path.join(REPO, "src", "fs", "backend", "posix", "lock_store.c"),
     os.path.join(REPO, "tests", "c", "brix_log_link_stubs.c"),
 ]
 
 
 #: INVARIANT 14: the impersonation sources reach platform/platform.h, which
 #: selects its <host>/host.h from this token alone and #errors without it.
-#: Spelled out rather than imported from cmdscripts.compile_run because this
-#: directory is a standalone pytest root with no tests/ on its import path.
+#: The standalone conftest exposes the shared native SDK helpers, not the fleet.
 HOST_FLAG = f"-DBRIX_PLATFORM_HOST={'darwin' if sys.platform == 'darwin' else 'linux'}"
 
 
 def _inc_flags():
-    subs = [
-        "src/core", "src/event", "src/event/modules", "src/os/unix",
-        "objs", "src/stream",
-    ]
-    return ([HOST_FLAG]
-            + [f"-I{os.path.join(NGINX_SRC, s)}" for s in subs]
-            + [f"-I{IMP}", f"-I{os.path.join(REPO, 'src')}"])
+    return [HOST_FLAG, *_inc(*_NGX_CORE_INC, *_NGX_HTTP_INC, OBJS,
+                             IMP, os.path.join(REPO, "src"))]
 
 
 def _userns_supported():
@@ -124,6 +121,7 @@ def test_userns_impersonation_end_to_end(tmp_path):
 
     out_bin = str(tmp_path / "userns_broker_test.bin")
     cmd = [CC, "-O2", "-D_GNU_SOURCE", "-Wall", *_inc_flags(),
+           "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections",
            "-o", out_bin, *SRCS, "-lcrypt"]
     build = subprocess.run(cmd, capture_output=True, text=True)
     _check_test_userns_impersonation_end_to_end_1(build)

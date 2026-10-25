@@ -43,7 +43,11 @@ def _caller_key() -> str:
     test = os.environ.get("PYTEST_CURRENT_TEST")
     if not test:
         test = f"pid-{os.getpid()}"
-    key = f"{test}|{site}"
+    # Long-lived fixture subprocesses inherit the same PYTEST_CURRENT_TEST as
+    # their parent and keep independent in-memory ordinal counters.  Include
+    # the process identity so two such fixtures cannot be handed the same
+    # supposedly session-unique listener port.
+    key = f"{test}|pid-{os.getpid()}|{site}"
     ordinal = _CALLS.get(key, 0)
     _CALLS[key] = ordinal + 1
     return f"{key}|{ordinal}"
@@ -86,6 +90,8 @@ def _registry_lock(registry):
 
 def _assigned_port() -> int:
     """Lease one unused fixed mock slot from the shared test infrastructure."""
+    if MOCK_PORT_FIRST > MOCK_PORT_LAST:
+        raise RuntimeError("mock-port allocation disabled for this partial lane")
     path = _lease_path()
     key = _caller_key()
     with path.open("a+", encoding="utf-8") as registry, _registry_lock(registry):

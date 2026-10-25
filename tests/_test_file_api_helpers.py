@@ -29,6 +29,7 @@ from XRootD.client.flags import (
 )
 from backend_matrix import selected_backend_name
 from official_interop_lib import worker_prefix
+from lib_py.reference_host import fixture_read_bytes
 from settings import (
     CA_DIR,
     DATA_ROOT,
@@ -120,11 +121,8 @@ def md5(data: bytes) -> str:
 
 
 def md5file(path: str) -> str:
-    h = hashlib.md5()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
+    """Hash the small fixture corpus without draining a malformed sparse file."""
+    return md5(fixture_read_bytes(path))
 
 
 @pytest.fixture(autouse=True)

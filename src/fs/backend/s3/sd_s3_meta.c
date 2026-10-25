@@ -25,24 +25,27 @@
 
 /* ---- object metadata (x-amz-meta-*) ----------------------------------- */
 
-/*
- * WHAT: Run an already-signed HEAD and hand back the LIVE response. 0 with
- *       *resp filled (the caller must resp_free it), or -1 with errbuf set.
- * WHY:  Three readers want the same wire leg and the same status verdict — a
- *       user-metadata attribute, a stored checksum, and the archive-state pair
- *       (sd_s3_archive.c) — and they differ only in what they sign and which
- *       headers they then pull out. Handing back the live response rather than
- *       one extracted value is what lets the archive reader take THREE headers
- *       off ONE round trip instead of HEADing the object three times.
- * HOW:  The caller signs (the signer differs: a plain HEAD vs one carrying an
- *       extra x-amz-* header, which AWS requires in the signed set) and passes
- *       the finished header block. Non-200 is mapped and the response released
- *       here, so a failing caller never has to remember to free.
+/* ---- Send one signed HEAD and preserve its typed failure -----------------
+ *
+ * WHAT: Runs an already-signed HEAD and returns 0 with a live response, or -1
+ *       with both errbuf and errno describing the failure.
+ *
+ * WHY: Metadata, checksum, and archive readers share this wire leg.  Their
+ *      callers make policy decisions from errno, so response cleanup must not
+ *      replace a mapped ENOENT/EACCES with a transport-side cleanup errno.
+ *
+ * HOW: 1. Issue the caller-signed HEAD.
+ *      2. Map every non-200 response through the shared status mapper.
+ *      3. Save that mapped errno, release the response, and restore errno.
+ *         Successful responses stay live for the caller to inspect and free.
  */
 int
 sd_s3_head_send(sd_s3_file *f, const char *hdrs, brix_s3_resp_t *resp,
                 char *errbuf, size_t errcap)
 {
+    int rc;
+    int saved_errno;
+
     if (f->transport->request(f->tctx, f->host, f->port, f->tls, "HEAD",
                               f->key, hdrs, NULL, 0, f->timeout_ms, resp,
                               errbuf, errcap) != 0)
@@ -50,8 +53,10 @@ sd_s3_head_send(sd_s3_file *f, const char *hdrs, brix_s3_resp_t *resp,
         return -1;
     }
     if (resp->status != 200) {
-        int rc = sd_s3_status_err(resp->status, "HEAD", f->key, errbuf, errcap);
+        rc = sd_s3_status_err(resp->status, "HEAD", f->key, errbuf, errcap);
+        saved_errno = errno;
         f->transport->resp_free(resp);
+        errno = saved_errno;
         return rc;   /* -1 */
     }
     return 0;

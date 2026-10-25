@@ -3,6 +3,7 @@
 #include "cache_storage.h"   /* driver-aware readiness for a backend-backed cache */
 #include "fs/vfs/vfs_backend_registry.h"   /* C-1: resolve the source backend */
 #include "fs/vfs/vfs_internal.h"           /* export-relative key for the composed fill */
+#include "fs/path/n2n_stage.h"
 #include "fs/backend/cache/sd_cache.h" /* composed-cache fill seam (SP2) */
 #include "fs/backend/xroot/sd_xroot_fwd.h" /* brix_sd_xroot_serves: root:// or forward:// */
 #include "core/compat/error_mapping.h"      /* errno → kXR for the fill result */
@@ -10,6 +11,26 @@
 
 #include <errno.h>
 #include <string.h>
+
+/* ---- Capture the request fields shared by both cache-fill task types ----
+ *
+ * WHAT: Initializes a newly allocated fill task's request identity and flags.
+ * WHY: Legacy and composed fills must carry the same immutable reply context.
+ * HOW: 1. Zero task storage. 2. Bind references. 3. Copy stream ID and flags.
+ */
+static void
+cache_fill_init_task(brix_cache_fill_t *task, brix_ctx_t *ctx,
+    ngx_connection_t *connection, ngx_stream_brix_srv_conf_t *conf,
+    uint16_t options, uint16_t mode_bits)
+{
+    ngx_memzero(task, sizeof(*task));
+    task->c = connection;
+    task->ctx = ctx;
+    task->conf = conf;
+    ngx_memcpy(task->streamid, ctx->recv.cur_streamid, sizeof(task->streamid));
+    task->options = options;
+    task->mode_bits = mode_bits;
+}
 
 
 /* brix_cache_open_or_fill — kXR_open cache entry point: by brix_cache_file_ready()
@@ -53,14 +74,7 @@ brix_cache_open_or_fill(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     t = task->ctx;
-    ngx_memzero(t, sizeof(*t));
-    t->c = c;
-    t->ctx = ctx;
-    t->conf = conf;
-    t->streamid[0] = ctx->recv.cur_streamid[0];
-    t->streamid[1] = ctx->recv.cur_streamid[1];
-    t->options = options;
-    t->mode_bits = mode_bits;
+    cache_fill_init_task(t, ctx, c, conf, options, mode_bits);
 
     ngx_cpystrn((u_char *) t->clean_path, (u_char *) clean_path,
                 sizeof(t->clean_path));
@@ -206,12 +220,22 @@ static void
 brix_cache_fill_composed_thread(void *data, ngx_log_t *log)
 {
     brix_cache_fill_t *t = data;
-    const char          *key = brix_vfs_export_relative_root(
-                                   t->cache_path, t->conf->common.root_canon);
+    char                 key[PATH_MAX];
     brix_sd_cred_t       cred;
     int                  have_cred = cache_fill_cred_view(t, &cred);
 
     (void) log;
+    /* Registry mappings are immutable for this worker/config lifetime. The
+     * task already holds that conf; translate its confined path with the same
+     * pure adapter as the inline probe/open, not an unprefixed cache key. */
+    if (brix_path_export_to_pfn(t->conf->common.root_canon,
+            brix_vfs_backend_n2n(t->conf->common.root_canon), t->cache_path,
+            key, sizeof(key)) != NGX_OK)
+    {
+        t->result = NGX_ERROR;
+        t->sys_errno = errno;
+        return;
+    }
     errno = 0;
     t->result    = brix_sd_cache_fill_key(t->source_inst, key,
                                             have_cred ? &cred : NULL);
@@ -305,14 +329,7 @@ brix_cache_open_fill_offload(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     t = task->ctx;
-    ngx_memzero(t, sizeof(*t));
-    t->c           = c;
-    t->ctx         = ctx;
-    t->conf        = conf;
-    t->streamid[0] = ctx->recv.cur_streamid[0];
-    t->streamid[1] = ctx->recv.cur_streamid[1];
-    t->options     = options;
-    t->mode_bits   = mode_bits;
+    cache_fill_init_task(t, ctx, c, conf, options, mode_bits);
     t->source_inst = inst;                 /* the composed sd_cache instance */
     ngx_cpystrn((u_char *) t->clean_path, (u_char *) clean_path,
                 sizeof(t->clean_path));

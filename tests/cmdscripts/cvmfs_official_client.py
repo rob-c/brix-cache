@@ -89,6 +89,13 @@ def preflight() -> str | None:
                               text=True, timeout=600)
         if pull.returncode != 0:
             return f"cannot pull {IMAGE}: {pull.stderr.strip()[-200:]}"
+    probe = subprocess.run(
+        [rt, "run", "--rm", "--entrypoint", "/bin/sh", IMAGE, "-c", ":"],
+        capture_output=True, text=True, timeout=60,
+    )
+    if probe.returncode != 0:
+        detail = (probe.stderr or probe.stdout).strip()[-200:]
+        return f"cannot execute {IMAGE} on this host: {detail}"
     return None
 
 

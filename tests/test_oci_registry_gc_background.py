@@ -79,15 +79,27 @@ def delete_manifest(reg: Registry, repo, digest):
 
 @pytest.fixture
 def swept(lifecycle, tmp_path) -> Registry:
-    """A registry that sweeps every second and keeps nothing on grace."""
+    """Prepare a registry; arm its zero-grace sweep only after pushes finish.
+
+    A zero-grace pass may legitimately reclaim a sealed blob before its
+    manifest arrives. Setup must not race that deliberately unsafe mode.
+    The separate grace-window test keeps maintenance active during pushes.
+    """
     return start_registry(
-        lifecycle, "lc-oci-gc-bg", NGINX_PORT, tmp_path / "store",
-        extra_lines="brix_oci_gc_interval 1s; brix_oci_gc_grace 0;")
+        lifecycle, "lc-oci-gc-bg", NGINX_PORT, tmp_path / "store")
+
+
+def arm_sweep(lifecycle, registry: Registry):
+    """Enable the original one-second, zero-grace timer over a settled store."""
+    lifecycle.reconfigure(registry.endpoint.name,
+        EXTRA_LINES="brix_oci_gc_interval 1s; brix_oci_gc_grace 0;")
+    lifecycle.nginx_test(registry.endpoint.name)
+    lifecycle.reload(registry.endpoint.name)
 
 
 # ---- success: the timer reclaims, with no tool in the picture ------------ #
 
-def test_the_timer_reclaims_what_a_delete_orphaned(swept: Registry):
+def test_the_timer_reclaims_what_a_delete_orphaned(swept: Registry, lifecycle):
     """A DELETE, then nothing but waiting: the orphan goes on its own.
 
     The shared layer is what says the background caller runs the same
@@ -99,6 +111,7 @@ def test_the_timer_reclaims_what_a_delete_orphaned(swept: Registry):
     kept, (kept_config, _) = push_image(swept, "lab/other", "v1",
                                         b'{"id":"kept"}', SHARED)
     delete_manifest(swept, "lab/app", gone)
+    arm_sweep(lifecycle, swept)
 
     wait_for(lambda: not blob_path(swept, gone_config).exists(),
              what="the orphaned config blob")
@@ -109,7 +122,7 @@ def test_the_timer_reclaims_what_a_delete_orphaned(swept: Registry):
 
 
 def test_the_surviving_image_is_still_servable_after_a_background_sweep(
-        swept: Registry):
+        swept: Registry, lifecycle):
     """Reclaiming behind the server's back must not cost it a live image.
 
     The pass runs on a thread while the same worker keeps answering, so this
@@ -119,6 +132,7 @@ def test_the_surviving_image_is_still_servable_after_a_background_sweep(
     digest, (config, layer) = push_image(swept, "lab/app", "v1", CONFIG,
                                          SHARED)
     orphan = push_blob(swept, "lab/app", b"an upload nobody ever named\n")
+    arm_sweep(lifecycle, swept)
 
     wait_for(lambda: not blob_path(swept, orphan).exists(),
              what="the unreferenced blob")
@@ -129,13 +143,14 @@ def test_the_surviving_image_is_still_servable_after_a_background_sweep(
         assert req("%s/v2/lab/app/blobs/%s" % (swept.base, blob))[0] == 200
 
 
-def test_a_sweep_leaves_the_manifests_alone(swept: Registry):
+def test_a_sweep_leaves_the_manifests_alone(swept: Registry, lifecycle):
     """Untagged is not garbage — and the timer gets no say the tool lacks."""
     config = push_blob(swept, "lab/app", CONFIG)
     body = image_manifest(config, [])
     digest = digest_of(json.dumps(body).encode())
     assert push_manifest(swept, "lab/app", digest, body)[0] == 201
     orphan = push_blob(swept, "lab/app", b"reclaim me\n")
+    arm_sweep(lifecycle, swept)
 
     wait_for(lambda: not blob_path(swept, orphan).exists(),
              what="the unreferenced blob")

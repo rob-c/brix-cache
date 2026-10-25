@@ -433,6 +433,107 @@ cleanup_root_path(brix_conn *connection,
     return -1;
 }
 
+static int
+grade_root_connect_failure(xrd_conform_execution *execution,
+    const brix_status *status)
+{
+    const char *only = execution->run->config.only;
+
+    if (only != NULL && strcmp(only, "LOG-004") == 0
+        && strstr(status->msg, "no usable auth protocol") != NULL) {
+        xrd_conform_result_set(execution, "LOG-004",
+            BRIX_CONFORM_VERDICT_DIVERGENT,
+            "security-continuation-names-no-mechanism",
+            "at least one &P= mechanism", status->msg);
+        return 0;
+    }
+    if (only != NULL && strcmp(only, "TLS-001") == 0
+        && (strstr(status->msg, "TLS") != NULL
+            || strstr(status->msg, "SSL") != NULL)) {
+        xrd_conform_result_set(execution, "TLS-001",
+            BRIX_CONFORM_VERDICT_DIVERGENT, "gototls-upgrade-failed",
+            "working TLS upgrade", status->msg);
+        return 0;
+    }
+    return 3;
+}
+
+static int
+grade_root_object_failure(xrd_conform_execution *execution,
+    const brix_conn *connection, const brix_status *status)
+{
+    const char *only = execution->run->config.only;
+
+    if (only != NULL && strcmp(only, "OPN-001") == 0) {
+        xrd_conform_result_set(execution, "OPN-001",
+            BRIX_CONFORM_VERDICT_DIVERGENT,
+            "read-open-did-not-return-handle", "4-byte fhandle", status->msg);
+        return 0;
+    }
+    if (only != NULL && strcmp(only, "TLS-003") == 0
+        && connection->io.ssl == NULL && status->kxr == kXR_TLSRequired) {
+        xrd_conform_result_set(execution, "TLS-003",
+            BRIX_CONFORM_VERDICT_DIVERGENT,
+            "unflagged-data-over-enforced-as-tls",
+            "cleartext data response", status->msg);
+        return 0;
+    }
+    if (only != NULL && strcmp(only, "TLS-004") == 0
+        && connection->io.ssl != NULL) {
+        xrd_conform_result_set(execution, "TLS-004",
+            BRIX_CONFORM_VERDICT_DIVERGENT, "tls-data-framing-invalid",
+            "encrypted framed object", status->msg);
+        return 0;
+    }
+    return 3;
+}
+
+static int
+read_family_active(xrd_conform_execution *execution)
+{
+    return xrd_conform_family_active(execution, "RD")
+        || xrd_conform_family_active(execution, "PGR");
+}
+
+static int
+standard_corpus_selected(xrd_conform_execution *execution)
+{
+    return xrd_conform_family_active(execution, "RD")
+        || xrd_conform_family_active(execution, "PGR")
+        || xrd_conform_family_active(execution, "RDV")
+        || xrd_conform_family_active(execution, "CHU");
+}
+
+static int
+run_planted_root_probes(xrd_conform_execution *execution,
+    brix_conn *connection, const brix_url *url, const char *path, int planted)
+{
+    int rc = 0;
+
+    xrd_conform_probe_tls(execution, url, connection, 1);
+    xrd_conform_probe_claim_audit(execution, url, connection);
+    xrd_conform_probe_adversarial(execution, url, connection, path);
+    if (planted && xrd_conform_standard_corpus_needed(execution)
+        && standard_corpus_selected(execution)
+        && xrd_conform_probe_standard_corpus(execution, connection) != 0)
+        rc = 3;
+    if (planted && xrd_conform_large_offset_needed(execution)
+        && read_family_active(execution)
+        && xrd_conform_probe_large_offset(execution, connection) != 0)
+        rc = 3;
+    if (planted && xrd_conform_write_only_needed(execution)
+        && read_family_active(execution)
+        && xrd_conform_probe_write_only(execution, connection) != 0)
+        rc = 3;
+    if (!planted) return rc;
+    xrd_conform_probe_namespace_mutations(execution, connection);
+    xrd_conform_probe_open_mutations(execution, connection);
+    xrd_conform_probe_checkpoints(execution, connection);
+    xrd_conform_probe_prepare(execution, connection, path);
+    xrd_conform_probe_write_mutations(execution, connection);
+    return rc;
+}
+
 /* ---- Run the root read-plane assessment ----
  *
  * WHAT: Returns zero after usable endpoint evidence, or run-incomplete code 3.
@@ -461,25 +562,7 @@ xrd_conform_run_root(xrd_conform_execution *execution)
     if (brix_connect(&connection, &url, &execution->run->opts, &status) != 0) {
         BRIX_CLIENT_LOG("ERROR",
             "xrd conform: target connection failed: %s\n", status.msg);
-        if (execution->run->config.only != NULL
-            && strcmp(execution->run->config.only, "LOG-004") == 0
-            && strstr(status.msg, "no usable auth protocol") != NULL) {
-            xrd_conform_result_set(execution, "LOG-004",
-                BRIX_CONFORM_VERDICT_DIVERGENT,
-                "security-continuation-names-no-mechanism",
-                "at least one &P= mechanism", status.msg);
-            return 0;
-        }
-        if (execution->run->config.only != NULL
-            && strcmp(execution->run->config.only, "TLS-001") == 0
-            && (strstr(status.msg, "TLS") != NULL
-                || strstr(status.msg, "SSL") != NULL)) {
-            xrd_conform_result_set(execution, "TLS-001",
-                BRIX_CONFORM_VERDICT_DIVERGENT,
-                "gototls-upgrade-failed", "working TLS upgrade", status.msg);
-            return 0;
-        }
-        return 3;
+        return grade_root_connect_failure(execution, &status);
     }
     apply_discovered_profile(execution, connection.server_flags);
     xrd_conform_probe_protocol_claims(execution, &url, &connection);
@@ -503,60 +586,9 @@ xrd_conform_run_root(xrd_conform_execution *execution)
             "xrd conform: cannot plant scratch object: %s\n",
             status.msg);
     else if (probe_root_object(execution, &connection, path, &status) == 0) {
-        rc = 0;
-        xrd_conform_probe_tls(execution, &url, &connection, 1);
-        xrd_conform_probe_claim_audit(execution, &url, &connection);
-        xrd_conform_probe_adversarial(execution, &url, &connection, path);
-        if (planted && xrd_conform_standard_corpus_needed(execution)
-            && (xrd_conform_family_active(execution, "RD")
-                || xrd_conform_family_active(execution, "PGR")
-                || xrd_conform_family_active(execution, "RDV")
-                || xrd_conform_family_active(execution, "CHU"))
-            && xrd_conform_probe_standard_corpus(execution, &connection) != 0)
-            rc = 3;
-        if (planted && xrd_conform_large_offset_needed(execution)
-            && (xrd_conform_family_active(execution, "RD")
-                || xrd_conform_family_active(execution, "PGR"))
-            && xrd_conform_probe_large_offset(execution,
-                &connection) != 0) rc = 3;
-        if (planted && xrd_conform_write_only_needed(execution)
-            && (xrd_conform_family_active(execution, "RD")
-                || xrd_conform_family_active(execution, "PGR"))
-            && xrd_conform_probe_write_only(execution,
-                &connection) != 0) rc = 3;
-        if (planted)
-            xrd_conform_probe_namespace_mutations(execution, &connection);
-        if (planted)
-            xrd_conform_probe_open_mutations(execution, &connection);
-        if (planted)
-            xrd_conform_probe_checkpoints(execution, &connection);
-        if (planted)
-            xrd_conform_probe_prepare(execution, &connection, path);
-        if (planted)
-            xrd_conform_probe_write_mutations(execution, &connection);
-    } else if (execution->run->config.only != NULL
-        && strcmp(execution->run->config.only, "OPN-001") == 0) {
-        xrd_conform_result_set(execution, "OPN-001",
-            BRIX_CONFORM_VERDICT_DIVERGENT,
-            "read-open-did-not-return-handle", "4-byte fhandle", status.msg);
-        rc = 0;
-    } else if (execution->run->config.only != NULL
-        && strcmp(execution->run->config.only, "TLS-003") == 0
-        && connection.io.ssl == NULL && status.kxr == kXR_TLSRequired) {
-        xrd_conform_result_set(execution, "TLS-003",
-            BRIX_CONFORM_VERDICT_DIVERGENT,
-            "unflagged-data-over-enforced-as-tls",
-            "cleartext data response", status.msg);
-        rc = 0;
-    } else if (execution->run->config.only != NULL
-        && strcmp(execution->run->config.only, "TLS-004") == 0
-        && connection.io.ssl != NULL) {
-        xrd_conform_result_set(execution, "TLS-004",
-            BRIX_CONFORM_VERDICT_DIVERGENT,
-            "tls-data-framing-invalid", "encrypted framed object",
-            status.msg);
-        rc = 0;
-    }
+        rc = run_planted_root_probes(execution, &connection, &url, path,
+            planted);
+    } else rc = grade_root_object_failure(execution, &connection, &status);
     xrd_conform_probe_error_fixtures(execution);
     xrd_conform_probe_http_error_fixtures(execution);
     if (cleanup_root_path(&connection, &scratch_object, planted) != 0) rc = 3;

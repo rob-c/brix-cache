@@ -47,6 +47,7 @@
 #include <openssl/evp.h>
 #include <openssl/rsa.h>
 #include <openssl/bn.h>
+#include "auth/crypto/key_compat.h"
 
 /* ---- link-time-only stubs for symbols only the HTTP-handler functions (or
  * the brix_deleg_store() lazy-singleton accessor, which this test also
@@ -163,7 +164,7 @@ mk_key(void)
     assert(ctx != NULL && e != NULL && BN_set_word(e, 0x10001));
     assert(EVP_PKEY_keygen_init(ctx) > 0);
     assert(EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, 2048) > 0);
-    assert(EVP_PKEY_CTX_set1_rsa_keygen_pubexp(ctx, e) > 0);
+    assert(brix_crypto_rsa_keygen_exponent(ctx, e));
     assert(EVP_PKEY_keygen(ctx, &key) > 0);
     EVP_PKEY_CTX_free(ctx);
     BN_free(e);

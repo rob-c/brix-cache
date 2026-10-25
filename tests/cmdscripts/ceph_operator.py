@@ -11,6 +11,8 @@ import tarfile
 import tempfile
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
+from cmdscripts.ceph_harness import ceph_container
+from cmdscripts.ceph_sources import backend_sources, driver_command
 
 
 def _step_build_in_container_1(tar_path, work):
@@ -188,22 +190,13 @@ def sd_ceph_live(base: Path) -> tuple[bool, str]:
     if not _container_running(work):
         return result(True, f"SKIP: work container {work} not running")
     files = [
-        "src/fs/backend/rados/sd_ceph.c",
-        "src/fs/backend/rados/sd_ceph_io.c",
-        "src/fs/backend/rados/sd_ceph_object.c",
-        "src/fs/backend/rados/sd_ceph_cred.c",
-        "src/fs/backend/rados/sd_ceph_ns_cred.c",
-        "src/fs/backend/rados/sd_ceph_meta.c",
-        "src/fs/backend/meta_advisory.c",
+        *backend_sources(),
+        "src/fs/path/site_n2n.h",
         "src/fs/backend/meta_advisory.h",
-        "src/fs/backend/meta_advisory_sd.c",
         "src/fs/backend/meta_advisory_sd.h",
-        "src/fs/backend/rados/sd_ceph_dir.c",
         "src/fs/backend/rados/sd_ceph_internal.h",
         "src/fs/backend/rados/sd_ceph.h",
         "src/fs/backend/rados/sd_ceph_striper.h",
-        "src/fs/backend/rados/sd_ceph_object_rename.c",
-        "src/fs/backend/rados/sd_ceph_compat.c",
         "tests/ceph/sd_ceph_live_test.c",
         "client/apps/ceph/ngx_shim.h",
     ]
@@ -211,19 +204,8 @@ def sd_ceph_live(base: Path) -> tuple[bool, str]:
     failed = _cp_many(work, files)
     if failed:
         return result(False, f"docker cp failed: {_tail(failed)}")
-    cmd = (
-        "cd /work/repo && gcc -Wall -Wextra -Werror -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH "
-        "-I src -I src/fs/backend -I src/fs/backend/rados -include client/apps/ceph/ngx_shim.h "
-        "tests/ceph/sd_ceph_live_test.c src/fs/backend/rados/sd_ceph.c "
-        "src/fs/backend/rados/sd_ceph_object_rename.c "
-        "src/fs/backend/rados/sd_ceph_io.c src/fs/backend/rados/sd_ceph_object.c "
-        "src/fs/backend/rados/sd_ceph_cred.c src/fs/backend/rados/sd_ceph_ns_cred.c "
-        "src/fs/backend/rados/sd_ceph_meta.c "
-        "src/fs/backend/meta_advisory.c src/fs/backend/meta_advisory_sd.c "
-        "src/fs/backend/rados/sd_ceph_dir.c "
-        "src/fs/backend/rados/sd_ceph_compat.c "
-        "-lrados -o /tmp/sd_ceph_live && /tmp/sd_ceph_live"
-    )
+    cmd = driver_command("tests/ceph/sd_ceph_live_test.c", "/tmp/sd_ceph_live")
+    cmd += " && /tmp/sd_ceph_live"
     proc = _docker_text(["exec", "-e", f"CEPH_POOL={os.environ.get('CEPH_POOL', 'xrdtest')}", "-e", "CEPH_CONF=/etc/ceph/ceph.conf", work, "bash", "-lc", cmd])
     return result(proc.returncode == 0, f"sd_ceph_live exited {proc.returncode}: {_tail(proc)}")
 
@@ -233,7 +215,7 @@ def sd_ceph_cred_live(base: Path) -> tuple[bool, str]:
     if not ok:
         return result(True, msg)
     work = os.environ.get("WORK", "xrd-ceph-work")
-    demo = os.environ.get("DEMO", "xrd-ceph-demo")
+    demo = os.environ.get("DEMO") or ceph_container()
     pool = os.environ.get("CEPH_POOL", "xrdtest")
     if _expression_2(work, demo):
         return result(True, "SKIP: Ceph work/demo containers not running")
@@ -250,18 +232,11 @@ def sd_ceph_cred_live(base: Path) -> tuple[bool, str]:
         cat = _docker(["exec", demo, "cat", f"/tmp/ceph.client.{name}.keyring"])
         _guard_sd_ceph_cred_live_1(cat, work, name)
     files = [
-        "src/fs/backend/rados/sd_ceph.c", "src/fs/backend/rados/sd_ceph_io.c",
-        "src/fs/backend/rados/sd_ceph_object.c", "src/fs/backend/rados/sd_ceph_cred.c",
-        "src/fs/backend/rados/sd_ceph_ns_cred.c",
-        "src/fs/backend/rados/sd_ceph_meta.c",
-        "src/fs/backend/meta_advisory.c",
+        *backend_sources(), "src/fs/path/site_n2n.h",
         "src/fs/backend/meta_advisory.h",
-        "src/fs/backend/meta_advisory_sd.c",
         "src/fs/backend/meta_advisory_sd.h",
-        "src/fs/backend/rados/sd_ceph_dir.c",
         "src/fs/backend/rados/sd_ceph_internal.h", "src/fs/backend/rados/sd_ceph.h",
-        "src/fs/backend/rados/sd_ceph_object_rename.c",
-        "src/fs/backend/rados/sd_ceph_compat.c", "src/fs/backend/rados/sd_ceph_compat.h",
+        "src/fs/backend/rados/sd_ceph_compat.h",
         "src/fs/backend/rados/sd_ceph_striper.h", "src/fs/backend/ucred.h",
         "tests/ceph/sd_ceph_cred_live_test.c", "client/apps/ceph/ngx_shim.h",
     ]
@@ -269,19 +244,8 @@ def sd_ceph_cred_live(base: Path) -> tuple[bool, str]:
     failed = _cp_many(work, files)
     if failed:
         return result(False, f"docker cp failed: {_tail(failed)}")
-    cmd = (
-        "cd /work/repo && gcc -Wall -Wextra -Werror -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH "
-        "-I src -I src/fs/backend -I src/fs/backend/rados -include client/apps/ceph/ngx_shim.h "
-        "tests/ceph/sd_ceph_cred_live_test.c src/fs/backend/rados/sd_ceph.c "
-        "src/fs/backend/rados/sd_ceph_object_rename.c "
-        "src/fs/backend/rados/sd_ceph_io.c src/fs/backend/rados/sd_ceph_object.c "
-        "src/fs/backend/rados/sd_ceph_cred.c src/fs/backend/rados/sd_ceph_ns_cred.c "
-        "src/fs/backend/rados/sd_ceph_meta.c "
-        "src/fs/backend/meta_advisory.c src/fs/backend/meta_advisory_sd.c "
-        "src/fs/backend/rados/sd_ceph_dir.c "
-        "src/fs/backend/rados/sd_ceph_compat.c "
-        "-lrados -o /tmp/sd_ceph_cred_live && /tmp/sd_ceph_cred_live"
-    )
+    cmd = driver_command("tests/ceph/sd_ceph_cred_live_test.c", "/tmp/sd_ceph_cred_live")
+    cmd += " && /tmp/sd_ceph_cred_live"
     proc = _docker_text(["exec", "-e", f"CEPH_POOL={pool}", "-e", "CEPH_CONF=/etc/ceph/ceph.conf", "-e", "CEPH_BOB_KEYRING=/etc/ceph/ceph.client.bob.keyring", "-e", "CEPH_READONLY_KEYRING=/etc/ceph/ceph.client.readonly.keyring", "-e", "CEPH_UN_KEYRING_DIR=/etc/ceph", work, "bash", "-lc", cmd])
     return result(proc.returncode == 0, f"sd_ceph_cred_live exited {proc.returncode}: {_tail(proc)}")
 
@@ -466,25 +430,15 @@ def rescue_tools(base: Path) -> tuple[bool, str]:
     work = os.environ.get("WORK", "xrd-ceph-work")
     if not _container_running(work):
         return result(True, f"SKIP: work container {work} not running")
-    # Keep in step with client/Makefile's CEPH_CORE_SRCS / CEPHFS_RO_SRCS — that is the
-    # build's source of truth (the RPM drives it too); this list only has to carry the
-    # same TUs, plus the headers they include, into the container.
+    # Query the shipped build graph, rather than maintaining a second source list.
     files = [
-        "src/fs/backend/sd.h", "src/fs/backend/rados/sd_ceph.c", "src/fs/backend/rados/sd_ceph.h",
-        "src/fs/backend/rados/sd_ceph_internal.h", "src/fs/backend/rados/sd_ceph_io.c",
-        "src/fs/backend/rados/sd_ceph_cred.c", "src/fs/backend/rados/sd_ceph_ns_cred.c",
-        "src/fs/backend/rados/sd_ceph_meta.c",
-        "src/fs/backend/meta_advisory.c", "src/fs/backend/meta_advisory.h",
-        "src/fs/backend/meta_advisory_sd.c", "src/fs/backend/meta_advisory_sd.h",
-        "src/fs/backend/rados/sd_ceph_object.c",
-        "src/fs/backend/rados/sd_ceph_object_rename.c",
-        "src/fs/backend/rados/sd_ceph_dir.c",
-        "src/fs/backend/rados/sd_ceph_striper.h", "src/fs/backend/rados/sd_ceph_compat.c",
-        "src/fs/backend/rados/sd_ceph_compat.h", "src/fs/backend/rados/cephfs_denc.c",
-        "src/fs/backend/rados/cephfs_denc.h", "src/fs/backend/rados/cephfs_layout.c",
-        "src/fs/backend/rados/cephfs_layout.h", "src/fs/backend/rados/sd_cephfs_ro.c",
-        "src/fs/backend/rados/sd_cephfs_ro_internal.h", "src/fs/backend/rados/sd_cephfs_ro_dir.c",
-        "src/fs/backend/rados/sd_cephfs_ro_resolve.c",
+        *backend_sources(cephfs=True), "src/fs/path/site_n2n.h",
+        "src/fs/backend/sd.h", "src/fs/backend/rados/sd_ceph.h",
+        "src/fs/backend/rados/sd_ceph_internal.h",
+        "src/fs/backend/meta_advisory.h", "src/fs/backend/meta_advisory_sd.h",
+        "src/fs/backend/rados/sd_ceph_striper.h", "src/fs/backend/rados/sd_ceph_compat.h",
+        "src/fs/backend/rados/cephfs_denc.h", "src/fs/backend/rados/cephfs_layout.h",
+        "src/fs/backend/rados/sd_cephfs_ro_internal.h",
         "client/apps/ceph/ngx_shim.h", "client/apps/ceph/xrdcephfs_rescue.c",
         "client/apps/ceph/xrdrados_rescue.c", "client/apps/ceph/xrdceph_migrate.c",
     ]
@@ -492,27 +446,10 @@ def rescue_tools(base: Path) -> tuple[bool, str]:
     failed = _cp_many(work, files)
     if failed:
         return result(False, f"docker cp failed: {_tail(failed)}")
-    # Mirrors client/Makefile CEPH_CORE_SRCS / CEPHFS_RO_SRCS.  The tools compile the
-    # driver TUs directly, so these lists are a symbol closure: when a TU is split,
-    # omitting the new sibling here fails at LINK ("undefined reference to sd_ceph_*"),
-    # not at compile.  sd_ceph_striper.c is deliberately absent — unreferenced here,
-    # and it would drag in libradosstriper.
-    cmd = (
-        "cd /work/repo && FLAT_SRCS='src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph_compat.c "
-        "src/fs/backend/rados/sd_ceph_io.c src/fs/backend/rados/sd_ceph_cred.c "
-        "src/fs/backend/rados/sd_ceph_ns_cred.c "
-        "src/fs/backend/rados/sd_ceph_meta.c "
-        "src/fs/backend/meta_advisory.c src/fs/backend/meta_advisory_sd.c "
-        "src/fs/backend/rados/sd_ceph_object.c src/fs/backend/rados/sd_ceph_object_rename.c "
-        "src/fs/backend/rados/sd_ceph_dir.c' && "
-        "CEPHFS_SRCS=\"src/fs/backend/rados/sd_cephfs_ro.c src/fs/backend/rados/sd_cephfs_ro_dir.c "
-        "src/fs/backend/rados/sd_cephfs_ro_resolve.c src/fs/backend/rados/cephfs_layout.c "
-        "src/fs/backend/rados/cephfs_denc.c $FLAT_SRCS\" && "
-        "CC='gcc -Wall -Wextra -Werror -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH -I src -I src/fs/backend -I src/fs/backend/rados -include client/apps/ceph/ngx_shim.h' && "
-        "$CC client/apps/ceph/xrdcephfs_rescue.c $CEPHFS_SRCS -lrados -o /tmp/xrdcephfs_rescue && "
-        "$CC client/apps/ceph/xrdrados_rescue.c $FLAT_SRCS -lrados -o /tmp/xrdrados_rescue && "
-        "$CC client/apps/ceph/xrdceph_migrate.c $FLAT_SRCS -lrados -o /tmp/xrdceph_migrate"
-    )
+    cmd = " && ".join(driver_command(f"client/apps/ceph/{name}.c", f"/tmp/{name}", cephfs)
+                      for name, cephfs in (("xrdcephfs_rescue", True),
+                                          ("xrdrados_rescue", False),
+                                          ("xrdceph_migrate", False)))
     proc = _docker_text(["exec", "-e", "CEPH_CONF=/etc/ceph/ceph.conf", work, "bash", "-lc", cmd])
     return result(proc.returncode == 0, f"rescue tools build exited {proc.returncode}: {_tail(proc)}")
 

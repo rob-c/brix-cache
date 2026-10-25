@@ -1,5 +1,5 @@
 /* Phase-118 bounded cross-plane namespace-set comparison. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "core/compat/uri.h"
 
 #define XPR_NAMESPACE_MAX 65
@@ -9,20 +9,12 @@ typedef struct {
     size_t count;
 } namespace_names;
 
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution,
-        id);
-
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
 static int
 namespace_row_active(xrd_conform_execution *execution)
 {
-    return row_active(execution, "XPR-004")
-        || row_active(execution, "DAV-002");
+    return xrd_conform_row_active(execution, "XPR-004")
+        || xrd_conform_row_active(execution, "DAV-002");
 }
 
 static int
@@ -270,7 +262,7 @@ xrd_conform_finalize_namespace(xrd_conform_execution *execution)
     int observations = 0;
     int agreement = 1;
 
-    if (row_active(execution, "DAV-002")) {
+    if (xrd_conform_row_active(execution, "DAV-002")) {
         if (execution->root_namespace_state
             && execution->http_namespace_state) {
             int dav_agreement = strcmp(execution->root_namespace,
@@ -288,7 +280,7 @@ xrd_conform_finalize_namespace(xrd_conform_execution *execution)
                 "fixture-required:paired-root-directory", NULL, NULL);
         }
     }
-    if (!row_active(execution, "XPR-004")) return;
+    if (!xrd_conform_row_active(execution, "XPR-004")) return;
 
     for (index = 0; index < 3; index++) {
         if (states[index] == 0) continue;

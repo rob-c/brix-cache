@@ -16,11 +16,13 @@ The contract pinned here is the one the docs promise:
   * **lock tokens are bearer secrets and are never printed.**
 """
 import importlib.util
+import errno
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -80,6 +82,8 @@ def test_the_tool_ships_in_the_clone():
     """The whole point of the 2026-09-09 .gitignore exemption. A tool the docs
     tell an operator to run must be in `git ls-files`, not merely on disk."""
     assert TOOL.is_file()
+    if not (REPO / ".git").exists():
+        pytest.skip("source archive has no git index to audit")
     tracked = subprocess.run(
         ["git", "ls-files", "--error-unmatch", "tools/diag/lock_scan.py"],
         cwd=REPO, capture_output=True, text=True, check=False)
@@ -234,3 +238,44 @@ def test_an_expired_lock_is_counted_but_not_listed(tmp_path):
     assert done.returncode == 0
     assert "LIVE" not in done.stdout
     assert "0 live, 1 expired" in done.stdout
+
+
+def test_freebsd_reads_the_native_namespace_without_following_symlinks(monkeypatch):
+    calls = []
+
+    def get(path, name, **kwargs):
+        calls.append((path, name, kwargs))
+        return b'persisted-lock'
+
+    monkeypatch.setitem(sys.modules, 'xattr', SimpleNamespace(getxattr=get))
+    assert lock_scan._freebsd_getxattr('/export/link', XATTR) == b'persisted-lock'
+    assert calls == [('/export/link', 'nginx_xrootd.lock', {'symlink': True})]
+
+
+def test_freebsd_missing_native_dependency_is_not_an_empty_inventory(monkeypatch):
+    monkeypatch.setitem(sys.modules, 'xattr', None)
+    with pytest.raises(OSError) as error:
+        lock_scan._freebsd_getxattr('/export/file', XATTR)
+    assert error.value.errno == errno.ENOTSUP
+
+
+@pytest.mark.parametrize('code', [errno.EACCES, errno.EIO, errno.ENOTSUP])
+def test_an_unreadable_attribute_is_not_classified_as_unlocked(monkeypatch, code):
+    def unreadable(*args):
+        raise OSError(code, 'opaque-token-must-not-appear')
+
+    monkeypatch.setattr(lock_scan, '_getxattr', unreadable)
+    with pytest.raises(OSError) as error:
+        lock_scan.probe('/export/file', 0)
+    assert error.value.errno == code
+
+
+def test_incomplete_inventory_exits_two_without_leaking_attribute_data(tmp_path, monkeypatch, capsys):
+    def unreadable(*args):
+        raise OSError(errno.EACCES, 'opaquelocktoken:SECRET')
+
+    monkeypatch.setattr(lock_scan, '_getxattr', unreadable)
+    assert lock_scan.main([str(tmp_path)]) == 2
+    captured = capsys.readouterr()
+    assert 'inventory incomplete' in captured.err
+    assert 'SECRET' not in captured.out + captured.err

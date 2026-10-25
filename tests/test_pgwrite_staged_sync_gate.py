@@ -41,7 +41,9 @@ import struct
 import time
 
 import pytest
+import requests
 
+from mu_authz_lib.s3sig import signed_headers
 from settings import BIND_HOST, HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
@@ -78,6 +80,20 @@ def _port_up(host, port):
         return False
 
 
+def _s3_ready(port):
+    host = f"{HOST}:{port}"
+    path = "/testbucket/.brix-readiness"
+    try:
+        response = requests.head(
+            f"http://{host}{path}",
+            headers=signed_headers("HEAD", path, S3_AK, S3_SK, host=host),
+            timeout=2,
+        )
+    except requests.RequestException:
+        return False
+    return response.status_code in (200, 404)
+
+
 def _sync(sock, fhandle):
     """Send kXR_sync (3016); return (status, errcode|None). A staged handle
     COMMITS the whole object here (single backend PUT)."""
@@ -99,6 +115,9 @@ def node(tmp_path_factory):
     # root IS the bucket root — so committed objects land directly in s3_dir.
     s3_dir = tmp_path_factory.mktemp("s3store")
     (s3_dir / "testbucket").mkdir()
+    stage_store = tmp_path_factory.mktemp("s3-pgwrite-stage")
+    from official_interop_lib import worker_reachable
+    worker_reachable(stage_store)
     harness = LifecycleHarness()
     endpoint = harness.start(NginxInstanceSpec(
         name="root-s3-staged",
@@ -107,6 +126,7 @@ def node(tmp_path_factory):
         readiness="tcp",
         template_values={"BIND_HOST": BIND_HOST,
                          "S3_DIR": str(s3_dir),
+                         "STAGE_STORE": str(stage_store),
                          "S3_ACCESS_KEY": S3_AK,
                          "S3_SECRET_KEY": S3_SK},
     ))
@@ -114,11 +134,15 @@ def node(tmp_path_factory):
     # (fleet_lifecycle_ports.root-s3-staged); read it back post-start.
     s3_port = endpoint.extra_ports["S3_PORT"]
 
-    # The harness waits on the root:// {PORT}; poll the S3 plane too.
+    # The harness waits on the root:// {PORT}; require a completed authenticated
+    # S3 request too.  A bare TCP connect can win the two-worker startup race,
+    # leaving the root worker's first lock-xattr probe to receive EAGAIN.
     for _ in range(50):
-        if _port_up(HOST, s3_port):
+        if _port_up(HOST, s3_port) and _s3_ready(s3_port):
             break
         time.sleep(0.1)
+    else:
+        pytest.fail("co-hosted S3 plane did not become request-ready")
 
     yield {"port": endpoint.port, "store": s3_dir}
     harness.close()

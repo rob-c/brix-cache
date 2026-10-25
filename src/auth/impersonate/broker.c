@@ -4,6 +4,7 @@
  */
 #include "core/compat/log_event.h"
 #include "broker_internal.h"
+#include "broker_fixed.h"
 #include "impersonate_state.h"
 #include "platform/platform_api.h"
 
@@ -146,7 +147,7 @@ imp_recv_request(int conn_fd, imp_req_t *req, imp_rep_t *rep,
      * cannot trust the stream position).  Only SETXATTR consumes inbound data;
      * every other op leaves req_data_len == 0.
      */
-    if (req->op == IMP_OP_SETXATTR) {
+    if (req->op == IMP_OP_SETXATTR || req->op == IMP_OP_LOCK_STORE) {
         if (req->req_data_len > IMP_XATTR_MAX) {
             rep->status = IMP_STATUS_BADREQ;
             (void) imp_send_reply(conn_fd, rep, -1, NULL, 0);
@@ -236,9 +237,41 @@ imp_dispatch_op(int conn_fd, imp_op_ctx_t *op_ctx,
 }
 
 
-/* Serve one request on conn_fd.  Returns 1 to keep the connection, 0 to close. */
-int
-imp_serve_one(int conn_fd, int rootfd, ngx_log_t *log)
+/* WHAT: Select fixed-helper execution or the existing capability transition.
+ * WHY: A fixed identity must never attempt a reversible credential switch.
+ * HOW: Invoke the shared operation directly only inside an already confined
+ * helper; otherwise delegate to an exact pool identity or Linux transition. */
+static int
+imp_execute_mapped(int conn_fd, imp_op_ctx_t *operation,
+    const brix_idmap_creds_t *creds, const brix_idmap_creds_t *fixed,
+    brix_imp_fixed_pool_t *pool, ngx_log_t *log)
+{
+#if BRIX_HAS_FIXED_ID_BROKER
+    if (fixed != NULL) {
+        return imp_do_op(operation);
+    }
+    if (pool != NULL) {
+        if (brix_imp_creds_privileged(creds, BRIX_IMP_HARD_MIN_ID, NULL, NULL)
+            || creds->uid == brix_imp_get_self_uid()
+            || creds->uid == brix_imp_get_broker_allow_uid())
+        {
+            imp_fatal_priv_refused(conn_fd, operation->rep, creds, log);
+        }
+        return brix_imp_fixed_pool_dispatch(pool, creds, operation);
+    }
+#else
+    (void) fixed;
+    (void) pool;
+#endif
+    return imp_dispatch_op(conn_fd, operation, creds, log);
+}
+
+/* WHAT: Serve one bounded frame in the selected credential model.
+ * WHY: Both broker models must share framing, mapping and filesystem policy.
+ * HOW: Decode once, map only in the supervisor, dispatch, and send the reply. */
+static int
+imp_serve_one_mode(int conn_fd, int rootfd, ngx_log_t *log,
+    const brix_idmap_creds_t *fixed, brix_imp_fixed_pool_t *pool)
 {
     /*
      * Outbound (READLINK/GETXATTR/LISTXATTR) and inbound (SETXATTR value)
@@ -274,7 +307,12 @@ imp_serve_one(int conn_fd, int rootfd, ngx_log_t *log)
     /* Map the principal -> UNIX creds.  Anything that is not a concrete OK/SQUASH
      * mapping (deny uid 0 / below floor, or a hard resolver error) fails closed —
      * the broker must never impersonate on an uncertain mapping. */
-    rc = brix_idmap_resolve(NULL, req.principal, &creds, log);
+    if (fixed != NULL) {
+        creds = *fixed;
+        rc = BRIX_IDMAP_OK;
+    } else {
+        rc = brix_idmap_resolve(NULL, req.principal, &creds, log);
+    }
     if (rc != BRIX_IDMAP_OK && rc != BRIX_IDMAP_SQUASH) {
         rep.status = IMP_STATUS_DENY;
         return imp_send_reply(conn_fd, &rep, -1, NULL, 0) == 0 ? 1 : 0;
@@ -289,7 +327,7 @@ imp_serve_one(int conn_fd, int rootfd, ngx_log_t *log)
     op_ctx.data_in     = data_in;
     op_ctx.data_in_len = in_len;
     op_ctx.rel         = NULL;           /* imp_dispatch_op/imp_do_op derive it */
-    rep.status = imp_dispatch_op(conn_fd, &op_ctx, &creds, log);
+    rep.status = imp_execute_mapped(conn_fd, &op_ctx, &creds, fixed, pool, log);
 
     rc = imp_send_reply(conn_fd, &rep, fd, data_buf, rep.data_len);
     if (fd >= 0) {
@@ -297,6 +335,27 @@ imp_serve_one(int conn_fd, int rootfd, ngx_log_t *log)
     }
     return rc == 0 ? 1 : 0;
 }
+
+/* WHAT: Preserve the existing direct broker entry point.
+ * WHY: Native units and Linux callers use the capability-transition model.
+ * HOW: Select no fixed identity/pool and reuse the common request decoder. */
+int
+imp_serve_one(int conn_fd, int rootfd, ngx_log_t *log)
+{
+    return imp_serve_one_mode(conn_fd, rootfd, log, NULL, NULL);
+}
+
+#if BRIX_HAS_FIXED_ID_BROKER
+/* WHAT: Serve operations inside one permanently dropped, confined helper.
+ * WHY: Request content must never influence its kernel credentials.
+ * HOW: Decode through the common codec with its startup-only fixed identity. */
+void
+brix_imp_fixed_serve(int channel, int rootfd, const brix_idmap_creds_t *creds,
+                     ngx_log_t *log)
+{
+    while (imp_serve_one_mode(channel, rootfd, log, creds, NULL)) { }
+}
+#endif
 
 
 
@@ -312,12 +371,12 @@ imp_serve_one(int conn_fd, int rootfd, ngx_log_t *log)
  * from the inline sequence it replaces.
  */
 static int
-imp_broker_init_creds(ngx_log_t *log)
+imp_broker_init_creds(ngx_log_t *log, int already_dropped)
 {
     int ng;
     gid_t temp_groups[BRIX_IDMAP_MAXGROUPS];
 
-    if (brix_imp_broker_drop_caps(log) != 0) {
+    if (!already_dropped && brix_imp_broker_drop_caps(log) != 0) {
         return -1;                       /* fail closed: DAC would not be enforced */
     }
 
@@ -390,7 +449,8 @@ imp_broker_accept(int listen_fd, struct pollfd *pfds, nfds_t *nfds,
  * as slots are removed.  Behaviour is byte-for-byte the prior inner loop.
  */
 static void
-imp_broker_reap(struct pollfd *pfds, nfds_t *nfds, int rootfd, ngx_log_t *log)
+imp_broker_reap(struct pollfd *pfds, nfds_t *nfds, int rootfd, ngx_log_t *log,
+                brix_imp_fixed_pool_t *pool)
 {
     nfds_t i;
 
@@ -401,7 +461,7 @@ imp_broker_reap(struct pollfd *pfds, nfds_t *nfds, int rootfd, ngx_log_t *log)
         if (re & (POLLERR | POLLHUP | POLLNVAL)) {
             keep = 0;
         } else if (re & POLLIN) {
-            keep = imp_serve_one(pfds[i].fd, rootfd, log);
+            keep = imp_serve_one_mode(pfds[i].fd, rootfd, log, NULL, pool);
         }
 
         if (!keep) {
@@ -415,16 +475,15 @@ imp_broker_reap(struct pollfd *pfds, nfds_t *nfds, int rootfd, ngx_log_t *log)
 }
 
 
-int
-brix_imp_broker_run(int listen_fd, int rootfd,
-                      const volatile sig_atomic_t *stop, ngx_log_t *log)
+/* WHAT: Poll admitted worker channels using the chosen credential executor.
+ * WHY: Native fixed helpers must not duplicate peer gates or lifecycle logic.
+ * HOW: Use the same bounded connection array and request dispatch for both. */
+static int
+imp_broker_loop(int listen_fd, int rootfd,
+    const volatile sig_atomic_t *stop, ngx_log_t *log, brix_imp_fixed_pool_t *pool)
 {
     struct pollfd pfds[IMP_BROKER_MAXCONN + 1];
     nfds_t        nfds = 1;
-
-    if (imp_broker_init_creds(log) != 0) {
-        return -1;                       /* fail closed: DAC would not be enforced */
-    }
 
     pfds[0].fd     = listen_fd;
     pfds[0].events = POLLIN;
@@ -450,6 +509,32 @@ brix_imp_broker_run(int listen_fd, int rootfd,
         }
 
         /* Serve / reap worker connections (compact the array in place). */
-        imp_broker_reap(pfds, &nfds, rootfd, log);
+        imp_broker_reap(pfds, &nfds, rootfd, log, pool);
     }
+}
+
+/* WHAT: Establish the native broker's privilege floor before accepting work.
+ * WHY: Startup failure must never degrade to root/service filesystem I/O.
+ * HOW: Start native fixed helpers or drop Linux caps, capture the final base
+ * identity, run the shared loop, and release only owned helpers afterward. */
+int
+brix_imp_broker_run(int listen_fd, int rootfd,
+                      const volatile sig_atomic_t *stop, ngx_log_t *log)
+{
+    brix_imp_fixed_pool_t *pool = NULL;
+    int status;
+
+#if BRIX_HAS_FIXED_ID_BROKER
+    pool = brix_imp_fixed_pool_start(listen_fd, rootfd, log);
+    if (pool == NULL) { return -1; }
+    rootfd = -1;  /* the non-root supervisor owns no export-root descriptor */
+#endif
+    status = imp_broker_init_creds(log, pool != NULL);
+    if (status == 0) {
+        status = imp_broker_loop(listen_fd, rootfd, stop, log, pool);
+    }
+#if BRIX_HAS_FIXED_ID_BROKER
+    brix_imp_fixed_pool_close(pool);
+#endif
+    return status;
 }

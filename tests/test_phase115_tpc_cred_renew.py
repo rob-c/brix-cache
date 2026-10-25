@@ -60,6 +60,7 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
+from lib_py.worker_exec import require_worker_exec
 
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS
 from server_registry import NginxInstanceSpec
@@ -241,7 +242,7 @@ def _indent(*lines):
 
 
 @pytest.fixture()
-def renewlab(lifecycle, tmp_path, idp):
+def renewlab(lifecycle, tmp_path, idp, request):
     """One export, one token-demanding source, five outbound-credential shapes.
 
     The source is the only instance with `brix_auth token`: it is what makes the
@@ -253,6 +254,10 @@ def renewlab(lifecycle, tmp_path, idp):
     `brix_token_peek_exp`, which is the exact disagreement the feature is built
     to survive, reproduced in under a second instead of over an hour.
     """
+    if request.node.originalname not in (
+            "test_the_default_mode_never_re_mints_a_forwarded_credential",
+            "test_renew_strict_refuses_the_same_pull_and_still_never_mints"):
+        require_worker_exec()
     data = tmp_path / "data"
     data.mkdir()
     (data / "src.bin").write_bytes(SEED)

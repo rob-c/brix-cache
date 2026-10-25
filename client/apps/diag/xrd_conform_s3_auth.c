@@ -1,14 +1,7 @@
 /* Phase-118 S3 authentication-boundary probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "core/compat/host_format.h"
 
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
-
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
 /* WHAT: Return whether this run explicitly selected a paired read-only clause.
  * WHY: Writable general runs must not be judged as read-only fixture failures.
@@ -58,7 +51,7 @@ probe_tampered_signature(xrd_conform_execution *execution,
     unsigned http_status = 0;
     int rc;
 
-    if (!row_active(execution, "S3-005")) return;
+    if (!xrd_conform_row_active(execution, "S3-005")) return;
     rc = xrd_conform_s3_auth_headers(url, "HEAD", headers);
     if (rc == 0 && headers[0] == '\0') {
         xrd_conform_result_set(execution, "S3-005",
@@ -116,11 +109,11 @@ presigned_get(xrd_conform_execution *execution, const brix_weburl *url,
 static void
 presigned_unavailable(xrd_conform_execution *execution)
 {
-    if (row_active(execution, "S3-006"))
+    if (xrd_conform_row_active(execution, "S3-006"))
         xrd_conform_result_set(execution, "S3-006",
             BRIX_CONFORM_VERDICT_INCONCLUSIVE, "presign-unavailable", NULL,
             NULL);
-    if (row_active(execution, "S3-007"))
+    if (xrd_conform_row_active(execution, "S3-007"))
         xrd_conform_result_set(execution, "S3-007",
             BRIX_CONFORM_VERDICT_INCONCLUSIVE, "presign-unavailable", NULL,
             NULL);
@@ -132,7 +125,7 @@ grade_presigned_expiry(xrd_conform_execution *execution, int valid_rc,
 {
     int pass;
 
-    if (!row_active(execution, "S3-006")) return;
+    if (!xrd_conform_row_active(execution, "S3-006")) return;
     pass = valid_rc == 0 && valid_status >= 200 && valid_status < 300
         && expired_rc == 0 && auth_rejected(expired_status);
     xrd_conform_result_set(execution, "S3-006",
@@ -150,7 +143,7 @@ grade_presigned_replay(xrd_conform_execution *execution, int valid_rc,
 {
     int pass;
 
-    if (!row_active(execution, "S3-007")) return;
+    if (!xrd_conform_row_active(execution, "S3-007")) return;
     pass = valid_rc == 0 && valid_status >= 200 && valid_status < 300
         && replay_rc == 0 && auth_rejected(replay_status);
     xrd_conform_result_set(execution, "S3-007",
@@ -178,8 +171,8 @@ probe_presigned_urls(xrd_conform_execution *execution,
     int valid_rc, expired_rc, replay_rc;
     int written;
 
-    if (!row_active(execution, "S3-006")
-        && !row_active(execution, "S3-007")) return;
+    if (!xrd_conform_row_active(execution, "S3-006")
+        && !xrd_conform_row_active(execution, "S3-007")) return;
     credential_state = xrd_conform_s3_credentials(&access, &secret, &region);
     if (credential_state <= 0 || now == (time_t) -1
         || presigned_url(url, access, secret, region, now, 300, &valid) != 0
@@ -214,7 +207,7 @@ probe_auth_confusion(xrd_conform_execution *execution,
     int rc;
     int written;
 
-    if (!row_active(execution, "S3-008")) return;
+    if (!xrd_conform_row_active(execution, "S3-008")) return;
     if (url->is_s3) {
         token = brix_token_discover();
         written = token == NULL ? -1 : snprintf(headers, sizeof(headers),
@@ -256,7 +249,7 @@ xrd_conform_finalize_s3_auth(xrd_conform_execution *execution)
 {
     int paired;
 
-    if (!row_active(execution, "S3-008")) return;
+    if (!xrd_conform_row_active(execution, "S3-008")) return;
     paired = execution->s3_bearer_state != 0
         && execution->http_sigv4_state != 0;
     xrd_conform_result_set(execution, "S3-008",
@@ -333,8 +326,8 @@ xrd_conform_probe_s3_readonly(xrd_conform_execution *execution,
     int absent;
 
     if (!url->is_s3 || !readonly_clause_selected(execution)
-        || (!row_active(execution, "S3-009")
-            && !row_active(execution, "XPR-006"))) return;
+        || (!xrd_conform_row_active(execution, "S3-009")
+            && !xrd_conform_row_active(execution, "XPR-006"))) return;
     if (brix_conform_scratch_path(execution->run->config.scratch,
             "brix-conform-s3-readonly", scratch.path,
             sizeof(scratch.path)) != 0) return;
@@ -361,14 +354,14 @@ xrd_conform_finalize_s3_readonly(xrd_conform_execution *execution)
 
     if (!readonly_clause_selected(execution)) {
         for (index = 0; index < sizeof(ids) / sizeof(ids[0]); index++)
-            if (row_active(execution, ids[index]))
+            if (xrd_conform_row_active(execution, ids[index]))
                 xrd_conform_result_set(execution, ids[index],
                     BRIX_CONFORM_VERDICT_SKIPPED,
                     "fixture-required:paired-root-s3-readonly", NULL, NULL);
         return;
     }
     for (index = 0; index < sizeof(ids) / sizeof(ids[0]); index++)
-        if (row_active(execution, ids[index]))
+        if (xrd_conform_row_active(execution, ids[index]))
             xrd_conform_result_set(execution, ids[index],
                 root > 0 || s3 > 0 ? BRIX_CONFORM_VERDICT_DIVERGENT
                     : root < 0 && s3 < 0 ? BRIX_CONFORM_VERDICT_CONFORMANT

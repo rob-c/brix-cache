@@ -100,6 +100,7 @@ esac
 BRIX_PLATFORM_WINDOWS=0
 BRIX_PLATFORM_LINUX=0
 BRIX_PLATFORM_DARWIN=0
+BRIX_PLATFORM_FREEBSD=0
 case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*|Windows_NT)
         BRIX_PLATFORM_WINDOWS=1
@@ -113,10 +114,13 @@ case "$(uname -s)" in
         BRIX_PLATFORM_DARWIN=1
         echo " + xrootd: macOS platform detected"
         ;;
-    *)
-        echo " + xrootd: Unknown platform ($(uname -s)), assuming POSIX-compatible"
-        BRIX_PLATFORM_LINUX=1
+    FreeBSD)
+        BRIX_PLATFORM_FREEBSD=1
+        echo " + xrootd: FreeBSD platform detected"
         ;;
+    *)
+        echo "ERROR: unsupported platform $(uname -s); no safe PAL selected" >&2
+        exit 1 ;;
 esac
 
 # macOS-specific configuration
@@ -183,6 +187,8 @@ else
         CFLAGS="$CFLAGS -DBRIX_PLATFORM_LINUX=1 -DBRIX_PLATFORM_DARWIN=0 -DBRIX_PLATFORM_HOST=linux"
     elif [ "$BRIX_PLATFORM_DARWIN" = "1" ]; then
         CFLAGS="$CFLAGS -DBRIX_PLATFORM_LINUX=0 -DBRIX_PLATFORM_DARWIN=1 -DBRIX_PLATFORM_HOST=darwin"
+    elif [ "$BRIX_PLATFORM_FREEBSD" = "1" ]; then
+        CFLAGS="$CFLAGS -DBRIX_PLATFORM_LINUX=0 -DBRIX_PLATFORM_DARWIN=0 -DBRIX_PLATFORM_FREEBSD=1 -DBRIX_PLATFORM_HOST=freebsd"
     fi
 fi
 
@@ -603,37 +609,44 @@ fi
 # BRIX_WITHOUT_SQLITE=1 to force-disable even when sqlite3 is present.  The link
 # flag MUST go in ngx_module_libs (BRIX_SQLITE_LIBS, appended below), NOT only
 # CORE_LIBS, or dlopen of the DYNAMIC module .so fails (rpm_packaging_three_packages).
-BRIX_SQLITE_LIBS=""
+BRIX_SQLITE_CFLAGS=""
+BRIX_SQLITE_LIBS="-lsqlite3"
+if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists sqlite3; then
+    BRIX_SQLITE_CFLAGS="$(pkg-config --cflags sqlite3)"
+    BRIX_SQLITE_LIBS="$(pkg-config --libs sqlite3)"
+fi
 if [ "${BRIX_WITHOUT_SQLITE:-}" != "1" ] \
    && printf '#include <sqlite3.h>\nint main(void){sqlite3 *d; return sqlite3_open(":memory:", &d) != 0;}\n' > "$NGX_AUTOTEST.c" 2>/dev/null \
-   && $CC $CC_TEST_FLAGS -o "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" -lsqlite3 >/dev/null 2>&1; then
+   && $CC $CC_TEST_FLAGS $BRIX_SQLITE_CFLAGS -o "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" $BRIX_SQLITE_LIBS >/dev/null 2>&1; then
     rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c"
-    CFLAGS="$CFLAGS -DBRIX_HAVE_SQLITE=1"
-    BRIX_SQLITE_LIBS="-lsqlite3"
+    CFLAGS="$CFLAGS $BRIX_SQLITE_CFLAGS -DBRIX_HAVE_SQLITE=1"
     echo " + xrootd storage backend: pblock (sqlite) enabled"
 else
+    BRIX_SQLITE_LIBS=""
     rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" 2>/dev/null
     echo " + xrootd storage backend: pblock (sqlite) disabled (install libsqlite3-devel to enable)"
 fi
 
-# OpenSSL >= 3.0.0 is REQUIRED.
-#   Licensing: OpenSSL 3.x is Apache-2.0, which is compatible with this project's
-#   AGPL-3.0 license.  OpenSSL <= 1.1.1 ships under the legacy OpenSSL/SSLeay dual
-#   license, whose advertising clause is INCOMPATIBLE with the GPL/AGPL.
-#   Technical: the module also relies on OpenSSL 3.x EVP_MAC / provider APIs.
-# Best-effort version gate: hard-error when a sub-3.0 OpenSSL is detected; warn
-# (do not block) when the version cannot be determined here, e.g. a custom
+# OpenSSL 3+ remains the release default. The 1.1.1 compatibility backend is
+# explicitly opt-in while distribution licensing is unresolved. A wrapper does
+# not itself change the licensing of the resulting linked executable.
+# Best-effort version gate: reject versions below 1.1.1 and require explicit
+# opt-in for 1.1.1; warn when the version cannot be determined, e.g. a custom
 # --with-openssl=<dir> build the add-on config cannot inspect.
 _xrd_ssl_verified=""
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists openssl; then
     if pkg-config --atleast-version=3.0.0 openssl; then
         _xrd_ssl_verified=yes
         echo " + xrootd: OpenSSL $(pkg-config --modversion openssl) (>= 3.0.0, Apache-2.0) OK"
+    elif pkg-config --atleast-version=1.1.1 openssl && [ "${BRIX_OPENSSL111_COMPAT:-0}" = 1 ]; then
+        _xrd_ssl_verified=yes
+        echo "WARNING: OpenSSL 1.1.1 compatibility build; legacy-library distribution licensing requires review." >&2
     else
         echo "ERROR: nginx-xrootd requires OpenSSL >= 3.0.0 (found" \
              "$(pkg-config --modversion openssl)). OpenSSL <= 1.1.1 uses the" \
              "OpenSSL/SSLeay license, which is incompatible with this project's" \
-             "AGPL-3.0 license, and lacks the OpenSSL 3.x APIs this module uses." >&2
+             "AGPL-3.0 licensing policy. For local 1.1.1 validation only, explicitly" \
+             "set BRIX_OPENSSL111_COMPAT=1; OpenSSL < 1.1.1 remains unsupported." >&2
         exit 1
     fi
 elif command -v openssl >/dev/null 2>&1; then
@@ -642,19 +655,23 @@ elif command -v openssl >/dev/null 2>&1; then
         3.*|[4-9].*|[1-9][0-9].*)
             _xrd_ssl_verified=yes
             echo " + xrootd: OpenSSL $_xrd_ssl_ver (>= 3.0.0, Apache-2.0) OK" ;;
+        1.1.1*)
+            if [ "${BRIX_OPENSSL111_COMPAT:-0}" != 1 ]; then
+                echo "ERROR: OpenSSL 1.1.1 requires explicit BRIX_OPENSSL111_COMPAT=1 for local validation." >&2
+                exit 1
+            fi
+            _xrd_ssl_verified=yes
+            echo "WARNING: OpenSSL 1.1.1 compatibility build; legacy-library distribution licensing requires review." >&2 ;;
         *)
-            echo "ERROR: nginx-xrootd requires OpenSSL >= 3.0.0 (found" \
-                 "${_xrd_ssl_ver:-unknown}). OpenSSL <= 1.1.1 uses the" \
-                 "OpenSSL/SSLeay license, incompatible with AGPL-3.0, and lacks" \
-                 "the OpenSSL 3.x APIs this module uses." >&2
+            echo "ERROR: unsupported OpenSSL version ${_xrd_ssl_ver:-unknown}." \
+                 "Use OpenSSL >= 3.0.0 by default, or explicitly opt into" \
+                 "local 1.1.1 compatibility validation; older versions are unsupported." >&2
             exit 1 ;;
     esac
 fi
 if [ -z "$_xrd_ssl_verified" ]; then
-    echo "WARNING: could not verify the OpenSSL version (no pkg-config 'openssl'" \
-         "module and no 'openssl' CLI). nginx-xrootd REQUIRES OpenSSL >= 3.0.0" \
-         "(Apache-2.0); building against OpenSSL <= 1.1.1 is unsupported and" \
-         "AGPL-incompatible." >&2
+    echo "WARNING: could not verify OpenSSL metadata; the selected headers must" \
+         "provide OpenSSL >= 1.1.1. Legacy-library distribution licensing requires review." >&2
 fi
 
 ngx_addon_name=ngx_stream_brix_module
@@ -666,7 +683,13 @@ ngx_addon_name=ngx_stream_brix_module
 # while src/core/ngx_brix_module.h includes it, so a fix to the confined-path
 # join rebuilt nothing at all and the change appeared to have no effect.  Name a
 # header here when you add one that is included beyond its own directory.
-ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
+ngx_brix_stream_deps="$ngx_addon_dir/src/auth/crypto/key_compat.h \
+                        $ngx_addon_dir/src/auth/crypto/name_compat.h \
+                        $ngx_addon_dir/src/auth/crypto/jwk_compat.h \
+                        $ngx_addon_dir/src/auth/crypto/tls_compat.h \
+                        $ngx_addon_dir/src/auth/crypto/store_compat.h \
+                        $ngx_addon_dir/src/platform/posix/path_walk.inc \
+                        $ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/core/ident.h \
                         $ngx_addon_dir/src/auth/authz/acc/privs.h \
                         $ngx_addon_dir/src/auth/authz/acc/acc.h \
@@ -913,6 +936,9 @@ $ngx_addon_dir/src/fs/vfs/vfs_deleg.h \
                         $ngx_addon_dir/src/core/compat/digest_header.h \
                         $ngx_addon_dir/src/core/compat/fs_walk.h \
                         $ngx_addon_dir/src/core/compat/lock_record.h \
+                        $ngx_addon_dir/src/core/compat/lock_key.h \
+                        $ngx_addon_dir/src/core/compat/register_variables.inc \
+                        $ngx_addon_dir/src/fs/backend/posix/lock_store.h \
                         $ngx_addon_dir/src/core/compat/fs_usage.h \
                         $ngx_addon_dir/src/core/http/http_body.h \
                         $ngx_addon_dir/src/core/http/http_conditionals.h \
@@ -957,6 +983,7 @@ $ngx_addon_dir/src/fs/vfs/vfs_deleg.h \
                         $ngx_addon_dir/src/net/proxy/proxy.h \
                         $ngx_addon_dir/src/net/proxy/proxy_internal.h \
                         $ngx_addon_dir/src/net/cms/cms_internal.h \
+                        $ngx_addon_dir/src/net/cms/login_wire.h \
                         $ngx_addon_dir/src/net/cms/frame_io.h \
                         $ngx_addon_dir/src/net/cms/router.h \
                         $ngx_addon_dir/src/net/cms/rrdata.h \
@@ -1122,6 +1149,22 @@ elif [ "$BRIX_PLATFORM_DARWIN" = "1" ]; then
     $ngx_addon_dir/src/platform/darwin/cpu_topology.c \
     $ngx_addon_dir/src/platform/darwin/apple_silicon.c \
     $ngx_addon_dir/src/platform/darwin/clonefile_optimized.c \
+    "
+elif [ "$BRIX_PLATFORM_FREEBSD" = "1" ]; then
+    brix_shared_platform_srcs="$ngx_addon_dir/shared/cvmfs/platform/platform.c"
+    brix_platform_srcs="\
+    $ngx_addon_dir/src/platform/freebsd/posix_wrapper.c \
+    $ngx_addon_dir/src/platform/freebsd/host_info.c \
+    $ngx_addon_dir/src/platform/freebsd/path_wrapper.c \
+    $ngx_addon_dir/src/platform/freebsd/process_wrapper.c \
+    $ngx_addon_dir/src/platform/freebsd/priv_wrapper.c \
+    $ngx_addon_dir/src/platform/freebsd/storage_wrapper.c \
+    $ngx_addon_dir/src/platform/freebsd/xattr_wrapper.c \
+    $ngx_addon_dir/src/platform/darwin/event_wrapper.c \
+    $ngx_addon_dir/src/platform/darwin/fs_watcher.c \
+    $ngx_addon_dir/src/platform/darwin/aio_wrapper.c \
+    $ngx_addon_dir/src/platform/darwin/copy_range.c \
+    $ngx_addon_dir/src/platform/darwin/security_wrapper.c \
     "
 elif [ "$BRIX_PLATFORM_WINDOWS" = "1" ]; then
     brix_platform_srcs="\
@@ -1301,6 +1344,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/vfs/vfs_mkdir.c \
     $ngx_addon_dir/src/fs/vfs/vfs_sync.c \
     $ngx_addon_dir/src/fs/vfs/vfs_xattr.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_lock_store.c \
     $ngx_addon_dir/src/fs/vfs/vfs_copy.c \
     $ngx_addon_dir/src/fs/vfs/vfs_staged.c \
     $ngx_addon_dir/src/fs/vfs/vfs_cred.c \
@@ -1333,6 +1377,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/posix/sd_posix.c \
     $ngx_addon_dir/src/fs/backend/posix/sd_posix_io.c \
     $ngx_addon_dir/src/fs/backend/posix/sd_posix_ns.c \
+    $ngx_addon_dir/src/fs/backend/posix/lock_store.c \
     $ngx_addon_dir/src/fs/backend/posix/sd_posix_staged.c \
     $ngx_addon_dir/src/fs/backend/posix/sd_posix_dedup.c \
     $ngx_addon_dir/src/fs/backend/block/sd_block.c \
@@ -1400,6 +1445,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/remote/sd_remote_dir.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote_enum.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote_meta.c \
+    $ngx_addon_dir/src/fs/backend/remote/sd_remote_xattr_read.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote_xattr.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote_write.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote_checksum.c \
@@ -1650,6 +1696,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/token/aud_match.c \
     $ngx_addon_dir/src/protocols/root/fattr/helpers.c \
     $ngx_addon_dir/src/protocols/root/fattr/storage.c \
+    $ngx_addon_dir/src/protocols/root/fattr/storage_keys.c \
     $ngx_addon_dir/src/protocols/root/fattr/dispatch.c \
     $ngx_addon_dir/src/protocols/root/fattr/get.c \
     $ngx_addon_dir/src/protocols/root/fattr/set.c \
@@ -1705,6 +1752,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/impersonate/idmap_denylist.c \
     $ngx_addon_dir/src/auth/impersonate/broker.c \
     $ngx_addon_dir/src/auth/impersonate/broker_creds.c \
+    $ngx_addon_dir/src/auth/impersonate/broker_fixed.c \
+    $ngx_addon_dir/src/auth/impersonate/broker_fixed_spawn.c \
     $ngx_addon_dir/src/auth/impersonate/broker_ops.c \
     $ngx_addon_dir/src/auth/impersonate/broker_ops_ns.c \
     $ngx_addon_dir/src/auth/impersonate/client.c \
@@ -1978,6 +2027,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/read/open_resolved_file_dispatch.c \
     $ngx_addon_dir/src/protocols/root/read/open_resolved_file_finalize.c \
     $ngx_addon_dir/src/protocols/root/read/open_request.c \
+    $ngx_addon_dir/src/protocols/root/read/open_request_options.c \
     $ngx_addon_dir/src/protocols/root/read/open_request_opaque.c \
     $ngx_addon_dir/src/protocols/root/read/open_request_resolve.c \
     $ngx_addon_dir/src/protocols/root/read/open_tpc.c \
@@ -2103,7 +2153,12 @@ ngx_module_deps="$ngx_brix_stream_deps \
 # jansson (token/JWT JSON), libxml2 (compat XML helpers), krb5 (krb5 auth).
 # Loaded first (RTLD_GLOBAL) per mod-xrootd.conf, so its symbols also back the
 # thin HTTP modules that share this code.
-ngx_module_libs="-lssl -lcrypto $BRIX_JANSSON_LIBS $BRIX_XML2_LIBS $BRIX_KRB5_LIBS $BRIX_CODEC_LIBS $BRIX_URING_LIBS $BRIX_CEPH_LIBS $BRIX_SQLITE_LIBS $BRIX_SECCOMP_LIBS"
+BRIX_EXECINFO_LIBS=""
+if [ "$BRIX_PLATFORM_FREEBSD" = "1" ]; then
+    # backtrace(3) is a separate base-system library on FreeBSD.
+    BRIX_EXECINFO_LIBS="-lexecinfo"
+fi
+ngx_module_libs="-lssl -lcrypto $BRIX_EXECINFO_LIBS $BRIX_JANSSON_LIBS $BRIX_XML2_LIBS $BRIX_KRB5_LIBS $BRIX_CODEC_LIBS $BRIX_URING_LIBS $BRIX_CEPH_LIBS $BRIX_SQLITE_LIBS $BRIX_SECCOMP_LIBS"
 CORE_LIBS="$CORE_LIBS -lssl -lcrypto"
 xrd_emit_module
 
@@ -2447,6 +2502,7 @@ $ngx_addon_dir/src/protocols/cvmfs/cvmfs_module_build.c \
                  $ngx_addon_dir/src/protocols/cvmfs/secure_x509.c \
                  $ngx_addon_dir/src/protocols/cvmfs/bundle.c \
                  $ngx_addon_dir/src/protocols/cvmfs/dict.c \
+                 $ngx_addon_dir/src/protocols/cvmfs/coding.c \
                  $ngx_addon_dir/src/protocols/cvmfs/scrub.c \
                  $ngx_addon_dir/src/protocols/cvmfs/delta.c
                  $ngx_addon_dir/src/protocols/cvmfs/learn.c
@@ -2455,6 +2511,7 @@ $ngx_addon_dir/src/protocols/cvmfs/cvmfs_module_build.c \
                  $ngx_addon_dir/src/protocols/cvmfs/virtual.c \
                  $ngx_addon_dir/src/protocols/cvmfs/attest.c"
 ngx_module_deps="$ngx_addon_dir/src/protocols/cvmfs/cvmfs.h \
+                 $ngx_addon_dir/src/protocols/cvmfs/coding.h \
                  $ngx_addon_dir/src/protocols/cvmfs/directives_resilience.h \
                  $ngx_addon_dir/src/protocols/cvmfs/directives_core.h \
                  $ngx_addon_dir/shared/cvmfs/grammar/classify.h \

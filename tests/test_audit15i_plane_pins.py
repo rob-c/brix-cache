@@ -58,6 +58,7 @@ from _test_phase25_ratelimit_helpers import (
 from settings import BIND_HOST, NGINX_BIN
 from brix_suite.nginx_tools import _nginx_bin
 from cmdscripts.live_common import _configured_nginx_modules
+from lib_py.util import linked_libraries
 
 pytestmark = pytest.mark.skipif(not os.path.exists(NGINX_BIN),
                                 reason="nginx binary not built")
@@ -134,13 +135,10 @@ def _links_liburing():
 
 
 def _object_links_liburing(path):
-    try:
-        out = subprocess.run(["ldd", str(path)], capture_output=True,
-                             text=True, timeout=30)
-    except (OSError, subprocess.SubprocessError):
-        pytest.skip("ldd unavailable; cannot classify the binary's ring support")
-    return out.returncode == 0 and re.search(
-        r"(?m)^\s*liburing\.so(?:\.\d+)*\s+=>\s+/", out.stdout or "") is not None
+    output = linked_libraries(str(path), check=True)
+    return re.search(
+        r"(?m)^\s*(?:liburing\.so(?:\.\d+)*\s+=>\s+/|/\S*/liburing(?:\.\d+)*\.dylib)",
+        output) is not None
 
 
 def _assert_uring_demand(rc, out, linked):
@@ -178,20 +176,24 @@ def test_uring_demand_diagnostic_contract(linked, rc, out, rejected):
     ("liburing.so.2 => /usr/lib64/liburing.so.2 (0x1234)", 1, False),
 ])
 def test_uring_dependency_uses_selected_module(monkeypatch, module_output, returncode, expected):
-    from types import SimpleNamespace
-
     calls = []
 
-    def dependencies(argv, **kwargs):
-        calls.append(argv)
-        output = module_output if argv[1] == "selected-module" else ""
-        return SimpleNamespace(returncode=returncode, stdout=output)
+    def dependencies(path, *, check):
+        assert check, "capability classification must require inspector evidence"
+        calls.append(path)
+        if path == "selected-module" and returncode:
+            raise subprocess.CalledProcessError(returncode, ["inspector", path])
+        return module_output if path == "selected-module" else "libc => /lib/libc.so.6"
 
     monkeypatch.setattr(f"{__name__}._nginx_bin", lambda: "selected-nginx")
     monkeypatch.setattr(f"{__name__}._configured_nginx_modules", lambda: ["selected-module"])
-    monkeypatch.setattr(subprocess, "run", dependencies)
-    assert _links_liburing() is expected
-    assert calls == [["ldd", "selected-nginx"], ["ldd", "selected-module"]]
+    monkeypatch.setattr(f"{__name__}.linked_libraries", dependencies)
+    if returncode:
+        with pytest.raises(subprocess.CalledProcessError):
+            _links_liburing()
+    else:
+        assert _links_liburing() is expected
+    assert calls == ["selected-nginx", "selected-module"]
 
 
 # --------------------------------------------------------------------------- #

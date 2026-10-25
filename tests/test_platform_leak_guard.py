@@ -43,6 +43,7 @@ def _hits(root: Path) -> dict[str, list[tuple[int, str]]]:
     ("src/platform/windows/xattr.c", "#ifdef _WIN32\n#include <windows.h>\n#endif"),
     ("client/lib/platform/darwin/epoll.c", "#ifdef __APPLE__\n#include <sys/event.h>\n#endif"),
     ("client/lib/platform/linux/host.h", "#include <sys/epoll.h>"),
+    ("src/platform/freebsd/host_posix.h", "#ifdef __FreeBSD__\n#include <sys/extattr.h>\n#endif"),
     ("shared/cvmfs/platform/platform.c", "#ifdef __linux__\nint y;\n#endif"),
 ])
 def test_owner_directories_may_branch_on_the_host(tree: Path, path: str, body: str) -> None:
@@ -76,6 +77,8 @@ def test_unit_tests_are_outside_the_seam(tree: Path) -> None:
 @pytest.mark.parametrize("path,body,token", [
     ("src/fs/path/beneath.c", "#if defined(__APPLE__) && defined(__MACH__)\n#endif", "__APPLE__"),
     ("src/core/config/shared_conf.h", "#ifdef __linux__\n#endif", "__linux__"),
+    ("src/core/config/shared_conf.h", "#if __FreeBSD_version > 1500000\n#endif", "__FreeBSD_version"),
+    ("src/fs/path/beneath.c", "#include <sys/procctl.h>", "<sys/procctl.h>"),
     ("src/net/proxy/events_read.c", "#if BRIX_PLATFORM_DARWIN\n#endif", "BRIX_PLATFORM_DARWIN"),
     ("src/fs/cache/cinfo.c", "#include <sys/xattr.h>", "<sys/xattr.h>"),
     ("src/fs/backend/posix/sd_posix.c", "#include <linux/fs.h>", "<linux/fs.h>"),
@@ -177,6 +180,7 @@ def test_live_tree_has_no_platform_branch_outside_the_pal() -> None:
 
 def test_owner_roots_are_the_pal_host_directories() -> None:
     expected = {Path("src/platform/linux"), Path("src/platform/darwin"),
+                Path("src/platform/freebsd"), Path("client/lib/platform/freebsd"),
                 Path("src/platform/windows"), Path("client/lib/platform/linux"),
                 Path("client/lib/platform/darwin"), Path("shared/cvmfs/platform")}
     assert set(GUARD.OWNER_ROOTS) == expected

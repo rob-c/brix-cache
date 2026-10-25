@@ -43,6 +43,13 @@ scratch_leaf_valid(const char *leaf)
     }
 }
 
+static int
+scratch_control_args_valid(const char *leaf, unsigned char control)
+{
+    return leaf != NULL && leaf[0] != '\0' && leaf[0] != '/'
+        && (control < 0x20 || control == 0x7f);
+}
+
 /* Validate the one deliberately hostile leaf shape used by DIR-004.  This is
  * deliberately separate from scratch_leaf_valid(): ordinary callers remain
  * unable to mint control-bearing mutation authority. */
@@ -53,8 +60,7 @@ scratch_control_leaf_valid(const char *leaf, unsigned char control)
     const char *cursor;
     size_t controls = 0;
 
-    if (leaf == NULL || leaf[0] == '\0' || leaf[0] == '/'
-        || (control >= 0x20 && control != 0x7f)) return 0;
+    if (!scratch_control_args_valid(leaf, control)) return 0;
     component = leaf;
     cursor = leaf;
     for (;;) {

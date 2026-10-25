@@ -74,7 +74,7 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
 | `move.c` | RFC 4918 MOVE: confined `rename(2)` via `brix_ns_rename`; collection moves offloaded to thread pool; Overwrite:F → 412, self-move → 403, non-empty dest dir → 409. |
 | `propfind.c` | RFC 4918 PROPFIND entry/dispatch: request + Depth parse, prop-name→bit, body assembly. *(Phase 38: split.)* |
 | `propfind_props.c` | The per-resource property emitter `propfind_entry` + RFC 3744 ACL property append. *(Phase 38 split of `propfind.c`.)* |
-| `propfind_walk.c` | Depth traversal `propfind_walk` + the `propfind_do` Multi-Status orchestration. *(Phase 38 split of `propfind.c`.)* |
+| `propfind_walk.c` | Pool-owned iterative depth traversal `propfind_walk` + `propfind_do` Multi-Status orchestration. Directory depth does not consume the worker call stack; VFS confinement, per-child read checks, symlink refusal, entry caps and handle cleanup remain enforced. |
 | `propfind_internal.h` | Private split contract shared by `propfind*.c`. |
 | `lock.c` | RFC 4918 LOCK/UNLOCK; `webdav_check_locks` (ancestor walk) and `webdav_check_locks_tree` (+descendant scan); lock token UUID; lockdiscovery/supportedlock XML; `webdav_lock_startup_sweep`. |
 | `search.c` | RFC 5323 DAV:basicsearch — conservative subset: scope walk + optional `DAV:contains`/`literal` displayname substring filter. |
@@ -290,13 +290,18 @@ logic (SigV4 ≠ WLCG token).
   (`put.c`, `copy.c`, `move.c`, `tpc_thread.c`). When no thread pool is
   configured these fall back to the synchronous path.
 - **Locks are xattr-based, not SHM.** A lock is one xattr on the resource
-  (`prop_xattr.c`), written through the VFS xattr seam
-  (`brix_vfs_setxattr` with `XATTR_CREATE`) — kernel-atomic cross-worker
-  creation (EEXIST → 423), confined and impersonation-aware. Expiry cleanup is
-  lazy on next access. Lock checks walk path→root in O(depth); collection
+  (`prop_xattr.c`). Local POSIX creation, refresh and removal use
+  `brix_vfs_lock_store_update`: a confined inode descriptor, nonblocking kernel
+  lock and exact expected-record comparison before xattr mutation. Competing
+  creation is refused with 423; stale refresh/delete cannot replace or remove
+  a successor's record. Explicit POSIX instances retain their translated key
+  and backend-owned root. Non-POSIX/broker-owned operations retain the native,
+  credential-aware VFS xattr path; unsupported atomic semantics fail closed.
+  Expiry cleanup is lazy on next access and never reaps a successor's lock-null
+  resource after a failed comparison. Lock checks walk path→root in O(depth); collection
   mutations also scan descendants (`webdav_check_locks_tree`). Locks **survive
   restart** unless `brix_webdav_lock_startup_sweep on` clears them (the sweep
-  removes each persisted lock xattr via `brix_vfs_removexattr`; RFC 4918 §10.1
+  removes a valid persisted record through the same compare-and-remove path; RFC 4918 §10.1
   ephemeral semantics). (Note: an earlier SHM lock table with a 1024-lock cap no longer
   exists — the xattr design is the current, correct implementation.)
 - **Recursive lock checks on collections** (`lock.c`): DELETE/COPY/MOVE on a

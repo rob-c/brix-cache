@@ -91,6 +91,22 @@ def ensure_test_pki() -> bool:
     return True
 
 
+def _ca_certificate_command(key: str, certificate: str) -> list[str]:
+    """Select fixture extensions exactly once, independently of distro req defaults.
+
+    OpenSSL 1.1.1 appends -addext values to x509_extensions from its request
+    configuration, creating invalid duplicate CA/SKI/AKI extensions. This
+    explicit extension-free request config changes only certificate generation,
+    not server verification or the parent process's OpenSSL policy.
+    """
+    config = Path(__file__).with_name("pki-ca.cnf")
+    return ["openssl", "req", "-new", "-x509", "-config", str(config),
+        "-key", key, "-out", certificate, "-days", "3650", "-sha256",
+        "-subj", CA_SUBJECT, "-addext", "basicConstraints=critical,CA:TRUE",
+        "-addext", "subjectKeyIdentifier=hash", "-addext", "authorityKeyIdentifier=keyid:always",
+        "-addext", "keyUsage=critical,keyCertSign,cRLSign"]
+
+
 def blitz_test_pki() -> None:
     """Replace the local test PKI with a clean, canonical layout."""
     pki_dir = Path(PKI_DIR)
@@ -103,31 +119,7 @@ def blitz_test_pki() -> None:
     # CA certificate, hash links, and signing-policy files.
     _run(["openssl", "genrsa", "-out", CA_KEY, "4096"])
     os.chmod(CA_KEY, 0o400)
-    _run(
-        [
-            "openssl",
-            "req",
-            "-new",
-            "-x509",
-            "-key",
-            CA_KEY,
-            "-out",
-            CA_CERT,
-            "-days",
-            "3650",
-            "-sha256",
-            "-subj",
-            CA_SUBJECT,
-            "-addext",
-            "basicConstraints=critical,CA:TRUE",
-            "-addext",
-            "subjectKeyIdentifier=hash",
-            "-addext",
-            "authorityKeyIdentifier=keyid:always",
-            "-addext",
-            "keyUsage=critical,keyCertSign,cRLSign",
-        ]
-    )
+    _run(_ca_certificate_command(CA_KEY, CA_CERT))
 
     new_hash = _run(["openssl", "x509", "-in", CA_CERT, "-noout", "-subject_hash"])
     old_hash = _run(["openssl", "x509", "-in", CA_CERT, "-noout", "-subject_hash_old"])

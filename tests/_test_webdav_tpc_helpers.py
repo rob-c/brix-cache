@@ -228,6 +228,36 @@ def _wait_for_file(path: Path, content: bytes, timeout=10):
     return False
 
 
+def _prepare_tpc_roots(data_root: Path) -> dict[str, Path]:
+    roots = _expression_1(data_root)
+    for root in roots.values():
+        _guard_tpc_nginx_1(root)
+        root.mkdir(parents=True, exist_ok=True)
+        if os.geteuid() == 0:
+            # The standing fleet was permissioned before this session fixture
+            # resets its data roots.  Re-open the disposable replacements for
+            # the de-escalated nginx worker; protocol read-only policy, not a
+            # root-owned directory accident, remains the negative-test gate.
+            root.chmod(0o777)
+    return roots
+
+
+def _wait_tpc_port(port: int) -> None:
+    for _ in range(40):
+        try:
+            result = _curl(
+                "-X", "OPTIONS", f"https://{HOST}:{port}/", "-o", "/dev/null",
+                timeout=3,
+            )
+        except subprocess.TimeoutExpired:
+            time.sleep(0.2)
+            continue
+        if result.returncode == 0:
+            return
+        time.sleep(0.2)
+    _guard_tpc_nginx_2(False, port)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def tpc_nginx():
     _require_common_tools()
@@ -235,10 +265,7 @@ def tpc_nginx():
     workdir = Path(TEST_ROOT) / "dedicated" / "webdav-tpc"
     data_root = Path(TEST_ROOT) / "data-webdav-tpc"
 
-    roots = _expression_1(data_root)
-    for root in roots.values():
-        _guard_tpc_nginx_1(root)
-        root.mkdir(parents=True, exist_ok=True)
+    roots = _prepare_tpc_roots(data_root)
 
     ports = {
         "source_required": WEBDAV_TPC_SOURCE_REQUIRED_PORT,
@@ -251,25 +278,7 @@ def tpc_nginx():
     }
 
     for port in ports.values():
-        ok = False
-        for _ in range(40):
-            try:
-                result = _curl(
-                    "-X",
-                    "OPTIONS",
-                    f"https://{HOST}:{port}/",
-                    "-o",
-                    "/dev/null",
-                    timeout=3,
-                )
-            except subprocess.TimeoutExpired:
-                time.sleep(0.2)
-                continue
-            if result.returncode == 0:
-                ok = True
-                break
-            time.sleep(0.2)
-        _guard_tpc_nginx_2(ok, port)
+        _wait_tpc_port(port)
 
     yield TpcNginx(
         workdir=workdir,

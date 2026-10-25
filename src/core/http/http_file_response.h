@@ -10,6 +10,11 @@
 
 #include "http_headers.h"
 
+/* After sending headers, output a prepared chain with per-file PAL safety.
+ * Unsafe files use nginx's request-local bounded copy filter, never kernel
+ * sendfile. Other requests and connections retain their configured policy. */
+ngx_int_t brix_http_output_file_chain(ngx_http_request_t *r, ngx_chain_t *chain);
+
 /*
  * brix_http_set_header - set an HTTP response header with a string value.
  *

@@ -23,7 +23,7 @@ class TestAioRead:
         content = _pattern(size, 3, 7)
         _upload(ANON_URL, "aio-large.bin", content)
 
-        result = _read_file(ANON_URL, "aio-large.bin")
+        result = _read_file(ANON_URL, "aio-large.bin", size)
         assert len(result) == size
         assert result == content
 
@@ -64,7 +64,7 @@ class TestAioRead:
         content = _pattern(size, 17, 5)
         _upload(ANON_URL, "aio-md5.bin", content)
 
-        result = _read_file(ANON_URL, "aio-md5.bin")
+        result = _read_file(ANON_URL, "aio-md5.bin", size)
         assert hashlib.md5(result).hexdigest() == hashlib.md5(content).hexdigest()
 
 
@@ -85,44 +85,42 @@ class TestAioWrite:
         content = _pattern(size, 5, 9)
         _upload(ANON_URL, "aio-write.bin", content)
 
-        result = _read_file(ANON_URL, "aio-write.bin")
+        result = _read_file(ANON_URL, "aio-write.bin", size)
         assert len(result) == size
         assert result == content
 
-    def test_large_write_at_offset(self):
+    def test_large_write_at_offset(self, aio_write_target):
         """Writing 2 MiB at offset 8 MiB in a 10 MiB file must not corrupt head."""
         total_size = 10 * 1024 * 1024
         head = _pattern(8 * 1024 * 1024, 3)
         tail_data = _pattern(2 * 1024 * 1024, 7, 1)
 
-        f = _open_wr(ANON_URL, "aio-write-offset.bin")
-        status, _ = f.write(head)
-        assert status.ok
-        status, _ = f.write(tail_data, offset=8 * 1024 * 1024)
-        assert status.ok, f"write at offset failed: {status.message}"
-        f.close()
+        with closing(_open_wr(ANON_URL, aio_write_target)) as stream:
+            status, _ = stream.write(head)
+            assert status.ok
+            status, _ = stream.write(tail_data, offset=8 * 1024 * 1024)
+            assert status.ok, f"write at offset failed: {status.message}"
 
-        result = _read_file(ANON_URL, "aio-write-offset.bin")
+        result = _read_file(ANON_URL, aio_write_target, total_size)
         expected = head + tail_data
         assert len(result) == total_size
         assert result == expected
 
-    def test_large_write_multiple_chunks(self):
+    def test_large_write_multiple_chunks(self, aio_write_target):
         """Writing 20 MiB in 5 chunks must produce identical file."""
         size = 20 * 1024 * 1024
         content = _pattern(size, 13, 2)
 
-        f = _open_wr(ANON_URL, "aio-write-chunks.bin")
         chunk_size = 4 * 1024 * 1024
-        for i in range(5):
-            start = i * chunk_size
-            end = min(start + chunk_size, size)
-            chunk = content[start:end]
-            status, _ = f.write(chunk, offset=start)
-            assert status.ok, f"chunk {i} write failed: {status.message}"
-        f.close()
+        with closing(_open_wr(ANON_URL, aio_write_target)) as stream:
+            for i in range(5):
+                start = i * chunk_size
+                end = min(start + chunk_size, size)
+                chunk = content[start:end]
+                status, _ = stream.write(chunk, offset=start)
+                assert status.ok, f"chunk {i} write failed: {status.message}"
 
-        result = _read_file(ANON_URL, "aio-write-chunks.bin")
+        result = _read_file(ANON_URL, aio_write_target, size)
         assert result == content
 
 

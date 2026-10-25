@@ -13,7 +13,6 @@
 #include "core/types/tunables.h"     /* BRIX_GSI_KEYPOOL_* */
 
 #include <openssl/evp.h>
-#include <openssl/params.h>
 #include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /*

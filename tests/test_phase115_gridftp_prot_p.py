@@ -104,6 +104,15 @@ class _ProtLab:
             path = tmp / key.lower()
             path.mkdir()
             exports[key] = str(path)
+        if os.geteuid() == 0:
+            # The module always de-escalates a root master.  Make this
+            # disposable lab traversable and its write fronts writable by the
+            # worker instead of depending on an earlier suite lane to have
+            # widened pytest's root-private temporary tree.
+            tmp.chmod(0o777)
+            root.chmod(0o777)
+            for path in exports.values():
+                Path(path).chmod(0o777)
         origin = harness.start(NginxInstanceSpec(
             name="lc-p115-prot-p-origin",
             template="nginx_lc_gsiftp_prot_p_origin.conf",

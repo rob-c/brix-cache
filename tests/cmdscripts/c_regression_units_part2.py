@@ -9,15 +9,16 @@ import shutil
 import subprocess
 import tempfile
 
-from cmdscripts.compile_run import REPO_ROOT, pal_host_sources, result, run
+from cmdscripts.compile_run import (REPO_ROOT, confined_open_link_args,
+                                    pal_host_sources, result, run)
 from cmdscripts.compile_run import LZ4_LINK_FLAGS
 
 
 DEFAULT_NGX_SRC = Path(os.environ.get(
-    "NGX_SRC",
+    "TEST_NGINX_SRC", os.environ.get("NGX_SRC", os.environ.get("NGINX_SRC",
     "/tmp/nginx-1.28.3" if Path("/tmp/nginx-1.28.3/src/core/ngx_config.h").exists()
     else "/tmp/nginx-1.24.0",
-))
+))))
 TEST_C = REPO_ROOT / "tests" / "c"
 
 
@@ -100,14 +101,16 @@ def service_publish(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, 
             "-fsanitize=address",
             "-fno-omit-frame-pointer",
             "-Wall",
-            *_nginx_includes(ngx_src),
+            *_nginx_includes(ngx_src, http=True, stream=True),
             str(TEST_C / "test_service_publish.c"),
+            *confined_open_link_args(),
             *[str(o) for o in objs],
             # INVARIANT 14: beneath.o's confined open/rename/unlink and
             # staged_file.o's resolve all reach the PAL, so the host path
             # wrappers behind brix_plat_openat2 / renameat2 / unlinkat /
             # stat_resolve link alongside the objects that call them.
             *pal_host_sources("path_wrapper"),
+            *pal_xattr_sources(),
             "-ldl",  # dlsym(RTLD_NEXT) for the fsync-ordering interposer
         ],
     )
@@ -346,7 +349,7 @@ def _brix_have_defines(ngx_src: Path) -> list[str]:
     counter under BRIX_HAVE_SQLITE), so a unit that reads frm.* by name must see
     the SAME struct layout as the linked object. Mirror the build's flags rather
     than hard-coding, so the test tracks whichever features ./config detected."""
-    makefile = ngx_src / "objs" / "Makefile"
+    makefile = _nginx_generated_include(ngx_src) / "Makefile"
     if not makefile.exists():
         return []
     import re
@@ -510,7 +513,8 @@ def _sd_http_objs(ngx_src: Path, extra: list[str] | None = None) -> list[str] | 
 
 
 SD_REMOTE_OBJS = [
-    "sd_remote.o", "sd_remote_meta.o", "sd_remote_xattr.o", "sd_remote_write.o",
+    "sd_remote.o", "sd_remote_meta.o", "sd_remote_xattr_read.o",
+    "sd_remote_xattr.o", "sd_remote_write.o",
     "sd_remote_dir.o", "sd_remote_checksum.o", "sd_remote_enum.o",
     # The nearline pair, for the same table-wide reason the sd_http closure
     # carries sd_http_nearline.o: sd_remote.o names recall/residency in .rodata.

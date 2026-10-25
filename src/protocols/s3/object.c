@@ -14,31 +14,6 @@
 #include "protocols/root/zip/zip_http.h"   /* phase-57 W2: ZIP member access over S3 GET */
 #include "protocols/webdav/xrdhttp.h"       /* shared multipart/byteranges (vector-read) serve */
 #include "object_internal.h"
-/* GetObject metrics shared by inline and off-loop completion. */
-static void
-s3_serve_metrics(ngx_http_request_t *r,
-    const brix_http_serve_result_t *result)
-{
-    if (result->range_result == BRIX_SERVE_RANGE_UNSATISFIED) {
-        BRIX_S3_METRIC_INC(range_total[BRIX_S3_RANGE_UNSATISFIED]);
-    } else if (result->range_result == BRIX_SERVE_RANGE_PARTIAL) {
-        BRIX_S3_METRIC_INC(range_total[BRIX_S3_RANGE_PARTIAL]);
-    } else {
-        BRIX_S3_METRIC_INC(range_total[BRIX_S3_RANGE_FULL]);
-    }
-    if (result->bytes_sent > 0) {
-        /* phase-106 W1: authoritative served-byte count for $brix_bytes_served
-         * (zero-copy serve, off the VFS observer) — same as WebDAV GET. */
-        brix_http_monitor_record_served(r, result->bytes_sent);
-        BRIX_S3_METRIC_ADD(bytes_tx_total, (size_t) result->bytes_sent);
-        if (r->connection && r->connection->sockaddr
-            && r->connection->sockaddr->sa_family == AF_INET6) {
-            BRIX_S3_METRIC_ADD(bytes_tx_ipv6_total, (size_t) result->bytes_sent);
-        } else {
-            BRIX_S3_METRIC_ADD(bytes_tx_ipv4_total, (size_t) result->bytes_sent);
-        }
-    }
-}
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -384,6 +359,7 @@ s3_get_serve(ngx_http_request_t *r, const s3_get_serve_t *sv)
     opts.compress   = sv->compress;
     /* phase-43 W3: apply response-* query overrides just before send. */
     opts.pre_header_send = s3_get_pre_header;
+    opts.deferred_done = s3_get_compressed_done;
 
     rc = brix_http_serve_file_ranged(r, sv->fh, sv->vst, sv->fs_path, &opts,
                                        &result);
@@ -391,7 +367,9 @@ s3_get_serve(ngx_http_request_t *r, const s3_get_serve_t *sv)
     if (rc == NGX_HTTP_INTERNAL_SERVER_ERROR) {
         BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
     }
-    s3_serve_metrics(r, &result);
+    if (rc != NGX_DONE) {
+        s3_serve_metrics(r, &result);
+    }
     return rc;
 }
 

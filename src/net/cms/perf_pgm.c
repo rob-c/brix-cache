@@ -15,7 +15,8 @@
  * it is a config-driven child process, in scope per the audit.
  *
  * HOW: pipe2(O_NONBLOCK|O_CLOEXEC) + posix_spawn("/bin/sh -c <pgm>") with
- * stdout dup2'd onto the pipe.  The read end is wrapped in an
+ * stdout dup2'd onto the pipe and a private child process group. Worker exit
+ * forcibly retires that stateless group without waiting. The read end is wrapped in an
  * ngx_connection_t so the worker's event loop drives line parsing — no
  * threads, no blocking reads.  State is a per-worker static (one feed per
  * worker running the CMS client, which is worker 0 — cms_start.c).
@@ -47,6 +48,7 @@ typedef struct {
     uint8_t           vals[5];      /* last parsed cpu net xeq mem pag */
     ngx_msec_t        updated;      /* ngx_current_msec of last good line */
     unsigned          have_vals:1;
+    unsigned          stopping:1;   /* exit cleanup must never respawn */
 } brix_cms_perf_t;
 
 static brix_cms_perf_t  brix_cms_perf;
@@ -137,8 +139,14 @@ perf_parse_line(const u_char *line, size_t len, uint8_t out5[5])
 
 static void perf_spawn(brix_cms_perf_t *pf);
 
-/* perf_teardown — close the pipe connection and reap the child, then arm the
- * respawn backoff.  Idempotent. */
+/* ---- Release a failed or retiring stateless monitor ----
+ * WHAT: Closes the pipe, terminates the owned process group and reaps without
+ *       blocking. Arms recovery only while this worker is still serving.
+ * WHY: A shell can leave children alive, or ignore TERM while waiting for them;
+ *      a load monitor must never outlive its owning worker or delay shutdown.
+ * HOW: 1. Close the event connection. 2. Kill only the group created by spawn.
+ *      3. Attempt nonblocking reaping. 4. Arm the existing retry if permitted.
+ */
 static void
 perf_teardown(brix_cms_perf_t *pf)
 {
@@ -146,14 +154,56 @@ perf_teardown(brix_cms_perf_t *pf)
         ngx_close_connection(pf->conn);
         pf->conn = NULL;
     }
-    if (pf->child > 0) {
-        (void) kill(pf->child, SIGTERM);
+    if (pf->child > 1) {
+        /* These stateless readers have no shutdown transaction to preserve.
+         * KILL also reaches a shell's TERM-ignoring descendants without a
+         * blocking grace period on nginx's event-loop/exit path. */
+        (void) kill(-pf->child, SIGKILL);
         (void) waitpid(pf->child, NULL, WNOHANG);
         pf->child = -1;
     }
-    if (!ngx_exiting && !pf->respawn.timer_set) {
+    if (!pf->stopping && !ngx_exiting && !pf->respawn.timer_set) {
         ngx_add_timer(&pf->respawn, BRIX_CMS_RESPAWN_DELAY_MS);
     }
+}
+
+/* ---- Prepare a privately owned monitor process group ----
+ * WHAT: Initialises spawn actions/attributes, returning a POSIX error code.
+ *       On failure neither object remains initialised.
+ * WHY: Group teardown is safe only if spawn establishes a new group; failure
+ *      must never fall back to the worker's inherited process group.
+ * HOW: 1. Initialise both objects. 2. Request a fresh group and stdout pipe.
+ *      3. Apply the PAL's inherited-fd closure. 4. Release objects on failure.
+ */
+static int
+perf_spawn_prepare(posix_spawn_file_actions_t *actions,
+    posix_spawnattr_t *attributes, int stdout_fd)
+{
+    int rc = posix_spawn_file_actions_init(actions);
+
+    if (rc != 0) {
+        return rc;
+    }
+    rc = posix_spawnattr_init(attributes);
+    if (rc != 0) {
+        posix_spawn_file_actions_destroy(actions);
+        return rc;
+    }
+    rc = posix_spawnattr_setpgroup(attributes, 0);
+    if (rc == 0) {
+        rc = posix_spawnattr_setflags(attributes, POSIX_SPAWN_SETPGROUP);
+    }
+    if (rc == 0) {
+        rc = posix_spawn_file_actions_adddup2(actions, stdout_fd, 1);
+    }
+    if (rc == 0) {
+        rc = brix_plat_spawn_closefrom(actions, attributes, 3);
+    }
+    if (rc != 0) {
+        posix_spawnattr_destroy(attributes);
+        posix_spawn_file_actions_destroy(actions);
+    }
+    return rc;
 }
 
 /*
@@ -248,24 +298,18 @@ perf_spawn(brix_cms_perf_t *pf)
         return;
     }
 
-    posix_spawn_file_actions_init(&fa);
-    posix_spawnattr_init(&attr);
-    posix_spawn_file_actions_adddup2(&fa, fds[1], 1);
-
     /* The nginx worker's listening sockets are intentionally inherited by
      * workers, but an external perf monitor must not retain them.  Keeping a
      * listener alive after its worker exits makes the next lifecycle instance
      * fail to bind the same CMS-node ports.  closefrom runs after dup2, so the
      * child keeps stdin/stdout/stderr while every inherited descriptor >= 3
      * is closed before /bin/sh starts. */
-    rc = brix_plat_spawn_closefrom(&fa, &attr, 3);
+    rc = perf_spawn_prepare(&fa, &attr, fds[1]);
     if (rc != 0) {
-        posix_spawnattr_destroy(&attr);
-        posix_spawn_file_actions_destroy(&fa);
         close(fds[0]);
         close(fds[1]);
         BRIX_LOG(NGX_LOG_ERR, pf->cycle->log, rc,
-                      "brix: cms perf pgm: close inherited fds failed");
+                      "brix: cms perf pgm: private spawn setup failed");
         perf_teardown(pf);
         return;
     }
@@ -358,6 +402,25 @@ brix_cms_perf_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
     pf->respawn.cancelable = 1;
 
     perf_spawn(pf);
+}
+
+/* ---- Stop this worker's optional external monitor ----
+ * WHAT: Idempotently retires the feed and cancels recovery, including when the
+ *       feature was never started. No blocking wait or new timer is permitted.
+ * WHY: Process exit otherwise leaves the independently spawned monitor alive.
+ * HOW: 1. Mark stopping. 2. Cancel the backoff. 3. Release the monitor group.
+ */
+void
+brix_cms_perf_stop(void)
+{
+    brix_cms_perf_t *pf = &brix_cms_perf;
+
+    pf->stopping = 1;
+    pf->have_vals = 0;
+    if (pf->respawn.timer_set) {
+        ngx_del_timer(&pf->respawn);
+    }
+    perf_teardown(pf);
 }
 
 int

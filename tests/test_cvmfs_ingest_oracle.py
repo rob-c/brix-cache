@@ -17,8 +17,9 @@
 #
 # Rootless pre-flights pinned from the App-Z manual run (both fail as a bare
 # ENOENT otherwise): the host mount uses -o allow_other (needs
-# user_allow_other in /etc/fuse.conf) and `podman system migrate` runs after
-# mounting so the pause process's namespace sees the fresh mount.
+# user_allow_other in /etc/fuse.conf). The rootfs leg uses a private Podman
+# runtime created after mounting, so its pause namespace sees the mount without
+# migrating other tests' containers.
 # Ports: srv_ingest_oracle block (canonical 13660; session-tiled).
 import hashlib
 import io
@@ -28,6 +29,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 import time
 import urllib.request
 from pathlib import Path
@@ -98,6 +100,25 @@ pytestmark = [
 ]
 
 
+def _require_executable_image(rt):
+    """Ensure the cached oracle image is runnable on this architecture."""
+    if subprocess.run([rt, "image", "inspect", IMAGE],
+                      capture_output=True).returncode != 0:
+        pull = subprocess.run([rt, "pull", IMAGE], capture_output=True,
+                              text=True, timeout=600)
+        if pull.returncode != 0:
+            pytest.skip(f"cannot pull {IMAGE}: {pull.stderr.strip()[-200:]}")
+    probe = subprocess.run(
+        [rt, "run", "--rm", "--entrypoint", "/bin/sh", IMAGE, "-c", ":"],
+        capture_output=True, text=True, timeout=60,
+    )
+    if probe.returncode != 0:
+        pytest.skip(
+            f"cannot execute {IMAGE} on this host: "
+            f"{(probe.stderr or probe.stdout).strip()[-200:]}"
+        )
+
+
 def _preflight():
     # podman specifically: the oracle legs need --tls-verify=false against a
     # plain-http registry and `run --rootfs`, neither of which docker has.
@@ -107,18 +128,37 @@ def _preflight():
     rt = "podman"
     if not os.path.exists("/dev/fuse"):
         pytest.skip("no /dev/fuse on this host")
-    if subprocess.run([rt, "image", "inspect", IMAGE],
-                      capture_output=True).returncode != 0:
-        pull = subprocess.run([rt, "pull", IMAGE], capture_output=True,
-                              text=True, timeout=600)
-        if pull.returncode != 0:
-            pytest.skip(f"cannot pull {IMAGE}: {pull.stderr.strip()[-200:]}")
+    _require_executable_image(rt)
     return rt
 
 
-def _pod(rt, *args, timeout=300, stdin=None):
+def _pod(rt, *args, timeout=300, stdin=None, env=None):
     return subprocess.run([rt, *map(str, args)], capture_output=True,
-                          input=stdin, timeout=timeout)
+                          input=stdin, timeout=timeout, env=env)
+
+
+def _rootfs_run(rt, rootfs):
+    # Podman requires runroot <= 50 bytes (and creates UNIX sockets below it).
+    with tempfile.TemporaryDirectory(prefix="brix-cvo.", dir="/tmp") as private:
+        return _rootfs_run_in(rt, rootfs, Path(private))
+
+
+def _rootfs_run_in(rt, rootfs, private):
+    """Use a fresh rootless mount namespace without disturbing other tests."""
+    for name in ("graph", "run", "tmp", "xdg"):
+        (private / name).mkdir(mode=0o700)
+    env = dict(os.environ, XDG_RUNTIME_DIR=str(private / "xdg"))
+    runtime = (
+        "--root", private / "graph", "--runroot", private / "run",
+        "--tmpdir", private / "tmp", "--storage-driver", "vfs",
+        "--cgroup-manager", "cgroupfs",
+    )
+    try:
+        return _pod(rt, *runtime, "run", "--rm", "--rootfs",
+                    f"{rootfs.resolve()}:O", "/bin/ok", env=env)
+    finally:
+        # Stop only this private runtime's pause namespace before unmounting.
+        _pod(rt, *runtime, "system", "migrate", env=env)
 
 
 def _brix(*args, env=None, timeout=180):
@@ -214,7 +254,9 @@ def _podman_truth(rt):
     ref = f"{HOST}:{MOCK_PORT}/lab/app:v2"
     r = _pod(rt, "pull", "--tls-verify=false", ref)
     _check_podman_truth_1(r)
-    cid = _pod(rt, "create", ref).stdout.decode().strip()
+    created = _pod(rt, "create", ref, "/bin/true")
+    _check_podman_truth_1(created)
+    cid = created.stdout.decode().strip()
     _check_podman_truth_2(cid)
     try:
         exp = _pod(rt, "export", cid)
@@ -301,8 +343,7 @@ def test_podman_runs_rootfs_from_cvmfs_mount(lab, tmp_path):
         assert os.path.ismount(mnt), "host FUSE mount did not come up"
         rootfs = Path(mnt) / "images" / HOST / "lab" / "tiny:1"
         assert (rootfs / "bin" / "ok").exists()
-        _pod(rt, "system", "migrate")   # Z-4: refresh the pause-process ns
-        run = _pod(rt, "run", "--rm", "--rootfs", f"{rootfs}:O", "/bin/ok")
+        run = _rootfs_run(rt, rootfs)
         assert run.returncode == 0, run.stderr.decode()[-500:]
 
 

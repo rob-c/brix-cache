@@ -27,6 +27,7 @@ import zlib
 import pytest
 
 import official_interop_lib as L
+from lib_py.reference_host import fixture_read_bytes
 
 pytestmark = [pytest.mark.xdist_group("conf_io_read"),
               pytest.mark.timeout(120),
@@ -65,8 +66,7 @@ def _fs(url, *args, timeout=60):
 
 def _read_local(ctx, name):
     """The authoritative source bytes (identical on both data dirs)."""
-    with open(os.path.join(ctx["our_data"], name), "rb") as f:
-        return f.read()
+    return fixture_read_bytes(os.path.join(ctx["our_data"], name))
 
 
 def _download(xrdcp, url, name, dst, timeout=60):
@@ -97,7 +97,7 @@ def test_download_integrity_our_server(srv, tmp_path, name):
     rc, out, err = _download(L.OFF_XRDCP, srv["our"], name, dst,
                              timeout=_timeout_for(name))
     assert rc == 0, f"stock xrdcp {name} <- OUR server failed: {out}{err}"
-    got = open(dst, "rb").read()
+    got = fixture_read_bytes(dst)
     want = _read_local(srv, name)
     first_diff = next((i for i in range(min(len(got), len(want)))
                        if got[i] != want[i]), "tail")
@@ -118,7 +118,7 @@ def test_download_integrity_our_client(srv, tmp_path, name):
     rc, out, err = _download(L.OUR_XRDCP, srv["off"], name, dst,
                              timeout=_timeout_for(name))
     assert rc == 0, f"OUR xrdcp {name} <- stock server failed: {out}{err}"
-    got = open(dst, "rb").read()
+    got = fixture_read_bytes(dst)
     want = _read_local(srv, name)
     assert got == want, (
         f"OUR client read returned wrong bytes for {name}: "
@@ -139,7 +139,7 @@ def test_download_diff_our_vs_stock(srv, tmp_path, name):
                              timeout=_timeout_for(name))
     assert rc_a == 0, f"download {name} from OUR server failed: {oa}{ea}"
     assert rc_b == 0, f"download {name} from STOCK server failed: {ob}{eb}"
-    da, db = open(a, "rb").read(), open(b, "rb").read()
+    da, db = fixture_read_bytes(a), fixture_read_bytes(b)
     assert da == db, (
         f"stock xrdcp got different bytes for {name} from the two servers: "
         f"OUR={len(da)}B STOCK={len(db)}B")
@@ -209,7 +209,7 @@ def test_checksum_verified_transfer(srv, tmp_path, name):
         f"xrdcp --cksum against OUR server reported a checksum MISMATCH "
         f"for {name} (read corruption): {out}{err}")
     if rc == 0:
-        assert open(dst, "rb").read() == _read_local(srv, name), (
+        assert fixture_read_bytes(dst) == _read_local(srv, name), (
             f"--cksum transfer of {name} succeeded but bytes differ")
 
 
@@ -236,7 +236,7 @@ def test_large_download_pipelining(srv, tmp_path):
     rc, out, err = _download(L.OFF_XRDCP, srv["our"], "big1m.bin", dst,
                              timeout=120)
     assert rc == 0, f"stock xrdcp big1m.bin <- OUR server failed: {out}{err}"
-    got = open(dst, "rb").read()
+    got = fixture_read_bytes(dst)
     want = _read_local(srv, "big1m.bin")
     assert len(got) == len(want) == 1024 * 1024, (
         f"size mismatch: got {len(got)} want {len(want)}")
@@ -253,7 +253,7 @@ def test_large_download_our_client(srv, tmp_path):
     rc, out, err = _download(L.OUR_XRDCP, srv["off"], "big1m.bin", dst,
                              timeout=120)
     assert rc == 0, f"OUR xrdcp big1m.bin <- stock server failed: {out}{err}"
-    assert open(dst, "rb").read() == _read_local(srv, "big1m.bin"), (
+    assert fixture_read_bytes(dst) == _read_local(srv, "big1m.bin"), (
         "OUR client 1 MiB read integrity mismatch from stock server")
 
 
@@ -265,4 +265,4 @@ def test_oracle_stock_to_stock(srv, tmp_path):
     dst = str(tmp_path / "oracle.bin")
     rc, out, err = _download(L.OFF_XRDCP, srv["off"], "sz_4097.bin", dst)
     assert rc == 0, f"oracle stock->stock failed (tooling broken): {out}{err}"
-    assert open(dst, "rb").read() == _read_local(srv, "sz_4097.bin")
+    assert fixture_read_bytes(dst) == _read_local(srv, "sz_4097.bin")

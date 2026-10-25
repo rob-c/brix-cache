@@ -20,6 +20,8 @@ import settings
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST
+from lib_py.seccomp_probe import worker_seccomp as _worker_seccomp
+from lib_py.process_host import procfs_available
 
 # The whole premise is a worker running under a seccomp filter, which is a
 # Linux kernel feature, and the proof reads the worker's Seccomp: line out of
@@ -27,7 +29,7 @@ from settings import BIND_HOST
 # is running, so the assertion below would fail for a reason that has nothing
 # to do with the tape path it is testing.
 pytestmark = [pytest.mark.skipif(
-                  not os.path.isdir("/proc"),
+                  not procfs_available(),
                   reason="seccomp enforcement and its /proc proof are Linux-only"),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-frmsec")]
@@ -46,40 +48,6 @@ def _traversable(path: str) -> None:
             anc.chmod((anc.stat().st_mode & 0o777) | 0o001)
         except (PermissionError, FileNotFoundError):
             pass
-
-
-def _parent_pid(entry):
-    try:
-        with open(f"/proc/{entry}/stat", encoding="utf-8") as stream:
-            return int(stream.read().rpartition(")")[2].split()[1])
-    except (OSError, IndexError, ValueError):
-        return None
-
-
-def _seccomp_mode(entry):
-    try:
-        with open(f"/proc/{entry}/status", encoding="utf-8") as stream:
-            for line in stream:
-                if line.startswith("Seccomp:"):
-                    return line.split()[1]
-    except OSError:
-        pass
-    return None
-
-
-def _worker_seccomp(prefix: str) -> "str | None":
-    """Seccomp: value from the (single) nginx worker under `prefix`'s master,
-    or None where there is no procfs to read it from."""
-    if not os.path.isdir("/proc"):
-        return None
-    with open(os.path.join(prefix, "logs", "nginx.pid"), encoding="utf-8") as fh:
-        master = int(fh.read().strip())
-    for entry in os.listdir("/proc"):
-        if not entry.isdigit():
-            continue
-        if _parent_pid(entry) == master:
-            return _seccomp_mode(entry)
-    return None
 
 
 @pytest.fixture(scope="module")

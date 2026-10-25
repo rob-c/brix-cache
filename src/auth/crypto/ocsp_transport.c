@@ -26,6 +26,7 @@
 
 #include "core/compat/log_event.h"
 #include "ocsp_internal.h"
+#include "tls_compat.h"
 #include "observability/metrics/metrics.h"          /* ngx_brix_metrics_t */
 #include "observability/metrics/metrics_macros.h"   /* Phase 51 (E6): ocsp_timeouts_total */
 #include "protocols/root/connection/netconnect.h"    /* shared SO_RCVTIMEO/SO_SNDTIMEO helper */
@@ -232,7 +233,7 @@ ocsp_bio_new_ssl(ngx_log_t *log, const char *host, ocsp_conn_t *out)
     BIO_get_ssl(out->cbio, &out->ssl);
     if (out->ssl != NULL) {
         (void) SSL_set_tlsext_host_name(out->ssl, host);
-        if (SSL_set1_host(out->ssl, host) != 1) {
+        if (!brix_crypto_tls_peer_name(out->ssl, host)) {
             BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_ocsp: cannot set HTTPS hostname "
                           "verification for \"%s\"", host);

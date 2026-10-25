@@ -54,7 +54,8 @@ data servers in either direction.
 | `meter.c` / `meter.h` | Native machine-load meter for the heartbeat (phase-89 W4): legacy pure parser kernels plus the platform-free driver consuming `brix_plat_sysload_sample()` and filling the `kYR_load` `theLoad` bytes. |
 | `node_ops.c` / `node_ops.h` | Pure planner for data-node execution of forwarded namespace ops (mode/size parsing, mv-needs-two-paths); unit-tested standalone (`node_ops_unittest.c`); the confined executor lives in `recv_forward.c`. |
 | `space.c` | Filesystem capacity via `statvfs`: `_export_paths` (cms_paths else root) and `_stat_space` (total_gb / free_mb / util_pct) feeding login and load frames. |
-| `wire.c` | Big-endian scalar codecs (`get16`/`get32`/`put16`/`put32`) plus XrdOucPup-style packers: tagged `put_short`/`put_int` and bare length-prefixed `put_string`. |
+| `wire.c` | Big-endian scalar codecs, Pup primitives and the bounded `brix_cms_login_encode` shared by node announcements and manager acknowledgments. |
+| `login_wire.h` | One typed CmsLoginData field set and bounded encoder contract; validates the complete payload before writing. |
 | `cms_internal.h` | Client context `ngx_brix_cms_ctx_s`, all `kYR_*`/`CMS_*` wire constants, timing/sizing constants, and client-half prototypes. |
 
 ### Shared frame I/O
@@ -78,7 +79,7 @@ data servers in either direction.
 | `server_recv_parse.c` | Pure wire decoders for server-side payloads: the XrdOucPup TLV scalar walk, the Pup string reader, and the `CmsLoginData` parser filling `ctx->{free_mb,util_pct,port,paths}`. |
 | `server_recv_lifecycle.c` | Connection teardown + audit: ping timer, `brix_cms_srv_close` (blacklist + unregister on drop). |
 | `server_recv_internal.h` | Private cross-file contract for the server-side receive path (framing loop ↔ dispatch ↔ handlers ↔ parsers ↔ lifecycle). |
-| `server_send.c` | Server-side frame senders: `brix_cms_srv_send_ping` (liveness probe), `brix_cms_srv_send_xauth` (security challenge). |
+| `server_send.c` | Server-side frame senders, including the required manager LOGIN acknowledgment, liveness probes and security challenges. |
 | `server_auth.c` | Registration auth gates: `brix_cms_srv_check_peer` (CIDR allowlist, fail-open-with-warning when unset) and `brix_cms_srv_verify_xauth` (validate the data node's SSS credential via `../sss`). |
 
 ### Manager namespace/staging planes (phase-89)
@@ -101,7 +102,7 @@ data servers in either direction.
 | `cms_start.c` | The once-per-worker entry the module calls from config/process.c — derive this node's cmsd role from (manager_capable, has_upstream), allocate the CMS context, resolve the cold-start settle profile from manager locality,. |
 | `cns_inventory.c` / `.h` | the pure CNS inventory table ops. See cns_inventory.h. |
 | `cns_inventory_unittest.c` | standalone unit test for the CNS inventory table. |
-| `perf_pgm.c` / `.h` | Spawns the operator's load program once per CMS-client worker with its stdout on a pipe; each stdout line "cpu net xeq mem pag" (five 0-100 integers, whitespace-separated) becomes the current machine-load override consum. |
+| `perf_pgm.c` / `.h` | Event-driven external load feed. Spawns a private process group with inherited descriptors closed; EOF/setup failure or worker exit forcibly retires that stateless group without blocking, and exit cancels respawn. |
 | `recv_frame_state.c` | Two manager-frame handlers that both walk the namespace rather than just answering from context: cms_frame_state (kYR_state — "do you hold <path>?", answered kYR_have / silence) with its pure payload validator, and cms_s. |
 
 ## Key types & data structures
@@ -149,10 +150,23 @@ strings are tagless, length-prefixed `[u16 len][bytes + trailing NUL]` where
 
 **Manager half (this node is a redirector).** With `brix_cms_server on;`,
 the stream core dispatches accepted connections to `brix_cms_srv_handler`.
-After the CIDR/SSS gates, `kYR_login` is parsed and the node is registered in
+After the CIDR/SSS and admission gates, the manager sends a complete `kYR_login`
+acknowledgment before publishing the node. A failed or partial send closes the
+connection without registration. The reply advertises no storage capacity or
+optional features and identifies the listening endpoint. Without this reply,
+reference cmsd waits for login completion, ignores state probes, then reconnects:
+a locally registered node can consequently produce false NotFound responses.
+The field schema is shared with outgoing node announcements; its compatibility
+was established from the installed reference binary's traffic, not its source.
+The acknowledged node is registered in
 `../manager/registry.h` via `brix_srv_register`; subsequent heartbeats call
 `brix_srv_update_load`; disconnect blacklists the node for 30s and
 unregisters it.
+
+Mandatory LOGIN scalars must have their expected tags/widths and the supported
+version; SID and Paths must be complete Pup strings, including any terminating
+NUL. Truncation is not a default-valued registration. The historically optional
+interface/environment tail may still be absent.
 
 **Client-locate redirect loop (manager mode).** Read-path handlers
 (`src/protocols/root/read/locate.c`, `src/protocols/root/read/open_request.c`, `src/protocols/root/read/stat.c`,

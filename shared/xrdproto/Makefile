@@ -40,7 +40,11 @@ ifeq ($(HOST_OS),Darwin)
 HARDEN += -DBRIX_PLATFORM_HOST=darwin
 HARDEN := $(filter-out -fstack-clash-protection -fcf-protection=full,$(HARDEN))
 else
+ifeq ($(HOST_OS),FreeBSD)
+HARDEN += -DBRIX_PLATFORM_HOST=freebsd
+else
 HARDEN += -DBRIX_PLATFORM_HOST=linux
+endif
 endif
 
 # Intel CET is unavailable on ARM64. Keep the rest of the host hardening set.

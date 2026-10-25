@@ -66,8 +66,8 @@ def srv(tmp_path_factory):
 # Helpers                                                                      #
 # --------------------------------------------------------------------------- #
 def _read(p):
-    with open(p, "rb") as f:
-        return f.read()
+    from lib_py.reference_host import fixture_read_bytes
+    return fixture_read_bytes(p)
 
 
 def _src_bytes(ctx, name):

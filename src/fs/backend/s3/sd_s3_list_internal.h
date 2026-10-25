@@ -39,6 +39,12 @@ int sd_s3l_first_text(const char *scan, const char *end, const char *open_tag,
 int sd_s3l_build_query(const char *prefix, size_t plen, const char *cont_in,
     int delimited, char *qs, size_t qscap, char *errbuf, size_t errcap);
 
+/* Build the same canonical query with an explicit result bound. This is used
+ * by existence probes that need one answer, not a full directory page. */
+int sd_s3l_build_query_limit(const char *prefix, size_t plen,
+    const char *cont_in, int delimited, unsigned max_keys,
+    char *qs, size_t qscap, char *errbuf, size_t errcap);
+
 /* Run one signed ListObjectsV2 GET. On success 0 with *f_out bound and *resp
  * filled (the caller releases both); on failure -1 with errno + errbuf set and
  * nothing left to release. */

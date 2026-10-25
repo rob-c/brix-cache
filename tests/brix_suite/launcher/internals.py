@@ -21,7 +21,7 @@ import time
 
 from brix_suite.catalogue import session_template_values
 from brix_suite.launcher.errors import RegistryCommandFailure
-from lib_py.util import process_cmdline
+from lib_py.util import process_cmdline, procfs_available
 from brix_suite.launcher.internal_operations import (
     chmod_recursive as _launcher_chmod_recursive,
     nginx as _launcher_nginx,
@@ -147,7 +147,7 @@ class _LauncherInternals:
             with open(f"/proc/{pid}/stat", "rb") as fh:
                 suffix = fh.read().rsplit(b")", 1)[1].split()
         except (OSError, IndexError):
-            if not os.path.isdir("/proc"):
+            if not procfs_available():
                 # No procfs (Darwin/BSD): ask ps(1) for the state letter instead;
                 # treating every pid as exited here left the reference xrootd
                 # daemons running through stop-all on macOS.

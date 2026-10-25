@@ -371,6 +371,9 @@ def freeze_nginx(src: str | Path) -> Path:
 
 
 def _fuse_mounts_under(prefix: str) -> list[str]:
+    if sys.platform.startswith("freebsd"):
+        from lib_py.fuse_host import freebsd_fuse_mounts_under
+        return freebsd_fuse_mounts_under(prefix)
     if not os.path.exists("/proc/mounts"):
         return _fuse_mounts_under_mount_cmd(prefix)
     try:
@@ -424,6 +427,9 @@ def mount_options(path) -> "str | None":
     the same spellings from statfs flags."""
     if sys.platform == "darwin":
         return _darwin_mount_options(str(path))
+    if sys.platform.startswith("freebsd"):
+        from lib_py.fuse_host import freebsd_mount_options
+        return freebsd_mount_options(path)
     try:
         lines = Path("/proc/self/mountinfo").read_text().splitlines()
     except OSError:
@@ -593,10 +599,13 @@ def _signal_pidfiles(pidfiles: list[Path]) -> list[int]:
 
 def _await_exit(pids: list[int], timeout: float = 5.0) -> list[int]:
     """Those of ``pids`` still alive after ``timeout``."""
+    from brix_suite.launcher import RegistryLauncher
+
     deadline = time.monotonic() + timeout
     remaining = list(pids)
     while remaining and time.monotonic() < deadline:
-        remaining = [pid for pid in remaining if pid_alive(pid)]
+        remaining = [pid for pid in remaining
+                     if not RegistryLauncher._process_exited(pid)]
         if remaining:
             time.sleep(0.05)
     return remaining

@@ -139,8 +139,10 @@ brix_http_chain_appendf(ngx_pool_t *pool, ngx_chain_t **head,
  *      compute length from buffer, send header, output single-buffer chain with last_buf=1.
  *      Centralising this prevents inconsistent header setup across protocol handlers.
  *
- * HOW: b->last_buf=1; out.buf=b; out.next=NULL. Set headers_out fields. ngx_http_send_header;
- *       return ngx_http_output_filter(r,&out).
+ * HOW: 1. Set the response metadata from the last-buffer chain.
+ *      2. Send headers and preserve an error or special response return.
+ *      3. Return without a body for HEAD/header-only responses; otherwise
+ *         pass the chain to the output filter.
  */
 
 ngx_int_t
@@ -148,6 +150,7 @@ brix_http_send_xml_buffer(ngx_http_request_t *r, ngx_uint_t status,
     ngx_str_t content_type, ngx_buf_t *b)
 {
     ngx_chain_t out;
+    ngx_int_t   rc;
 
     if (b == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -161,7 +164,10 @@ brix_http_send_xml_buffer(ngx_http_request_t *r, ngx_uint_t status,
     r->headers_out.content_type = content_type;
     r->headers_out.content_length_n = (off_t) (b->last - b->pos);
 
-    ngx_http_send_header(r);
+    rc = ngx_http_send_header(r);
+    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
+        return rc;
+    }
     return ngx_http_output_filter(r, &out);
 }
 

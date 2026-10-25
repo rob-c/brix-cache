@@ -44,6 +44,7 @@ dashboard (`src/observability/dashboard/api.c::dashboard_build_tpc_registry`, vi
 
 | File | Responsibility |
 |---|---|
+| `identity_matrix.h` / `identity_matrix.c` / `identity_matrix_conf.c` | Shared TPC identity verdicts and setters. `BRIX_TPC_IDENTITY_DIRECTIVES` registers the same four directive names/arities on HTTP and stream while retaining each plane's conf scope and offset. |
 | `transfer.h` | The protocol-neutral data model. Defines `brix_tpc_transfer_t` (one in-flight copy) plus the small integer enums every other file keys off: protocol (`BRIX_TPC_PROTO_STREAM`=1 / `_WEBDAV`=2), direction (`_DIR_PULL`=1 / `_DIR_PUSH`=2), state (`_STATE_PENDING`/`_ACTIVE`/`_DONE`/`_ERROR` = 1..4), and the fixed registry sizing constants (`_REGISTRY_SLOTS`=1024, `_SRC_URL_MAX`/`_DST_PATH_MAX`=1024). Header-only; no `.c`. |
 | `auth.h` / `auth.c` | `brix_tpc_check_authz()` — fail-closed gate deciding whether an `brix_identity_t` may initiate a TPC for a given (src, dst) pair. Rejects S3 SigV4 identities outright, then checks WLCG token scope (read on source, write on destination) via `brix_identity_check_token_scope()`. File-private `brix_tpc_check_scope_path()` does the per-path NUL-terminate-and-check. |
 | `credential.h` / `credential.c` | The `brix_tpc_credential_t` model plus `brix_tpc_credential_parse()` (classify a raw credential string as none/proxy/token, optionally guided by a `hint`, after trimming and `Bearer `/`-----BEGIN` sniffing), `brix_tpc_credential_validate()` (non-empty + expiry check), and `brix_tpc_credential_type_name()`. |

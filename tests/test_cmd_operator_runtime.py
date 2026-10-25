@@ -446,10 +446,65 @@ def test_clean_test_fleet_reaps_known_listener_on_selected_ladder(monkeypatch, t
     monkeypatch.setattr("lib_py.util.pids_in_port_range",
                         lambda start, end: [900004])
     monkeypatch.setattr("lib_py.util.kill_pid_list", lambda pids: killed.extend(pids))
+    monkeypatch.setattr("fleet_orphans.find_orphans", lambda root: [(900004, 'owned nginx')])
 
     operator_runtime.clean_test_fleet(tmp_path / "mine")
 
     assert killed == [900004]
+
+
+def test_operator_teardown_cannot_inherit_parent_registry(monkeypatch, tmp_path):
+    """An explicit child root overrides every ambient parent-registry selector."""
+    calls = []
+    monkeypatch.setenv('TEST_REGISTRY_ROOT', '/parent/registry')
+    monkeypatch.setenv('TEST_REGISTRY_MANIFEST', '/parent/registry/manifest.json')
+    monkeypatch.setattr(operator_runtime.subprocess, 'run',
+                        lambda *args, **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(operator_runtime, 'clean_test_fleet', lambda root: None)
+    operator_runtime.teardown_test_fleet(tmp_path)
+    assert calls[0]['env']['TEST_REGISTRY_ROOT'] == str(tmp_path / 'registry')
+    assert calls[0]['env']['TEST_REGISTRY_MANIFEST'] == str(tmp_path / 'registry/manifest.json')
+
+
+def test_port_band_alone_never_authorizes_another_roots_listener(monkeypatch, tmp_path):
+    """A known server on the inherited ladder remains foreign without root proof."""
+    killed = []
+    monkeypatch.setattr('lib_py.util.pids_in_port_range', lambda *args: [900004, 900005])
+    monkeypatch.setattr('lib_py.util.kill_pid_list', lambda pids: killed.extend(pids))
+    monkeypatch.setattr('fleet_orphans.find_orphans', lambda root: [(900004, 'owned nginx')])
+    monkeypatch.setattr(operator_runtime, '_is_test_server', lambda pid: True)
+    operator_runtime._kill_stale_listeners(tmp_path)
+    assert killed == [900004]
+
+
+@pytest.mark.parametrize('serial', [False, True])
+def test_fleet_damage_is_remembered_before_cleanup_removes_its_marker(monkeypatch, tmp_path, serial):
+    """Cleanup must not turn an interrupted, damaged fleet into another suite lane."""
+    monkeypatch.setenv('TEST_REGISTRY_ROOT', str(tmp_path / 'registry'))
+    marker = tmp_path / 'registry/.fleet-sentinel-abort'
+    marker.parent.mkdir()
+    marker.write_text('shared fleet damaged')
+    monkeypatch.setattr(operator_runtime, '_pytest_lane', lambda *args, **kwargs: False)
+    monkeypatch.setattr(operator_runtime, '_serial_lane', lambda *args, **kwargs: False)
+    monkeypatch.setattr(operator_runtime, 'teardown_test_fleet', lambda root: marker.unlink())
+    with pytest.raises(operator_runtime.FleetSentinelAbort, match='shared fleet damaged'):
+        if serial:
+            operator_runtime._suite_serial_lane(tmp_path, ['tests'], [])
+        else:
+            operator_runtime._suite_lane(tmp_path, ['tests'], [], [])
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize('selector,expected', [
+    ('mine/custom-registry', 'mine/custom-registry'),
+    ('parent/registry', 'mine/registry'),
+    ('mine-sibling/registry', 'mine/registry'),
+])
+def test_sentinel_registry_selector_is_confined_to_selected_root(
+        monkeypatch, tmp_path, selector, expected):
+    monkeypatch.setenv('TEST_REGISTRY_ROOT', str(tmp_path / selector))
+    marker = operator_runtime._sentinel_marker(tmp_path / 'mine')
+    assert marker == tmp_path / expected / '.fleet-sentinel-abort'
 
 
 def test_suite_lane_tears_down_after_success(monkeypatch, tmp_path: Path):

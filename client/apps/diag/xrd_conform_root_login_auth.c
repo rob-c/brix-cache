@@ -1,5 +1,5 @@
 /* Phase-118 raw authentication rejection and continuation probes. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 #include "protocols/root/protocol/bootstrap_pack.h"
 #include "protocols/root/protocol/codec/wire_codec.h"
 
@@ -12,41 +12,17 @@ typedef struct {
     uint32_t kxr;
 } conform_auth_observation;
 
-static int
-active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
 
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
-
-static void
-grade(xrd_conform_execution *execution, const char *id, int pass,
-    const char *success, const char *failure)
-{
-    if (!active(execution, id)) return;
-    xrd_conform_result_set(execution, id,
-        pass ? BRIX_CONFORM_VERDICT_CONFORMANT
-             : BRIX_CONFORM_VERDICT_DIVERGENT,
-        pass ? success : failure, NULL, NULL);
-}
 
 static void
 inconclusive(xrd_conform_execution *execution, const char *id,
     const char *reason)
 {
-    if (!active(execution, id)) return;
+    if (!xrd_conform_row_active(execution, id)) return;
     xrd_conform_result_set(execution, id, BRIX_CONFORM_VERDICT_INCONCLUSIVE,
         reason, NULL, NULL);
 }
 
-static int
-reserve_request(xrd_conform_execution *execution, size_t bytes)
-{
-    char reason[64];
-
-    return xrd_conform_reserve(execution, bytes, reason, sizeof(reason));
-}
 
 static int
 raw_login_name(xrd_conform_execution *execution, const brix_url *url,
@@ -71,7 +47,7 @@ raw_login_name(xrd_conform_execution *execution, const brix_url *url,
         return -1;
     xrd_pack_login_request(&login, zero_sid, 1, username,
         (uint8_t) (kXR_ver005 | kXR_asyncap));
-    pass = reserve_request(execution, sizeof(login))
+    pass = xrd_conform_reserve_probe(execution, sizeof(login))
         && brix_send(connection, &login, NULL, &sid, &status) == 0
         && brix_recv(connection, sid, &output, &status) == 0
         && wire_status == kXR_ok && body_length > BRIX_SESSION_ID_LEN;
@@ -136,7 +112,7 @@ send_auth(xrd_conform_execution *execution, brix_conn *connection,
         memset(&body_fields, 0, sizeof(body_fields));
         memcpy(body_fields.credtype, protocol, strlen(protocol));
         xrdw_auth_req_pack(&body_fields, ((ClientRequestHdr *) &auth)->body);
-        if (!reserve_request(execution, sizeof(auth) + payload.len)) return -1;
+        if (!xrd_conform_reserve_probe(execution, sizeof(auth) + payload.len)) return -1;
         brix_status_clear(&status);
         if (brix_send(connection, &auth, &payload, &sid, &status) != 0)
             return -1;
@@ -170,7 +146,7 @@ probe_unadvertised(xrd_conform_execution *execution, const brix_url *url)
     conform_auth_observation observation;
     char security[256];
 
-    if (!active(execution, "LOG-006")) return;
+    if (!xrd_conform_row_active(execution, "LOG-006")) return;
     if (raw_login(execution, url, &connection, security) != 0) {
         inconclusive(execution, "LOG-006",
             "fixture-unavailable:unadvertised-auth");
@@ -188,7 +164,7 @@ probe_unadvertised(xrd_conform_execution *execution, const brix_url *url)
             "fixture-unavailable:unadvertised-auth");
         return;
     }
-    grade(execution, "LOG-006", observation.terminal
+    xrd_conform_grade_active(execution, "LOG-006", observation.terminal
         && !observation.accepted, "unadvertised-auth-mechanism-refused",
         "unadvertised-auth-mechanism-accepted");
 }
@@ -204,8 +180,8 @@ probe_bad_continuation(xrd_conform_execution *execution, const brix_url *url)
     char protocol[5];
     int stat_rc;
 
-    if (!active(execution, "LOG-015") && !active(execution, "LOG-016")
-        && !active(execution, "LOG-017")) return;
+    if (!xrd_conform_row_active(execution, "LOG-015") && !xrd_conform_row_active(execution, "LOG-016")
+        && !xrd_conform_row_active(execution, "LOG-017")) return;
     if (raw_login(execution, url, &connection, security) != 0) {
         inconclusive(execution, "LOG-015",
             "fixture-unavailable:auth-continuation");
@@ -227,17 +203,17 @@ probe_bad_continuation(xrd_conform_execution *execution, const brix_url *url)
             "fixture-unavailable:failed-auth-session");
         return;
     }
-    grade(execution, "LOG-015", observation.terminal,
+    xrd_conform_grade_active(execution, "LOG-015", observation.terminal,
         "auth-continuation-terminated-within-bound",
         "auth-continuation-exceeded-round-bound");
-    grade(execution, "LOG-016", observation.terminal
+    xrd_conform_grade_active(execution, "LOG-016", observation.terminal
         && !observation.accepted && observation.kxr == kXR_AuthFailed,
         "garbage-auth-continuation-returned-AuthFailed",
         "garbage-auth-continuation-wrong-result");
     brix_status_clear(&status);
     stat_rc = observation.terminal && !observation.accepted
         ? brix_stat(&connection, url->path, &info, &status) : 0;
-    grade(execution, "LOG-017", observation.terminal
+    xrd_conform_grade_active(execution, "LOG-017", observation.terminal
         && !observation.accepted && stat_rc != 0,
         "failed-auth-session-retained-no-privilege",
         "failed-auth-session-retained-privilege");
@@ -253,7 +229,7 @@ probe_nul_identity(xrd_conform_execution *execution, const brix_url *url)
     char security[256];
     int rc;
 
-    if (!active(execution, "LOG-008")) return;
+    if (!xrd_conform_row_active(execution, "LOG-008")) return;
     if (raw_login_name(execution, url, "", &connection, security) != 0) {
         inconclusive(execution, "LOG-008",
             "fixture-unavailable:nul-username-identity");
@@ -262,7 +238,7 @@ probe_nul_identity(xrd_conform_execution *execution, const brix_url *url)
     brix_status_clear(&status);
     rc = brix_stat(&connection, url->path, &info, &status);
     brix_close(&connection);
-    grade(execution, "LOG-008", rc != 0
+    xrd_conform_grade_active(execution, "LOG-008", rc != 0
         && (status.kxr == kXR_NotAuthorized
             || status.kxr == kXR_AuthFailed),
         "nul-username-retained-no-default-identity",
@@ -298,6 +274,15 @@ redirect_host_is_ipv6(const uint8_t *body, uint32_t length, int *valid)
     return body[4] == '[' || colons > 1;
 }
 
+static int
+zero_ability_response_valid(int rc, const brix_status *status,
+    uint16_t wire_status, int redirect_valid, int redirect_ipv6)
+{
+    if (rc != 0) return status->kxr > 0;
+    if (wire_status == kXR_ok) return 1;
+    return wire_status == kXR_redirect && redirect_valid && !redirect_ipv6;
+}
+
 /* WHAT: Send login with both ability bytes zero and inspect its first answer.
  * WHY: Following a redirect would hide a server that invented IPv6 ability
  *      the client never advertised and strand IPv4-only callers.
@@ -321,7 +306,7 @@ xrd_conform_probe_login_abilities(xrd_conform_execution *execution,
     int valid = 0;
     int ipv6 = 0;
 
-    if (!active(execution, "LOG-025")) return;
+    if (!xrd_conform_row_active(execution, "LOG-025")) return;
     options.capture = NULL;
     brix_status_clear(&status);
     if (brix_connect_no_login(&connection, url, &options, &status) != 0) {
@@ -330,7 +315,7 @@ xrd_conform_probe_login_abilities(xrd_conform_execution *execution,
         return;
     }
     xrd_pack_login_request(&login, zero_sid, 1, "conform", kXR_ver005);
-    if (!reserve_request(execution, sizeof(login))
+    if (!xrd_conform_reserve_probe(execution, sizeof(login))
         || brix_send(&connection, &login, NULL, &sid, &status) != 0) {
         brix_close(&connection);
         inconclusive(execution, "LOG-025",
@@ -347,9 +332,8 @@ xrd_conform_probe_login_abilities(xrd_conform_execution *execution,
             "fixture-unavailable:zero-ability-login");
         return;
     }
-    grade(execution, "LOG-025",
-        (rc != 0 && status.kxr > 0) || wire_status == kXR_ok
-            || (wire_status == kXR_redirect && valid && !ipv6),
+    xrd_conform_grade_active(execution, "LOG-025",
+        zero_ability_response_valid(rc, &status, wire_status, valid, ipv6),
         "zero-ability-login-received-no-ipv6-only-redirect",
         wire_status == kXR_redirect && ipv6
             ? "zero-ability-login-received-ipv6-only-redirect"

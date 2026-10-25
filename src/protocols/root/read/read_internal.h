@@ -15,7 +15,30 @@
 
 #include "read.h"
 #include "core/ngx_brix_module.h"                      /* ngx_stream_brix_module */
+#include "core/aio/aio.h"
+#include "protocols/root/connection/write_helpers.h"
 #include "protocols/root/session/offload_registry.h"   /* brix_offload_lookup */
+
+/* WHAT: Hand an owned read frame to the selected secondary, then retire it
+ * only on failure or an entirely inline send. WHY: The pending ring, not the
+ * primary request, owns parked storage; all read families share that contract.
+ * HOW: Queue, retain the existing offload metric, and release only when the
+ * queue did not retain the buffer. Release remains deliberately idempotent.
+ */
+static ngx_inline ngx_int_t
+brix_read_offload_queue(brix_ctx_t *secondary, ngx_connection_t *connection,
+    u_char *buffer, size_t length)
+{
+    ngx_int_t result = brix_queue_response_base(secondary, connection,
+                                               buffer, length, buffer);
+    if (result == NGX_OK) {
+        brix_metric_offload(BRIX_PROTO_ROOT);
+    }
+    if (result != NGX_OK || secondary->out.count == 0) {
+        brix_release_read_buffer(secondary, connection, buffer);
+    }
+    return result;
+}
 
 /*
  * brix_read_io_t — decoded per-request read parameters, threaded through the

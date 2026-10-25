@@ -33,6 +33,7 @@ Run:
 """
 
 import os
+import time
 import uuid
 
 import pytest
@@ -65,6 +66,18 @@ MANAGERS = [
 ]
 
 BODY = b"cms-manager-parity-" * 512          # ~9.7 KiB: several reads, one file
+
+
+def _wait_locate(port, path, timeout=20.0):
+    """Wait for the next CMS inventory update after direct filesystem seeding."""
+    deadline = time.monotonic() + timeout
+    result = (1, "", "manager inventory did not refresh")
+    while time.monotonic() < deadline:
+        result = xrdfs_locate(port, path)
+        if result[0] == 0 and result[1].strip():
+            return result
+        time.sleep(0.2)
+    return result
 
 
 def _require_mesh():
@@ -107,7 +120,10 @@ def test_locate_succeeds_through_both_managers(seeded):
     here before any byte is read."""
     results = {}
     for label, port, _topo, _node in MANAGERS:
-        rc, out, err = xrdfs_locate(port, seeded)
+        # The fixture writes behind each data node's back.  CMS namespace
+        # knowledge is heartbeat-driven, so an immediate locate races the
+        # next inventory update on a loaded host.
+        rc, out, err = _wait_locate(port, seeded)
         results[label] = (rc, out, err)
         assert rc == 0, (label, rc, err)
         assert out.strip(), (label, "locate returned no endpoint")

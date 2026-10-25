@@ -142,6 +142,38 @@ resolve_hint_flags(unsigned flags)
 }
 
 
+/* ---- Normalize resolver flags for numeric hosts ----
+ *
+ * WHAT: Returns flags with numeric IPv4/IPv6 hosts marked NUMERIC and with
+ *       ADDRCONFIG removed; names and NULL passive hosts are unchanged.
+ *
+ * WHY: AI_ADDRCONFIG may reject an IPv6 literal inside an otherwise IPv4-only
+ *      container even though its loopback can reach ::1.  A literal needs no
+ *      DNS or configured-family filtering and must never enter the DNS cache.
+ *
+ * HOW:
+ *   1. Leave NULL hosts for getaddrinfo's passive-address handling.
+ *   2. Recognize either numeric address family with inet_pton.
+ *   3. Force NUMERIC and clear ADDRCONFIG for recognized literals.
+ */
+static unsigned
+resolve_effective_flags(const char *host, unsigned flags)
+{
+    struct in_addr   addr4;
+    struct in6_addr  addr6;
+
+    if (host == NULL) {
+        return flags;
+    }
+    if (inet_pton(AF_INET, host, &addr4) != 1
+        && inet_pton(AF_INET6, host, &addr6) != 1)
+    {
+        return flags;
+    }
+    return (flags | BRIX_RESOLVE_NUMERIC) & ~BRIX_RESOLVE_ADDRCONFIG;
+}
+
+
 static int
 resolve_copy_chain(const struct addrinfo *res, brix_resolve_addr *out, int max)
 {
@@ -173,6 +205,7 @@ brix_resolve(const char *host, int port, int family, int socktype,
     char             portstr[16];
     const char      *key = (host != NULL) ? host : "";
     int              gai, n;
+    unsigned         effective_flags;
 
     if (err != NULL) {
         err->transient = 0;
@@ -183,7 +216,9 @@ brix_resolve(const char *host, int port, int family, int socktype,
     {
         return -1;
     }
-    n = resolve_cache_get(key, port, family, socktype, flags, out, max);
+    effective_flags = resolve_effective_flags(host, flags);
+    n = resolve_cache_get(key, port, family, socktype, effective_flags, out,
+                          max);
     if (n > 0) {
         return n;
     }
@@ -191,7 +226,7 @@ brix_resolve(const char *host, int port, int family, int socktype,
     memset(&hints, 0, sizeof(hints));
     hints.ai_family   = family;
     hints.ai_socktype = socktype;
-    hints.ai_flags    = resolve_hint_flags(flags);
+    hints.ai_flags    = resolve_hint_flags(effective_flags);
     snprintf(portstr, sizeof(portstr), "%d", port);
     gai = getaddrinfo(host, portstr, &hints, &res);
     if (gai != 0) {
@@ -209,8 +244,9 @@ brix_resolve(const char *host, int port, int family, int socktype,
         }
         return 0;
     }
-    if (!(flags & BRIX_RESOLVE_NUMERIC)) {
-        resolve_cache_put(key, port, family, socktype, flags, out, n);
+    if (!(effective_flags & BRIX_RESOLVE_NUMERIC)) {
+        resolve_cache_put(key, port, family, socktype, effective_flags, out,
+                          n);
     }
     return n;
 }

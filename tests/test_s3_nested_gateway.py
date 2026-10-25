@@ -123,9 +123,10 @@ class _Nested:
         self._lifecycle = lifecycle
         self.origin_dir = pathlib.Path(tmp_path) / "origin"
         self.front_export = pathlib.Path(tmp_path) / "front-export"
-        for d in (self.origin_dir, self.front_export):
+        self.stage_dir = pathlib.Path(tmp_path) / "stage"
+        for d in (self.origin_dir, self.front_export, self.stage_dir):
             d.mkdir(parents=True, exist_ok=True)
-        worker_reachable(self.origin_dir, self.front_export)
+        worker_reachable(self.origin_dir, self.front_export, self.stage_dir)
         self.port = self.origin_port = None
 
     def start(self):
@@ -137,6 +138,7 @@ class _Nested:
                 "BIND_HOST": BIND_HOST,
                 "ORIGIN_DIR": str(self.origin_dir),
                 "FRONT_EXPORT": str(self.front_export),
+                "STAGE_DIR": str(self.stage_dir),
                 "FRONT_ACCESS_KEY": FRONT_AK,
                 "FRONT_SECRET_KEY": FRONT_SK,
                 "ORIGIN_ACCESS_KEY": ORIGIN_AK,

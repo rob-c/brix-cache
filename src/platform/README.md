@@ -21,6 +21,7 @@ be checked against native build and runtime results for each supported host.
 | `<host>/host.h`, `host_endian.h`, `host_posix.h`, `host_api.h`, `host_info.c` | Each host directory's answer to the interface: platform flags and `BRIX_HAS_*` gates, native byte order, its part of the POSIX surface, host-only extensions (Apple Silicon, Win32), name/CPU/memory. Every `#if` on the host lives in these directories. |
 | [linux/](linux/README.md) | Linux syscall, epoll, inotify, optional io_uring/libseccomp, and ARM64 adapters. |
 | [darwin/](darwin/README.md) | macOS syscall, kqueue, filesystem-watch, copy, and CPU/checksum adapters. |
+| [freebsd/](freebsd/README.md) | FreeBSD 15+ native identity, procctl, eventfd, namespace, storage and xattr adapters; shared bounded BSD path walking and kqueue/pthread implementations. |
 | [windows/](windows/README.md) | Windows adapters and their platform-specific documentation. |
 
 ## Implementation status
@@ -29,9 +30,10 @@ The AlmaLinux 9 merge validation exercises the Linux x86_64 build and native
 PAL units. Native macOS, Windows, and ARM64 results must be established on
 those hosts; tests for a different OS or architecture are skipped.
 
-Implementation limits remain visible in the source. Darwin PAL AIO reports
-unavailable operations, and Darwin security hooks do not enforce sandbox
-profiles. Linux PAL custom security-profile loading is unimplemented, and
+Implementation limits remain visible in the source. Darwin PAL AIO uses a
+bounded pthread pool. Its legacy security-profile ABI rejects enforcement,
+while worker startup installs a separate deny-exec sandbox floor; unsupported
+subprocess configurations are rejected. Linux PAL custom security-profile loading is unimplemented, and
 runtime kernel policy can prevent io_uring use even when liburing is installed.
 See the directory READMEs for the current owners and limitations. Historical
 phase-completion reports in this directory are not a platform certification.
@@ -59,6 +61,10 @@ OS-private header; `tools/ci/check_platform_leak.py` enforces that with no
 backlog and no waiver. Optional features are gated on the `BRIX_HAS_*`
 capability macros `platform.h` defines. Storage operations continue through the
 [VFS](../fs/vfs/), which owns storage and mutation policy.
+
+Native socket byte/RTT accounting and descriptor-interval closure are also PAL
+operations (`brix_plat_tcp_stats`, `brix_plat_close_range`). Portable callers do
+not interpret kernel TCP layouts or invent syscall numbers for another host.
 
 ## Tests
 

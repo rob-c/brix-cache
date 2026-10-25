@@ -180,7 +180,7 @@ fwd_find_leaf(STACK_OF(X509) *certs, EVP_PKEY *key)
     for (i = 0; i < sk_X509_num(certs); i++) {
         X509     *c  = sk_X509_value(certs, i);
         EVP_PKEY *pk = X509_get_pubkey(c);
-        int       hit = (pk != NULL && EVP_PKEY_eq(pk, key) == 1);
+        int       hit = brix_crypto_pkey_equal(pk, key);
         brix_evp_pkey_free(pk);
         if (hit) {
             return c;

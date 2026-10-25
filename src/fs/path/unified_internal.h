@@ -74,7 +74,6 @@ void brix_path_warn(ngx_log_t *log, const char *prefix, const char *path);
 brix_path_status_t brix_copy_cstr(char *dst, size_t dstsz, const char *src);
 brix_path_status_t brix_validate_components_cstr(ngx_log_t *log,
     const char *path);
-ngx_flag_t brix_has_trailing_slash_cstr(const char *path);
 brix_path_status_t brix_build_candidate(const char *root_canon,
     const char *req_path, brix_path_opts_t opts, brix_candidate_out_t *out);
 

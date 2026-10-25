@@ -9,6 +9,7 @@ import http.server
 import importlib.util
 import sys
 import threading
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -49,9 +50,13 @@ def subject(tmp_path):
             self.end_headers()
 
         def deny(self):
+            # Drain the request before closing: Darwin otherwise RSTs unread
+            # PUT bytes and hides the deliberately forged 403 from the client.
+            self.rfile.read(int(self.headers.get("Content-Length", "0")))
             if behavior["mutate"]:
                 (data / "seed.bin").write_bytes(b"modified despite denial")
             self.send_response(403)
+            self.send_header("Content-Length", "0")
             self.end_headers()
 
         do_PUT = deny
@@ -114,3 +119,47 @@ def test_failed_probe_reaps_its_private_process(smoke, tmp_path):
         with smoke._running_nginx(command, tmp_path) as process:
             raise RuntimeError("probe failure")
     assert process.poll() is not None, "the private server leaked after failure"
+
+
+def _module_arguments(tmp_path):
+    """Only the two BriX modules are common to built-in/dynamic stream builds."""
+    for name in ("ngx_stream_brix_module.so", "ngx_http_brix_xrdhttp_filter_module.so"):
+        (tmp_path / name).touch()
+    return SimpleNamespace(nginx=Path(sys.executable), module_dir=tmp_path,
+                           stream_module=None)
+
+
+def test_builtin_stream_does_not_require_a_nonexistent_shared_core(smoke, tmp_path, monkeypatch):
+    """Success: Homebrew's built-in stream core needs only the two BriX DSOs."""
+    arguments = _module_arguments(tmp_path)
+    monkeypatch.setattr(smoke, "_builtin_stream", lambda binary: True)
+    assert len(smoke._modules(arguments)) == 2
+
+
+def test_dynamic_stream_still_requires_its_core_module(smoke, tmp_path, monkeypatch):
+    """Error: a dynamic stream build cannot silently omit its core DSO."""
+    arguments = _module_arguments(tmp_path)
+    monkeypatch.setattr(smoke, "_builtin_stream", lambda binary: False)
+    with pytest.raises(RuntimeError, match="ngx_stream_module.so"):
+        smoke._modules(arguments)
+
+
+def test_explicit_missing_stream_override_cannot_fall_back(smoke, tmp_path, monkeypatch):
+    """Negative: an authoritative broken override remains a hard error."""
+    arguments = _module_arguments(tmp_path)
+    arguments.stream_module = tmp_path / "explicit-missing.so"
+    monkeypatch.setattr(smoke, "_builtin_stream", lambda binary: True)
+    with pytest.raises(RuntimeError, match="explicit-missing.so"):
+        smoke._modules(arguments)
+
+
+@pytest.mark.parametrize("flag,expected", [
+    ("--with-stream", True), ("--with-stream=dynamic", False),
+    ("--with-stream_ssl_module", False),
+])
+def test_builtin_stream_requires_an_exact_configure_flag(smoke, monkeypatch, flag, expected):
+    """A prefix match must not mistake an external/absent stream core for built-in."""
+    import subprocess
+    monkeypatch.setattr(smoke.subprocess, "run", lambda *args, **kwargs:
+                        subprocess.CompletedProcess(args, 0, "", "configure arguments: " + flag))
+    assert smoke._builtin_stream(sys.executable) is expected

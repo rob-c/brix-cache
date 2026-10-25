@@ -38,6 +38,7 @@
 #include <unistd.h>
 
 #include "rpm/rpmhdr.h"
+#include "platform/platform_api.h"
 
 #define MAX_FILES 4096
 
@@ -68,7 +69,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         return 0;
     }
 
-    fd = memfd_create("pkg", MFD_CLOEXEC);
+    fd = brix_plat_anon_fd("pkg", NULL);
     if (fd < 0) {
         return 0;
     }

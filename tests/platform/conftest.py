@@ -42,6 +42,7 @@ def platform_info():
         "python_version": platform.python_version(),
         "is_linux": platform.system() == "Linux",
         "is_darwin": platform.system() == "Darwin",
+        "is_freebsd": platform.system() == "FreeBSD",
         "is_windows": platform.system() == "Windows",
         "is_x86_64": platform.machine() in ("x86_64", "AMD64"),
         "is_arm64": platform.machine() in ("aarch64", "ARM64", "arm64"),
@@ -55,6 +56,8 @@ def platform_name(platform_info):
         return "linux"
     elif platform_info["is_darwin"]:
         return "darwin"
+    elif platform_info["is_freebsd"]:
+        return "freebsd"
     elif platform_info["is_windows"]:
         return "windows"
     else:

@@ -25,6 +25,7 @@
 
 #include "core/types/tunables.h"
 #include "auth/crypto/store_policy.h"
+#include "auth/crypto/name_compat.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -184,9 +185,9 @@ sgn_check_subject(sgn_ctx *x, long *serial)
     size_t  slen;
     char   *endp;
 
-    if (X509_NAME_oneline(X509_get_subject_name(x->signer), sname,
+    if (brix_crypto_name_oneline(X509_get_subject_name(x->signer), sname,
                           sizeof(sname)) == NULL
-        || X509_NAME_oneline(X509_REQ_get_subject_name(x->req), rname,
+        || brix_crypto_name_oneline(X509_REQ_get_subject_name(x->req), rname,
                              sizeof(rname)) == NULL) {
         return sgn_fail(x, "gsi sign: subject undefined");
     }

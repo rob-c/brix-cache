@@ -19,6 +19,7 @@
  * returns; it must never crash `explain`. Clean-room: standard JWT/RFC + OpenSSL.
  */
 #include "brix.h"
+#include "auth/crypto/name_compat.h"
 #include "auth/token/b64url.h"   /* shared base64url decode + JWS splitter (libxrdproto) */
 #include "auth/token/scopes.h"   /* shared WLCG scope parser (libxrdproto) */
 #include "core/compat/json_min.h" /* shared dependency-free JSON value extractor */
@@ -336,8 +337,8 @@ brix_gsi_cert_explain(const char *proxy_path, FILE *out)
     chain = read_pem_chain(bio);
     BIO_free(bio);
 
-    X509_NAME_oneline(X509_get_subject_name(cert), subj, sizeof(subj));
-    X509_NAME_oneline(X509_get_issuer_name(cert), issuer, sizeof(issuer));
+    brix_crypto_name_oneline(X509_get_subject_name(cert), subj, sizeof(subj));
+    brix_crypto_name_oneline(X509_get_issuer_name(cert), issuer, sizeof(issuer));
     fprintf(out, "    proxy:\n");
     fprintf(out, "      subject: %s\n", subj);
     fprintf(out, "      issuer:  %s\n", issuer);

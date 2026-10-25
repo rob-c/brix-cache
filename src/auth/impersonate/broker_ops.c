@@ -15,6 +15,8 @@
 #include "broker_internal.h"
 #include "platform/platform_api.h"
 #include "broker_ops_internal.h"
+#include "fs/backend/posix/lock_store.h"
+#include "core/compat/lock_key.h"
 
 
 /*
@@ -409,6 +411,34 @@ imp_op_removexattr(const imp_op_ctx_t *c)
 }
 
 
+/* WHAT: Execute a bounded lock-record CAS on a fresh mapped-owner descriptor.
+ * WHY: Preserve exact stale-owner refusal where native conditional xattrs do
+ * not exist, without turning generic setxattr into an unsafe emulation.
+ * HOW: Validate both lengths, confined-open, invoke the existing persisted
+ * store under this process's fixed/fs identity, close and preserve errno. */
+static int
+imp_op_lock_store(const imp_op_ctx_t *context)
+{
+    int descriptor, result;
+    int64_t before = context->req->length;
+    size_t after;
+
+    if (before < 0 || (uint64_t) before > context->data_in_len
+        || before >= BRIX_LOCK_XATTR_MAXLEN)
+    {
+        return -EINVAL;
+    }
+    after = context->data_in_len - (size_t) before;
+    if (after >= BRIX_LOCK_XATTR_MAXLEN || before + after == 0) { return -EINVAL; }
+    descriptor = imp_xattr_open(context->rootfd, context->rel);
+    if (descriptor < 0) { return descriptor; }
+    result = brix_posix_lock_store_update_fd(descriptor,
+        before ? context->data_in : NULL, (size_t) before,
+        after ? context->data_in + before : NULL, after) == 0 ? 0 : -errno;
+    close(descriptor);
+    return result;
+}
+
 /*
  * imp_op_table — opcode -> handler descriptor table (coding-standards §8.6:
  * data-driven dispatch over a branch ladder).  WHY exhaustive-by-listing: an
@@ -441,6 +471,7 @@ static const struct {
     { IMP_OP_LISTXATTR,        imp_op_xattr_read  },
     { IMP_OP_SETXATTR,         imp_op_setxattr    },
     { IMP_OP_REMOVEXATTR,      imp_op_removexattr },
+    { IMP_OP_LOCK_STORE,       imp_op_lock_store  },
 };
 
 

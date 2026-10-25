@@ -83,6 +83,7 @@ xrd.trace off
 """
 
     def _xrdhttp_config(self, directory, port):
+        cert, key = self._stock_tls_paths(directory)
         subject = self.eec_dn(self.proxy_a) or ""
         (directory / "gridmap").write_text(f'"{subject}" fwd-user-a\n')
         (directory / "authdb").write_text("u fwd-user-a / a\n")
@@ -91,11 +92,11 @@ xrd.trace off
 xrd.protocol http:{port} libXrdHttp.so
 xrd.network nodnr
 xrd.allow host *
-xrd.tls   {SERVER_CERT} {SERVER_KEY}
+xrd.tls   {cert} {key}
 xrd.tlsca certdir {CA_DIR}
 http.cadir {CA_DIR}
-http.cert  {SERVER_CERT}
-http.key   {SERVER_KEY}
+http.cert  {cert}
+http.key   {key}
 http.secxtractor libXrdHttpVOMS.so
 http.gridmap {directory}/gridmap
 oss.localroot {directory}/data
@@ -135,22 +136,34 @@ pss.setopt DebugLevel 0
             raise LiveFailure(f"spawn_xrootd_node: unknown mode {mode}")
         return builders[mode]()
 
-    def _remember_node_pid(self, directory):
+    def _remember_node_pid(self, directory, port):
         for _attempt in range(20):
             pids = sorted((directory / "run").glob("*.pid"))
             if pids:
-                self.node_pidfiles.append(pids[0])
-                return
+                try:
+                    pid = int(pids[0].read_text().strip())
+                    os.kill(pid, 0)
+                except (OSError, ValueError):
+                    time.sleep(0.2)
+                    continue
+                if wait_tcp(HOST, port, 1):
+                    self.node_pidfiles.append(pids[0])
+                    return True
             time.sleep(0.2)
+        return False
 
-    def _launch_stock_node(self, directory, config, log):
+    def _launch_stock_node(self, directory, config, log, port):
         run_as = []
         if os.geteuid() == 0:
             run_as = ["-R", "nobody"]
             subprocess.run(["chmod", "a+rx", str(self.run.root)], check=False)
             subprocess.run(["chmod", "-R", "a+rwX", str(directory)], check=False)
-        _call([XROOTD_BIN, *run_as, "-c", config, "-l", log, "-b"])
-        self._remember_node_pid(directory)
+            self._stock_tls_paths(directory)
+        result = _call(
+            [XROOTD_BIN, *run_as, "-c", config, "-l", log, "-b"])
+        if result.returncode != 0:
+            return False
+        return self._remember_node_pid(directory, port)
 
     def spawn_xrootd_node(self, role: str, mode: str, port: int,
                           backend: str = "", cred: str = "gsi") -> Path | None:
@@ -162,7 +175,9 @@ pss.setopt DebugLevel 0
 
         if cred == "token":
             return log if self.spawn_bwrap_xrootd(directory, cfg, log, port) else None
-        self._launch_stock_node(directory, cfg, log)
+        if not self._launch_stock_node(directory, cfg, log, port):
+            self.last_log = log
+            return None
         self.last_log = log
         time.sleep(0.8)
         return log
@@ -282,26 +297,36 @@ pss.setopt DebugLevel 0
         get_ok = put_ok and back.is_file() and back.read_bytes() == payload.read_bytes()
         return FrontResult(put_ok, get_ok, deny_obs)
 
+    def _probe_gsi_cred_lookup(self, hop1: str, port: int) -> None:
+        if hop1 == "root":
+            _call([BRIX_XRDFS, f"root://{HOST}:{port}", "stat",
+                   "/_probe_key.bin"], env_add=self.gsi_env(self.proxy_a),
+                  timeout=30)
+            return
+        _call(["curl", "-sk", "--cert", str(self.proxy_a),
+               "--key", str(self.proxy_a), "-o", os.devnull,
+               "-T", str(self.proxy_a),
+               f"https://{HOST}:{port}/_probe_key.bin"], timeout=30)
+
+    @staticmethod
+    def _gsi_cred_stem(front_log: Path) -> str:
+        for _attempt in range(20):
+            text = front_log.read_text(errors="replace") \
+                if front_log.is_file() else ""
+            match = re.search(
+                r"key=(x5h-[0-9a-f]+|[A-Za-z0-9@._-]+)", text)
+            if match:
+                return match.group(1)
+            time.sleep(0.1)
+        return ""
+
     def install_gsi_cred(self, cred_dir: Path, front_log: Path, hop1: str, port: int) -> None:
         """Learn the front's derived credential stem via a probe, install A's proxy."""
-        if hop1 == "root":
-            _call([BRIX_XRDCP, "-f", "/dev/null", f"root://{HOST}:{port}//_probe_key.bin"],
-                  env_add=self.gsi_env(self.proxy_a), timeout=30)
-        else:
-            _call(["curl", "-sk", "--cert", str(self.proxy_a), "--key", str(self.proxy_a),
-                   "-o", os.devnull, "-T", str(self.proxy_a),
-                   f"https://{HOST}:{port}/_probe_key.bin"], timeout=30)
-        time.sleep(0.3)
-        stem = ""
-        if front_log.is_file():
-            match = re.search(r"key=(x5h-[0-9a-f]+|[A-Za-z0-9@._-]+)",
-                              front_log.read_text(errors="replace"))
-            if match:
-                stem = match.group(1)
+        self._probe_gsi_cred_lookup(hop1, port)
+        stem = self._gsi_cred_stem(front_log)
         if not stem:
-            proc = _call(["openssl", "x509", "-in", self.proxy_a, "-noout", "-subject"])
-            dn = proc.stdout.strip().removeprefix("subject=").strip()
-            stem = "x5h-" + hashlib.sha256(dn.encode()).hexdigest()[:32]
+            raise LiveFailure(
+                f"credential-key probe produced no lookup in {front_log}")
         target = cred_dir / f"{stem}.pem"
         shutil.copy(self.proxy_a, target)
         target.chmod(0o644)
@@ -335,13 +360,19 @@ pss.setopt DebugLevel 0
         return "SUPPORTED", ""
 
     @classmethod
-    def _pairing_a_feasibility(cls, hop2, cred, have_xrootd, have_xrdhttp):
+    def _pairing_a_feasibility(cls, hop2, cred, have_xrootd, have_xrdhttp,
+                               have_xrdhttp_voms):
         if not have_xrootd:
             return "SKIP", "stock xrootd absent"
         if cred == "token":
             return cls._pairing_a_token_feasibility(hop2)
         if hop2 == "https" and not have_xrdhttp:
             return "SKIP", "stock XrdHttp plugin (libXrdHttp) not present — no https backend node"
+        if hop2 == "https" and not have_xrdhttp_voms:
+            return "SKIP", (
+                "stock XrdHttp VOMS extractor (libXrdHttpVOMS) not present "
+                "— no GSI-authenticated https backend node"
+            )
         return "SUPPORTED", ""
 
     def feasibility_probe(self, pairing: str, hop2: str, cred: str) -> tuple[str, str]:
@@ -349,11 +380,14 @@ pss.setopt DebugLevel 0
 
         have_xrootd = os.access(XROOTD_BIN, os.X_OK)
         have_xrdhttp = find_xrd_library("libXrdHttp-5.so", "libXrdHttp.so") is not None
+        have_xrdhttp_voms = find_xrd_library(
+            "libXrdHttpVOMS-5.so", "libXrdHttpVOMS.so"
+        ) is not None
         if pairing == "B":
             return self._pairing_b_feasibility(hop2, have_xrootd)
         if pairing == "A":
             return self._pairing_a_feasibility(
-                hop2, cred, have_xrootd, have_xrdhttp
+                hop2, cred, have_xrootd, have_xrdhttp, have_xrdhttp_voms
             )
         if pairing == "C":
             return "SUPPORTED", ""

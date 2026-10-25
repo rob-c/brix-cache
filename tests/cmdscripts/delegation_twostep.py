@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import datetime
 from pathlib import Path
 import hashlib
 import os
@@ -202,31 +203,47 @@ def delegation_id(headers: Path) -> str:
     return ""
 
 
+def _public_key_bytes(key):
+    from cryptography.hazmat.primitives import serialization
+
+    return key.public_bytes(serialization.Encoding.DER,
+                            serialization.PublicFormat.SubjectPublicKeyInfo)
+
+
+def _signed_fixture_csr(request, issuer, key):
+    """Test-only signer: retain requested extensions, including negative fixtures."""
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    builder = (x509.CertificateBuilder().subject_name(request.subject)
+        .issuer_name(issuer.subject).public_key(request.public_key())
+        .serial_number(x509.random_serial_number()).not_valid_before(now)
+        .not_valid_after(now + datetime.timedelta(days=1)))
+    for extension in request.extensions:
+        builder = builder.add_extension(extension.value, extension.critical)
+    return builder.sign(key, hashes.SHA256())
+
+
 def sign_csr(csr: Path, cert: Path, key: Path, out: Path) -> bool:
-    result = subprocess.run(
-        [
-            "openssl",
-            "x509",
-            "-req",
-            "-in",
-            str(csr),
-            "-CA",
-            str(cert),
-            "-CAkey",
-            str(key),
-            "-CAcreateserial",
-            "-days",
-            "1",
-            "-copy_extensions",
-            "copy",
-            "-out",
-            str(out),
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    return result.returncode == 0 and out.is_file() and out.stat().st_size > 0
+    """Sign fixture CSRs without OpenSSL 3's CLI-only -copy_extensions option."""
+    from cryptography import x509
+    from cryptography.exceptions import UnsupportedAlgorithm
+    from cryptography.hazmat.primitives import serialization
+
+    try:
+        request = x509.load_pem_x509_csr(csr.read_bytes())
+        issuer = x509.load_pem_x509_certificate(cert.read_bytes())
+        signer = serialization.load_pem_private_key(key.read_bytes(), password=None)
+        if not request.is_signature_valid:
+            return False
+        if _public_key_bytes(signer.public_key()) != _public_key_bytes(issuer.public_key()):
+            return False
+        signed = _signed_fixture_csr(request, issuer, signer)
+        out.write_bytes(signed.public_bytes(serialization.Encoding.PEM))
+        return True
+    except (OSError, ValueError, TypeError, UnsupportedAlgorithm):
+        return False
 
 
 def start_front(base: Path, nginx_bin: str, origin_port: int, front_port: int, delegation: str) -> tuple[bool, str]:

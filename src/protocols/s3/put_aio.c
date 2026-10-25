@@ -145,7 +145,9 @@ s3_put_aio_finish(s3_put_aio_t *t)
 
     brix_dashboard_http_add(r, (ngx_atomic_int_t) t->body_bytes);
     BRIX_S3_METRIC_ADD(bytes_rx_total, t->body_bytes);
-    if (r->connection && r->connection->sockaddr
+    /* The held request owns its connection throughout this completion, as
+     * required by the log and commit above; only its peer address is optional. */
+    if (r->connection->sockaddr
         && r->connection->sockaddr->sa_family == AF_INET6) {
         BRIX_S3_METRIC_ADD(bytes_rx_ipv6_total, t->body_bytes);
     } else {

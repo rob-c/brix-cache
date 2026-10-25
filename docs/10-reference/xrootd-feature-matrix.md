@@ -59,6 +59,11 @@ paths checked, see
 | Protocol flags | Yes | Yes | Current flag set includes async, sendfile, attrMeta, attrVirtRdr, attrSuper, recoverWrites, collapseRedirect, and TLS advertisement. |
 | GPF/extended collection flags | Yes | No | Not advertised by BriX-Cache; leaving this unimplemented is intentional unless a site depends on those upstream behaviors. |
 
+On macOS, BriX's portable fattr storage supports legal names through the full
+248-byte wire limit even when a reference server hits the native 127-byte xattr
+name ceiling. The differential test verifies BriX's value round-trip and only
+permits the reference's specific `kXR_ArgTooLong` limitation in that case.
+
 ## Authentication and Authorization
 
 | Feature | Official XRootD | BriX-Cache | Reviewer notes |

@@ -21,5 +21,12 @@
 
 #include "platform/platform.h"
 #include BRIX_PLAT_HOST_HEADER(preload.h)
+#include <sys/stat.h>
+
+/* The real stat ABI differs on older glibc, where only __xstat is exported. */
+int brix_plat_preload_stat(const char *path, struct stat *out);
+int brix_plat_preload_lstat(const char *path, struct stat *out);
+int brix_plat_preload_fstat(int fd, struct stat *out);
+int brix_plat_preload_fstatat(int dirfd, const char *path, struct stat *out, int flags);
 
 #endif /* BRIX_CLIENT_PLATFORM_PRELOAD_H */

@@ -76,9 +76,12 @@ def test_sigv4_standalone_guard_present():
 
 @pytest.mark.skipif(shutil.which("clang") is None, reason="clang not available")
 def test_kat_carved_parsers(tmp_path):
+    from cmdscripts.compile_run import PLATFORM_HOST_FLAGS, library_compile_args
+
     binp = tmp_path / "kat"
     cmd = [
         "clang", "-O1", "-g", "-fsanitize=address,undefined",
+        *PLATFORM_HOST_FLAGS,
         "-I", str(ROOT / "src"),
         str(ROOT / "tests/fuzz/kat_carved_parsers.c"),
         str(ROOT / "src/protocols/root/connection/recv_frame_bounds.c"),
@@ -88,10 +91,48 @@ def test_kat_carved_parsers(tmp_path):
         str(ROOT / "src/auth/gsi/gsi_buf.c"),
         "-lcrypto", "-o", str(binp),
     ]
-    build = subprocess.run(cmd, capture_output=True, text=True)
-    if build.returncode != 0:
-        pytest.skip(f"KAT build unavailable (missing libcrypto headers?):\n{build.stderr[-800:]}")
+    build = subprocess.run(library_compile_args(cmd), capture_output=True, text=True,
+                           timeout=60)
+    assert build.returncode == 0, f"carved-parser KAT did not build:\n{build.stderr}"
 
     run = subprocess.run([str(binp)], capture_output=True, text=True)
     assert run.returncode == 0, f"carved-parser KAT failed:\n{run.stdout}\n{run.stderr}"
     assert "all checks passed" in run.stdout
+def test_fuzz_recipes_use_the_native_pal_host():
+    """Every sanitizer recipe must select the same native PAL as other units."""
+    from cmdscripts import fuzz_all
+    from cmdscripts.compile_run import platform_host_name
+
+    expected = '-DBRIX_PLATFORM_HOST=' + platform_host_name()
+    for command in fuzz_all.BUILD_ARGS.values():
+        selections = [arg for arg in command if arg.startswith('-DBRIX_PLATFORM_HOST=')]
+        assert selections == [expected]
+
+
+def test_fuzz_build_resolves_the_selected_dependency_graph(monkeypatch):
+    """The exact selected SDK flags reach both fuzz entry points."""
+    from cmdscripts import fuzz_all
+
+    command = ['clang', 'fixture.c', '-lsqlite3']
+    selected = ['clang', 'fixture.c', '-I/selected/include', '-L/selected/lib', '-lsqlite3']
+    calls = []
+    monkeypatch.setattr(fuzz_all, 'library_compile_args',
+                        lambda args: calls.append(args) or selected)
+    assert fuzz_all.fuzz_build_args(command) is selected
+    assert calls == [command]
+
+
+def test_fuzz_dependency_resolution_failure_is_not_a_host_fallback(monkeypatch):
+    """A failed SDK selector cannot turn into a bare-system-library compile."""
+    import pytest
+    from cmdscripts import fuzz_all
+
+    error = RuntimeError('selected fuzz SDK unavailable')
+
+    def failed(_args):
+        raise error
+
+    monkeypatch.setattr(fuzz_all, 'library_compile_args', failed)
+    with pytest.raises(RuntimeError) as caught:
+        fuzz_all.fuzz_build_args(['clang', 'fixture.c', '-lcrypto'])
+    assert caught.value is error

@@ -30,7 +30,9 @@
 #include "brix.h"
 #include "brix_ops.h"
 
+#include <arpa/inet.h>
 #include <errno.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -105,6 +107,28 @@ dirfan_seen(const dirfan_node *nodes, size_t n, const brix_url *u)
     return 0;
 }
 
+/* ---- Normalize legacy IPv4-compatible CMS location literals ----
+ * WHAT: Replace an IPv4-compatible IPv6 literal with its IPv4 spelling.
+ * WHY: Stock managers advertise endpoints such as [::127.0.0.1]; modern
+ *      kernels do not route that deprecated IPv6 form to an IPv4 listener.
+ * HOW: 1. Parse the entire literal and require the IPv4-compatible class.
+ *      2. Format its final four bytes as IPv4, excluding :: and ::1 by class.
+ *         Ordinary IPv6, mapped IPv6, and hostname lookalikes stay unchanged.
+ */
+static void
+dirfan_normalize_endpoint(brix_url *url)
+{
+    struct in6_addr address;
+    char ipv4[INET_ADDRSTRLEN];
+
+    if (inet_pton(AF_INET6, url->host, &address) == 1
+        && IN6_IS_ADDR_V4COMPAT(&address)
+        && inet_ntop(AF_INET, address.s6_addr + 12, ipv4, sizeof(ipv4)) != NULL)
+    {
+        snprintf(url->host, sizeof(url->host), "%s", ipv4);
+    }
+}
+
 
 /* ---- Data servers named by a locate reply ----
  *
@@ -142,6 +166,7 @@ dirfan_nodes_from_locate(char *reply, dirfan_node *nodes, size_t max)
         if (brix_url_parse(url, &u, &ust) != 0 || u.host[0] == '\0') {
             continue;
         }
+        dirfan_normalize_endpoint(&u);
         if (dirfan_seen(nodes, n, &u)) {
             continue;
         }

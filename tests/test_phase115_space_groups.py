@@ -39,6 +39,10 @@ from server_registry import NginxInstanceSpec
 import _test_session_bind_helpers as H
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
+              # This module deliberately crosses the five-second usage-cache
+              # boundary repeatedly; isolate those wall-clock assertions from
+              # the full lane's live topology load.
+              pytest.mark.serial,
               pytest.mark.xdist_group("lc-p115-space")]
 
 _SERVER = "lc-p115-space"

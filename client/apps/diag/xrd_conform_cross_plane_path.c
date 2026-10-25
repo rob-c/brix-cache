@@ -1,13 +1,6 @@
 /* Phase-118 cross-plane path-normalization evidence. */
-#include "xrd_conform_internal.h"
+#include "xrd_conform_probe_helpers.h"
 
-static int
-row_active(xrd_conform_execution *execution, const char *id)
-{
-    const brix_conform_result *row = xrd_conform_result_find(execution, id);
-
-    return row != NULL && row->verdict != BRIX_CONFORM_VERDICT_SKIPPED;
-}
 
 /* WHAT: Submit one literal parent segment through the ROOT stat operation.
  * WHY: XPR-008 needs the same hostile relative shape on each selected plane.
@@ -27,7 +20,7 @@ xrd_conform_probe_root_traversal(xrd_conform_execution *execution,
     size_t index;
     int state = 1;
 
-    if (!row_active(execution, "XPR-008")) return;
+    if (!xrd_conform_row_active(execution, "XPR-008")) return;
     for (index = 0; index < sizeof(suffixes) / sizeof(suffixes[0]); index++) {
         if ((size_t) snprintf(hostile, sizeof(hostile), "%s%s", path,
                 suffixes[index]) >= sizeof(hostile)
@@ -60,7 +53,7 @@ xrd_conform_probe_web_traversal(xrd_conform_execution *execution,
     size_t index;
     int rc;
 
-    if (!row_active(execution, "XPR-008")) return;
+    if (!xrd_conform_row_active(execution, "XPR-008")) return;
     state = url->is_s3 ? &execution->s3_traversal_state
                        : &execution->http_traversal_state;
     *state = 1;
@@ -144,7 +137,7 @@ xrd_conform_probe_root_case(xrd_conform_execution *execution,
     char reason[64];
     int rc;
 
-    if (!row_active(execution, "XPR-010")
+    if (!xrd_conform_row_active(execution, "XPR-010")
         || case_variant(path, alternate) != 0
         || !xrd_conform_reserve(execution, 0, reason, sizeof(reason))) return;
     brix_status_clear(&status);
@@ -163,7 +156,7 @@ xrd_conform_probe_web_case(xrd_conform_execution *execution,
     int *state;
     int rc;
 
-    if (!row_active(execution, "XPR-010")
+    if (!xrd_conform_row_active(execution, "XPR-010")
         || case_variant(url->path, alternate.path) != 0) return;
     memset(&response, 0, sizeof(response));
     brix_status_clear(&status);
@@ -240,7 +233,7 @@ xrd_conform_probe_root_filenames(xrd_conform_execution *execution,
     char reason[64];
     size_t index;
 
-    if (!row_active(execution, "XPR-011")) return;
+    if (!xrd_conform_row_active(execution, "XPR-011")) return;
     for (index = 0; index < 3; index++) {
         if (filename_variant(path, 0, index, variant) != 0
             || !xrd_conform_reserve(execution, 0, reason, sizeof(reason)))
@@ -290,7 +283,7 @@ xrd_conform_probe_web_filenames(xrd_conform_execution *execution,
                              : execution->http_filename_state;
     size_t index;
 
-    if (!row_active(execution, "XPR-011")) return;
+    if (!xrd_conform_row_active(execution, "XPR-011")) return;
     for (index = 0; index < 3; index++)
         states[index] = web_filename_state(execution, url, token, index);
 }

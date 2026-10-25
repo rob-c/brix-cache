@@ -22,6 +22,8 @@
 #include "impersonate.h"
 #include "impersonate_proto.h"
 #include "client_internal.h"
+#include "core/compat/lock_key.h"
+#include "fs/path/path.h"
 
 #include <errno.h>
 #include <string.h>
@@ -360,5 +362,49 @@ brix_imp_removexattr(const char *reqpath, const char *name)
         return 0;
     }
     errno = (rep.status < 0) ? -rep.status : imp_status_errno(rep.status);
+    return -1;
+}
+
+/* WHAT: Request an exact, inode-bound lock-record transaction as the owner.
+ * WHY: A worker-owned CAS would bypass the mapped user's metadata authority.
+ * HOW: Bound both records, reuse checked root-relative conversion and the
+ * shared local codec, then propagate the mapped helper's actual errno. */
+int
+brix_imp_lock_store_update(ngx_log_t *log, const char *root_canon,
+    const char *resolved, const char *expected, const char *replacement)
+{
+    char relative[IMP_PATH_MAX], data[2 * BRIX_LOCK_XATTR_MAXLEN];
+    size_t before, after;
+    imp_req_t request;
+    imp_rep_t reply;
+    int descriptor = -1;
+
+    if (!brix_imp_client_active()) { errno = EACCES; return -1; }
+    if (expected == NULL || replacement == NULL) { errno = EINVAL; return -1; }
+    before = strnlen(expected, BRIX_LOCK_XATTR_MAXLEN);
+    after = strnlen(replacement, BRIX_LOCK_XATTR_MAXLEN);
+    if (before >= BRIX_LOCK_XATTR_MAXLEN || after >= BRIX_LOCK_XATTR_MAXLEN
+        || before + after == 0)
+    {
+        errno = EINVAL;
+        return -1;
+    }
+    if (!brix_resolved_relative_to_root(log, root_canon, resolved,
+                                       relative, sizeof(relative)))
+    {
+        return -1;
+    }
+    ngx_memcpy(data, expected, before);
+    ngx_memcpy(data + before, replacement, after);
+    imp_build_req(&request, IMP_OP_LOCK_STORE, relative, NULL, 0, 0, (int64_t) before);
+    request.req_data_len = (uint32_t) (before + after);
+    if (imp_exchange(&request, &reply, &descriptor, NULL, 0,
+                     data, before + after) != 0)
+    {
+        return -1;
+    }
+    if (descriptor >= 0) { close(descriptor); }
+    if (reply.status == 0) { return 0; }
+    errno = reply.status < 0 ? -reply.status : imp_status_errno(reply.status);
     return -1;
 }

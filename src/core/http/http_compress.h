@@ -35,18 +35,25 @@
 brix_codec_id_t brix_http_compress_negotiate(ngx_http_request_t *r,
     off_t file_size, ngx_flag_t is_range);
 
+/* Called only after an NGX_DONE return, on the event loop; data must be
+ * request-owned. bytes counts codec output, not HTTP chunk framing. */
+typedef void (*brix_http_compress_done_fn)(ngx_http_request_t *r, void *data,
+    off_t bytes, ngx_int_t rc);
+
 /*
  * brix_http_send_file_compressed - send a file body compressed with `codec`.
  *
  * Sets status 200 + ETag/Last-Modified (via set_file_headers), forces chunked
  * transfer (Content-Length unknown), adds Content-Encoding + Vary, sends the
  * header, then streams the whole file [0,size) through the codec to the output
- * filter (last buffer flagged last_buf). Takes ownership of send_fd (closes it).
- * Returns NGX_OK / NGX_ERROR / NGX_HTTP_INTERNAL_SERVER_ERROR.
+ * filter (last buffer flagged last_buf). Takes ownership of send_fd. Backpressure
+ * parks with NGX_DONE and invokes done once on completion/error. Only synchronous
+ * completion writes bytes_in_out; that pointer is never retained.
+ * Returns NGX_OK / NGX_DONE / NGX_ERROR / NGX_HTTP_INTERNAL_SERVER_ERROR.
  */
 ngx_int_t brix_http_send_file_compressed(ngx_http_request_t *r,
     ngx_fd_t send_fd, const char *fs_path, off_t size,
     brix_codec_id_t codec, time_t mtime, unsigned etag_flags,
-    off_t *bytes_in_out);
+    off_t *bytes_in_out, brix_http_compress_done_fn done, void *data);
 
 #endif /* BRIX_COMPAT_HTTP_COMPRESS_H */

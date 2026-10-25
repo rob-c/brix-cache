@@ -207,6 +207,7 @@ vfs_mkdir_backend(const vfs_mkdir_req_t *req, const brix_sd_driver_t *drv)
         errno = saved_errno;
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_MKDIR, NULL, 0,
                                   NGX_ERROR, saved_errno, start);
+        errno = saved_errno;
         return NGX_ERROR;
     }
     if (brix_vfs_cred_gate_active(ctx)) {
@@ -218,6 +219,7 @@ vfs_mkdir_backend(const vfs_mkdir_req_t *req, const brix_sd_driver_t *drv)
             brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_MKDIR,
                                       NULL, 0, NGX_ERROR, saved_errno,
                                       start);
+            errno = saved_errno;
             return NGX_ERROR;
         }
     }
@@ -228,11 +230,27 @@ vfs_mkdir_backend(const vfs_mkdir_req_t *req, const brix_sd_driver_t *drv)
     saved_errno = errno;
     brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_MKDIR, NULL, 0,
                               rc, saved_errno, start);
+    if (rc != NGX_OK) {
+        errno = saved_errno;
+    }
     return rc;
 }
 
-/* Create the resolved ctx path as a directory (mode), creating parents when
- * `parents`. Write-gated and confined; metered as OP_MKDIR. */
+/* ---- Create a directory through the typed VFS mutation path -------------
+ *
+ * WHAT: Creates the resolved context path with `mode`, optionally creating
+ *       parents. Returns NGX_OK, or NGX_ERROR with the authoritative errno
+ *       from the policy, lock, backend, or confined namespace layer.
+ *
+ * WHY: root:// mkdir and WebDAV MKCOL require identical policy ordering and
+ *      backend dispatch. Their protocol-edge status mapping depends on errno
+ *      surviving metrics and access-log observation unchanged.
+ *
+ * HOW: 1. Enforce mutation policy, authorization, and the lock gate.
+ *      2. Require a confined export root.
+ *      3. Dispatch to the selected storage driver or POSIX namespace helper.
+ *      4. Observe the outcome, then restore a failure errno before returning.
+ */
 ngx_int_t
 brix_vfs_mkdir(brix_vfs_ctx_t *ctx, mode_t mode, unsigned parents)
 {
@@ -251,6 +269,7 @@ brix_vfs_mkdir(brix_vfs_ctx_t *ctx, mode_t mode, unsigned parents)
         saved_errno = errno;
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_MKDIR, NULL, 0,
                                   NGX_ERROR, saved_errno, start);
+        errno = saved_errno;
         return NGX_ERROR;
     }
 
@@ -260,6 +279,7 @@ brix_vfs_mkdir(brix_vfs_ctx_t *ctx, mode_t mode, unsigned parents)
         saved_errno = errno;
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_MKDIR, NULL, 0,
                                   NGX_ERROR, saved_errno, start);
+        errno = saved_errno;
         return NGX_ERROR;
     }
 
@@ -268,6 +288,7 @@ brix_vfs_mkdir(brix_vfs_ctx_t *ctx, mode_t mode, unsigned parents)
         saved_errno = errno;
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_MKDIR, NULL, 0,
                                   NGX_ERROR, saved_errno, start);
+        errno = saved_errno;
         return NGX_ERROR;
     }
 
@@ -310,6 +331,7 @@ brix_vfs_mkdir(brix_vfs_ctx_t *ctx, mode_t mode, unsigned parents)
     saved_errno = errno;
     brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_MKDIR, NULL, 0,
                               NGX_ERROR, saved_errno, start);
+    errno = saved_errno;
     return NGX_ERROR;
 }
 

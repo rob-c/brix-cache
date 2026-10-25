@@ -357,6 +357,68 @@ writev_reply(brix_ctx_t *ctx, ngx_connection_t *c, size_t n_segs,
 	return brix_send_ok(ctx, c, NULL, 0);
 }
 
+static ngx_int_t
+writev_require_integrity(brix_ctx_t *ctx, ngx_connection_t *c)
+{
+	ngx_stream_brix_srv_conf_t *rconf = ngx_stream_get_module_srv_conf(
+	    (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
+
+	if (!rconf->common.require_pgwrite) {
+		return NGX_OK;
+	}
+	brix_log_access(ctx, c, "WRITEV", "-", "-", 0, kXR_Unsupported,
+	                  "cleartext writev refused; use pgwrite "
+	                  "(brix_require_pgwrite)", 0);
+	BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
+	{
+		ngx_int_t rc = brix_send_error(ctx, c, kXR_Unsupported,
+		    "cleartext writev refused; use pgwrite (brix_require_pgwrite)");
+		return rc == NGX_ERROR ? NGX_ERROR : NGX_DONE;
+	}
+}
+
+static ngx_int_t
+writev_validate_maxsize(brix_ctx_t *ctx, ngx_connection_t *c,
+	const write_list *wl, size_t n_segs)
+{
+	ngx_stream_brix_srv_conf_t *mconf = ngx_stream_get_module_srv_conf(
+	    (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
+	size_t seg;
+
+	if (mconf->oss_maxsize == 0) {
+		return NGX_OK;
+	}
+	for (seg = 0; seg < n_segs; seg++) {
+		int idx = (int)(unsigned char) wl[seg].fhandle[0];
+		int64_t offset = (int64_t) brix_plat_be64toh(
+		    (uint64_t) wl[seg].offset);
+		uint32_t length = (uint32_t) ntohl((uint32_t) wl[seg].wlen);
+		ngx_int_t rc;
+
+		if (brix_write_within_maxsize(ctx, c, mconf, idx, offset, length,
+		                              BRIX_OP_WRITEV, "WRITEV", &rc)) {
+			return rc;
+		}
+	}
+	return NGX_OK;
+}
+
+static ngx_int_t
+writev_finish_sync(writev_run_t *run, int do_sync,
+	size_t *bytes_written_total)
+{
+	ngx_int_t rc = writev_execute_sync(run, bytes_written_total);
+
+	if (rc == NGX_DONE) {
+		return NGX_OK;
+	}
+	if (rc != NGX_OK || !do_sync) {
+		return rc;
+	}
+	rc = writev_sync_handles(run->ctx, run->c, run->wl, run->n_segs);
+	return rc == NGX_DONE ? NGX_OK : rc;
+}
+
 /* Handle kXR_writev — scatter the request's data segments to their per-handle
  * (fd, offset) targets through the VFS write path, then reply with the aggregate
  * status.
@@ -410,18 +472,12 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 	 * a data-carrying vector so clients must use the checksummed pgwrite path; the
 	 * all-zero-length vector already returned NGX_DONE above, so any vector reaching
 	 * here carries data. */
-	{
-		ngx_stream_brix_srv_conf_t *rconf = ngx_stream_get_module_srv_conf(
-		    (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
-
-		if (rconf->common.require_pgwrite) {
-			brix_log_access(ctx, c, "WRITEV", "-", "-", 0, kXR_Unsupported,
-							  "cleartext writev refused; use pgwrite "
-							  "(brix_require_pgwrite)", 0);
-			BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
-			return brix_send_error(ctx, c, kXR_Unsupported,
-			    "cleartext writev refused; use pgwrite (brix_require_pgwrite)");
-		}
+	rc = writev_require_integrity(ctx, c);
+	if (rc == NGX_DONE) {
+		return NGX_OK;
+	}
+	if (rc != NGX_OK) {
+		return rc;
 	}
 
 	rc = writev_validate_handles(ctx, c, wl, n_segs);
@@ -435,23 +491,9 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 	/* oss.maxsize (§3.9): refuse the whole vector if ANY segment's end offset
 	 * would push its target past the cap. Computed here, once, before any
 	 * segment is written, so a partial vector can never leak past the limit. */
-	{
-		ngx_stream_brix_srv_conf_t *mconf = ngx_stream_get_module_srv_conf(
-		    (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
-		if (mconf->oss_maxsize > 0) {
-			size_t seg;
-			for (seg = 0; seg < n_segs; seg++) {
-				int      sidx = (int)(unsigned char) wl[seg].fhandle[0];
-				int64_t  soff = (int64_t) brix_plat_be64toh((uint64_t) wl[seg].offset);
-				uint32_t slen = (uint32_t) ntohl((uint32_t) wl[seg].wlen);
-
-				if (brix_write_within_maxsize(ctx, c, mconf, sidx, soff,
-											   slen, BRIX_OP_WRITEV,
-											   "WRITEV", &rc)) {
-					return rc;
-				}
-			}
-		}
+	rc = writev_validate_maxsize(ctx, c, wl, n_segs);
+	if (rc != NGX_OK) {
+		return rc;
 	}
 
 	/* All N descriptors occupy the first n_segs*16 bytes; the per-segment data
@@ -474,23 +516,10 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 		}
 	}
 
-	/* Synchronous fallback: write each segment on the event-loop thread. */
-	rc = writev_execute_sync(&run, &bytes_written_total);
-	if (rc == NGX_DONE) {
-		return NGX_OK;   /* staged writer error already queued */
-	}
+	/* Synchronous fallback: write each segment, then honour doSync. */
+	rc = writev_finish_sync(&run, do_sync, &bytes_written_total);
 	if (rc != NGX_OK) {
 		return rc;
-	}
-
-	if (do_sync) {
-		rc = writev_sync_handles(ctx, c, wl, n_segs);
-		if (rc == NGX_DONE) {
-			return NGX_OK;   /* staged commit error already queued */
-		}
-		if (rc != NGX_OK) {
-			return rc;
-		}
 	}
 
 	return writev_reply(ctx, c, n_segs, bytes_written_total);

@@ -1,5 +1,6 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cms_hostile_conformance_helpers")
+from _test_cms_wire_pup_conformance_helpers import _recv_frame
 
 class TestServerLegHostileFraming:
 
@@ -117,6 +118,9 @@ class TestServerLegHostileFraming:
             time.sleep(0.3)
             sock.sendall(_build_frame(0, CMS_RR_LOGIN, 0,
                                       _minimal_login_payload(NODE_DATA_PORT + 1)))
+            reply = _recv_frame(sock)
+            assert reply is not None and reply[:3] == (0, CMS_RR_LOGIN, 0), \
+                f"missing repeated LOGIN acknowledgment: {reply!r}"
             time.sleep(0.3)
             assert _statfs_wfree(sock, _SID | 5) >= 5000, \
                 "a second LOGIN wedged the connection"

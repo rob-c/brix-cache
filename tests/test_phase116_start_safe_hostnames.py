@@ -127,6 +127,24 @@ def test_nxdomain_target_is_reported_and_the_server_keeps_serving(lifecycle, tmp
 # security negatives — spoofed answers never resolve a target                  #
 # --------------------------------------------------------------------------- #
 
+def _assert_spoof_rejected(ep):
+    assert wait_until(lambda: metric(metrics_text(ep.port), "brix_dns_lookups_total",
+                                     result="timeout"), timeout=20), \
+        "the spoofed answer was not discarded as a timeout"
+    row = dns_target(ep.port, MANAGER)
+    assert row["state"] != "resolved" and row["resolutions"] == 0, row
+    text = metrics_text(ep.port)
+    assert metric(text, "brix_dns_resolutions_total") == 0
+    assert metric(text, "brix_dns_targets", state="resolved") == 0
+    # The mock-port band is shared test infrastructure, so an unrelated
+    # loopback probe can reach this listener during a saturated full run.
+    # A real CMS dial immediately emits its login frame and increments
+    # these process-owned counters; those are the authoritative oracle.
+    assert metric(text, "brix_cms_logins_total") == 0, \
+        "a CMS login followed a spoofed answer"
+    assert metric(text, "brix_cms_registered_links") == 0
+
+
 @pytest.mark.parametrize("spoof", ["id", "qname"])
 def test_spoofed_answers_never_resolve(lifecycle, tmp_path, sink, spoof):
     lab = DnsLab(tmp_path)
@@ -138,15 +156,7 @@ def test_spoofed_answers_never_resolve(lifecycle, tmp_path, sink, spoof):
             lab.stub.spoof_qname = "attacker.lab.test"
         ep = _start(lifecycle, lab, sink, f"spoofed {spoof} answers",
                     RESOLVER_EXTRA="ipv6=off")
-        assert wait_until(lambda: metric(metrics_text(ep.port), "brix_dns_lookups_total",
-                                         result="timeout"), timeout=20), \
-            "the spoofed answer was not discarded as a timeout"
-        row = dns_target(ep.port, MANAGER)
-        assert row["state"] != "resolved" and row["resolutions"] == 0, row
-        text = metrics_text(ep.port)
-        assert metric(text, "brix_dns_resolutions_total") == 0
-        assert metric(text, "brix_dns_targets", state="resolved") == 0
-        assert not sink.accepts, "a dial followed a spoofed answer"
+        _assert_spoof_rejected(ep)
     finally:
         lab.close()
 

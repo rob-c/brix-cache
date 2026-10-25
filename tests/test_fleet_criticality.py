@@ -112,3 +112,21 @@ def test_only_main_and_the_reference_xrootd_are_critical() -> None:
     """Guards the blast radius: the tag stays on the two specs reasoned about above."""
     critical = {s.name: s.kind for s in core_specs() if "critical" in s.tags}
     assert critical == {"main": "nginx", "ref-anon": "xrootd"}
+
+
+@pytest.mark.parametrize('external_reference', [False, True])
+def test_main_exports_the_data_root_that_tests_seed(tmp_path, monkeypatch, external_reference):
+    """Native fixtures must not be seeded beside a different server export."""
+    from brix_suite.catalogue import core
+
+    shared = tmp_path / 'shared'
+    native = tmp_path / 'native' if external_reference else shared
+    monkeypatch.setattr(core, 'DATA_ROOT', str(native / 'data'))
+    monkeypatch.setattr(core, '_data', lambda name: str(shared / name))
+    specs = {spec.name: spec for spec in core.core_specs()}
+    main = specs['main']
+    assert (main.data_root, main.kind, main.template) == (
+        str(native / 'data'), 'nginx', 'nginx_shared.conf')
+    # The independent oracle must not borrow the native server's namespace.
+    reference = specs['ref-anon']
+    assert (reference.data_root, reference.kind) == (str(shared / 'data'), 'xrootd')

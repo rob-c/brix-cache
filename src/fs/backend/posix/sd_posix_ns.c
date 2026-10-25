@@ -33,6 +33,7 @@
 #include "fs/meta/xmeta_path.h"
 #include "fs/path/beneath.h"
 #include "fs/path/path.h"
+#include "auth/impersonate/impersonate.h"
 #endif
 
 #include <dirent.h>
@@ -92,6 +93,39 @@ sd_posix_abs_key(brix_sd_instance_t *inst, const char *path, char *abs,
         return NULL;
     }
     return st->root_canon;
+}
+
+/* WHAT: Return a private confined descriptor for a persisted lock transaction.
+ * WHY: A configured POSIX export owns its physical root; the VFS must not
+ * replace that root with a protocol path or lose a translated storage key.
+ * HOW: Derive the same absolute key as xattrs, then no-follow/nonblocking open
+ * through the existing confinement seam. The caller owns and closes the fd.
+ */
+int
+brix_sd_posix_open_lock_fd(brix_sd_instance_t *inst, const char *path)
+{
+    char absolute[PATH_MAX];
+    const char *root = sd_posix_abs_key(inst, path, absolute, sizeof(absolute));
+
+    if (root == NULL) {
+        return -1;
+    }
+    return brix_open_confined_canon(inst->log, root, absolute,
+        O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC, 0);
+}
+
+/* WHAT: Route a persisted lock CAS under the mapped identity and physical root.
+ * WHY: N2N and an explicitly configured POSIX root must not be discarded.
+ * HOW: Reuse the xattr key materialization, then the broker's checked converter. */
+int
+brix_sd_posix_broker_lock_store_update(brix_sd_instance_t *inst,
+    const char *path, const char *expected, const char *replacement)
+{
+    char absolute[PATH_MAX];
+    const char *root = sd_posix_abs_key(inst, path, absolute, sizeof(absolute));
+
+    if (root == NULL) { return -1; }
+    return brix_imp_lock_store_update(inst->log, root, absolute, expected, replacement);
 }
 
 ngx_int_t

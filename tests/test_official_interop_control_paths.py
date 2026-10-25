@@ -45,11 +45,13 @@ def _start(case):
 def _assert_control_config(call, base, data):
     command, kwargs, fields, process = call
     assert command == [subject.OFF_XROOTD, "-c", str(base / "xrootd.cfg"),
-                       "-l", str(base / "xrd.log")]
+                       "-l", str(base / "xrd.log"), "-I", "v4"]
     assert kwargs["start_new_session"] is True
+    from lib_py.reference_host import reference_transport_directives
+    transport = reference_transport_directives(disable_async=True).strip().split(' ', 1)[1]
     assert fields == {"xrd.port": str(subject.OFF_PORT), "all.export": "/",
                       "oss.localroot": str(data), "all.adminpath": str(process.admin),
-                      "all.pidpath": str(process.admin), "xrootd.async": "off"}
+                      "all.pidpath": str(process.admin), "xrootd.async": transport}
     assert process.admin.parent == Path("/tmp")
     assert len(str(process.admin / ".xrd/admin").encode()) < 108
     assert process.admin.stat().st_mode & 0o777 == 0o700

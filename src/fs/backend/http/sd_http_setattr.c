@@ -28,6 +28,7 @@
  */
 
 #include "sd_http_internal.h"
+#include "platform/platform_api.h"
 #include "sd_http_xattr_internal.h"      /* sd_http_getxattr_common */
 
 #include "fs/backend/meta_advisory.h"

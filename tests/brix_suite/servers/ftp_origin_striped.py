@@ -31,7 +31,7 @@ injects for the single-connection case, so it is not re-invented here.
 
 import socket
 
-from ephemeral_port import free_port
+from ephemeral_port import bind_port
 from brix_suite.servers import ftp_origin_mode_e as eb
 
 
@@ -40,16 +40,26 @@ def open_listeners(bind_host: str, count: int, timeout: float):
     listeners = []
     try:
         for _ in range(count):
-            listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            listener.bind((bind_host, free_port()))
-            listener.listen(1)
-            listener.settimeout(timeout)
+            _, listener = bind_port(
+                lambda port: _listener_at(bind_host, port, timeout), bind_host)
             listeners.append(listener)
     except OSError:
         close_listeners(listeners)
         raise
     return listeners
+
+
+def _listener_at(bind_host: str, port: int, timeout: float):
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind((bind_host, port))
+        listener.listen(1)
+        listener.settimeout(timeout)
+        return listener
+    except OSError:
+        listener.close()
+        raise
 
 
 def close_listeners(listeners) -> None:

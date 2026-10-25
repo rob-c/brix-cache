@@ -37,10 +37,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/xattr.h>
 
 #include <ngx_config.h>
 #include <ngx_core.h>
+#include "platform/platform_api.h"
 #include "fs/backend/http/sd_http.h"
 
 /* ---- ngx + brix link stubs -------------------------------------------------
@@ -209,7 +209,7 @@ test_xattr_success(void)
                   "<D:prop><B:bxa757365722e78 xmlns:B=\"https://brix.dev/ns/"
                   "xattr\"/></D:prop><D:status>HTTP/1.1 200 OK</D:status>"
                   "</D:propstat></D:response></D:multistatus>";
-    assert(inst->driver->setxattr(inst, "/f", "user.x", "hi", 2, 0) == NGX_OK);
+    assert((inst->driver->setxattr)(inst, "/f", "user.x", "hi", 2, 0) == NGX_OK);
     assert(g_calls == 1);                    /* no flags -> no probe read */
     assert(strcmp(g_last_method, "PROPPATCH") == 0);
     assert(strstr(g_last_path, "/base/") != NULL);
@@ -222,7 +222,7 @@ test_xattr_success(void)
     /* get: a Depth:0 named-prop PROPFIND for the same element. */
     g_calls = 0;
     g_xml = found_xml(xmlbuf, sizeof(xmlbuf), "bxa757365722e78", "6869");
-    n = inst->driver->getxattr(inst, "/f", "user.x", got, sizeof(got));
+    n = (inst->driver->getxattr)(inst, "/f", "user.x", got, sizeof(got));
     assert(n == 2 && memcmp(got, "hi", 2) == 0);
     assert(g_calls == 1);
     assert(strcmp(g_last_method, "PROPFIND") == 0);
@@ -232,13 +232,13 @@ test_xattr_success(void)
 
     /* bufsz == 0 is the size enquiry: it reports, it does not write. */
     memset(got, 'Z', sizeof(got));
-    assert(inst->driver->getxattr(inst, "/f", "user.x", NULL, 0) == 2);
+    assert((inst->driver->getxattr)(inst, "/f", "user.x", NULL, 0) == 2);
     assert(got[0] == 'Z');
 
     /* A value is arbitrary BYTES, embedded NULs included — the round trip is
      * over hex, so nothing here is string-shaped. */
     g_xml = found_xml(xmlbuf, sizeof(xmlbuf), "bxa757365722e78", "00ff0041");
-    n = inst->driver->getxattr(inst, "/f", "user.x", got, sizeof(got));
+    n = (inst->driver->getxattr)(inst, "/f", "user.x", got, sizeof(got));
     assert(n == 4 && memcmp(got, "\x00\xff\x00" "A", 4) == 0);
 
     /* list: every bxa property on the resource, whatever prefix the origin
@@ -251,12 +251,12 @@ test_xattr_success(void)
             "</prop><status>HTTP/1.1 200 OK</status></propstat>"
             "</response></multistatus>";
     memset(got, 0, sizeof(got));
-    n = inst->driver->listxattr(inst, "/f", got, sizeof(got));
+    n = (inst->driver->listxattr)(inst, "/f", got, sizeof(got));
     assert(n == (ssize_t) (sizeof("user.x") + sizeof("user.y")));
     assert(strcmp(got, "user.x") == 0);
     assert(strcmp(got + 7, "user.y") == 0);
     assert(strstr(g_last_body, "<D:propname/>") != NULL);
-    assert(inst->driver->listxattr(inst, "/f", NULL, 0) == n);
+    assert((inst->driver->listxattr)(inst, "/f", NULL, 0) == n);
 
     brix_sd_http_destroy(inst);
     printf("  ok   1: set/get/list round-trip — name and value hex on the wire,"
@@ -272,20 +272,20 @@ check_absent(brix_sd_instance_t *inst)
 
     g_xml = g_absent_xml;                       /* empty element, 404 propstat */
     errno = 0;
-    assert(inst->driver->getxattr(inst, "/f", "user.x", got, sizeof(got)) < 0);
+    assert((inst->driver->getxattr)(inst, "/f", "user.x", got, sizeof(got)) < 0);
     assert(errno == ENODATA);
 
     g_xml = "<D:multistatus xmlns:D=\"DAV:\"><D:response><D:href>/base/f"
             "</D:href></D:response></D:multistatus>";   /* no element at all */
     errno = 0;
-    assert(inst->driver->getxattr(inst, "/f", "user.x", got, sizeof(got)) < 0);
+    assert((inst->driver->getxattr)(inst, "/f", "user.x", got, sizeof(got)) < 0);
     assert(errno == ENODATA);
 
     /* RFC 4918 §9.2 makes removing an absent property a SUCCESS; POSIX demands
      * ENODATA, so the driver asks before it patches — and never patches. */
     g_calls = 0;
     errno = 0;
-    assert(inst->driver->removexattr(inst, "/f", "user.x") == NGX_ERROR);
+    assert((inst->driver->removexattr)(inst, "/f", "user.x") == NGX_ERROR);
     assert(errno == ENODATA);
     assert(g_calls == 1 && strcmp(g_last_method, "PROPFIND") == 0);
 }
@@ -299,7 +299,7 @@ check_flag_gate(brix_sd_instance_t *inst)
     g_xml = found_xml(xmlbuf, sizeof(xmlbuf), "bxa757365722e78", "6869");
     g_calls = 0;
     errno = 0;
-    assert(inst->driver->setxattr(inst, "/f", "user.x", "z", 1,
+    assert((inst->driver->setxattr)(inst, "/f", "user.x", "z", 1,
                                   XATTR_CREATE) == NGX_ERROR);
     assert(errno == EEXIST);
     assert(g_calls == 1);                       /* probed, never patched */
@@ -307,7 +307,7 @@ check_flag_gate(brix_sd_instance_t *inst)
     g_xml = g_absent_xml;
     g_calls = 0;
     errno = 0;
-    assert(inst->driver->setxattr(inst, "/f", "user.x", "z", 1,
+    assert((inst->driver->setxattr)(inst, "/f", "user.x", "z", 1,
                                   XATTR_REPLACE) == NGX_ERROR);
     assert(errno == ENODATA);
     assert(g_calls == 1);
@@ -332,7 +332,7 @@ test_xattr_error(void)
     g_xml = found_xml(xmlbuf, sizeof(xmlbuf), "bxa757365722e78", "4142434445");
     memset(got, 'Z', sizeof(got));
     errno = 0;
-    assert(inst->driver->getxattr(inst, "/f", "user.x", got, sizeof(got)) < 0);
+    assert((inst->driver->getxattr)(inst, "/f", "user.x", got, sizeof(got)) < 0);
     assert(errno == ERANGE);
     assert(got[0] == 'Z');
 
@@ -342,14 +342,14 @@ test_xattr_error(void)
     memset(bigval, 'v', sizeof(bigval));
     g_calls = 0;
     errno = 0;
-    assert(inst->driver->getxattr(inst, "/f", bigname, got, sizeof(got)) < 0);
+    assert((inst->driver->getxattr)(inst, "/f", bigname, got, sizeof(got)) < 0);
     assert(errno == ERANGE);
     errno = 0;
-    assert(inst->driver->setxattr(inst, "/f", "user.x", bigval, sizeof(bigval),
+    assert((inst->driver->setxattr)(inst, "/f", "user.x", bigval, sizeof(bigval),
                                   0) == NGX_ERROR);
     assert(errno == E2BIG);
     errno = 0;
-    assert(inst->driver->getxattr(inst, "/f", "", got, sizeof(got)) < 0);
+    assert((inst->driver->getxattr)(inst, "/f", "", got, sizeof(got)) < 0);
     assert(errno == EINVAL);
     assert(g_calls == 0);
 
@@ -358,11 +358,11 @@ test_xattr_error(void)
     g_xml = found_xml(xmlbuf, sizeof(xmlbuf), "bxa757365722e78", "6869");
     g_patch_status = 405;
     errno = 0;
-    assert(inst->driver->setxattr(inst, "/f", "user.x", "z", 1, 0) == NGX_ERROR);
+    assert((inst->driver->setxattr)(inst, "/f", "user.x", "z", 1, 0) == NGX_ERROR);
     assert(errno == ENOTSUP);
     g_patch_status = 409;
     errno = 0;
-    assert(inst->driver->setxattr(inst, "/f", "user.x", "z", 1, 0) == NGX_ERROR);
+    assert((inst->driver->setxattr)(inst, "/f", "user.x", "z", 1, 0) == NGX_ERROR);
     assert(errno == ENOTSUP);
     /* A 207 whose PROPSTAT says the property was rejected is a failure too —
      * reading only the outer status would report a write that never landed. */
@@ -372,17 +372,17 @@ test_xattr_error(void)
                   "xattr\"/></D:prop><D:status>HTTP/1.1 403 Forbidden</D:status>"
                   "</D:propstat></D:response></D:multistatus>";
     errno = 0;
-    assert(inst->driver->setxattr(inst, "/f", "user.x", "z", 1, 0) == NGX_ERROR);
+    assert((inst->driver->setxattr)(inst, "/f", "user.x", "z", 1, 0) == NGX_ERROR);
     assert(errno == ENOTSUP);
 
     g_fail = 1;
     errno = 0;
-    assert(inst->driver->getxattr(inst, "/f", "user.x", got, sizeof(got)) < 0);
+    assert((inst->driver->getxattr)(inst, "/f", "user.x", got, sizeof(got)) < 0);
     assert(errno == EIO);
     g_fail = 0;
 
-    assert(inst->driver->getxattr(NULL, "/f", "user.x", got, 4) < 0);
-    assert(inst->driver->listxattr(inst, NULL, got, 4) < 0);
+    assert((inst->driver->getxattr)(NULL, "/f", "user.x", got, 4) < 0);
+    assert((inst->driver->listxattr)(inst, NULL, got, 4) < 0);
 
     brix_sd_http_destroy(inst);
     printf("  ok   2: absent -> ENODATA (both spellings, get and remove),"
@@ -434,7 +434,7 @@ check_no_markup_injection(brix_sd_instance_t *inst)
     char got[16];
 
     g_patch_status = 200;                   /* a plain PROPPATCH success */
-    assert(inst->driver->setxattr(inst, "/f", "user.<&\"'>", evil,
+    assert((inst->driver->setxattr)(inst, "/f", "user.<&\"'>", evil,
                                   sizeof(evil) - 1, 0) == NGX_OK);
     /* Neither the name nor the value reaches the body as itself, so no choice
      * of bytes can close a tag, open one, or end a CDATA section. */
@@ -449,10 +449,10 @@ check_no_markup_injection(brix_sd_instance_t *inst)
      * that is not hex at all is refused whole rather than salvaged. */
     g_xml = found_xml(xmlbuf, sizeof(xmlbuf), "bxa757365722e78",
                       "<D:evil>41</D:evil>");
-    assert(inst->driver->getxattr(inst, "/f", "user.x", got, sizeof(got)) == 0);
+    assert((inst->driver->getxattr)(inst, "/f", "user.x", got, sizeof(got)) == 0);
     g_xml = found_xml(xmlbuf, sizeof(xmlbuf), "bxa757365722e78", "41zz");
     errno = 0;
-    assert(inst->driver->getxattr(inst, "/f", "user.x", got, sizeof(got)) < 0);
+    assert((inst->driver->getxattr)(inst, "/f", "user.x", got, sizeof(got)) < 0);
     assert(errno == EIO);
 }
 

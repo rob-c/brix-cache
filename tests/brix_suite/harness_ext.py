@@ -54,17 +54,19 @@ def mu_fleet(cast):
         pytest.skip("MU conformance suite requires root (spec D4) — run "
                     "tests/run_multiuser_authz.sh under sudo")
     accounts.sweep_leftover()
-    accounts.provision(cast)
-    backends = policy.render_corpus_policy(cast)
-    _seed_export(cast)
-    fleet.render_configs(backends)
-    fleet.start()
-    fleet.wait_listening(20)
     try:
+        accounts.provision(cast)
+        backends = policy.render_corpus_policy(cast)
+        _seed_export(cast)
+        fleet.render_configs(backends)
+        fleet.start()
+        fleet.wait_listening(20)
         yield fleet
     finally:
-        fleet.stop()
-        accounts.reap()
+        try:
+            fleet.stop()
+        finally:
+            accounts.reap()
 
 
 @pytest.fixture

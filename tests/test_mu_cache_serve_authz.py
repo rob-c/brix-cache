@@ -171,3 +171,17 @@ def test_cache_hit_denied_to_out_of_group_principal(noimp_env):
                     _check_test_cache_hit_denied_to_out_of_group_principal_6(cm)
 
     _guard_test_cache_hit_denied_to_out_of_group_principal_1(resident)
+
+
+@pytest.mark.parametrize('warm', [False, True])
+@pytest.mark.parametrize('suffix', ['/', '///', '/?cks.type=adler32'])
+def test_cached_read_preserves_directory_intent(noimp_env, warm, suffix):
+    """Neither a fill nor a hit may turn a directory spelling into file bytes."""
+    url, cast = noimp_env
+    alice = _voms(cast, 'alice', 'cms')
+    if warm:
+        assert measure_root(url, _PATH, 'read', principal=alice).decision == 'ALLOW'
+    verdict = measure_root(url, _PATH + suffix, 'read', principal=alice)
+    assert verdict.decision == 'DENY', verdict
+    assert '[3005] not a directory' in verdict.reason, verdict
+    assert measure_root(url, _PATH, 'read', principal=alice).decision == 'ALLOW'

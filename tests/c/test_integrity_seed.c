@@ -49,7 +49,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/xattr.h>
+#include "platform/platform_api.h"
 #include <unistd.h>
 
 #include "core/compat/integrity_info.h"
@@ -58,6 +58,20 @@
 #include "fs/backend/sd_registry.h"
 
 /* ---- stubs: the VFS xattr seam (metrics-free) ----------------------------- */
+
+/* WHAT: Return an explicit injected xattr error, or use the real native PAL.
+ * WHY: Pipe xattr errno differs by host and does not model every fallback.
+ * HOW: 1. Read this child test's fault knob. 2. Fail, or dispatch unchanged. */
+static int
+test_fsetxattr(int fd, const char *name, const void *value, size_t size, int flags)
+{
+    const char *injected = getenv("BRIX_TEST_INTEGRITY_XATTR_ERRNO");
+    if (injected != NULL) {
+        errno = atoi(injected);
+        return -1;
+    }
+    return fsetxattr(fd, name, value, size, flags);
+}
 
 ssize_t
 brix_vfs_fgetxattr(const void *ctx, int fd, const char *name, void *val,
@@ -72,7 +86,7 @@ brix_vfs_fsetxattr(const void *ctx, int fd, const char *name, const void *val,
     size_t len, int flags)
 {
     (void) ctx;
-    return (fsetxattr(fd, name, val, len, flags) != 0) ? NGX_ERROR : NGX_OK;
+    return (test_fsetxattr(fd, name, val, len, flags) != 0) ? NGX_ERROR : NGX_OK;
 }
 
 ngx_int_t
@@ -91,7 +105,7 @@ brix_vfs_fsetxattr_carried(brix_vfs_mutation_policy_t policy, brix_proto_t proto
 {
     (void) proto;
     if (policy != BRIX_VFS_MUTATION_ALLOWED) { errno = EROFS; return NGX_ERROR; }
-    return (fsetxattr(fd, name, value, len, flags) != 0) ? NGX_ERROR : NGX_OK;
+    return (test_fsetxattr(fd, name, value, len, flags) != 0) ? NGX_ERROR : NGX_OK;
 }
 
 ngx_int_t
@@ -401,17 +415,16 @@ test_never_truncates_mutates_or_outlives(void)
 /* ---- test 4: the record fallback ------------------------------------------ */
 
 static void
-test_record_fallback_on_no_xattr(void)
+test_record_fallback_errno(int error, int expected_writes)
 {
-    int fd;
+    int fd = make_file("fallback fixture\n");
+    char injected[24];
 
-    /* An fd that cannot carry a user xattr at all: fsetxattr on a pipe fails
-     * with the same class of errno an xattr-less filesystem returns, which is
-     * exactly the condition the §8.2 record fallback exists for. */
-    int pipefd[2];
-
-    assert(pipe(pipefd) == 0);
-    fd = pipefd[0];
+    /* A Darwin pipe returns EBADF, not an unsupported-filesystem errno. Pin
+     * each actual error contract explicitly; ordinary tests above use real
+     * filesystem xattrs, while this seam injects only the requested failure. */
+    snprintf(injected, sizeof(injected), "%d", error);
+    assert(setenv("BRIX_TEST_INTEGRITY_XATTR_ERRNO", injected, 1) == 0);
     g_record_writes = 0;
 
     /* Validation still runs first — a refused value never reaches either layer. */
@@ -419,20 +432,22 @@ test_record_fallback_on_no_xattr(void)
            == NGX_ERROR);
     assert(g_record_writes == 0);
 
-    if (xattr_supported(fd)) {
-        /* Not the condition this leg is about; skip rather than assert on it. */
-        printf("  SKIP 4: this platform accepts xattrs on a pipe\n");
-    } else {
-        /* An accepted value on an xattr-incapable target falls through to §8.2
-         * exactly once — a seed must not be silently dropped on the exports the
-         * fallback exists for. */
-        assert(brix_integrity_seed_fd(fd, "/nonexistent/path", "sha256",
-                                        SHA256_HEX_LOWER) == NGX_OK);
-        assert(g_record_writes == 1);
-        printf("  ok   4: refused value reaches neither layer; accepted value falls back to the §8.2 record\n");
-    }
-    close(pipefd[0]);
-    close(pipefd[1]);
+    assert(brix_integrity_seed_fd(fd, g_path, "sha256", SHA256_HEX_LOWER) == NGX_OK);
+    assert(g_record_writes == expected_writes);
+    assert(unsetenv("BRIX_TEST_INTEGRITY_XATTR_ERRNO") == 0);
+    close(fd);
+    unlink(g_path);
+}
+
+static void
+test_record_fallback_on_no_xattr(void)
+{
+    test_record_fallback_errno(ENOTSUP, 1);
+    test_record_fallback_errno(EPERM, 1);
+    test_record_fallback_errno(EBADF, 0);
+    test_record_fallback_errno(EIO, 0);
+    test_record_fallback_errno(EROFS, 0);
+    printf("  ok   4: unsupported xattrs fall back; bad inputs and read-only failures never publish\n");
 }
 
 int

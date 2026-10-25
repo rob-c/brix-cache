@@ -2,6 +2,7 @@
 #include "ftp_dc_sec.h"
 
 #include "auth/crypto/gsi_verify.h"
+#include "auth/crypto/tls_compat.h"
 #include "ftp_dc_dn.h"       /* the shared data-channel DN pin */
 
 #include <openssl/pem.h>
@@ -120,7 +121,7 @@ brix_ftp_dc_apply_policy(SSL *ssl)
      * and globus does so without a TLS close_notify.  Treat that abrupt close as
      * a clean EOF (SSL_ERROR_ZERO_RETURN) instead of SSL_R_UNEXPECTED_EOF — a
      * STOR receiver otherwise fails the transfer after the last block. */
-    SSL_set_options(ssl, SSL_OP_IGNORE_UNEXPECTED_EOF);
+    brix_crypto_gridftp_data_eof(ssl);
     SSL_set_verify(ssl, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
                    brix_ftp_dc_verify_cb);
 }

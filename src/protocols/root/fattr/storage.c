@@ -8,64 +8,16 @@
  * name. Reads validate the embedded name before exposing the value, making a
  * digest collision or a forged reserved xattr fail closed.
  */
-#include "ngx_brix_fattr.h"
+#include "storage_keys.h"
 
 #include "core/compat/crypto.h"
-#include "core/compat/hex.h"
 #include "platform/platform_api.h"
 
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
 
-#define FATTR_STORED_PREFIX       "user.U.$brix$"
-#define FATTR_STORED_PREFIX_LEN   (sizeof(FATTR_STORED_PREFIX) - 1U)
-#define FATTR_STORED_MAGIC        "BXFA\001\000\000\000"
-#define FATTR_STORED_MAGIC_LEN    8U
-#define FATTR_STORED_HEADER_LEN   (FATTR_STORED_MAGIC_LEN + 2U)
-#define FATTR_STORED_KEY_LEN      (FATTR_STORED_PREFIX_LEN + 64U)
-#define FATTR_CHUNK_MAGIC         "BXFC\001\000\000\000"
-#define FATTR_CHUNK_HEADER_LEN    (8U + 2U + 4U + 32U)
-#define FATTR_CHUNK_VALUE_SIZE    2048U
-#define FATTR_CHUNK_PREFIX        "user.$brix.fattr."
-#define FATTR_CHUNK_MAX           ((kXR_faMaxVlen + FATTR_CHUNK_VALUE_SIZE - 1U) \
-                                   / FATTR_CHUNK_VALUE_SIZE)
 
-static int
-fattr_storage_key(const char *name, size_t nlen, char *key, size_t keycap,
-    int *wrapped)
-{
-    uint8_t digest[32];
-    size_t  direct_len;
-
-    if (name == NULL || nlen == 0 || nlen > kXR_faMaxNlen) {
-        errno = EINVAL;
-        return -1;
-    }
-    direct_len = BRIX_FATTR_XKEY_PFX_LEN + nlen;
-    *wrapped = direct_len > BRIX_XATTR_NAME_MAX
-        || (nlen >= sizeof("$brix$") - 1U
-            && memcmp(name, "$brix$", sizeof("$brix$") - 1U) == 0);
-    if (!*wrapped) {
-        if (direct_len + 1U > keycap) {
-            errno = ENAMETOOLONG;
-            return -1;
-        }
-        memcpy(key, BRIX_FATTR_XKEY_PFX, BRIX_FATTR_XKEY_PFX_LEN);
-        memcpy(key + BRIX_FATTR_XKEY_PFX_LEN, name, nlen);
-        key[direct_len] = '\0';
-        return 0;
-    }
-    if (FATTR_STORED_KEY_LEN + 1U > keycap
-        || !brix_sha256((const uint8_t *) name, nlen, digest))
-    {
-        errno = EIO;
-        return -1;
-    }
-    memcpy(key, FATTR_STORED_PREFIX, FATTR_STORED_PREFIX_LEN);
-    brix_hex_encode(digest, sizeof(digest), key + FATTR_STORED_PREFIX_LEN);
-    return 0;
-}
 
 static ssize_t
 fattr_storage_read_raw(brix_vfs_ctx_t *vctx, const char *path, int fd,
@@ -92,49 +44,8 @@ fattr_storage_remove_raw(brix_vfs_ctx_t *vctx, const char *path, int fd,
                         : brix_vfs_fremovexattr(vctx, fd, key);
 }
 
-static int
-fattr_storage_hashed_key(const char *name, size_t nlen, char *key,
-    size_t keycap)
-{
-    uint8_t digest[32];
 
-    if (name == NULL || nlen == 0 || nlen > kXR_faMaxNlen
-        || keycap <= FATTR_STORED_KEY_LEN
-        || !brix_sha256((const uint8_t *) name, nlen, digest))
-    {
-        errno = EINVAL;
-        return -1;
-    }
-    memcpy(key, FATTR_STORED_PREFIX, FATTR_STORED_PREFIX_LEN);
-    brix_hex_encode(digest, sizeof(digest), key + FATTR_STORED_PREFIX_LEN);
-    return 0;
-}
 
-static int
-fattr_storage_chunk_key(char *out, size_t cap, const char *base,
-    const uint8_t value_digest[32], size_t index)
-{
-    char value_hex[33];
-    int  n;
-
-    brix_hex_encode(value_digest, 16, value_hex);
-    value_hex[32] = '\0';
-    n = snprintf(out, cap, "%s%s.%s.%02x", FATTR_CHUNK_PREFIX,
-                 base + FATTR_STORED_PREFIX_LEN, value_hex,
-                 (unsigned) index);
-    if (n < 0 || (size_t) n >= cap || index >= FATTR_CHUNK_MAX) {
-        errno = EINVAL;
-        return -1;
-    }
-    return 0;
-}
-
-static size_t
-fattr_storage_chunk_count(size_t value_len)
-{
-    return (value_len + FATTR_CHUNK_VALUE_SIZE - 1U)
-           / FATTR_CHUNK_VALUE_SIZE;
-}
 
 static uint32_t
 fattr_storage_u32(const u_char *p)
@@ -376,7 +287,10 @@ fattr_storage_write_chunks(ngx_pool_t *pool, brix_vfs_ctx_t *vctx,
             || fattr_storage_write_raw(vctx, path, fd, chunk_key,
                  (const u_char *) value + offset, put, 0) != NGX_OK)
         {
+            int saved_errno = errno;
+
             fattr_storage_remove_chunks(vctx, path, fd, base, digest, vlen);
+            errno = saved_errno;
             return NGX_ERROR;
         }
         offset += put;
@@ -396,7 +310,10 @@ fattr_storage_write_chunks(ngx_pool_t *pool, brix_vfs_ctx_t *vctx,
     if (fattr_storage_write_raw(vctx, path, fd, base, manifest,
             FATTR_CHUNK_HEADER_LEN + nlen, flags) != NGX_OK)
     {
+        int saved_errno = errno;
+
         fattr_storage_remove_chunks(vctx, path, fd, base, digest, vlen);
+        errno = saved_errno;
         return NGX_ERROR;
     }
     if (old_chunked > 0
@@ -481,10 +398,13 @@ fattr_storage_set(ngx_pool_t *pool, brix_vfs_ctx_t *vctx, const char *path,
     int flags)
 {
     char key[BRIX_FATTR_XKEY_PFX_LEN + kXR_faMaxNlen + 1U];
+    char direct_key[BRIX_FATTR_XKEY_PFX_LEN + kXR_faMaxNlen + 1U];
     int  wrapped;
 
     if (fattr_storage_key(name, nlen, key, sizeof(key), &wrapped) != 0)
         return NGX_ERROR;
+    if (!wrapped)
+        memcpy(direct_key, key, strlen(key) + 1U);
     if (!wrapped && vlen <= FATTR_CHUNK_VALUE_SIZE)
         return fattr_storage_set_direct(vctx, path, fd, key, name, nlen,
                                          value, vlen, flags);
@@ -499,8 +419,19 @@ fattr_storage_set(ngx_pool_t *pool, brix_vfs_ctx_t *vctx, const char *path,
                                                    name, nlen, value, vlen,
                                                    flags);
 
-        if (rc == NGX_OK && !wrapped)
-            fattr_storage_drop_direct(vctx, path, fd, name, nlen);
+        if (rc == NGX_OK) {
+            if (!wrapped)
+                fattr_storage_drop_direct(vctx, path, fd, name, nlen);
+            return NGX_OK;
+        }
+        /* Some filesystems accept one value of this size but cannot fit the
+         * chunk keys plus their manifest in the inode's aggregate xattr
+         * budget. A direct logical key is already a supported read format;
+         * use it only when the name itself fits, retaining hashed chunks for
+         * hosts whose single-value limit required the portable form. */
+        if (!wrapped && (errno == E2BIG || errno == ENOSPC))
+            return fattr_storage_set_direct(vctx, path, fd, direct_key, name,
+                                             nlen, value, vlen, flags);
         return rc;
     }
     return fattr_storage_write_envelope(pool, vctx, path, fd, key, name,
@@ -574,13 +505,14 @@ fattr_storage_decode_list(ngx_pool_t *pool, brix_vfs_ctx_t *vctx,
                   FATTR_STORED_PREFIX_LEN) == 0)
     {
         char expected_key[BRIX_FATTR_XKEY_PFX_LEN + kXR_faMaxNlen + 1U];
-        int  wrapped;
-
         if (fattr_storage_read(pool, vctx, path, fd, stored_key, NULL, 0, 1,
                                stored) != 0
-            || fattr_storage_key(stored->name, stored->nlen, expected_key,
-                                 sizeof(expected_key), &wrapped) != 0
-            || !wrapped || strcmp(expected_key, stored_key) != 0)
+            /* Short logical names also use hashed keys for chunked values.
+             * Recompute that physical key, not the direct-name preference;
+             * every envelope must still match its exact logical-name digest. */
+            || fattr_storage_hashed_key(stored->name, stored->nlen,
+                                        expected_key, sizeof(expected_key)) != 0
+            || strcmp(expected_key, stored_key) != 0)
         {
             errno = EIO;
             return -1;

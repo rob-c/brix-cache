@@ -1,4 +1,5 @@
 import time
+from lib_py.reference_host import fixture_read_bytes
 
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_pgio_helpers")
@@ -50,15 +51,13 @@ def _assert_sparse_status(our_result, stock_result, offset, size):
 
 def _assert_sparse_our_file(path, offset, size, data):
     assert os.path.getsize(path) == offset + size, "OUR sparse size wrong"
-    with open(path, "rb") as stream:
-        got = stream.read()
+    got = fixture_read_bytes(path)
     assert got[:offset] == b"\x00" * offset, "OUR sparse hole not zero-filled"
     assert got[offset:] == data, "OUR sparse written page wrong"
 
 
 def _assert_file_bytes(path, expected, message):
-    with open(path, "rb") as stream:
-        assert stream.read() == expected, message
+    assert fixture_read_bytes(path) == expected, message
 
 
 def _assert_roundtrip_pages(pages, expected_pages):
@@ -286,8 +285,7 @@ def test_pgwrite_then_xrdcp_download(srv, tmp_path, size):
     rc, out, err = L.run([L.OFF_XRDCP, "-f", f"{srv['our']}//{rel}", dst],
                          timeout=90)
     assert rc == 0, f"xrdcp download of pgwritten {rel} failed: {out}{err}"
-    with open(dst, "rb") as f:
-        assert f.read() == data, "xrdcp download != pgwritten bytes"
+    assert fixture_read_bytes(dst) == data, "xrdcp download != pgwritten bytes"
 
 
 # ===========================================================================
@@ -537,5 +535,4 @@ def test_oracle_stock_to_stock(srv, tmp_path):
     dst = str(tmp_path / "oracle.bin")
     rc, out, err = L.run([L.OFF_XRDCP, "-f", f"{srv['off']}//cksum.bin", dst])
     assert rc == 0, f"oracle stock->stock failed (tooling broken): {out}{err}"
-    with open(dst, "rb") as f:
-        assert f.read() == _local(srv, "cksum.bin")
+    assert fixture_read_bytes(dst) == _local(srv, "cksum.bin")

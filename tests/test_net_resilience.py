@@ -23,6 +23,7 @@ import os
 import socket
 import subprocess
 from brix_suite.client_build import client_make
+from lib_py.client_toolchain import client_test_env
 import sys
 import time
 
@@ -36,35 +37,18 @@ WAIT41 = os.path.join(CLIENT_DIR, "bin", "wait41-brix")
 
 
 def _run_env():
-    """Inherit the environment. When built against a conda toolchain (this
-    project's optional codec/krb5 libs live there), make those libs resolvable
-    for both the link step (PKG_CONFIG_PATH) and the runtime loader
-    (LD_LIBRARY_PATH) so the build and the binaries are self-consistent. A no-op
-    when CONDA_PREFIX is unset (e.g. a system / RPM build)."""
-    env = dict(os.environ)
-    # The interpreter's own prefix (sys.prefix) reliably points at the conda/venv
-    # toolchain even when CONDA_PREFIX is not exported; fall back to it.
-    prefix = env.get("CONDA_PREFIX") or sys.prefix
-    pcdir = os.path.join(prefix, "lib", "pkgconfig")
-    if os.path.isdir(pcdir):
-        libdir = os.path.join(prefix, "lib")
-        env["LD_LIBRARY_PATH"] = libdir + os.pathsep + env.get("LD_LIBRARY_PATH", "")
-        env["PKG_CONFIG_PATH"] = pcdir + os.pathsep + env.get("PKG_CONFIG_PATH", "")
-    return env
+    """Use the selected native SDK, not an unrelated inactive Conda prefix."""
+    return client_test_env()
 
 
 @pytest.fixture(scope="module", autouse=True)
 def _build():
-    # Build only when a binary is missing (a failed link would delete a good
-    # pre-built one). The link needs optional codec/krb5 libs whose pkg-config
-    # entries vary by environment; if it fails and the binaries are absent, skip.
-    out = b""
-    if not (os.path.exists(NETTMO) and os.path.exists(WAIT41)):
-        r = client_make(CLIENT_DIR, "nettmo", "wait41-brix", env=_run_env(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
-        out = r.stdout
-    if not (os.path.exists(NETTMO) and os.path.exists(WAIT41)):
-        pytest.skip("client test binaries not built (run `make -C client nettmo "
-                    f"wait41-brix`):\n{out.decode(errors='replace')[-800:]}")
+    # Build the real archive first: -W libbrix.a relinks with stale members.
+    result = client_make(CLIENT_DIR, "libbrix.a", "nettmo", "wait41-brix",
+                         env=_run_env(), stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, timeout=300)
+    assert result.returncode == 0, result.stdout.decode(errors="replace")[-3000:]
+    assert os.path.exists(NETTMO) and os.path.exists(WAIT41)
 
 
 def test_backoff_and_timeout_units():
@@ -79,11 +63,18 @@ def test_backoff_and_timeout_units():
 def _blackhole_bringup_seconds(connect_timeout_ms):
     """Time one wait41 --full bring-up against a TCP black-hole (accept, then
     swallow the protocol bytes)."""
-    lst = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    lst.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    from ephemeral_port import free_port
-    lst.bind((BIND_HOST, free_port(BIND_HOST)))
-    port = lst.getsockname()[1]
+    def listener(port):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind((BIND_HOST, port))
+        except OSError:
+            sock.close()
+            raise
+        return sock
+
+    from ephemeral_port import bind_port
+    port, lst = bind_port(listener, BIND_HOST)
     lst.listen(8)
     try:
         env = _run_env()

@@ -91,7 +91,15 @@ _ADDED_SINCE_MOVE = {
     # XRootD bindings found", which names the opposite of the cause.  The
     # probe became its own function so it can sanitize the env the way the
     # fleet launcher does and record WHY each candidate was rejected.
-    "xrdcl": {"_probe_bindings"},
+    "xrdcl": {
+        "_probe_bindings",
+        # Optional remote references retain native interpreter discovery in a
+        # separate helper and require the explicitly selected remote probe to
+        # succeed. JSON argv validation forbids shell strings, NULs and relative
+        # executables; no unavailable remote reference falls back to native.
+        "_native_worker_python", "_remote_worker_python",
+        "_valid_remote_argument", "_validate_remote_command", "_worker_command",
+    },
 }
 
 #: Archived definitions since EDITED, with what changed.  Stricter than an
@@ -296,6 +304,27 @@ def test_every_definition_moved_verbatim(label, archives, live, count):
     _check_test_every_definition_moved_verbatim_1(label, new, old)
     _check_test_every_definition_moved_verbatim_2(_undeclared_drift(label, old, new), label)
     _check_test_every_definition_moved_verbatim_3(label, old, new)
+
+
+def test_move_ledger_accepts_the_named_remote_helpers():
+    """The explicit post-move additions are allowed, not arbitrary drift."""
+    names = {name: 'body' for name in (
+        '_native_worker_python', '_remote_worker_python', '_worker_command',
+        '_valid_remote_argument', '_validate_remote_command')}
+    _check_test_every_definition_moved_verbatim_1('xrdcl', names, {})
+
+
+def test_move_ledger_rejects_an_unlisted_remote_helper():
+    """An optional mode must not create a wildcard exception to the census."""
+    with pytest.raises(AssertionError, match='unexplained additions'):
+        _check_test_every_definition_moved_verbatim_1(
+            'xrdcl', {'_remote_unlisted_helper': 'body'}, {})
+
+
+def test_move_ledger_still_rejects_unexplained_binding_probe_changes():
+    """The remote additions do not exempt an existing capability predicate."""
+    name = 'real_bindings_available'
+    assert _undeclared_drift('xrdcl', {name: 'old'}, {name: 'new'}) == [name]
 
 
 def test_the_package_carries_the_worker_script_it_starts():

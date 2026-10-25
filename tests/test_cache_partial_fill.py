@@ -2,10 +2,13 @@
 Read-cache partial-fill behavior across modular backends. See
 docs/superpowers/specs/2026-07-01-read-cache-partial-fill-tests-design.md.
 
-Group 1 asserts real sparse fill over a root:// (xroot) origin — the only path
-currently wired for slice/partial fill. Other backends do whole-file fill
-(Group 2, xfail-marked pending the generic-slice wiring).
+Sparse fills cover root:// and the local posix/pblock decorators. Whole-file
+controls cover the default policy plus self-provisioned HTTP/S3 origins; RADOS
+alone still requires an external cluster and native SDK.
 """
+from pathlib import Path
+import struct
+
 import pytest
 from _cache_partial_helpers import (
     make_cache_node, read_range, residency, seed_origin, kill_origin,
@@ -209,12 +212,8 @@ def test_complete_file_serves_offline(lifecycle, tmp_path):
 
 
 # ===========================================================================
-# Group 5 — gated heavier backends (skip when env absent)
-#
-# These need an external origin: http -> XRD_TEST_HTTP_ORIGIN, s3 ->
-# XRD_TEST_S3_ENDPOINT, rados -> XRD_TEST_RADOS_POOL. When present, the harness
-# builder + seeding must be extended for that backend (make_cache_node raises a
-# clear NotImplemented-style error until then). On a bare box all three skip.
+# Group 5 — network origins. HTTP and S3 self-provision through native nginx;
+# RADOS alone still needs an external cluster and its native development SDK.
 # ===========================================================================
 
 @pytest.mark.parametrize("backend", ["http", "s3", "rados"])
@@ -222,11 +221,34 @@ def test_gated_backend_partial_read_is_whole_file(lifecycle, tmp_path, backend):
     if not backend_available(backend):
         pytest.skip(f"{backend} origin/env not available")
     with make_cache_node(backend, tmp=tmp_path, lifecycle=lifecycle) as node:
-        seed_origin(node, "/f.bin", 4 * BLK)
-        read_range(node.cache_port, "/f.bin", 0, BLK)
+        data = seed_origin(node, "/f.bin", 4 * BLK)
+        assert read_range(node.cache_port, "/f.bin", 0, BLK) == data[:BLK]
         # current behavior: non-xroot backends do whole-file fill (COMPLETE);
         # flips to PARTIAL when generic-slice wiring lands (see phase-64 doc).
         assert residency(node.store_dir, "f.bin")["complete"] is True
+
+
+def test_missing_s3_object_is_not_cached(lifecycle, tmp_path):
+    """An S3 NoSuchKey stays a wire NotFound, not a successful empty fill."""
+    with make_cache_node('s3', tmp=tmp_path, lifecycle=lifecycle) as node:
+        frame = raw_open_frame(node.cache_port, '/missing.bin')
+        assert struct.unpack_from('>H', frame, 2)[0] == 4003
+        assert struct.unpack_from('>I', frame, 8)[0] == 3011
+        assert residency(node.store_dir, 'missing.bin') == {'absent': True}
+
+
+def test_s3_origin_symlink_cannot_fill_from_outside_its_export(lifecycle, tmp_path):
+    """Origin confinement must also hold when reads arrive through the cache."""
+    outside = tmp_path / 'outside-secret'
+    secret = b'not exported to the S3 origin or its cache'
+    outside.write_bytes(secret)
+    with make_cache_node('s3', tmp=tmp_path, lifecycle=lifecycle) as node:
+        (Path(node.backend_data) / 'escape.bin').symlink_to(outside)
+        frame = raw_open_frame(node.cache_port, '/escape.bin')
+        assert struct.unpack_from('>H', frame, 2)[0] == 4003
+        assert secret not in frame
+        assert residency(node.store_dir, 'escape.bin') == {'absent': True}
+    assert outside.read_bytes() == secret
 
 
 def test_http_cold_open_frame_has_no_log_leak(lifecycle, tmp_path):

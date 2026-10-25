@@ -110,9 +110,7 @@ def _guard_run_smoke_3(line, s, counts):
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-uring-rxtx"),
-              pytest.mark.timeout(180),
-              pytest.mark.skipif(sys.platform != "linux",
-                                 reason="io_uring is a Linux kernel API")]
+              pytest.mark.timeout(180)]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -255,6 +253,7 @@ def test_smoke_verdict_requires_clean_completion(monkeypatch, returncode, stdout
 # P44-C — cleartext RECV/SEND multishot tier                                  #
 # --------------------------------------------------------------------------- #
 
+@pytest.mark.skipif(sys.platform != "linux", reason="io_uring is a Linux kernel API")
 def test_rxtx_cleartext_byte_exact_ring_engaged(lifecycle, tmp_path):
     """Success: a cleartext run under rxtx is byte-exact AND the ring is truly
     engaged (io_uring_enter present, no epoll_wait) — a silent epoll fallback

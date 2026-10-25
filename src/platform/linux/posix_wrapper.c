@@ -26,6 +26,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #if BRIX_PLATFORM_LINUX
 #include <sys/random.h>
 #include <sys/sendfile.h>   /* sendfile(2); Darwin declares its own in <sys/socket.h> */
@@ -40,6 +43,38 @@
  * ========================================================================== */
 
 #if BRIX_PLATFORM_LINUX
+
+/* ---- Read the append-only Linux TCP_INFO ABI ----
+ * WHAT: Return byte counts and microsecond RTT, or -1 with zeroed outputs.
+ * WHY: glibc's frozen struct omits the kernel's appended byte counters.
+ * HOW: 1. Query a bounded raw buffer. 2. Check returned length. 3. Copy fields.
+ */
+int
+brix_plat_tcp_stats(int fd, uint64_t *sent, uint64_t *received, uint32_t *rtt_us)
+{
+    unsigned char info[256] = {0};
+    socklen_t length = sizeof(info);
+
+    if (sent == NULL || received == NULL || rtt_us == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    *sent = 0;
+    *received = 0;
+    *rtt_us = 0;
+    if (getsockopt(fd, IPPROTO_TCP, TCP_INFO, info, &length) != 0) {
+        return -1;
+    }
+    /* Linux ABI: rtt=68, bytes_acked=120, bytes_received=128. */
+    if (length < 128 + sizeof(*received)) {
+        errno = ENOTSUP;
+        return -1;
+    }
+    memcpy(rtt_us, info + 68, sizeof(*rtt_us));
+    memcpy(sent, info + 120, sizeof(*sent));
+    memcpy(received, info + 128, sizeof(*received));
+    return 0;
+}
 
 /* Anonymous descriptors and data/tree sync retain their shared implementations
  * in shared/cvmfs/platform/platform.c, including the spill-file fallback. */
