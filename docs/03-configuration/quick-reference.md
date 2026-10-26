@@ -88,7 +88,9 @@ The most-used directives on one page. Start here when you know what you want to 
 | `brix_cms_interval <time>` | `server` | `30s` | No |
 | `brix_cms_vnid <string>` | `server` | — | Virtual network id carried in the CMS login envCGI (phase-89) |
 | `brix_manager_mode on\|off` | `server` | `off` | No |
-| `brix_cms_server on\|off` | `server` | `off` | No |
+| `brix_cms_server on\|off` | `server` | `off` | Requires `brix_cms_server_allow` and/or `brix_cms_server_sss_keytab`; no-policy listeners fail `nginx -t` |
+| `brix_cms_server_allow <cidr>...` | `server` (CMS-server block) | — | Source-network admission; may be the compatibility control for non-SSS nodes |
+| `brix_cms_server_sss_keytab <path>` | `server` (CMS-server block) | — | SSS cluster authentication before registry publication |
 | `brix_cms_blacklist_file <path>` | `server` (CMS-server block) | — | Operator blacklist file: `host`, `host:port`, or IPv4 CIDR per line; mtime-polled, wins over `undrain` (phase-89) |
 | `brix_cms_load_weight <0–100>` | `server` | `0` | Blend heartbeat machine load into manager selection scoring; `0` = space/util-only (phase-89) |
 | `brix_cms_locate_window <time>` | `server` | `0` | Dynamic location: park locate, `kYR_state`-probe nodes, first `kYR_have` wins; `0` = static selection only (phase-89) |

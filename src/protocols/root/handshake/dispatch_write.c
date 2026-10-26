@@ -2,43 +2,234 @@
 #include "handshake.h"
 #include "protocols/root/write/chkpoint.h"
 #include "protocols/root/write/ext_ops.h"   /* vendor setattr/symlink/link */
+#include "protocols/root/write/write.h"     /* shared MV two-path decoder */
 #include "net/manager/registry.h"   /* brix_srv_select_or_blacklisted */
 #include "fs/path/path.h"          /* brix_extract_path */
+#include "protocols/root/path/op_path.h"  /* lexical policy-path validation */
 #include "protocols/root/response/response.h"  /* brix_send_redirect / brix_send_error */
 #include "net/cms/fanout.h"        /* Phase-89 W8: rm/rmdir holder fan-out */
 
-/* manager_redirect_mutation — Plane B manager orchestration.
+/* manager_mutation_t — decoded policy inputs for one manager-side mutation.
  *
- * In manager_mode, a path-based namespace mutation (mkdir/rm/rmdir/mv/
- *       chmod/truncate) is redirected to the data node that should serve the
- *       path, mirroring the existing open-write redirect.  The client re-issues
- *       the op to that node, which executes it against real storage and enforces
- *       authz.  Data writes (write/pgwrite/writev/sync/chkpoint) are NOT
- *       redirected here — they ride an open handle already redirected at open.
- * WHY:  without this, a mutation sent to a manager executes against the manager's
- *       (empty) local export instead of the cluster — silently wrong.  This is
- *       the nginx-correct orchestration: per-worker node CMS connections make a
- *       cross-worker CMS fan-out impractical, whereas redirect needs no shared
- *       connection state.  (CMS forwarding remains the path for multi-replica
- *       fan-out via brix_cms_forward_to_node + the node executor.)
- * HOW:  the session layer guarantees the client is logged in before write
- *       dispatch, so this runs post-auth; it deliberately bypasses the local
- *       write-permission gate (the node enforces it), matching the open redirect.
+ * WHAT: Carries the operation's logical path(s), lexical export path(s), and
+ *       authorization metadata from decode through authorization and routing.
+ * WHY: A manager does not probe its usually-empty local export, but it must
+ *      make the same client-identity/path decision as a storage node before a
+ *      proxy or CMS fan-out can execute with server authority.
+ * HOW: manager_mutation_prepare() fills it from the authoritative wire
+ *      decoders; manager_mutation_authorize() consumes it without mutation.
+ */
+typedef struct {
+    const char       *verb;
+    ngx_uint_t        op_id;
+    int               auth_level;
+    brix_acc_op_t     aop;
+    char              path[BRIX_MAX_PATH + 1];
+    char              resolved[PATH_MAX];
+    char              dst[BRIX_MAX_PATH + 1];
+    char              dst_resolved[PATH_MAX];
+} manager_mutation_t;
+
+/* manager_mutation_error — uniform manager-boundary decode/policy failure.
  *
- * Returns BRIX_DISPATCH_CONTINUE to fall through to local execution, or a
- * send-result (redirect / error) the caller returns directly.
+ * WHAT: Emits the access record, operation metric, and one ROOT error reply.
+ * WHY: A rejected manager request must be observable exactly like a local
+ *      mutation and terminate before registry selection or CMS fan-out.
+ * HOW: Records the stable client-facing path/message and returns the send
+ *      result directly to the dispatcher.
  */
 static ngx_int_t
-manager_redirect_mutation(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *conf)
+manager_mutation_error(brix_ctx_t *ctx, ngx_connection_t *c,
+    const manager_mutation_t *m, int kxr, const char *msg)
 {
-    char      path[BRIX_MAX_PATH + 1];
-    char      host[256];
-    uint16_t  port;
-    ngx_int_t rc;
+    const char *path = (m->path[0] != '\0') ? m->path : "-";
 
-    if (!conf->manager_mode) {
+    brix_log_access(ctx, c, m->verb, path, "-", 0, kxr, msg, 0);
+    BRIX_OP_ERR(ctx, m->op_id);
+    return brix_send_error(ctx, c, kxr, msg);
+}
+
+/* manager_mutation_lexical_path — validate one manager path without I/O.
+ *
+ * WHAT: Applies the shared depth, forbidden-component, reserved-name, and
+ *       root-join checks with BRIX_PATH_NOEXIST.
+ * WHY: Pure redirectors commonly have no local object to probe. Authorization
+ *      still needs a canonical lexical backing path; existence remains the
+ *      selected data node's responsibility.
+ * HOW: Delegates to brix_path_resolve_beneath() in no-probe mode and maps
+ *      malformed/reserved names to the local handlers' public error classes.
+ */
+static ngx_int_t
+manager_mutation_lexical_path(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, manager_mutation_t *m, int destination)
+{
+    const char *path = destination ? m->dst : m->path;
+    char       *resolved = destination ? m->dst_resolved : m->resolved;
+    ngx_int_t   rc;
+
+    if (path[0] != '/') {
+        return manager_mutation_error(ctx, c, m, kXR_ArgInvalid,
+                                      "path must be absolute");
+    }
+
+    rc = brix_path_resolve_beneath(conf, c->log, path, BRIX_PATH_NOEXIST,
+                                   resolved, PATH_MAX);
+    if (rc == NGX_OK) {
         return BRIX_DISPATCH_CONTINUE;
+    }
+    if (rc == NGX_DECLINED) {
+        return manager_mutation_error(ctx, c, m, kXR_NotFound,
+                                      "no such file or directory");
+    }
+    return manager_mutation_error(ctx, c, m, kXR_ArgInvalid,
+                                  "invalid path");
+}
+
+/* manager_mutation_decode_single — extract a single-path mutation payload.
+ *
+ * WHAT: Copies the request path into the manager policy object.
+ * WHY: Keeping the absent/malformed distinction here keeps prepare() flat and
+ *      prevents unauthenticated payload parsing (the caller authenticates first).
+ * HOW: Uses the shared path extractor and returns a fully formatted error.
+ */
+static ngx_int_t
+manager_mutation_decode_single(brix_ctx_t *ctx, ngx_connection_t *c,
+    manager_mutation_t *m)
+{
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
+        return manager_mutation_error(ctx, c, m, kXR_ArgMissing,
+                                      "no path given");
+    }
+    if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
+                           m->path, sizeof(m->path), 1))
+    {
+        return manager_mutation_error(ctx, c, m, kXR_ArgInvalid,
+                                      "invalid path payload");
+    }
+    return BRIX_DISPATCH_CONTINUE;
+}
+
+/* manager_mutation_prepare — decode one routable namespace mutation.
+ *
+ * WHAT: Selects the authorization class, decodes one path (or both MV paths),
+ *       and produces lexical policy paths without touching storage.
+ * WHY: The manager must authorize exactly the operands the data node executes;
+ *      the old generic extraction treated an MV pair as one selection string.
+ * HOW: Uses brix_extract_path for single-path opcodes and the shared MV decoder
+ *      for kXR_mv, then validates each operand through the no-probe path seam.
+ */
+static ngx_int_t
+manager_mutation_prepare(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, manager_mutation_t *m)
+{
+    brix_mv_paths_t mv;
+    ngx_int_t       rc;
+
+    ngx_memzero(m, sizeof(*m));
+    m->aop = BRIX_AOP_ANY;
+
+    switch (ctx->recv.cur_reqid) {
+    case kXR_mkdir:
+        m->verb = "MKDIR"; m->op_id = BRIX_OP_MKDIR;
+        m->auth_level = BRIX_AUTH_MKDIR;
+        break;
+    case kXR_rm:
+        m->verb = "RM"; m->op_id = BRIX_OP_RM;
+        m->auth_level = BRIX_AUTH_DELETE;
+        break;
+    case kXR_rmdir:
+        m->verb = "RMDIR"; m->op_id = BRIX_OP_RMDIR;
+        m->auth_level = BRIX_AUTH_DELETE;
+        break;
+    case kXR_chmod:
+        m->verb = "CHMOD"; m->op_id = BRIX_OP_CHMOD;
+        m->auth_level = BRIX_AUTH_UPDATE;
+        break;
+    case kXR_truncate:
+        m->verb = "TRUNCATE"; m->op_id = BRIX_OP_TRUNCATE;
+        m->auth_level = BRIX_AUTH_UPDATE;
+        break;
+    case kXR_mv:
+        m->verb = "MV"; m->op_id = BRIX_OP_MV;
+        m->auth_level = BRIX_AUTH_DELETE;
+        m->aop = BRIX_AOP_RENAME;
+        ngx_memzero(&mv, sizeof(mv));
+        if (brix_mv_parse_paths(ctx, c, &mv) != NGX_OK) {
+            return ctx->write_rc;
+        }
+        ngx_cpystrn((u_char *) m->path, (u_char *) mv.src_buf,
+                    sizeof(m->path));
+        ngx_cpystrn((u_char *) m->dst, (u_char *) mv.dst_buf,
+                    sizeof(m->dst));
+        break;
+    default:
+        return BRIX_DISPATCH_CONTINUE;
+    }
+
+    if (ctx->recv.cur_reqid != kXR_mv) {
+        rc = manager_mutation_decode_single(ctx, c, m);
+        if (rc != BRIX_DISPATCH_CONTINUE) {
+            return rc;
+        }
+    }
+
+    rc = manager_mutation_lexical_path(ctx, c, conf, m, 0);
+    if (rc != BRIX_DISPATCH_CONTINUE || ctx->recv.cur_reqid != kXR_mv) {
+        return rc;
+    }
+    return manager_mutation_lexical_path(ctx, c, conf, m, 1);
+}
+
+/* manager_mutation_authorize — front-side path authorization for orchestration.
+ *
+ * WHAT: Runs native/XrdAcc, VO, and write-token checks for the source path and,
+ *       for MV, independent destination Insert authorization.
+ * WHY: Proxy and fan-out execute with server authority, so relying on the data
+ *      node discards the initiating client's path policy.
+ * HOW: Reuses brix_auth_gate_op; MV supplies its two operation-specific XrdAcc
+ *      verbs, while other opcodes use the local handler's derived mapping.
+ */
+static ngx_int_t
+manager_mutation_authorize(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const manager_mutation_t *m)
+{
+    if (brix_auth_gate_op(ctx, c, m->op_id, m->verb, m->path, m->resolved,
+                          conf, m->auth_level, 1, m->aop) != NGX_OK)
+    {
+        return ctx->write_rc;
+    }
+
+    if (ctx->recv.cur_reqid != kXR_mv) {
+        return BRIX_DISPATCH_CONTINUE;
+    }
+    if (brix_auth_gate_op(ctx, c, BRIX_OP_MV, "MV", m->dst,
+                          m->dst_resolved, conf, BRIX_AUTH_UPDATE, 1,
+                          BRIX_AOP_INSERT) != NGX_OK)
+    {
+        return ctx->write_rc;
+    }
+    return BRIX_DISPATCH_CONTINUE;
+}
+
+/* manager_mutation_applies — classify manager-routable namespace writes.
+ *
+ * WHAT: Identifies path-form mkdir/rm/rmdir/mv/chmod/truncate in manager mode.
+ * WHY: Preflight and later orchestration must agree exactly on which requests
+ *      may execute through manager authority.
+ * HOW: Excludes handle-form truncate and every handle/data-write opcode.
+ */
+static int
+manager_mutation_applies(const brix_ctx_t *ctx,
+    const ngx_stream_brix_srv_conf_t *conf)
+{
+    if (!conf->manager_mode) {
+        return 0;
+    }
+
+    /* Handle-based truncate carries no path and belongs to the ordinary local
+     * write gate. Every other unlisted opcode also falls through unchanged. */
+    if (ctx->recv.cur_reqid == kXR_truncate && ctx->recv.cur_dlen == 0) {
+        return 0;
     }
 
     switch (ctx->recv.cur_reqid) {
@@ -48,34 +239,102 @@ manager_redirect_mutation(brix_ctx_t *ctx, ngx_connection_t *c,
     case kXR_mv:
     case kXR_chmod:
     case kXR_truncate:
-        break;
+        return 1;
     default:
+        return 0;
+    }
+}
+
+/* brix_dispatch_manager_mutation_preflight — authorize before proxy routing.
+ *
+ * WHAT: Authenticates the session, rejects bound secondaries, decodes both MV
+ *       operands, and applies client path policy for every manager mutation.
+ * WHY: The top-level proxy shortcut precedes dispatch_write. A busy CMS pin or
+ *      configured proxy could otherwise relay a mutation under broader service
+ *      credentials without ever reaching the manager boundary below.
+ * HOW: The central dispatcher calls this once after session posture and before
+ *      any proxy/rate-limit/orchestration side effect. Successful requests are
+ *      decoded again by manager_redirect_mutation only to obtain the route key.
+ */
+ngx_int_t
+brix_dispatch_manager_mutation_preflight(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    manager_mutation_t m;
+    ngx_int_t rc;
+
+    if (!manager_mutation_applies(ctx, conf)) {
         return BRIX_DISPATCH_CONTINUE;
     }
 
-    /* Handle-based ops (e.g. truncate by fhandle) carry no path payload and must
-     * not be redirected — let them process locally / fail naturally. */
-    if (ctx->recv.cur_dlen == 0
-        || brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
-                               path, sizeof(path), 1) <= 0
-        || path[0] != '/')
-    {
+    /* A hard read-only manager is rejected at config merge. Keep a runtime
+     * tripwire so a future configuration path cannot route around that policy;
+     * endpoint posture precedes identity and token evaluation. */
+    if (conf->common.read_only == 1) {
+        brix_io_monitor_record_err(&ctx->io_monitor, BRIX_ERR_FORBIDDEN);
+        return brix_send_error(ctx, c, kXR_fsReadOnly,
+                               "this is a read-only server");
+    }
+
+    rc = brix_dispatch_require_auth(ctx, c);
+    if (rc != BRIX_DISPATCH_CONTINUE) {
+        return rc;
+    }
+    if (ctx->is_bound) {
+        return brix_send_error(ctx, c, kXR_NotAuthorized,
+            "bound streams may only read or write primary handles");
+    }
+
+    rc = manager_mutation_prepare(ctx, c, conf, &m);
+    if (rc != BRIX_DISPATCH_CONTINUE) {
+        return rc;
+    }
+    return manager_mutation_authorize(ctx, c, conf, &m);
+}
+
+/* manager_redirect_mutation — Plane B manager orchestration.
+ *
+ * WHAT: Routes a preflighted manager mutation to CMS fan-out or one selected
+ *       data node, bypassing only the manager's local-export allow_write flag.
+ * WHY: Pure redirectors usually have no writable local export; executing there
+ *      is wrong, while the selected node retains the typed mutation-policy gate.
+ * HOW: Re-decodes the immutable route key after the dispatcher-level preflight,
+ *      then starts fan-out or select/redirect/proxy with no intervening policy.
+ */
+static ngx_int_t
+manager_redirect_mutation(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    manager_mutation_t m;
+    char               host[256];
+    uint16_t           port;
+    ngx_int_t          rc;
+
+    if (!manager_mutation_applies(ctx, conf)) {
         return BRIX_DISPATCH_CONTINUE;
+    }
+
+    /* The central dispatcher already completed the security preflight before
+     * its proxy shortcut. Decode again only to obtain the immutable route key;
+     * this function must perform no authorization after orchestration starts. */
+    rc = manager_mutation_prepare(ctx, c, conf, &m);
+    if (rc != BRIX_DISPATCH_CONTINUE) {
+        return rc;
     }
 
     /* Phase-89 W8: with brix_cms_fanout on, a delete of a replicated path
      * fans out to EVERY holder node instead of redirecting to one (NGX_AGAIN
      * parks the client until the reply window settles).  NGX_DECLINED means
      * fan-out did not engage — fall through to the single-node redirect. */
-    rc = brix_cms_fanout_mutation(ctx, c, conf, path);
+    rc = brix_cms_fanout_mutation(ctx, c, conf, m.path);
     if (rc != NGX_DECLINED) {
         return rc;
     }
 
-    if (brix_srv_select_or_blacklisted(path, 1, host, sizeof(host), &port)) {
+    if (brix_srv_select_or_blacklisted(m.path, 1, host, sizeof(host), &port)) {
         BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "brix: manager redirect mutation \"%s\" -> %s",
-                       path, host);
+                       m.path, host);
         return brix_cms_answer_selected(ctx, c, conf, host, port);
     }
 
@@ -132,8 +391,10 @@ static const brix_wr_route_t  brix_wr_routes[] = {
  * changes (truncate/mkdir/rm/rmdir), mv/chmod, kXR_chkpoint, and the vendor
  * ext ops. Each matched opcode passes the write gate — brix_dispatch_require_write,
  * stricter than require_auth (needs auth AND conf->common.allow_write) — before
- * its handler. In manager_mode, path-based mutations redirect first
- * (manager_redirect_mutation). Returns the handler result, or
+ * its handler. In manager_mode, path-based mutations pass the manager's
+ * authentication/bound/path-policy preflight before redirect or fan-out;
+ * local-export allow_write is intentionally not applied to a pure redirector.
+ * Returns the handler result, or
  * BRIX_DISPATCH_CONTINUE when not a write opcode. */
 ngx_int_t
 brix_dispatch_write_opcode(brix_ctx_t *ctx, ngx_connection_t *c,

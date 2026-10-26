@@ -8,12 +8,10 @@ directives — that the new security gates are wired in, parse correctly, and
 fail closed where required.  They use `nginx -t` against crafted configs, so
 they are self-contained and need no running backends.
 
-The wire-level negative paths (a non-allowlisted CMS peer being refused
-registration, an S3 unknown-key vs bad-signature returning identical bodies, a
-WebDAV-TPC source whose DNS rebinds to a metadata IP being blocked) are
-exercised end-to-end by the live suites (test_evil_paths.py,
-test_token_security.py) and, for vanilla cmsd sss interop, by
-test_cms_mesh_interop.py when the mesh is configured with `sec.protocol sss`.
+The S3 unknown-key/bad-signature and WebDAV-TPC DNS-rebinding paths are covered
+by the live adversarial suites. CMS configuration arms are covered here, while
+vanilla cmsd SSS interoperability is exercised by test_cms_mesh_interop.py when
+the mesh is configured with `sec.protocol sss`.
 
 Run:
     NGINX_BIN=/tmp/nginx-1.28.3/objs/nginx \
@@ -137,6 +135,16 @@ stream {{
 
     KEYTAB = b"0 N:1 k:" + b"a" * 64 + b" u:cmsnode g:cms n:cluster\n"
 
+    def test_enabled_listener_requires_admission_policy(self):
+        rc, out = _nginx_test(self.BASE.replace("{extra}", ""))
+        assert rc != 0
+        assert "requires brix_cms_server_allow and/or" in out, out
+
+    def test_allow_only_listener_remains_compatible(self):
+        rc, out = _nginx_test(self.BASE.replace(
+            "{extra}", "brix_cms_server_allow 127.0.0.1/32;"))
+        assert rc == 0, out
+
     def test_allow_and_keytab_parse(self):
         rc, out = _nginx_test(
             self.BASE.replace(
@@ -148,6 +156,14 @@ stream {{
         # rc == 0 means the keytab parsed and loaded (a malformed keytab or bad
         # permission would emerg here); the "sss auth configured" NOTICE itself
         # goes to the error_log file, not nginx -t's stderr.
+        assert rc == 0, out
+
+    def test_keytab_only_listener_remains_supported(self):
+        rc, out = _nginx_test(
+            self.BASE.replace(
+                "{extra}", "brix_cms_server_sss_keytab {keytab};"),
+            {"keytab": ("cms-only.keytab", self.KEYTAB, 0o600)},
+        )
         assert rc == 0, out
 
     def test_world_readable_keytab_rejected(self):

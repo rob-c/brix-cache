@@ -148,7 +148,9 @@ def _build_cluster():
         "        brix_root on; brix_auth none; brix_manager_mode on;\n"
         "    }\n"
         f"    server {{\n        listen 0.0.0.0:{CLU_CMS_PORT};\n"
-        "        brix_cms_server on;\n    }\n}")
+        "        brix_cms_server on;\n"
+        "        brix_cms_server_allow 127.0.0.0/8 10.244.0.0/16;\n"
+        "    }\n}")
     ds = _write_conf("clu_ds", _stream(CLU_DS_PORT,
         f"        brix_root on; brix_storage_backend posix:{DATA_ROOT}; brix_auth none;\n"
         f"        brix_allow_write on;\n"

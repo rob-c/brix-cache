@@ -158,6 +158,7 @@ stream {{
         brix_root on; brix_storage_backend posix:{data}; brix_auth none;
         brix_manager_mode on;
         brix_cms_server on;
+        brix_cms_server_allow 127.0.0.1/32;
         brix_cms_server_interval 1;
         brix_cms_server_login_timeout 30s;
         brix_cms_server_idle_timeout {idle};

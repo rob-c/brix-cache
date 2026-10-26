@@ -12,24 +12,6 @@
 #include "protocols/root/write/write.h"    /* brix_root_cns_emit_moved (§6 CNS) */
 
 /*
- * mv_req_t — per-request path state threaded through the mv helpers.
- *
- * WHAT: The two request paths (as extracted from the wire) and their
- *       resolved absolute forms, bundled so each helper takes one pointer
- *       instead of four buffers.
- * WHY:  Keeps every helper under the 5-parameter gate with explicit data
- *       flow (no globals, no hidden state).
- * HOW:  Filled left-to-right: mv_parse_paths sets src_buf/dst_buf, the
- *       resolve steps in brix_handle_mv fill src_resolved/dst_resolved.
- */
-typedef struct {
-	char src_buf[BRIX_MAX_PATH + 1];
-	char dst_buf[BRIX_MAX_PATH + 1];
-	char src_resolved[PATH_MAX];
-	char dst_resolved[PATH_MAX];
-} mv_req_t;
-
-/*
  * mv_fail — error access-log triplet for the MV op, helper-return form.
  *
  * WHAT: Emits the mandatory error triplet (brix_log_access + BRIX_OP_ERR +
@@ -72,8 +54,9 @@ mv_fail(brix_ctx_t *ctx, ngx_connection_t *c, const char *path,
  *       traversal checks apply to both.  Returns NGX_OK when both request
  *       paths are extracted; NGX_ERROR after responding otherwise.
  */
-static ngx_int_t
-mv_parse_paths(brix_ctx_t *ctx, ngx_connection_t *c, mv_req_t *mv)
+ngx_int_t
+brix_mv_parse_paths(brix_ctx_t *ctx, ngx_connection_t *c,
+					brix_mv_paths_t *mv)
 {
 	xrdw_twopath_req_t req;
 	int16_t  src_len;
@@ -182,7 +165,7 @@ mv_bind_vfs(brix_ctx_t *ctx, ngx_connection_t *c,
  */
 static ngx_int_t
 mv_dst_slash_precheck(brix_ctx_t *ctx, ngx_connection_t *c,
-					  ngx_stream_brix_srv_conf_t *conf, mv_req_t *mv)
+					  ngx_stream_brix_srv_conf_t *conf, brix_mv_paths_t *mv)
 {
 	size_t dl = ngx_strlen(mv->dst_buf);
 	brix_vfs_ctx_t  sctx;
@@ -316,7 +299,7 @@ mv_errno_kxr(int err)
  */
 static ngx_int_t
 mv_execute(brix_ctx_t *ctx, ngx_connection_t *c,
-		   ngx_stream_brix_srv_conf_t *conf, mv_req_t *mv)
+		   ngx_stream_brix_srv_conf_t *conf, brix_mv_paths_t *mv)
 {
 	brix_vfs_ctx_t     rvctx;
 	brix_path_result_t dst_result;
@@ -391,9 +374,9 @@ ngx_int_t
 brix_handle_mv(brix_ctx_t *ctx, ngx_connection_t *c,
 				 ngx_stream_brix_srv_conf_t *conf)
 {
-	mv_req_t mv;
+	brix_mv_paths_t mv;
 
-	if (mv_parse_paths(ctx, c, &mv) != NGX_OK) {
+	if (brix_mv_parse_paths(ctx, c, &mv) != NGX_OK) {
 		return ctx->write_rc;
 	}
 

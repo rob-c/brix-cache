@@ -187,6 +187,9 @@ stream {
     server {
         listen 1213;
         brix_cms_server on;
+        # At least one admission control is mandatory. CIDR-only keeps
+        # interoperability with vanilla nodes; SSS may be added or used alone.
+        brix_cms_server_allow 10.20.0.0/16;
     }
 
     # XRootD protocol port — clients connect here

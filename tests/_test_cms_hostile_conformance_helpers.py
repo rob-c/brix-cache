@@ -314,7 +314,9 @@ def sweep_server():
             protocol="root",
             readiness="tcp",
             reason="CMS hostile-network conformance: server-leg opcode/size sweep.",
-            template_values={"CMS_SECURITY_LINE": ""},
+            template_values={
+                "CMS_SECURITY_LINE": "brix_cms_server_allow 127.0.0.1/32;"
+            },
         ))
         yield ep
     finally:

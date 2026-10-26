@@ -597,6 +597,9 @@ SETTINGS_OFFSET, SETTINGS_WIDTH = 0, 179
 # fixture listeners, 1116 -> 1118.  The running sum is re-applied below.
 # 2026-10-06: 1118 -> 1120 for the Phase-118 OPN-012 token-authenticated
 # read-only endpoint and its otherwise-identical writable control.
-LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 179, 1120
+# 2026-10-26: 1120 -> 1122 for the Phase-115 CMS proxy policy gateway's root
+# and CMS listeners; 1122 -> 1123 for the live red-team CMS admission probe.
+# Every downstream lane shifts by the same three slots in total.
+LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 179, 1123
 
 _load_port_ladder_ext(globals(), __file__, "port_ladder_offsets_tail.py")

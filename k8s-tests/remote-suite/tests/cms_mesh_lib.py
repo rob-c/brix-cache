@@ -329,7 +329,8 @@ def cfg_manager(data_port, cms_port):
         "stream {\n"
         f"    server {{ listen {BIND_HOST}:{data_port}; brix_root on; brix_auth none;"
         f" brix_manager_mode on; }}\n"
-        f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on; }}\n"
+        f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on;"
+        " brix_cms_server_allow 127.0.0.0/8 ::1/128 10.244.0.0/16 fd00:10:244::/64; }\n"
         "}\n"
     )
 
@@ -403,7 +404,8 @@ def cfg_submanager(data_port, cms_port, root, parent_cms):
         f"        brix_cms_manager {parent_cms}; brix_cms_paths /;\n"
         f"        brix_cms_interval 2; brix_listen_port {data_port};\n"
         f"    }}\n"
-        f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on; }}\n"
+        f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on;"
+        " brix_cms_server_allow 127.0.0.0/8 ::1/128 10.244.0.0/16 fd00:10:244::/64; }\n"
         "}\n"
     )
 

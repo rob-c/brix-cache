@@ -27,7 +27,7 @@ typedef struct ngx_stream_brix_cms_srv_conf_s ngx_stream_brix_cms_srv_conf_t;
  * valid SSS credential (DONE).  NONE means SSS auth is not required.
  */
 typedef enum {
-    CMS_AUTH_NONE = 0,    /* no sss keytab configured — auth not required    */
+    CMS_AUTH_NONE = 0,    /* CIDR-only admission; no SSS exchange required   */
     CMS_AUTH_REQUESTED,   /* sss required; awaiting the node's LOGIN frame    */
     CMS_AUTH_CHALLENGED,  /* parms sent, awaiting the node's kYR_xauth cred   */
     CMS_AUTH_DONE         /* credential verified — registration permitted     */
@@ -239,9 +239,9 @@ ngx_int_t brix_cms_srv_send_try(brix_cms_srv_ctx_t *ctx, const char *host,
 /* Refuse and close LOGIN during an outstanding challenge or invalid state. */
 ngx_int_t brix_cms_srv_require_login_state(brix_cms_srv_ctx_t *ctx);
 
-/* Accept-time peer check: NGX_OK if the peer is permitted to register.
- * When no allowlist is configured this returns NGX_OK (back-compat) after a
- * one-time warning; when an allowlist is set, only matching IPs pass. */
+/* Accept-time peer check: NGX_OK when a configured CIDR matches, or when an
+ * SSS-only listener will authenticate the peer before registration. A listener
+ * with neither policy fails closed (merge also rejects that configuration). */
 ngx_int_t brix_cms_srv_check_peer(ngx_connection_t *c,
     ngx_stream_brix_cms_srv_conf_t *conf);
 

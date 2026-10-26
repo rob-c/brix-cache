@@ -298,8 +298,7 @@ def _client_conf(name, port, data_dir, mgr_port):
 
 
 def _server_conf(name, port, data_dir):
-    """nginx as a CMS *server* (manager): accepts inbound data-node logins on
-    the same stream port via brix_cms_server on; (no allowlist -> any peer)."""
+    """nginx CMS manager accepting only local/pod-network data-node logins."""
     base = os.path.join(_DIR, name)
     _mkdirs(data_dir, os.path.join(base, "logs"))
     conf = os.path.join(base, f"{name}.conf")
@@ -313,6 +312,7 @@ def _server_conf(name, port, data_dir):
             f"    server {{\n"
             f"        listen 0.0.0.0:{port};\n"
             f"        brix_cms_server on;\n"
+            f"        brix_cms_server_allow 127.0.0.0/8 10.244.0.0/16;\n"
             f"        brix_cms_server_interval 60;\n"
             f"    }}\n"
             f"}}\n")

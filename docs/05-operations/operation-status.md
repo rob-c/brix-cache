@@ -186,7 +186,7 @@ Enabled by `brix_cms_server on` on the management listener and
 
 | Feature | Status | Notes |
 |---|---|---|
-| CMS server listener (`brix_cms_server on`) | ✅ | Accepts data server registrations on a dedicated stream listener |
+| CMS server listener (`brix_cms_server on`) | ✅ | Accepts registrations only with configured CIDR and/or SSS admission; no-policy listeners fail closed |
 | Dynamic server registry | ✅ | Shared-memory table, spinlock-protected, 128 slots |
 | `kXR_locate` → `kXR_redirect` | ✅ | Registry lookup (lowest util); falls back to static `brix_manager_map` |
 | `kXR_open` → `kXR_redirect` | ✅ | Registry lookup before local open |

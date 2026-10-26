@@ -208,6 +208,7 @@ def cms_server():
         f"        brix_root on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
         f"        brix_manager_mode on;\n"
         f"        brix_cms_server on;\n"
+        f"        brix_cms_server_allow 127.0.0.0/8 10.244.0.0/16;\n"
         f"        brix_cms_server_interval 1;\n"
         f"        brix_cms_server_login_timeout 2s;\n"
         f"        brix_cms_server_idle_timeout 3s;\n"

@@ -161,6 +161,10 @@ A dedicated nginx stream server block (`brix_cms_server on`) accepts inbound
 TCP connections from data servers. It parses CMS frames and maintains the
 registry:
 
+Every such block must configure `brix_cms_server_allow` and/or
+`brix_cms_server_sss_keytab`; a listener with neither control fails
+configuration. Each tier should allow only its immediate child network.
+
 | Frame received | Action |
 |---|---|
 | `kYR_login` | Calls `brix_srv_register()` with host, port, paths, and initial space metrics |
@@ -514,6 +518,7 @@ stream {
     server {
         listen 2213;
         brix_cms_server on;      # accepts sub-manager registrations
+        brix_cms_server_allow 10.21.0.0/16;
     }
     server {
         listen 2094;
@@ -529,6 +534,7 @@ stream {
     server {
         listen 1213;
         brix_cms_server on;      # accepts data server registrations
+        brix_cms_server_allow 10.20.0.0/16;
     }
     server {
         listen 1094;
@@ -784,6 +790,7 @@ stream {
         brix_root on;
         brix_manager_mode on;
         brix_cms_server on;            # data servers register here
+        brix_cms_server_allow 10.20.0.0/16;
         brix_cms_response proxy;       # relay instead of redirect
     }
 }

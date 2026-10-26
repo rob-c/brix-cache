@@ -523,13 +523,14 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
 })
 
 # Phase-115 W2.1 — brix_cms_response proxy (tests/test_phase115_cms_select_proxy.py):
-# three one-server gateways (each with its own CMS listener, because
+# four one-server gateways (each with its own CMS listener, because
 # brix_cms_server takes over a whole server block) and one plain data server
-# the gateways forward to.  Seven slots.
+# the gateways forward to.  Nine slots.
 LIFECYCLE_SHARED_PORTS_PHASE5.update({
     "lc-p115-gw-proxy": {"port": 30976, "extra": {"CMS_PORT": 30977}},
     "lc-p115-gw-redirect": {"port": 30978, "extra": {"CMS_PORT": 30979}},
     "lc-p115-gw-unix": {"port": 30980, "extra": {"CMS_PORT": 30981}},
+    "lc-p115-gw-policy": {"port": 31990, "extra": {"CMS_PORT": 31991}},
     "lc-p115-ds": {"port": 30982},
 })
 

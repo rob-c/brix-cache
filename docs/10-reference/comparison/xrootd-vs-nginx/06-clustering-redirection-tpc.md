@@ -179,8 +179,9 @@ peer reaching the CMS port could otherwise self-report arbitrary
 `host:port:paths`):
 
 - **CIDR allowlist** `brix_cms_server_allow <cidr>...` — accept-time gate in
-  `server_handler.c` (`brix_cms_srv_check_peer`); with no list it fails *open*
-  but warns once.
+  `server_handler.c` (`brix_cms_srv_check_peer`). Every enabled listener must
+  configure this and/or a valid SSS keytab; a listener with neither fails
+  configuration rather than accepting arbitrary registrations.
 - **Host-character validation** in `src/net/manager/registry.c`
   (`brix_srv_register` rejects any host failing `brix_net_host_chars_valid`,
   `registry.c:209`) — a single store choke point protecting every redirect-emit

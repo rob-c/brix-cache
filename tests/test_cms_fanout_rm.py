@@ -66,6 +66,14 @@ CMS_RR_RMDIR = 9
 KXR_OK = 0
 KXR_ERROR = 4003
 KXR_REDIRECT = 4004
+KXR_NOT_AUTHORIZED = 3010
+
+KXR_CHMOD = 3002
+KXR_MKDIR = 3008
+KXR_RM = 3014
+KXR_RMDIR = 3015
+KXR_MV = 3009
+KXR_TRUNCATE = 3028
 
 PORT_NODE_A = 43321
 PORT_NODE_B = 43322
@@ -152,6 +160,53 @@ def _rm(sock, path):
     payload = path.encode()
     sock.sendall(struct.pack(">BBH16sI", 0, 1, 3014,
                              b"\x00" * 16, len(payload)) + payload)
+    return _recv_response(sock)
+
+
+def _recv_exact_bytes(sock, size):
+    data = bytearray()
+    while len(data) < size:
+        chunk = sock.recv(size - len(data))
+        if not chunk:
+            raise ConnectionError("server closed during handshake")
+        data.extend(chunk)
+    return bytes(data)
+
+
+def _handshake_only(port):
+    """Complete hello + protocol negotiation without sending kXR_login."""
+    sock = socket.create_connection((H, port), timeout=8)
+    sock.settimeout(8)
+    sock.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
+    sock.sendall(struct.pack(">BB H I BB 10x I",
+                             0, 1, 3006, 0x00000520, 0x02, 0x03, 0))
+    _recv_exact_bytes(sock, 16)   # fixed XRootD server hello
+    _recv_response(sock)          # kXR_protocol response
+    return sock
+
+
+def _manager_mutation(sock, opcode):
+    """Send one of every manager-routable namespace mutation."""
+    path = b"/fan/prelogin.bin"
+    sid = b"\x00\x31"
+    if opcode == KXR_MKDIR:
+        frame = struct.pack("!2sHB13sHI", sid, opcode, 0,
+                            b"\x00" * 13, 0o755, len(path)) + path
+    elif opcode == KXR_MV:
+        dst = b"/fan/prelogin-dst.bin"
+        payload = path + b" " + dst
+        frame = struct.pack("!2sH14sHI", sid, opcode, b"\x00" * 14,
+                            len(path), len(payload)) + payload
+    elif opcode == KXR_CHMOD:
+        frame = struct.pack("!2sH14sHI", sid, opcode, b"\x00" * 14,
+                            0o600, len(path)) + path
+    elif opcode == KXR_TRUNCATE:
+        frame = struct.pack("!2sH4sq4sI", sid, opcode, b"\x00" * 4,
+                            0, b"\x00" * 4, len(path)) + path
+    else:
+        frame = struct.pack("!2sH16sI", sid, opcode,
+                            b"\x00" * 16, len(path)) + path
+    sock.sendall(frame)
     return _recv_response(sock)
 
 
@@ -250,3 +305,30 @@ def test_fanout_never_over_or_under_reaches(manager):
             scoped.close()
     finally:
         node_a.close()
+
+
+@pytest.mark.parametrize("opcode", [
+    KXR_MKDIR, KXR_RM, KXR_RMDIR, KXR_MV, KXR_CHMOD, KXR_TRUNCATE,
+])
+def test_prelogin_manager_mutations_never_route_or_fan_out(manager, opcode):
+    """security-neg: every manager-routable mutation is rejected before
+    registry selection or CMS fan-out when the client has not logged in."""
+    node_a = _FanNode(manager.cms_port, PORT_NODE_A)
+    node_b = _FanNode(manager.cms_port, PORT_NODE_B)
+    try:
+        time.sleep(0.4)
+        sock = _handshake_only(manager.root_port)
+        try:
+            status, body = _manager_mutation(sock, opcode)
+        finally:
+            sock.close()
+
+        assert status == KXR_ERROR
+        assert len(body) >= 4
+        assert struct.unpack(">I", body[:4])[0] == KXR_NOT_AUTHORIZED
+        time.sleep(0.1)
+        assert node_a.forwards == []
+        assert node_b.forwards == []
+    finally:
+        node_a.close()
+        node_b.close()

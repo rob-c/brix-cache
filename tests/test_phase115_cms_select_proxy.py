@@ -35,43 +35,45 @@ Run:
     TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest tests/test_phase115_cms_select_proxy.py -v
 """
 
-import os
-import socket
 import struct
-import threading
 import time
 from pathlib import Path
 
 import pytest
 
 import config_parse
+from _test_phase115_cms_select_proxy_helpers import (
+    WRITE_CREATE,
+    _FakeDataServer,
+    _bind_secondary,
+    _close,
+    _closed_port,
+    _locate,
+    _login_with_session,
+    _namespace_mutation,
+    _open,
+    _redirect_port,
+    _response_or_eof,
+    _settle,
+    kXR_NotAuthorized,
+    kXR_error,
+    kXR_mv,
+    kXR_ok,
+    kXR_open_read,
+    kXR_redirect,
+    kXR_rm,
+)
 from ephemeral_port import free_port
 from server_registry import NginxInstanceSpec
 from settings import SERVER_HOST
 from test_cms_locate_have import _CmsNode
-from test_pgwrite_checksum import _handshake_login, _read_response
+from test_pgwrite_checksum import _handshake_login
 from test_unix_auth_wire import _auth, _read
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-p115-cms-select")]
 
 H = SERVER_HOST
-
-kXR_ok = 0
-kXR_error = 4003
-kXR_redirect = 4004
-kXR_close = 3003
-kXR_protocol = 3006
-kXR_login = 3007
-kXR_open = 3010
-kXR_read = 3013
-kXR_locate = 3027
-
-kXR_new = 0x0008
-kXR_open_read = 0x0010
-kXR_open_updt = 0x0020
-kXR_mkpath = 0x0100
-WRITE_CREATE = kXR_new | kXR_open_updt | kXR_mkpath
 
 WINDOW_MS = 1200
 SEED = b"phase-115 bytes that live only on the data server\n"
@@ -82,181 +84,17 @@ DS_TEMPLATE = "nginx_p115_cms_dataserver.conf"
 
 
 # ---------------------------------------------------------------------------
-# Raw client requests (login helpers come from the shared modules)
-# ---------------------------------------------------------------------------
-
-def _open(sock, path: bytes, options: int, mode: int = 0):
-    sock.sendall(struct.pack("!2sHHH2s6s4sI", b"\x00\x04", kXR_open, mode,
-                             options, b"\x00\x00", b"\x00" * 6, b"\x00" * 4,
-                             len(path)) + path)
-    return _read_response(sock)
-
-
-def _close(sock, fh: bytes):
-    sock.sendall(struct.pack("!2sH4sq4sI", b"\x00\x06", kXR_close, fh, 0,
-                             b"\x00" * 4, 0))
-    return _read_response(sock)
-
-
-def _locate(sock, path: bytes):
-    payload = path + b"\x00"
-    sock.sendall(struct.pack("!2sHH14sI", b"\x00\x07", kXR_locate, 0,
-                             b"\x00" * 14, len(payload)) + payload)
-    return _read_response(sock)
-
-
-def _response_or_eof(sock):
-    """Like _read_response, but an upstream-induced close is a result, not an
-    assertion.  A socket timeout still propagates — that is the hang."""
-    buf = b""
-    while len(buf) < 8:
-        chunk = sock.recv(8 - len(buf))
-        if not chunk:
-            return "eof", b""
-        buf += chunk
-    _sid, status, dlen = struct.unpack("!2sHI", buf)
-    body = b""
-    while len(body) < dlen:
-        chunk = sock.recv(dlen - len(body))
-        if not chunk:
-            return "eof", body
-        body += chunk
-    return status, body
-
-
-def _redirect_port(body: bytes) -> int:
-    return struct.unpack(">I", body[:4])[0]
-
-
-def _settle(*nodes):
-    """Block until every node is in the manager's registry.  The manager
-    speaks to a node only after brix_srv_register (its ping timer is armed
-    in cms_srv_complete_login), so the first inbound frame is the proof; a
-    fixed sleep raced two logins on one manager and lost under load."""
-    for node in nodes:
-        assert node.wait_ready(8.0), "CMS node never entered the registry"
-
-
-def _closed_port() -> int:
-    """A loopback port nothing listens on.
-
-    A lease from the mock range is already exclusive to this session, so it
-    needs no bind/close dance to prove it is free — and unlike a kernel-assigned
-    port it cannot collide with a managed service.
-    """
-    return free_port(H)
-
-
-# ---------------------------------------------------------------------------
-# A scripted data server: bootstrap + open/read/close, connection counting
-# ---------------------------------------------------------------------------
-
-class _FakeDataServer:
-    """Enough xrootd for a brix proxy session: hello, kXR_protocol, kXR_login
-    (no sec token), kXR_open (fh 7), kXR_read, kXR_close.  ``mode``:
-    ``serve`` answers reads with PAYLOAD; ``die_on_read`` closes the socket
-    on the first kXR_read — a data server dying mid-transfer."""
-
-    PAYLOAD = b"fake-node-bytes!"
-
-    def __init__(self, mode="serve"):
-        self.mode = mode
-        self.accepted = 0
-        self._lock = threading.Lock()
-        self._closing = False
-        self._srv = socket.socket()
-        self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.port = free_port(H)
-        self._srv.bind((H, self.port))
-        self._srv.listen(8)
-        self._srv.settimeout(0.2)
-        self._thread = threading.Thread(target=self._accept_loop, daemon=True)
-        self._thread.start()
-
-    def connections(self) -> int:
-        with self._lock:
-            return self.accepted
-
-    def _accept_loop(self):
-        while not self._closing:
-            try:
-                conn, _peer = self._srv.accept()
-            except socket.timeout:
-                continue
-            except OSError:
-                return
-            with self._lock:
-                self.accepted += 1
-            threading.Thread(target=self._serve, args=(conn,), daemon=True).start()
-
-    @staticmethod
-    def _exact(conn, n):
-        buf = b""
-        while len(buf) < n:
-            chunk = conn.recv(n - len(buf))
-            if not chunk:
-                raise ConnectionError("peer closed")
-            buf += chunk
-        return buf
-
-    def _reply_for(self, reqid, conn):
-        if reqid == kXR_protocol:
-            return struct.pack(">II", 0x00000310, 0)      # pval, no gotoTLS
-        if reqid == kXR_login:
-            return b"\x00" * 16                            # sessid, no sec token
-        if reqid == kXR_open:
-            return struct.pack(">I", 7) + b"\x00" * 8      # fh, cpsize, cptype
-        if reqid == kXR_read:
-            if self.mode == "die_on_read":
-                conn.close()
-                return None
-            return self.PAYLOAD
-        return b""
-
-    def _serve(self, conn):
-        conn.settimeout(5)
-        try:
-            self._exact(conn, 20)                          # client hello
-            conn.sendall(struct.pack(">HHI", 0, 0, 8) + struct.pack(">II", 0x00000310, 1))
-            while not self._closing:
-                hdr = self._exact(conn, 24)
-                sid = hdr[:2]
-                reqid = struct.unpack(">H", hdr[2:4])[0]
-                dlen = struct.unpack(">I", hdr[20:24])[0]
-                if dlen:
-                    self._exact(conn, dlen)
-                body = self._reply_for(reqid, conn)
-                if body is None:
-                    return
-                conn.sendall(sid + struct.pack(">HI", kXR_ok, len(body)) + body)
-        except (OSError, ConnectionError):
-            return
-        finally:
-            try:
-                conn.close()
-            except OSError:
-                pass
-
-    def close(self):
-        self._closing = True
-        try:
-            self._srv.close()
-        except OSError:
-            pass
-        self._thread.join(timeout=2)
-
-
-# ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
-def _gateway(lifecycle, name, response, auth="none"):
+def _gateway(lifecycle, name, response, auth="none", authz=""):
     return lifecycle.start(NginxInstanceSpec(
         name=name,
         template=GATEWAY_TEMPLATE,
         protocol="root",
         readiness="tcp",
-        template_values={"RESPONSE": response, "AUTH": auth, "WINDOW_MS": WINDOW_MS},
+        template_values={"RESPONSE": response, "AUTH": auth,
+                         "WINDOW_MS": WINDOW_MS, "AUTHZ": authz},
         reason="Phase-115 W2.1: brix_cms_response select-then-proxy gateway.",
     ))
 
@@ -274,6 +112,15 @@ def redirect_gateway(lifecycle):
 @pytest.fixture
 def unix_gateway(lifecycle):
     return _gateway(lifecycle, "lc-p115-gw-unix", "proxy", auth="unix")
+
+
+@pytest.fixture
+def policy_gateway(lifecycle, tmp_path):
+    authdb = tmp_path / "manager.authdb"
+    authdb.write_text("u * /live a\n")
+    authz = ("brix_authdb_engine xrdacc; "
+             f"brix_authdb {authdb};")
+    return _gateway(lifecycle, "lc-p115-gw-policy", "proxy", authz=authz)
 
 
 @pytest.fixture
@@ -568,6 +415,72 @@ def test_unregistered_path_is_not_served_through_a_stale_pin(gateway, data_serve
         live.close()
 
 
+@pytest.mark.parametrize(("opcode", "source", "destination"), [
+    (kXR_rm, b"/blocked/item", b""),
+    (kXR_mv, b"/live/source", b"/blocked/destination"),
+])
+def test_busy_proxy_pin_cannot_bypass_manager_path_policy(
+        policy_gateway, opcode, source, destination):
+    """security-neg: a held handle makes the CMS proxy pin non-movable, but
+    single-path denial and independent MV-destination denial still occur at
+    the manager before the request can ride the pinned service credential.
+
+    The scripted upstream answers every unknown opcode with kXR_ok, so an OK
+    response here is direct proof that the dispatcher shortcut bypassed policy.
+    """
+    fake = _FakeDataServer("serve")
+    node = _CmsNode(_cms_port(policy_gateway), fake.port, paths=b"r /live")
+    try:
+        _settle(node)
+        sock = _handshake_login(H, policy_gateway.port)
+        try:
+            status, body = _open(sock, b"/live/held", kXR_open_read)
+            assert status == kXR_ok, (status, body)
+            held = body[:4]
+
+            status, body = _namespace_mutation(sock, opcode, source,
+                                               destination)
+            assert status == kXR_error, (status, body)
+            assert len(body) >= 4
+            assert struct.unpack(">I", body[:4])[0] == kXR_NotAuthorized
+
+            assert _close(sock, held)[0] == kXR_ok
+        finally:
+            sock.close()
+    finally:
+        node.close()
+        fake.close()
+
+
+def test_bound_secondary_cannot_issue_manager_mutation(gateway):
+    """security-neg: even after the primary pins a live proxy handle, a bound
+    data secondary inherits identity only—not namespace-mutation authority."""
+    fake = _FakeDataServer("serve")
+    node = _CmsNode(_cms_port(gateway), fake.port, paths=b"r /live")
+    primary = secondary = None
+    try:
+        _settle(node)
+        primary, sessid = _login_with_session(gateway.port)
+        status, body = _open(primary, b"/live/held", kXR_open_read)
+        assert status == kXR_ok, (status, body)
+        held = body[:4]
+
+        secondary = _bind_secondary(gateway.port, sessid)
+        status, body = _namespace_mutation(secondary, kXR_rm,
+                                           b"/live/forbidden")
+        assert status == kXR_error, (status, body)
+        assert len(body) >= 4
+        assert struct.unpack(">I", body[:4])[0] == kXR_NotAuthorized
+        assert _close(primary, held)[0] == kXR_ok
+    finally:
+        if secondary is not None:
+            secondary.close()
+        if primary is not None:
+            primary.close()
+        node.close()
+        fake.close()
+
+
 def test_write_open_is_refused_by_the_read_only_data_server(gateway, data_server):
     """security-neg: a node registers `w /ro` for a data server that has no
     brix_allow_write — the gateway selects it, the DATA SERVER refuses the
@@ -600,7 +513,7 @@ def test_bogus_response_mode_is_rejected_at_parse(tmp_path):
     # ACCEPTING half below would fail with `bind() ... (13: Permission denied)`
     # as an ordinary uid — after reporting the syntax ok, which is what makes it
     # read like a missing directive rather than a privileged port.
-    values = dict(PORT=free_port(), CMS_PORT=free_port(), AUTH="none",
+    values = dict(PORT=free_port(), CMS_PORT=free_port(), AUTH="none", AUTHZ="",
                   WINDOW_MS=WINDOW_MS,
                   DATA_ROOT=str(tmp_path), LOG_DIR=str(tmp_path))
     bad = config_parse.nginx_t(GATEWAY_TEMPLATE, tmp_path / "bad", RESPONSE="bogus", **values)

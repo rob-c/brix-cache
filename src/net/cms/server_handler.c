@@ -10,8 +10,8 @@
  * One process-global counter encapsulated behind accessors; incremented once a
  * connection is admitted (handler) and decremented when it closes (server_recv.c
  * brix_cms_srv_close), gated by ctx->counted so it can never double-count or
- * underflow.  Enforces brix_cms_server_max_connections so a peer inside the
- * (often unset) CIDR allowlist cannot exhaust memory/fds with idle connections.
+ * underflow.  Enforces brix_cms_server_max_connections so an admitted peer
+ * cannot exhaust memory/fds with idle connections.
  */
 static ngx_uint_t  brix_cms_srv_conns;
 
@@ -252,9 +252,9 @@ brix_cms_srv_handler(ngx_stream_session_t *s)
     ctx->idle_timeout_ms  = conf->idle_timeout;    /* WS3 */
 
     /*
-     * WS4 — admission cap.  Reject before installing any frame handler so an
-     * abusive peer (inside the often-unset CIDR allowlist) cannot exhaust
-     * memory/fds with idle connections.  0 = unlimited (back-compat).
+     * WS4 — admission cap. Reject before installing any frame handler so an
+     * abusive admitted peer cannot exhaust memory/fds with idle connections.
+     * 0 = unlimited (back-compat).
      */
     if (conf->max_connections > 0
         && brix_cms_srv_conn_count() >= (ngx_uint_t) conf->max_connections)
@@ -288,7 +288,9 @@ brix_cms_srv_handler(ngx_stream_session_t *s)
     /*
      * W1b — accept-time CIDR allowlist gate.  Reject before installing any
      * frame handler so an unauthorised peer never reaches the LOGIN/registry
-     * path.  When no allowlist is configured this passes (back-compat).
+     * path. An SSS-only listener passes this network-layer check and is gated
+     * cryptographically before registration; a listener with neither control
+     * is refused here as a defense-in-depth tripwire.
      */
     if (brix_cms_srv_check_peer(c, conf) != NGX_OK) {
         BRIX_DIAG(NGX_LOG_NOTICE, c->log, 0,

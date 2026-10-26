@@ -1,11 +1,7 @@
 /*
  * net_target_parse.c — URL grammar for outbound transfer targets.
- *
- * See net_target.h for the public API.  Split verbatim from net_target.c:
- * this translation unit holds the zero-copy
- * "scheme://host[:port][/path][?query][#fragment]" parser and its per-grammar
- * sub-step helpers. Transport policy and effective ports live in
- * net_target_policy.c.
+ * Owns the zero-copy URL grammar and its sub-step helpers. See net_target.h
+ * for the API; transport policy and effective ports live in net_target_policy.c.
  */
 
 #include "net_target.h"
@@ -19,21 +15,11 @@
 #include <stdio.h>
 #include <string.h>
 
-
 /*
- * net_url_span_t — the [start, end) authority substring of a URL and the
- * error sink shared across the parse sub-steps.
- *
- * WHAT: names the two cursors ("host_start" = first byte after "://",
- *       "host_end" = the first '/', '?' or '#' or end-of-URL) plus the
- *       caller's err
- *       buffer, so a helper takes ONE struct instead of four positional args.
- * WHY:  the parse grammar walks a single authority section (host[:port]); the
- *       three host-form handlers all need the same span + err sink, and passing
- *       them as one struct keeps the sub-parsers under the param budget and
- *       makes the data flow explicit (no reaching back into the orchestrator).
- * HOW:  purely a view — no ownership; the cursors point into the caller's URL
- *       buffer exactly as the zero-copy parser requires.
+ * net_url_span_t — authority view and shared parse-error sink.
+ * WHAT: Names the zero-copy authority bounds and caller-owned error buffer.
+ * WHY: Keeps the sub-parser interfaces explicit and within the parameter budget.
+ * HOW: 1. Point both cursors into the URL. 2. Borrow the error buffer.
  */
 typedef struct {
     const u_char *host_start;
@@ -43,14 +29,74 @@ typedef struct {
 } net_url_span_t;
 
 /*
+ * net_ascii_alpha — classify one byte as an ASCII letter.
+ * WHAT: Returns non-zero exactly for A-Z and a-z.
+ * WHY: URL grammar must not depend on the process locale.
+ * HOW: 1. Fold ASCII case. 2. Test the contiguous lower-case range.
+ */
+static int
+net_ascii_alpha(u_char value)
+{
+    unsigned folded = (unsigned) value | 0x20U;
+
+    return folded - (unsigned) 'a' <= (unsigned) ('z' - 'a');
+}
+
+/*
+ * net_ascii_digit — classify one byte as an ASCII decimal digit.
+ * WHAT: Returns non-zero exactly for 0-9.
+ * WHY: Numeric URL fields require locale-independent ASCII semantics.
+ * HOW: 1. Offset from '0'. 2. Test the unsigned decimal range.
+ */
+static int
+net_ascii_digit(u_char value)
+{
+    return (unsigned) (value - (u_char) '0') <= 9U;
+}
+
+/*
+ * net_ascii_hex_digit — classify one byte as an ASCII hexadecimal digit.
+ * WHAT: Returns non-zero exactly for 0-9, A-F and a-f.
+ * WHY: Legacy numeric-host detection must recognize the whole bounded token.
+ * HOW: 1. Accept decimal. 2. Fold case and test the a-f range.
+ */
+static int
+net_ascii_hex_digit(u_char value)
+{
+    unsigned folded = (unsigned) value | 0x20U;
+
+    return net_ascii_digit(value)
+           || folded - (unsigned) 'a' <= (unsigned) ('f' - 'a');
+}
+
+/*
+ * net_span_chars_valid — validate every byte with a pure classifier.
+ * WHAT: Returns non-zero for a nonempty span whose bytes all satisfy valid().
+ * WHY: Decimal and hexadecimal host components share identical bounded scans.
+ * HOW: 1. Reject empty input. 2. Stop at the first rejected byte.
+ */
+static int
+net_span_chars_valid(const u_char *begin, const u_char *end,
+    int (*valid)(u_char))
+{
+    const u_char *cursor;
+
+    if (begin == end) {
+        return 0;
+    }
+    for (cursor = begin; cursor < end; cursor++) {
+        if (!valid(*cursor)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/*
  * net_url_bytes_valid — reject URL bytes with parser-dependent meanings.
- *
- * WHAT: returns NGX_OK when every byte is printable non-space ASCII and no
- *       backslash is present; otherwise writes err and returns NGX_ERROR.
- * WHY:  curl and HTTP parsers can normalize whitespace, controls or backslash
- *       differently from a security preflight. Refusing them keeps both
- *       components on one byte-for-byte URL interpretation.
- * HOW:  one bounded scan over the caller-owned URL slice.
+ * WHAT: Returns NGX_OK for printable, non-space ASCII without backslashes.
+ * WHY: Transfer and policy parsers must retain one byte-for-byte interpretation.
+ * HOW: 1. Scan the bounded URL. 2. Report the first unsafe class.
  */
 static ngx_int_t
 net_url_bytes_valid(const ngx_str_t *url, char *err, size_t errsz)
@@ -70,47 +116,34 @@ net_url_bytes_valid(const ngx_str_t *url, char *err, size_t errsz)
 
 /*
  * net_scheme_chars_valid — enforce the RFC 3986 scheme token grammar.
- *
- * WHAT: returns 1 for ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ); otherwise 0.
- * WHY:  the separator scan alone would accept controls and delimiter-like
- *       bytes that downstream URL parsers can interpret differently.
- * HOW:  validate the first byte separately, then scan the remaining token.
+ * WHAT: Returns non-zero for ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ).
+ * WHY: Separator discovery alone does not validate the scheme token.
+ * HOW: 1. Require initial ALPHA. 2. Classify each remaining byte.
  */
 static int
 net_scheme_chars_valid(const u_char *begin, const u_char *end)
 {
     const u_char *cursor;
 
-    if (begin == end
-        || !(('A' <= *begin && *begin <= 'Z')
-             || ('a' <= *begin && *begin <= 'z')))
-    {
+    if (begin == end || !net_ascii_alpha(*begin)) {
         return 0;
     }
 
     for (cursor = begin + 1; cursor < end; cursor++) {
-        if (('A' <= *cursor && *cursor <= 'Z')
-            || ('a' <= *cursor && *cursor <= 'z')
-            || ('0' <= *cursor && *cursor <= '9')
-            || *cursor == '+' || *cursor == '-' || *cursor == '.')
+        if (!net_ascii_alpha(*cursor) && !net_ascii_digit(*cursor)
+            && memchr("+-.", (int) *cursor, 3) == NULL)
         {
-            continue;
+            return 0;
         }
-        return 0;
     }
     return 1;
 }
 
 /*
  * net_parse_scheme — locate "://" and record the scheme slice.
- *
- * WHAT: on success sets out->scheme and returns the first byte after "://"
- *       (the host_start cursor); on a missing/empty scheme writes err and
- *       returns NULL.
- * WHY:  isolates the scheme grammar (the "://" scan + emptiness checks) from
- *       the authority grammar so each is independently readable.
- * HOW:  linear forward scan for the ':' '/' '/' triple; slices are zero-copy
- *       into url->data.
+ * WHAT: Records the scheme and returns the first authority byte, or NULL.
+ * WHY: Keeps scheme grammar independent from authority grammar.
+ * HOW: 1. Find "://". 2. Validate the token. 3. Return its zero-copy boundary.
  */
 static const u_char *
 net_parse_scheme(const ngx_str_t *url, brix_net_target_t *out,
@@ -121,7 +154,6 @@ net_parse_scheme(const ngx_str_t *url, brix_net_target_t *out,
     const u_char *scheme_end = NULL;
     const u_char *host_start;
 
-    /* Find "://" */
     for (const u_char *q = p; q + 2 < end; q++) {
         if (q[0] == ':' && q[1] == '/' && q[2] == '/') {
             scheme_end = q;
@@ -142,7 +174,6 @@ net_parse_scheme(const ngx_str_t *url, brix_net_target_t *out,
         return NULL;
     }
 
-    /* Skip "://" */
     host_start = scheme_end + 3;
     if (host_start >= end) {
         snprintf(err, errsz, "URL has no host after '://'");
@@ -154,13 +185,9 @@ net_parse_scheme(const ngx_str_t *url, brix_net_target_t *out,
 
 /*
  * net_parse_port_digits — parse a digits-only port field in [begin, end).
- *
- * WHAT: on success writes the value to *out_port and returns NGX_OK; on any
- *       non-digit byte or a value above 65535 writes err and returns NGX_ERROR.
- * WHY:  the bracketed-IPv6 and plain-host branches both parse a port with
- *       identical rules; one shared scanner keeps the grammar (and the exact
- *       "invalid port" / "port out of range" messages) in a single place.
- * HOW:  pure decimal accumulation with an in-loop range clamp; no I/O.
+ * WHAT: Writes a port in 1..65535 and returns NGX_OK, or reports NGX_ERROR.
+ * WHY: Bracketed and plain authorities must share one exact port grammar.
+ * HOW: 1. Require digits. 2. Accumulate with a range clamp. 3. Refuse zero.
  */
 static ngx_int_t
 net_parse_port_digits(const u_char *begin, const u_char *end,
@@ -196,13 +223,9 @@ net_parse_port_digits(const u_char *begin, const u_char *end,
 
 /*
  * net_ipv6_literal_valid — validate the contents of a bracketed host.
- *
- * WHAT: returns 1 only for a nonempty RFC IPv6 text accepted by inet_pton.
- * WHY:  brackets are authority syntax, not proof that their contents are an
- *       IPv6 address. Accepting arbitrary text lets the transfer library and
- *       preflight disagree about where the authority ends.
- * HOW:  copy the bounded slice into an INET6-sized buffer and parse it without
- *       a name-service lookup.
+ * WHAT: Returns non-zero only for bounded RFC IPv6 text accepted by inet_pton.
+ * WHY: Brackets identify syntax; they do not prove the contents are an address.
+ * HOW: 1. Copy the slice safely. 2. Parse it without name-service lookup.
  */
 static int
 net_ipv6_literal_valid(const u_char *begin, const u_char *end)
@@ -219,54 +242,27 @@ net_ipv6_literal_valid(const u_char *begin, const u_char *end)
 
 /*
  * net_ipv4_numeric_component — classify one legacy numeric IPv4 component.
- *
- * WHAT: returns non-zero for a decimal digit string or a 0x-prefixed
- *       hexadecimal string; returns zero for any other label.
- * WHY:  transfer libraries still accept historical one-to-four-component,
- *       octal and hexadecimal IPv4 spellings. Those spellings can be treated
- *       as DNS names by the preflight yet normalized to another address by
- *       libcurl, bypassing the address pin.
- * HOW:  recognize the complete bounded token without converting it.
+ * WHAT: Returns non-zero for a decimal or 0x-prefixed hexadecimal component.
+ * WHY: Legacy numeric host syntax must be refused rather than mistaken for DNS.
+ * HOW: 1. Detect the hex prefix. 2. Validate the complete bounded span.
  */
 static int
 net_ipv4_numeric_component(const u_char *begin, const u_char *end)
 {
-    const u_char *cursor = begin;
-
-    if (begin == end) {
-        return 0;
-    }
     if (end - begin > 2 && begin[0] == '0'
         && (begin[1] == 'x' || begin[1] == 'X'))
     {
-        cursor += 2;
-        for (; cursor < end; cursor++) {
-            if (!(('0' <= *cursor && *cursor <= '9')
-                  || ('a' <= *cursor && *cursor <= 'f')
-                  || ('A' <= *cursor && *cursor <= 'F')))
-            {
-                return 0;
-            }
-        }
-        return 1;
+        return net_span_chars_valid(begin + 2, end, net_ascii_hex_digit);
     }
-    for (; cursor < end; cursor++) {
-        if (*cursor < '0' || *cursor > '9') {
-            return 0;
-        }
-    }
-    return 1;
-}
 
+    return net_span_chars_valid(begin, end, net_ascii_digit);
+}
 
 /*
  * net_ipv4_numeric_style — identify an all-numeric legacy IPv4 authority.
- *
- * WHAT: returns non-zero when the host consists of one to four numeric-style
- *       components, with an optional final DNS root dot.
- * WHY:  these are the hostname-shaped inputs for which legacy URL consumers
- *       may apply IPv4 number syntax instead of DNS semantics.
- * HOW:  split on dots and classify every nonempty component with the helper.
+ * WHAT: Returns non-zero for one to four numeric components and optional root dot.
+ * WHY: Such hostname-shaped inputs may be reinterpreted as legacy IPv4 numbers.
+ * HOW: 1. Split on dots. 2. Validate every component. 3. Bound their count.
  */
 static int
 net_ipv4_numeric_style(const u_char *begin, const u_char *end)
@@ -296,16 +292,11 @@ net_ipv4_numeric_style(const u_char *begin, const u_char *end)
     return 0;
 }
 
-
 /*
  * net_ipv4_canonical_decimal — accept only canonical dotted-decimal IPv4.
- *
- * WHAT: returns non-zero for exactly four decimal octets in 0..255, with no
- *       leading zero on a multi-digit octet.
- * WHY:  this spelling has one interpretation in the parser, DNS literal seam
- *       and libcurl. Every other numeric spelling is refused rather than
- *       guessed or normalized at different layers.
- * HOW:  accumulate each bounded octet and require exactly three separators.
+ * WHAT: Returns non-zero for four decimal octets without ambiguous leading zeroes.
+ * WHY: This spelling has one interpretation across parser, DNS seam and libcurl.
+ * HOW: 1. Accumulate bounded octets. 2. Reject ambiguity. 3. Require four.
  */
 static int
 net_ipv4_canonical_decimal(const u_char *begin, const u_char *end)
@@ -340,19 +331,11 @@ net_ipv4_canonical_decimal(const u_char *begin, const u_char *end)
     }
     return 0;
 }
-
-
 /*
  * net_parse_bracketed_host — parse an IPv6 literal authority "[addr][:port]".
- *
- * WHAT: fills out->host with the address inside the brackets and, when a
- *       ":port" follows the ']', out->port/has_port; returns NGX_OK or writes
- *       err and returns NGX_ERROR.
- * WHY:  the bracketed form must be handled apart from the plain scan because
- *       the address itself contains colons — a bare ':' split would mistake
- *       them for a port delimiter.
- * HOW:  scan to the matching ']' bounding the literal, then treat only the
- *       ':NNN' that follows it (if any) as the port.
+ * WHAT: Fills the literal host and optional port, or reports NGX_ERROR.
+ * WHY: IPv6 address colons cannot be treated as plain-host port delimiters.
+ * HOW: 1. Bound and validate ']'. 2. Parse only a following ':NNN' as port.
  */
 static ngx_int_t
 net_parse_bracketed_host(const net_url_span_t *span, brix_net_target_t *out)
@@ -360,7 +343,6 @@ net_parse_bracketed_host(const net_url_span_t *span, brix_net_target_t *out)
     const u_char *bracket_end = span->host_start + 1;
     const u_char *colon;
 
-    /* scan for the matching ']' bounding the literal */
     while (bracket_end < span->host_end && *bracket_end != ']') {
         bracket_end++;
     }
@@ -378,7 +360,6 @@ net_parse_bracketed_host(const net_url_span_t *span, brix_net_target_t *out)
     out->host.data = (u_char *) (span->host_start + 1);
     out->host.len  = (size_t) (bracket_end - (span->host_start + 1));
 
-    /* Optional :port after ] */
     colon = bracket_end + 1;
     if (colon == span->host_end) {
         return NGX_OK;
@@ -399,14 +380,42 @@ net_parse_bracketed_host(const net_url_span_t *span, brix_net_target_t *out)
 }
 
 /*
+ * net_hostname_label_char_valid — classify one DNS-label byte.
+ * WHAT: Returns non-zero for an ASCII alphanumeric byte or hyphen.
+ * WHY: Host validation must be locale-independent and must not decode input.
+ * HOW: 1. Test ASCII letters/digits. 2. Admit the DNS hyphen punctuation.
+ */
+static int
+net_hostname_label_char_valid(u_char value)
+{
+    return net_ascii_alpha(value) || net_ascii_digit(value) || value == '-';
+}
+
+/*
+ * net_hostname_label_valid — validate one bounded DNS label.
+ * WHAT: Returns non-zero for a 1..63-byte label without edge hyphens.
+ * WHY: Isolating label grammar keeps the hostname splitter branch-light.
+ * HOW: 1. Check bounds and edges. 2. Validate every byte.
+ */
+static int
+net_hostname_label_valid(const u_char *begin, const u_char *end)
+{
+    size_t length = (size_t) (end - begin);
+
+    if (length == 0 || length > 63) {
+        return 0;
+    }
+    if (*begin == '-' || end[-1] == '-') {
+        return 0;
+    }
+    return net_span_chars_valid(begin, end, net_hostname_label_char_valid);
+}
+
+/*
  * net_plain_host_valid — validate a DNS hostname or IPv4 spelling.
- *
- * WHAT: returns 1 for a bounded dot-separated ASCII hostname whose labels
- *       start and end with an alphanumeric byte; otherwise returns 0.
- * WHY:  userinfo, percent escapes, alternate delimiters and malformed labels
- *       are interpreted inconsistently by URL, DNS and transfer libraries.
- * HOW:  scan labels without decoding; permit only alphanumeric and hyphen,
- *       plus one optional final root dot.
+ * WHAT: Returns non-zero for a bounded dot-separated ASCII hostname.
+ * WHY: URL, DNS and transfer libraries must agree on the unmodified authority.
+ * HOW: 1. Reject ambiguous numeric style. 2. Validate labels and optional root dot.
  */
 static int
 net_plain_host_valid(const u_char *begin, const u_char *end)
@@ -425,17 +434,10 @@ net_plain_host_valid(const u_char *begin, const u_char *end)
     }
 
     for (cursor = begin; cursor < end; cursor++) {
-        int is_alpha = ('A' <= *cursor && *cursor <= 'Z')
-                       || ('a' <= *cursor && *cursor <= 'z');
-        int is_digit = '0' <= *cursor && *cursor <= '9';
-
-        if (is_alpha || is_digit || *cursor == '-') {
+        if (*cursor != '.') {
             continue;
         }
-        if (*cursor != '.' || cursor == label_start
-            || *label_start == '-' || cursor[-1] == '-'
-            || (size_t) (cursor - label_start) > 63)
-        {
+        if (!net_hostname_label_valid(label_start, cursor)) {
             return 0;
         }
         label_start = cursor + 1;
@@ -444,24 +446,14 @@ net_plain_host_valid(const u_char *begin, const u_char *end)
     if (label_start == end) {
         return end > begin + 1;
     }
-    if (*label_start == '-' || end[-1] == '-'
-        || (size_t) (end - label_start) > 63)
-    {
-        return 0;
-    }
-    return 1;
+    return net_hostname_label_valid(label_start, end);
 }
 
 /*
  * net_parse_plain_host — parse a hostname / IPv4 authority "host[:port]".
- *
- * WHAT: fills out->host and, when a port is present, out->port/has_port;
- *       returns NGX_OK or writes err and returns NGX_ERROR.
- * WHY:  splits the port on the LAST ':' (not the first) deliberately: a bare
- *       unbracketed IPv6 literal has multiple colons and no port, so taking the
- *       final colon yields a port-parse that then fails the digits-only check
- *       and is rejected — rather than silently truncating the host.
- * HOW:  find the last ':' in the span; everything after it is the port field.
+ * WHAT: Fills the host and optional port, or reports NGX_ERROR.
+ * WHY: Multiple colons must reject bare IPv6 instead of truncating its host.
+ * HOW: 1. Count colons. 2. Parse one final port. 3. Validate the host slice.
  */
 static ngx_int_t
 net_parse_plain_host(const net_url_span_t *span, brix_net_target_t *out)
@@ -488,7 +480,6 @@ net_parse_plain_host(const net_url_span_t *span, brix_net_target_t *out)
         out->host.len  = (size_t) (span->host_end - span->host_start);
         host_end = span->host_end;
     } else {
-        /* Everything after last ":" is the port */
         if (net_parse_port_digits(colon + 1, span->host_end, &out->port,
                                   span->err, span->errsz) != NGX_OK)
         {
@@ -510,13 +501,9 @@ net_parse_plain_host(const net_url_span_t *span, brix_net_target_t *out)
 
 /*
  * net_parse_authority — parse the host[:port] authority after "://".
- *
- * WHAT: sets out->host/port/has_port from span, dispatching to the bracketed
- *       or plain handler; returns NGX_OK or writes err and returns NGX_ERROR.
- * WHY:  a single dispatch point keeps the orchestrator flat and makes the
- *       bracketed-vs-plain choice the only branch either handler has to know.
- * HOW:  a leading '[' selects the IPv6-literal grammar; anything else is a
- *       plain hostname / IPv4 authority.
+ * WHAT: Fills host and port through the bracketed or plain grammar.
+ * WHY: One dispatch point keeps both authority grammars independent.
+ * HOW: 1. Refuse userinfo. 2. Dispatch a leading '[' to the IPv6 parser.
  */
 static ngx_int_t
 net_parse_authority(const net_url_span_t *span, brix_net_target_t *out)
@@ -540,15 +527,9 @@ net_parse_authority(const net_url_span_t *span, brix_net_target_t *out)
 
 /*
  * brix_net_target_parse — split "scheme://host[:port][/path]" into fields.
- *
- * WHAT: fills *out with scheme/host/port/path slices for the given URL;
- *       returns NGX_OK or NGX_ERROR with a reason in err.
- * WHY:  HTTP-TPC / remote-copy targets arrive as opaque URL strings and must
- *       be decomposed before the host can be DNS-checked against SSRF policy.
- * HOW:  zero-copy single forward pass — scheme / authority / path grammars are
- *       each parsed by a dedicated helper, and every out->* ngx_str_t points
- *       back into url->data (no allocation), so the parsed target's lifetime is
- *       bound to the caller's url buffer.
+ * WHAT: Fills zero-copy scheme, host, port and path slices, or returns NGX_ERROR.
+ * WHY: Remote targets must be decomposed before SSRF and DNS-pin policy checks.
+ * HOW: 1. Validate bytes. 2. Parse scheme/authority. 3. Retain the path suffix.
  */
 ngx_int_t
 brix_net_target_parse(ngx_pool_t *pool,

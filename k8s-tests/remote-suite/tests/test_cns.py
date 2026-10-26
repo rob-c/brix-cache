@@ -128,7 +128,8 @@ events {{ worker_connections 64; }}
 stream {{
   server {{ listen {BIND_HOST}:{mgr_port}; brix_root on; brix_auth none;
            brix_manager_mode on; brix_cns collect; }}
-  server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on; }}
+  server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on;
+            brix_cms_server_allow 127.0.0.0/8 10.244.0.0/16; }}
 }}
 """
     ds_conf = f"""

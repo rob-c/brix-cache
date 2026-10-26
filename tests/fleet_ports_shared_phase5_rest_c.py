@@ -10,6 +10,12 @@
 # port_ladder_offsets_tail.py, and why picking a "free" number here proves
 # nothing on its own.
 
+# Phase-28 live CMS admission tripwire (tests/test_security_redteam.py): one
+# listener whose allowlist excludes the loopback client before CMS LOGIN.
+LIFECYCLE_SHARED_PORTS_PHASE5.update({
+    "lc-redteam-cms-peer": {"port": 31992},
+})
+
 # Phase-115 W5.1 (tests/test_phase115_gridftp_mode_e.py): the GridFTP MODE E
 # data channel on the outbound FTP driver.  Two Python origins — one that can
 # speak extended block mode (and emits a non-conforming block stream when the

@@ -420,6 +420,7 @@ def _cms_server_conf(name, listen_port, data_dir):
             f"        brix_root on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
             f"        brix_manager_mode on;\n"
             f"        brix_cms_server on;\n"
+            f"        brix_cms_server_allow 127.0.0.0/8 10.244.0.0/16;\n"
             f"        brix_cms_server_interval 60;\n"
             f"    }}\n"
             f"}}\n")

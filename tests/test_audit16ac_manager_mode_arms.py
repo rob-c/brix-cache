@@ -346,6 +346,7 @@ class TestTheDocumentedOverrideOnlyWorksWrittenFirst:
 
     def test_the_override_written_first_loads(self, tmp_path):
         rc, out = _parse(tmp_path, KNOBS=("        brix_manager_mode off;\n"
+                                          "        brix_cms_server_allow 127.0.0.1/32;\n"
                                           "        brix_cms_server on;\n"))
         assert rc == 0, out
 
@@ -354,6 +355,7 @@ class TestTheDocumentedOverrideOnlyWorksWrittenFirst:
         derivation, so it goes after the line that caused it — and the config
         does not load at all."""
         rc, out = _parse(tmp_path, KNOBS=("        brix_cms_server on;\n"
+                                          "        brix_cms_server_allow 127.0.0.1/32;\n"
                                           "        brix_manager_mode off;\n"))
         assert rc != 0, (
             "brix_cms_server on followed by brix_manager_mode off now loads; if "
@@ -365,6 +367,7 @@ class TestTheDocumentedOverrideOnlyWorksWrittenFirst:
         diagnostic points at the line the operator wrote once, and never
         mentions `brix_cms_server`, which is the line that wrote it first."""
         rc, out = _parse(tmp_path, KNOBS=("        brix_cms_server on;\n"
+                                          "        brix_cms_server_allow 127.0.0.1/32;\n"
                                           "        brix_manager_mode off;\n"))
         assert rc != 0, out
         refusal = [ln for ln in _diagnostics(out) if "duplicate" in ln]
@@ -377,6 +380,7 @@ class TestTheDocumentedOverrideOnlyWorksWrittenFirst:
         """`on` after `brix_cms_server on` is refused identically, so this is
         not the parser objecting to an override — it cannot tell the two apart."""
         rc, out = _parse(tmp_path, KNOBS=("        brix_cms_server on;\n"
+                                          "        brix_cms_server_allow 127.0.0.1/32;\n"
                                           "        brix_manager_mode on;\n"))
         assert rc != 0, out
         assert "duplicate" in out, out
@@ -401,7 +405,9 @@ class TestTheDocumentedOverrideOnlyWorksWrittenFirst:
                  "        brix_auth none;\n"
                  "        brix_manager_mode off;\n"
                  "    }\n")
-        rc, out = _parse(tmp_path, KNOBS="        brix_cms_server on;\n",
+        rc, out = _parse(tmp_path, KNOBS=(
+                         "        brix_cms_server on;\n"
+                         "        brix_cms_server_allow 127.0.0.1/32;\n"),
                          EXTRA=extra)
         assert rc == 0, out
 

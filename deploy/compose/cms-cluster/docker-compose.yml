@@ -18,8 +18,8 @@ services:
       - data:/data
     ports:
       - "1094:1094"
-      - "1213:1213"
       - "9100:9100"
+    networks: [cms_cluster]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9100/healthz"]
       interval: 5s
@@ -38,6 +38,7 @@ services:
       - data1:/data
     ports:
       - "1095:1095"
+    networks: [cms_cluster]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9100/healthz"]
       interval: 5s
@@ -56,6 +57,7 @@ services:
       - data2:/data
     ports:
       - "1096:1096"
+    networks: [cms_cluster]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9100/healthz"]
       interval: 5s
@@ -77,6 +79,12 @@ services:
     volumes:
       - pki:/etc/brix/pki:ro
       - ./smoke.sh:/smoke.sh:ro
+    networks: [cms_cluster]
+networks:
+  cms_cluster:
+    ipam:
+      config:
+        - subnet: 172.30.121.0/24
 volumes:
   pki: {}
   data1: {}

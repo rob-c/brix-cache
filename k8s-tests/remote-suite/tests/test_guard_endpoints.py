@@ -177,6 +177,7 @@ stream {{
     server {{
         listen {BIND_HOST}:{ports['cms']};
         brix_cms_server on;
+        brix_cms_server_allow 127.0.0.0/8 10.244.0.0/16;
     }}
 }}
 """)

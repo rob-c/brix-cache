@@ -80,7 +80,7 @@ data servers in either direction.
 | `server_recv_lifecycle.c` | Connection teardown + audit: ping timer, `brix_cms_srv_close` (blacklist + unregister on drop). |
 | `server_recv_internal.h` | Private cross-file contract for the server-side receive path (framing loop ↔ dispatch ↔ handlers ↔ parsers ↔ lifecycle). |
 | `server_send.c` | Server-side frame senders, including the required manager LOGIN acknowledgment, liveness probes and security challenges. |
-| `server_auth.c` | Registration auth gates: `brix_cms_srv_check_peer` (CIDR allowlist, fail-open-with-warning when unset) and `brix_cms_srv_verify_xauth` (validate the data node's SSS credential via `../sss`). |
+| `server_auth.c` | Registration auth gates: `brix_cms_srv_check_peer` (CIDR allowlist or SSS-only admission, fail-closed when neither exists) and `brix_cms_srv_verify_xauth` (validate the data node's SSS credential via `../sss`). |
 
 ### Manager namespace/staging planes (phase-89)
 
@@ -118,7 +118,7 @@ data servers in either direction.
   last `free_mb`/`util_pct`, `logged_in`, `auth_state`, ping timer, and frame
   accumulation buffer.
 - **`brix_cms_auth_state_t`** (`server.h`) — SSS handshake FSM:
-  `NONE` (no keytab → not required) → `REQUESTED` → `CHALLENGED` (parms sent,
+  `NONE` (CIDR-only admission; no SSS exchange) → `REQUESTED` → `CHALLENGED` (parms sent,
   awaiting credential) → `DONE` (verified, registration permitted).
 - **`ngx_stream_brix_cms_srv_conf_t`** (`server.h`) — server-block config:
   `enable`, `interval`, CIDR `allow` array, `sss_keytab` path, parsed
@@ -203,10 +203,12 @@ SSS verification delegates to `../sss`.
   kept as defence-in-depth; a node with `rootfd < 0` never claims local files.
 - **Registration is the trust boundary on the manager side.** Any peer reaching
   the CMS port can self-report arbitrary `host:port:paths` (redirect poisoning).
-  Three layered, vanilla-compatible controls gate registration (`server_auth.c`):
-  W1a SSS `kYR_xauth` credential check (fail-closed when a keytab is set), W1b
-  accept-time CIDR allowlist, W1c host-character validation in `../manager/registry.c`.
-  With neither allowlist nor keytab, the server fails *open* but warns once.
+  Two alternative/composable admission controls plus unconditional validation
+  gate registration (`server_auth.c`): W1a SSS `kYR_xauth` credential check
+  (fail-closed when a keytab is set), W1b accept-time CIDR allowlist, and W1c
+  host-character validation in `../manager/registry.c`.
+  At least one allowlist or keytab is mandatory; configuration and runtime both
+  fail closed when neither exists. With both configured, both checks must pass.
 - **SSS registration is deferred until DONE.** When a keytab is configured,
   `kYR_login` does **not** register the node; the manager sends its parms
   (`&P=sss`) and registers only after `brix_cms_srv_verify_xauth` succeeds

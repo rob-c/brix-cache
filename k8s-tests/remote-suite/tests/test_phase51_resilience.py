@@ -56,6 +56,7 @@ stream {
     server {
         listen 127.0.0.1:19952;
         brix_cms_server on;
+        brix_cms_server_allow 127.0.0.1/32;
         brix_cms_server_max_connections 1024;
         brix_cms_server_max_connections_per_ip 64;
     }
@@ -87,6 +88,7 @@ stream {
     server {
         listen 127.0.0.1:19955;
         brix_cms_server on;
+        brix_cms_server_allow 127.0.0.1/32;
         brix_cms_server_max_connections_per_ip 0;
     }
 }

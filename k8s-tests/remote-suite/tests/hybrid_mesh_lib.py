@@ -316,7 +316,8 @@ def cfg_node_a(data_port, cms_port, s3_front_upstream, tmpbase, cert, key,
         "stream {\n"
         f"    server {{ listen {BIND_HOST}:{data_port}; brix_root on; brix_auth none;"
         f" brix_manager_mode on; }}\n"
-        f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on; }}\n"
+        f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on;"
+        " brix_cms_server_allow 127.0.0.0/8 ::1/128 10.244.0.0/16 fd00:10:244::/64; }\n"
         "}\n"
         "http {\n    access_log off;\n"
         + _http_temp(tmpbase)

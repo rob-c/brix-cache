@@ -33,14 +33,144 @@ brix_cms_srv_create_conf(ngx_conf_t *cf)
     return conf;
 }
 
-/* brix_cms_srv_merge_conf — merge the CMS-server config parent→child: enable
- * defaults to 0 (off), interval to 60s (NGX_CONF_UNSET = use parent or default). */
+/* ---- Merge CMS connection limits and deadlines ----
+ *
+ * WHAT: Inherit the CMS listener's timeout and connection-limit controls,
+ *       deriving idle and TCP user timeouts when they are not explicit.
+ *
+ * WHY: Keeping the dependent timeout defaults together prevents the main
+ *      configuration merge from becoming a branch-heavy policy accumulator.
+ *
+ * HOW: 1. Merge the login timeout.
+ *      2. Derive the idle timeout from the ping interval when unset.
+ *      3. Merge connection caps and keepalive, then default TCP user timeout
+ *         to the effective idle timeout.
+ */
+static void
+brix_cms_srv_merge_connection_policy(ngx_stream_brix_cms_srv_conf_t *prev,
+    ngx_stream_brix_cms_srv_conf_t *conf)
+{
+    ngx_msec_t derived_idle;
+
+    ngx_conf_merge_msec_value(conf->login_timeout, prev->login_timeout,
+                              BRIX_CMS_FSXEQ_TIMEOUT_DEFAULT_MS);
+    if (conf->idle_timeout == NGX_CONF_UNSET_MSEC) {
+        if (prev->idle_timeout != NGX_CONF_UNSET_MSEC) {
+            conf->idle_timeout = prev->idle_timeout;
+        } else {
+            derived_idle = (ngx_msec_t) conf->interval
+                           * BRIX_CMS_IP_CHECK_INTERVAL_MS;
+            conf->idle_timeout =
+                (derived_idle > BRIX_CMS_READ_TIMEOUT_MAX_MS)
+                ? derived_idle : BRIX_CMS_READ_TIMEOUT_MAX_MS;
+        }
+    }
+
+    ngx_conf_merge_value(conf->max_connections, prev->max_connections,
+                         BRIX_CMS_MAX_CONNECTIONS);
+    ngx_conf_merge_value(conf->max_connections_per_ip,
+                         prev->max_connections_per_ip,
+                         BRIX_CMS_MAX_CONNECTIONS_PER_IP);
+    ngx_conf_merge_value(conf->tcp_keepalive, prev->tcp_keepalive, 1);
+    if (conf->tcp_user_timeout == NGX_CONF_UNSET_MSEC) {
+        conf->tcp_user_timeout =
+            (prev->tcp_user_timeout != NGX_CONF_UNSET_MSEC)
+            ? prev->tcp_user_timeout : conf->idle_timeout;
+    }
+}
+
+
+/* ---- Merge and validate CMS peer-admission policy ----
+ *
+ * WHAT: Inherit CIDR/SSS admission controls and return NGX_CONF_OK only when
+ *       an enabled listener has at least one non-empty effective mechanism.
+ *
+ * WHY: A policy-free CMS registration listener lets an arbitrary reachable
+ *      peer publish routing claims, so configuration must fail closed.
+ *
+ * HOW: 1. Inherit omitted CIDR and SSS settings from the parent.
+ *      2. Accept disabled listeners without an admission policy.
+ *      3. Accept non-empty CIDR or parsed SSS keys; otherwise log and reject.
+ */
+static char *
+brix_cms_srv_merge_admission(ngx_conf_t *cf,
+    ngx_stream_brix_cms_srv_conf_t *prev,
+    ngx_stream_brix_cms_srv_conf_t *conf)
+{
+    if (conf->allow == NULL) {
+        conf->allow = prev->allow;
+    }
+    if (conf->sss_keys == NULL) {
+        conf->sss_keys = prev->sss_keys;
+        conf->sss_keytab = prev->sss_keytab;
+    }
+
+    if (!conf->enable) {
+        return NGX_CONF_OK;
+    }
+    if (conf->allow != NULL && conf->allow->nelts > 0) {
+        return NGX_CONF_OK;
+    }
+    if (conf->sss_keys != NULL && conf->sss_keys->nelts > 0) {
+        return NGX_CONF_OK;
+    }
+
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
+        "brix_cms_server on requires brix_cms_server_allow and/or "
+        "brix_cms_server_sss_keytab; refusing an unauthenticated "
+        "registration listener");
+    return NGX_CONF_ERROR;
+}
+
+
+/* ---- Merge mutually exclusive CMS operator-list files ----
+ *
+ * WHAT: Merge blacklist and whitelist paths and reject a configuration that
+ *       enables both, returning NGX_CONF_OK or NGX_CONF_ERROR.
+ *
+ * WHY: One file must remain the sole operator authority; combining them can
+ *      create contradictory decisions on every polling pass.
+ *
+ * HOW: 1. Merge both path strings parent-to-child.
+ *      2. Log and reject when both effective paths are non-empty.
+ */
+static char *
+brix_cms_srv_merge_operator_lists(ngx_conf_t *cf,
+    ngx_stream_brix_cms_srv_conf_t *prev,
+    ngx_stream_brix_cms_srv_conf_t *conf)
+{
+    ngx_conf_merge_str_value(conf->blacklist_file, prev->blacklist_file, "");
+    ngx_conf_merge_str_value(conf->whitelist_file, prev->whitelist_file, "");
+    if (conf->whitelist_file.len == 0 || conf->blacklist_file.len == 0) {
+        return NGX_CONF_OK;
+    }
+
+    BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
+        "brix_cms_whitelist_file and brix_cms_blacklist_file are "
+        "mutually exclusive");
+    return NGX_CONF_ERROR;
+}
+
+
+/* ---- Merge the complete CMS-server configuration ----
+ *
+ * WHAT: Merge parent CMS listener settings into the child and return
+ *       NGX_CONF_OK, or NGX_CONF_ERROR for an unsafe combination.
+ *
+ * WHY: The orchestrator keeps merge ordering explicit while focused helpers
+ *      own dependent timeouts, admission policy, and operator-list policy.
+ *
+ * HOW: 1. Merge enable/interval and clamp the ping interval.
+ *      2. Merge connection policy and validate peer admission.
+ *      3. Merge operator lists, then merge the supervisor threshold.
+ */
 
 static char *
 brix_cms_srv_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 {
     ngx_stream_brix_cms_srv_conf_t *prev = parent;
     ngx_stream_brix_cms_srv_conf_t *conf = child;
+    char                           *rv;
 
     ngx_conf_merge_value(conf->enable,   prev->enable,   0);
     ngx_conf_merge_value(conf->interval, prev->interval, 60);
@@ -48,56 +178,16 @@ brix_cms_srv_merge_conf(ngx_conf_t *cf, void *parent, void *child)
         conf->interval = 1;   /* never derive a 0ms self-rearming ping timer */
     }
 
-    /*
-     * Phase 50: accept-side resilience deadlines + connection cap.  Resolved
-     * after interval so an unset idle timeout auto-derives from it.  Generous
-     * ON-by-default values; an explicit 0 disables a timeout / uncaps.
-     */
-    ngx_conf_merge_msec_value(conf->login_timeout, prev->login_timeout,
-                              BRIX_CMS_FSXEQ_TIMEOUT_DEFAULT_MS);
-    if (conf->idle_timeout == NGX_CONF_UNSET_MSEC) {
-        if (prev->idle_timeout != NGX_CONF_UNSET_MSEC) {
-            conf->idle_timeout = prev->idle_timeout;
-        } else {
-            ngx_msec_t d = (ngx_msec_t) conf->interval *
-                           BRIX_CMS_IP_CHECK_INTERVAL_MS;
-            conf->idle_timeout = (d > BRIX_CMS_READ_TIMEOUT_MAX_MS) ? d : BRIX_CMS_READ_TIMEOUT_MAX_MS;
-        }
-    }
-    ngx_conf_merge_value(conf->max_connections, prev->max_connections,
-                         BRIX_CMS_MAX_CONNECTIONS);
-    ngx_conf_merge_value(conf->max_connections_per_ip,
-                         prev->max_connections_per_ip,
-                         BRIX_CMS_MAX_CONNECTIONS_PER_IP);
-    ngx_conf_merge_value(conf->tcp_keepalive,   prev->tcp_keepalive,   1);
-    if (conf->tcp_user_timeout == NGX_CONF_UNSET_MSEC) {
-        conf->tcp_user_timeout =
-            (prev->tcp_user_timeout != NGX_CONF_UNSET_MSEC)
-                ? prev->tcp_user_timeout
-                : conf->idle_timeout;
+    brix_cms_srv_merge_connection_policy(prev, conf);
+
+    rv = brix_cms_srv_merge_admission(cf, prev, conf);
+    if (rv != NGX_CONF_OK) {
+        return rv;
     }
 
-    /* Inherit auth config from the parent block when the child omitted it. */
-    if (conf->allow == NULL) {
-        conf->allow = prev->allow;
-    }
-    if (conf->sss_keys == NULL) {
-        conf->sss_keys   = prev->sss_keys;
-        conf->sss_keytab = prev->sss_keytab;
-    }
-
-    /* Phase-89 W6′ (unset = feature off; blfile poll state stays zeroed). */
-    ngx_conf_merge_str_value(conf->blacklist_file, prev->blacklist_file, "");
-
-    /* §2.13: whitelist mode — mutually exclusive with the blacklist file
-     * (one file must be the authority; mixing them invites contradictory
-     * re-asserts every poll). */
-    ngx_conf_merge_str_value(conf->whitelist_file, prev->whitelist_file, "");
-    if (conf->whitelist_file.len > 0 && conf->blacklist_file.len > 0) {
-        BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
-            "brix_cms_whitelist_file and brix_cms_blacklist_file are "
-            "mutually exclusive");
-        return NGX_CONF_ERROR;
+    rv = brix_cms_srv_merge_operator_lists(cf, prev, conf);
+    if (rv != NGX_CONF_OK) {
+        return rv;
     }
 
     /* §2.9: ManTree-style supervisor offload (0 = off). */

@@ -62,25 +62,24 @@ These were verified during the Phase 28 audit and require no further work:
 ### W1 — CMS registration redirect poisoning (CRITICAL) — vanilla-compatible
 
 The manager's CMS port previously admitted any peer's self-reported host:port:paths into the
-server registry, which then drove client redirects. Three layered controls, each compatible
-with stock XRootD cmsd:
+server registry, which then drove client redirects. Admission requires CIDR
+and/or SSS, followed by unconditional host validation; each control is
+compatible with stock XRootD cmsd:
 
 ```text
-   THE ATTACK                              THE THREE-LAYER DEFENSE
+   THE ATTACK                              THE FAIL-CLOSED DEFENSE
    ──────────                              ───────────────────────
-  rogue peer ─LOGIN─▶ manager          peer ──▶ ① CIDR allowlist (W1b)
-  "I serve /atlas at evil:1094"               │   off-list IP rejected at accept
-         │                                    ▼
-         ▼ (before)                      ② sss kYR_xauth (W1a)
-  registry stores evil:1094                   manager demands valid sss cred vs
-         │                                    keytab; no cred ⇒ never admitted
-         ▼                                    ▼
-  client locate /atlas                   ③ host-char validation (W1c)
+  rogue peer ─LOGIN─▶ manager          peer ──▶ ① configured admission
+  "I serve /atlas at evil:1094"               │   CIDR and/or sss kYR_xauth
+         │                                    │   (both pass when both configured)
+         ▼ (before)                           ▼
+  registry stores evil:1094              ② host-char validation (W1c)
          │                                    reject control bytes at the single
          ▼                                    brix_srv_register choke point
-  REDIRECT ──▶ evil:1094  ✗ poisoned          ▼
-                                         only clean, authenticated peers enter
-                                         the registry → no redirect poisoning ✓
+  client locate /atlas                        ▼
+         │                               only clean, explicitly admitted peers
+         ▼                               enter the registry
+  REDIRECT ──▶ evil:1094  ✗ poisoned          → no redirect poisoning ✓
 ```
 
 - **W1a — sss cluster authentication.** Implements the real cmsd `kYR_xauth` handshake
@@ -88,10 +87,14 @@ with stock XRootD cmsd:
   manager sends its security parms and defers registration until the node returns a valid
   **sss credential**, verified against a shared keytab (`brix_cms_server_sss_keytab`). The
   verifier is the shared `brix_sss_verify_blob` (same XrdSecProtocolsss credential format as
-  the XRootD client protocol). Like vanilla cmsd, sss is required only when a keytab is
-  configured — **fail-closed in sss mode, back-compat otherwise**. `src/net/cms/server_auth.c`.
+  the XRootD client protocol). SSS is required when a keytab is configured; a listener may
+  use SSS alone or combine it with the network gate. `src/net/cms/server_auth.c`.
 - **W1b — CIDR allowlist.** `brix_cms_server_allow <cidr>...` rejects unauthorised peer IPs
-  at accept time (`ngx_cidr_match`). Default back-compat (no list ⇒ accept + one-time warning).
+  at accept time (`ngx_cidr_match`). CIDR-only mode preserves vanilla-node compatibility.
+- **Mandatory admission posture.** An enabled CMS listener must configure W1a and/or W1b.
+  Configuration merge rejects a listener with neither, and the accept path independently
+  fails closed if that impossible state is reached. This prevents unauthenticated LOGIN
+  claims from entering the redirect registry.
 - **W1c — host validation.** `brix_net_host_chars_valid` rejects any registry host that is
   not a clean hostname/IP literal, enforced at the single store choke point
   (`brix_srv_register`), which protects every redirect-emit path from control-byte injection.

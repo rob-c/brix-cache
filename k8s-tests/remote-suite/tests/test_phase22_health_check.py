@@ -305,6 +305,7 @@ def hc_cluster(tmp_path):
         server {{
             listen {BIND_HOST}:{CMS_PORT};
             brix_cms_server on;
+            brix_cms_server_allow 127.0.0.0/8 10.244.0.0/16;
         }}
         # Live data server that registers itself via loopback CMS.
         server {{

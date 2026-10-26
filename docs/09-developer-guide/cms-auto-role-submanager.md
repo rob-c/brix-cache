@@ -72,6 +72,10 @@ cross-sets `manager_mode = 1` on the same server block (only when it is still
 sub-manager logs in to its upstream with the Manager bit set and aggregates
 space upward; a client registers up as a leaf.
 
+The role derivation does not grant admission authority. Every enabled CMS
+server block must also configure `brix_cms_server_allow` and/or
+`brix_cms_server_sss_keytab`; merge refuses an unprotected listener.
+
 ### 3. `brix_listen_port` is the SID — and is NOT auto-derived
 
 The CMS SID uses `brix_listen_port`, which defaults to `BRIX_DEFAULT_PORT`
@@ -107,8 +111,9 @@ Both are grep-able from the error log:
   fatal self-collision into clean registration with **no protocol change**.
 - Auto-deriving the role from the directives already present means operators
   don't hand-declare "manager vs sub-manager vs client"; adding
-  `brix_cms_server on` to a block that also has an upstream is, by itself,
-  enough to make it a supervisor.
+  `brix_cms_server on` to a block that also has an upstream selects the
+  supervisor role. The listener still requires explicit CIDR and/or SSS
+  admission policy.
 - The two log families give the operator machine-checkable proof of both the
   role each node picked and every control-plane action, which is what the
   topology test asserts against.
@@ -123,7 +128,9 @@ Data blocks (e.g. ports 1094 and 1095) each set `brix_listen_port <port>` +
 `brix_cms_manager xrd1:1213` → role **client**, register into the brix
 sub-manager. The 1213 block sets `brix_cms_server on` + `brix_listen_port 1213`
 + `brix_cms_manager xrd1:11213` → role **sub-manager**, registers UP to the
-official cmsd. Remember: `brix_listen_port` per block or the SIDs collide.
+official cmsd. It also sets `brix_cms_server_allow` for its child network (or a
+manager-side SSS keytab); no-policy registration listeners are rejected.
+Remember: `brix_listen_port` per block or the SIDs collide.
 
 **Build/deploy:** this change added only headers, so no `./config` regen was
 required — `bash build/build-nginx-modules.sh` rebuilds. The module load path is

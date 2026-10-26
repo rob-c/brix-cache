@@ -23,6 +23,17 @@
 #include <unistd.h>
 
 
+typedef int (*probe_expect_fn)(brix_ftp_sess *, const char *, int,
+                               brix_status *);
+
+typedef struct {
+    const char      *step;
+    const char      *command;
+    int              expected;
+    probe_expect_fn  expect;
+} probe_case_t;
+
+
 /* ---- Report one failed probe step ----
  *
  * WHAT: Prints the failed step, observed reply/status, and returns one.
@@ -94,6 +105,33 @@ probe_protected_expect(brix_ftp_sess *session, const char *command,
 }
 
 
+/* ---- Run one integrity probe and close the session on failure ----
+ *
+ * WHAT: Executes one table-defined probe and returns zero on success or the
+ * diagnostic result after closing the session on failure.
+ *
+ * WHY: Every probe step owns the same failure-reporting and session-cleanup
+ * contract, so one helper prevents those paths from drifting.
+ *
+ * HOW: Invoke the selected command function; return immediately on success;
+ * otherwise report the observed reply before closing the session.
+ */
+static int
+probe_run_case(brix_ftp_sess *session, const probe_case_t *probe,
+               brix_status *status)
+{
+    int result;
+
+    if (probe->expect(session, probe->command, probe->expected, status) == 0) {
+        return 0;
+    }
+
+    result = probe_fail(probe->step, session, status);
+    brix_ftp_close(session);
+    return result;
+}
+
+
 /* ---- Exercise the live post-GSS command-integrity contract ----
  *
  * WHAT: Returns zero only when raw ordinary commands and nested wrappers are
@@ -112,6 +150,15 @@ main(int argc, char **argv)
     brix_ftpurl   url;
     brix_opts     options;
     brix_status   status = { 0 };
+    const probe_case_t probes[] = {
+        { "raw PWD", "PWD\r\n", 533, probe_raw_expect },
+        { "raw DELE", "DELE /raw-command-target.bin\r\n", 533,
+          probe_raw_expect },
+        { "nested ENC", "ENC AAAA", 533, probe_protected_expect },
+        { "protected PWD", "PWD", 257, probe_protected_expect },
+        { "raw QUIT", "QUIT\r\n", 221, probe_raw_expect },
+    };
+    size_t probe_index;
 
     if (argc != 3) {
         fprintf(stderr, "usage: %s gsiftp://host:port/ ca-directory\n",
@@ -129,37 +176,12 @@ main(int argc, char **argv)
         return probe_fail("GSI session open", &session, &status);
     }
 
-    if (probe_raw_expect(&session, "PWD\r\n", 533, &status) != 0) {
-        int result = probe_fail("raw PWD", &session, &status);
-
-        brix_ftp_close(&session);
-        return result;
-    }
-    if (probe_raw_expect(&session, "DELE /raw-command-target.bin\r\n",
-                         533, &status) != 0)
+    for (probe_index = 0; probe_index < sizeof(probes) / sizeof(probes[0]);
+         probe_index++)
     {
-        int result = probe_fail("raw DELE", &session, &status);
-
-        brix_ftp_close(&session);
-        return result;
-    }
-    if (probe_protected_expect(&session, "ENC AAAA", 533, &status) != 0) {
-        int result = probe_fail("nested ENC", &session, &status);
-
-        brix_ftp_close(&session);
-        return result;
-    }
-    if (probe_protected_expect(&session, "PWD", 257, &status) != 0) {
-        int result = probe_fail("protected PWD", &session, &status);
-
-        brix_ftp_close(&session);
-        return result;
-    }
-    if (probe_raw_expect(&session, "QUIT\r\n", 221, &status) != 0) {
-        int result = probe_fail("raw QUIT", &session, &status);
-
-        brix_ftp_close(&session);
-        return result;
+        if (probe_run_case(&session, &probes[probe_index], &status) != 0) {
+            return 1;
+        }
     }
 
     close(session.fd);

@@ -330,7 +330,7 @@ def _cms_server_lines(arms):
     """The 1-based line of every `brix_cms_server on;` the config writes, in the
     order the template writes them: the bare listener, AUTO, then OVER."""
     lines = [i for i, ln in enumerate(_rendered_conf(arms), start=1)
-             if ln.strip().startswith("brix_cms_server")]
+             if ln.split() == ["brix_cms_server", "on;"]]
     assert len(lines) == 3, f"expected three brix_cms_server blocks, got {lines}"
     return lines
 

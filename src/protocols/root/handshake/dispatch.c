@@ -110,6 +110,18 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /*
+     * Manager namespace mutations need their client-side path policy before
+     * the proxy shortcut below. A CMS-selected session with an open handle is
+     * deliberately pinned, and a configured proxy is always pinned; without
+     * this boundary both would forward mutations under service credentials
+     * before dispatch_write could authorize either operand.
+     */
+    rc = brix_dispatch_manager_mutation_preflight(ctx, c, conf);
+    if (rc != BRIX_DISPATCH_CONTINUE) {
+        return rc;
+    }
+
+    /*
      * Proxy mode: all post-login file-system opcodes go to the upstream.
      *
      * SECURITY (fail-closed): gate on ctx->login.auth_done, NOT merely ctx->login.logged_in.

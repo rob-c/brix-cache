@@ -565,7 +565,8 @@ Manager side. When on, a `GET`/`HEAD`/`PUT` whose path matches a registered data
 server is answered `307 Temporary Redirect` to that server instead of served
 locally. `DECLINED` (served locally) when no data server matches or the request
 already carries a signed handoff (loop guard). Requires the CMS registry to be
-populated (a companion `brix_cms_server on;` stream listener).
+populated (a companion `brix_cms_server on;` stream listener with explicit
+CIDR and/or SSS admission policy).
 
 ### `brix_webdav_redirect_port <port>` / `brix_webdav_redirect_scheme http|https`
 

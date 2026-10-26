@@ -8,12 +8,10 @@ directives — that the new security gates are wired in, parse correctly, and
 fail closed where required.  They use `nginx -t` against crafted configs, so
 they are self-contained and need no running backends.
 
-The wire-level negative paths (a non-allowlisted CMS peer being refused
-registration, an S3 unknown-key vs bad-signature returning identical bodies, a
-WebDAV-TPC source whose DNS rebinds to a metadata IP being blocked) are
-exercised end-to-end by the live suites (test_evil_paths.py,
-test_token_security.py) and, for vanilla cmsd sss interop, by
-test_cms_mesh_interop.py when the mesh is configured with `sec.protocol sss`.
+The S3 unknown-key/bad-signature and WebDAV-TPC DNS-rebinding paths are covered
+by the live adversarial suites. CMS has a live off-CIDR rejection below, while
+vanilla cmsd SSS interoperability is exercised by test_cms_mesh_interop.py when
+the mesh is configured with `sec.protocol sss`.
 
 Run:
     NGINX_BIN=/tmp/nginx-1.28.3/objs/nginx \
@@ -21,6 +19,7 @@ Run:
 """
 
 import itertools
+import socket
 
 import pytest
 
@@ -28,7 +27,10 @@ from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from fleet_lifecycle_ports import SHARED_PARSE_PLACEHOLDER_PORT
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [
+    pytest.mark.uses_lifecycle_harness,
+    pytest.mark.xdist_group("lc-security-redteam"),
+]
 
 _SEQ = itertools.count()
 
@@ -108,6 +110,17 @@ class TestAdminSecretHardening:
 
 class TestCmsAuthConfig:
 
+    def test_enabled_listener_requires_admission_policy(self, redteam):
+        rc, out = redteam.check("nginx_redteam_cms.conf", EXTRA="")
+        assert rc != 0, "a policy-free CMS registration listener must fail closed"
+        assert "requires brix_cms_server_allow and/or" in out, out
+
+    def test_allow_only_listener_remains_compatible(self, redteam):
+        rc, out = redteam.check(
+            "nginx_redteam_cms.conf",
+            EXTRA="brix_cms_server_allow 127.0.0.1/32;")
+        assert rc == 0, out
+
     def test_allow_and_keytab_parse(self, redteam):
         keytab = redteam.file("cms.keytab", KEYTAB, 0o600)
         rc, out = redteam.check(
@@ -117,6 +130,13 @@ class TestCmsAuthConfig:
         # rc == 0 means the keytab parsed and loaded (a malformed keytab or bad
         # permission would emerg here); the "sss auth configured" NOTICE itself
         # goes to the error_log file, not nginx -t's stderr.
+        assert rc == 0, out
+
+    def test_keytab_only_listener_remains_supported(self, redteam):
+        keytab = redteam.file("cms-only.keytab", KEYTAB, 0o600)
+        rc, out = redteam.check(
+            "nginx_redteam_cms.conf",
+            EXTRA=f"brix_cms_server_sss_keytab {keytab};")
         assert rc == 0, out
 
     def test_world_readable_keytab_rejected(self, redteam):
@@ -133,6 +153,24 @@ class TestCmsAuthConfig:
             EXTRA="brix_cms_server_allow not-a-cidr;")
         assert rc != 0, "an invalid CIDR must be rejected"
         assert "invalid CIDR" in out, out
+
+
+def test_cms_peer_outside_allowlist_is_closed_before_login(lifecycle):
+    """security-neg: the accept-time tripwire rejects an IPv4 loopback peer
+    when the configured policy admits only the documentation-only TEST-NET-1.
+    The connection closes before it can submit a LOGIN or touch the registry.
+    """
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name="lc-redteam-cms-peer",
+        template="nginx_redteam_cms.conf",
+        protocol="root",
+        readiness="tcp",
+        template_values={"EXTRA":
+                         "brix_cms_server_allow 192.0.2.0/24;"},
+        reason="CMS off-CIDR accept-time refusal"))
+    with socket.create_connection(("127.0.0.1", endpoint.port), timeout=5) as sock:
+        sock.settimeout(5)
+        assert sock.recv(1) == b""
 
 
 # ---------------------------------------------------------------------------

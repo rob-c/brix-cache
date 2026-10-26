@@ -126,6 +126,14 @@ ngx_int_t brix_dispatch_read_opcode(brix_ctx_t *ctx,
     ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf);
 
 /*
+ * brix_dispatch_manager_mutation_preflight — authenticate and authorize the
+ * six path-form manager mutations before either proxy forwarding or manager
+ * orchestration can execute them. Non-manager/non-mutation requests continue.
+ */
+ngx_int_t brix_dispatch_manager_mutation_preflight(brix_ctx_t *ctx,
+    ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf);
+
+/*
  * brix_dispatch_write_opcode — handle file-write and namespace-mutating
  * opcodes: kXR_open (write), kXR_write, kXR_pgwrite, kXR_writev, kXR_sync,
  * kXR_truncate, kXR_mkdir, kXR_rm, kXR_rmdir, kXR_mv, kXR_chmod,

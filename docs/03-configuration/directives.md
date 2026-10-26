@@ -3516,7 +3516,7 @@ would not be read-only. `nginx -t` refuses the pair at `[emerg]`.
 
 Enables dynamic server registry queries on this XRootD listener. When on, `kXR_locate` and `kXR_open` requests are answered with `kXR_redirect` to whichever registered data server best matches the requested path (lowest utilisation for reads, most free space for writes). The server also advertises the `kXR_isManager` capability bit in `kXR_protocol` responses.
 
-Requires a companion `brix_cms_server on;` listener (typically on port 1213) to receive data server registrations. The registry is a 128-slot shared-memory table populated by the CMS server when data servers connect and send login frames.
+Requires a companion `brix_cms_server on;` listener (typically on port 1213) to receive data server registrations. That listener must configure at least one admission control: `brix_cms_server_allow` and/or `brix_cms_server_sss_keytab`. The registry is a 128-slot shared-memory table populated by admitted CMS servers when data servers connect and send login frames.
 
 See [cluster-mode.md](../05-operations/cluster-management.md) for the full two-tier and three-tier cluster configuration.
 
@@ -3525,6 +3525,7 @@ stream {
     server {
         listen 1213;
         brix_cms_server on;
+        brix_cms_server_allow 10.20.0.0/16;
     }
     server {
         listen 1094;
@@ -3543,6 +3544,8 @@ stream {
 
 Enables a CMS management-protocol server on this stream listener. When on, the listener accepts incoming TCP connections from data servers, parses CMS login and heartbeat frames, and maintains the shared server registry used by `brix_manager_mode`.
 
+An enabled listener **must** have at least one effective admission policy after inheritance: a non-empty `brix_cms_server_allow` list or a successfully loaded `brix_cms_server_sss_keytab`. `nginx -t` fails if neither is present. CIDR-only mode preserves interoperability with data nodes that do not implement SSS; configuring both requires both checks to pass.
+
 This directive is used on a dedicated management port (default 1213), not on the XRootD data port.
 
 | CMS frame | Action |
@@ -3560,9 +3563,24 @@ stream {
     server {
         listen 1213;
         brix_cms_server on;
+        brix_cms_server_allow 10.20.0.0/16;
     }
 }
 ```
+
+#### `brix_cms_server_allow <cidr>...`
+
+Accepts CMS registration connections only from the listed IPv4/IPv6 source
+networks. Multiple CIDRs may appear on one directive. Use the narrow cluster
+network, not a universe-wide `/0`; the peer's advertised port and namespace
+claims become inputs to client routing.
+
+#### `brix_cms_server_sss_keytab <path>`
+
+Loads the manager-side SSS cluster keytab and requires a successful
+`kYR_xauth` exchange before a node can enter the registry. The keytab is parsed
+at configuration time and must have private permissions. It can be used alone
+or together with the CIDR gate.
 
 #### `brix_cms_blacklist_file <path>` (CMS-server block)
 

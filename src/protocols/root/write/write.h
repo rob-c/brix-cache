@@ -140,6 +140,30 @@ ngx_int_t brix_handle_rmdir(brix_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t brix_handle_mv(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf);
 
+/*
+ * brix_mv_paths_t / brix_mv_parse_paths — shared decoder for the two-path
+ * kXR_mv wire payload.
+ *
+ * WHAT: Holds the independently decoded source/destination logical paths and
+ *       their later lexical/VFS-resolved forms; the parser validates arg1len,
+ *       the separating space, both lengths, and both path byte strings.
+ * WHY: A manager must authorize both operands before it forwards a rename.
+ *      Sharing the handler's decoder prevents the orchestration boundary from
+ *      interpreting a different path pair than the eventual storage node.
+ * HOW: The caller supplies a zeroed/stack-owned value. On malformed input the
+ *      parser sends the local handler's kXR error, stores the send result in
+ *      ctx->write_rc, and returns NGX_ERROR.
+ */
+typedef struct {
+    char src_buf[BRIX_MAX_PATH + 1];
+    char dst_buf[BRIX_MAX_PATH + 1];
+    char src_resolved[PATH_MAX];
+    char dst_resolved[PATH_MAX];
+} brix_mv_paths_t;
+
+ngx_int_t brix_mv_parse_paths(brix_ctx_t *ctx, ngx_connection_t *c,
+    brix_mv_paths_t *mv);
+
 /* kXR_chmod — change the permission bits of a file or directory. */
 ngx_int_t brix_handle_chmod(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf);

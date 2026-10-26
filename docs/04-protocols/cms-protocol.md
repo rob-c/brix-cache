@@ -368,6 +368,12 @@ block listening on the CMS port (e.g. `1213`). Each accepted data-server
 connection gets a per-connection `brix_cms_srv_ctx_t`
 (`src/net/cms/server_handler.c`).
 
+The listener is fail-closed at configuration time: at least one of
+`brix_cms_server_allow` (source CIDRs) or `brix_cms_server_sss_keytab`
+(cryptographic cluster authentication) is required. With both configured, both
+must pass. A policy-free listener never starts, because LOGIN claims directly
+feed the redirect registry.
+
 ### 6.1 Inbound frame handling
 
 The route table `cms_srv_frame_routes[]` (`src/net/cms/server_recv_frame.c`;
@@ -553,7 +559,9 @@ real interop failure against a real `cmsd`:
 | `brix_cms_manager host:port [...]` | stream server | — | upstream manager(s) to register with (enables the CMS client); up to 15 endpoints, the node logs into ALL of them, locates rotate over live links, CNS events fan out to every link |
 | `brix_cms_paths /a:/b` | stream server | export root | namespace prefixes to advertise in `kYR_login` |
 | `brix_cms_interval secs` | stream server | 30 | `kYR_load` heartbeat period |
-| `brix_cms_server on` | stream server | off | accept inbound data-server CMS registrations (enables the CMS server / manager listener) |
+| `brix_cms_server on` | stream server | off | accept inbound data-server CMS registrations; requires CIDR and/or SSS admission policy |
+| `brix_cms_server_allow CIDR...` | CMS stream server | — | source-network admission; compatible with non-SSS nodes |
+| `brix_cms_server_sss_keytab path` | CMS stream server | — | require SSS authentication before registry publication |
 | `brix_manager_mode on` | stream server | off | turn `kXR_locate`/`kXR_open` into registry-driven redirects |
 | `brix_registry_slots N` | stream server | 128 | server-registry capacity |
 | `brix_cms_locate_timeout time` | stream server | 5s | how long to hold a client while escalating via CMS (§7.1) |
