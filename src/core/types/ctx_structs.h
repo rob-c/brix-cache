@@ -148,6 +148,8 @@ typedef struct {
 typedef struct {
     EVP_PKEY  *dh_key;          /* DH key (kXGS_cert), freed after secret derived */
     int        signed_dh;       /* 0 = unsigned DH (default), 1 = signed DH (>=10400) */
+    u_char     auth_rtag[8];    /* fresh server challenge for client-key proof */
+    int        auth_rtag_valid; /* 1 until exactly one kXGC_cert attempt consumes it */
     char       sess_cipher[24]; /* negotiated session cipher name */
     u_char     sess_key[32];    /* session AES key (DH-secret derived) */
     int        sess_keylen;     /* valid bytes in sess_key (0 = unset) */

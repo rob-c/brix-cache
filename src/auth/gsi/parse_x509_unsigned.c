@@ -272,8 +272,9 @@ gsi_unsigned_build_peer(brix_ctx_t *ctx, ngx_connection_t *c,
  *
  * Returns: STACK_OF(X509) * on success, NULL on any error.
  */
-STACK_OF(X509) *
-brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
+static STACK_OF(X509) *
+gsi_parse_x509_with_challenge(brix_ctx_t *ctx, ngx_connection_t *c,
+    const u_char expected_rtag[BRIX_GSI_RTAG_LEN])
 {
     const u_char      *payload = ctx->recv.payload;
     size_t             plen = ctx->recv.cur_dlen;
@@ -299,7 +300,7 @@ brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
     /* Signed-DH (>=10400) was selected in round 1 — take the signed path that
      * verifies the RSA-signed kXRS_cipher and decrypts the IV-prepended main. */
     if (ctx->gsi.signed_dh) {
-        return brix_gsi_parse_x509_signed(ctx, c);
+        return brix_gsi_parse_x509_signed(ctx, c, expected_rtag);
     }
 
     brix_gsi_select_cipher_name(payload, plen, cipher_name,
@@ -352,5 +353,32 @@ brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
      * gsi_chain_from_plaintext() to parse the kXRS_x509 bucket into a chain. */
     gsi_capture_client_rtag(ctx, plain, plain_len);
     gsi_capture_fullproxy(ctx, plain, plain_len);
-    return gsi_chain_from_plaintext(plain, (int) plain_len, log);
+    {
+        STACK_OF(X509) *chain = gsi_chain_from_plaintext(
+            plain, (int) plain_len, expected_rtag, log);
+
+        OPENSSL_cleanse(plain, plain_len);
+        return chain;
+    }
+}
+
+
+STACK_OF(X509) *
+brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
+{
+    u_char          expected_rtag[BRIX_GSI_RTAG_LEN];
+    STACK_OF(X509) *chain;
+
+    if (!ctx->gsi.auth_rtag_valid) {
+        BRIX_LOG(NGX_LOG_WARN, c->log, 0,
+                 "brix: GSI kXGC_cert: no unused server challenge");
+        return NULL;
+    }
+    ngx_memcpy(expected_rtag, ctx->gsi.auth_rtag, sizeof(expected_rtag));
+    OPENSSL_cleanse(ctx->gsi.auth_rtag, sizeof(ctx->gsi.auth_rtag));
+    ctx->gsi.auth_rtag_valid = 0;
+
+    chain = gsi_parse_x509_with_challenge(ctx, c, expected_rtag);
+    OPENSSL_cleanse(expected_rtag, sizeof(expected_rtag));
+    return chain;
 }

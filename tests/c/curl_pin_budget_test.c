@@ -89,7 +89,7 @@ ngx_strncasecmp(u_char *s1, u_char *s2, size_t n)
 
 
 /* The URL is always http://127.0.0.1:PORT/…, so the parser stub only has to
- * split what curl_pin_port() and the literal check read. */
+ * split what the shared effective-port helper and literal check read. */
 ngx_int_t
 brix_net_target_parse(ngx_pool_t *pool, const ngx_str_t *url,
     brix_net_target_t *out, char *err, size_t errsz)
@@ -112,6 +112,34 @@ brix_net_target_parse(ngx_pool_t *pool, const ngx_str_t *url,
     out->port = (uint16_t) atoi((char *) colon + 1);
     out->has_port = 1;
     return NGX_OK;
+}
+
+
+ngx_int_t
+brix_net_target_check_scheme(const brix_net_target_t *target,
+    const brix_net_target_policy_t *policy, char *err, size_t errsz)
+{
+    (void) err; (void) errsz;
+    if (target->scheme.len == 4
+        && strncasecmp((char *) target->scheme.data, "http", 4) == 0
+        && !policy->require_https)
+    {
+        return NGX_OK;
+    }
+    return NGX_ERROR;
+}
+
+
+ngx_int_t
+brix_net_target_effective_port(const brix_net_target_t *target,
+    const brix_net_target_policy_t *policy, uint16_t *port,
+    char *err, size_t errsz)
+{
+    if (brix_net_target_check_scheme(target, policy, err, errsz) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    *port = target->has_port ? target->port : 80;
+    return *port == 0 ? NGX_ERROR : NGX_OK;
 }
 
 

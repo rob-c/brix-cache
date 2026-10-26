@@ -139,3 +139,36 @@ brix_gsi_rsa_decrypt_public(EVP_PKEY *key, const uint8_t *in, size_t inlen,
     brix_evp_pkey_ctx_free(ctx);
     return ok ? ke : 0;
 }
+
+
+int
+brix_gsi_rsa_verify_raw(EVP_PKEY *key, const uint8_t *signature,
+                          size_t signature_len, const uint8_t *expected,
+                          size_t expected_len)
+{
+    uint8_t *recovered;
+    size_t  key_size;
+    size_t  recovered_len;
+    int     equal;
+
+    if (key == NULL || signature == NULL || expected == NULL
+        || expected_len == 0 || expected_len > 64) {
+        return 0;
+    }
+    key_size = (size_t) EVP_PKEY_size(key);
+    if (key_size < expected_len + 11 || key_size > 16384
+        || signature_len != key_size) {
+        return 0;
+    }
+    recovered = malloc(key_size);
+    if (recovered == NULL) {
+        return 0;
+    }
+    recovered_len = brix_gsi_rsa_decrypt_public(key, signature, signature_len,
+                                                  recovered, key_size);
+    equal = recovered_len == expected_len
+            && CRYPTO_memcmp(recovered, expected, expected_len) == 0;
+    OPENSSL_cleanse(recovered, key_size);
+    free(recovered);
+    return equal;
+}

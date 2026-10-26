@@ -16,6 +16,13 @@
 int brix_gsi_find_bucket(const uint8_t *buf, size_t len, uint32_t type,
                            const uint8_t **out, size_t *outlen);
 
+/* Strictly parse a complete XrdSutBuffer and return `type` only when it occurs
+ * exactly once.  Unlike the compatibility lookup above, this accepts either
+ * exact length-delimited exhaustion or one terminal kXRS_none, while rejecting
+ * duplicate buckets, truncated fields and bytes after kXRS_none. */
+int brix_gsi_find_unique_bucket(const uint8_t *buf, size_t len, uint32_t type,
+                                  const uint8_t **out, size_t *outlen);
+
 /* Growable builder; allocation failure is sticky (->err, checked once). */
 typedef struct {
     uint8_t *p;
@@ -121,6 +128,12 @@ size_t brix_gsi_rsa_encrypt_private(EVP_PKEY *key, const uint8_t *in,
                                       size_t inlen, uint8_t *out, size_t outmax);
 size_t brix_gsi_rsa_decrypt_public(EVP_PKEY *key, const uint8_t *in,
                                      size_t inlen, uint8_t *out, size_t outmax);
+
+/* Verify one raw PKCS#1-v1.5 proof-of-possession signature.  The signature must
+ * be exactly one RSA modulus and recover exactly the expected challenge. */
+int brix_gsi_rsa_verify_raw(EVP_PKEY *key, const uint8_t *signature,
+                              size_t signature_len, const uint8_t *expected,
+                              size_t expected_len);
 
 /* Parse a gsi protocol parms string "v:10600,c:ssl,ca:HASH|HASH"; any out may
  * be NULL.  crypto/ca are NUL-terminated, truncated to size. */

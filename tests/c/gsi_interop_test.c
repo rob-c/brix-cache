@@ -27,6 +27,7 @@
 #include <stdlib.h>
 
 #include <openssl/crypto.h>
+#include <openssl/rsa.h>
 
 static int fails;
 #define CHECK(c, msg) do { if (!(c)) { printf("FAIL: %s\n", msg); fails++; } } while (0)
@@ -176,6 +177,124 @@ test_bucket_terminator(void)
     brix_gbuf_free(&g);
 }
 
+static EVP_PKEY *
+test_rsa_key(int bits)
+{
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL);
+    EVP_PKEY     *key = NULL;
+
+    if (ctx == NULL || EVP_PKEY_keygen_init(ctx) != 1
+        || EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, bits) != 1
+        || EVP_PKEY_keygen(ctx, &key) != 1) {
+        EVP_PKEY_free(key);
+        key = NULL;
+    }
+    EVP_PKEY_CTX_free(ctx);
+    return key;
+}
+
+static void
+test_raw_rtag_proof_bits(int bits)
+{
+    const uint8_t challenge[BRIX_GSI_RTAG_LEN] = "TAG12345";
+    const uint8_t wrong[BRIX_GSI_RTAG_LEN] = "TAG12346";
+    EVP_PKEY    *key = test_rsa_key(bits);
+    EVP_PKEY    *other = test_rsa_key(bits);
+    size_t       key_size;
+    uint8_t     *signature;
+    size_t       signature_len;
+
+    CHECK(key != NULL && other != NULL, "RSA test key generation failed");
+    if (key == NULL || other == NULL) {
+        EVP_PKEY_free(key);
+        EVP_PKEY_free(other);
+        return;
+    }
+    key_size = (size_t) EVP_PKEY_size(key);
+    signature = malloc(key_size + sizeof(challenge));
+    CHECK(signature != NULL, "RSA proof signature allocation failed");
+    if (signature == NULL) {
+        EVP_PKEY_free(key);
+        EVP_PKEY_free(other);
+        return;
+    }
+    signature_len = brix_gsi_rsa_sign_raw(key, challenge, sizeof(challenge),
+                                           signature);
+    CHECK(signature_len == key_size,
+          "raw proof signature must occupy one RSA modulus");
+    CHECK(brix_gsi_rsa_verify_raw(key, signature, signature_len,
+                                  challenge, sizeof(challenge)),
+          "matching leaf key and challenge must verify");
+    CHECK(!brix_gsi_rsa_verify_raw(key, signature, signature_len,
+                                   wrong, sizeof(wrong)),
+          "a proof for another challenge must fail");
+    CHECK(!brix_gsi_rsa_verify_raw(other, signature, signature_len,
+                                   challenge, sizeof(challenge)),
+          "a proof made by another private key must fail");
+    CHECK(!brix_gsi_rsa_verify_raw(key, signature, signature_len - 1,
+                                   challenge, sizeof(challenge)),
+          "a truncated proof must fail");
+    CHECK(!brix_gsi_rsa_verify_raw(key, signature, signature_len + 1,
+                                   challenge, sizeof(challenge)),
+          "a proof with trailing bytes must fail");
+
+    OPENSSL_cleanse(signature, key_size + sizeof(challenge));
+    free(signature);
+    EVP_PKEY_free(key);
+    EVP_PKEY_free(other);
+}
+
+static void
+test_unique_rtag_bucket(void)
+{
+    const uint8_t tag[BRIX_GSI_RTAG_LEN] = "TAG12345";
+    const uint8_t *found = NULL;
+    size_t         found_len = 0;
+    brix_gbuf      g;
+
+    brix_gbuf_init(&g);
+    brix_gbuf_start(&g, (uint32_t) kXGC_cert);
+    brix_gbuf_bucket(&g, (uint32_t) kXRS_signed_rtag, tag, sizeof(tag));
+    brix_gbuf_end(&g);
+    CHECK(brix_gsi_find_unique_bucket(g.p, g.len,
+                                      (uint32_t) kXRS_signed_rtag,
+                                      &found, &found_len) == 0
+          && found_len == sizeof(tag) && memcmp(found, tag, sizeof(tag)) == 0,
+          "one complete signed-rtag bucket must be accepted");
+    CHECK(brix_gsi_find_unique_bucket(g.p, g.len - sizeof(uint32_t),
+                                      (uint32_t) kXRS_signed_rtag,
+                                      &found, &found_len) == 0
+          && found_len == sizeof(tag) && memcmp(found, tag, sizeof(tag)) == 0,
+          "exact length-delimited signed-rtag buffer must be accepted");
+    CHECK(brix_gsi_find_unique_bucket(g.p, g.len - sizeof(uint32_t) - 1,
+                                      (uint32_t) kXRS_signed_rtag,
+                                      &found, &found_len) != 0,
+          "truncated length-delimited signed-rtag buffer must fail closed");
+    brix_gbuf_free(&g);
+
+    brix_gbuf_init(&g);
+    brix_gbuf_start(&g, (uint32_t) kXGC_cert);
+    brix_gbuf_bucket(&g, (uint32_t) kXRS_signed_rtag, tag, sizeof(tag));
+    brix_gbuf_bucket(&g, (uint32_t) kXRS_signed_rtag, tag, sizeof(tag));
+    brix_gbuf_end(&g);
+    CHECK(brix_gsi_find_unique_bucket(g.p, g.len,
+                                      (uint32_t) kXRS_signed_rtag,
+                                      &found, &found_len) != 0,
+          "duplicate signed-rtag buckets must fail closed");
+    brix_gbuf_free(&g);
+
+    brix_gbuf_init(&g);
+    brix_gbuf_start(&g, (uint32_t) kXGC_cert);
+    brix_gbuf_bucket(&g, (uint32_t) kXRS_signed_rtag, tag, sizeof(tag));
+    brix_gbuf_end(&g);
+    brix_gbuf_raw(&g, "x", 1);
+    CHECK(brix_gsi_find_unique_bucket(g.p, g.len,
+                                      (uint32_t) kXRS_signed_rtag,
+                                      &found, &found_len) != 0,
+          "bytes after the GSI terminator must fail closed");
+    brix_gbuf_free(&g);
+}
+
 int
 main(void)
 {
@@ -183,6 +302,9 @@ main(void)
     test_iv_is_load_bearing();
     test_cipher_negotiation();
     test_bucket_terminator();
+    test_unique_rtag_bucket();
+    test_raw_rtag_proof_bits(2048);
+    test_raw_rtag_proof_bits(4096);
 
     if (fails == 0) {
         printf("ALL PASSED\n");

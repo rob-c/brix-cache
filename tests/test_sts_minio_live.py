@@ -287,6 +287,7 @@ def sts_harness(native_compile):
         "src/core/compat/crypto.c", "src/core/compat/sigv4.c",
         "src/net/dns/curl_pin.c", "src/net/dns/resolve.c",
         "src/net/dns/resolve_thread.c", "src/core/compat/net_target_parse.c",
+        "src/core/compat/net_target_policy.c",
         "src/core/compat/host_format.c", "tests/c/sts_live_dns_runtime.c",
         str(NGX_SRC / "src/core/ngx_string.c"),
         str(NGX_SRC / "src/core/ngx_inet.c"),
@@ -305,6 +306,7 @@ def sts_harness(native_compile):
     ("http://localhost:19922/", 0),  # net-literal-allow: hostname must exercise real DNS rather than a literal-address shortcut
     ("http:///", 1),
     ("http://127.0.0.1@untrusted.invalid/", 1),  # net-literal-allow: hostile userinfo must be rejected before resolution
+    ("https://[2001:db8::1]@127.0.0.1:19922/private", 1),  # net-literal-allow: bracket/userinfo decoy must never retarget curl to loopback
 ])
 def test_standalone_sts_uses_the_real_dns_pin(sts_harness, url, expected):
     """Real name resolution works; malformed and userinfo URLs are refused."""

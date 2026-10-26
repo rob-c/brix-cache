@@ -2,8 +2,10 @@
  * net_target_parse.c — URL grammar for outbound transfer targets.
  *
  * See net_target.h for the public API.  Split verbatim from net_target.c:
- * this translation unit holds the zero-copy "scheme://host[:port][/path]"
- * parser and its per-grammar sub-step helpers.
+ * this translation unit holds the zero-copy
+ * "scheme://host[:port][/path][?query][#fragment]" parser and its per-grammar
+ * sub-step helpers. Transport policy and effective ports live in
+ * net_target_policy.c.
  */
 
 #include "net_target.h"
@@ -13,6 +15,7 @@
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -22,7 +25,8 @@
  * error sink shared across the parse sub-steps.
  *
  * WHAT: names the two cursors ("host_start" = first byte after "://",
- *       "host_end" = the first '/' or end-of-URL) plus the caller's err
+ *       "host_end" = the first '/', '?' or '#' or end-of-URL) plus the
+ *       caller's err
  *       buffer, so a helper takes ONE struct instead of four positional args.
  * WHY:  the parse grammar walks a single authority section (host[:port]); the
  *       three host-form handlers all need the same span + err sink, and passing
@@ -37,6 +41,65 @@ typedef struct {
     char         *err;
     size_t        errsz;
 } net_url_span_t;
+
+/*
+ * net_url_bytes_valid — reject URL bytes with parser-dependent meanings.
+ *
+ * WHAT: returns NGX_OK when every byte is printable non-space ASCII and no
+ *       backslash is present; otherwise writes err and returns NGX_ERROR.
+ * WHY:  curl and HTTP parsers can normalize whitespace, controls or backslash
+ *       differently from a security preflight. Refusing them keeps both
+ *       components on one byte-for-byte URL interpretation.
+ * HOW:  one bounded scan over the caller-owned URL slice.
+ */
+static ngx_int_t
+net_url_bytes_valid(const ngx_str_t *url, char *err, size_t errsz)
+{
+    size_t  i;
+
+    for (i = 0; i < url->len; i++) {
+        if (url->data[i] <= 0x20 || url->data[i] == 0x7f
+            || url->data[i] == '\\')
+        {
+            snprintf(err, errsz, "URL contains an unsafe byte");
+            return NGX_ERROR;
+        }
+    }
+    return NGX_OK;
+}
+
+/*
+ * net_scheme_chars_valid — enforce the RFC 3986 scheme token grammar.
+ *
+ * WHAT: returns 1 for ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ); otherwise 0.
+ * WHY:  the separator scan alone would accept controls and delimiter-like
+ *       bytes that downstream URL parsers can interpret differently.
+ * HOW:  validate the first byte separately, then scan the remaining token.
+ */
+static int
+net_scheme_chars_valid(const u_char *begin, const u_char *end)
+{
+    const u_char *cursor;
+
+    if (begin == end
+        || !(('A' <= *begin && *begin <= 'Z')
+             || ('a' <= *begin && *begin <= 'z')))
+    {
+        return 0;
+    }
+
+    for (cursor = begin + 1; cursor < end; cursor++) {
+        if (('A' <= *cursor && *cursor <= 'Z')
+            || ('a' <= *cursor && *cursor <= 'z')
+            || ('0' <= *cursor && *cursor <= '9')
+            || *cursor == '+' || *cursor == '-' || *cursor == '.')
+        {
+            continue;
+        }
+        return 0;
+    }
+    return 1;
+}
 
 /*
  * net_parse_scheme — locate "://" and record the scheme slice.
@@ -74,8 +137,8 @@ net_parse_scheme(const ngx_str_t *url, brix_net_target_t *out,
     out->scheme.data = (u_char *) p;
     out->scheme.len  = (size_t) (scheme_end - p);
 
-    if (out->scheme.len == 0) {
-        snprintf(err, errsz, "URL has empty scheme");
+    if (!net_scheme_chars_valid(p, scheme_end)) {
+        snprintf(err, errsz, "URL has invalid scheme");
         return NULL;
     }
 
@@ -105,6 +168,11 @@ net_parse_port_digits(const u_char *begin, const u_char *end,
 {
     unsigned long p_val = 0;
 
+    if (begin == end) {
+        snprintf(err, errsz, "URL has empty port");
+        return NGX_ERROR;
+    }
+
     for (const u_char *d = begin; d < end; d++) {
         if (*d < '0' || *d > '9') {
             snprintf(err, errsz, "invalid port in URL");
@@ -117,8 +185,36 @@ net_parse_port_digits(const u_char *begin, const u_char *end,
         }
     }
 
+    if (p_val == 0) {
+        snprintf(err, errsz, "port must be between 1 and 65535");
+        return NGX_ERROR;
+    }
+
     *out_port = (uint16_t) p_val;
     return NGX_OK;
+}
+
+/*
+ * net_ipv6_literal_valid — validate the contents of a bracketed host.
+ *
+ * WHAT: returns 1 only for a nonempty RFC IPv6 text accepted by inet_pton.
+ * WHY:  brackets are authority syntax, not proof that their contents are an
+ *       IPv6 address. Accepting arbitrary text lets the transfer library and
+ *       preflight disagree about where the authority ends.
+ * HOW:  copy the bounded slice into an INET6-sized buffer and parse it without
+ *       a name-service lookup.
+ */
+static int
+net_ipv6_literal_valid(const u_char *begin, const u_char *end)
+{
+    struct in6_addr  address;
+    char             text[INET6_ADDRSTRLEN];
+    size_t           length = (size_t) (end - begin);
+
+    if (brix_cbuf_copy(text, sizeof(text), begin, length) == NULL) {
+        return 0;
+    }
+    return inet_pton(AF_INET6, text, &address) == 1;
 }
 
 /*
@@ -149,21 +245,81 @@ net_parse_bracketed_host(const net_url_span_t *span, brix_net_target_t *out)
         return NGX_ERROR;
     }
 
+    if (!net_ipv6_literal_valid(span->host_start + 1, bracket_end)) {
+        snprintf(span->err, span->errsz, "invalid IPv6 literal in URL");
+        return NGX_ERROR;
+    }
+
     out->host.data = (u_char *) (span->host_start + 1);
     out->host.len  = (size_t) (bracket_end - (span->host_start + 1));
 
     /* Optional :port after ] */
     colon = bracket_end + 1;
-    if (colon < span->host_end && *colon == ':') {
-        if (net_parse_port_digits(colon + 1, span->host_end, &out->port,
-                                  span->err, span->errsz) != NGX_OK)
-        {
-            return NGX_ERROR;
-        }
-        out->has_port = 1;
+    if (colon == span->host_end) {
+        return NGX_OK;
     }
+    if (*colon != ':') {
+        snprintf(span->err, span->errsz,
+                 "unexpected bytes after IPv6 literal");
+        return NGX_ERROR;
+    }
+    if (net_parse_port_digits(colon + 1, span->host_end, &out->port,
+                              span->err, span->errsz) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+    out->has_port = 1;
 
     return NGX_OK;
+}
+
+/*
+ * net_plain_host_valid — validate a DNS hostname or IPv4 spelling.
+ *
+ * WHAT: returns 1 for a bounded dot-separated ASCII hostname whose labels
+ *       start and end with an alphanumeric byte; otherwise returns 0.
+ * WHY:  userinfo, percent escapes, alternate delimiters and malformed labels
+ *       are interpreted inconsistently by URL, DNS and transfer libraries.
+ * HOW:  scan labels without decoding; permit only alphanumeric and hyphen,
+ *       plus one optional final root dot.
+ */
+static int
+net_plain_host_valid(const u_char *begin, const u_char *end)
+{
+    const u_char *label_start = begin;
+    const u_char *cursor;
+    size_t        length = (size_t) (end - begin);
+
+    if (length == 0 || length > 253) {
+        return 0;
+    }
+
+    for (cursor = begin; cursor < end; cursor++) {
+        int is_alpha = ('A' <= *cursor && *cursor <= 'Z')
+                       || ('a' <= *cursor && *cursor <= 'z');
+        int is_digit = '0' <= *cursor && *cursor <= '9';
+
+        if (is_alpha || is_digit || *cursor == '-') {
+            continue;
+        }
+        if (*cursor != '.' || cursor == label_start
+            || *label_start == '-' || cursor[-1] == '-'
+            || (size_t) (cursor - label_start) > 63)
+        {
+            return 0;
+        }
+        label_start = cursor + 1;
+    }
+
+    if (label_start == end) {
+        return end > begin + 1;
+    }
+    if (*label_start == '-' || end[-1] == '-'
+        || (size_t) (end - label_start) > 63)
+    {
+        return 0;
+    }
+    return 1;
 }
 
 /*
@@ -181,30 +337,44 @@ static ngx_int_t
 net_parse_plain_host(const net_url_span_t *span, brix_net_target_t *out)
 {
     const u_char *colon = NULL;
+    const u_char *host_end;
+    ngx_uint_t    colon_count = 0;
 
     for (const u_char *q = span->host_start; q < span->host_end; q++) {
         if (*q == ':') {
             colon = q;
+            colon_count++;
         }
+    }
+
+    if (colon_count > 1) {
+        snprintf(span->err, span->errsz,
+                 "IPv6 literals must use brackets");
+        return NGX_ERROR;
     }
 
     if (colon == NULL) {
         out->host.data = (u_char *) span->host_start;
         out->host.len  = (size_t) (span->host_end - span->host_start);
-        return NGX_OK;
+        host_end = span->host_end;
+    } else {
+        /* Everything after last ":" is the port */
+        if (net_parse_port_digits(colon + 1, span->host_end, &out->port,
+                                  span->err, span->errsz) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+
+        out->host.data = (u_char *) span->host_start;
+        out->host.len  = (size_t) (colon - span->host_start);
+        out->has_port  = 1;
+        host_end = colon;
     }
 
-    /* Everything after last ":" is the port */
-    if (net_parse_port_digits(colon + 1, span->host_end, &out->port,
-                              span->err, span->errsz) != NGX_OK)
-    {
+    if (!net_plain_host_valid(span->host_start, host_end)) {
+        snprintf(span->err, span->errsz, "invalid host in URL");
         return NGX_ERROR;
     }
-
-    out->host.data = (u_char *) span->host_start;
-    out->host.len  = (size_t) (colon - span->host_start);
-    out->has_port  = 1;
-
     return NGX_OK;
 }
 
@@ -221,6 +391,16 @@ net_parse_plain_host(const net_url_span_t *span, brix_net_target_t *out)
 static ngx_int_t
 net_parse_authority(const net_url_span_t *span, brix_net_target_t *out)
 {
+    const u_char *cursor;
+
+    for (cursor = span->host_start; cursor < span->host_end; cursor++) {
+        if (*cursor == '@') {
+            snprintf(span->err, span->errsz,
+                     "URL userinfo is not allowed");
+            return NGX_ERROR;
+        }
+    }
+
     if (span->host_start < span->host_end && *span->host_start == '[') {
         return net_parse_bracketed_host(span, out);
     }
@@ -254,6 +434,9 @@ brix_net_target_parse(ngx_pool_t *pool,
         snprintf(err, errsz, "empty URL");
         return NGX_ERROR;
     }
+    if (net_url_bytes_valid(url, err, errsz) != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     ngx_memzero(out, sizeof(*out));
     out->raw_url = *url;
@@ -265,13 +448,15 @@ brix_net_target_parse(ngx_pool_t *pool,
         return NGX_ERROR;
     }
 
-    /* Find end of host[:port] section — first "/" after "://" */
+    /* Find end of authority — first path, query or fragment delimiter. */
     host_end = host_start;
-    while (host_end < end && *host_end != '/') {
+    while (host_end < end && *host_end != '/'
+           && *host_end != '?' && *host_end != '#')
+    {
         host_end++;
     }
 
-    /* path is from first "/" onward (may be empty) */
+    /* path retains the first delimiter onward (may be empty). */
     out->path.data = (u_char *) host_end;
     out->path.len  = (size_t) (end - host_end);
 

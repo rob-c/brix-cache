@@ -34,7 +34,7 @@
  * These size the fixed capture buffers in both brix_macaroon_tp_t and
  * brix_macaroon_parse_state_t, so they live with the struct definitions. */
 #define BRIX_MACAROON_MAX_CID_LEN      512
-#define BRIX_MACAROON_MAX_VID_LEN      256
+#define BRIX_MACAROON_VID_LEN          48
 
 /*
  * A third-party caveat (cid + vid pair) captured during root Macaroon parsing.
@@ -47,7 +47,7 @@
 typedef struct {
     u_char  cid[BRIX_MACAROON_MAX_CID_LEN];
     size_t  cid_len;
-    u_char  vid[BRIX_MACAROON_MAX_VID_LEN];  /* raw binary — NOT base64 */
+    u_char  vid[BRIX_MACAROON_VID_LEN];  /* raw binary — NOT base64 */
     size_t  vid_len;
     u_char  sig_before[32]; /* HMAC sig before the cid update — AES-256 key */
 } brix_macaroon_tp_t;
@@ -64,6 +64,9 @@ typedef struct {
     unsigned int          sig_out_len;
     int                   found_sig;
     int                   found_id;
+    int                   found_location;
+    int                   activity_seen;
+    unsigned int          activity_mask;
     char                  scope_buf[BRIX_TOKEN_MACAROON_SCOPE_BUF_SIZE];
     size_t                scope_off;
     char                  path_caveats[8][BRIX_SCOPE_PATH_MAX];
@@ -73,6 +76,22 @@ typedef struct {
     u_char                sig_before_cid[32];
     int                   have_last_cid;
 } brix_macaroon_parse_state_t;
+
+/*
+ * WHAT: Preserve authorization-relevant caveat metadata that cannot be
+ *       represented by an empty claims scope array.
+ * WHY:  A discharge with an activity caveat attenuated to no permissions must
+ *       revoke authority, while a discharge with no activity caveat leaves the
+ *       parent's permissions unchanged.  Keeping that distinction explicit
+ *       prevents an empty restriction from being mistaken for no restriction.
+ * HOW:  The parser copies the activity-presence bit and validated path caveats
+ *       into this optional result after signature verification.
+ */
+typedef struct {
+    int   activity_seen;
+    char  path_caveats[8][BRIX_SCOPE_PATH_MAX];
+    int   n_path_caveats;
+} brix_macaroon_parse_meta_t;
 
 /*
  * WHAT: The invariant inputs to one macaroon parse — logging sink, HMAC root
@@ -96,6 +115,7 @@ typedef struct {
     brix_macaroon_tp_t   *tp_arr;
     int                  *n_tp;
     int                   max_tp;
+    brix_macaroon_parse_meta_t *meta;
 } macaroon_parse_input_t;
 
 /* ---- Cross-translation-unit entry points (defined once, called across the split) ---- */
@@ -114,14 +134,22 @@ int macaroon_parse_core(const macaroon_parse_input_t *in,
 /* Defined in macaroon_caveats.c — narrow claim scope paths by each path: caveat
  * (intersection). Called from the parse finalizer and from discharge-claim
  * intersection in macaroon.c. */
-void macaroon_apply_path_caveats(ngx_log_t *log,
+ngx_int_t macaroon_apply_path_caveats(ngx_log_t *log,
     brix_token_claims_t *claims,
     char path_caveats[][BRIX_SCOPE_PATH_MAX], int n_path_caveats);
+
+/* Defined in macaroon_caveats.c — intersect every permission and path in a
+ * discharge's claims with the root claims.  Returns NGX_OK, or NGX_ERROR when
+ * the bounded result cannot be represented without truncation. */
+ngx_int_t macaroon_intersect_claim_scopes(ngx_log_t *log,
+    brix_token_claims_t *claims,
+    const brix_token_claims_t *restriction);
 
 /* Defined in macaroon_caveats.c — classify and apply one first-party caveat
  * (activity:/before:/path:) into the parse state. Called from the cid packet
  * handler in macaroon_parse.c. */
-void macaroon_parse_first_party_caveat(brix_macaroon_parse_state_t *state,
+ngx_int_t macaroon_parse_first_party_caveat(
+    brix_macaroon_parse_state_t *state,
     const u_char *caveat, size_t caveat_len);
 
 /* Defined in macaroon_crypto.c — recover a discharge macaroon's 32-byte root

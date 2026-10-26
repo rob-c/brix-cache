@@ -1262,6 +1262,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/compat/protocol_caps.c \
     $ngx_addon_dir/src/core/compat/net_target.c \
     $ngx_addon_dir/src/core/compat/net_target_parse.c \
+    $ngx_addon_dir/src/core/compat/net_target_policy.c \
     $ngx_addon_dir/src/core/compat/net_target_dns.c \
     $ngx_addon_dir/src/core/compat/host_format.c \
     $ngx_addon_dir/src/core/compat/host_split.c \

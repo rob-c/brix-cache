@@ -33,7 +33,7 @@ what its missing arm even is — as in file 15, `off` in a bare location is the
 merge default under another name, so the arm worth writing is the per-location
 opt-out under a server that wrote `on`.  Four planes take that, the inheritance
 it opts out of, the bare-location spelling, and the same feature on a dashboard
-with no password.
+with an empty users file.
 
 The combiner's verdict is read off the pair 403/405 rather than 403/200: see
 ADMITTED below.
@@ -49,8 +49,8 @@ Covered (success + error + security-negative):
   security-neg  — a bearer that is a prefix of the secret, a forged session
                   cookie, and a `..` traversal are each refused;
   finding       — with one factor configured the two arms are indistinguishable,
-                  and a passwordless dashboard serves the export browser to
-                  anyone who asks.
+                  and a dashboard with an empty users file refuses the export
+                  browser to every credentialless caller.
 
 Run:
     cd tests && PYTHONPATH=. python3 -m pytest test_audit16ab_admin_factor_arms.py -q
@@ -137,6 +137,10 @@ def planes(tmp_path_factory):
     secret_dir = tmp_path_factory.mktemp("audit16ab")
     secret_file = secret_dir / "admin.secret"
     secret_file.write_text(SECRET + "\n", encoding="utf-8")
+    empty_users_file = secret_dir / "empty-users"
+    empty_users_file.write_text(
+        "# deliberately contains no usable dashboard credentials\n",
+        encoding="utf-8")
     try:
         instance = harness.start(NginxInstanceSpec(
             name=NAME,
@@ -145,6 +149,7 @@ def planes(tmp_path_factory):
             template_values={"BIND_HOST": BIND_HOST,
                              "ALLOW_CIDR": f"{BIND_HOST}/32",
                              "SECRET_FILE": str(secret_file),
+                             "EMPTY_USERS_FILE": str(empty_users_file),
                              "PASSWORD": PASSWORD},
             reason="dashboard admin-factor and export-browser arm census.",
         ))
@@ -418,32 +423,37 @@ class TestTheExportBrowserArms:
 
 
 # --------------------------------------------------------------------------- #
-# 6. The browser on a dashboard with no password                               #
+# 6. The browser with no usable dashboard credentials                         #
 # --------------------------------------------------------------------------- #
 
-class TestThePasswordlessDashboardOpensTheBrowser:
+class TestTheCredentiallessDashboardFailsClosed:
     """`vfs_browse.c`'s header says the endpoints are "Always admin-auth ...
-    never the anonymous tier: this surface exposes stored user data".  The call
-    it makes is `ngx_http_brix_dashboard_check_auth`, which returns NGX_OK
-    before looking at the request when no password and no user list are
-    configured.  These three cells are what that costs."""
+    never the anonymous tier: this surface exposes stored user data". An empty
+    users file is a configured but unusable credential source and must be
+    treated exactly like an unset password: unauthenticated, never open."""
 
-    def test_the_census_answers_an_anonymous_caller(self, planes):
+    def test_the_census_refuses_an_anonymous_caller(self, planes):
         status, body = _census(planes, "vfs-nopw.arm", None)
-        assert status == 200, body
-        assert json.loads(body)["exports"], body
+        assert status == 401, body
 
-    def test_the_download_answers_an_anonymous_caller(self, planes):
+    def test_the_download_refuses_an_anonymous_caller(self, planes):
         index = _export_index(planes)
         status, body = _request(
             planes["port"], "vfs-nopw.arm",
             f"/brix/api/v1/vfs/download?export={index}&path=/seeded.bin")
-        assert status == 200
-        assert body == SEEDED, "stored export data served with no credential"
+        assert status == 401
+        assert body != SEEDED, "stored export data crossed an unauthenticated route"
 
-    def test_the_only_difference_is_the_password_directive(self, planes):
-        """Same flag, same endpoint, same anonymous request: the plane that
-        configured a password refuses it and the plane that did not serves it."""
+    def test_empty_users_and_missing_cookie_match_password_mode(self, planes):
+        """A zero-entry users file must not weaken the same auth boundary that
+        a configured single-user password enforces."""
         guarded, _ = _census(planes, "vfs-inherit.arm", None)
-        open_plane, _ = _census(planes, "vfs-nopw.arm", None)
-        assert (guarded, open_plane) == (401, 200)
+        empty_users, _ = _census(planes, "vfs-nopw.arm", None)
+        assert (guarded, empty_users) == (401, 401)
+
+    def test_empty_hmac_key_cannot_forge_a_session(self, planes):
+        """A syntactically valid cookie signed with the public empty key must
+        not turn an empty credential store into an authenticated session."""
+        forged = _cookie(password="")
+        status, body = _census(planes, "vfs-nopw.arm", forged)
+        assert status == 401, body

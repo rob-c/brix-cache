@@ -1,34 +1,11 @@
-/*
- * Macaroon caveat parsing and scope narrowing.
- * First-party caveat classification, activity→scope mapping,
- * before: expiry enforcement, path: intersection.
+/* Macaroon caveat parsing and scope narrowing.
  *
- * WHAT: Converts caveat bytes from HMAC packet chain into structured claims.
- *       Classifies each first-party caveat (activity:/before:/path:).
- *       Maps WLCG activities to storage.* scopes.
- *       Records earliest before: expiry.
- *       Collects path: caveats.
- *       After parsing: narrows scope paths by intersecting every path: caveat
- *       (and discharge-supplied paths) against granted scopes.
- *
- * WHY: Split out of macaroon.c (phase-79 file-size split).
- *      Caveat interpretation is authorization core of macaroon:
- *        - activity mapping: decides which permissions token conveys
- *        - before: enforces expiry
- *        - path: intersection: guarantees effective path is most restrictive
- *          of all caveats and scopes (never widening)
- *      Isolating this logic keeps security-critical narrowing rules
- *      in one auditable file, separate from HMAC chain machinery
- *      (macaroon_parse.c).
- *
- * HOW: Four-function pipeline:
- *        1. parse_iso8601(): converts restricted ISO8601 before: value to time_t
- *        2. macaroon_parse_first_party_caveat(): dispatches on caveat prefix
- *        3. macaroon_parse_activity_caveat(): splits comma-separated activities,
- *           appends mapped scopes
- *        4. macaroon_apply_path_caveats(): walks each caveat × scope pair
- *           via macaroon_apply_path_to_scope() (narrow/keep/revoke),
- *           rebuilds scope_raw via macaroon_rebuild_scope_raw() if narrowed
+ * WHAT: Parse activity, expiry, and path restrictions and intersect discharge
+ *       permissions/paths into structured token claims.
+ * WHY: Signed caveats are authorization conditions; ignoring, truncating, or
+ *      unioning one can widen a credential beyond its issuer's intent.
+ * HOW: Strict parsers produce bounded claims, path helpers narrow hierarchy,
+ *      and discharge helpers compute permission-and-path intersections.
  */
 
 #include "core/compat/log_event.h"
@@ -43,46 +20,141 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/crypto.h>
+#include <limits.h>
 #include <string.h>
 #include <time.h>
 
-/* WHAT: Parse ISO8601 timestamp "YYYY-MM-DDTHH:MM:SSZ" into time_t for before: caveat expiry checking.
- * WHY: Macaroon "before:" caveats specify absolute expiry times in a restricted ISO8601 format (no timezone offsets, no fractional seconds). This helper converts the string to epoch seconds for comparison with current time.
- * HOW: Validate len≥20 and len<32; copy into buf[32] null-terminated; memset tm struct; sscanf(buf,"%d-%d-%dT%d:%d:%dZ") extracting year/month/day/hour/min/sec (expect 6 matches); adjust tm_year-=1900, tm_mon-=1, tm_isdst=-1; return timegm(&tm) or -1 on parse failure. */
-static time_t
-parse_iso8601(const char *s, size_t len)
+/* WHAT: Decode one fixed-width decimal field without permissive libc syntax.
+ * WHY: Expiry text is authorization input. HOW: Validate and accumulate digits. */
+static ngx_int_t
+macaroon_parse_decimal(const char *text, size_t length, int *out)
 {
-    struct tm tm;
-    char      buf[32];
+    size_t index;
+    int value = 0;
 
-    if (len < 20 || len >= sizeof(buf)) return (time_t) -1;
-    memcpy(buf, s, len);
-    buf[len] = '\0';
-
-    memset(&tm, 0, sizeof(tm));
-    /* %Y-%m-%dT%H:%M:%SZ */
-    if (sscanf(buf, "%d-%d-%dT%d:%d:%dZ",
-               &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
-               &tm.tm_hour, &tm.tm_min, &tm.tm_sec) != 6)
-    {
-        return (time_t) -1;
+    if (length == 0) {
+        return NGX_ERROR;
     }
+    for (index = 0; index < length; index++) {
+        int digit;
 
-    tm.tm_year -= BRIX_UNIX_EPOCH_YEAR;
-    tm.tm_mon  -= 1;
-    tm.tm_isdst = -1;
-
-    return timegm(&tm);
+        if (text[index] < '0' || text[index] > '9') {
+            return NGX_ERROR;
+        }
+        digit = text[index] - '0';
+        if (value > (INT_MAX - digit) / 10) {
+            return NGX_ERROR;
+        }
+        value = value * 10 + digit;
+    }
+    *out = value;
+    return NGX_OK;
 }
 
-/* WHAT: Reconstruct scope_raw from individual scope entries and re-parse to refresh claims->scopes[].
- * WHY: After path narrowing (macaroon_apply_path_caveats) modifies individual scope paths, the raw scope string becomes stale — it still contains old paths. This function rebuilds the canonical scope_raw string from the updated scopes[] array so downstream access checks use the correct narrowed paths.
- * HOW: Iterate each scope entry's permission bits (read/write/create/modify); for each enabled bit append "perm_name:path" to scope_raw with space separator between entries; check bounds against sizeof(claims->scope_raw) — break if overflow; re-parse the rebuilt string via brix_token_parse_scopes() to refresh claims->scopes[]. */
-/* HOW: Clear scope_raw buffer. Iterate each scope entry's permission bits (read/write/create/modify).
- *       For each enabled bit, append "perm_name:path" to scope_raw with space separator between entries.
- *       Check bounds against sizeof(claims->scope_raw) — break if overflow.
- *       Re-parse the rebuilt string via brix_token_parse_scopes() to refresh claims->scopes[]. */
+/* WHAT: Verify the literal positions in YYYY-MM-DDTHH:MM:SSZ.
+ * WHY: Numeric parsing alone could accept alternate separators.
+ * HOW: Compare every non-digit format position using a local shape template. */
+static ngx_int_t
+macaroon_timestamp_shape_valid(const char *text, size_t length)
+{
+    const char shape[] = "0000-00-00T00:00:00Z";
+    size_t index;
+
+    if (length != sizeof(shape) - 1) {
+        return NGX_ERROR;
+    }
+    for (index = 0; index < sizeof(shape) - 1; index++) {
+        if (shape[index] != '0' && text[index] != shape[index]) {
+            return NGX_ERROR;
+        }
+    }
+    return NGX_OK;
+}
+
+/* WHAT: Decode all six timestamp fields into one UTC broken-down time.
+ * WHY: Table-driven fixed widths keep strict parsing auditable and bounded.
+ * HOW: Parse local offset/width tables, then map values into struct tm. */
+static ngx_int_t
+macaroon_parse_timestamp_fields(const char *text, struct tm *parsed)
+{
+    const size_t offsets[] = {0, 5, 8, 11, 14, 17};
+    const size_t widths[] = {4, 2, 2, 2, 2, 2};
+    int values[6];
+    size_t index;
+
+    for (index = 0; index < 6; index++) {
+        if (macaroon_parse_decimal(text + offsets[index], widths[index],
+                                   &values[index]) != NGX_OK) {
+            return NGX_ERROR;
+        }
+    }
+    memset(parsed, 0, sizeof(*parsed));
+    parsed->tm_year = values[0] - BRIX_UNIX_EPOCH_YEAR;
+    parsed->tm_mon = values[1] - 1;
+    parsed->tm_mday = values[2];
+    parsed->tm_hour = values[3];
+    parsed->tm_min = values[4];
+    parsed->tm_sec = values[5];
+    parsed->tm_isdst = -1;
+    return NGX_OK;
+}
+
+/* WHAT: Check that UTC conversion preserved every caller-supplied field.
+ * WHY: timegm normalizes impossible dates such as February 31.
+ * HOW: Compare the six security-relevant calendar fields after round-trip. */
+static ngx_int_t
+macaroon_timestamp_matches(const struct tm *expected,
+                           const struct tm *actual)
+{
+    if (actual->tm_year != expected->tm_year
+        || actual->tm_mon != expected->tm_mon
+        || actual->tm_mday != expected->tm_mday
+        || actual->tm_hour != expected->tm_hour
+        || actual->tm_min != expected->tm_min
+        || actual->tm_sec != expected->tm_sec) {
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/* WHAT: Convert exactly YYYY-MM-DDTHH:MM:SSZ to UTC or return -1.
+ * WHY: Malformed expiry restrictions must not become unbounded credentials.
+ * HOW: Validate shape/fields and reject any normalization on a UTC round-trip. */
+static time_t
+parse_iso8601(const char *text, size_t length)
+{
+    struct tm parsed;
+    struct tm expected;
+    struct tm checked;
+    time_t expiry;
+
+    if (macaroon_timestamp_shape_valid(text, length) != NGX_OK
+        || macaroon_parse_timestamp_fields(text, &parsed) != NGX_OK) {
+        return (time_t)-1;
+    }
+    expected = parsed;
+    expiry = timegm(&parsed);
+    if (expiry == (time_t)-1 || gmtime_r(&expiry, &checked) == NULL
+        || macaroon_timestamp_matches(&expected, &checked) != NGX_OK) {
+        return (time_t)-1;
+    }
+    return expiry;
+}
+
+/* WHAT: Clear structured and textual scopes. WHY: Unrepresentable narrowing
+ * must fail closed. HOW: Zero both views and publish a zero count. */
 static void
+macaroon_revoke_claim_scopes(brix_token_claims_t *claims)
+{
+    ngx_memzero(claims->scopes, sizeof(claims->scopes));
+    claims->scope_raw[0] = '\0';
+    claims->scope_count = 0;
+}
+
+/* WHAT: Serialize all structured permission:path entries to scope_raw.
+ * WHY: Partial output would make authorization views disagree.
+ * HOW: Append with checked bounds; revoke and error on overflow. */
+static ngx_int_t
 macaroon_rebuild_scope_raw(brix_token_claims_t *claims)
 {
     static const char *perm_names[] = {
@@ -100,14 +172,17 @@ macaroon_rebuild_scope_raw(brix_token_claims_t *claims)
         };
         int bi;
         for (bi = 0; bi < 4; bi++) {
-            size_t plen, pathlen;
+            size_t plen, pathlen, needed;
             if (!bits[bi]) {
                 continue;
             }
             plen    = strlen(perm_names[bi]);
             pathlen = strlen(sc->path);
-            if (off + plen + 1 + pathlen + 2 > sizeof(claims->scope_raw)) {
-                break;
+            needed = plen + pathlen + 2 + (off > 0 ? 1 : 0);
+            if (off >= sizeof(claims->scope_raw)
+                || needed > sizeof(claims->scope_raw) - off) {
+                macaroon_revoke_claim_scopes(claims);
+                return NGX_ERROR;
             }
             if (off > 0) {
                 claims->scope_raw[off++] = ' ';
@@ -120,59 +195,17 @@ macaroon_rebuild_scope_raw(brix_token_claims_t *claims)
             claims->scope_raw[off] = '\0';
         }
     }
-
-    claims->scope_count = brix_token_parse_scopes(
-        claims->scope_raw, claims->scopes, BRIX_MAX_TOKEN_SCOPES);
+    return NGX_OK;
 }
-/*
- * HOW: Clear scope_raw buffer. Iterate each scope entry's permission bits (read/write/create/modify).
- *       For each enabled bit, append "perm_name:path" to scope_raw with space separator between entries.
- *       Check bounds against sizeof(claims->scope_raw) — break if overflow.
- *       Re-parse the rebuilt string via brix_token_parse_scopes() to refresh claims->scopes[].
- */
 
-/*
- * WHAT: Apply path: caveats to restrict scope paths via intersection logic.
- *       Each caveat narrows allowed paths further — never widens.
- *
- * WHY: WLCG macaroon "path:" caveats enforce hierarchical path restrictions
- *      on top of already-granted scope permissions.
- *      Intersection ensures final effective path is most restrictive
- *      among all caveats and scopes, preventing over-authorization.
- *
- * HOW: For each caveat path (cp), compare against scope path (sc->path):
- *
- *        Preprocessing:
- *          - Strip trailing slash from scope paths for comparison
- *
- *        Three cases:
- *          1. cp equal to or deeper than sc->path:
- *             → Narrow scope to cp (if different from current)
- *          2. sc->path deeper than cp:
- *             → Keep sc->path (already more restrictive)
- *          3. Disjoint paths (no common prefix):
- *             → Revoke all permissions (read/write/create/modify=0)
- *             → Mark scope entry as revoked
- *
- *        Post-processing:
- *          - Track narrowed flag across all caveats
- *          - If any narrowing occurred: call macaroon_rebuild_scope_raw()
- *            to regenerate scope_raw string from modified scopes
- */
+/* WHAT: Narrow, retain, or revoke one scope by path. WHY: Caveats are AND
+ * restrictions. HOW: Use the shared boundary matcher and choose the deeper
+ * containing path, clearing permissions for disjoint paths. */
 static int
 macaroon_apply_path_to_scope(ngx_log_t *log, brix_token_scope_t *scope,
                              const char *caveat_path, size_t caveat_path_len)
 {
-    size_t scope_len = strlen(scope->path);
-    size_t scope_cmp_len = scope_len;
-
-    if (scope_cmp_len > 1 && scope->path[scope_cmp_len - 1] == '/') {
-        scope_cmp_len--;
-    }
-
-    if (strncmp(caveat_path, scope->path, scope_cmp_len) == 0
-        && (caveat_path[scope_cmp_len] == '/'
-            || caveat_path[scope_cmp_len] == '\0')) {
+    if (brix_token_scope_path_matches(scope->path, caveat_path)) {
         if (strcmp(scope->path, caveat_path) == 0) {
             return 0;
         }
@@ -184,9 +217,7 @@ macaroon_apply_path_to_scope(ngx_log_t *log, brix_token_scope_t *scope,
         return 1;
     }
 
-    if (strncmp(scope->path, caveat_path, caveat_path_len) == 0
-        && (scope->path[caveat_path_len] == '/'
-            || scope->path[caveat_path_len] == '\0')) {
+    if (brix_token_scope_path_matches(caveat_path, scope->path)) {
         return 0;
     }
 
@@ -199,7 +230,9 @@ macaroon_apply_path_to_scope(ngx_log_t *log, brix_token_scope_t *scope,
     return 1;
 }
 
-void
+/* WHAT: Narrow claims by every path. WHY: Repeated paths are cumulative AND
+ * restrictions. HOW: Cross caveats with scopes and rebuild changed output. */
+ngx_int_t
 macaroon_apply_path_caveats(ngx_log_t *log,
     brix_token_claims_t *claims,
     char path_caveats[][BRIX_SCOPE_PATH_MAX], int n_path_caveats)
@@ -218,51 +251,162 @@ macaroon_apply_path_caveats(ngx_log_t *log,
     }
 
     if (narrowed) {
-        macaroon_rebuild_scope_raw(claims);
+        return macaroon_rebuild_scope_raw(claims);
     }
+    return NGX_OK;
 }
 
-static const char *
-macaroon_scope_for_activity(const char *activity, size_t activity_len)
+/* WHAT: Compute one permission-and-path overlap. WHY: Discharges may only
+ * attenuate parent authority. HOW: AND permissions, choose the deeper
+ * containing path, and reject disjoint paths. */
+static int
+macaroon_scope_intersection(const brix_token_scope_t *parent,
+    const brix_token_scope_t *restriction, brix_token_scope_t *result)
 {
-    if (activity_len == 8 && memcmp(activity, "DOWNLOAD", 8) == 0) {
-        return "storage.read";
+    const char *path;
+    size_t path_length;
+
+    ngx_memzero(result, sizeof(*result));
+    result->read = parent->read && restriction->read;
+    result->write = parent->write && restriction->write;
+    result->create = parent->create && restriction->create;
+    result->modify = parent->modify && restriction->modify;
+    if (!result->read && !result->write && !result->create
+        && !result->modify) {
+        return 0;
     }
-    if (activity_len == 4 && memcmp(activity, "LIST", 4) == 0) {
-        return "storage.read";
+
+    if (brix_token_scope_path_matches(parent->path, restriction->path)) {
+        path = restriction->path;
+    } else if (brix_token_scope_path_matches(restriction->path,
+                                             parent->path)) {
+        path = parent->path;
+    } else {
+        return 0;
     }
-    if (activity_len == 5 && memcmp(activity, "STAGE", 5) == 0) {
-        return "storage.stage";
+    path_length = strlen(path);
+    if (path_length == 0 || path_length >= sizeof(result->path)) {
+        return 0;
     }
-    if (activity_len == 6 && memcmp(activity, "UPLOAD", 6) == 0) {
-        return "storage.write";
+    ngx_memcpy(result->path, path, path_length + 1);
+    return 1;
+}
+
+/* WHAT: Merge or append one bounded intersection. WHY: Several pairs may
+ * yield the same path. HOW: OR same-path permissions or append with a cap. */
+static ngx_int_t
+macaroon_merge_intersection(brix_token_scope_t *scopes, int *scope_count,
+    const brix_token_scope_t *candidate)
+{
+    int scope_index;
+
+    for (scope_index = 0; scope_index < *scope_count; scope_index++) {
+        if (strcmp(scopes[scope_index].path, candidate->path) != 0) {
+            continue;
+        }
+        scopes[scope_index].read |= candidate->read;
+        scopes[scope_index].write |= candidate->write;
+        scopes[scope_index].create |= candidate->create;
+        scopes[scope_index].modify |= candidate->modify;
+        return NGX_OK;
     }
-    if (activity_len == 6 && memcmp(activity, "DELETE", 6) == 0) {
-        return "storage.write";
+    if (*scope_count >= BRIX_MAX_TOKEN_SCOPES) {
+        return NGX_ERROR;
+    }
+    scopes[*scope_count] = *candidate;
+    (*scope_count)++;
+    return NGX_OK;
+}
+
+/* WHAT: Replace root scopes with the exact discharge intersection.
+ * WHY: Permissions and paths must attenuate together.
+ * HOW: Cross, merge bounded overlaps, then atomically rebuild text. */
+ngx_int_t
+macaroon_intersect_claim_scopes(ngx_log_t *log,
+    brix_token_claims_t *claims, const brix_token_claims_t *restriction)
+{
+    brix_token_scope_t narrowed[BRIX_MAX_TOKEN_SCOPES];
+    int narrowed_count = 0;
+    int parent_index, restriction_index;
+
+    ngx_memzero(narrowed, sizeof(narrowed));
+    for (parent_index = 0; parent_index < claims->scope_count; parent_index++) {
+        for (restriction_index = 0;
+             restriction_index < restriction->scope_count;
+             restriction_index++) {
+            brix_token_scope_t candidate;
+
+            if (!macaroon_scope_intersection(&claims->scopes[parent_index],
+                    &restriction->scopes[restriction_index], &candidate)) {
+                continue;
+            }
+            if (macaroon_merge_intersection(narrowed, &narrowed_count,
+                                            &candidate) != NGX_OK) {
+                BRIX_LOG(NGX_LOG_WARN, log, 0,
+                    "brix_macaroon: discharge scope intersection exceeds limit");
+                macaroon_revoke_claim_scopes(claims);
+                return NGX_ERROR;
+            }
+        }
+    }
+
+    ngx_memzero(claims->scopes, sizeof(claims->scopes));
+    if (narrowed_count > 0) {
+        ngx_memcpy(claims->scopes, narrowed,
+                   (size_t)narrowed_count * sizeof(narrowed[0]));
+    }
+    claims->scope_count = narrowed_count;
+    return macaroon_rebuild_scope_raw(claims);
+}
+
+enum {
+    MACAROON_ACTIVITY_READ = 1U,
+    MACAROON_ACTIVITY_WRITE = 2U,
+    MACAROON_ACTIVITY_MODIFY = 4U
+};
+
+/* ---- Map one exact WLCG activity to effective permission bits ----
+ *
+ * WHAT: Return the permission bit for one known activity, or zero if unknown.
+ * WHY: Unknown activity text must not be ignored inside a signed caveat.
+ * HOW: Compare exact lengths and bytes; group equivalent read/write activities.
+ */
+static unsigned int
+macaroon_permission_for_activity(const char *activity, size_t activity_len)
+{
+    if ((activity_len == 8 && memcmp(activity, "DOWNLOAD", 8) == 0)
+        || (activity_len == 4 && memcmp(activity, "LIST", 4) == 0)
+        || (activity_len == 5 && memcmp(activity, "STAGE", 5) == 0)) {
+        return MACAROON_ACTIVITY_READ;
+    }
+    if ((activity_len == 6 && memcmp(activity, "UPLOAD", 6) == 0)
+        || (activity_len == 6 && memcmp(activity, "DELETE", 6) == 0)) {
+        return MACAROON_ACTIVITY_WRITE;
     }
     if (activity_len == 6 && memcmp(activity, "MANAGE", 6) == 0) {
-        return "storage.modify";
+        return MACAROON_ACTIVITY_MODIFY;
     }
-    return NULL;
+    return 0;
 }
 
-static void
+/* ---- Append one effective activity scope to the bounded parser buffer ----
+ *
+ * WHAT: Append scope:/ and return NGX_OK, or NGX_ERROR without truncation.
+ * WHY: Silently dropping a caveat-derived scope can change intersection
+ *      semantics between signed input and enforced authority.
+ * HOW: Compute required bytes by subtraction, add a separator when needed,
+ *      then copy the fixed scope and root path.
+ */
+static ngx_int_t
 macaroon_append_activity_scope(brix_macaroon_parse_state_t *state,
-                               const char *scope)
+    const char *scope)
 {
     size_t scope_len = strlen(scope);
+    size_t needed = scope_len + 2 + (state->scope_off > 0 ? 1 : 0);
 
-    /*
-     * Overflow-proof capacity check: reject first if scope_off is already
-     * at/past the buffer end, then compare against the REMAINING space by
-     * subtraction. The additive form (scope_off + scope_len + 4 >= sizeof)
-     * can wrap size_t for a corrupt/hostile scope_off and admit an
-     * out-of-bounds append; this form cannot. Semantics for all in-range
-     * offsets are identical: proceed iff scope_off + scope_len + 4 < sizeof.
-     */
     if (state->scope_off >= sizeof(state->scope_buf)
-        || scope_len + 4 >= sizeof(state->scope_buf) - state->scope_off) {
-        return;
+        || needed >= sizeof(state->scope_buf) - state->scope_off) {
+        return NGX_ERROR;
     }
     if (state->scope_off > 0) {
         state->scope_buf[state->scope_off++] = ' ';
@@ -272,73 +416,168 @@ macaroon_append_activity_scope(brix_macaroon_parse_state_t *state,
     state->scope_buf[state->scope_off++] = ':';
     state->scope_buf[state->scope_off++] = '/';
     state->scope_buf[state->scope_off] = '\0';
+    return NGX_OK;
 }
 
-static void
+/* ---- Serialize the current intersection of activity caveats ----
+ *
+ * WHAT: Rebuild state->scope_buf from activity_mask; return NGX_OK or error.
+ * WHY: Each activity caveat is an AND restriction while comma-separated
+ *      activities inside one caveat are alternatives.  Rebuilding prevents a
+ *      later caveat from unioning new authority into the earlier one.
+ * HOW: Clear the buffer and append the read, write, and modify scopes selected
+ *      by the already-intersected mask.
+ */
+static ngx_int_t
+macaroon_rebuild_activity_scopes(brix_macaroon_parse_state_t *state)
+{
+    state->scope_off = 0;
+    state->scope_buf[0] = '\0';
+    if ((state->activity_mask & MACAROON_ACTIVITY_READ)
+        && macaroon_append_activity_scope(state, "storage.read") != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if ((state->activity_mask & MACAROON_ACTIVITY_WRITE)
+        && macaroon_append_activity_scope(state, "storage.write") != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if ((state->activity_mask & MACAROON_ACTIVITY_MODIFY)
+        && macaroon_append_activity_scope(state, "storage.modify") != NGX_OK) {
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/* ---- Parse and intersect one activity: caveat ----
+ *
+ * WHAT: Parse comma-separated known activities and intersect their union with
+ *       prior activity caveats; return NGX_ERROR for malformed/unknown input.
+ * WHY: Repeated caveats attenuate authority.  Unioning them allowed a holder
+ *      to append activity:UPLOAD to a read-only token and gain write access.
+ * HOW: Build one caveat mask, rejecting empty/unknown elements, AND it after
+ *      the first caveat, then rebuild the effective scope buffer.
+ */
+static ngx_int_t
 macaroon_parse_activity_caveat(brix_macaroon_parse_state_t *state,
-                               const u_char *caveat, size_t caveat_len)
+    const u_char *caveat, size_t caveat_len)
 {
     const char *activity = (const char *)(caveat + 9);
     size_t remaining = caveat_len - 9;
+    unsigned int caveat_mask = 0;
 
+    if (remaining == 0) {
+        return NGX_ERROR;
+    }
     while (remaining > 0) {
         const char *comma = memchr(activity, ',', remaining);
-        size_t activity_len = (comma != NULL)
+        size_t activity_len = comma != NULL
                               ? (size_t)(comma - activity) : remaining;
-        const char *scope = macaroon_scope_for_activity(activity,
-                                                        activity_len);
+        unsigned int permission;
 
-        if (scope != NULL) {
-            macaroon_append_activity_scope(state, scope);
+        if (activity_len == 0) {
+            return NGX_ERROR;
         }
-
-        activity += activity_len + (comma != NULL ? 1 : 0);
-        remaining -= activity_len + (comma != NULL ? 1 : 0);
+        permission = macaroon_permission_for_activity(activity, activity_len);
+        if (permission == 0) {
+            return NGX_ERROR;
+        }
+        caveat_mask |= permission;
+        if (comma == NULL) {
+            remaining = 0;
+        } else {
+            activity += activity_len + 1;
+            remaining -= activity_len + 1;
+            if (remaining == 0) {
+                return NGX_ERROR;
+            }
+        }
     }
+
+    state->activity_mask = state->activity_seen
+                           ? state->activity_mask & caveat_mask : caveat_mask;
+    state->activity_seen = 1;
+    return macaroon_rebuild_activity_scopes(state);
 }
 
-static void
+/* ---- Parse one before: caveat ----
+ *
+ * WHAT: Record the earliest valid expiry and return NGX_OK, or NGX_ERROR for
+ *       malformed timestamp text.
+ * WHY: Ignoring a malformed signed expiry turns attenuation into no limit.
+ * HOW: Parse the fixed UTC form and retain the minimum epoch value.
+ */
+static ngx_int_t
 macaroon_parse_before_caveat(brix_macaroon_parse_state_t *state,
                              const u_char *caveat, size_t caveat_len)
 {
     time_t exp = parse_iso8601((const char *)(caveat + 7), caveat_len - 7);
 
-    if (exp != (time_t)-1
-        && (state->claims->exp == 0 || exp < state->claims->exp)) {
+    if (exp == (time_t)-1) {
+        return NGX_ERROR;
+    }
+    if (state->claims->exp == 0 || exp < state->claims->exp) {
         state->claims->exp = exp;
     }
+    return NGX_OK;
 }
 
-static void
+/* ---- Parse one path: caveat into the bounded restriction set ----
+ *
+ * WHAT: Record one absolute, control-free path and return NGX_OK; reject empty,
+ *       oversized, malformed, or excess caveats with NGX_ERROR.
+ * WHY: Truncation and embedded NUL/control bytes let signed and enforced paths
+ *      differ, while dropped caveats widen authority.
+ * HOW: Enforce count/length/leading slash, scan every byte, then copy exactly.
+ */
+static ngx_int_t
 macaroon_parse_path_caveat(brix_macaroon_parse_state_t *state,
                            const u_char *caveat, size_t caveat_len)
 {
     const char *path = (const char *)(caveat + 5);
     size_t path_len = caveat_len - 5;
+    size_t index;
 
     if (state->n_path_caveats >= 8 || path_len == 0
-        || path_len >= BRIX_SCOPE_PATH_MAX) {
-        return;
+        || path_len >= BRIX_SCOPE_PATH_MAX || path[0] != '/') {
+        return NGX_ERROR;
+    }
+    for (index = 0; index < path_len; index++) {
+        u_char ch = (u_char)path[index];
+
+        if (ch == '\0' || ch < 0x20 || ch == 0x7f || ch == '\\') {
+            return NGX_ERROR;
+        }
     }
 
     memcpy(state->path_caveats[state->n_path_caveats], path, path_len);
     state->path_caveats[state->n_path_caveats][path_len] = '\0';
     state->n_path_caveats++;
+    return NGX_OK;
 }
 
-void
+/* ---- Classify one first-party caveat with fail-closed semantics ----
+ *
+ * WHAT: Apply one supported caveat and return NGX_OK; reject unsupported or
+ *       malformed signed caveats with NGX_ERROR.
+ * WHY: Silently ignoring a condition makes the server authorize more than the
+ *      macaroon expresses.
+ * HOW: Dispatch exact activity:/before:/path: prefixes and reject everything
+ *      else without interpreting it as a third-party caveat.
+ */
+ngx_int_t
 macaroon_parse_first_party_caveat(brix_macaroon_parse_state_t *state,
-                                  const u_char *caveat, size_t caveat_len)
+    const u_char *caveat, size_t caveat_len)
 {
     if (caveat_len >= 9 && memcmp(caveat, "activity:", 9) == 0) {
-        macaroon_parse_activity_caveat(state, caveat, caveat_len);
-        return;
+        return macaroon_parse_activity_caveat(state, caveat, caveat_len);
     }
     if (caveat_len >= 7 && memcmp(caveat, "before:", 7) == 0) {
-        macaroon_parse_before_caveat(state, caveat, caveat_len);
-        return;
+        return macaroon_parse_before_caveat(state, caveat, caveat_len);
     }
     if (caveat_len >= 5 && memcmp(caveat, "path:", 5) == 0) {
-        macaroon_parse_path_caveat(state, caveat, caveat_len);
+        return macaroon_parse_path_caveat(state, caveat, caveat_len);
     }
+    BRIX_LOG(NGX_LOG_WARN, state->log, 0,
+        "brix_macaroon: unsupported first-party caveat");
+    return NGX_ERROR;
 }

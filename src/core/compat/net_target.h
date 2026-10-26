@@ -68,13 +68,32 @@ typedef struct {
  * On failure writes a NUL-terminated message into err[0..errsz) and
  * returns NGX_ERROR.
  *
- * Recognised URL forms:
+ * Recognised URL forms (userinfo is deliberately unsupported):
  *   scheme://host/path
  *   scheme://host:port/path
  *   scheme://[ipv6addr]:port/path
+ * Authority ends at '/', '?' or '#'. Explicit ports are decimal 1..65535.
  */
 ngx_int_t brix_net_target_parse(ngx_pool_t *pool,
     const ngx_str_t *url, brix_net_target_t *out,
+    char *err, size_t errsz);
+
+/*
+ * brix_net_target_check_scheme — enforce a parsed target's scheme policy.
+ *
+ * Exact, case-insensitive https is always accepted; http requires
+ * require_https=0; root requires require_https=0 and allow_root_scheme=1.
+ * All other parsed schemes fail closed. Scheme-less caller-built targets are
+ * accepted only when require_https=0, preserving bare native-TPC host checks.
+ */
+ngx_int_t brix_net_target_check_scheme(const brix_net_target_t *target,
+    const brix_net_target_policy_t *policy, char *err, size_t errsz);
+
+/* Validate the scheme and return the single port used by DNS pinning and the
+ * final connection. Explicit ports win; defaults are https=policy/443,
+ * http=80 and root/bare=policy/1094. */
+ngx_int_t brix_net_target_effective_port(const brix_net_target_t *target,
+    const brix_net_target_policy_t *policy, uint16_t *port,
     char *err, size_t errsz);
 
 /*

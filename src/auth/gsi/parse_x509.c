@@ -90,12 +90,16 @@ gsi_capture_fullproxy(brix_ctx_t *ctx, const u_char *plain, size_t plain_len)
 }
 
 STACK_OF(X509) *
-gsi_chain_from_plaintext(const u_char *plain, int plain_len, ngx_log_t *log)
+gsi_chain_from_plaintext(const u_char *plain, int plain_len,
+    const u_char expected_rtag[BRIX_GSI_RTAG_LEN], ngx_log_t *log)
 {
     const u_char   *x509_data = NULL;
+    const u_char   *signed_rtag = NULL;
     size_t          x509_len = 0;
+    size_t          signed_rtag_len = 0;
     BIO            *bio;
     X509           *cert;
+    EVP_PKEY       *leaf_key;
     STACK_OF(X509) *chain;
 
     if (gsi_find_bucket(plain, (size_t) plain_len, (uint32_t) kXRS_x509,
@@ -125,8 +129,28 @@ gsi_chain_from_plaintext(const u_char *plain, int plain_len, ngx_log_t *log)
         sk_X509_pop_free(chain, X509_free);
         return NULL;
     }
+
+    if (brix_gsi_find_unique_bucket(plain, (size_t) plain_len,
+                                    (uint32_t) kXRS_signed_rtag,
+                                    &signed_rtag, &signed_rtag_len) != 0) {
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
+                 "brix: GSI kXGC_cert: unique signed server challenge missing");
+        sk_X509_pop_free(chain, X509_free);
+        return NULL;
+    }
+    leaf_key = X509_get_pubkey(sk_X509_value(chain, 0));
+    if (leaf_key == NULL
+        || !brix_gsi_rsa_verify_raw(leaf_key, signed_rtag, signed_rtag_len,
+                                    expected_rtag, BRIX_GSI_RTAG_LEN)) {
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
+                 "brix: GSI kXGC_cert: client leaf-key proof failed");
+        brix_evp_pkey_free(leaf_key);
+        sk_X509_pop_free(chain, X509_free);
+        return NULL;
+    }
+    brix_evp_pkey_free(leaf_key);
     BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, log, 0,
-                   "brix: GSI parsed %d cert(s) from kXRS_x509 after decrypt",
+                   "brix: GSI parsed %d cert(s) with leaf-key proof",
                    sk_X509_num(chain));
     return chain;
 }

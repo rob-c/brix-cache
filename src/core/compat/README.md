@@ -53,7 +53,7 @@ The request/response-semantics files (`http_*`, `etag`) live in [`../http`](../h
 
 | File | Responsibility |
 |---|---|
-| `net_target.c` / `net_target.h` | Outbound URL parser + **SSRF guard** for native TPC, WebDAV HTTP-TPC, future S3 remote-copy. Zero-copy URL split (scheme/host/port/path, IPv6 literals), per-address prohibited-range classification (loopback/link-local/RFC-1918/ULA, v4-mapped), blocking DNS check, and `check_dns_pin` which validates *every* resolved address and returns the first to pin (closes the DNS-rebind TOCTOU). `brix_net_host_chars_valid` blocks CRLF/scheme injection into redirect strings. DNS calls are **thread-only**. |
+| `net_target.c` / `net_target.h` | Outbound URL + **SSRF guard** API for native TPC, WebDAV HTTP-TPC and future remote-copy features. Per-address prohibited-range classification covers loopback/link-local/RFC-1918/ULA and v4-mapped addresses. `brix_net_host_chars_valid` blocks CRLF/scheme injection into redirect strings. DNS calls are **thread-only**. |
 | `async_job.c` / `async_job.h` | Minimal background-job lifecycle (`brix_async_job_t`): init + register cleanup + idempotent `cleanup_once` (finalized flag). Prevents double-finalize/double-free across TPC threads, PUT body callbacks, Qckscan. Relies on nginx's single-threaded completion model for the guard. |
 | `error_mapping.c` / `error_mapping.h` | Unified status translation (consolidates the old kxr_errno/http_errno/result_mapper): errno→kXR (`brix_kxr_from_errno`), ns-status→kXR, errno→HTTP, ns-status→HTTP. `EXDEV`/`ELOOP` (RESOLVE_BENEATH escapes) map to `kXR_NotAuthorized`/403 — never 500. |
 | `result_mapper.h` | Back-compat alias header — declares `brix_http_map_ns_status`/`brix_http_map_errno` (defined in `error_mapping.c`). |
@@ -97,9 +97,10 @@ The request/response-semantics files (`http_*`, `etag`) live in [`../http`](../h
 | `log_diag.h` | turn a terse one-line error into a self-explanatory, three-part diagnostic that an operator who has never seen this module before can act on: * xrootd[pki]: no CRLs found in "/etc/grid-security/certificates" cause: CRL d. |
 | `namespace_ops_copy.c` | Implements the local file-copy orchestration (brix_ns_local_copy) and its pre-open validation, destination-open, and finalize helpers, plus the xattr-mirroring helpers (brix_ns_copy_fattrs / brix_xattr_copy_by_prefix). |
 | `namespace_ops_internal.h` | Cross-declares the two confinement/result helpers that the local-copy path (namespace_ops_copy.c) reuses from the mutation core (namespace_ops.c): ns_rel() (open the RESOLVE_BENEATH rootfd + return the within-root tail). |
-| `net_target_dns.c` | returns target->port when explicit, else the policy/scheme default. |
+| `net_target_dns.c` | Resolves through the one DNS seam, validates every answer and returns the complete permitted address set for pinning. |
 | `net_target_internal.h` | declares the address-classification chokepoint that is DEFINED in net_target.c (the SSRF address cluster) but REFERENCED from net_target_dns.c (the resolve-and-pin cluster). |
-| `net_target_parse.c` | names the two cursors ("host_start" = first byte after "://", "host_end" = the first '/' or end-of-URL) plus the caller's err buffer, so a helper takes ONE struct instead of four positional args. |
+| `net_target_parse.c` | Strict zero-copy URL grammar. Authority ends at `/`, `?` or `#`; userinfo, unsafe bytes, malformed hosts, invalid IPv6 brackets and ports outside 1..65535 fail before DNS. |
+| `net_target_policy.c` | Exact `http`/`https`/opt-in `root` scheme enforcement and the single effective port shared by validation, DNS pinning and connection. |
 | `ns_status.h` | The brix_ns_status_t enum, extracted from namespace_ops.h so it can be shared by the ngx-free protocol core (libxrdproto, error_mapping Sections 1-2) without dragging in any ngx_* dependency. |
 | `openssl_auto.h` | typed `__attribute__((cleanup))` handlers + the XRD_AUTO(type) macro, so an OpenSSL handle declared with XRD_AUTO is freed automatically when it goes out of scope — on EVERY return path, with no manual free. |
 | `pgio.c` / `.h` | kXR page-mode CRC32c framing (see pgio.h). |

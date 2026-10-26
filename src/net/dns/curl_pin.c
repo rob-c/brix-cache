@@ -6,10 +6,6 @@
 #include "core/compat/net_target.h"
 #include "core/compat/host_format.h"
 
-#define CURL_PIN_DEFAULT_HTTPS  443
-#define CURL_PIN_DEFAULT_HTTP   80
-
-
 size_t
 brix_dns_curl_pin_entry(const char *host, in_port_t port,
     const brix_dns_addr_t *addrs, ngx_uint_t naddrs, char *out, size_t sz)
@@ -37,34 +33,20 @@ brix_dns_curl_pin_entry(const char *host, in_port_t port,
 }
 
 
-static in_port_t
-curl_pin_port(const brix_net_target_t *t)
-{
-    if (t->has_port) {
-        return t->port;
-    }
-    if (t->scheme.len == 4 && ngx_strncasecmp(t->scheme.data,
-                                              (u_char *) "http", 4) == 0)
-    {
-        return CURL_PIN_DEFAULT_HTTP;
-    }
-    return CURL_PIN_DEFAULT_HTTPS;
-}
-
-
 ngx_int_t
 brix_dns_curl_pin(CURL *curl, const brix_dns_policy_t *policy, const char *url,
     struct curl_slist **resolve_out, char *err, size_t errsz)
 {
-    brix_net_target_t   tgt;
-    brix_dns_addr_t     addrs[BRIX_DNS_MAX_ADDRS], lit;
-    ngx_str_t           url_str, host;
-    char                hostz[BRIX_RESOLV_DOMAIN_LEN];
-    char                entry[BRIX_RESOLV_DOMAIN_LEN + 8
-                              + BRIX_DNS_MAX_ADDRS * BRIX_DNS_NTOP_LEN];
-    struct curl_slist  *list;
-    ngx_uint_t          n;
-    in_port_t           port;
+    brix_net_target_t         tgt;
+    brix_net_target_policy_t  target_policy;
+    brix_dns_addr_t           addrs[BRIX_DNS_MAX_ADDRS], lit;
+    ngx_str_t                 url_str, host;
+    char                      hostz[BRIX_RESOLV_DOMAIN_LEN];
+    char                      entry[BRIX_RESOLV_DOMAIN_LEN + 8
+                                    + BRIX_DNS_MAX_ADDRS * BRIX_DNS_NTOP_LEN];
+    struct curl_slist        *list;
+    ngx_uint_t                n;
+    in_port_t                 port;
 
     *resolve_out = NULL;
     /* a reused handle must never keep a list its previous request freed */
@@ -72,6 +54,12 @@ brix_dns_curl_pin(CURL *curl, const brix_dns_policy_t *policy, const char *url,
     url_str.data = (u_char *) url;
     url_str.len = ngx_strlen(url);
     if (brix_net_target_parse(NULL, &url_str, &tgt, err, errsz) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    ngx_memzero(&target_policy, sizeof(target_policy));
+    if (brix_net_target_effective_port(&tgt, &target_policy, &port,
+                                       err, errsz) != NGX_OK)
+    {
         return NGX_ERROR;
     }
     host = tgt.host;
@@ -83,7 +71,6 @@ brix_dns_curl_pin(CURL *curl, const brix_dns_policy_t *policy, const char *url,
         return NGX_OK;                        /* literal: libcurl needs no DNS */
     }
     ngx_cpystrn((u_char *) hostz, host.data, host.len + 1);
-    port = curl_pin_port(&tgt);
 
     n = brix_dns_resolve_sync(policy, hostz, port, BRIX_AF_AUTO, SOCK_STREAM,
                               addrs, BRIX_DNS_MAX_ADDRS, err, errsz);

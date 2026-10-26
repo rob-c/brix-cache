@@ -318,20 +318,20 @@ def test_only_the_root_protocol_populates_the_cache_metrics_slot():
         f"expectation should flip")
 
 
-def test_anonymous_without_a_password_serves_the_unredacted_admin_view(httpcores):
-    """DEFECT CANDIDATE #43.  No cookie, no credential of any kind — and the
-    payload arrives with redact=0: export roots, listen ports and the origin
-    host are all present, and the flag the page's banner reads says the viewer
-    is NOT anonymous."""
+def test_anonymous_without_a_password_serves_only_the_redacted_view(httpcores):
+    """An explicitly anonymous dashboard with no credential store remains
+    useful, but the request must stay in the redacted tier: no export roots,
+    listen ports, or origin hosts may cross the unauthenticated boundary."""
     endpoint, _, data = httpcores
 
     doc = _get(endpoint, "/brix/api/v1/snapshot",
                headers={"Cookie": ""}).json()
 
-    assert doc["anonymous"] is False, DEFECT43
+    assert doc["anonymous"] is True, DEFECT43
     roots = {e.get("root") for e in doc["storage"]["exports"]}
-    assert str(data / "local") in roots, DEFECT43
-    assert any(e.get("origin_host") for e in doc["storage"]["exports"]), DEFECT43
+    assert str(data / "local") not in roots, DEFECT43
+    assert not any(e.get("origin_host")
+                   for e in doc["storage"]["exports"]), DEFECT43
 
 
 # --------------------------------------------------------------------------- #

@@ -90,8 +90,10 @@ macaroon_bundle_tokenize(const char *token, size_t token_len,
     *n_tokens = 0;
     for (;;) {
         if (cursor >= end || *cursor == ' ') {
-            if (cursor > token_start
-                && *n_tokens <= BRIX_MACAROON_MAX_DISCHARGES) {
+            if (cursor > token_start) {
+                if (*n_tokens > BRIX_MACAROON_MAX_DISCHARGES) {
+                    return -1;
+                }
                 tokens[*n_tokens] = token_start;
                 token_lens[*n_tokens] = (size_t)(cursor - token_start);
                 (*n_tokens)++;
@@ -106,6 +108,10 @@ macaroon_bundle_tokenize(const char *token, size_t token_len,
     return (*n_tokens > 0) ? 0 : -1;
 }
 
+/* WHAT: Test whether a decoded candidate's first identifier equals one cid.
+ * WHY: Bundle validation must select the intended discharge before decrypting
+ * its key, while the strict parser later validates the candidate completely.
+ * HOW: Walk bounded packets and compare the first identifier byte-for-byte. */
 static int
 macaroon_candidate_matches_cid(const u_char *candidate, ssize_t candidate_len,
                                brix_macaroon_tp_t *tp)
@@ -149,16 +155,23 @@ macaroon_candidate_matches_cid(const u_char *candidate, ssize_t candidate_len,
  *       walks the identical token set in the identical order, so which
  *       discharge matches which cid is unchanged.
  * HOW:  tokens[i]/token_lens[i] describe the i-th base64url token; index 0 is
- *       the root macaroon, indices 1..n_tokens-1 are candidate discharges.
+ *       the root macaroon, indices 1..n_tokens-1 are candidate discharges;
+ *       used_mask ensures each supplied discharge satisfies exactly one caveat.
  */
 typedef struct {
     const char  **tokens;
     size_t       *token_lens;
     int           n_tokens;
+    unsigned int  used_mask;
 } macaroon_bundle_t;
 
+/* WHAT: Decode and return one unused discharge whose identifier matches cid.
+ * WHY: Reusing one candidate for two caveats could hide an unmatched extra
+ * discharge and make an incomplete bundle appear complete.
+ * HOW: Skip used indices, decode and match candidates, then atomically mark the
+ * selected index only after its complete decoded bytes fit the output buffer. */
 static ssize_t
-macaroon_find_discharge(const macaroon_bundle_t *bundle,
+macaroon_find_discharge(macaroon_bundle_t *bundle,
                         brix_macaroon_tp_t *tp, u_char *discharge_bin,
                         size_t discharge_cap)
 {
@@ -168,6 +181,9 @@ macaroon_find_discharge(const macaroon_bundle_t *bundle,
         u_char candidate[MACAROON_MAX_BIN];
         ssize_t candidate_len;
 
+        if ((bundle->used_mask & (1U << token_index)) != 0) {
+            continue;
+        }
         candidate_len = b64url_decode(bundle->tokens[token_index],
                                       bundle->token_lens[token_index], candidate,
                                       sizeof(candidate));
@@ -175,50 +191,53 @@ macaroon_find_discharge(const macaroon_bundle_t *bundle,
             continue;
         }
         if (macaroon_candidate_matches_cid(candidate, candidate_len, tp)) {
+            if (candidate_len > (ssize_t)discharge_cap) {
+                return -1;
+            }
             ngx_memcpy(discharge_bin, candidate, candidate_len);
-            return candidate_len <= (ssize_t) discharge_cap ? candidate_len : -1;
+            bundle->used_mask |= 1U << token_index;
+            return candidate_len;
         }
     }
     return -1;
 }
 
-static void
+/* WHAT: Attenuate root expiry, permissions, and paths with one discharge.
+ * WHY: A discharge proves an additional restriction and may never widen the
+ * parent authority or turn an empty activity intersection into no restriction.
+ * HOW: Take the earliest expiry, intersect explicit activity scopes, otherwise
+ * apply every validated path restriction cumulatively. */
+static int
 macaroon_intersect_discharge_claims(ngx_log_t *log,
                                     brix_token_claims_t *claims,
-                                    brix_token_claims_t *d_claims)
+                                    brix_token_claims_t *d_claims,
+                                    brix_macaroon_parse_meta_t *d_meta)
 {
-    int discharge_scope_index;
-    char discharge_paths[BRIX_MAX_TOKEN_SCOPES][BRIX_SCOPE_PATH_MAX];
-    int n_discharge_paths = 0;
-
     if (d_claims->exp > 0
         && (claims->exp == 0 || d_claims->exp < claims->exp)) {
         claims->exp = d_claims->exp;
     }
 
-    for (discharge_scope_index = 0;
-         discharge_scope_index < d_claims->scope_count
-         && n_discharge_paths < BRIX_MAX_TOKEN_SCOPES;
-         discharge_scope_index++) {
-        size_t path_len = strlen(
-            d_claims->scopes[discharge_scope_index].path);
-        if (path_len > 0 && path_len < BRIX_SCOPE_PATH_MAX) {
-            memcpy(discharge_paths[n_discharge_paths],
-                   d_claims->scopes[discharge_scope_index].path,
-                   path_len + 1);
-            n_discharge_paths++;
-        }
+    if (d_meta->activity_seen) {
+        return macaroon_intersect_claim_scopes(log, claims, d_claims) == NGX_OK
+               ? 0 : -1;
     }
-
-    if (n_discharge_paths > 0) {
-        macaroon_apply_path_caveats(log, claims, discharge_paths,
-                                    n_discharge_paths);
+    if (d_meta->n_path_caveats > 0
+        && macaroon_apply_path_caveats(log, claims, d_meta->path_caveats,
+                                       d_meta->n_path_caveats) != NGX_OK) {
+        return -1;
     }
+    return 0;
 }
 
+/* WHAT: Locate, decrypt, strictly validate, and apply one discharge macaroon.
+ * WHY: Every captured third-party caveat must have one independently valid,
+ * single-use discharge before its restrictions can affect root claims.
+ * HOW: Select an unused candidate, recover its exact key, parse without nested
+ * capture, cleanse the key, and intersect its verified claims. */
 static int
 macaroon_validate_one_discharge(ngx_log_t *log,
-                                const macaroon_bundle_t *bundle,
+                                macaroon_bundle_t *bundle,
                                 brix_macaroon_tp_t *tp,
                                 brix_token_claims_t *claims, int caveat_index)
 {
@@ -227,6 +246,7 @@ macaroon_validate_one_discharge(ngx_log_t *log,
     ssize_t d_bin_len;
     u_char d_key[32];
     macaroon_parse_input_t d_in;
+    brix_macaroon_parse_meta_t d_meta;
 
     d_bin_len = macaroon_find_discharge(bundle, tp, d_bin, sizeof(d_bin));
     if (d_bin_len < 0) {
@@ -247,10 +267,12 @@ macaroon_validate_one_discharge(ngx_log_t *log,
 
     ngx_memzero(&d_claims, sizeof(d_claims));
     ngx_memzero(&d_in, sizeof(d_in));
+    ngx_memzero(&d_meta, sizeof(d_meta));
     d_in.log     = log;
     d_in.key     = d_key;
     d_in.key_len = 32;
     d_in.claims  = &d_claims;
+    d_in.meta    = &d_meta;
     /* tp_arr/n_tp/max_tp stay NULL/0: discharge parse, no nested capture */
     if (macaroon_parse_core(&d_in, d_bin, (size_t)d_bin_len) != 0) {
         OPENSSL_cleanse(d_key, sizeof(d_key));
@@ -264,25 +286,30 @@ macaroon_validate_one_discharge(ngx_log_t *log,
     BRIX_LOG(NGX_LOG_DEBUG, log, 0,
         "brix_macaroon: discharge #%d valid sub=\"%s\" scope=\"%s\"",
         caveat_index, d_claims.sub, d_claims.scope_raw);
-    macaroon_intersect_discharge_claims(log, claims, &d_claims);
-    return 0;
+    return macaroon_intersect_discharge_claims(log, claims, &d_claims,
+                                               &d_meta);
 }
 
+/* WHAT: Validate a one-to-one set of discharges for all root caveats.
+ * WHY: Missing, extra, nested, or reused discharge requirements must fail
+ * closed rather than leaving any signed condition unenforced.
+ * HOW: Require equal counts and consume exactly one unused token per caveat. */
 static int
-macaroon_validate_discharges(ngx_log_t *log, const macaroon_bundle_t *bundle,
+macaroon_validate_discharges(ngx_log_t *log, macaroon_bundle_t *bundle,
                              brix_macaroon_tp_t *tp_arr, int n_tp,
                              brix_token_claims_t *claims)
 {
     int caveat_index;
 
+    if (bundle->n_tokens != n_tp + 1) {
+        BRIX_LOG(NGX_LOG_WARN, log, 0,
+            "brix_macaroon: root has %d third-party caveat(s), "
+            "bundle carries %d discharge Macaroon(s)", n_tp,
+            bundle->n_tokens - 1);
+        return -1;
+    }
     if (n_tp == 0) {
         return 0;
-    }
-    if (bundle->n_tokens < 2) {
-        BRIX_LOG(NGX_LOG_WARN, log, 0,
-            "brix_macaroon: root has %d third-party caveat(s) "
-            "but no discharge Macaroons were provided", n_tp);
-        return -1;
     }
 
     for (caveat_index = 0; caveat_index < n_tp; caveat_index++) {
@@ -370,6 +397,7 @@ brix_macaroon_validate_bundle(ngx_log_t *log,
     bundle.tokens     = tokens;
     bundle.token_lens = tlens;
     bundle.n_tokens   = n_tokens;
+    bundle.used_mask  = 0;
 
     if (macaroon_validate_discharges(log, &bundle, tp_arr, n_tp, claims) != 0) {
         return -1;

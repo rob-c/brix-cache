@@ -146,7 +146,8 @@ gsi_signed_select_key(const u_char *payload, size_t plen,
  * with the unsigned path.  Returns STACK_OF(X509) * or NULL.
  */
 STACK_OF(X509) *
-brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c)
+brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c,
+    const u_char expected_rtag[BRIX_GSI_RTAG_LEN])
 {
     const u_char   *payload = ctx->recv.payload;
     size_t          plen = ctx->recv.cur_dlen;
@@ -217,7 +218,8 @@ brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c)
                    plain_len);
     gsi_capture_client_rtag(ctx, plain, plain_len);   /* §F6 delegation rtag */
     gsi_capture_fullproxy(ctx, plain, plain_len);     /* §5.1 full-proxy PT */
-    chain = gsi_chain_from_plaintext(plain, (int) plain_len, log);
+    chain = gsi_chain_from_plaintext(plain, (int) plain_len, expected_rtag, log);
+    OPENSSL_cleanse(plain, plain_len);
     free(plain);
     return chain;
 }

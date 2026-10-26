@@ -27,31 +27,6 @@
 
 
 /*
- * net_default_port — resolve the port to use when the URL omitted one.
- *
- * WHAT: returns target->port when explicit, else the policy/scheme default.
- * WHY:  identical fallback rules feed both DNS entry points; one helper keeps
- *       the "https implies TLS port, otherwise root:// port; policy value wins,
- *       else IANA default" decision in a single place.
- * HOW:  pure — scheme "https" (len 5) or a require_https policy selects the
- *       TLS port; the policy value wins over the IANA fallback (443 / 1094).
- */
-static uint16_t
-net_default_port(const brix_net_target_t *target,
-    const brix_net_target_policy_t *policy)
-{
-    if (target->port != 0) {
-        return target->port;
-    }
-
-    if (policy->require_https || target->scheme.len == 5 /* "https" */) {
-        return policy->default_https_port ? policy->default_https_port : 443;
-    }
-
-    return policy->default_root_port ? policy->default_root_port : BRIX_ROOT_DEFAULT_PORT;
-}
-
-/*
  * net_target_host — copy the target host into a NUL-terminated buffer.
  *
  * WHAT: NGX_OK with host_buf filled; NGX_ERROR (err set) when the host is
@@ -176,14 +151,19 @@ brix_net_target_check_dns(const brix_net_target_t *target,
     brix_dns_addr_t  addrs[BRIX_DNS_MAX_ADDRS];
     char             host_buf[256];
     ngx_uint_t       n;
+    uint16_t         port;
 
+    if (brix_net_target_effective_port(target, policy, &port, err, errsz)
+        != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
     if (net_target_host(target, host_buf, sizeof(host_buf), err, errsz)
         != NGX_OK)
     {
         return NGX_ERROR;
     }
-    n = net_resolve_host(policy, host_buf, net_default_port(target, policy),
-                         addrs, err, errsz);
+    n = net_resolve_host(policy, host_buf, port, addrs, err, errsz);
     if (n == 0) {
         return NGX_ERROR;
     }
@@ -212,14 +192,19 @@ brix_net_target_check_cached(const brix_net_target_t *target,
     char             reason[BRIX_DNS_ERROR_LEN];
     ngx_uint_t       n;
     ngx_int_t        rc;
+    uint16_t         port;
 
+    if (brix_net_target_effective_port(target, policy, &port, err, errsz)
+        != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
     if (net_target_host(target, host_buf, sizeof(host_buf), err, errsz)
         != NGX_OK)
     {
         return NGX_ERROR;
     }
-    rc = brix_dns_cache_probe(policy->dns, host_buf,
-                              net_default_port(target, policy), BRIX_AF_AUTO,
+    rc = brix_dns_cache_probe(policy->dns, host_buf, port, BRIX_AF_AUTO,
                               addrs, BRIX_DNS_MAX_ADDRS, &n, reason,
                               sizeof(reason));
     if (rc == NGX_AGAIN) {
@@ -308,6 +293,7 @@ brix_net_target_check_dns_pin(const brix_net_target_t *target,
     char             host_buf[256];
     net_pin_out_t    pin = { out_ip, out_ipsz };
     ngx_uint_t       i, n;
+    uint16_t         port;
 
     if (out_ip == NULL || out_ipsz == 0) {
         snprintf(err, errsz, "no pin buffer");
@@ -315,13 +301,17 @@ brix_net_target_check_dns_pin(const brix_net_target_t *target,
     }
     out_ip[0] = '\0';
 
+    if (brix_net_target_effective_port(target, policy, &port, err, errsz)
+        != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
     if (net_target_host(target, host_buf, sizeof(host_buf), err, errsz)
         != NGX_OK)
     {
         return NGX_ERROR;
     }
-    n = net_resolve_host(policy, host_buf, net_default_port(target, policy),
-                         addrs, err, errsz);
+    n = net_resolve_host(policy, host_buf, port, addrs, err, errsz);
     if (n == 0) {
         return NGX_ERROR;
     }

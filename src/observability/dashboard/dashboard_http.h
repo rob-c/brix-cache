@@ -182,8 +182,10 @@ ngx_int_t ngx_http_brix_dashboard_login_handler(ngx_http_request_t *r);
  * username field in multi-user mode); conf is borrowed, not retained.
  * Fails closed: any missing/malformed/expired/forged cookie yields
  * NGX_HTTP_UNAUTHORIZED and appends a dashboard AUTH audit event as a side
- * effect. Returns NGX_OK when valid OR when no password/users are configured
- * (dashboard is then open and the cookie is not inspected).
+ * effect. Returns NGX_OK only when the cookie is valid. An unset password or
+ * empty users file fails closed with NGX_HTTP_UNAUTHORIZED; callers that
+ * explicitly enable the anonymous tier may handle that result by serving only
+ * the redacted read surface.
  */
 ngx_int_t ngx_http_brix_dashboard_check_auth(ngx_http_request_t *r,
     const ngx_http_brix_dashboard_loc_conf_t *conf,

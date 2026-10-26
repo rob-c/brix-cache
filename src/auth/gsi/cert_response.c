@@ -337,6 +337,16 @@ gsi_sign_client_rtag(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 }
 
+/* Store a big-endian uint32 at a possibly-unaligned wire position. */
+static inline void
+gsi_wire_put_u32(u_char *p, uint32_t v)
+{
+    uint32_t be = htonl(v);
+
+    ngx_memcpy(p, &be, sizeof(be));
+}
+
+
 /*
  * gsi_build_main_container — WHAT: build the nested kXRS_main container the
  * kXGS_cert carries as a single top-level kXRS_main bucket.  WHY: it is NOT a
@@ -345,17 +355,19 @@ gsi_sign_client_rtag(brix_ctx_t *ctx, ngx_connection_t *c,
  *   "gsi\0"                      protocol name (4 bytes, NUL-padded)
  *   kXGS_cert                    opcode (uint32, 4 bytes)
  *   [ kXRS_signed_rtag bucket ]  optional: type(4) + len(4) + signature
+ *   kXRS_rtag bucket             fresh server proof challenge (8 bytes)
  *   kXRS_none                    terminator (uint32, 4 bytes)
- * HOW: reserve the fixed 12 bytes (name + opcode + terminator) plus, when the
- * rtag was signed, the 8-byte bucket header and signature; then walk mp
- * byte-by-byte to emit the layout.  Returns NGX_OK with *buf_out / *len_out set.
+ * HOW: reserve the fixed framing, mandatory challenge, and optional signed
+ * client tag; then walk mp byte-by-byte.  gsi_wire_put_u32 keeps every write
+ * alignment-safe.  Returns NGX_OK with *buf_out / *len_out set.
  */
 static ngx_int_t
 gsi_build_main_container(ngx_connection_t *c,
     const u_char *signed_rtag, size_t signed_rtag_len,
+    const u_char server_rtag[BRIX_GSI_RTAG_LEN],
     u_char **buf_out, size_t *len_out)
 {
-    size_t  main_len = 4 + 4 + 4;
+    size_t  main_len = 4 + 4 + 4 + 4 + 4 + BRIX_GSI_RTAG_LEN;
     u_char *main_buf;
     u_char *mp;
 
@@ -371,17 +383,23 @@ gsi_build_main_container(ngx_connection_t *c,
     mp[2] = 'i';
     mp[3] = '\0';
     mp += 4;
-    *(uint32_t *) mp = htonl(kXGS_cert);
+    gsi_wire_put_u32(mp, kXGS_cert);
     mp += 4;
     if (signed_rtag_len > 0) {
-        *(uint32_t *) mp = htonl(kXRS_signed_rtag);
+        gsi_wire_put_u32(mp, kXRS_signed_rtag);
         mp += 4;
-        *(uint32_t *) mp = htonl((uint32_t) signed_rtag_len);
+        gsi_wire_put_u32(mp, (uint32_t) signed_rtag_len);
         mp += 4;
         ngx_memcpy(mp, signed_rtag, signed_rtag_len);
         mp += signed_rtag_len;
     }
-    *(uint32_t *) mp = htonl(kXRS_none);
+    gsi_wire_put_u32(mp, kXRS_rtag);
+    mp += 4;
+    gsi_wire_put_u32(mp, BRIX_GSI_RTAG_LEN);
+    mp += 4;
+    ngx_memcpy(mp, server_rtag, BRIX_GSI_RTAG_LEN);
+    mp += BRIX_GSI_RTAG_LEN;
+    gsi_wire_put_u32(mp, kXRS_none);
 
     BRIX_LOG_DEBUG(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXGS_cert signed rtag=%uz bytes main_len=%uz",
@@ -402,19 +420,6 @@ gsi_build_main_container(ngx_connection_t *c,
  * byte layout is frozen and identical to the pre-split assembly.  Returns the
  * brix_queue_response() result (NGX_OK on queued).
  */
-/* Store a big-endian uint32 at a possibly-unaligned wire position. The bucket
- * payloads (pub/calg/malg/cert) are variable length, so `p` is not generally
- * 4-aligned when the next type/len word is written — a plain `*(uint32_t*)p =`
- * is a misaligned store (UB; UBSan-flagged; faults on strict-alignment arches).
- * memcpy is the portable, alignment-safe equivalent and compiles to the same
- * store on x86. */
-static inline void
-gsi_wire_put_u32(u_char *p, uint32_t v)
-{
-    uint32_t be = htonl(v);
-    ngx_memcpy(p, &be, sizeof(be));
-}
-
 static ngx_int_t
 gsi_frame_cert_response(brix_ctx_t *ctx, ngx_connection_t *c,
     const gsi_cert_chunks_t *ch)
@@ -541,12 +546,29 @@ brix_gsi_send_cert(brix_ctx_t *ctx, ngx_connection_t *c)
 
     gsi_sign_client_rtag(ctx, c, conf, &signed_rtag, &signed_rtag_len);
 
+    OPENSSL_cleanse(ctx->gsi.auth_rtag, sizeof(ctx->gsi.auth_rtag));
+    ctx->gsi.auth_rtag_valid = 0;
+    if (!brix_gsi_rand_tag(ctx->gsi.auth_rtag)) {
+        return NGX_ERROR;
+    }
+    ctx->gsi.auth_rtag_valid = 1;
+
     if (gsi_build_main_container(c, signed_rtag, signed_rtag_len,
+                                 ctx->gsi.auth_rtag,
                                  (u_char **) &ch.main_buf, &ch.main_len)
         != NGX_OK)
     {
+        OPENSSL_cleanse(ctx->gsi.auth_rtag, sizeof(ctx->gsi.auth_rtag));
+        ctx->gsi.auth_rtag_valid = 0;
         return NGX_ERROR;
     }
+    {
+        ngx_int_t rc = gsi_frame_cert_response(ctx, c, &ch);
 
-    return gsi_frame_cert_response(ctx, c, &ch);
+        if (rc != NGX_OK) {
+            OPENSSL_cleanse(ctx->gsi.auth_rtag, sizeof(ctx->gsi.auth_rtag));
+            ctx->gsi.auth_rtag_valid = 0;
+        }
+        return rc;
+    }
 }

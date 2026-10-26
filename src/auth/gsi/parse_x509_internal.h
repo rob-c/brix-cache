@@ -35,11 +35,12 @@ void gsi_capture_fullproxy(brix_ctx_t *ctx, const u_char *plain,
                            size_t plain_len);
 
 STACK_OF(X509) *gsi_chain_from_plaintext(const u_char *plain, int plain_len,
-                                         ngx_log_t *log);
+    const u_char expected_rtag[BRIX_GSI_RTAG_LEN], ngx_log_t *log);
 
 int gsi_arm_request_signing(brix_ctx_t *ctx);
 
 STACK_OF(X509) *brix_gsi_parse_x509_signed(brix_ctx_t *ctx,
-                                           ngx_connection_t *c);
+    ngx_connection_t *c,
+    const u_char expected_rtag[BRIX_GSI_RTAG_LEN]);
 
 #endif /* BRIX_GSI_PARSE_X509_INTERNAL_H */

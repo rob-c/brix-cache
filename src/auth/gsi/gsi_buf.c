@@ -45,6 +45,74 @@ brix_gsi_find_bucket(const uint8_t *buf, size_t len, uint32_t type,
         }
         cur += blen;
     }
+
+    return -1;
+}
+
+
+int
+brix_gsi_find_unique_bucket(const uint8_t *buf, size_t len, uint32_t type,
+                              const uint8_t **out, size_t *outlen)
+{
+    const uint8_t *cur = buf;
+    const uint8_t *end;
+    const uint8_t *found = NULL;
+    size_t         found_len = 0;
+    size_t         name_len;
+    unsigned       matches = 0;
+
+    if (buf == NULL || out == NULL || outlen == NULL || len < 12) {
+        return -1;
+    }
+    end = buf + len;
+    name_len = strnlen((const char *) cur, len);
+    if (name_len == len || name_len + 1 > len - 4) {
+        return -1;
+    }
+    cur += name_len + 1 + 4;                 /* protocol NUL + step */
+
+    while ((size_t) (end - cur) >= 4) {
+        uint32_t btype;
+        uint32_t blen;
+
+        memcpy(&btype, cur, sizeof(btype));
+        btype = ntohl(btype);
+        cur += sizeof(btype);
+        if (btype == (uint32_t) kXRS_none) {
+            if (cur != end || matches != 1) {
+                return -1;
+            }
+            *out = found;
+            *outlen = found_len;
+            return 0;
+        }
+        if ((size_t) (end - cur) < sizeof(blen)) {
+            return -1;
+        }
+        memcpy(&blen, cur, sizeof(blen));
+        blen = ntohl(blen);
+        cur += sizeof(blen);
+        if ((size_t) (end - cur) < (size_t) blen) {
+            return -1;
+        }
+        if (btype == type) {
+            matches++;
+            found = cur;
+            found_len = (size_t) blen;
+        }
+        cur += blen;
+    }
+
+    /* XrdSutBuffer has two interoperable encodings in the field: some peers
+     * append kXRS_none, while others rely on the enclosing buffer length.  In
+     * the latter form, exact exhaustion is the terminator.  A 1--3 byte tail,
+     * a truncated header/payload, or anything after an explicit kXRS_none was
+     * rejected above and must remain an error. */
+    if (cur == end && matches == 1) {
+        *out = found;
+        *outlen = found_len;
+        return 0;
+    }
     return -1;
 }
 

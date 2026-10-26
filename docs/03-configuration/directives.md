@@ -1798,8 +1798,10 @@ Password required by the HTTPS monitoring dashboard login form.
 brix_dashboard_password "change-me";
 ```
 
-Always set this directive in production. If it is omitted, the dashboard
-location is treated as unauthenticated. The session cookie is marked `Secure`,
+Always set this directive in production. If it is omitted and no usable
+`brix_dashboard_users` file is configured, authenticated dashboard routes fail
+closed. Only an explicitly enabled `brix_dashboard_anonymous` read tier remains
+available, and its response is redacted. The session cookie is marked `Secure`,
 `HttpOnly`, and `SameSite=Strict`.
 
 ---
@@ -1895,9 +1897,11 @@ directive cannot be used together with `brix_dashboard_password`.
 brix_dashboard_users /etc/nginx/brix-dashboard.htpasswd;
 ```
 
-The file is read during nginx config validation/startup. Dashboard audit events
-record login success and failure by username, but never record passwords or
-cookie values.
+The file is read during nginx config validation/startup. A file with no usable
+entries does not create an open dashboard: authenticated routes fail closed,
+while an explicitly enabled anonymous read tier remains redacted. Dashboard
+audit events record login success and failure by username, but never record
+passwords or cookie values.
 
 ---
 

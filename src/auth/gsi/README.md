@@ -44,7 +44,7 @@ attacker or a handshake burst can impose.
 | File | Responsibility |
 |------|----------------|
 | `auth.c` | `brix_handle_auth()` — the public, rate-limited `kXR_auth` entry point and its inner dispatcher. Reads the 4-byte credtype, routes to the right handler, runs the full GSI round-2 path (parse → `brix_gsi_verify_chain` → optional OCSP → DN/VOMS extraction → identity + session registration → metrics), and enforces the `BRIX_MAX_AUTH_ATTEMPTS` brute-force limit. |
-| `cert_response.c` | `brix_gsi_send_cert()` — GSI round 1. Pops/generates an ephemeral DH key, hex-encodes the public value as a `---BPUB---…---EPUB--` blob, optionally RSA-signs the client `rtag`, and assembles the `kXGS_cert` (`kXR_authmore`) wire response with `kXRS_puk`/`kXRS_cipher_alg`/`kXRS_md_alg`/`kXRS_x509`/`kXRS_main` buckets. |
+| `cert_response.c` | `brix_gsi_send_cert()` — GSI round 1. Pops/generates an ephemeral DH key, hex-encodes the public value as a `---BPUB---…---EPUB--` blob, optionally RSA-signs the client `rtag`, generates the fresh server `rtag` that the round-2 client must sign, and assembles the `kXGS_cert` (`kXR_authmore`) wire response with `kXRS_puk`/`kXRS_cipher_alg`/`kXRS_md_alg`/`kXRS_x509`/`kXRS_main` buckets. |
 | `parse_x509.c` | `brix_gsi_parse_x509()` — GSI round 2 top-level. Extracts client DH public + encrypted `kXRS_main`, derives the DH shared secret, sets `ctx->signing_key`/`ctx->signing_active`, AES-CBC-decrypts the chain, and returns the parsed `STACK_OF(X509)` (caller frees). |
 | `parse_crypto_helpers.c` | OpenSSL building blocks for round 2: `brix_gsi_parse_client_dh_public_key()` (decode the BPUB/EPUB hex blob → `BIGNUM`), `brix_gsi_select_cipher_name()` (pick the cipher from `kXRS_cipher_alg`), `brix_gsi_build_peer_dh_key()` (build the client peer `EVP_PKEY` from merged server params + client pub). |
 | `buffer.c` | `gsi_find_bucket()` — the XrdSutBuffer binary parser. Safely scans an untrusted `[type:BE][len:BE][data]` bucket list (terminated by `kXRS_none`) for one bucket type. Used by every GSI handler to locate buckets. |
@@ -114,8 +114,11 @@ Execution **enters** at `brix_handle_auth()`, called from
   key from `keypool.c` (refilling via `../aio/` thread-pool tasks) and uses
   `gsi_find_bucket()` (`buffer.c`) to locate the client `rtag`. The server cert
   PEM it ships was cached at config time by `brix_configure_gsi()` (`config.c`).
-- **GSI round 2** → `brix_gsi_parse_x509()` (`parse_x509.c`) + the helpers in
-  `parse_crypto_helpers.c`, then chain verification in `../crypto/` (`src/auth/crypto/gsi_verify.h`),
+- **GSI round 2** → `brix_gsi_parse_x509()` (`parse_x509.c`) consumes the
+  connection's server `rtag` exactly once and requires a unique
+  `kXRS_signed_rtag` made by the presented leaf key, then uses the helpers in
+  `parse_crypto_helpers.c` and chain verification in `../crypto/`
+  (`src/auth/crypto/gsi_verify.h`),
   optional revocation via `../crypto/ocsp.h`, and VOMS attribute extraction in
   `../voms/` (`brix_extract_voms_info`, runtime-dlopen, gated by
   `brix_voms_available()`).

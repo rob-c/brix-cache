@@ -80,15 +80,12 @@ tiers are filling, evicting and being read reports `cache.enabled=false` with
 an empty `listeners` array — no occupancy, no eviction counters — while the
 storage census two keys away lists those very tiers.
 
-DEFECT CANDIDATE #43 (security, directive that does nothing) — `brix_dashboard_
-anonymous on` is a no-op unless a password or users file is also configured.
-`ngx_http_brix_dashboard_check_auth()` returns NGX_OK for EVERY request when no
-credential is configured (auth.c:232, "No password configured — dashboard
-accessible without auth"), so `redact` stays 0 and the unauthenticated caller
-receives the full admin payload — export roots, listen ports, origin host and
-port — with the payload's own `anonymous` flag reading false.  The operator who
-writes the directive to DOWNGRADE anonymous viewers to the redacted tier gets
-the opposite of what they asked for, and nothing at parse time says so.
+DEFECT CANDIDATE #43 (security, FIXED) — `brix_dashboard_anonymous on`
+previously became a no-op when no password or users were configured because
+`ngx_http_brix_dashboard_check_auth()` returned NGX_OK without a cookie. The
+shared verifier now fails closed when no usable credential exists, so the
+explicit anonymous caller handles that result only by serving its redacted
+read tier; auth-only routes still return 401.
 
 DEFECT CANDIDATE #44 (security, silent no-op) — `brix_authdb` on a CVMFS export
 is parsed and never consulted.  `src/protocols/cvmfs/` contains no reference to

@@ -119,6 +119,9 @@ brix_release_disconnect_crypto_state(brix_ctx_t *ctx)
         ctx->gsi.dh_key = NULL;
     }
 
+    OPENSSL_cleanse(ctx->gsi.auth_rtag, sizeof(ctx->gsi.auth_rtag));
+    ctx->gsi.auth_rtag_valid = 0;
+
     /* §F6: release any captured X.509 delegation state + cleanse the session key. */
     brix_gsi_delegation_cleanup(ctx);
 

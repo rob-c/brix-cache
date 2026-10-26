@@ -11,7 +11,7 @@
  * the AES machinery keeps the key material handling (cleanse-on-every-exit) in one auditable place.
  *
  * HOW: macaroon_decrypt_vid_inner() disables PKCS7 padding (the plaintext is always two AES blocks), runs
- * EVP_DecryptInit/Update/Final over vid[16..] with vid[0..15] as IV, verifies ≥32 plaintext bytes, and copies the
+ * EVP_DecryptInit/Update/Final over vid[16..] with vid[0..15] as IV, verifies exactly 32 plaintext bytes, and copies the
  * 32-byte key out. macaroon_decrypt_vid() allocates the context, bundles the operands into a macaroon_vid_t, invokes
  * the inner routine, then OPENSSL_cleanse()es the plaintext scratch and frees the context on every path. */
 
@@ -52,7 +52,7 @@ typedef struct {
  * Inner AES-256-CBC decrypt over an already-created ctx, writing the plaintext
  * into the caller's `plain` scratch and, on success, copying the recovered
  * 32-byte discharge key out. Returns 0 on success, -1 on any OpenSSL failure or
- * a plaintext shorter than 32 bytes. The caller owns ctx and the cleanse/free of
+ * a plaintext length other than 32 bytes. The caller owns ctx and the cleanse/free of
  * plain — keeping that cleanup at the edge lets this use flat early returns.
  */
 static int
@@ -66,11 +66,12 @@ macaroon_decrypt_vid_inner(EVP_CIPHER_CTX *ctx, u_char *plain,
      * blocks), so the ciphertext is always a multiple of the block size.
      * This avoids ambiguity regardless of whether the issuer used padding.
      */
-    EVP_CIPHER_CTX_set_padding(ctx, 0);
-
     /* vid[0..15] = IV; vid[16..] = ciphertext; aes_key = 32-byte HMAC sig */
     if (EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, v->aes_key, v->vid)
         != 1) {
+        return -1;
+    }
+    if (EVP_CIPHER_CTX_set_padding(ctx, 0) != 1) {
         return -1;
     }
 
@@ -83,7 +84,7 @@ macaroon_decrypt_vid_inner(EVP_CIPHER_CTX *ctx, u_char *plain,
         return -1;
     }
 
-    if (olen + flen < 32) {
+    if (olen + flen != 32) {
         return -1;
     }
 
@@ -91,10 +92,10 @@ macaroon_decrypt_vid_inner(EVP_CIPHER_CTX *ctx, u_char *plain,
     return 0;
 }
 
-/* WHAT: Decrypt a third-party caveat vid blob to recover the discharge macaroon's 32-byte root key via AES-256-CBC.
+/* WHAT: Decrypt an exact 48-byte third-party caveat vid blob to recover the discharge macaroon's 32-byte root key via AES-256-CBC.
  * WHY: At macaroon creation time, the discharge key was encrypted as vid = [16-byte IV] || AES-256-CBC(sig_before_cid, discharge_key).
  * sig_before_cid (the HMAC signature before cid update) serves as the AES decryption key. This function reverses that encryption so we can validate the discharge macaroon with its recovered root key.
- * HOW: Validate vid_len≥32 (16-byte IV + minimum 16-byte ciphertext); EVP_CIPHER_CTX_new(); bundle operands into macaroon_vid_t; call macaroon_decrypt_vid_inner (set_padding=0, DecryptInit/Update/Final, verify ≥32 plaintext, copy key out); OPENSSL_cleanse plain; brix_evp_cipher_ctx_free(ctx); return 0 success or -1 failure. */
+ * HOW: Require vid_len == 48 (16-byte IV + 32-byte ciphertext); EVP_CIPHER_CTX_new(); bundle operands into macaroon_vid_t; call macaroon_decrypt_vid_inner (set_padding=0, DecryptInit/Update/Final, verify exactly 32 plaintext bytes, copy key out); OPENSSL_cleanse plain; brix_evp_cipher_ctx_free(ctx); return 0 success or -1 failure. */
 int
 macaroon_decrypt_vid(const u_char *vid, size_t vid_len,
     const u_char *aes_key, u_char *discharge_key)
@@ -104,8 +105,8 @@ macaroon_decrypt_vid(const u_char *vid, size_t vid_len,
     int             rc;
     macaroon_vid_t  v;
 
-    /* Need at least 16-byte IV + 16-byte ciphertext (one AES block) */
-    if (vid_len < 32) {
+    /* The interoperable format is exactly a 16-byte IV and two AES blocks. */
+    if (vid_len != BRIX_MACAROON_VID_LEN) {
         return -1;
     }
 

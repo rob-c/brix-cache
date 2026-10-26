@@ -216,7 +216,22 @@ dash_auth_verify_hmac(const dash_cookie_parse_t *ps, const char *ts_str,
     return NGX_OK;
 }
 
-/* Public: check auth cookie */
+/* ---- Validate one dashboard session cookie ----
+ *
+ * WHAT: Verifies the configured dashboard credential mode and the request's
+ *       signed session cookie. Returns NGX_OK only for a valid cookie, or
+ *       NGX_HTTP_UNAUTHORIZED when credentials are unavailable or the cookie
+ *       is missing, malformed, expired, or forged.
+ *
+ * WHY: Every full-detail and auth-only dashboard route shares this boundary;
+ *      an unconfigured or empty credential store must never become an
+ *      authenticated session. Explicit anonymous read routes handle the
+ *      unauthorized result separately and serve only their redacted view.
+ *
+ * HOW: 1. Reject an empty single-user key and an empty multi-user store.
+ *      2. Extract and structurally validate the session cookie fields.
+ *      3. Resolve its configured key, enforce freshness, and verify its HMAC.
+ */
 ngx_int_t
 ngx_http_brix_dashboard_check_auth(ngx_http_request_t *r,
     const ngx_http_brix_dashboard_loc_conf_t *conf,
@@ -231,8 +246,13 @@ ngx_http_brix_dashboard_check_auth(ngx_http_request_t *r,
     dash_cookie_parse_t   ps;
 
     if (conf->password.len == 0 && !dashboard_users_enabled(conf)) {
-        /* No password configured — dashboard accessible without auth. */
-        return NGX_OK;
+        if (!suppress_missing_cookie) {
+            brix_dashboard_event_add(BRIX_DASH_EVENT_AUTH, 0,
+                                       NGX_HTTP_UNAUTHORIZED,
+                                       "dashboard auth has no usable credentials",
+                                       NULL);
+        }
+        return NGX_HTTP_UNAUTHORIZED;
     }
 
     /* Cookie layout (see file header): "<64-hex HMAC>.<ts>" in single-user mode,
