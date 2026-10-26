@@ -62,7 +62,7 @@ def _run(probe, mode, url, *policy):
         ("https://example.org#part", "https|example.org|0|0|#part"),
         ("https://[2001:db8::1]:443/#part", "https|2001:db8::1|443|1|/#part"),
         ("HTTPS://example.org./", "HTTPS|example.org.|0|0|/"),
-        ("https://127.0.0.1/", "https|127.0.0.1|0|0|/"),
+        ("https://127.0.0.1/", "https|127.0.0.1|0|0|/"),  # net-literal-allow: URL parser IP subject
     ],
 )
 def test_valid_targets_have_one_unambiguous_authority(net_target_probe, url, expected):
@@ -75,7 +75,7 @@ def test_valid_targets_have_one_unambiguous_authority(net_target_probe, url, exp
 @pytest.mark.parametrize(
     "url",
     [
-        "https://[2001:db8::1]@127.0.0.1/private",
+        "https://[2001:db8::1]@127.0.0.1/private",  # net-literal-allow: userinfo smuggling subject
         "https://user@example.org/private",
         "https://[2001:db8::1]evil/private",
         "https://[example.org]/private",
@@ -88,7 +88,7 @@ def test_valid_targets_have_one_unambiguous_authority(net_target_probe, url, exp
         "https://-example.org/private",
         "https://example-.org/private",
         "https://exam%70le.org/private",
-        "https://example.org\\@127.0.0.1/private",
+        "https://example.org\\@127.0.0.1/private",  # net-literal-allow: backslash authority smuggling subject
         "https://example.org/unsafe path",
         "https://example.org/unsafe\tpath",
         "1https://example.org/private",
@@ -96,7 +96,7 @@ def test_valid_targets_have_one_unambiguous_authority(net_target_probe, url, exp
         "https://0x7f000001/private",
         "https://2130706433/private",
         "https://127.1/private",
-        "https://127.0.0.1./private",
+        "https://127.0.0.1./private",  # net-literal-allow: ambiguous IPv4 spelling subject
     ],
 )
 def test_ambiguous_or_malformed_targets_fail_before_resolution(net_target_probe, url):

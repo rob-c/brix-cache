@@ -347,7 +347,7 @@ class TestTheDocumentedOverrideOnlyWorksWrittenFirst:
     def test_the_override_written_first_loads(self, tmp_path):
         rc, out = _parse(tmp_path, KNOBS=("        brix_manager_mode off;\n"
                                           "        brix_cms_server_allow 127.0.0.1/32;\n"
-                                          "        brix_cms_server on;\n"))
+                                          "        brix_cms_server on;\n"))  # net-literal-allow: config-parser ACL subject
         assert rc == 0, out
 
     def test_the_override_written_after_is_a_hard_refusal(self, tmp_path):
@@ -356,7 +356,7 @@ class TestTheDocumentedOverrideOnlyWorksWrittenFirst:
         does not load at all."""
         rc, out = _parse(tmp_path, KNOBS=("        brix_cms_server on;\n"
                                           "        brix_cms_server_allow 127.0.0.1/32;\n"
-                                          "        brix_manager_mode off;\n"))
+                                          "        brix_manager_mode off;\n"))  # net-literal-allow: config-parser ACL subject
         assert rc != 0, (
             "brix_cms_server on followed by brix_manager_mode off now loads; if "
             "the derivation stopped writing the slot directly, #109 is fixed")
@@ -368,7 +368,7 @@ class TestTheDocumentedOverrideOnlyWorksWrittenFirst:
         mentions `brix_cms_server`, which is the line that wrote it first."""
         rc, out = _parse(tmp_path, KNOBS=("        brix_cms_server on;\n"
                                           "        brix_cms_server_allow 127.0.0.1/32;\n"
-                                          "        brix_manager_mode off;\n"))
+                                          "        brix_manager_mode off;\n"))  # net-literal-allow: config-parser ACL subject
         assert rc != 0, out
         refusal = [ln for ln in _diagnostics(out) if "duplicate" in ln]
         assert refusal, _diagnostics(out)
@@ -381,7 +381,7 @@ class TestTheDocumentedOverrideOnlyWorksWrittenFirst:
         not the parser objecting to an override — it cannot tell the two apart."""
         rc, out = _parse(tmp_path, KNOBS=("        brix_cms_server on;\n"
                                           "        brix_cms_server_allow 127.0.0.1/32;\n"
-                                          "        brix_manager_mode on;\n"))
+                                          "        brix_manager_mode on;\n"))  # net-literal-allow: config-parser ACL subject
         assert rc != 0, out
         assert "duplicate" in out, out
 
@@ -407,7 +407,7 @@ class TestTheDocumentedOverrideOnlyWorksWrittenFirst:
                  "    }\n")
         rc, out = _parse(tmp_path, KNOBS=(
                          "        brix_cms_server on;\n"
-                         "        brix_cms_server_allow 127.0.0.1/32;\n"),
+                         "        brix_cms_server_allow 127.0.0.1/32;\n"),  # net-literal-allow: config-parser ACL subject
                          EXTRA=extra)
         assert rc == 0, out
 

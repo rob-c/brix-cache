@@ -60,6 +60,7 @@ from _test_phase115_cms_select_proxy_helpers import (
     kXR_mv,
     kXR_ok,
     kXR_open_read,
+    kXR_read,
     kXR_redirect,
     kXR_rm,
 )

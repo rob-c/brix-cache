@@ -124,4 +124,8 @@ ngx_int_t fattr_del(brix_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t fattr_list(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_vfs_ctx_t *vctx, const char *path, int fd, int options);
 
+/* Dispatch the local recursive-list extension; zero means use the flat path. */
+int fattr_list_try_recurse(brix_ctx_t *ctx, ngx_connection_t *c,
+    brix_vfs_ctx_t *vctx, const char *path, int options, ngx_int_t *out);
+
 #endif /* NGX_BRIX_FATTR_H */

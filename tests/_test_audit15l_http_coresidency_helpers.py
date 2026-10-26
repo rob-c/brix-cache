@@ -137,6 +137,7 @@ MID = b"M" * 200_000          # over brix_cache_max_object, under the spool cap
 HUGE = b"H" * 3_000_000       # over both
 
 AUTHDB = "u * /acl/pub rl\n"
+DASHBOARD_PASSWORD = "audit15l-dashboard-password"
 
 DEFECT39 = (
     "DEFECT CANDIDATE #39 has been FIXED: the SRR site capacity no longer sums "
@@ -230,6 +231,7 @@ def httpcores(lifecycle, tmp_path):
                          "PT_MAX": PT_MAX,
                          "AUTHDB": str(authdb),
                          "SRR_HOST": HOST,
+                         "DASHBOARD_PASSWORD": DASHBOARD_PASSWORD,
                          "TMP_DIR": str(tmp)},
         reason="audit-15l: the HTTP plane's tiers and faces in one block"))
     return endpoint, cache_root, data
@@ -246,6 +248,21 @@ def _url(endpoint, path, port=None):
 def _get(endpoint, path, **kwargs):
     kwargs.setdefault("timeout", 60)
     return requests.get(_url(endpoint, path, kwargs.pop("port", None)), **kwargs)
+
+
+def _dashboard_snapshot(endpoint, port=None):
+    """Return the authenticated, unredacted snapshot on one dashboard face."""
+    base = f"http://{HOST}:{port or endpoint.port}"
+    login = requests.post(base + "/brix/login",
+                          data={"password": DASHBOARD_PASSWORD},
+                          allow_redirects=False, timeout=10)
+    cookie = login.cookies.get("xrd_dashboard")
+    assert cookie, (login.status_code, login.headers, login.text)
+    snapshot = requests.get(base + "/brix/api/v1/snapshot",
+                            headers={"Cookie": f"xrd_dashboard={cookie}"},
+                            timeout=60)
+    assert snapshot.status_code == 200, (snapshot.status_code, snapshot.text)
+    return snapshot.json()
 
 
 def _errlog(endpoint):

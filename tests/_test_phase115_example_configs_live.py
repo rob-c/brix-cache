@@ -79,7 +79,9 @@ def _localise(text):
     localises the same positions for `nginx -t`, and a second copy here would be
     free to drift from the alias list it is derived from.
     """
-    return lib.localise_service_hosts(text)
+    localised = lib.localise_service_hosts(text)
+    return re.sub(r"(?m)^(\s*brix_cms_server_allow)\s+[^;\n]+;",
+                  r"\g<1> 127.0.0.1/32;", localised)  # net-literal-allow: local CMS peers use the IPv4 loopback selected by the renderer
 
 
 def _wait_ports(ports, log, deadline=30.0):
@@ -207,6 +209,30 @@ def test_localise_points_only_service_host_ports_at_loopback():
     assert _localise(text) == ("brix_storage_backend root://127.0.0.1:1095;\n"  # net-literal-allow: config directive text is the parser's input
                                "brix_cms_manager 127.0.0.1:1213;\nproxy_pass https://127.0.0.1:8444;\n"
                                "brix_tap_proxy_upstream 127.0.0.1:1095;\n")
+
+
+def test_localise_restricts_cms_admission_to_the_local_runtime_peer():
+    text = ("stream {\n        brix_cms_server_allow 172.30.121.0/24;\n"  # net-literal-allow: shipped compose subnet is the transformation input
+            "        brix_cms_manager manager:1213;\n}\n")
+    assert _localise(text) == (
+        "stream {\n        brix_cms_server_allow 127.0.0.1/32;\n"  # net-literal-allow: local renderer intentionally confines CMS admission to loopback
+        "        brix_cms_manager 127.0.0.1:1213;\n}\n")
+
+
+def test_localise_rebinds_the_shipped_cms_policy_without_mutating_it():
+    config = COMPOSE / "cms-cluster" / "nginx-manager.conf"
+    original = config.read_text()
+    assert "brix_cms_server_allow 172.30.121.0/24;" in original  # net-literal-allow: the shipped Docker subnet is pinned here
+    localised = _localise(original)
+    assert "brix_cms_server_allow 127.0.0.1/32;" in localised  # net-literal-allow: the local CMS listener must accept only its loopback peer
+    assert "brix_cms_server_allow 172.30.121.0/24;" not in localised  # net-literal-allow: Docker-only admission must not survive local rendering
+    assert config.read_text() == original
+
+
+def test_localise_never_rewrites_commented_or_similar_cms_policy_text():
+    text = ("# brix_cms_server_allow 172.30.121.0/24;\n"  # net-literal-allow: commented shipped policy is the negative fixture
+            "x_brix_cms_server_allow 172.30.121.0/24;\n")  # net-literal-allow: similarly named fixture must not become an active policy
+    assert _localise(text) == text
 
 
 def test_localise_leaves_names_that_are_not_resolved_at_runtime():

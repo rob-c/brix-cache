@@ -13,6 +13,11 @@ from settings import BIND_HOST
 
 pytestmark = pytest.mark.uses_lifecycle_harness
 
+_FATTR_LIST_WITH_DATA = 0x10
+_FATTR_LIST_RECURSE = 0x20
+_FATTR_RESPONSE_CAP = 256 * 1024
+_FATTR_VALUE_MAX = 65536
+
 
 @pytest.fixture
 def attribute_target(lifecycle, tmp_path):
@@ -51,6 +56,106 @@ def _error_vector(names, code):
     """Pin the entire expected response, including every empty value slot."""
     records = b''.join(struct.pack('!H', code) + name.encode() + b'\0' for name in names)
     return bytes((len(names), len(names))) + records + b'\0\0\0\0' * len(names)
+
+
+def _large_fattr_list(target, count):
+    """Store protocol-maximum values, then request the value-bearing list."""
+    endpoint, _root, _outside = target
+    names = [f'large{index}' for index in range(count)]
+    values = [bytes((65 + index,)) * _FATTR_VALUE_MAX for index in range(count)]
+    connection = _session(endpoint.port)
+    status, body = _fattr(connection, '/present', 3, count,
+                          names=names, values=values)
+    assert status == 0 and body[:2] == bytes((0, count)), (status, body[:16])
+    status, body = _fattr(connection, '/present', 2, 0,
+                          options=_FATTR_LIST_WITH_DATA)
+    return connection, names, values, status, body
+
+
+def _decode_fattr_list_values(body):
+    """Decode the complete name-NUL/length/value sequence; reject truncation."""
+    decoded = {}
+    offset = 0
+    while offset < len(body):
+        end = body.find(b'\0', offset)
+        assert end >= 0 and end + 5 <= len(body)
+        name = body[offset:end].decode('ascii')
+        value_len = struct.unpack('!I', body[end + 1:end + 5])[0]
+        offset = end + 5
+        assert value_len <= len(body) - offset
+        decoded[name] = body[offset:offset + value_len]
+        offset += value_len
+    return decoded
+
+
+def test_value_bearing_fattr_list_accepts_a_bounded_large_response(attribute_target):
+    """Success: three maximum values fit and remain byte-exact."""
+    connection, names, values, status, body = _large_fattr_list(
+        attribute_target, 3)
+    connection.close()
+    assert status == 0, (status, body[:256])
+    assert len(body) <= _FATTR_RESPONSE_CAP
+    decoded = _decode_fattr_list_values(body)
+    for name, value in zip(names, values):
+        assert decoded[name] == value
+
+
+def test_value_bearing_fattr_list_rejects_an_over_cap_response(attribute_target):
+    """Error: four legal maximum values cannot overrun the fixed response."""
+    connection, _names, _values, status, body = _large_fattr_list(
+        attribute_target, 4)
+    connection.close()
+    assert status == 4003
+    assert struct.unpack('!I', body[:4])[0] == 3002
+    assert len(body) < _FATTR_RESPONSE_CAP
+
+
+def test_over_cap_fattr_list_keeps_the_session_and_attributes_intact(attribute_target):
+    """Security-negative: refusal is atomic and leaves the connection usable."""
+    connection, names, values, status, body = _large_fattr_list(
+        attribute_target, 4)
+    assert status == 4003 and struct.unpack('!I', body[:4])[0] == 3002
+    status, body = _fattr(connection, '/present', 2, 0)
+    assert status == 0
+    for name in names:
+        assert name.encode() + b'\0' in body
+    status, body = _fattr(connection, '/present', 1, 1, names=[names[-1]])
+    connection.close()
+    assert status == 0 and body.endswith(values[-1])
+
+
+def test_value_bearing_list_reads_a_native_direct_attribute(attribute_target):
+    """Direct native values use the bounded probe/read path and stay byte-exact."""
+    endpoint, root, _outside = attribute_target
+    value = bytes(range(256)) * 8
+    os.setxattr(root / 'present', 'user.U.native-direct', value)
+    with _session(endpoint.port) as connection:
+        status, body = _fattr(connection, '/present', 2, 0,
+                              options=_FATTR_LIST_WITH_DATA)
+    assert status == 0
+    assert _decode_fattr_list_values(body)['native-direct'] == value
+
+
+def test_recursive_list_refuses_over_cap_without_partial_success(attribute_target):
+    """Recursive enumeration rejects an oversized inventory and keeps the session."""
+    endpoint, root, _outside = attribute_target
+    bulk = root / 'bulk'
+    bulk.mkdir()
+    attr_name = 'a' * 240
+    for index in range(560):
+        name = f'f{index:04d}-' + ('x' * 230)
+        target = bulk / name
+        target.write_bytes(b'x')
+        os.setxattr(target, 'user.U.' + attr_name, b'x')
+
+    with _session(endpoint.port) as connection:
+        status, body = _fattr(connection, '/bulk', 2, 0,
+                              options=_FATTR_LIST_RECURSE)
+        assert status == 4003
+        assert struct.unpack('!I', body[:4])[0] == 3002
+        status, body = _fattr(connection, '/present', 1, 1,
+                              names=['project'])
+    assert status == 0 and body.endswith(b'cms')
 
 
 @pytest.mark.parametrize('path', ['/present', '/inside'])

@@ -3,260 +3,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
-#include "core/compat/alloc_guard.h"
-
-/* kXR_fa_recurse support */
-/*
- * kXR_fa_recurse is a local extension: when fattrList targets a directory the
- * server walks the subtree and emits one "<relpath>:<U.name>\0" entry per
- * managed xattr found on each regular file (NOT the standard XRootD behaviour).
- *
- * FATTR_RECURSE_XLIST_BUF — per-file listxattr() scratch; names longer than
- *   this whole buffer are silently skipped (return value <= 0 below).
- * FATTR_RECURSE_RESP_CAP  — hard ceiling on the assembled response; entries
- *   past the cap are dropped (see the rctx->len bound check), bounding both
- *   memory and wire frame size for huge trees.
- * FATTR_RECURSE_MAX_DEPTH — recursion guard against deep/symlink-loop trees.
- */
-#define FATTR_RECURSE_XLIST_BUF  BRIX_ROOT_FATTR_XLIST_BUF
-#define FATTR_RECURSE_RESP_CAP   BRIX_ROOT_FATTR_RESP_CAP
-#define FATTR_RECURSE_MAX_DEPTH  16
-
-typedef struct {
-    u_char     *buf;
-    size_t      cap;
-    size_t      len;
-    size_t      root_len;   /* length of root path; relpath = fullpath + root_len */
-    /* Carried so each visited node can build a transient VFS ctx (every opendir /
-     * lstat / listxattr in the walk routes through the confined VFS seam). */
-    const brix_vfs_ctx_t *vfs_scope;
-    ngx_log_t          *log;
-    ngx_pool_t         *pool;
-} fattr_recurse_ctx_t;
-
-/*
- *
- * WHAT: Initialises a transient per-node VFS ctx (vctx) for node_path, binding the
- *       enclosing op's confinement root, backend credential, and PASSTHROUGH
- *       delegation exactly as the top-level fattrList op did.
- *
- * WHY: Every opendir/listxattr in the recursive walk must route through the
- *       confined VFS seam under the SAME identity + credential gate as the parent
- *       op (not the shared service credential). Both the directory-open and the
- *       per-file-listxattr call sites need identical binding, so it lives here once.
- *
- * HOW: Non-metered, read-only (allow_write=0), cleartext (is_tls=0) init followed
- *       by the backend-cred bind and the deleg re-bind. No return value. */
-static void
-fattr_recurse_init_node_ctx(fattr_recurse_ctx_t *rctx, brix_vfs_ctx_t *vctx,
-    const char *node_path)
-{
-    (void) brix_vfs_ctx_derive_path(vctx, rctx->vfs_scope, node_path);
-}
-
-/*
- *
- * WHAT: Strides a NUL-separated xattr name list (xlist..xlist+list_sz), keeps the
- *       managed "user.U.*" keys, and appends one "<relpath>:<name>\0" entry per key
- *       into rctx->buf (bounded by rctx->cap).
- *
- * WHY: Factors the deepest nesting of the recursive walk (inner name loop + prefix
- *       filter + bounded append) out of fattr_recurse_dir. Behaviour is unchanged:
- *       over-cap entries are silently dropped (best-effort enumeration).
- *
- * HOW: For each name, filter on BRIX_FATTR_XKEY_PFX with a non-empty suffix, strip
- *       the full 7-byte internal prefix so the client sees the bare name it set,
- *       and append only if the whole entry fits. No return value. */
-static void
-fattr_recurse_emit_names(fattr_recurse_ctx_t *rctx, brix_vfs_ctx_t *vctx,
-    const char *fpath, const char *relpath, const char *xlist, ssize_t list_sz)
-{
-    const char *lp   = xlist;
-    const char *lend = xlist + list_sz;
-
-    /* Stride name-by-name through the NUL-separated list (lp..lend). */
-    while (lp < lend) {
-        size_t                full_nlen = strlen(lp);
-        brix_fattr_stored_t   stored;
-        int                   decoded;
-
-        decoded = fattr_storage_decode_list(rctx->pool, vctx, fpath, -1, lp,
-                                             &stored);
-        if (decoded == 1) {
-            /* Strip the full internal "user.U." prefix (7 bytes) so the
-             * client sees the bare name it set — the reference uses 'U' only
-             * as an internal SFS namespace and returns verbatim names in the
-             * List response (XeqFALsd). Returning "U.name" both diverged from
-             * stock AND broke list->get round-trips (a re-get of "U.name"
-             * would resolve to "user.U.U.name"). */
-            const char *resp_name   = stored.name;
-            size_t      resp_nlen   = stored.nlen;
-            size_t      relpath_len = strlen(relpath);
-            /* entry = "relpath:name\0" — +1 for ':' separator, +1 for NUL */
-            size_t      entry_len   = relpath_len + 1 + resp_nlen + 1;
-
-            /* Append only if it fits; over-cap entries are silently dropped. */
-            if (rctx->len + entry_len <= rctx->cap) {
-                ngx_memcpy(rctx->buf + rctx->len, relpath, relpath_len);
-                rctx->len += relpath_len;
-                rctx->buf[rctx->len++] = ':';
-                ngx_memcpy(rctx->buf + rctx->len, resp_name, resp_nlen);
-                rctx->len += resp_nlen;
-                rctx->buf[rctx->len++] = '\0';
-            }
-        }
-        /* Advance past this name and its NUL terminator. */
-        lp += full_nlen + 1;
-    }
-}
-
-/*
- *
- * WHAT: Processes a single non-directory child (fpath) discovered during the walk:
- *       for a regular file it reads the managed xattr names and emits the matching
- *       "<relpath>:<name>\0" entries into rctx.
- *
- * WHY: Isolates the per-file half of fattr_recurse_dir's loop body (regular-file
- *       gate, relpath computation, transient listxattr, name emission) so the
- *       walker stays a thin dir/file dispatcher.
- *
- * HOW: Non-regular files are ignored. relpath is fpath offset past root_len (and a
- *       leading '/'). A transient per-file ctx re-verifies confinement; listxattr
- *       fills a stack buffer whose NUL-separated names are strided by
- *       fattr_recurse_emit_names. No return value. */
-static void
-fattr_recurse_file(fattr_recurse_ctx_t *rctx, const char *fpath,
-    const brix_vfs_stat_t *vst)
-{
-    char           xlist[FATTR_RECURSE_XLIST_BUF];
-    ssize_t        list_sz;
-    const char    *relpath;
-    brix_vfs_ctx_t fvctx;
-
-    /* Only regular files carry managed xattrs we report. */
-    if (!vst->is_regular) {
-        return;
-    }
-
-    /* relpath = path relative to the recurse root (strip root + leading '/'). */
-    relpath = fpath + rctx->root_len;
-    if (*relpath == '/') {
-        relpath++;
-    }
-
-    /* listxattr (via the VFS) fills xlist with NUL-separated names; <=0 means
-     * none/error. A transient per-file ctx re-verifies confinement. */
-    fattr_recurse_init_node_ctx(rctx, &fvctx, fpath);
-    list_sz = brix_vfs_listxattr(&fvctx, xlist, sizeof(xlist));
-    if (list_sz <= 0) {
-        return;
-    }
-
-    fattr_recurse_emit_names(rctx, &fvctx, fpath, relpath, xlist, list_sz);
-}
-
-/*
- *
- * WHAT: Depth-first walk of dir_path. For every regular file it reads the file's
- *       xattr name list, keeps only the "user.U.*" managed keys, and appends an
- *       entry "<relpath>:<U.name>\0" (relpath = path relative to the recurse root)
- *       into rctx->buf, never exceeding rctx->cap.
- *
- * WHY: Lets a single fattrList on a directory enumerate all managed attributes in
- *       a subtree (a local convenience extension). lstat (not stat) is used so we
- *       descend real directories only and never follow symlinks into other trees;
- *       dotfiles are skipped to avoid . / .. recursion and hidden control files.
- *
- * HOW: Returns early past FATTR_RECURSE_MAX_DEPTH. Opens the dir via the VFS
- *       (brix_vfs_opendir_quiet) and iterates with brix_vfs_readdir, whose
- *       per-child lstat (nofollow) is the same "do not follow symlinks out of the
- *       subtree" guarantee — recurse into dirs, delegate files to
- *       fattr_recurse_file. No return value: results accumulate in rctx. */
-static void
-fattr_recurse_dir(fattr_recurse_ctx_t *rctx, const char *dir_path, int depth)
-{
-    brix_vfs_ctx_t   dvctx;
-    brix_vfs_dir_t  *dir;
-    ngx_str_t          name;
-    brix_vfs_stat_t  vst;
-    char               fpath[BRIX_PATH_MAX];
-    int                plen;
-
-    if (depth > FATTR_RECURSE_MAX_DEPTH) {
-        return;
-    }
-
-    /* Confined, non-metered open of this subtree directory (the enclosing
-     * fattrList op accounts for the whole walk). */
-    fattr_recurse_init_node_ctx(rctx, &dvctx, dir_path);
-    dir = brix_vfs_opendir_quiet(&dvctx, NULL);
-    if (dir == NULL) {
-        return;
-    }
-
-    /* readdir with a stat_out performs a per-child lstat (nofollow) — "." and
-     * ".." are already filtered by the VFS. */
-    while (brix_vfs_readdir(dir, &name, &vst) == NGX_OK) {
-        /* Skip any dotfile — avoids hidden control files (and self/parent). */
-        if (name.len == 0 || name.data[0] == '.') {
-            continue;
-        }
-
-        /* Build the absolute child path; drop entries that would truncate. */
-        plen = snprintf(fpath, sizeof(fpath), "%s/%s", dir_path,
-                        (char *) name.data);
-        if (plen < 0 || plen >= (int) sizeof(fpath)) {
-            continue;
-        }
-
-        if (vst.is_directory) {
-            fattr_recurse_dir(rctx, fpath, depth + 1);
-            continue;
-        }
-
-        fattr_recurse_file(rctx, fpath, &vst);
-    }
-
-    brix_vfs_closedir(dir, rctx->log);
-}
-
-/*
- *
- * WHAT: Allocates the response accumulator, seeds the walk context (root_len so
- *       child paths are reported relative to this directory), drives
- *       fattr_recurse_dir() over the tree, and sends the assembled
- *       "<relpath>:<U.name>\0" list as a kXR_fattr OK response.
- *
- * WHY: Entry point for the kXR_fa_recurse extension; isolates the one-shot buffer
- *       allocation and response framing from the recursive walker.
- *
- * HOW: Buffer comes from the connection pool (freed with the request). An empty
- *       result still returns OK with a NULL/0 body (valid empty list, not error). */
-static ngx_int_t
-fattr_list_recurse(brix_ctx_t *ctx, ngx_connection_t *c,
-    brix_vfs_ctx_t *vctx, const char *path)
-{
-    fattr_recurse_ctx_t rctx;
-    u_char             *buf;
-
-    BRIX_PALLOC_OR_RETURN(buf, c->pool, FATTR_RECURSE_RESP_CAP, brix_send_error(ctx, c, kXR_NoMemory, "out of memory"));
-
-    rctx.buf        = buf;
-    rctx.cap        = FATTR_RECURSE_RESP_CAP;
-    rctx.len        = 0;
-    rctx.root_len   = strlen(path);  /* relpath = fullpath + root_len in the walk */
-    rctx.vfs_scope             = vctx;
-    rctx.log                   = vctx->log;
-    rctx.pool                  = c->pool;
-
-    fattr_recurse_dir(&rctx, path, 0);
-
-    BRIX_OP_OK(ctx, BRIX_OP_FATTR);
-    if (rctx.len == 0) {
-        return brix_send_ok(ctx, c, NULL, 0);
-    }
-    return brix_send_ok(ctx, c, rctx.buf, (uint32_t) rctx.len);
-}
+#include "core/compat/safe_size.h"
 
 /* Outcome of the two-phase name-list read (fattr_list_read_names). When
  * `done` is set the caller must return `rc` verbatim (a terminal send already
@@ -268,34 +15,6 @@ typedef struct {
     char     *raw;       /* name-list buffer (valid when !done)        */
     ssize_t   actual;    /* bytes in raw (valid when !done)            */
 } fattr_list_read_t;
-
-/*
- *
- * WHAT: If this fattrList targets a directory with kXR_fa_recurse set, dispatches
- *       to the subtree-walk path and reports that it handled the request.
- *
- * WHY: Isolates the recurse-vs-flat decision from fattr_list. lets the main handler
- *       stay a straight-line two-phase reader.
- *
- * HOW: Returns 1 and stores the walk's result in *out when the recurse path is
- *       taken; returns 0 (leaving *out untouched) so the caller proceeds with the
- *       flat listxattr path. */
-static int
-fattr_list_try_recurse(brix_ctx_t *ctx, ngx_connection_t *c,
-    brix_vfs_ctx_t *vctx, const char *path, int options, ngx_int_t *out)
-{
-    brix_vfs_stat_t rvst;
-
-    /* Directory + recurse flag → take the subtree-walk path instead. */
-    if ((options & kXR_fa_recurse) && path != NULL
-        && brix_vfs_probe(vctx, 0 /* follow */, &rvst) == NGX_OK
-        && rvst.is_directory)
-    {
-        *out = fattr_list_recurse(ctx, c, vctx, path);
-        return 1;
-    }
-    return 0;
-}
 
 /*
  *
@@ -317,6 +36,7 @@ fattr_list_read_names(brix_ctx_t *ctx, ngx_connection_t *c,
 {
     fattr_list_read_t out = { 0 };
     char             *raw;
+    size_t            raw_cap;
     ssize_t           list_sz;
     ssize_t           actual;
 
@@ -351,20 +71,38 @@ fattr_list_read_names(brix_ctx_t *ctx, ngx_connection_t *c,
         return out;
     }
 
-    /* +BRIX_ROOT_FATTR_PATH_SLACK absorbs names added between phase 1 and phase 2 (TOCTOU). */
-    raw = ngx_palloc(c->pool, list_sz + BRIX_ROOT_FATTR_PATH_SLACK);
+    /* +BRIX_ROOT_FATTR_PATH_SLACK absorbs names added between the two reads. */
+    if (brix_size_add((size_t) list_sz, BRIX_ROOT_FATTR_PATH_SLACK,
+                      &raw_cap) != NGX_OK)
+    {
+        out.done = 1;
+        BRIX_OP_ERR(ctx, BRIX_OP_FATTR);
+        out.rc = brix_send_error(ctx, c, kXR_ArgTooLong,
+                                 "fattr list too large");
+        return out;
+    }
+    raw = ngx_palloc(c->pool, raw_cap);
     if (raw == NULL) {
         out.done = 1;
+        BRIX_OP_ERR(ctx, BRIX_OP_FATTR);
         out.rc = brix_send_error(ctx, c, kXR_NoMemory, "out of memory");
         return out;
     }
 
     /* Phase 2: read the actual NUL-separated name list into raw. */
-    actual = path ? brix_vfs_listxattr(vctx, raw, list_sz + BRIX_ROOT_FATTR_PATH_SLACK)
-                  : brix_vfs_flistxattr(vctx, fd, raw, list_sz + BRIX_ROOT_FATTR_PATH_SLACK);
+    actual = path ? brix_vfs_listxattr(vctx, raw, raw_cap)
+                  : brix_vfs_flistxattr(vctx, fd, raw, raw_cap);
     if (actual < 0) {
         out.done = 1;
+        BRIX_OP_ERR(ctx, BRIX_OP_FATTR);
         out.rc = brix_send_error(ctx, c, kXR_FSError, "listxattr failed");
+        return out;
+    }
+    if ((size_t) actual > raw_cap) {
+        out.done = 1;
+        BRIX_OP_ERR(ctx, BRIX_OP_FATTR);
+        out.rc = brix_send_error(ctx, c, kXR_FSError,
+                                 "invalid listxattr length");
         return out;
     }
     if (actual == 0) {
@@ -381,33 +119,41 @@ fattr_list_read_names(brix_ctx_t *ctx, ngx_connection_t *c,
 
 /*
  *
- * WHAT: Appends one attribute's value block to *wp: [uint32 big-endian vlen][value
- *       bytes], reading the value via getxattr/fgetxattr on the full "user.U.name"
- *       key (`full_key`).
+ * WHAT: Reads one direct attribute value into a caller-bounded response slot.
  *
  * WHY: Factors the kXR_fa_aData value-append out of the build loop. Note getxattr
  *       uses the full internal key while the emitted name is the stripped form.
  *
- * HOW: Unreadable values (vlen < 0) are emitted as zero-length. Advances *wp past
- *       the 4-byte length prefix and the value bytes. No return value. */
-static void
-fattr_list_append_value(brix_vfs_ctx_t *vctx, const char *path, int fd,
-    const char *full_key, u_char **wp)
+ * HOW: Probe first, enforce both the protocol maximum and destination capacity,
+ *       then perform the bounded read. A disappearing/unreadable value retains
+ *       the historical zero-length representation; a growth race fails closed. */
+static ngx_int_t
+fattr_list_read_value(brix_vfs_ctx_t *vctx, const char *path, int fd,
+    const char *full_key, u_char *dst, size_t dst_cap, size_t *value_len)
 {
-    char     val[BRIX_ROOT_FATTR_VAL_BUF];
-    ssize_t  vlen = path
-        ? brix_vfs_getxattr(vctx, full_key, val, sizeof(val))
-        : brix_vfs_fgetxattr(vctx, fd, full_key, val, sizeof(val));
-    uint32_t vlen_be;
+    ssize_t expected;
+    ssize_t actual;
 
-    if (vlen < 0) vlen = 0;   /* unreadable value → zero-length */
-    vlen_be = htonl((uint32_t) vlen);
-    ngx_memcpy(*wp, &vlen_be, 4);
-    *wp += 4;
-    if (vlen > 0) {
-        ngx_memcpy(*wp, val, vlen);
-        *wp += vlen;
+    *value_len = 0;
+    expected = path ? brix_vfs_getxattr(vctx, full_key, NULL, 0)
+                    : brix_vfs_fgetxattr(vctx, fd, full_key, NULL, 0);
+    if (expected < 0) return NGX_OK;
+    if ((size_t) expected > kXR_faMaxVlen || (size_t) expected > dst_cap) {
+        errno = ERANGE;
+        return NGX_ERROR;
     }
+    if (expected == 0) return NGX_OK;
+
+    actual = path ? brix_vfs_getxattr(vctx, full_key, dst, (size_t) expected)
+                  : brix_vfs_fgetxattr(vctx, fd, full_key, dst,
+                                       (size_t) expected);
+    if (actual < 0) return errno == ERANGE ? NGX_ERROR : NGX_OK;
+    if (actual > expected || (size_t) actual > kXR_faMaxVlen) {
+        errno = ERANGE;
+        return NGX_ERROR;
+    }
+    *value_len = (size_t) actual;
+    return NGX_OK;
 }
 
 /*
@@ -421,10 +167,9 @@ fattr_list_append_value(brix_vfs_ctx_t *vctx, const char *path, int fd,
  *
  * HOW: Each kept name has its full 7-byte internal prefix stripped so the client
  *       sees the bare name it set (matching the reference XeqFALsd). Entries that
- *       would overrun resp_cap stop the loop (rest of the list is dropped) — the
- *       cap is over-provisioned for kXR_faMaxVars aData values so this is only a
- *       guard. */
-static size_t
+ *       would exceed resp_cap reject the complete response; a partial successful
+ *       list would hide attributes and make retry behavior ambiguous. */
+static ssize_t
 fattr_list_build(ngx_pool_t *pool, brix_vfs_ctx_t *vctx, const char *path,
     int fd, int aData, const char *raw, ssize_t actual, u_char *resp,
     size_t resp_cap)
@@ -435,44 +180,78 @@ fattr_list_build(ngx_pool_t *pool, brix_vfs_ctx_t *vctx, const char *path,
     const char *lend = raw + actual;
 
     while (lp < lend) {
-        size_t               full_nlen = strlen(lp);
+        const char          *nul;
+        size_t               full_nlen;
         brix_fattr_stored_t  stored;
         int                  decoded;
 
+        nul = memchr(lp, '\0', (size_t) (lend - lp));
+        if (nul == NULL) {
+            errno = EIO;
+            return -1;
+        }
+        full_nlen = (size_t) (nul - lp);
         decoded = fattr_storage_decode_list(pool, vctx, path, fd, lp,
                                              &stored);
+        if (decoded < 0) return -1;
         if (decoded == 1) {
             /* Strip the full internal "user.U." prefix (7 bytes) so the client
              * sees the bare name it set — matching the reference XeqFALsd, which
              * returns verbatim names (the 'U' namespace is internal only). */
             const char *resp_name = stored.name;
             size_t      resp_nlen = stored.nlen;
-            /* name + NUL, plus (if aData) the 4-byte len prefix + value buffer. */
-            size_t space_needed = resp_nlen + 1
-                                  + (aData ? 4 + BRIX_ROOT_FATTR_LIST_SLACK : 0);
-            /* Stop before overrunning resp_cap (rest of the list is dropped). */
-            if ((size_t)(wp - resp) + space_needed > resp_cap) break;
+            size_t      used = (size_t) (wp - resp);
+            size_t      entry_len;
+            size_t      value_len = 0;
+
+            if (brix_size_add(resp_nlen, 1U, &entry_len) != NGX_OK
+                || (aData && brix_size_add(entry_len, 4U, &entry_len) != NGX_OK)
+                || used > resp_cap || entry_len > resp_cap - used)
+            {
+                errno = ERANGE;
+                return -1;
+            }
+            if (aData && stored.value != NULL) {
+                value_len = stored.vlen;
+                if (value_len > kXR_faMaxVlen
+                    || value_len > resp_cap - used - entry_len)
+                {
+                    errno = ERANGE;
+                    return -1;
+                }
+            } else if (aData
+                       && fattr_list_read_value(vctx, path, fd, lp,
+                              resp + used + entry_len,
+                              resp_cap - used - entry_len,
+                              &value_len) != NGX_OK)
+            {
+                return -1;
+            }
+            if (brix_size_add(entry_len, value_len, &entry_len) != NGX_OK
+                || entry_len > resp_cap - used)
+            {
+                errno = ERANGE;
+                return -1;
+            }
             ngx_memcpy(wp, resp_name, resp_nlen);
             wp += resp_nlen;
             *wp++ = '\0';
-            if (aData && stored.value != NULL) {
-                uint32_t vlen_be = htonl((uint32_t) stored.vlen);
+            if (aData) {
+                uint32_t vlen_be = htonl((uint32_t) value_len);
 
                 ngx_memcpy(wp, &vlen_be, 4);
                 wp += 4;
-                if (stored.vlen != 0) {
-                    ngx_memcpy(wp, stored.value, stored.vlen);
-                    wp += stored.vlen;
+                if (stored.value != NULL && value_len != 0) {
+                    ngx_memcpy(wp, stored.value, value_len);
                 }
-            } else if (aData) {
-                fattr_list_append_value(vctx, path, fd, lp, &wp);
+                wp += value_len;
             }
         }
         /* Advance past this name and its NUL terminator. */
         lp += full_nlen + 1;
     }
 
-    return (size_t)(wp - resp);
+    return (ssize_t) (wp - resp);
 }
 
 /*
@@ -503,7 +282,7 @@ ngx_int_t fattr_list(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_int_t          recurse_rc = NGX_OK;
     fattr_list_read_t  rd;
     size_t             resp_cap;
-    size_t             resp_len;
+    ssize_t            resp_len;
     u_char            *resp;
 
     /* Directory + recurse flag → take the subtree-walk path instead. */
@@ -516,21 +295,27 @@ ngx_int_t fattr_list(brix_ctx_t *ctx, ngx_connection_t *c,
         return rd.rc;
     }
 
-    /*
-     * Worst-case response size: every raw name kept, plus for aData each of up
-     * to kXR_faMaxVars attributes contributes a 4-byte length prefix + a value
-     * up to BRIX_ROOT_FATTR_VAL_BUF bytes; +64 header slop. Over-provisioned so
-     * the build loop need not realloc — the break inside still guards against
-     * exceeding it.
-     */
+    /* Keep response memory bounded. The builder accounts exact decoded values
+     * and rejects the whole request before an entry would cross this cap. */
     resp_cap = BRIX_ROOT_FATTR_RESP_CAP;
     resp = ngx_palloc(c->pool, resp_cap);
     if (resp == NULL) {
+        BRIX_OP_ERR(ctx, BRIX_OP_FATTR);
         return brix_send_error(ctx, c, kXR_NoMemory, "out of memory");
     }
 
     resp_len = fattr_list_build(c->pool, vctx, path, fd, aData, rd.raw,
         rd.actual, resp, resp_cap);
+    if (resp_len < 0) {
+        int build_errno = errno;
+
+        BRIX_OP_ERR(ctx, BRIX_OP_FATTR);
+        if (build_errno == ERANGE || build_errno == E2BIG) {
+            return brix_send_error(ctx, c, kXR_ArgTooLong,
+                                   "fattr list response too large");
+        }
+        return brix_send_error(ctx, c, kXR_FSError, "fattr list failed");
+    }
 
     BRIX_OP_OK(ctx, BRIX_OP_FATTR);
     if (resp_len == 0) {

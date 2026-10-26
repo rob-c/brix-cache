@@ -37,6 +37,7 @@ H = SERVER_HOST
 CMS_RR_PING = 4
 TESTS = Path(__file__).resolve().parent
 SELECT_PROXY = TESTS / "test_phase115_cms_select_proxy.py"
+SELECT_PROXY_HELPERS = TESTS / "_test_phase115_cms_select_proxy_helpers.py"
 
 
 class _ScriptedManager:
@@ -119,9 +120,9 @@ def _settle_helper(tree: ast.Module) -> ast.FunctionDef:
 
 def test_every_settle_in_the_select_proxy_suite_names_its_nodes():
     src = SELECT_PROXY.read_text()
-    tree = ast.parse(src)
-    helper = _settle_helper(tree)
-    body = ast.get_source_segment(src, helper) or ""
+    helper_src = SELECT_PROXY_HELPERS.read_text()
+    helper = _settle_helper(ast.parse(helper_src))
+    body = ast.get_source_segment(helper_src, helper) or ""
     assert "wait_ready(" in body, "_settle no longer waits on the registry"
     assert "sleep(" not in body, "_settle fell back to a sleep"
     bare = re.findall(r"^\s*_settle\(\)\s*$", src, flags=re.M)

@@ -315,7 +315,7 @@ def sweep_server():
             readiness="tcp",
             reason="CMS hostile-network conformance: server-leg opcode/size sweep.",
             template_values={
-                "CMS_SECURITY_LINE": "brix_cms_server_allow 127.0.0.1/32;"
+                "CMS_SECURITY_LINE": "brix_cms_server_allow 127.0.0.1/32;"  # net-literal-allow: CMS ACL payload under test
             },
         ))
         yield ep

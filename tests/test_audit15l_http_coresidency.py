@@ -266,7 +266,7 @@ def test_the_dashboard_answers_beside_the_tiers(httpcores):
 def test_the_storage_census_carries_the_remote_backend_of_this_block(httpcores):
     endpoint, _, _ = httpcores
 
-    doc = _get(endpoint, "/brix/api/v1/snapshot").json()
+    doc = _dashboard_snapshot(endpoint)
 
     exports = doc["storage"]["exports"]
     remote = [e for e in exports if e.get("remote")]
@@ -280,7 +280,7 @@ def test_the_storage_census_carries_the_remote_backend_of_this_block(httpcores):
 def test_the_storage_census_carries_the_local_tiers_too(httpcores):
     endpoint, _, data = httpcores
 
-    doc = _get(endpoint, "/brix/api/v1/snapshot").json()
+    doc = _dashboard_snapshot(endpoint)
 
     roots = {e.get("root") for e in doc["storage"]["exports"]}
     assert str(data / "local") in roots, (
@@ -409,7 +409,7 @@ def test_the_cvmfs_listener_carries_its_own_dashboard(httpcores):
         "re-derive this pin from dashboard_fill_cvmfs()")
 
     assert _cvmfs(endpoint, f"/cvmfs/{REPO_NAME}/.cvmfspublished").status_code == 200
-    doc = _cvmfs(endpoint, "/brix/api/v1/snapshot").json()
+    doc = _dashboard_snapshot(endpoint, endpoint.extra_ports["CVMFS_PORT"])
 
     assert doc["cvmfs"]["enabled"] is True, (
         f"the CVMFS panel did not see its own listener's traffic: {doc['cvmfs']}")
@@ -496,7 +496,7 @@ def test_the_storage_census_is_process_wide_not_per_listener(httpcores):
     of the CVMFS listener's admin face is seeing the WebDAV block's exports."""
     endpoint, _, data = httpcores
 
-    doc = _cvmfs(endpoint, "/brix/api/v1/snapshot").json()
+    doc = _dashboard_snapshot(endpoint, endpoint.extra_ports["CVMFS_PORT"])
 
     roots = {e.get("root") for e in doc["storage"]["exports"]}
     assert str(data / "local") in roots, (

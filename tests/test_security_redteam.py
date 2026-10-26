@@ -118,7 +118,7 @@ class TestCmsAuthConfig:
     def test_allow_only_listener_remains_compatible(self, redteam):
         rc, out = redteam.check(
             "nginx_redteam_cms.conf",
-            EXTRA="brix_cms_server_allow 127.0.0.1/32;")
+            EXTRA="brix_cms_server_allow 127.0.0.1/32;")  # net-literal-allow: CMS ACL parser subject
         assert rc == 0, out
 
     def test_allow_and_keytab_parse(self, redteam):
@@ -168,7 +168,7 @@ def test_cms_peer_outside_allowlist_is_closed_before_login(lifecycle):
         template_values={"EXTRA":
                          "brix_cms_server_allow 192.0.2.0/24;"},
         reason="CMS off-CIDR accept-time refusal"))
-    with socket.create_connection(("127.0.0.1", endpoint.port), timeout=5) as sock:
+    with socket.create_connection((endpoint.host, endpoint.port), timeout=5) as sock:
         sock.settimeout(5)
         assert sock.recv(1) == b""
 

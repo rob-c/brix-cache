@@ -1703,6 +1703,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/fattr/set.c \
     $ngx_addon_dir/src/protocols/root/fattr/del.c \
     $ngx_addon_dir/src/protocols/root/fattr/list.c \
+    $ngx_addon_dir/src/protocols/root/fattr/list_recurse.c \
     $ngx_addon_dir/src/observability/accesslog/access_log.c \
     $ngx_addon_dir/src/observability/accesslog/access_log_sesslog.c \
     $ngx_addon_dir/src/observability/sesslog/sesslog.c \

@@ -40,10 +40,11 @@ from ephemeral_port import free_port
 from settings import SERVER_HOST
 from test_cms_locate_have import _CmsNode
 from test_pgwrite_checksum import _handshake_login
-from test_phase115_cms_select_proxy import (
-    _FakeDataServer, _cms_port, _close, _open, _settle, gateway,  # noqa: F401
+from _test_phase115_cms_select_proxy_helpers import (
+    _FakeDataServer, _close, _open, _settle,
     kXR_error, kXR_login, kXR_ok, kXR_open, kXR_open_read, kXR_protocol,
 )
+from test_phase115_cms_select_proxy import _cms_port, gateway  # noqa: F401
 from test_unix_auth_wire import _read
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,

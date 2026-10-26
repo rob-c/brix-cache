@@ -164,7 +164,7 @@ stream {{
         brix_cms_server_idle_timeout {idle};
 {uto}    }}
 }}
-"""
+"""  # net-literal-allow: isolated namespace CMS ACL is the test subject
 
 
 def write_conf(workdir, name, port, dataroot, uto, idle="600s"):

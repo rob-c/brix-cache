@@ -28,11 +28,9 @@ Cases:
     validates here, because only brix_token_issuer pins validation
     (validate.c token_validate_macaroon).  A site that expects
     brix_webdav_macaroon_location to fence its macaroons is mistaken;
-  * defect pin    — a macaroon issued with a SUBTREE path: caveat authorises
-    nothing at all (defect candidate #17, found by this file): the caveat is
-    measured against the token's own root scope with 1-byte prefix arithmetic
-    and comes out DISJOINT, so every permission is revoked and the read 403s.
-    It fails closed, so it is a broken feature rather than a hole.
+  * success       — a SUBTREE path caveat authorises the requested subtree;
+  * security-neg  — that narrowed token receives 403 on a sibling path while
+    an otherwise identical root-scoped control can read both locations.
 
 Run:
     PYTHONPATH=tests pytest tests/test_audit15f_macaroon_issue_policy.py -v
@@ -187,28 +185,23 @@ def test_the_stamped_location_does_not_pin_validation(macpol):
     assert resp.text == "tight-payload\n"
 
 
-def test_a_subtree_path_caveat_revokes_the_macaroon_defect_pin(macpol):
-    """defect pin (#17): a macaroon confined to a SUBTREE cannot read anything.
-
-    The issued token's own scope comes from its activity: caveat and is rooted
-    at "/", and macaroon_apply_path_to_scope compares the caveat against that
-    root as a 1-byte prefix: it then demands caveat_path[1] be '/' or NUL to
-    call the caveat "deeper".  For "/tight" that byte is 't', so neither the
-    narrow branch nor the already-narrower branch matches and the scope is
-    revoked as DISJOINT — every permission cleared, scopes=0, 403.  Confining
-    a delegation to a subtree is the entire point of the dCache caveats[] API,
-    so this makes the feature unusable while failing closed (a denial, not a
-    leak).  The path:/ control beside it proves the round trip is otherwise
-    sound."""
+def test_a_subtree_path_caveat_narrows_the_macaroon(macpol):
+    """A subtree caveat authorises that subtree and denies its sibling."""
     subtree, _ = _issue(macpol.port, "tight",
                         {"caveats": ["activity:DOWNLOAD", "path:/tight"]})
-    assert b"cid path:/tight\n" in _decode(subtree)      # it IS in the token
-    assert _read(macpol.port, "tight", subtree).status_code == 403, (
-        "the subtree caveat now narrows instead of revoking — the parser was "
-        "fixed; retire this pin")
+    assert b"cid path:/tight\n" in _decode(subtree)
+    allowed = _read(macpol.port, "tight", subtree)
+    assert allowed.status_code in (200, 206), allowed.text
+    assert allowed.text == "tight-payload\n"
+    denied = _read(macpol.port, "open", subtree)
+    assert denied.status_code == 403, denied.text
+
+    # A root-scoped control still reaches both faces, proving the denial above
+    # comes from the narrowed path rather than a malformed issued token.
     whole, _ = _issue(macpol.port, "tight",
                       {"caveats": ["activity:DOWNLOAD", "path:/"]})
     assert _read(macpol.port, "tight", whole).status_code in (200, 206)
+    assert _read(macpol.port, "open", whole).status_code in (200, 206)
 
 
 # ── brix_webdav_macaroon_max_validity: the ceiling on a lifetime ──────────

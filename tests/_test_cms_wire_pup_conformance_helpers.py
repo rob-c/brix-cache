@@ -450,7 +450,7 @@ def load_frame(node_stack):
 def cms_server_ep(lifecycle, request, tmp_path):
     """A dedicated nginx CMS *server* whose frame parser we probe directly.
     Yields the full endpoint (port + prefix, for error-log asserts)."""
-    security_line = "brix_cms_server_allow 127.0.0.1/32;"
+    security_line = "brix_cms_server_allow 127.0.0.1/32;"  # net-literal-allow: CMS ACL payload under test
     if getattr(request, "param", None) == "sss":
         from cms_mesh_lib import gen_sss_keytab
         keytab = gen_sss_keytab(str(tmp_path / "cms.keytab"))
