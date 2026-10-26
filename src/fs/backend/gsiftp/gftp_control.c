@@ -175,8 +175,12 @@ gftp_read_reply(gftp_session_t *session)
             session->buffered -= (size_t) consumed;
             memmove(session->input, session->input + consumed,
                     session->buffered);
-            if (session->secure && session->code >= 631
-                && session->code <= 633) {
+            if (session->secure) {
+                if (session->code < 631 || session->code > 633) {
+                    gftp_set_error(session, EPROTO,
+                        "unprotected GridFTP reply after GSI authentication");
+                    return -1;
+                }
                 return gftp_unwrap_reply(session);
             }
             return 0;

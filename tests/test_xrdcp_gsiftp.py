@@ -242,8 +242,8 @@ def test_gsi_untrusted_ca_rejected(tmp_path):
 
 def test_gsi_without_proxy_is_not_downgraded(gsi_gw, tmp_path):
     """Security negative: with no X.509 proxy available, a gsiftp:// URL fails
-    with an auth error.  It is never downgraded to an anonymous login — the
-    gateway would happily serve one, so the refusal has to come from the client."""
+    with an auth error.  It is never downgraded to an anonymous login, and the
+    GSI-enabled gateway independently refuses that cleartext fallback."""
     env = _gsi_env()
     env["X509_USER_PROXY"] = os.path.join(str(tmp_path), "absent-proxy.pem")
     dst = os.path.join(str(tmp_path), "unauth.bin")

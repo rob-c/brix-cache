@@ -62,6 +62,7 @@ def _run(probe, mode, url, *policy):
         ("https://example.org#part", "https|example.org|0|0|#part"),
         ("https://[2001:db8::1]:443/#part", "https|2001:db8::1|443|1|/#part"),
         ("HTTPS://example.org./", "HTTPS|example.org.|0|0|/"),
+        ("https://127.0.0.1/", "https|127.0.0.1|0|0|/"),
     ],
 )
 def test_valid_targets_have_one_unambiguous_authority(net_target_probe, url, expected):
@@ -91,6 +92,11 @@ def test_valid_targets_have_one_unambiguous_authority(net_target_probe, url, exp
         "https://example.org/unsafe path",
         "https://example.org/unsafe\tpath",
         "1https://example.org/private",
+        "https://0177.0.0.1/private",
+        "https://0x7f000001/private",
+        "https://2130706433/private",
+        "https://127.1/private",
+        "https://127.0.0.1./private",
     ],
 )
 def test_ambiguous_or_malformed_targets_fail_before_resolution(net_target_probe, url):
@@ -149,6 +155,32 @@ def test_bare_native_target_cannot_bypass_https_policy(
     """Keep native bare-host checks compatible while fail-closing TLS policy."""
     result = _run(
         net_target_probe, "bare-policy", "example.org", require_https, 0, accepted
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "initial,next_url,allow_cross_origin,accepted",
+    [
+        ("https://example.org/a", "https://example.org/b", 0, 1),
+        ("https://example.org/a", "https://example.org:443/b", 0, 1),
+        ("https://example.org/a", "http://example.org/b", 1, 0),
+        ("https://example.org/a", "https://other.example/b", 0, 0),
+        ("https://example.org/a", "https://other.example/b", 1, 1),
+        ("http://example.org/a", "http://other.example/b", 0, 0),
+    ],
+)
+def test_redirects_preserve_tls_and_authority_by_default(
+    net_target_probe, initial, next_url, allow_cross_origin, accepted
+):
+    """Refuse downgrade and credential replay; cross-origin is explicit."""
+    result = _run(
+        net_target_probe,
+        "redirect",
+        initial,
+        next_url,
+        allow_cross_origin,
+        accepted,
     )
     assert result.returncode == 0, result.stderr
 
@@ -216,6 +248,15 @@ int main(int argc, char **argv) {
         }
     }
 
+    if (strcmp(argv[1], "redirect") == 0 && argc == 6) {
+        brix_net_target_t next;
+
+        result = parse_target(argv[3], &next, error, sizeof(error));
+        if (result != NGX_OK) return 96;
+        result = brix_net_target_check_redirect(
+            &target, &next, atoi(argv[4]), error, sizeof(error));
+        return (result == NGX_OK) == atoi(argv[5]) ? 0 : 97;
+    }
     if (strcmp(argv[1], "parse") == 0) {
         printf("%.*s|%.*s|%u|%ld|%.*s\n",
                (int) target.scheme.len, target.scheme.data,

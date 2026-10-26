@@ -181,7 +181,12 @@ brix_ftp_read_reply(brix_ftp_sess *s, brix_status *st)
             ftp_store_reply(s, &r);
             s->rlen -= (size_t) used;
             memmove(s->rbuf, s->rbuf + used, s->rlen);
-            if (s->secure && s->code >= 631 && s->code <= 633) {
+            if (s->secure) {
+                if (s->code < 631 || s->code > 633) {
+                    brix_status_set(st, XRDC_EPROTO, 0,
+                        "gsiftp: unprotected reply after GSI authentication");
+                    return -1;
+                }
                 return ftp_unwrap_reply(s, st);
             }
             return 0;

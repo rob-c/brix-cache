@@ -71,47 +71,56 @@ ev_gss_carry_voms(ftp_ev_t *fc)
 /* After AUTH GSSAPI completes, bind the verified proxy DN into a brix_identity_t
  * (so the VFS ctx and audit see a real GSI principal), capture any delegated
  * credential, and activate the wrapped control channel. */
-static void
+static ngx_int_t
 ev_gss_finalize(ftp_ev_t *fc)
 {
     ngx_str_t        dn = { 0, NULL }, proxy = { 0, NULL };
     brix_identity_t *id;
+    char            *dn_text;
 
-    if (brix_gssapi_srv_peer(fc->gss, &dn, &proxy) == NGX_OK && dn.len > 0) {
-        id = brix_identity_alloc(fc->c->pool);
-        if (id != NULL) {
-            char   dbuf[512];
-            size_t n = ngx_min(dn.len, sizeof(dbuf) - 1);
-            ngx_memcpy(dbuf, dn.data, n);
-            dbuf[n] = '\0';
-            if (brix_identity_set_dn(id, fc->c->pool, dbuf, BRIX_AUTHN_GSI)
-                == NGX_OK)
-            {
-                fc->identity = id;
-            }
-        }
-        fc->deleg_proxy = proxy;
-        fc->ctrl_dn.data = ngx_pnalloc(fc->c->pool, dn.len);
-        if (fc->ctrl_dn.data != NULL) {
-            ngx_memcpy(fc->ctrl_dn.data, dn.data, dn.len);
-            fc->ctrl_dn.len = dn.len;
-        }
-        /* the client's control leaf is the delegated proxy's direct issuer;
-         * needed to present a complete chain on a PROT P data channel. */
-        (void) brix_gssapi_srv_peer_cert_pem(fc->gss, &fc->ctrl_leaf_pem);
-        ev_gss_carry_voms(fc);           /* lift VOMS FQANs into fc->identity */
-        fc->authed = 1;
-        brix_metric_auth(BRIX_PROTO_GRIDFTP, BRIX_AUTHN_GSI, 1);
-        BRIX_LOG(NGX_LOG_INFO, fc->c->log, 0,
-                      "brix: GridFTP(ev) gsiftp authenticated dn=\"%V\" deleg=%uz",
-                      &dn, proxy.len);
-    } else {
-        /* The handshake completed but yielded no peer DN, so the channel is
-         * wrapped without a principal behind it: not an authenticated session. */
+    if (brix_gssapi_srv_peer(fc->gss, &dn, &proxy) != NGX_OK || dn.len == 0) {
         brix_metric_auth(BRIX_PROTO_GRIDFTP, BRIX_AUTHN_GSI, 0);
+        BRIX_LOG(NGX_LOG_WARN, fc->c->log, 0,
+                 "brix: GridFTP(ev) GSI handshake produced no identity");
+        return NGX_ERROR;
     }
-    fc->wrap_code  = "633";              /* default: private (ENC) replies      */
-    fc->sec_active = 1;
+
+    id = brix_identity_alloc(fc->c->pool);
+    dn_text = ngx_pnalloc(fc->c->pool, dn.len + 1);
+    if (id == NULL || dn_text == NULL) {
+        brix_metric_auth(BRIX_PROTO_GRIDFTP, BRIX_AUTHN_GSI, 0);
+        BRIX_LOG(NGX_LOG_ERR, fc->c->log, 0,
+                 "brix: GridFTP(ev) cannot allocate GSI identity");
+        return NGX_ERROR;
+    }
+    ngx_memcpy(dn_text, dn.data, dn.len);
+    dn_text[dn.len] = '\0';
+    if (brix_identity_set_dn(id, fc->c->pool, dn_text, BRIX_AUTHN_GSI)
+        != NGX_OK)
+    {
+        brix_metric_auth(BRIX_PROTO_GRIDFTP, BRIX_AUTHN_GSI, 0);
+        BRIX_LOG(NGX_LOG_ERR, fc->c->log, 0,
+                 "brix: GridFTP(ev) cannot materialize GSI identity");
+        return NGX_ERROR;
+    }
+
+    fc->identity = id;
+    fc->deleg_proxy = proxy;
+    fc->ctrl_dn.data = ngx_pnalloc(fc->c->pool, dn.len);
+    if (fc->ctrl_dn.data != NULL) {
+        ngx_memcpy(fc->ctrl_dn.data, dn.data, dn.len);
+        fc->ctrl_dn.len = dn.len;
+    }
+    /* the client's control leaf is the delegated proxy's direct issuer;
+     * needed to present a complete chain on a PROT P data channel. */
+    (void) brix_gssapi_srv_peer_cert_pem(fc->gss, &fc->ctrl_leaf_pem);
+    ev_gss_carry_voms(fc);           /* lift VOMS FQANs into fc->identity */
+    fc->authed = 1;
+    brix_metric_auth(BRIX_PROTO_GRIDFTP, BRIX_AUTHN_GSI, 1);
+    BRIX_LOG(NGX_LOG_INFO, fc->c->log, 0,
+             "brix: GridFTP(ev) gsiftp authenticated dn=\"%V\" deleg=%uz",
+             &dn, proxy.len);
+    return NGX_OK;
 }
 
 
@@ -165,9 +174,14 @@ brix_ftp_ev_cmd_adat(ftp_ev_t *fc, const char *arg)
         return brix_ftp_ev_send_adat(fc, 335, &out);
     }
 
-    /* COMPLETE: emit the final 235 cleartext, THEN activate wrapping.  A final
+    /* COMPLETE: materialize the authenticated principal before reporting
+     * success, emit the final 235 cleartext, THEN activate wrapping.  A final
      * token is framed "235 ADAT=<b64>"; with none, send a bare completion line
      * (an empty "ADAT=" would decode to a zero-length token and fail the client). */
+    if (ev_gss_finalize(fc) != NGX_OK) {
+        return brix_ftp_ev_reply(fc,
+            "535 GSSAPI authentication produced no usable identity\r\n");
+    }
     if (out.len > 0) {
         if (brix_ftp_ev_send_adat(fc, 235, &out) != NGX_OK) {
             return NGX_ERROR;
@@ -177,7 +191,8 @@ brix_ftp_ev_cmd_adat(ftp_ev_t *fc, const char *arg)
     {
         return NGX_ERROR;
     }
-    ev_gss_finalize(fc);
+    fc->wrap_code = "633";              /* default: private (ENC) replies */
+    fc->sec_active = 1;
     return NGX_OK;
 }
 
@@ -213,5 +228,5 @@ brix_ftp_ev_cmd_protected(ftp_ev_t *fc, const char *code, const char *arg)
         n--;
     }
     innerline[n] = '\0';
-    return brix_ftp_ev_dispatch(fc, innerline);
+    return brix_ftp_ev_dispatch_protected(fc, innerline);
 }

@@ -328,7 +328,9 @@ brix_pelican_discover_cfg(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) BRIX_CACHE_IO_TIMEOUT);
     brix_pelican_set_ca(conf, curl);
 
+    /* This unauthenticated GET may follow a federation discovery alias. */
     brix_pelican_xfer_init(&xfer, conf, url, &mem, reason, sizeof(reason));
+    xfer.allow_cross_origin = 1;
     res = brix_dns_curl_perform_pinned(curl, &xfer);
     if (res == CURLE_OK) {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
@@ -398,6 +400,7 @@ brix_pelican_post(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) BRIX_CACHE_IO_TIMEOUT);
     brix_pelican_set_ca(conf, curl);
 
+    /* The bearer-authenticated POST may redirect only within its origin. */
     brix_pelican_xfer_init(&xfer, conf, url, NULL, reason, sizeof(reason));
     res = brix_dns_curl_perform_pinned(curl, &xfer);
     if (res == CURLE_OK) {

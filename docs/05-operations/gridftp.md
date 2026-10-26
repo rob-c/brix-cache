@@ -149,10 +149,11 @@ Exercised by `tests/test_gridftp_mode_e.py` and `tests/test_gridftp_evil.py`:
   any IP other than the control peer is refused (`500`). Only a
   GSI-authenticated DCAU A leg (gsiftp↔gsiftp TPC) may target a third party.
 
-Known gap: `brix_gridftp` does not gate file verbs behind FTP login (the
-`authed` flag is tracked but not enforced). This is benign on the anonymous
-cleartext door; on a GSI door the control channel is only usable after the GSSAPI
-handshake, so the effective gate is the security layer, not the login verb.
+- **Authentication is mode-strict.** A listener with `brix_gridftp_gsi on`
+  refuses clear USER/PASS with `530`; only a verified GSI exchange can establish
+  session authority. Once GSS wrapping is active, raw commands other than the
+  RFC 2228 MIC/CONF/ENC wrappers (and QUIT) receive protected `533` replies.
+  Anonymous USER/PASS remains available only on the explicit cleartext door.
 
 ---
 

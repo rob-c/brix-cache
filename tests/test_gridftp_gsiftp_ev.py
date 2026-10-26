@@ -46,6 +46,7 @@ Run:
 import os
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -65,16 +66,24 @@ SERVER_CERT = os.path.join(PKI_DIR, "server", "hostcert.pem")
 SERVER_KEY = os.path.join(PKI_DIR, "server", "hostkey.pem")
 CA_DIR = os.path.join(PKI_DIR, "ca")
 USER_PROXY = os.path.join(PKI_DIR, "user", "proxy_std.pem")
+REPO = Path(__file__).resolve().parents[1]
+CONTROL_PROBE = REPO / "client" / "bin" / "gridftp_control_integrity_probe_unit"
 
 
-def _require():
-    if GUC is None:
-        pytest.skip("globus-url-copy not on PATH")
+def _require_gateway():
+    """Require only the native server/client inputs shared by every test."""
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
     for p in (SERVER_CERT, SERVER_KEY, CA_DIR, USER_PROXY):
         if not os.path.exists(p):
             pytest.skip(f"test PKI incomplete: missing {p}")
+
+
+def _require():
+    """Require the external Globus reference in addition to native inputs."""
+    _require_gateway()
+    if GUC is None:
+        pytest.skip("globus-url-copy not on PATH")
 
 
 class _Gateway:
@@ -123,6 +132,7 @@ def _guc(*args, timeout=60, dc="dcpriv"):
     Defaults to ``dc="dcpriv"`` (DCAU A + PROT P) — the event PROT P data channel
     is exactly what this suite exercises.  ``dc="nodcau"`` keeps the data leg
     cleartext (control still fully GSI-secured) for the error/negative cases."""
+    _require()
     env = gsi_client_env(CA_DIR, USER_PROXY)
     flag = {"nodcau": "-nodcau", "dcpriv": "-dcpriv"}[dc]
     cmd = [GUC, flag, *args]
@@ -132,7 +142,7 @@ def _guc(*args, timeout=60, dc="dcpriv"):
 
 @pytest.fixture(scope="module")
 def gateway():
-    _require()
+    _require_gateway()
     gw = _launch("gridftp-gsiftp-ev-trusting", CA_DIR)
     yield gw
     gw.close()
@@ -192,6 +202,33 @@ def test_get_missing_object_fails_dcpriv(gateway, tmp_path):
              f"file://{dst}")
     assert r.returncode != 0, "expected nonzero rc for missing object"
     assert not os.path.exists(dst) or os.path.getsize(dst) == 0
+
+
+def test_post_gss_control_channel_rejects_raw_commands(gateway):
+    """A real GSI session rejects raw PWD/DELE and a nested ENC with protected
+    533 replies, still accepts a correctly wrapped PWD, and permits raw QUIT.
+
+    The normal client always wraps post-ADAT commands, so the purpose-built
+    probe deliberately writes the two attack lines directly to its established
+    control fd.  The target file proves the rejected DELE caused no mutation.
+    """
+    target = Path(gateway.export) / "raw-command-target.bin"
+    payload = b"raw commands must not mutate this object\n"
+    target.write_bytes(payload)
+
+    build = subprocess.run(
+        ["make", "-C", str(REPO / "client"),
+         "gridftp-control-integrity-probe-unit"],
+        capture_output=True, text=True, timeout=180)
+    assert build.returncode == 0, build.stdout + build.stderr
+
+    env = gsi_client_env(CA_DIR, USER_PROXY)
+    probe = subprocess.run(
+        [str(CONTROL_PROBE),
+         f"gsiftp://{SERVER_HOST}:{gateway.port}/", CA_DIR],
+        capture_output=True, text=True, env=env, timeout=60)
+    assert probe.returncode == 0, probe.stdout + probe.stderr
+    assert target.read_bytes() == payload, "raw DELE crossed the GSS boundary"
 
 
 def test_get_mode_e_parallel_dcpriv(gateway, tmp_path):

@@ -144,6 +144,17 @@ brix_net_target_effective_port(const brix_net_target_t *target,
 
 
 ngx_int_t
+brix_net_target_check_redirect(const brix_net_target_t *initial,
+    const brix_net_target_t *next, ngx_flag_t allow_cross_origin,
+    char *err, size_t errsz)
+{
+    (void) initial; (void) next; (void) allow_cross_origin;
+    (void) err; (void) errsz;
+    return NGX_OK;
+}
+
+
+ngx_int_t
 brix_dns_parse_literal(const ngx_str_t *name, brix_dns_addr_t *out)
 {
     char  buf[64];

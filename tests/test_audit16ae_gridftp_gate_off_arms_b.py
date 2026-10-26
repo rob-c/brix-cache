@@ -70,73 +70,50 @@ class TestTheArmedGsiPlaneDiffersExactlyThere:
                 label
 
 
-class TestArmingGsiDoesNotRequireIt:
-    """DEFECT CANDIDATE #111.
+class TestArmingGsiRequiresIt:
+    """Regression for fixed DEFECT CANDIDATE #111.
 
-    G_ON is the operator doc's §3 config: `brix_gridftp_gsi on` with a host
-    certificate, key and CA, presented as "the production form: an RFC 2228 GSI
-    control channel authenticated by an X.509 (proxy) certificate".  Every cell
-    below runs against that plane with no certificate, no proxy, and no AUTH at
-    all.
-
-    ev_grp_login (ftp_ev_dispatch.c:226-233) sets `fc->authed = 1` on any PASS
-    and does not look at `fc->conf->gsi`.  Nothing in the gridftp command table
-    requires the security layer, and `brix_gridftp_require_vo` — the only
-    directive that could — is a per-PATH ACL evaluated after resolution
-    (ftp_ev_path.c:117-125) which is allow-all when no rule covers the path.
+    G_ON is the production GSI shape.  Clear USER/PASS must never create its
+    session authority; the otherwise-identical GSI-off planes deliberately keep
+    anonymous FTP compatibility.
     """
 
-    def test_an_anonymous_cleartext_login_succeeds_on_the_armed_plane(self,
-                                                                      gates):
+    @pytest.mark.parametrize("command", ("USER anonymous", "PASS anything",
+                                          "uSeR mixed", "pAsS mixed"))
+    def test_clear_login_verbs_are_refused_on_the_armed_plane(self, gates,
+                                                               command):
+        reply = _reply(_dialogue(G_ON, [command])[0])
+        assert reply.startswith("530 GSI authentication required"), reply
+
+    def test_failed_clear_login_does_not_unlock_other_commands(self, gates):
         replies = _dialogue(G_ON, ["USER anonymous", "PASS x@example.org",
-                                   "PWD"])
-        assert _reply(replies[0]).startswith("331"), replies[0]
-        assert _reply(replies[1]).startswith("230"), replies[1]
-        assert _reply(replies[2]).startswith("257"), replies[2]
+                                   "PWD", "PASV"])
+        assert all(_reply(reply).startswith("530") for reply in replies), \
+            replies
 
-    def test_any_password_at_all_is_accepted(self, gates):
-        """PASS is not checked against anything — the point is not that
-        anonymous is allowed but that the branch which sets `authed` has no
-        condition on it."""
-        for password in ("", "wrong", "../../etc/shadow", "x" * 200):
-            replies = _dialogue(G_ON, ["USER someone", f"PASS {password}"])
-            assert _reply(replies[1]).startswith("230"), (password, replies)
-
-    def test_the_cleartext_session_can_write_through_the_armed_plane(self,
-                                                                     gates,
-                                                                     request):
-        """The consequence, and the reason this is a security finding and not a
-        curiosity: the unauthenticated session gets the export's full
-        read-write surface."""
-        payload = os.urandom(777)
+    def test_failed_clear_login_cannot_publish_an_object(self, gates, request):
         name = f"{_uid(request)}.bin"
-        assert _stor(G_ON, name, payload) == 226
-        assert gates.disk(name).read_bytes() == payload
-        code, body = _retr(G_ON, name)
-        assert code == 226 and body == payload
+        replies = _dialogue(G_ON, ["USER anonymous", "PASS anything",
+                                   f"STOR {name}"])
+        assert _reply(replies[-1]).startswith("530"), replies
+        assert not gates.disk(name).exists(), name
 
-    def test_the_armed_plane_is_indistinguishable_from_the_disarmed_ones_here(
-            self, gates, request):
-        """The equality that makes the size of the finding legible: for a client
-        that simply never sends AUTH, all three GSI planes are the same server.
-        Arming GSI adds a mechanism; it removes nothing."""
-        payload = os.urandom(512)
-        for label, port in ALL_GSI:
-            name = f"{_uid(request)}-{label}.bin"
-            assert _stor(port, name, payload) == 226, label
-            assert gates.disk(name).read_bytes() == payload, label
+    def test_explicit_cleartext_planes_keep_anonymous_compatibility(self,
+                                                                    gates):
+        for label, port in GSI_DISARMED:
+            replies = _dialogue(port, ["USER anonymous", "PASS anything",
+                                       "PWD"])
+            assert _reply(replies[0]).startswith("331"), (label, replies)
+            assert _reply(replies[1]).startswith("230"), (label, replies)
+            assert _reply(replies[2]).startswith("257"), (label, replies)
 
-    def test_the_path_confinement_still_holds_for_the_cleartext_session(
-            self, gates):
-        """What DOES still gate the anonymous session, stated so the finding is
-        bounded: invariant 4's resolve_path is upstream of authentication, so an
-        escape above the export is refused whether or not anyone logged in
-        meaningfully."""
-        for escape in ("../../../../etc/passwd", "/etc/passwd",
-                       "..%2f..%2f..%2fetc%2fpasswd", "....//etc/passwd"):
-            code, body = _retr(G_ON, escape)
-            assert code in (550, 553), (escape, code)
-            assert b"root:x:" not in body, escape
+    def test_armed_and_disarmed_planes_have_opposite_login_verdicts(self,
+                                                                    gates):
+        armed = _dialogue(G_ON, ["USER anonymous", "PASS anything"])
+        assert all(_reply(reply).startswith("530") for reply in armed), armed
+        for label, port in GSI_DISARMED:
+            disarmed = _dialogue(port, ["USER anonymous", "PASS anything"])
+            assert _reply(disarmed[-1]).startswith("230"), (label, disarmed)
 
 
 # --------------------------------------------------------------------------- #
@@ -411,11 +388,12 @@ class TestTheRestReplyIsMalformed:
         reply = _reply(_dialogue(W_ON, [f"REST {offset}"], login=True)[0])
         assert reply == f"350 Restart position accepted ({offset}ld)", reply
 
-    @pytest.mark.parametrize("label,port", ALL_WRITE + ALL_GSI)
+    @pytest.mark.parametrize("label,port", ALL_WRITE + GSI_DISARMED)
     def test_every_plane_emits_the_same_malformed_reply(self, gates, label,
                                                         port):
-        """It is the formatter and not the configuration: all eight gateways
-        answer identically, so no arm of any of the three flags is involved."""
+        """It is the formatter and not the configuration: every anonymous
+        gateway answers identically; the GSI-required plane needs a real GSS
+        login and is exercised by its dedicated interoperability suite."""
         reply = _reply(_dialogue(port, ["REST 10"], login=True)[0])
         assert reply == "350 Restart position accepted (10ld)", (label, reply)
 

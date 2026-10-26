@@ -30,6 +30,14 @@ typedef struct {
 int brix_token_scope_path_matches(const char *scope_path,
     const char *request_path);
 
+/* WHAT: Return one when a bounded token path uses canonical segment spelling.
+* WHY: Authorization prefixes must not acquire different meaning after storage
+*      canonicalization; trailing slash remains a valid directory form.
+* HOW: Require an absolute path and reject controls, backslashes, repeated
+*      separators, and exact dot/dot-dot segments without modifying the input.
+*/
+int brix_token_scope_path_is_canonical(const char *path, size_t path_len);
+
 /* WHAT: Parse space-separated WLCG "permission:path" scope claim into structured brix_token_scope_t entries.
 * WHY: WLCG tokens encode authorization as space-separated scope claims (e.g., "storage.read:/atlas/reco"). This extracts permission and path components for downstream access control decisions.
 * HOW: Tokenizes input on spaces → splits each entry on ":" separator → copies path component with default "/" if empty → sets read/write/create/modify flags via exact-length memcmp. Returns count of parsed scope entries written to scopes[].

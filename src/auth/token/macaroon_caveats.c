@@ -504,30 +504,31 @@ macaroon_parse_activity_caveat(brix_macaroon_parse_state_t *state,
  * WHAT: Record the earliest valid expiry and return NGX_OK, or NGX_ERROR for
  *       malformed timestamp text.
  * WHY: Ignoring a malformed signed expiry turns attenuation into no limit.
- * HOW: Parse the fixed UTC form and retain the minimum epoch value.
+ * HOW: Parse the fixed UTC form, record explicit presence, and retain the
+ *      minimum epoch value without treating epoch zero as an unset sentinel.
  */
 static ngx_int_t
 macaroon_parse_before_caveat(brix_macaroon_parse_state_t *state,
                              const u_char *caveat, size_t caveat_len)
 {
     time_t exp = parse_iso8601((const char *)(caveat + 7), caveat_len - 7);
-
     if (exp == (time_t)-1) {
         return NGX_ERROR;
     }
-    if (state->claims->exp == 0 || exp < state->claims->exp) {
+    if (!state->before_seen || exp < state->claims->exp) {
         state->claims->exp = exp;
     }
+    state->before_seen = 1;
     return NGX_OK;
 }
 
 /* ---- Parse one path: caveat into the bounded restriction set ----
  *
- * WHAT: Record one absolute, control-free path and return NGX_OK; reject empty,
- *       oversized, malformed, or excess caveats with NGX_ERROR.
+ * WHAT: Record one canonical absolute path or reject malformed/excess input.
+ *       One trailing slash remains valid as the scope engine's directory form.
  * WHY: Truncation and embedded NUL/control bytes let signed and enforced paths
  *      differ, while dropped caveats widen authority.
- * HOW: Enforce count/length/leading slash, scan every byte, then copy exactly.
+ * HOW: Reject bad bounds, bytes, separators, and dot segments; copy exactly.
  */
 static ngx_int_t
 macaroon_parse_path_caveat(brix_macaroon_parse_state_t *state,
@@ -535,20 +536,11 @@ macaroon_parse_path_caveat(brix_macaroon_parse_state_t *state,
 {
     const char *path = (const char *)(caveat + 5);
     size_t path_len = caveat_len - 5;
-    size_t index;
 
-    if (state->n_path_caveats >= 8 || path_len == 0
-        || path_len >= BRIX_SCOPE_PATH_MAX || path[0] != '/') {
+    if (state->n_path_caveats >= 8 || path_len >= BRIX_SCOPE_PATH_MAX
+        || !brix_token_scope_path_is_canonical(path, path_len)) {
         return NGX_ERROR;
     }
-    for (index = 0; index < path_len; index++) {
-        u_char ch = (u_char)path[index];
-
-        if (ch == '\0' || ch < 0x20 || ch == 0x7f || ch == '\\') {
-            return NGX_ERROR;
-        }
-    }
-
     memcpy(state->path_caveats[state->n_path_caveats], path, path_len);
     state->path_caveats[state->n_path_caveats][path_len] = '\0';
     state->n_path_caveats++;

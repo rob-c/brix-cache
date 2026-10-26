@@ -26,19 +26,11 @@ WHY THIS FILE EXISTS
     is everything after.
 
 THE FINDINGS
-    DEFECT CANDIDATE #111 — `brix_gridftp_gsi on` offers GSI; it never
-    requires it.  The gateway configured exactly as docs/05-operations/gridftp.md
-    §3 shows it ("The production form: an RFC 2228 GSI control channel
-    authenticated by an X.509 (proxy) certificate") answers `230 Login
-    successful` to `USER anonymous` / `PASS anything` and then serves a full
-    read-write session.  ev_grp_login (ftp_ev_dispatch.c:226-233) sets
-    `fc->authed = 1` on ANY `PASS`, unconditionally — `fc->conf->gsi` is not
-    consulted there and there is no directive anywhere in the gridftp command
-    table (ftp_module.c:208-341) that requires the security layer.  The
-    published mitigation, `brix_gridftp_require_vo`, is a per-PATH ACL applied
-    after resolution (ftp_ev_path.c:117-125) and is allow-all when no rule
-    covers the path, so §3's example — which has no VO rules — has no gate at
-    all.  §F measures it.
+    DEFECT CANDIDATE #111 — FIXED.  `brix_gridftp_gsi on` used to offer GSI
+    without requiring it: arbitrary clear USER/PASS established a read-write
+    session.  The dispatcher now refuses USER/PASS until a verified GSI identity
+    and protected control channel exist, while the explicit GSI-off anonymous
+    door retains its historical login.  §F pins both sides of that boundary.
 
     DEFECT CANDIDATE #112 — `brix_verify_write on` is switched off, per
     transfer, by a client-chosen `REST`.  ftp_ev_xfer.c:374 computes
@@ -81,8 +73,8 @@ WHAT THIS FILE DOES NOT CLAIM
     guess the other way round.
 
     Nor that anonymous cleartext FTP is itself wrong — §2 of the operator doc
-    offers exactly that, deliberately.  #111 is that arming GSI does not take it
-    away, on the very config the doc presents as the secured one.
+    offers exactly that, deliberately.  #111 was that arming GSI did not take it
+    away; the regression cells now prove it does.
 
 HOW THE PLANES WORK
     All three directives are NGX_STREAM_SRV_CONF, so a plane is a `listen` and

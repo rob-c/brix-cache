@@ -258,6 +258,54 @@ brix_token_scope_path_matches(const char *scope_path,
     return (next == '\0' || next == '/');
 }
 
+/* WHAT: Identify an exact dot or dot-dot segment between two offsets.
+ * WHY: Prefix authorization must reject traversal segments without rejecting
+ * ordinary names such as `.well-known`.
+ * HOW: Compare the bounded length and exact period bytes; return one on match.
+ */
+static int
+token_scope_segment_is_dot(const char *path, size_t start, size_t end)
+{
+    size_t length = end - start;
+
+    return (length == 1 && path[start] == '.')
+           || (length == 2 && path[start] == '.' && path[start + 1] == '.');
+}
+
+/* WHAT: Validate the canonical spelling of one bounded authorization path.
+ * WHY: Dot or repeated-separator aliases can escape a textual prefix when the
+ * storage path is canonicalized later; one trailing slash remains legitimate.
+ * HOW: Require absolute nonempty input, scan safe bytes and segment boundaries,
+ * reject ambiguous segments, and leave the caller-owned bytes unchanged.
+ */
+int
+brix_token_scope_path_is_canonical(const char *path, size_t path_len)
+{
+    size_t segment_start = 0;
+    size_t index;
+
+    if (path == NULL || path_len == 0 || path[0] != '/') {
+        return 0;
+    }
+    for (index = 0; index < path_len; index++) {
+        unsigned char character = (unsigned char)path[index];
+
+        if (character == '\0' || character < 0x20 || character == 0x7f
+            || character == '\\') {
+            return 0;
+        }
+        if (character != '/') {
+            continue;
+        }
+        if ((index > 0 && path[index - 1] == '/')
+            || token_scope_segment_is_dot(path, segment_start, index)) {
+            return 0;
+        }
+        segment_start = index + 1;
+    }
+    return !token_scope_segment_is_dot(path, segment_start, path_len);
+}
+
 /*
  * brix_token_check_read — test whether any scope grants storage.read
  * access to path.

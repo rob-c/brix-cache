@@ -215,6 +215,7 @@ void      brix_ftp_ev_vfs_ctx(ftp_ev_t *fc, const char *abs, void *vctx /* brix_
 
 /* ---- ftp_ev_dispatch.c : the command dispatcher ---- */
 ngx_int_t brix_ftp_ev_dispatch(ftp_ev_t *fc, char *line);
+ngx_int_t brix_ftp_ev_dispatch_protected(ftp_ev_t *fc, char *line);
 
 /* ---- ftp_ev_cmd.c : per-verb handlers (return NGX_OK / NGX_DONE / NGX_ERROR) ---- */
 ngx_int_t brix_ftp_ev_cmd_cwd(ftp_ev_t *fc, const char *arg);

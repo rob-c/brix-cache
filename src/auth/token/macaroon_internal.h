@@ -35,6 +35,7 @@
  * brix_macaroon_parse_state_t, so they live with the struct definitions. */
 #define BRIX_MACAROON_MAX_CID_LEN      512
 #define BRIX_MACAROON_VID_LEN          48
+#define BRIX_MACAROON_MAX_CL_LEN       512
 
 /*
  * A third-party caveat (cid + vid pair) captured during root Macaroon parsing.
@@ -66,6 +67,7 @@ typedef struct {
     int                   found_id;
     int                   found_location;
     int                   activity_seen;
+    int                   before_seen;
     unsigned int          activity_mask;
     char                  scope_buf[BRIX_TOKEN_MACAROON_SCOPE_BUF_SIZE];
     size_t                scope_off;
@@ -75,6 +77,7 @@ typedef struct {
     size_t                last_cid_len;
     u_char                sig_before_cid[32];
     int                   have_last_cid;
+    int                   caveat_location_allowed;
 } brix_macaroon_parse_state_t;
 
 /*
@@ -89,6 +92,7 @@ typedef struct {
  */
 typedef struct {
     int   activity_seen;
+    int   before_seen;
     char  path_caveats[8][BRIX_SCOPE_PATH_MAX];
     int   n_path_caveats;
 } brix_macaroon_parse_meta_t;

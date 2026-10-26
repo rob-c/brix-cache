@@ -55,6 +55,67 @@ ev_verb_preauth(const char *verb)
 }
 
 
+/* ---- Identify the RFC 2228 outer command wrappers ----
+ *
+ * WHAT: Returns non-zero only for MIC, CONF, and ENC; returns zero for every
+ * other command verb.
+ *
+ * WHY: Once GSS protection is active, raw socket input and authenticated
+ * plaintext produced by unwrap must follow opposite rules.  Naming the three
+ * legal outer wrappers in one predicate keeps those rules identical.
+ *
+ * HOW: Compare the already-framed verb case-insensitively against the three
+ * RFC 2228 wrapper names.
+ */
+static int
+ev_verb_is_protection_wrapper(const char *verb)
+{
+    return strcasecmp(verb, "MIC") == 0
+           || strcasecmp(verb, "CONF") == 0
+           || strcasecmp(verb, "ENC") == 0;
+}
+
+
+/* ---- Enforce control-command provenance after GSS authentication ----
+ *
+ * WHAT: Returns NGX_DECLINED when the command's raw/protected provenance is
+ * valid, otherwise queues a protected 533 refusal and returns its result.
+ *
+ * WHY: A GSS-authenticated connection previously executed ordinary commands
+ * received directly from the socket.  The same dispatcher also receives the
+ * authenticated plaintext after unwrap, so the boundary must distinguish the
+ * two sources rather than rejecting both.
+ *
+ * HOW: Before GSS activation no provenance restriction applies.  Afterwards,
+ * raw input may only be a protection wrapper or QUIT, while an authenticated
+ * inner command may never recursively contain another protection wrapper.
+ */
+static ngx_int_t
+ev_enforce_command_provenance(ftp_ev_t *fc, const char *verb,
+                              int protected_inner)
+{
+    int wrapper;
+
+    if (!fc->sec_active) {
+        return NGX_DECLINED;
+    }
+
+    wrapper = ev_verb_is_protection_wrapper(verb);
+    if (protected_inner) {
+        if (!wrapper) {
+            return NGX_DECLINED;
+        }
+        return brix_ftp_ev_reply(fc,
+            "533 Nested protected command refused\r\n");
+    }
+
+    if (wrapper || strcasecmp(verb, "QUIT") == 0) {
+        return NGX_DECLINED;
+    }
+    return brix_ftp_ev_reply(fc, "533 Command protection required\r\n");
+}
+
+
 /* FEAT: advertise supported extensions; the GSI mechanisms only when a security
  * context is configured. */
 static ngx_int_t
@@ -213,10 +274,31 @@ ev_grp_security(ftp_ev_t *fc, const char *verb, const char *arg)
 }
 
 
-/* Login: a GSI-authenticated session is already logged in when USER arrives. */
+/* ---- Handle anonymous or GSI-bound FTP login commands ----
+ *
+ * WHAT: Implements USER/PASS for a clear anonymous listener and acknowledges
+ * protected USER/PASS only after a GSI identity has authenticated; otherwise
+ * replies 530 without changing session authority.
+ *
+ * WHY: `brix_gridftp_gsi on` is a requirement, not an offer with an anonymous
+ * fallback.  Treating any clear PASS as authentication exposed the entire
+ * configured export without the certificate the listener promised to require.
+ *
+ * HOW: First fail closed on a GSI listener until both the wrapped channel and
+ * authenticated identity state exist.  Then preserve the historical anonymous
+ * USER/PASS flow for GSI-off listeners and the post-GSS compatibility replies.
+ */
 static ngx_int_t
 ev_grp_login(ftp_ev_t *fc, const char *verb, const char *arg)
 {
+    if ((strcasecmp(verb, "USER") == 0 || strcasecmp(verb, "PASS") == 0)
+        && fc->conf->gsi
+        && (!fc->sec_active || !fc->authed || fc->identity == NULL))
+    {
+        return brix_ftp_ev_reply(fc,
+            "530 GSI authentication required\r\n");
+    }
+
     if (strcasecmp(verb, "USER") == 0) {
         if (fc->sec_active) {                        /* GSI already logged in  */
             fc->authed = 1;
@@ -424,13 +506,29 @@ ev_grp_ctl(ftp_ev_t *fc, const char *verb)
 }
 
 
-/* Handle one framed command line. */
-ngx_int_t
-brix_ftp_ev_dispatch(ftp_ev_t *fc, char *line)
+/* ---- Dispatch one command with explicit transport provenance ----
+ *
+ * WHAT: Parses and routes one FTP command, returning the selected handler's
+ * nginx status after applying authentication and GSS provenance gates.
+ *
+ * WHY: Raw socket commands and GSS-unwrapped commands share all grammar and
+ * handlers, but only the latter carry post-authentication command integrity.
+ * Keeping one common router prevents policy drift without erasing that fact.
+ *
+ * HOW: Split the line, enforce the provenance contract, apply the existing
+ * pre-auth gate, and then try each command-family router in grammar order.
+ */
+static ngx_int_t
+ev_dispatch(ftp_ev_t *fc, char *line, int protected_inner)
 {
     char      *verb;
     char      *arg = brix_ftp_ev_split(line, &verb);
     ngx_int_t  rc;
+
+    rc = ev_enforce_command_provenance(fc, verb, protected_inner);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
 
     /* Pre-auth gate: reject file/namespace/transfer verbs until login. */
     if (!fc->authed && !ev_verb_preauth(verb)) {
@@ -448,4 +546,36 @@ brix_ftp_ev_dispatch(ftp_ev_t *fc, char *line)
     if ((rc = ev_grp_ctl(fc, verb))             != NGX_DECLINED) { return rc; }
 
     return brix_ftp_ev_reply(fc, "500 Unknown command\r\n");
+}
+
+
+/* ---- Dispatch one command read directly from the control socket ----
+ *
+ * WHAT: Routes a raw control-channel command and returns its handler status.
+ *
+ * WHY: The socket ingress must not be confused with authenticated plaintext
+ * obtained by unwrapping MIC/CONF/ENC after the GSS handshake.
+ *
+ * HOW: Call the common dispatcher with raw provenance.
+ */
+ngx_int_t
+brix_ftp_ev_dispatch(ftp_ev_t *fc, char *line)
+{
+    return ev_dispatch(fc, line, 0);
+}
+
+
+/* ---- Dispatch one authenticated command recovered from a GSS wrapper ----
+ *
+ * WHAT: Routes an unwrapped inner command and returns its handler status.
+ *
+ * WHY: Legitimate post-GSS commands must reach the shared grammar while raw
+ * commands on that same connection remain fail-closed.
+ *
+ * HOW: Call the common dispatcher with protected-inner provenance.
+ */
+ngx_int_t
+brix_ftp_ev_dispatch_protected(ftp_ev_t *fc, char *line)
+{
+    return ev_dispatch(fc, line, 1);
 }

@@ -120,3 +120,76 @@ brix_net_target_effective_port(const brix_net_target_t *target,
             ? policy->default_root_port : BRIX_PORT_ROOT_DEFAULT;
     return NGX_OK;
 }
+
+
+/*
+ * net_target_same_origin — compare URL origins after default-port expansion.
+ *
+ * WHAT: returns non-zero only when scheme and host match case-insensitively
+ *       and both targets select the same effective port.
+ * WHY:  textual explicit/default port differences are the same origin, while
+ *       a host, scheme or actual dial-port change must not inherit authority.
+ * HOW:  use the shared effective-port decision, then bounded comparisons.
+ */
+static int
+net_target_same_origin(const brix_net_target_t *first,
+    const brix_net_target_t *second)
+{
+    brix_net_target_policy_t  policy;
+    uint16_t                  first_port, second_port;
+    char                      ignored[64];
+
+    ngx_memzero(&policy, sizeof(policy));
+    if (brix_net_target_effective_port(first, &policy, &first_port,
+                                       ignored, sizeof(ignored)) != NGX_OK
+        || brix_net_target_effective_port(second, &policy, &second_port,
+                                          ignored, sizeof(ignored)) != NGX_OK)
+    {
+        return 0;
+    }
+    return first->scheme.len == second->scheme.len
+           && first->host.len == second->host.len
+           && ngx_strncasecmp(first->scheme.data, second->scheme.data,
+                              first->scheme.len) == 0
+           && ngx_strncasecmp(first->host.data, second->host.data,
+                              first->host.len) == 0
+           && first_port == second_port;
+}
+
+
+/*
+ * brix_net_target_check_redirect — constrain authority across redirects.
+ *
+ * WHAT: rejects HTTPS-to-non-HTTPS redirects and, by default, every origin
+ *       change; returns NGX_OK for a permitted next target.
+ * WHY:  the pinned curl loop reuses the caller's method, body and explicit
+ *       header list. Following an attacker-selected Location without this
+ *       gate can replay bearer tokens or authenticated POST bodies to another
+ *       origin even though DNS pinning itself succeeds.
+ * HOW:  validate the next scheme, preserve TLS once established, then compare
+ *       scheme/host/effective-port unless the caller explicitly declares its
+ *       request safe for cross-origin replay.
+ */
+ngx_int_t
+brix_net_target_check_redirect(const brix_net_target_t *initial,
+    const brix_net_target_t *next, ngx_flag_t allow_cross_origin,
+    char *err, size_t errsz)
+{
+    brix_net_target_policy_t  policy;
+
+    ngx_memzero(&policy, sizeof(policy));
+    if (brix_net_target_check_scheme(next, &policy, err, errsz) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (net_scheme_equal(&initial->scheme, "https", sizeof("https") - 1)
+        && !net_scheme_equal(&next->scheme, "https", sizeof("https") - 1))
+    {
+        snprintf(err, errsz, "HTTPS redirect downgrade is not allowed");
+        return NGX_ERROR;
+    }
+    if (!allow_cross_origin && !net_target_same_origin(initial, next)) {
+        snprintf(err, errsz, "cross-origin redirect is not allowed");
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}

@@ -96,6 +96,15 @@ ngx_int_t brix_net_target_effective_port(const brix_net_target_t *target,
     const brix_net_target_policy_t *policy, uint16_t *port,
     char *err, size_t errsz);
 
+/* Enforce the security properties of one HTTP redirect.  An HTTPS request may
+ * never downgrade to HTTP.  Unless allow_cross_origin is set, scheme, host and
+ * effective port must remain the same as the initial URL.  Cross-origin mode
+ * is suitable only for caller-verified requests with no reusable authority
+ * (for example an unauthenticated discovery GET). */
+ngx_int_t brix_net_target_check_redirect(
+    const brix_net_target_t *initial, const brix_net_target_t *next,
+    ngx_flag_t allow_cross_origin, char *err, size_t errsz);
+
 /*
  * brix_net_target_check_addr — classify a single resolved sockaddr.
  *

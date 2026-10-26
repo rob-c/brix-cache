@@ -197,20 +197,35 @@ curl_pin_attempt(CURL *curl, const brix_dns_curl_transfer_t *t,
 CURLcode
 brix_dns_curl_perform_pinned(CURL *curl, const brix_dns_curl_transfer_t *t)
 {
-    char        target[BRIX_DNS_CURL_URL_MAX];
-    char       *next;
-    CURLcode    res;
-    ngx_uint_t  hop;
-    long        budget, left;
-    curl_off_t  spent;
+    brix_net_target_t  initial, redirect;
+    ngx_str_t           initial_url, redirect_url;
+    char                initial_target[BRIX_DNS_CURL_URL_MAX];
+    char                target[BRIX_DNS_CURL_URL_MAX];
+    char               *next;
+    CURLcode            res;
+    ngx_uint_t          hop;
+    long                budget, left;
+    curl_off_t          spent;
 
     if (t->err != NULL && t->errsz > 0) {
         t->err[0] = '\0';
     }
     budget = curl_pin_budget(t);
     spent = 0;
-    res = curl_pin_copy_target(t->url, target, sizeof(target), t->err,
+    res = curl_pin_copy_target(t->url, initial_target, sizeof(initial_target),
+                               t->err, t->errsz);
+    if (res != CURLE_OK) {
+        return res;
+    }
+    res = curl_pin_copy_target(initial_target, target, sizeof(target), t->err,
                                t->errsz);
+    initial_url.data = (u_char *) initial_target;
+    initial_url.len = ngx_strlen(initial_target);
+    if (brix_net_target_parse(NULL, &initial_url, &initial,
+                              t->err, t->errsz) != NGX_OK)
+    {
+        return CURLE_URL_MALFORMAT;
+    }
     for (hop = 0; res == CURLE_OK; hop++) {
         left = curl_pin_remaining(budget, spent);
         if (left == 0) {
@@ -230,6 +245,19 @@ brix_dns_curl_perform_pinned(CURL *curl, const brix_dns_curl_transfer_t *t)
         }
         res = curl_pin_copy_target(next, target, sizeof(target), t->err,
                                    t->errsz);
+        if (res != CURLE_OK) {
+            continue;
+        }
+        redirect_url.data = (u_char *) target;
+        redirect_url.len = ngx_strlen(target);
+        if (brix_net_target_parse(NULL, &redirect_url, &redirect,
+                                  t->err, t->errsz) != NGX_OK
+            || brix_net_target_check_redirect(&initial, &redirect,
+                                               t->allow_cross_origin,
+                                               t->err, t->errsz) != NGX_OK)
+        {
+            return CURLE_URL_MALFORMAT;
+        }
     }
     return res;
 }

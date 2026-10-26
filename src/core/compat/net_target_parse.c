@@ -218,6 +218,131 @@ net_ipv6_literal_valid(const u_char *begin, const u_char *end)
 }
 
 /*
+ * net_ipv4_numeric_component — classify one legacy numeric IPv4 component.
+ *
+ * WHAT: returns non-zero for a decimal digit string or a 0x-prefixed
+ *       hexadecimal string; returns zero for any other label.
+ * WHY:  transfer libraries still accept historical one-to-four-component,
+ *       octal and hexadecimal IPv4 spellings. Those spellings can be treated
+ *       as DNS names by the preflight yet normalized to another address by
+ *       libcurl, bypassing the address pin.
+ * HOW:  recognize the complete bounded token without converting it.
+ */
+static int
+net_ipv4_numeric_component(const u_char *begin, const u_char *end)
+{
+    const u_char *cursor = begin;
+
+    if (begin == end) {
+        return 0;
+    }
+    if (end - begin > 2 && begin[0] == '0'
+        && (begin[1] == 'x' || begin[1] == 'X'))
+    {
+        cursor += 2;
+        for (; cursor < end; cursor++) {
+            if (!(('0' <= *cursor && *cursor <= '9')
+                  || ('a' <= *cursor && *cursor <= 'f')
+                  || ('A' <= *cursor && *cursor <= 'F')))
+            {
+                return 0;
+            }
+        }
+        return 1;
+    }
+    for (; cursor < end; cursor++) {
+        if (*cursor < '0' || *cursor > '9') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+/*
+ * net_ipv4_numeric_style — identify an all-numeric legacy IPv4 authority.
+ *
+ * WHAT: returns non-zero when the host consists of one to four numeric-style
+ *       components, with an optional final DNS root dot.
+ * WHY:  these are the hostname-shaped inputs for which legacy URL consumers
+ *       may apply IPv4 number syntax instead of DNS semantics.
+ * HOW:  split on dots and classify every nonempty component with the helper.
+ */
+static int
+net_ipv4_numeric_style(const u_char *begin, const u_char *end)
+{
+    const u_char *component = begin;
+    const u_char *cursor;
+    ngx_uint_t    count = 0;
+
+    for (cursor = begin; cursor <= end; cursor++) {
+        if (cursor < end && *cursor != '.') {
+            continue;
+        }
+        if (cursor == component) {
+            return cursor == end && cursor > begin && cursor[-1] == '.'
+                   && count > 0 && count <= 4;
+        }
+        if (++count > 4
+            || !net_ipv4_numeric_component(component, cursor))
+        {
+            return 0;
+        }
+        if (cursor == end) {
+            return 1;
+        }
+        component = cursor + 1;
+    }
+    return 0;
+}
+
+
+/*
+ * net_ipv4_canonical_decimal — accept only canonical dotted-decimal IPv4.
+ *
+ * WHAT: returns non-zero for exactly four decimal octets in 0..255, with no
+ *       leading zero on a multi-digit octet.
+ * WHY:  this spelling has one interpretation in the parser, DNS literal seam
+ *       and libcurl. Every other numeric spelling is refused rather than
+ *       guessed or normalized at different layers.
+ * HOW:  accumulate each bounded octet and require exactly three separators.
+ */
+static int
+net_ipv4_canonical_decimal(const u_char *begin, const u_char *end)
+{
+    const u_char *component = begin;
+    const u_char *cursor;
+    ngx_uint_t    count = 0;
+    unsigned      value = 0;
+
+    for (cursor = begin; cursor <= end; cursor++) {
+        if (cursor < end && *cursor != '.') {
+            if (*cursor < '0' || *cursor > '9') {
+                return 0;
+            }
+            value = value * 10U + (unsigned) (*cursor - '0');
+            if (value > 255U) {
+                return 0;
+            }
+            continue;
+        }
+        if (cursor == component
+            || (cursor - component > 1 && *component == '0'))
+        {
+            return 0;
+        }
+        count++;
+        if (cursor == end) {
+            return count == 4;
+        }
+        component = cursor + 1;
+        value = 0;
+    }
+    return 0;
+}
+
+
+/*
  * net_parse_bracketed_host — parse an IPv6 literal authority "[addr][:port]".
  *
  * WHAT: fills out->host with the address inside the brackets and, when a
@@ -291,6 +416,11 @@ net_plain_host_valid(const u_char *begin, const u_char *end)
     size_t        length = (size_t) (end - begin);
 
     if (length == 0 || length > 253) {
+        return 0;
+    }
+    if (net_ipv4_numeric_style(begin, end)
+        && !net_ipv4_canonical_decimal(begin, end))
+    {
         return 0;
     }
 

@@ -497,6 +497,7 @@ run_caveat_case(ngx_log_t *log, const char *case_name)
     assert(validate_fixture(log, binary, length, &claims) == -1);
 }
 
+#ifndef BRIX_MACAROON_FIXTURE_LIBRARY
 /* WHAT: Drive one named native security regression. WHY: Each pytest case gets
  * an isolated process and deterministic assertion output. HOW: Dispatch the
  * bounded case families after checking the single required argument. */
@@ -542,3 +543,4 @@ main(int argc, char **argv)
     }
     return 0;
 }
+#endif

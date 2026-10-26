@@ -61,6 +61,10 @@ typedef struct {
     const brix_dns_policy_t  *policy;
     const char               *url;
     ngx_uint_t                max_redirects;
+    /* 0 is fail-closed: redirects must retain scheme, host and effective
+     * port. Set only for a request whose method/body/headers carry no reusable
+     * authority; HTTPS still cannot downgrade. */
+    ngx_flag_t                allow_cross_origin;
     /* Total ms for the whole transfer, redirects included.  <= 0 takes
      * BRIX_DNS_CURL_TIMEOUT_MS_DEFAULT; the loop spends it down hop by hop, so
      * a chain of N redirects cannot cost N times the caller's timeout. */
@@ -72,9 +76,10 @@ typedef struct {
 } brix_dns_curl_transfer_t;
 
 /* Perform `t->url` on `curl`, re-pinning each redirect hop (Location taken
- * from CURLINFO_REDIRECT_URL) through the driver.  Method and body options
- * stay as the caller set them, so a POST is re-issued as a POST (307/308
- * semantics).  Returns the last curl_easy_perform() result, or
+ * from CURLINFO_REDIRECT_URL) through the driver. HTTPS can never downgrade;
+ * origin changes require allow_cross_origin. Method and body options stay as
+ * the caller set them, so a POST is re-issued as a POST (307/308 semantics).
+ * Returns the last curl_easy_perform() result, or
  * CURLE_TOO_MANY_REDIRECTS / CURLE_URL_MALFORMAT / CURLE_COULDNT_RESOLVE_HOST
  * / CURLE_OPERATION_TIMEDOUT from the loop itself.  The caller must NOT set
  * CURLOPT_FOLLOWLOCATION or CURLOPT_URL, and need not set a timeout: the loop

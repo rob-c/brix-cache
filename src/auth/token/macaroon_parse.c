@@ -9,6 +9,7 @@
  *         - location packets
  *         - cid (caveat identifier) packets
  *         - vid (verification identifier) packets
+ *         - cl (optional third-party caveat location) packets
  *         - signature packets
  *       Captures third-party caveats (cid+vid+sig_before) into caller's tp_arr.
  *       Verifies final signature in constant time.
@@ -276,6 +277,32 @@ macaroon_packet_vid(brix_macaroon_parse_state_t *state,
         return NGX_ERROR;
     }
     state->have_last_cid = 0;
+    state->caveat_location_allowed = 1;
+    return NGX_OK;
+}
+
+/* ---- Validate the optional location attached to one third-party caveat ----
+ * WHAT: Accept one bounded text `cl` packet immediately after its `vid`.
+ * WHY: Version-one macaroons may carry informational caveat locations, but a
+ *      free-standing or delayed packet would make its ownership ambiguous.
+ * HOW: Require the one-packet grammar window, validate text and size, then
+ *      consume the window without folding informational bytes into the HMAC.
+ */
+static ngx_int_t
+macaroon_packet_caveat_location(brix_macaroon_parse_state_t *state,
+                                const u_char *data, size_t data_len)
+{
+    const u_char *location = data + 3;
+    size_t location_len = data_len - 3;
+
+    if (!state->caveat_location_allowed
+        || location_len >= BRIX_MACAROON_MAX_CL_LEN
+        || macaroon_text_value_valid(location, location_len) != NGX_OK) {
+        BRIX_LOG(NGX_LOG_WARN, state->log, 0,
+            "brix_macaroon: invalid or misplaced caveat location packet");
+        return NGX_ERROR;
+    }
+    state->caveat_location_allowed = 0;
     return NGX_OK;
 }
 
@@ -321,6 +348,10 @@ macaroon_dispatch_packet(brix_macaroon_parse_state_t *state,
             "brix_macaroon: packet follows terminal signature");
         return NGX_ERROR;
     }
+    if (data_len >= 3 && memcmp(data, "cl ", 3) == 0) {
+        return macaroon_packet_caveat_location(state, data, data_len);
+    }
+    state->caveat_location_allowed = 0;
     if (data_len >= 11 && memcmp(data, "identifier ", 11) == 0) {
         return macaroon_packet_identifier(state, data, data_len);
     }
@@ -344,20 +375,22 @@ macaroon_dispatch_packet(brix_macaroon_parse_state_t *state,
 /* ---- Enforce fail-closed root expiry and elapsed deadlines ----
  * WHAT: Return NGX_OK for a live credential, otherwise NGX_ERROR.
  * WHY: Root bearer credentials without a deadline remain useful forever.
- * HOW: Require root expiry and compare every positive expiry with wall time.
+ * HOW: Require explicit root expiry and reject every seen deadline at or before
+ *      wall time, including epoch-zero and pre-epoch values.
  */
 static ngx_int_t
 macaroon_check_expiry(brix_macaroon_parse_state_t *state)
 {
     time_t now = time(NULL);
 
-    if (state->tp_arr != NULL && state->claims->exp <= 0) {
+    if (state->tp_arr != NULL && !state->before_seen) {
         BRIX_LOG(NGX_LOG_WARN, state->log, 0,
                       "brix_macaroon: rejected — no before: (expiry) caveat; "
                       "non-expiring macaroons are not accepted");
         return NGX_ERROR;
     }
-    if (state->claims->exp > 0 && now > (time_t)state->claims->exp) {
+    if (state->before_seen
+        && (now == (time_t)-1 || state->claims->exp <= (int64_t)now)) {
         BRIX_LOG(NGX_LOG_WARN, state->log, 0,
                       "brix_macaroon: token expired at %L (now=%L)",
                       (long long)state->claims->exp, (long long)now);
@@ -396,6 +429,7 @@ macaroon_finalize_scopes(brix_macaroon_parse_state_t *state,
     if (meta != NULL) {
         ngx_memzero(meta, sizeof(*meta));
         meta->activity_seen = state->activity_seen;
+        meta->before_seen = state->before_seen;
         meta->n_path_caveats = state->n_path_caveats;
         if (state->n_path_caveats > 0) {
             ngx_memcpy(meta->path_caveats, state->path_caveats,
