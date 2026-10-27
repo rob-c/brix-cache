@@ -1,6 +1,8 @@
 #include "core/compat/log_event.h"
 #include "ftp_ev.h"
 
+#include "protocols/gridftp/ftp_peer_addr.h"
+
 #include "fs/vfs/vfs.h"
 #include "fs/vfs/vfs_ops.h"
 
@@ -60,15 +62,72 @@ brix_ftp_ev_wrap_conn(ftp_ev_t *fc, int fd)
 }
 
 
-/* Passive listener read event: a client has connected — accept it, retire the
- * listener, and hand the data socket to the pump. */
+/* ---- Admit a passive data socket to the control session ----
+ *
+ * WHAT: Returns NGX_OK when a protected socket will undergo the GSI identity
+ * handshake or a clear socket comes from the control transport peer; returns
+ * NGX_DECLINED for every other socket or when the peer cannot be established.
+ *
+ * WHY: possession of an advertised passive port is not authentication.  This
+ * is the shared boundary used by ordinary and MODE E accepts before either can
+ * open the VFS side or attach transfer authority to the new descriptor.
+ *
+ * HOW: 1. Let PROT P continue only to its mandatory TLS/DN verification.
+ *      2. Reject unknown protection modes.
+ *      3. Read the kernel control peer and compare canonical host addresses.
+ */
+ngx_int_t
+brix_ftp_ev_passive_peer_admit(ftp_ev_t *fc, const struct sockaddr *peer,
+    socklen_t peer_len)
+{
+    struct sockaddr_storage control_peer;
+    socklen_t               control_peer_len = sizeof(control_peer);
+
+    if (fc->prot == 'P') {
+        return NGX_OK;
+    }
+    if (fc->prot != 'C') {
+        return NGX_DECLINED;
+    }
+
+    ngx_memzero(&control_peer, sizeof(control_peer));
+    if (getpeername(fc->c->fd, (struct sockaddr *) &control_peer,
+                    &control_peer_len) != 0)
+    {
+        return NGX_DECLINED;
+    }
+    return brix_ftp_peer_addr_equal(
+               (const struct sockaddr *) &control_peer, control_peer_len,
+               peer, peer_len)
+           ? NGX_OK : NGX_DECLINED;
+}
+
+
+/* ---- Accept the ordinary passive data peer ----
+ *
+ * WHAT: Accepts the first admissible passive data connection, retires the
+ * one-shot listener, and starts TLS or the transfer pump; timeouts and fatal
+ * socket errors fail the transfer.
+ *
+ * WHY: an off-peer connector must be discarded without consuming the victim's
+ * listener, while a bounded accept batch prevents a rejection flood from
+ * monopolizing the worker event loop.
+ *
+ * HOW: 1. Accept at most one listener-backlog-sized batch and capture peers.
+ *      2. Close rejected peers before any transfer/VFS action and keep waiting.
+ *      3. Re-post a saturated batch, or retire the listener for an admitted fd.
+ *      4. Make the fd nonblocking and enter TLS or the clear transfer pump.
+ */
 static void
 ev_accept_handler(ngx_event_t *rev)
 {
     ngx_connection_t *lc = rev->data;
     ftp_ev_dc_t      *dc = lc->data;
     ftp_ev_t         *fc = dc->fc;
-    int               dfd;
+    struct sockaddr_storage peer;
+    socklen_t               peer_len;
+    ngx_uint_t              attempts;
+    int                     dfd = -1;
 
     if (rev->timedout) {
         BRIX_LOG(NGX_LOG_INFO, fc->c->log, NGX_ETIMEDOUT,
@@ -77,17 +136,41 @@ ev_accept_handler(ngx_event_t *rev)
         return;
     }
 
-    dfd = accept(lc->fd, NULL, NULL);
-    if (dfd < 0) {
-        if (ngx_socket_errno == NGX_EAGAIN) {
-            if (ngx_handle_read_event(rev, 0) != NGX_OK) {
-                brix_ftp_ev_data_finish(dc, NGX_ERROR);
+    for (attempts = 0; attempts < BRIX_FTP_EV_DATA_BACKLOG; attempts++) {
+        ngx_memzero(&peer, sizeof(peer));
+        peer_len = sizeof(peer);
+        dfd = accept(lc->fd, (struct sockaddr *) &peer, &peer_len);
+        if (dfd < 0) {
+            if (ngx_socket_errno == NGX_EAGAIN) {
+                if (ngx_handle_read_event(rev, 0) != NGX_OK) {
+                    brix_ftp_ev_data_finish(dc, NGX_ERROR);
+                }
+                return;                          /* queue drained — wait      */
             }
-            return;                              /* spurious wakeup — wait    */
+            BRIX_LOG(NGX_LOG_ERR, fc->c->log, ngx_socket_errno,
+                          "brix: GridFTP(ev) passive accept failed");
+            brix_ftp_ev_data_finish(dc, NGX_ERROR);
+            return;
         }
-        BRIX_LOG(NGX_LOG_ERR, fc->c->log, ngx_socket_errno,
-                      "brix: GridFTP(ev) passive accept failed");
-        brix_ftp_ev_data_finish(dc, NGX_ERROR);
+
+        if (brix_ftp_ev_passive_peer_admit(fc,
+                (const struct sockaddr *) &peer, peer_len) == NGX_OK)
+        {
+            break;
+        }
+        BRIX_LOG(NGX_LOG_WARN, fc->c->log, 0,
+                      "brix: GridFTP(ev) rejected passive data peer not "
+                      "bound to control peer");
+        (void) close(dfd);
+        dfd = -1;
+    }
+
+    if (dfd < 0) {
+        if (ngx_handle_read_event(rev, 0) != NGX_OK) {
+            brix_ftp_ev_data_finish(dc, NGX_ERROR);
+            return;
+        }
+        ngx_post_event(rev, &ngx_posted_events);
         return;
     }
 

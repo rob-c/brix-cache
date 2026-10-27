@@ -306,14 +306,25 @@ brix_ftp_ev_data_ready(ftp_ev_dc_t *dc)
 }
 
 
-/* Pre-transfer guards: write permission, an armed data channel, and the MODE E
- * upload/passive constraint.  Returns NGX_DECLINED to proceed; otherwise the
- * queued-reply result the caller must return.
+/* ---- Enforce transfer policy before emitting 150 ----
  *
- * Only the permission verdict is metered: it is an authorization outcome for the
- * requested op.  The other two are protocol misuse (no data channel armed, MODE E
- * without PASV) — the verb never became an operation, so counting them would
- * inflate the op rows with client sequencing errors. */
+ * WHAT: Returns NGX_DECLINED when a transfer may proceed, or queues the precise
+ * refusal for read-only writes, unauthenticated DCAU A, missing data setup, or
+ * an unsupported active MODE E upload.
+ *
+ * WHY: DCAU A promises authenticated data-channel identity.  Letting it reach a
+ * transfer under PROT C would silently replace that promise with an IP check and
+ * would make an off-peer active TPC leg a confused-deputy connection.
+ *
+ * HOW: 1. Apply the export write gate first.
+ *      2. Require PROT P whenever DCAU A was negotiated.
+ *      3. Require an armed data endpoint.
+ *      4. Keep MODE E uploads on their required passive listener.
+ *
+ * Only the permission verdict is metered: it is an authorization outcome for
+ * the requested op.  The other refusals are protocol sequencing errors before
+ * an operation exists and must not inflate operation metrics.
+ */
 static ngx_int_t
 ev_xfer_guards(ftp_ev_t *fc, int op, int writing)
 {
@@ -321,6 +332,10 @@ ev_xfer_guards(ftp_ev_t *fc, int op, int writing)
         brix_ftp_ev_metric_refused(op, BRIX_ERR_FORBIDDEN);
         return brix_ftp_ev_reply(fc,
             "550 Permission denied (read-only export)\r\n");
+    }
+    if (fc->dcau_a && fc->prot != 'P') {
+        return brix_ftp_ev_reply(fc,
+            "534 DCAU A requires PROT P data protection\r\n");
     }
     if (!fc->active && fc->pasv_fd < 0) {
         return brix_ftp_ev_reply(fc, "425 Use PASV or PORT first\r\n");

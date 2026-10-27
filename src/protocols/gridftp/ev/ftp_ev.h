@@ -245,6 +245,8 @@ ngx_int_t brix_ftp_ev_do_transfer(ftp_ev_t *fc, int kind, const char *arg);
 /* ---- ftp_ev_data.c : non-blocking data-channel lifecycle ---- */
 ngx_int_t brix_ftp_ev_data_setup(ftp_ev_t *fc, int kind, const char *arg);
 ngx_int_t brix_ftp_ev_data_open(ftp_ev_dc_t *dc);
+ngx_int_t brix_ftp_ev_passive_peer_admit(ftp_ev_t *fc,
+              const struct sockaddr *peer, socklen_t peer_len);
 void      brix_ftp_ev_data_finish(ftp_ev_dc_t *dc, ngx_int_t rc);
 /* Wrap an open data fd in an nginx connection (shared with the MODE E receiver). */
 ngx_connection_t *brix_ftp_ev_wrap_conn(ftp_ev_t *fc, int fd);

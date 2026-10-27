@@ -14,20 +14,13 @@
  * streams and fold their out-of-order extended blocks into the VFS writer, plus
  * the 111 restart / 112 range markers the sink emits.
  *
- * HOW: STOR installs brix_ftp_ev_eb_accept() as the passive listener's read
- * handler (in place of the single-stream ev_accept_handler): it accepts every
- * pending stream, wraps each in a child connection, optionally starts its PROT P
- * handshake, and arms a per-stream block reader.  Child readers are kicked via
- * ngx_post_event so a transfer that completes on the last EOD tears down the
- * listener from a *posted* stack, never nested inside the accept loop.  The
- * committed-range table (shared on the parent dc) rejects overlapping/overflowing
- * blocks; the transfer completes once the EOF-declared number of EODs has been
- * seen, and the writer commit runs the whole-object read-back verify.
+ * HOW: the listener screens and wraps each child, authenticates PROT P before
+ * writer creation, and posts its block reader.  Shared bounded range state
+ * rejects overlap/overflow; declared EOD completion commits with verification.
  */
 
 
 #define FTP_EV_EB_MARKER_MAX_RANGES 32         /* cap the 111 range-list length  */
-
 
 /* Per-child MODE E data-stream state.  Each passive data connection runs its own
  * header/payload accumulator; the committed ranges + EOD/EOF bookkeeping live on
@@ -47,7 +40,6 @@ typedef struct {
     off_t             at;           /* absolute offset for the next payload byte  */
 } ftp_ev_eb_conn_t;
 
-
 static int
 ev_eb_range_cmp(const void *a, const void *b)
 {
@@ -56,7 +48,6 @@ ev_eb_range_cmp(const void *a, const void *b)
     if (ra->lo > rb->lo) { return  1; }
     return 0;
 }
-
 
 /* Emit a GridFTP 111 restart/range marker: the contiguous byte ranges committed
  * so far, coalesced, so a client can resume from what the sink already holds.  The
@@ -100,7 +91,6 @@ ev_eb_marker_range(ftp_ev_dc_t *dc)
     (void) brix_ftp_ev_flush(fc);
 }
 
-
 /* ---- STOR: reassemble parallel extended-block streams ---------------------- */
 
 /* Release one child stream (quiet TLS teardown, close, free its pool). */
@@ -124,7 +114,6 @@ ev_eb_child_close(ftp_ev_eb_conn_t *ch)
     ch->dc->eb_nconns--;
 }
 
-
 void
 brix_ftp_ev_eb_teardown(ftp_ev_dc_t *dc)
 {
@@ -140,7 +129,6 @@ brix_ftp_ev_eb_teardown(ftp_ev_dc_t *dc)
         }
     }
 }
-
 
 /* A completed MODE E reassembly must tile the object gaplessly from offset 0.
  * Every accepted block was overlap-checked, so the sorted ranges only ever touch
@@ -179,7 +167,6 @@ ev_eb_ranges_contiguous(ftp_ev_dc_t *dc)
         && dc->eb_scratch[0].hi == dc->eb_received;
 }
 
-
 /* Retire a finished stream, then complete the transfer once every declared EOD
  * has been seen (commit runs the whole-object read-back verify). */
 static void
@@ -215,7 +202,6 @@ ev_eb_child_done(ftp_ev_eb_conn_t *ch)
     }
 }
 
-
 static ngx_int_t
 ev_eb_arm_read(ngx_connection_t *c)
 {
@@ -226,7 +212,6 @@ ev_eb_arm_read(ngx_connection_t *c)
     return NGX_OK;
 }
 
-
 /* One step of the block reader's state machine.  RET means the helper already
  * completed the transfer (finish/done/arm) and the caller must return; MORE means
  * the header is still partial and the caller should loop again; OK means proceed. */
@@ -235,7 +220,6 @@ typedef enum {
     EV_EB_STEP_MORE,
     EV_EB_STEP_OK
 } ev_eb_step_t;
-
 
 /* A fully-unpacked payload block: bounds-check its extent, reject overflow or a
  * range overlapping an already-reserved one, then reserve it (before reading the
@@ -267,7 +251,6 @@ ev_eb_reserve_range(ftp_ev_eb_conn_t *ch, ftp_ev_dc_t *dc,
     ch->at    = lo;
     return EV_EB_STEP_OK;
 }
-
 
 /* Accumulate the 17-byte extended-block header; once complete, unpack it and set
  * up the next block (EOF descriptors carry the EOD total in OFFSET and no payload;
@@ -317,7 +300,6 @@ ev_eb_recv_header(ngx_connection_t *c, ftp_ev_eb_conn_t *ch, ftp_ev_dc_t *dc)
     return EV_EB_STEP_OK;
 }
 
-
 /* Drain this block's reserved payload into the writer at its absolute offset. */
 static ev_eb_step_t
 ev_eb_drain_payload(ngx_connection_t *c, ftp_ev_eb_conn_t *ch, ftp_ev_dc_t *dc)
@@ -348,7 +330,6 @@ ev_eb_drain_payload(ngx_connection_t *c, ftp_ev_eb_conn_t *ch, ftp_ev_dc_t *dc)
     }
     return EV_EB_STEP_OK;
 }
-
 
 /* Per-stream block reader: accumulate the 17-byte header, then drain `count`
  * payload bytes into the writer at their absolute offset, block after block,
@@ -400,10 +381,13 @@ ev_eb_child_read(ngx_event_t *rev)
     }
 }
 
-
-/* PROT P child: the handshake settled — enforce the DN pin, then arm the block
- * reader off a posted event (TLS may have buffered the first block already, and a
- * completion reached from the accept loop must not tear the listener down inline). */
+static ngx_int_t ev_eb_receiver_prepare(ftp_ev_dc_t *dc);
+static ngx_int_t ev_eb_writer_open(ftp_ev_dc_t *dc);
+/* ---- Complete one protected MODE E child admission ----
+ * WHAT: Verify TLS identity, lazily open the writer, and arm the reader.
+ * WHY: An unverified connector must never create or truncate the destination.
+ * HOW: Enforce the DN pin, open once on the event loop, then post the reader.
+ */
 static void
 ev_eb_child_tls_done(ngx_connection_t *c)
 {
@@ -414,6 +398,10 @@ ev_eb_child_tls_done(ngx_connection_t *c)
         brix_ftp_ev_data_finish(dc, NGX_ERROR);
         return;
     }
+    if (dc->writer == NULL && ev_eb_writer_open(dc) != NGX_OK) {
+        brix_ftp_ev_data_finish(dc, NGX_ERROR);
+        return;
+    }
     c->read->handler = ev_eb_child_read;
     if (ev_eb_arm_read(c) != NGX_OK) {
         brix_ftp_ev_data_finish(dc, NGX_ERROR);
@@ -421,7 +409,6 @@ ev_eb_child_tls_done(ngx_connection_t *c)
     }
     ngx_post_event(c->read, &ngx_posted_events);
 }
-
 
 /* Find a free child slot (linear over a small fixed table). */
 static ftp_ev_eb_conn_t *
@@ -438,15 +425,19 @@ ev_eb_slot(ftp_ev_dc_t *dc)
     return NULL;
 }
 
-
-/* Lazily open the writer + reassembly tables on the first accepted stream. */
+/* ---- Allocate bounded MODE E receiver state ----
+ * WHAT: Allocate the range, scratch, and child tables once; return NGX status.
+ * WHY: Peer admission needs a child slot, but allocation must not mutate VFS.
+ * HOW: Allocate all three pool-owned fixed-capacity tables and fail atomically.
+ */
 static ngx_int_t
-ev_eb_receiver_open(ftp_ev_dc_t *dc)
+ev_eb_receiver_prepare(ftp_ev_dc_t *dc)
 {
-    ftp_ev_t       *fc = dc->fc;
-    brix_vfs_ctx_t  vctx;
-    int             verr = 0;
+    ftp_ev_t *fc = dc->fc;
 
+    if (dc->eb_conns != NULL) {
+        return NGX_OK;
+    }
     dc->eb_ranges  = ngx_pnalloc(fc->c->pool,
                         BRIX_FTP_EV_EB_MAX_RANGES * sizeof(ftp_eb_range_t));
     dc->eb_scratch = ngx_pnalloc(fc->c->pool,
@@ -456,8 +447,21 @@ ev_eb_receiver_open(ftp_ev_dc_t *dc)
     if (dc->eb_ranges == NULL || dc->eb_scratch == NULL || dc->eb_conns == NULL) {
         return NGX_ERROR;
     }
+    return NGX_OK;
+}
 
-    brix_ftp_ev_vfs_ctx(fc, dc->abs, &vctx);
+/* ---- Open the authenticated MODE E destination writer ----
+ * WHAT: Open the VFS writer once and return NGX_OK, otherwise NGX_ERROR.
+ * WHY: Create/truncate is a mutation and must follow address or TLS admission.
+ * HOW: Carry the declared size, open through VFS, and preserve the busy reply.
+ */
+static ngx_int_t
+ev_eb_writer_open(ftp_ev_dc_t *dc)
+{
+    brix_vfs_ctx_t vctx;
+    int            verr = 0;
+
+    brix_ftp_ev_vfs_ctx(dc->fc, dc->abs, &vctx);
     vctx.declared_size = dc->declared_size;   /* phase-107 C5: ALLO, 0 = none */
     dc->writer = brix_vfs_writer_open(&vctx, dc->flags, dc->verify, &verr);
     if (dc->writer == NULL && verr == EBUSY) {
@@ -468,11 +472,10 @@ ev_eb_receiver_open(ftp_ev_dc_t *dc)
     return (dc->writer != NULL) ? NGX_OK : NGX_ERROR;
 }
 
-/*
- * WHAT: Accept and initialize one pending MODE E data stream.
- * WHY: Keep listener scheduling separate from per-child resource setup.
- * HOW: Classify accept errors, enforce the stream cap, wrap the descriptor,
- *      then start TLS or arm the cleartext block reader.
+/* ---- Accept and initialize one pending MODE E data stream ----
+ * WHAT: Return OK for one consumed child, DECLINED when drained, else ERROR.
+ * WHY: Admission must precede slot use, writer creation, and block parsing.
+ * HOW: Capture and screen the peer, then reserve, wrap, authenticate, and arm.
  */
 static ngx_int_t
 ev_eb_accept_one(ngx_connection_t *lc, ftp_ev_dc_t *dc)
@@ -480,9 +483,12 @@ ev_eb_accept_one(ngx_connection_t *lc, ftp_ev_dc_t *dc)
     ftp_ev_t         *fc = dc->fc;
     ftp_ev_eb_conn_t *ch;
     ngx_connection_t *c;
+    struct sockaddr_storage peer;
+    socklen_t               peer_len = sizeof(peer);
     int               dfd;
 
-    dfd = accept(lc->fd, NULL, NULL);
+    ngx_memzero(&peer, sizeof(peer));
+    dfd = accept(lc->fd, (struct sockaddr *) &peer, &peer_len);
     if (dfd < 0) {
         if (ngx_socket_errno == NGX_EAGAIN) {
             return NGX_DECLINED;
@@ -492,6 +498,19 @@ ev_eb_accept_one(ngx_connection_t *lc, ftp_ev_dc_t *dc)
         }
         BRIX_LOG(NGX_LOG_ERR, fc->c->log, ngx_socket_errno,
                       "brix: GridFTP(ev) MODE E accept failed");
+        return NGX_ERROR;
+    }
+    if (brix_ftp_ev_passive_peer_admit(fc,
+            (const struct sockaddr *) &peer, peer_len) != NGX_OK)
+    {
+        BRIX_LOG(NGX_LOG_WARN, fc->c->log, 0,
+                      "brix: GridFTP(ev) rejected MODE E data peer not "
+                      "bound to control peer");
+        (void) close(dfd);
+        return NGX_OK;
+    }
+    if (ev_eb_receiver_prepare(dc) != NGX_OK) {
+        (void) close(dfd);
         return NGX_ERROR;
     }
     ch = ev_eb_slot(dc);
@@ -520,6 +539,10 @@ ev_eb_accept_one(ngx_connection_t *lc, ftp_ev_dc_t *dc)
         return brix_ftp_ev_tls_begin(fc, c, &ch->pool, 0,
                     ev_eb_child_tls_done) == NGX_ERROR ? NGX_ERROR : NGX_OK;
     }
+    if (dc->writer == NULL && ev_eb_writer_open(dc) != NGX_OK) {
+        ev_eb_child_close(ch);
+        return NGX_ERROR;
+    }
     c->read->handler = ev_eb_child_read;
     if (ev_eb_arm_read(c) != NGX_OK) {
         return NGX_ERROR;
@@ -528,17 +551,19 @@ ev_eb_accept_one(ngx_connection_t *lc, ftp_ev_dc_t *dc)
     return NGX_OK;
 }
 
-
-/* Passive listener read handler for a MODE E STOR: accept every pending stream,
- * bring each up (PROT P handshake or straight), and arm its block reader.  The
- * listener stays open across the whole transfer — globus opens all parallel
- * streams at once, so we must not retire it after the first accept. */
+/* ---- Drain one bounded batch of pending MODE E children ----
+ * WHAT: Accept one bounded batch, re-arm for more, or abort on fatal failure.
+ * WHY: A persistent listener must not become an unbounded worker-starvation loop.
+ * HOW: Apply the deadline, drain to the cap/EAGAIN, then re-arm and re-post.
+ */
 void
 brix_ftp_ev_eb_accept(ngx_event_t *rev)
 {
     ngx_connection_t *lc = rev->data;
     ftp_ev_dc_t      *dc = lc->data;
     ftp_ev_t         *fc = dc->fc;
+    ngx_uint_t        attempts;
+    int               queue_drained = 0;
 
     if (rev->timedout) {
         BRIX_LOG(NGX_LOG_INFO, fc->c->log, NGX_ETIMEDOUT,
@@ -550,15 +575,11 @@ brix_ftp_ev_eb_accept(ngx_event_t *rev)
         ngx_del_timer(rev);
     }
 
-    if (dc->writer == NULL && ev_eb_receiver_open(dc) != NGX_OK) {
-        brix_ftp_ev_data_finish(dc, NGX_ERROR);
-        return;
-    }
-
-    for ( ;; ) {
+    for (attempts = 0; attempts < BRIX_FTP_EV_DATA_BACKLOG; attempts++) {
         ngx_int_t rc = ev_eb_accept_one(lc, dc);
 
         if (rc == NGX_DECLINED) {
+            queue_drained = 1;
             break;
         }
         if (rc != NGX_OK) {
@@ -573,4 +594,7 @@ brix_ftp_ev_eb_accept(ngx_event_t *rev)
         return;
     }
     ngx_add_timer(rev, BRIX_FTP_EV_IO_TIMEO);
+    if (!queue_drained) {
+        ngx_post_event(rev, &ngx_posted_events);
+    }
 }
