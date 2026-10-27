@@ -116,34 +116,39 @@ brix_vfs_deleg_pem_is_valid(const u_char *pem, size_t len)
 
 /* ---- brix_vfs_deleg_deny ---------------------------------------------------
  *
- * WHAT: Terminal decision for a missing/invalid live cred: EACCES→deny in
- *       fallback-deny mode, else service-credential fallback.
+ * WHAT: Terminal decision for a missing/invalid live cred: EXCHANGE failures
+ *       and fallback-deny mode return EACCES; other failures permit the
+ *       configured service-credential fallback.
  *
  * WHY:  §6 no-wrong-identity-fallback — a passthrough failure must never reach
- *       the origin under the service cred when the operator set deny.
+ *       the origin under the service cred when the operator set deny, and an
+ *       explicitly armed EXCHANGE must never downgrade to a static identity.
  *
- * HOW:  Deny mode: errno/err_out=EACCES, use_cred=0, NGX_ERROR. Otherwise leave
- *       use_cred=0 and return NGX_OK so the caller falls to the service cred.
- *       Bumps the P90-70.6 outcome + failure-reason counters (skipped on a
- *       NULL ctx — no proto to attribute to). */
+ * HOW:  Treat BRIX_CRED_FAIL_EXCHANGE as an unconditional deny; otherwise use
+ *       the export's fallback policy. A deny sets errno/err_out=EACCES,
+ *       use_cred=0 and returns NGX_ERROR. A permitted fallback leaves
+ *       use_cred=0 and returns NGX_OK. Bump the P90-70.6 outcome + reason
+ *       counters (skipped on a NULL ctx — no protocol to attribute to). */
 ngx_int_t
 brix_vfs_deleg_deny(brix_vfs_ctx_t *ctx, int *use_cred, int *err_out,
     brix_cred_fail_t reason)
 {
+    int fail_closed = (reason == BRIX_CRED_FAIL_EXCHANGE);
+
     *use_cred = 0;
 
     if (ctx != NULL) {
         brix_metric_cred_fail(brix_vfs_metrics_proto(ctx), reason);
         brix_metric_cred_deleg(brix_vfs_metrics_proto(ctx),
             (ngx_uint_t) brix_vfs_backend_mode(ctx),
-            ctx->storage_cred_deny ? BRIX_CRED_OUTCOME_DENY
-                                   : BRIX_CRED_OUTCOME_FALLBACK);
+            (fail_closed || ctx->storage_cred_deny)
+                ? BRIX_CRED_OUTCOME_DENY : BRIX_CRED_OUTCOME_FALLBACK);
     }
 
     /* A NULL ctx (no VFS context bound — brix_vfs_deleg_live_cred forwards it
      * here verbatim) means the operator's deny/fallback choice is unknowable:
      * fail closed rather than silently fall back to the service credential. */
-    if (ctx == NULL || ctx->storage_cred_deny) {
+    if (ctx == NULL || fail_closed || ctx->storage_cred_deny) {
         errno = EACCES;
         if (err_out != NULL) {
             *err_out = EACCES;

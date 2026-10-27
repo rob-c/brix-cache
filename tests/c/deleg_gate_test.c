@@ -100,7 +100,13 @@ ngx_cpystrn(u_char *dst, u_char *src, size_t n)
     return dst;
 }
 
-/* ---- unreached delegation legs / sd accessors ----------------------------- */
+/* ---- Observable RFC-8693 exchange failure ---------------------------------
+ *
+ * WHAT: Count the exchange attempt and return NGX_ERROR without a token.
+ * WHY: The fail-closed regression needs the real VFS exchange path without a
+ *      network token service.
+ * HOW: Ignore the borrowed request inputs, increment the counter and fail. */
+static int token_exchange_stub_calls;
 
 ngx_int_t
 brix_token_exchange(ngx_pool_t *pool, const ngx_str_t *subject_token,
@@ -109,37 +115,67 @@ brix_token_exchange(ngx_pool_t *pool, const ngx_str_t *subject_token,
 {
     (void) pool; (void) subject_token; (void) audience; (void) scope;
     (void) cf; (void) out_token; (void) log;
+    token_exchange_stub_calls++;
     return NGX_ERROR;
 }
 
-/* The S3-STS origin leg (§5.5): an observable stub keeps vfs_deleg_hooks.o and
- * its brix_s3_sts_assume / libcurl / libxml2 chain out of the link while still
- * resolving vfs_deleg.o's reference. sts_stub_calls counts entries so a case can
- * prove the STS branch was (or was not) taken; sts_stub_succeed flips it between
- * a minted-temp-cred success (marker ak) and the default deny. */
+/* The S3-STS transport seam (§5.5): an observable stub keeps libcurl/libxml2
+ * out of this unit while the real VFS STS hook remains in the link.
+ * sts_stub_calls proves the hook reached the exchange; sts_stub_succeed selects
+ * a complete temporary credential or an exchange failure. */
 static int sts_stub_calls;
 static int sts_stub_succeed;
 
+/* ---- Stub one STS exchange -------------------------------------------------
+ *
+ * WHAT: Return NGX_OK with a complete temporary credential when enabled, or
+ *       NGX_ERROR without touching outputs when disabled.
+ *
+ * WHY: The unit must exercise the real VFS exchange/failure boundary without
+ *      requiring a network STS service.
+ *
+ * HOW: Count the call, branch on sts_stub_succeed, and fill the three borrowed
+ *      ngx_str_t result slots with stable fixture bytes on success. */
 ngx_int_t
-brix_vfs_deleg_sts_cred(brix_vfs_ctx_t *ctx, const brix_s3_sts_conf_t *cf,
-    brix_sd_cred_t *cred, int *use_cred, int *err_out)
+brix_s3_sts_assume(ngx_pool_t *pool, const brix_identity_t *id,
+    const brix_s3_sts_conf_t *cf, const brix_s3_sts_out_t *out,
+    ngx_log_t *log)
 {
-    (void) ctx; (void) cf; (void) err_out;
+    (void) pool; (void) id; (void) cf; (void) log;
     sts_stub_calls++;
-    if (use_cred != NULL) {
-        *use_cred = 0;
-    }
     if (!sts_stub_succeed) {
         return NGX_ERROR;
     }
-    if (cred != NULL) {
-        cred->s3_ak = "STS-TEMP-AK";
-        cred->mode  = BRIX_CRED_EXCHANGE;
-    }
-    if (use_cred != NULL) {
-        *use_cred = 1;
-    }
+    ngx_str_set(out->ak, "STS-TEMP-AK");
+    ngx_str_set(out->sk, "STS-TEMP-SK");
+    ngx_str_set(out->session, "STS-TEMP-SESSION");
     return NGX_OK;
+}
+
+/* ---- Report krb5 forwarding unavailable -----------------------------------
+ *
+ * WHAT: Return false for the retained krb5 GSSAPI reference hook.
+ * WHY: This unit tests delegation policy, not the platform GSSAPI stack.
+ * HOW: Return the deterministic unavailable value. */
+int
+brix_krb5_forward_available(void)
+{
+    return 0;
+}
+
+/* ---- Refuse the unreachable krb5 reference exchange -----------------------
+ *
+ * WHAT: Return NGX_ERROR without producing a token.
+ * WHY: Linking the real delegation-hooks object requires the retained krb5
+ *      reference seam even though this unit never selects it.
+ * HOW: Ignore the borrowed inputs and return the deterministic error. */
+ngx_int_t
+brix_krb5_deleg_to_origin(ngx_pool_t *pool, void *deleg_gss_cred,
+    const char *origin_service_princ, ngx_str_t *out_token, ngx_log_t *log)
+{
+    (void) pool; (void) deleg_gss_cred; (void) origin_service_princ;
+    (void) out_token; (void) log;
+    return NGX_ERROR;
 }
 
 /* The exchange leg's minted-token cache: this unit never reaches a cache hit
@@ -574,10 +610,42 @@ main(void)
         assert(sts_stub_calls == 1);                  /* STS branch taken */
         assert(cred.s3_ak != NULL
                && strcmp(cred.s3_ak, "STS-TEMP-AK") == 0);
+        assert(cred.s3_session != NULL
+               && strcmp(cred.s3_session, "STS-TEMP-SESSION") == 0);
         assert(cred.bearer == NULL);                  /* NOT bearer-verbatim */
         assert(cred.mode == BRIX_CRED_EXCHANGE);
 
-        /* 14. REGRESSION GUARD: same bearer, STS UNARMED (live->sts == NULL) on a
+        /* 14. ERROR: an STS transport failure under fallback-deny is EACCES,
+         *     produces no usable credential, records EXCHANGE, and never
+         *     becomes a service-credential operation. */
+        ctx.storage_cred_deny = 1;
+        sts_stub_calls = 0; sts_stub_succeed = 0;
+        memset(&cred, 0, sizeof(cred));
+        use_cred = 1; err = 0;
+        reset_metrics();
+        rc = brix_vfs_deleg_live_cred(&ctx, &cred, &use_cred, &err);
+        assert(rc == NGX_ERROR && use_cred == 0 && err == EACCES);
+        assert(sts_stub_calls == 1);
+        assert(cred.s3_ak == NULL && cred.s3_sk == NULL);
+        assert(last_fail_reason == (int) BRIX_CRED_FAIL_EXCHANGE);
+        assert(last_deleg_outcome == (int) BRIX_CRED_OUTCOME_DENY);
+
+        /* 15. SECURITY-NEG: fallback=allow must not downgrade a failed,
+         *     explicitly armed STS EXCHANGE to the static S3 service account.
+         *     This is the vulnerable pre-fix branch. */
+        ctx.storage_cred_deny = 0;
+        sts_stub_calls = 0;
+        memset(&cred, 0, sizeof(cred));
+        use_cred = 1; err = 0;
+        reset_metrics();
+        rc = brix_vfs_deleg_live_cred(&ctx, &cred, &use_cred, &err);
+        assert(rc == NGX_ERROR && use_cred == 0 && err == EACCES);
+        assert(sts_stub_calls == 1);
+        assert(cred.s3_ak == NULL && cred.s3_sk == NULL);
+        assert(last_fail_reason == (int) BRIX_CRED_FAIL_EXCHANGE);
+        assert(last_deleg_outcome == (int) BRIX_CRED_OUTCOME_DENY);
+
+        /* 16. REGRESSION GUARD: same bearer, STS UNARMED (live->sts == NULL) on a
          *     bearer+S3 leaf → the STS branch is skipped and the bearer is
          *     forwarded verbatim (the genuine xroot/https-origin case). Proves the
          *     reorder narrows to armed-STS only and never steals a plain bearer. */
@@ -600,6 +668,28 @@ main(void)
         assert(cred.bearer != NULL
                && strcmp(cred.bearer, (const char *) bearer.data) == 0);
         assert(cred.s3_ak == NULL);
+
+        /* 17. SECURITY-NEG (sibling representation): a failed RFC-8693
+         *     EXCHANGE is equally explicit and must not replay the request as
+         *     the backend service identity under fallback=allow. */
+        memset(&ctx, 0, sizeof(ctx));
+        memset(&bag2, 0, sizeof(bag2));
+        ctx.pool = (ngx_pool_t *) &ctx;
+        ctx.log = &test_log;
+        ctx.deleg_live = &bag2;
+        bag2.bearer = bearer;
+        bag2.mode = BRIX_CRED_EXCHANGE;
+        ngx_str_set(&bag2.tx.endpoint, "https://tokens.example/exchange");
+        token_exchange_stub_calls = 0;
+        memset(&cred, 0, sizeof(cred));
+        use_cred = 1; err = 0;
+        reset_metrics();
+        rc = brix_vfs_deleg_live_cred(&ctx, &cred, &use_cred, &err);
+        assert(rc == NGX_ERROR && use_cred == 0 && err == EACCES);
+        assert(token_exchange_stub_calls == 1);
+        assert(cred.bearer == NULL);
+        assert(last_fail_reason == (int) BRIX_CRED_FAIL_EXCHANGE);
+        assert(last_deleg_outcome == (int) BRIX_CRED_OUTCOME_DENY);
         sts_stub_succeed = 0;
     }
 
@@ -609,7 +699,7 @@ main(void)
         ngx_str_t          cc  = ngx_string("/tmp/brix-krb5-fwd.ccache");
         ngx_str_t          spn = ngx_string("host/origin.example.org@EXAMPLE.ORG");
 
-        /* 15. SUCCESS: a bag carrying a bound krb5 ccache PATH on a krb5-accepting
+        /* 18. SUCCESS: a bag carrying a bound krb5 ccache PATH on a krb5-accepting
          *     leaf takes the krb5 branch — the ccache path + origin principal are
          *     carried verbatim onto the POD cred as an EXCHANGE, USER outcome. The
          *     origin leg re-imports the delegated TGT from the path at fill time. */
@@ -638,7 +728,7 @@ main(void)
         assert(last_deleg_outcome == (int) BRIX_CRED_OUTCOME_USER);
         assert(fail_metric_calls == 0);
 
-        /* 16. SECURITY-NEG: a leaf that does not consume a krb5 GSSAPI cred →
+        /* 19. SECURITY-NEG: a leaf that does not consume a krb5 GSSAPI cred →
          *     FAIL_KIND deny (EACCES, before any origin contact); the ccache path
          *     is never carried and no service fallback happens under deny. */
         accept_mask = BRIX_SD_CRED_BEARER | BRIX_SD_CRED_PROXY_PEM;
@@ -660,7 +750,7 @@ main(void)
         assert(cred.krb5_ccache == NULL);
         assert(last_fail_reason == (int) BRIX_CRED_FAIL_KIND);
 
-        /* 17. brix_vfs_deleg_set_krb5: allocates the bag when none is bound (the
+        /* 20. brix_vfs_deleg_set_krb5: allocates the bag when none is bound (the
          *     krb5-only capture path); SELECT mode and empty strings stay no-ops. */
         accept_mask = BRIX_SD_CRED_GSS_KRB5;
         memset(&ctx, 0, sizeof(ctx));

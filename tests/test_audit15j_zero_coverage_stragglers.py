@@ -35,14 +35,16 @@ header says it was written to end: "Without this gate the directive was parsed
 but never enforced — a silent fail-open (P90-70.9)."  The fail-open came back
 one layer up, in the adopt list.
 
-Four more fields have the same adopt gap — `backend_sss_keytab`,
-`backend_sts_flavor`, `seccomp`, `verify_write` — but each is ALSO declared in
-the stream plane's own tables, so for those the gap costs the http plane only
-(`brix_verify_write on` in a WebDAV location cannot reach
+Three more fields have the same adopt gap — `backend_sss_keytab`, `seccomp`,
+`verify_write` — but each is ALSO declared in the stream plane's own tables, so
+for those the gap costs the http plane only (`brix_verify_write on` in a WebDAV
+location cannot reach
 `conf->common.verify_write`, which put_setup.c:347 reads).  `backend_token_aud`
 is the one with no second declaration anywhere: it is unreachable on both
-planes.  test_no_unified_field_is_parsed_without_being_adopted is written as a
-class guard so a sixth omission is caught the day it is added.
+planes. `backend_sts_flavor` used to be in this set; the v2.0 fail-closed STS
+repair now adopts it with the rest of the STS tuple. The class guard below keeps
+it and future security-sensitive scalars from silently returning to the orphan
+set.
 
 DEFECT CANDIDATE #35 (dead config) — `brix_backend_passthrough_persist` parsed,
 merged, and adopted, and nothing ever read it.  Every mention in `src/ shared/
@@ -322,8 +324,8 @@ def test_no_unified_field_is_parsed_without_being_adopted():
     is config the operator can write and no protocol can read."""
     parsed, adopted = _parsed_unified_fields(), _adopted_fields()
     orphans = {f: d for f, d in parsed.items() if f not in adopted}
-    # The parse/adopt heuristic sees these as parsed-but-not-adopted. Five are
-    # the real DEFECT #34 inert class — four also declared on the stream plane
+    # The parse/adopt heuristic sees these as parsed-but-not-adopted. Four are
+    # the real DEFECT #34 inert class — three also declared on the stream plane
     # (their gap costs the http plane only), and backend_token_aud has no second
     # declaration and is unreachable everywhere. rate_limit is NOT inert: it is a
     # location-scoped SHM zone engine (phase-105 W1) whose brix_rate_limit_directive
@@ -332,8 +334,8 @@ def test_no_unified_field_is_parsed_without_being_adopted():
     # DIRECTLY from the common conf by the rate-limit handler at request time — it
     # never needs adopting into a protocol struct, which is why the heuristic
     # cannot see its reachability (its live arm is covered by test_rate_limit_s3).
-    known = {"backend_token_aud", "backend_sss_keytab", "backend_sts_flavor",
-             "seccomp", "verify_write", "rate_limit"}
+    known = {"backend_token_aud", "backend_sss_keytab", "seccomp",
+             "verify_write", "rate_limit"}
     assert set(orphans) - known == set(), (
         "a NEW common-module directive is parsed but never adopted, so it is "
         f"inert on every http export: {sorted(set(orphans) - known)}")
@@ -342,8 +344,21 @@ def test_no_unified_field_is_parsed_without_being_adopted():
         "drop the fixed names from `known` and give them behavioural tests.")
 
 
+def test_sts_flavor_is_adopted_with_the_complete_exchange_tuple():
+    """MinIO's non-interchangeable dialect must travel with every STS field."""
+    adopted = _adopted_fields()
+    sts_fields = {
+        "backend_sts_endpoint", "backend_sts_role", "backend_sts_access_key",
+        "backend_sts_secret_key", "backend_sts_region", "backend_sts_ttl",
+        "backend_sts_flavor",
+    }
+    assert sts_fields <= adopted, (
+        "an STS field is parsed but not adopted into WebDAV/S3: "
+        f"{sorted(sts_fields - adopted)}")
+
+
 def test_the_audience_gate_has_no_second_declaration_to_fall_back_on():
-    """What separates #34 from the other four orphans: nothing else declares
+    """What separates #34 from the other three inert orphans: nothing else declares
     it, so there is no plane on which an operator can make it take effect.
 
     The invariant is a SINGLE declaration, and it must live on the shared

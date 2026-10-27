@@ -381,8 +381,9 @@ def run_deleg_gate(base: Path) -> list[tuple[bool, str]]:
         return [result(True, "SKIP openssl not on PATH")]
     # vfs_deleg_x509.o holds brix_vfs_deleg_proxy(), split out of vfs_deleg.c by
     # the file-size burndown; without it the harness link fails on that symbol.
-    needed = ["vfs_deleg.o", "vfs_deleg_bind.o", "vfs_deleg_x509.o",
-              "gsi_verify.o", "gsi_upstream.o", "cred_stage.o"]
+    needed = ["vfs_deleg.o", "vfs_deleg_bind.o", "vfs_deleg_hooks.o",
+              "vfs_deleg_x509.o", "gsi_verify.o", "gsi_upstream.o",
+              "cred_stage.o"]
     objs = _find_objs(needed)
     missing = _missing_objs(needed, objs)
     if missing:

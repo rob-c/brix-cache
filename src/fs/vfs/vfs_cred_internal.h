@@ -95,10 +95,11 @@ ngx_int_t brix_vfs_deleg_live_cred(brix_vfs_ctx_t *ctx, brix_sd_cred_t *cred,
     int *use_cred, int *err_out);
 
 /* Single failure terminal for the delegation gate (vfs_deleg.c): bumps the
- * P90-70.6 outcome + failure-reason counters, then EACCES/NGX_ERROR under
- * fallback-deny (or a NULL ctx), else *use_cred=0 + NGX_OK (service-cred
- * fallback). Shared across the deleg TUs (vfs_deleg_hooks.c) — every deny in
- * the family MUST route through here so policy + metrics stay in one place. */
+ * P90-70.6 outcome + failure-reason counters, then EACCES/NGX_ERROR for an
+ * EXCHANGE failure, fallback-deny, or a NULL ctx. Other reasons may return
+ * *use_cred=0 + NGX_OK for configured service-credential fallback. Shared
+ * across the deleg TUs (vfs_deleg_hooks.c) — every deny in the family MUST
+ * route through here so policy + metrics stay in one place. */
 ngx_int_t brix_vfs_deleg_deny(brix_vfs_ctx_t *ctx, int *use_cred, int *err_out,
     brix_cred_fail_t reason);
 

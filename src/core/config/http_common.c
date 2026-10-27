@@ -248,6 +248,7 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_STR(backend_sts_secret_key);
     BRIX_ADOPT_STR(backend_sts_region);
     BRIX_ADOPT_VAL(backend_sts_ttl, NGX_CONF_UNSET);
+    BRIX_ADOPT_VAL(backend_sts_flavor, NGX_CONF_UNSET_UINT);
     BRIX_ADOPT_VAL(backend_krb5_forwardable, NGX_CONF_UNSET);
     BRIX_ADOPT_STR(thread_pool_name);
     BRIX_ADOPT_STR(access_log);
