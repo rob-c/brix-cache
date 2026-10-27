@@ -16,24 +16,49 @@
  *   - Checks have_ztn_cred (delegated token or bearer file)
  *   - Checks have_cert (certificate + certificate_key set)
  *   - If want_ztn && have_ztn_cred: tries tpc_outbound_ztn first
- *   - On failure: falls through to GSI if server allows (want_gsi && have_cert)
+ *   - On ordinary opportunistic-token failure: falls through to GSI if allowed
+ *   - TLS-required and explicit token-mode failures are terminal
  *   - If want_gsi && have_cert: delegates to tpc_outbound_gsi
  *   - If neither succeeds: error + kXR_AuthFailed
  *   - Returns 0 or -1 with t->xrd_error set
  *   - Caller: thread.c (auth path dispatch after bootstrap)
  *
- * WHY: TPC pull outbound authentication needs to select between WLCG JWT (ztn) and GSI certreq auth paths based on what the server supports (advertised in login/authmore parameters) and what credentials are configured locally. The selection logic prefers JWT when the server lists ztn first (typical for auth=both deployments) and a bearer file exists, with fallback to GSI if ZTN fails but server also allows GSI — this prevents silent failure from expired token files at sites that have both auth methods available.
+ * WHY: TPC pull outbound authentication needs to select between WLCG JWT (ztn) and GSI certreq auth paths based on what the server supports (advertised in login/authmore parameters) and what credentials are configured locally. The selection logic prefers JWT when the server lists ztn first (typical for auth=both deployments) and a bearer file exists. Opportunistic token selection may fall back to GSI, but a transport-security refusal or an explicitly requested token identity must never silently become the gateway's GSI identity.
  *
- * HOW: login_dlen <= session_id_len+1 → error kXR_ArgInvalid → parms = login_body + session_id_len → strstr(parms, "ztn") for want_ztn + strstr(parms, "gsi") for want_gsi → delegated_token or conf->common.tpc_outbound_bearer_file for have_ztn_cred + certificate.len > 0 && certificate_key.len > 0 for have_cert → if want_ztn && have_ztn_cred: tpc_outbound_ztn(t, fd) == 0 → return 0; else if !want_gsi || !have_cert → return -1 (no fallback available); if want_gsi && have_cert: tpc_outbound_gsi(t, fd) → error snprintf referencing missing config + kXR_AuthFailed.
+ * HOW: login_dlen <= session_id_len+1 → error kXR_ArgInvalid → parse anchored
+ * &P=ztn/&P=gsi entries → determine bearer/certificate availability → prefer
+ * ztn → keep TLSRequired and explicit token modes terminal → allow only an
+ * ordinary opportunistic failure to try GSI → otherwise report AuthFailed.
  * */
 
 /* WHAT: Auth path selection/dispatch.
  *   - Parses server login/authmore params for ztn/gsi
  *   - Checks have_ztn_cred + have_cert config
  *   - Prefers JWT if want_ztn && have_ztn_cred
- *   - Falls through to GSI on failure
+ *   - Falls through to GSI only for an ordinary opportunistic-token failure
  *   - Returns 0 or -1 with t->xrd_error set
  *   - Caller: thread.c auth path dispatch after bootstrap */
+/* WHAT: Return 1 when a failed ZTN attempt must remain the final verdict.
+ * WHY: GSI fallback after a TLS refusal or explicit token-mode request changes
+ *      both transport guarantees and caller identity.
+ * HOW: TLSRequired is always terminal; explicit passthrough, oidc-agent and
+ *      token-exchange modes are terminal, while empty/none/passthrough-opt keep
+ *      the documented opportunistic fallback. */
+static int
+tpc_ztn_failure_terminal(const brix_tpc_pull_t *t)
+{
+    if (t->xrd_error == kXR_TLSRequired) {
+        return 1;
+    }
+    if (t->token_mode[0] == '\0'
+        || ngx_strcmp(t->token_mode, "none") == 0
+        || ngx_strcmp(t->token_mode, "passthrough-opt") == 0)
+    {
+        return 0;
+    }
+    return 1;
+}
+
 int
 tpc_outbound_finish_login(brix_tpc_pull_t *t, int fd,
     u_char *login_body, uint32_t login_dlen)
@@ -79,9 +104,12 @@ tpc_outbound_finish_login(brix_tpc_pull_t *t, int fd,
         if (tpc_outbound_ztn(t, fd) == 0) {
             return 0;
         }
+        if (tpc_ztn_failure_terminal(t)) {
+            return -1;
+        }
         /*
-         * If the server also allows GSI, fall through so sites can recover from
-         * an expired token file without silent failure.
+         * An opportunistic static/default token may fall through so sites can
+         * recover from an expired token file when GSI is also configured.
          */
         if (!want_gsi || !have_cert) {
             return -1;

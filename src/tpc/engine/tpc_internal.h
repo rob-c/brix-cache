@@ -148,6 +148,7 @@ typedef struct {
     int     fd;
     void   *tls;        /* SSL*      — set when the sub-stream upgraded */
     void   *tls_ctx;    /* SSL_CTX*  — owned per sub-stream */
+    unsigned tls_verified:1; /* chain + source name verified for this fd */
     u_char  pathid;     /* the source's path id for this socket (1..253) */
 } tpc_substream_t;
 
@@ -200,6 +201,8 @@ typedef struct {
                             /* it transparently. Owned with tls_ctx; freed in    */
                             /* thread.c via tpc_tls_teardown(). (phase-57 §F5)    */
     void      *tls_ctx;     /* SSL_CTX* backing tls (per-pull client ctx), or NULL */
+    unsigned   tls_verified:1; /* active TLS chain + src_host verification passed */
+    int        primary_fd;  /* exact fd owning tls/tls_ctx; -1 between legs */
     u_char    *deleg_cred_pem; /* §F6: captured delegated proxy credential (proxy
                                * cert + key + issuer chain, PEM) to authenticate the
                                * pull AS THE USER instead of conf->certificate;
@@ -283,6 +286,10 @@ int tpc_recv_response_sid(brix_tpc_pull_t *t, int fd, u_char streamid[2],
  * here before it blocks (F7).
  */
 int tpc_io_pending(brix_tpc_pull_t *t, int fd);
+/* Returns 1 only when fd's current TLS session passed both chain and source
+ * hostname/IP verification. Credential senders use this as their final
+ * disclosure gate; a merely encrypted or cleartext fd returns 0. */
+int tpc_io_has_verified_tls(brix_tpc_pull_t *t, int fd);
 
 /*
  * tls.c — TPC pull in-protocol TLS upgrade (kXR_gotoTLS). tpc_start_tls performs a

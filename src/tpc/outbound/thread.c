@@ -38,12 +38,14 @@ tpc_pull_leg(brix_tpc_pull_t *t)
     if (fd < 0) {
         return -1;
     }
+    t->primary_fd = fd;
     if (tpc_bootstrap(t, fd) == 0) {
         rc = t->is_push ? tpc_push_to_dest(t, fd)
                         : tpc_pull_from_source(t, fd);
     }
     tpc_tls_teardown(t);              /* SSL_shutdown/free before closing the fd */
     close(fd);
+    t->primary_fd = -1;
     return rc;
 }
 

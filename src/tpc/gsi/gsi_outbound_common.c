@@ -45,11 +45,16 @@ tpc_put_u32(u_char *p, uint32_t v)
     ngx_memcpy(p, &be, sizeof(be));
 }
 
-/* WHAT: Construct kXR_auth ClientRequestHdr and send.
- *   - Builds streamid + requestid + ctype from cred_payload
- *   - Sets dlen via htonl
- *   - Sends header then cred_payload
- *   - Returns 0 or -1 with error code */
+/* ---- Send one native-TPC authentication frame ----------------------------
+ *
+ * WHAT: Constructs and sends a kXR_auth header plus credential payload;
+ *       returns 0 on success or -1 with an XRootD error on refusal/failure.
+ * WHY: This is the last common boundary before reusable ZTN bearer bytes leave
+ *      the process, so it must independently require authenticated TLS even if
+ *      STARTTLS negotiation or a future caller regresses.
+ * HOW: Validate the four-byte credential tag, reject ztn unless this fd has a
+ *      verified TLS session, encode the fixed header, then send header and body
+ *      through the fd-aware I/O layer. */
 
 int
 tpc_send_kxr_auth(brix_tpc_pull_t *t, int fd, u_char stream_seq,
@@ -57,6 +62,21 @@ tpc_send_kxr_auth(brix_tpc_pull_t *t, int fd, u_char stream_seq,
 {
     ClientRequestHdr  hdr;
     u_char            ctype[4];
+
+    if (cred_payload == NULL || cred_len < sizeof(ctype)) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC kXR_auth credential payload is invalid");
+        t->xrd_error = kXR_ArgInvalid;
+        return -1;
+    }
+    if (ngx_memcmp(cred_payload, "ztn\x00", sizeof(ctype)) == 0
+        && !tpc_io_has_verified_tls(t, fd))
+    {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC ztn authentication requires verified TLS");
+        t->xrd_error = kXR_TLSRequired;
+        return -1;
+    }
 
     /*
      * Build the fixed 24-byte kXR_auth request header. ClientRequestHdr is the

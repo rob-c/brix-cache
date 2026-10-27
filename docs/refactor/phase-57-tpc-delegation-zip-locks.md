@@ -2250,17 +2250,20 @@ consumer of this seam — remains the larger W1.4.a event-loop work, deferred.)
 
 **F5 (Stage 3) — TPC pull kXR_gotoTLS.** The TPC pull I/O (`src/tpc/outbound/io.c`) is now
 TLS-aware: the three primitives thread `t` and route through `SSL_read`/`SSL_write`
-when `t->tls` is set. `src/tpc/outbound/bootstrap.c` advertises `kXR_ableTLS` (when
-`xrootd_tpc_outbound_tls on`) and, on a `kXR_gotoTLS` protocol reply, upgrades via
-the new `src/tpc/outbound/tls.c` (`tpc_start_tls`: blocking client `SSL_connect` over the
-pull fd in the thread-pool worker, CA-verified against `xrootd_trusted_ca`); login +
+when `t->tls` is set. `src/tpc/outbound/bootstrap.c` advertises
+`kXR_ableTLS|kXR_wantTLS` when `brix_tpc_outbound_tls on`, rejects a reply that
+omits `kXR_gotoTLS`, and upgrades via `src/tpc/outbound/tls.c` (`tpc_start_tls`:
+blocking client `SSL_connect` over the pull fd in the thread-pool worker,
+chain- and source-name-verified against `brix_trusted_ca` or the system trust
+paths); login +
 GSI/ztn auth + open/read/close then ride the TLS socket. Freed in `thread.c` via
-`tpc_tls_teardown`. New directive `xrootd_tpc_outbound_tls` (default off →
-behaviour identical to today; no `kXR_ableTLS`, so no source ever offers gotoTLS).
+`tpc_tls_teardown`. The directive defaults off (no TLS flags); anonymous
+cleartext remains compatible, but the shared ZTN sender refuses every bearer
+form unless that fd has verified TLS.
 **Gate:** `tests/test_tpc_tls.py` — an nginx source with `xrootd_tls on` (TLS
 required) ← an nginx dest with `xrootd_tpc_outbound_tls on`; `--tpc only` over TLS
-delivers the file byte-exact. Plaintext TPC regression (async/GSI/token) stays
-green after the I/O refactor.
+delivers the file byte-exact. Plaintext anonymous and authenticated-GSI
+regressions stay green; ZTN is intentionally TLS-only.
 
 **Remaining:** F6 (X.509 proxy delegation) — see below; off-by-default, needs a
 stock `-dlgpxy:1` interop gate that cannot be stood up locally.

@@ -93,7 +93,9 @@ Run:
 
 import os
 import re
+import socket
 import struct
+import threading
 import uuid
 from pathlib import Path
 
@@ -104,13 +106,15 @@ from log_records import semantic_log_text
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
-from settings import BIND_HOST, HOST, NGINX_BIN
+from settings import (BIND_HOST, CA_DIR, HOST, NGINX_BIN, SERVER_CERT,
+                      SERVER_KEY)
 
 # The wire is imported, never rebuilt.  The TPC driver (handshake → login →
 # kXR_open with a tpc.* opaque → the kXR_sync arm/run two-step) is the ssrf
 # module's; the cleartext-write ops are the require_pgwrite module's; the
 # pgwrite session helpers are the shared pgwrite ones.
-from test_tpc_ssrf_policy import _tpc_attempt, kXR_OK, kXR_error
+from test_tpc_ssrf_policy import (_recv_exact, _tpc_attempt, kXR_OK,
+                                  kXR_error)
 from test_tpc_pull_integrity import _KxrPullFaultProxy, _port_up, kXR_ok
 from test_root_require_pgwrite import _write, _writev, kXR_Unsupported
 from _test_pgwrite_cse_helpers import (
@@ -170,6 +174,11 @@ kXR_open_read = 0x0010
 # kXR_gotoTLS (src/protocols/root/protocol/flags.h) in the ServerProtocolBody
 # { pval[4], flags[4] } the destination reads at bootstrap.
 kXR_gotoTLS = 0x40000000
+kXR_ableTLS = 0x02
+kXR_wantTLS = 0x04
+kXR_authmore = 4002
+
+CLEARTEXT_CANARY = b"header.cleartext-tpc-canary.signature"
 
 # A kXR_stat reply body whose second whitespace token is not numeric, so
 # tpc_stat_parse_size fails and the destination is left with src_size_known=0 —
@@ -187,6 +196,74 @@ def _with_goto_tls(body):
     flags = struct.unpack("!I", bytes(buf[4:8]))[0] | kXR_gotoTLS
     buf[4:8] = struct.pack("!I", flags)
     return bytes(buf)
+
+
+class _CleartextZtnPeer:
+    """A source that strips TLS and asks the destination for a bearer.
+
+    It implements only handshake, protocol and login/auth challenge. A secure
+    destination either closes after the protocol reply (required TLS) or after
+    the ztn challenge (TLS disabled but bearer disclosure denied). Any received
+    kXR_auth payload is retained as proof of a regression.
+    """
+
+    def __init__(self, auth_protocols=b"&P=ztn,test"):
+        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server.bind((BIND_HOST, 0))
+        self.server.listen(1)
+        self.server.settimeout(20)
+        self.port = self.server.getsockname()[1]
+        self.protocol_flags = None
+        self.saw_login = False
+        self.credential = b""
+        self.auth_protocols = auth_protocols
+        self.thread = threading.Thread(target=self._serve, daemon=True)
+
+    @staticmethod
+    def _reply(streamid, status, body=b""):
+        return struct.pack("!2sHI", streamid, status, len(body)) + body
+
+    @staticmethod
+    def _request(conn):
+        header = _recv_exact(conn, 24)
+        data_len = struct.unpack("!I", header[20:24])[0]
+        body = _recv_exact(conn, data_len) if data_len else b""
+        return header, body
+
+    def _serve(self):
+        try:
+            conn, _ = self.server.accept()
+        except OSError:
+            return
+        with conn:
+            conn.settimeout(10)
+            try:
+                _recv_exact(conn, 20)
+                conn.sendall(self._reply(
+                    b"\x00\x00", kXR_OK, struct.pack("!II", 0x520, 1)))
+
+                protocol, _ = self._request(conn)
+                self.protocol_flags = protocol[8]
+                conn.sendall(self._reply(
+                    protocol[:2], kXR_OK, struct.pack("!II", 0x520, 1)))
+
+                login, _ = self._request(conn)
+                self.saw_login = True
+                challenge = b"\x01" * 16 + self.auth_protocols
+                conn.sendall(self._reply(login[:2], kXR_authmore, challenge))
+
+                _auth, self.credential = self._request(conn)
+            except (ConnectionError, OSError):
+                return
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, _exc_type, _exc, _traceback):
+        self.server.close()
+        self.thread.join(timeout=15)
 
 
 class _TpcGateFaultProxy(_KxrPullFaultProxy):
@@ -354,6 +431,9 @@ def planes(tmp_path_factory):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
 
     data = tmp_path_factory.mktemp("a16v_export")
+    bearer = data / "cleartext-ztn-canary.jwt"
+    bearer.write_bytes(CLEARTEXT_CANARY)
+    bearer.chmod(0o600)
     harness = LifecycleHarness()
     endpoint = harness.start(NginxInstanceSpec(
         name=NAME,
@@ -361,7 +441,11 @@ def planes(tmp_path_factory):
         protocol="root",
         readiness="tcp",
         data_root=str(data),
-        template_values={"BIND_HOST": BIND_HOST},
+        template_values={"BIND_HOST": BIND_HOST,
+                         "BEARER_FILE": str(bearer),
+                         "CERT_FILE": SERVER_CERT,
+                         "KEY_FILE": SERVER_KEY,
+                         "CA_DIR": CA_DIR},
         reason="audit-16v the seven directives_tpc.h flags whose disarming arm "
                "the corpus never wrote"))
 

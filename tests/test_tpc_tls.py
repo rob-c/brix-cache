@@ -2,9 +2,10 @@
 pull connection to TLS (kXR_gotoTLS) before authenticating and reading.
 
 The source nginx requires in-protocol TLS (brix_tls on + a CA-signed host cert);
-the destination nginx has brix_tpc_outbound_tls on, so it advertises kXR_ableTLS,
-receives kXR_gotoTLS, performs a blocking SSL_connect over the pull fd, and runs the
-whole login/open/read sequence over TLS. The file must arrive byte-exact.
+the destination nginx has brix_tpc_outbound_tls on, so it advertises
+kXR_ableTLS|kXR_wantTLS, requires kXR_gotoTLS, performs a verified blocking
+SSL_connect over the pull fd, and runs the whole login/open/read sequence over
+TLS. The file must arrive byte-exact.
 
 Topology (all over TLS):
     native xrdcp --tpc only
@@ -27,7 +28,8 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-tpc")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
+XRDCP = os.environ.get(
+    "TEST_XRDCP_BIN", os.path.join(REPO, "client", "bin", "xrdcp"))
 
 
 def _have(*t):
@@ -98,7 +100,7 @@ def tls_nginx(lifecycle, tmp_path_factory):
 def _require_tls_tools():
     if not _have("openssl"):
         pytest.skip("openssl not installed")
-    if not os.path.exists(XRDCP):
+    if not os.access(XRDCP, os.X_OK):
         pytest.skip("xrdcp not built")
 
 

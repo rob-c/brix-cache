@@ -38,7 +38,7 @@ attributable:
     notls     the same credential, no outbound TLS
     nocred    outbound TLS, nothing to present
     rogueca   outbound TLS + a credential + an anchor that signed neither side
-    noca      a credential and no anchor at all
+    noca      outbound TLS + a credential + no explicit anchor (system defaults)
 
 Every negative asserts twice: the pull reports an error AND the destination
 file was never committed.  A TPC leg that reports failure while leaving bytes
@@ -243,7 +243,7 @@ def tpcgsi(lifecycle, trees, pki):
                          f"brix_trusted_ca {pki['certs']};"),
         "rogueca": _knobs("brix_tpc_outbound_tls on;", *cred,
                           f"brix_trusted_ca {pki['rogue_certs']};"),
-        "noca": _knobs(*cred),
+        "noca": _knobs("brix_tpc_outbound_tls on;", *cred),
     }
     dests = {
         label: lifecycle.start(NginxInstanceSpec(
@@ -417,7 +417,7 @@ def test_the_other_loopback_address_is_otherwise_reachable(tpcgsi):
     source the destination simply could not reach."""
     _require_other_loopback()
     endpoints, dstdata = tpcgsi
-    status, body = _pull(endpoints, "good", "/hostname-on-gsi.bin", face="gsi",
+    status, body = _pull(endpoints, "notls", "/hostname-on-gsi.bin", face="gsi",
                          src_host=OTHER_LOOPBACK)
     assert status == KXR_OK, \
         (f"{OTHER_LOOPBACK} is unreachable, so the hostname pin above proves "
@@ -475,14 +475,20 @@ def test_an_untrusted_source_chain_is_refused_at_the_gsi_layer(tpcgsi):
     assert _uncommitted(dstdata, "/rogue-on-gsi.bin")
 
 
-def test_the_gsi_layer_requires_an_anchor_when_one_is_configured(tpcgsi):
-    """An explicit wrong anchor refuses; no anchor retains opt-out behavior."""
+def test_tls_without_an_explicit_anchor_uses_verified_system_defaults(tpcgsi):
+    """No brix_trusted_ca uses system roots; it never disables verification.
+
+    The fixture's private CA is intentionally absent from those roots, so the
+    source must be refused before any GSI credential is presented.
+    """
     endpoints, dstdata = tpcgsi
-    rogue, _ = _pull(endpoints, "rogueca", "/anchor-equiv-rogue.bin", face="gsi")
-    none_, _ = _pull(endpoints, "noca", "/anchor-equiv-none.bin", face="gsi")
-    assert rogue == KXR_ERROR and none_ == KXR_OK, (rogue, none_)
-    assert _uncommitted(dstdata, "/anchor-equiv-rogue.bin")
-    assert _landed(dstdata, "/anchor-equiv-none.bin")
+    status, body = _pull(endpoints, "noca", "/system-roots-on-tls.bin")
+    assert status == KXR_ERROR, (
+        "private source CA was accepted without an explicit trust anchor",
+        status, body)
+    assert (TLS_REFUSED.encode() in body
+            or b"default trust store unavailable" in body), body
+    assert _uncommitted(dstdata, "/system-roots-on-tls.bin")
 
 
 # --------------------------------------------------------------------------- #

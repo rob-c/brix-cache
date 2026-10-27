@@ -68,14 +68,13 @@ tpc_bootstrap_handshake(brix_tpc_pull_t *t, int fd)
 
 
 /*
- * WHAT: Complete the in-protocol TLS upgrade if the source requested kXR_gotoTLS.
- * WHY: A TLS-requiring source answers the kXR_protocol request with kXR_gotoTLS in
- *      the ServerProtocolBody flags; login and all subsequent frames must then ride
- *      the TLS socket. With outbound TLS off the source never offers gotoTLS, so this
- *      is a no-op and behaviour is identical to before.
+ * WHAT: Enforce the configured in-protocol TLS policy and complete a requested
+ *      kXR_gotoTLS upgrade. Returns 0 only for allowed cleartext or verified TLS.
+ * WHY: The protocol reply is unauthenticated; when outbound TLS is required, a
+ *      peer or intermediary must not suppress gotoTLS and reach credentialed login.
  * HOW: Parse the 8-byte ServerProtocolBody { pval[4], flags[4] } from the reply body,
- *      free the body, and if kXR_gotoTLS is set either reject (TLS disabled) or drive
- *      tpc_start_tls(). Returns 0 on success, -1 on failure with error state set.
+ *      free the body, reject a missing gotoTLS in required mode, reject gotoTLS in
+ *      disabled mode, otherwise drive tpc_start_tls().
  */
 static int
 tpc_bootstrap_maybe_tls(brix_tpc_pull_t *t, int fd, u_char *body, uint32_t dlen)
@@ -90,18 +89,22 @@ tpc_bootstrap_maybe_tls(brix_tpc_pull_t *t, int fd, u_char *body, uint32_t dlen)
     }
     free(body);
 
-    if (flags & kXR_gotoTLS) {
+    if (!(flags & kXR_gotoTLS)) {
         if (!t->conf->common.tpc_outbound_tls) {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                "TPC source requires TLS; set brix_tpc_outbound_tls on");
-            t->xrd_error = kXR_NotAuthorized;
-            return -1;
+            return 0;
         }
-        if (tpc_start_tls(t, fd) != 0) {
-            return -1;   /* tpc_start_tls sets t->err_msg / t->xrd_error */
-        }
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC source did not negotiate required TLS");
+        t->xrd_error = kXR_NotAuthorized;
+        return -1;
     }
-    return 0;
+    if (!t->conf->common.tpc_outbound_tls) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC source requires TLS; set brix_tpc_outbound_tls on");
+        t->xrd_error = kXR_NotAuthorized;
+        return -1;
+    }
+    return tpc_start_tls(t, fd);
 }
 
 
@@ -110,7 +113,8 @@ tpc_bootstrap_maybe_tls(brix_tpc_pull_t *t, int fd, u_char *body, uint32_t dlen)
  * WHY: The source must accept our protocol version before login; its reply also
  *      carries the gotoTLS decision. Combining request/response/TLS keeps the reply
  *      body's lifetime local and out of tpc_bootstrap.
- * HOW: Pack the request (advertising kXR_ableTLS only when outbound TLS is enabled),
+ * HOW: Pack the request (advertising kXR_ableTLS|kXR_wantTLS when outbound TLS
+ *      is required),
  *      send, receive, reject non-ok status (freeing the body first), then hand the
  *      body to tpc_bootstrap_maybe_tls() which owns the free. Returns 0 / -1.
  */
@@ -122,12 +126,12 @@ tpc_bootstrap_protocol(brix_tpc_pull_t *t, int fd)
     uint32_t              dlen = 0;
     u_char               *body = NULL;
 
-    /* kXR_protocol — advertise kXR_ableTLS when outbound TLS is enabled so a
-     * TLS-requiring source answers with kXR_gotoTLS (phase-57 §F5). With the
-     * directive off we send no TLS flag, so the source never offers gotoTLS and
-     * behaviour is identical to before. */
+    /* kXR_protocol — advertise both capability and requirement. kXR_ableTLS
+     * alone is opportunistic and lets an on-path peer suppress gotoTLS; wantTLS
+     * makes the wire request agree with the directive's fail-closed contract. */
     xrd_pack_protocol_request(&pr, tpc_bootstrap_streamid,
-                              t->conf->common.tpc_outbound_tls ? kXR_ableTLS : 0);
+        t->conf->common.tpc_outbound_tls
+            ? (uint8_t) (kXR_ableTLS | kXR_wantTLS) : 0);
 
     if (tpc_send_all(t, fd, &pr, sizeof(pr)) != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg), "TPC kXR_protocol send failed");

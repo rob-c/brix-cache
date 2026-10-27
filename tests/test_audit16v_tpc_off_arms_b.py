@@ -40,24 +40,76 @@ class TestTheOutboundTlsArm:
         assert "set brix_tpc_outbound_tls on" not in err, err
         _assert_no_poison(planes, dst)
 
-    def test_a_clean_source_is_unaffected_by_either_arm(self, planes,
-                                                        clean_proxy):
-        """[no false positive] Neither arm changes a pull from a source that
-        never asks for TLS — which is what keeps the armed plane's clean pull in
-        §F honest."""
+    def test_required_tls_rejects_a_cleartext_source(
+            self, planes, clean_proxy):
+        """The on arm is a requirement, not an opportunistic capability.
+
+        A cleartext source remains compatible with the explicit off arm, while
+        the on arm fails before login. A source that understands wantTLS may
+        reject the protocol request outright; a legacy source may accept it
+        without kXR_gotoTLS. Both outcomes are fail-closed.
+        """
         name = planes.seed()
-        for plane in ("armed", "pulling"):
-            status, err, dst = planes.pull(plane, planes.source_url(name),
-                                           source_name=name)
-            assert status == kXR_OK, (plane, status, err)
-            assert planes.disk(dst).read_bytes() == PAYLOAD
+        status, err, dst = planes.pull("pulling", planes.source_url(name),
+                                       source_name=name)
+        assert status == kXR_OK, (status, err)
+        assert planes.disk(dst).read_bytes() == PAYLOAD
+
+        status, err, dst = planes.pull("armed", planes.source_url(name),
+                                       source_name=name)
+        assert status == kXR_error, (status, err)
+        assert ("TPC kXR_protocol rejected" in err
+                or "did not negotiate required TLS" in err), err
+        _assert_no_poison(planes, dst)
+
+    def test_a_stripped_upgrade_never_reaches_login(self, planes):
+        """SECURITY-NEG: a stripping peer cannot reach credential selection."""
+        with _CleartextZtnPeer() as peer:
+            source = f"root://{BIND_HOST}:{peer.port}//ignored"
+            status, err, dst = planes.pull("armed", source)
+        assert status == kXR_error, (status, err)
+        assert "did not negotiate required TLS" in err, err
+        assert peer.protocol_flags == kXR_ableTLS | kXR_wantTLS
+        assert not peer.saw_login, "TLS stripping reached kXR_login"
+        assert peer.credential == b"", "TLS stripping captured a credential"
+        _assert_no_poison(planes, dst)
+
+    def test_explicit_cleartext_never_releases_a_bearer(self, planes):
+        """SECURITY-NEG: anonymous cleartext remains compatible, but a source
+        that asks for ztn cannot obtain the configured service bearer."""
+        with _CleartextZtnPeer() as peer:
+            source = f"root://{BIND_HOST}:{peer.port}//ignored"
+            status, err, dst = planes.pull("pulling", source)
+        assert status == kXR_error, (status, err)
+        assert "ztn authentication requires verified TLS" in err, err
+        assert peer.protocol_flags == 0
+        assert peer.saw_login, "the peer never reached the ztn disclosure gate"
+        assert peer.credential == b"", (
+            f"cleartext peer captured {peer.credential!r}")
+        assert CLEARTEXT_CANARY not in peer.credential
+        _assert_no_poison(planes, dst)
+
+    def test_tls_refusal_never_falls_back_to_gateway_gsi(self, planes):
+        """SECURITY-NEG: a mixed-protocol peer cannot turn a blocked bearer
+        attempt into the gateway's configured GSI identity."""
+        with _CleartextZtnPeer(b"&P=ztn,test&P=gsi,test") as peer:
+            source = f"root://{BIND_HOST}:{peer.port}//ignored"
+            status, err, dst = planes.pull(
+                "pulling", source,
+                extra_opaque="tpc.token_mode=passthrough-opt")
+        assert status == kXR_error, (status, err)
+        assert "ztn authentication requires verified TLS" in err, err
+        assert peer.saw_login
+        assert peer.credential == b"", (
+            "TLS refusal silently fell back to a GSI authentication frame")
+        _assert_no_poison(planes, dst)
 
     def test_the_advertisement_is_gated_by_the_same_flag(self):
-        """Source pin: the flag decides both what is advertised and what is done
-        with the answer, which is why an off destination normally never sees a
-        gotoTLS at all and the splice has to forge one."""
+        """Source pin: on advertises capability plus requirement and verifies
+        the reply; off advertises neither and still refuses peer-forced TLS."""
         text = _source(BOOTSTRAP_C)
-        assert "t->conf->common.tpc_outbound_tls ? kXR_ableTLS : 0" in text
+        assert "kXR_ableTLS | kXR_wantTLS" in text
+        assert "TPC source did not negotiate required TLS" in text
         assert "if (!t->conf->common.tpc_outbound_tls) {" in text
         assert "TPC source requires TLS; set brix_tpc_outbound_tls on" in text
 
@@ -79,14 +131,18 @@ class TestTheOutboundPassthroughArm:
         assert status == kXR_OK, (status, err)
         assert planes.disk(dst).read_bytes() == PAYLOAD
 
-    def test_the_off_arm_does_not_deny_one_either(self, planes, clean_proxy):
-        """And the arm the corpus writes costs nothing here — the difference
-        between the two is which token is FORWARDED, not who is admitted."""
+    def test_the_off_arm_does_not_override_required_tls(self, planes,
+                                                        clean_proxy):
+        """The armed plane also requires outbound TLS, so its anonymous
+        cleartext pull is refused for transport—not for missing passthrough."""
         name = planes.seed()
         status, err, dst = planes.pull("armed", planes.source_url(name),
                                        source_name=name)
-        assert status == kXR_OK, (status, err)
-        assert planes.disk(dst).read_bytes() == PAYLOAD
+        assert status == kXR_error, (status, err)
+        assert ("TPC kXR_protocol rejected" in err
+                or "did not negotiate required TLS" in err), err
+        assert "passthrough" not in err.lower(), err
+        _assert_no_poison(planes, dst)
 
     def test_an_explicit_passthrough_is_refused_on_the_on_arm(self, planes,
                                                               clean_proxy):
@@ -102,17 +158,21 @@ class TestTheOutboundPassthroughArm:
         assert "passthrough requested but no inbound bearer" in err, err
         _assert_no_poison(planes, dst)
 
-    def test_an_explicit_passthrough_is_refused_on_the_off_arm_too(
+    def test_required_tls_precedes_strict_passthrough_on_the_off_arm(
             self, planes, clean_proxy):
-        """Neither arm rescues it: the client's own field wins verbatim, which
-        is what makes the flag's two arms a choice about the DEFAULT and not
-        about what a client may ask for."""
+        """The off arm's mandatory TLS gate precedes token-mode evaluation.
+
+        This keeps a strict passthrough request from becoming a reason to reach
+        credential selection on a cleartext source connection.
+        """
         name = planes.seed()
         status, err, dst = planes.pull(
             "armed", planes.source_url(name), source_name=name,
             extra_opaque="tpc.token_mode=passthrough")
         assert status == kXR_error, (status, err)
-        assert "passthrough requested but no inbound bearer" in err, err
+        assert ("TPC kXR_protocol rejected" in err
+                or "did not negotiate required TLS" in err), err
+        assert "passthrough" not in err.lower(), err
         _assert_no_poison(planes, dst)
 
     def test_the_three_way_decision_is_in_one_place(self):

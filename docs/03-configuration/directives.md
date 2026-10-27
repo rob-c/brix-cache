@@ -1644,7 +1644,9 @@ brix_certificate_key /etc/grid-security/hostkey.pem;
 
 ### `brix_trusted_ca <path>`
 
-Path to a PEM file containing the CA certificate (or bundle of CA certificates) that the server trusts for verifying client proxy certificates. Required when `brix_auth gsi` or `brix_auth both`.
+Path to a PEM file/bundle or hashed CA directory that the server trusts for
+verifying client proxy certificates. Required when `brix_auth gsi` or
+`brix_auth both`.
 
 It also anchors some outbound legs — the native TPC source's TLS handshake and the Pelican origin — but **not** the `root://` storage backend. That leg (`brix_storage_backend root://…`) is built on a synthetic server config that inherits nothing from this directive: its trust store comes only from `ca_dir` inside the `brix_credential` block named by `brix_storage_credential`. With no `ca_dir` there, the origin's certificate is not verified at all (a silent operator opt-out) and the `root://` TLS upgrade falls back to the system CA bundle. Put the anchor in the credential block:
 
@@ -4803,7 +4805,19 @@ source must never see the client's own credential.
 
 **Context:** stream server; http, server, location. **Default:** `off`.
 Phase-57 §F5: require TLS on the outbound `root://` source connection of a
-native TPC pull (`roots://`), refusing a source that cannot upgrade.
+native TPC pull (`roots://`). `on` advertises both `kXR_ableTLS` and
+`kXR_wantTLS`, refuses a source that omits the upgrade, and requires a verified
+certificate chain plus hostname/IP match. `brix_trusted_ca` may name a PEM
+bundle or hashed CA directory; when omitted, OpenSSL's system trust paths are
+used and verification remains enabled.
+
+`off` preserves anonymous cleartext interoperability, but BriX never releases a
+ZTN bearer (forwarded, static, exchanged, or renewed) on that connection. A
+source requesting ZTN is refused with `kXR_TLSRequired`; enable this directive
+and configure appropriate trust when credentialed native TPC is required.
+That transport refusal is terminal even when the source also advertises GSI.
+Likewise, explicit `passthrough`, `oidc-agent`, and `token-exchange` modes never
+silently retry as the gateway's GSI identity after their ZTN attempt fails.
 
 #### `brix_tpc_outbound_renew_lead <time>`
 

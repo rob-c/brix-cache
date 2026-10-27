@@ -37,12 +37,15 @@
 #include <limits.h>
 #include <openssl/ssl.h>
 
-/* WHAT: Resolve the TLS session that owns `fd` — a bound sub-stream's own
- *       session (F7) or the primary's — or NULL when that leg is cleartext.
- *       t may be NULL on the pre-session legs (connect/bootstrap probes). */
-
-static SSL *
-tpc_session_ssl(brix_tpc_pull_t *t, int fd)
+/* ---- Find the bound sub-stream that owns an fd ----------------------------
+ *
+ * WHAT: Returns the matching sub-stream slot, or NULL for the primary socket,
+ *       an unknown fd, or a NULL task.
+ * WHY: TLS transport and verification state must resolve through one fd-to-slot
+ *      rule so a secondary socket cannot inherit the primary's security state.
+ * HOW: Walk the bounded active sub-stream array and compare each owned fd. */
+static tpc_substream_t *
+tpc_session_substream(brix_tpc_pull_t *t, int fd)
 {
     int i;
 
@@ -51,10 +54,58 @@ tpc_session_ssl(brix_tpc_pull_t *t, int fd)
     }
     for (i = 0; i < t->nsub; i++) {
         if (t->sub[i].fd == fd) {
-            return (SSL *) t->sub[i].tls;
+            return &t->sub[i];
         }
     }
-    return (SSL *) t->tls;
+    return NULL;
+}
+
+/* ---- Resolve the TLS session for an fd -----------------------------------
+ *
+ * WHAT: Returns the SSL session owned by fd, or NULL for cleartext/no task.
+ * WHY: Every native-TPC I/O primitive must select the session belonging to the
+ *      exact socket rather than assuming the primary connection.
+ * HOW: Resolve a sub-stream first; otherwise require an exact primary-fd match. */
+
+static SSL *
+tpc_session_ssl(brix_tpc_pull_t *t, int fd)
+{
+    tpc_substream_t *sub;
+
+    if (t == NULL) {
+        return NULL;
+    }
+    sub = tpc_session_substream(t, fd);
+    if (sub != NULL) {
+        return (SSL *) sub->tls;
+    }
+    return (fd == t->primary_fd) ? (SSL *) t->tls : NULL;
+}
+
+/* ---- Report authenticated TLS state for an fd ----------------------------
+ *
+ * WHAT: Returns 1 only when fd has a live SSL session whose chain and source
+ *       name/IP checks completed successfully; otherwise returns 0.
+ * WHY: Bearer credentials need a final disclosure guard independent of the
+ *      peer-controlled STARTTLS negotiation and configuration flags.
+ * HOW: Resolve the fd's sub-stream state, require both its SSL pointer and
+ *      verified bit, or require an exact match to the primary session fd. */
+int
+tpc_io_has_verified_tls(brix_tpc_pull_t *t, int fd)
+{
+    tpc_substream_t *sub;
+
+    if (t == NULL) {
+        return 0;
+    }
+    sub = tpc_session_substream(t, fd);
+    if (sub != NULL) {
+        return (sub->tls != NULL && sub->tls_verified) ? 1 : 0;
+    }
+    if (fd != t->primary_fd) {
+        return 0;
+    }
+    return (t->tls != NULL && t->tls_verified) ? 1 : 0;
 }
 
 /* WHAT: bytes OpenSSL already pulled off `fd` and holds decrypted; 0 when the

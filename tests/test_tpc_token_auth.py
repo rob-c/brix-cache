@@ -52,6 +52,9 @@ from settings import (BIND_HOST, CA_CERT, CA_DIR, HOST, NGINX_BIN, SERVER_CERT,
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
+REPO = Path(__file__).resolve().parents[1]
+XRD_BIN = os.environ.get("TEST_XRD_BIN", str(REPO / "client" / "bin" / "xrd"))
+
 def _guard_node_1():
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
@@ -345,7 +348,7 @@ def _run_scoped_conform(node, tmp_path, token_file, seed_allowed=True,
     _prepare_scoped_conform(node, seed_allowed)
     output = tmp_path / f"tpc005-{time.monotonic_ns()}"
     command = [
-        str(Path(__file__).parents[1] / "client" / "bin" / "xrd"),
+        XRD_BIN,
         "conform", "accept", f"{node['src_url']}//fixture",
         "--also", f"{node['dst_url']}//fixture", "--profile", "tpc",
         "--only", "TPC-005", "--allow-mutate",

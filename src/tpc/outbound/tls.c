@@ -13,11 +13,11 @@
  *   we use a synchronous SSL_connect over the blocking fd rather than nginx's
  *   async ngx_ssl_handshake.
  *
- * HOW: SSL_CTX_new(TLS_client_method) → min TLS 1.2 → if brix_trusted_ca is set,
- *   load it as a CA directory and SSL_VERIFY_PEER (chain verification; on load
- *   failure fall back to no verification so an encrypted-but-unverified transport
- *   still works) → SSL_new + SSL_set_fd(fd) + SNI/peer-name pin on src_host,
- *   folded out of its IPv4-mapped spelling first (see the pin below) → SSL_connect. On any
+ * HOW: SSL_CTX_new(TLS_client_method) → min TLS 1.2 → require either the
+ *   configured CA file/directory or OpenSSL's default trust paths → require
+ *   chain verification → SSL_new + SSL_set_fd(fd) + SNI/peer-name pin on
+ *   src_host, folded out of its IPv4-mapped spelling first → SSL_connect →
+ *   require X509_V_OK → publish the SSL and verified state together. On any
  *   failure t->err_msg / t->xrd_error are set and all OpenSSL objects freed.
  *   Gated by the caller on conf->tpc_outbound_tls (bootstrap.c). (phase-57 §F5) */
 
@@ -33,12 +33,16 @@
 #include <openssl/err.h>
 #include <openssl/x509.h>
 
-/* WHAT: blocking client TLS handshake over the pull fd; stores SSL on t->tls.
- * Returns 0 on success, -1 with t->err_msg / t->xrd_error set on failure. */
-/* WHAT: park a freshly negotiated (ssl, ctx) on the socket that owns it — a
- *       bound sub-stream slot (F7) or the primary — so the I/O helpers route
- *       every later frame on that fd through it. */
-static void
+/* ---- Publish a verified TLS session on its owning socket ------------------
+ *
+ * WHAT: Stores a successfully authenticated SSL/SSL_CTX pair and its verified
+ *       bit on the matching sub-stream or primary task.
+ * WHY: Credential disclosure checks must observe transport and authentication
+ *      state atomically; publishing the pointer without the bit would create an
+ *      encrypted-but-unverified intermediate state.
+ * HOW: Resolve the bounded sub-stream slots by fd, otherwise require the
+ *      primary socket's exact fd, then set the corresponding verified bit last. */
+static int
 tpc_tls_store(brix_tpc_pull_t *t, int fd, SSL *ssl, SSL_CTX *ctx)
 {
     int i;
@@ -47,18 +51,128 @@ tpc_tls_store(brix_tpc_pull_t *t, int fd, SSL *ssl, SSL_CTX *ctx)
         if (t->sub[i].fd == fd) {
             t->sub[i].tls     = ssl;
             t->sub[i].tls_ctx = ctx;
-            return;
+            t->sub[i].tls_verified = 1;
+            return 0;
         }
     }
-    t->tls     = ssl;
-    t->tls_ctx = ctx;
+    if (fd == t->primary_fd) {
+        t->tls     = ssl;
+        t->tls_ctx = ctx;
+        t->tls_verified = 1;
+        return 0;
+    }
+    return -1;
 }
 
+/* ---- Load a fail-closed TLS trust store ----------------------------------
+ *
+ * WHAT: Enables peer verification and loads the configured CA file/directory,
+ *       or the system defaults when no path is configured. Returns 0 on a
+ *       usable store and -1 with an authorization error otherwise.
+ * WHY: A missing or unloadable trust root must never silently convert a
+ *      credential-bearing TPC session into unauthenticated encryption.
+ * HOW: Require SSL_VERIFY_PEER; for an explicit path try CAfile then CApath
+ *      (the directive supports both), clearing failed-probe errors; otherwise
+ *      require OpenSSL's default paths. */
+static int
+tpc_tls_load_verify(brix_tpc_pull_t *t, SSL_CTX *ctx)
+{
+    char trust[PATH_MAX];
+
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
+    if (t->conf->common.trusted_ca.len == 0) {
+        if (SSL_CTX_set_default_verify_paths(ctx) == 1) {
+            ERR_clear_error();
+            return 0;
+        }
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC TLS: default trust store unavailable");
+        t->xrd_error = kXR_NotAuthorized;
+        return -1;
+    }
+
+    if (brix_str_cbuf(trust, sizeof(trust),
+                      &t->conf->common.trusted_ca) == NULL)
+    {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC TLS: configured trust path is invalid");
+        t->xrd_error = kXR_NotAuthorized;
+        return -1;
+    }
+
+    if (SSL_CTX_load_verify_locations(ctx, trust, NULL) == 1) {
+        ERR_clear_error();
+        return 0;
+    }
+    ERR_clear_error();
+    if (SSL_CTX_load_verify_locations(ctx, NULL, trust) == 1) {
+        ERR_clear_error();
+        return 0;
+    }
+
+    snprintf(t->err_msg, sizeof(t->err_msg),
+             "TPC TLS: configured trust store cannot be loaded");
+    t->xrd_error = kXR_NotAuthorized;
+    return -1;
+}
+
+/* ---- Bind source identity verification to a TLS session ------------------
+ *
+ * WHAT: Configures strict hostname or IP verification for t->src_host and SNI;
+ *       returns 0 on success and -1 with an authorization error on failure.
+ * WHY: Chain validation alone accepts any CA-valid certificate, while a missing
+ *      source name would make an authenticated transport claim impossible.
+ * HOW: Require a non-empty source name, fold IPv4-mapped spelling to its IPv4
+ *      identity, disable partial wildcards, bind OpenSSL's DNS/IP verifier, and
+ *      send the same normalized name as SNI. */
+static int
+tpc_tls_bind_peer_name(brix_tpc_pull_t *t, SSL *ssl)
+{
+    char vhost[sizeof(t->src_host)];
+
+    if (t->src_host[0] == '\0') {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC TLS: source name is unavailable for verification");
+        t->xrd_error = kXR_NotAuthorized;
+        return -1;
+    }
+    if (!brix_host_unmap_v4(t->src_host, vhost, sizeof(vhost))) {
+        ngx_cpystrn((u_char *) vhost, (u_char *) t->src_host,
+                    sizeof(vhost));
+    }
+
+    SSL_set_hostflags(ssl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+    if (!brix_crypto_tls_peer_name(ssl, vhost)) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC TLS: host-verify setup failed");
+        t->xrd_error = kXR_NotAuthorized;
+        return -1;
+    }
+    if (SSL_set_tlsext_host_name(ssl, vhost) != 1) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC TLS: SNI setup failed");
+        t->xrd_error = kXR_NotAuthorized;
+        return -1;
+    }
+    return 0;
+}
+
+/* ---- Establish authenticated TLS on a TPC source socket ------------------
+ *
+ * WHAT: Performs a blocking TLS 1.2+ client handshake on fd and publishes the
+ *       session only after trust-chain and source-name verification succeed.
+ *       Returns 0 on success or -1 with t->err_msg/t->xrd_error set.
+ * WHY: Native TPC can carry reusable bearer credentials, so encryption without
+ *      peer authentication is not a safe transport state.
+ * HOW: Allocate the context, load a mandatory trust store, allocate/bind SSL,
+ *      bind source identity, connect, require X509_V_OK, then store the verified
+ *      session. Every failure frees all locally owned OpenSSL objects. */
 int
 tpc_start_tls(brix_tpc_pull_t *t, int fd)
 {
     SSL_CTX *ctx;
     SSL     *ssl;
+    long     verify_result;
 
     ctx = SSL_CTX_new(TLS_client_method());
     if (ctx == NULL) {
@@ -67,26 +181,9 @@ tpc_start_tls(brix_tpc_pull_t *t, int fd)
         return -1;
     }
     SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
-
-    /* Verify the source's certificate chain against brix_trusted_ca when it is
-     * configured (treated as a CA directory). If the CA store cannot be loaded,
-     * downgrade to an encrypted-but-unverified transport rather than failing the
-     * pull outright. When chain verification IS active we ALSO bind the expected
-     * hostname below (verify_host) — chain-only would accept any CA-valid cert
-     * for any host, a MITM gap. */
-    int verify_host = 0;
-    if (t->conf->common.trusted_ca.len > 0 && t->conf->common.trusted_ca.len < PATH_MAX) {
-        char cadir[PATH_MAX];
-
-        if (brix_str_cbuf(cadir, sizeof(cadir), &t->conf->common.trusted_ca) != NULL
-            && SSL_CTX_load_verify_locations(ctx, NULL, cadir) == 1) {
-            SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
-            verify_host = 1;
-        } else {
-            SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
-        }
-    } else {
-        SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+    if (tpc_tls_load_verify(t, ctx) != 0) {
+        SSL_CTX_free(ctx);
+        return -1;
     }
 
     ssl = SSL_new(ctx);
@@ -96,48 +193,10 @@ tpc_start_tls(brix_tpc_pull_t *t, int fd)
         t->xrd_error = kXR_ServerError;
         return -1;
     }
-    SSL_set_fd(ssl, fd);
-    if (t->src_host[0] != '\0') {
-        char vhost[sizeof(t->src_host)];
-
-        /* The name we pin is the source as the REQUESTER spelled it, and a stock
-         * XrdCl spells an IPv4 source the way XrdNetAddr formats it: the
-         * IPv4-MAPPED literal, "tpc.src=[::ffff:10.0.0.1]:1094". OpenSSL routes
-         * any IP-shaped name to X509_VERIFY_PARAM_set1_ip_asc(), whose match is
-         * a memcmp against the certificate's iPAddress SANs — and the SAN for an
-         * IPv4 host is the 4-byte form, so the 16-byte mapped address matches
-         * nothing that can be issued. Every TLS pull a stock client starts from
-         * an IPv4 source would fail X509_V_ERR_IP_ADDRESS_MISMATCH against a
-         * chain that verified perfectly, and the host certificate would look
-         * like the thing at fault. Folding the mapped literal back to the
-         * address it names is not a relaxation: ::ffff:a.b.c.d IS a.b.c.d (the
-         * SSRF gate one layer up already treats it so, so the two checks now
-         * agree on what the host is), and a name the certificate genuinely does
-         * not carry still fails. brix_host_unmap_v4 leaves anything else — a
-         * hostname, a dotted quad, a real IPv6 literal — exactly as it was.
-         *
-         * Failure to fold means the name did not fit the buffer it came out of,
-         * which cannot happen for src_host[]-sized input; pin the original
-         * rather than skip the pin.
-         */
-        if (!brix_host_unmap_v4(t->src_host, vhost, sizeof(vhost))) {
-            ngx_cpystrn((u_char *) vhost, (u_char *) t->src_host,
-                        sizeof(vhost));
-        }
-
-        (void) SSL_set_tlsext_host_name(ssl, vhost);
-        /* Only meaningful when the chain is actually being verified. */
-        if (verify_host) {
-            SSL_set_hostflags(ssl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
-            if (!brix_crypto_tls_peer_name(ssl, vhost)) {
-                snprintf(t->err_msg, sizeof(t->err_msg),
-                         "TPC TLS: host-verify setup failed");
-                t->xrd_error = kXR_ServerError;
-                SSL_free(ssl);
-                SSL_CTX_free(ctx);
-                return -1;
-            }
-        }
+    if (SSL_set_fd(ssl, fd) != 1 || tpc_tls_bind_peer_name(t, ssl) != 0) {
+        SSL_free(ssl);
+        SSL_CTX_free(ctx);
+        return -1;
     }
 
     if (SSL_connect(ssl) != 1) {
@@ -151,7 +210,7 @@ tpc_start_tls(brix_tpc_pull_t *t, int fd)
          * operator whether brix_trusted_ca or the source's certificate is
          * wrong, and it lives on the SSL, not in the error queue. */
         vres = SSL_get_verify_result(ssl);
-        if (verify_host && vres != X509_V_OK) {
+        if (vres != X509_V_OK) {
             snprintf(t->err_msg, sizeof(t->err_msg),
                      "TPC TLS handshake to source failed: %s (%s)",
                      ebuf, X509_verify_cert_error_string(vres));
@@ -165,7 +224,25 @@ tpc_start_tls(brix_tpc_pull_t *t, int fd)
         return -1;
     }
 
-    tpc_tls_store(t, fd, ssl, ctx);
+    verify_result = SSL_get_verify_result(ssl);
+    if (verify_result != X509_V_OK) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC TLS source verification failed: %s",
+                 X509_verify_cert_error_string(verify_result));
+        t->xrd_error = kXR_NotAuthorized;
+        SSL_free(ssl);
+        SSL_CTX_free(ctx);
+        return -1;
+    }
+
+    if (tpc_tls_store(t, fd, ssl, ctx) != 0) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC TLS: socket ownership changed during handshake");
+        t->xrd_error = kXR_NotAuthorized;
+        SSL_free(ssl);
+        SSL_CTX_free(ctx);
+        return -1;
+    }
     return 0;
 }
 
@@ -184,15 +261,27 @@ tpc_tls_release(void **tls, void **tls_ctx)
     }
 }
 
-/* WHAT: release the primary socket's TLS objects; called from thread.c. */
+/* ---- Release the primary TLS session -------------------------------------
+ *
+ * WHAT: Frees the primary SSL/SSL_CTX pair and clears its verified state.
+ * WHY: Redirected or completed pulls must not carry authenticated-transport
+ *      state onto a later raw socket.
+ * HOW: Release the owned OpenSSL objects, then clear the publication bit. */
 void
 tpc_tls_teardown(brix_tpc_pull_t *t)
 {
     tpc_tls_release(&t->tls, &t->tls_ctx);
+    t->tls_verified = 0;
 }
 
-/* WHAT: release the TLS objects of the sub-stream that owns `fd` (F7), or the
- *       primary's when fd is not a bound sub-stream. */
+/* ---- Release the TLS session owned by an fd -------------------------------
+ *
+ * WHAT: Frees a matching sub-stream's TLS pair and clears its verified state,
+ *       or delegates to the primary teardown when no sub-stream owns fd.
+ * WHY: Each bound fd has independent transport security and must lose both the
+ *      session and disclosure authorization together.
+ * HOW: Walk the bounded active slots, release and clear the match, otherwise
+ *      release the primary session only for its exact fd. */
 void
 tpc_tls_teardown_fd(brix_tpc_pull_t *t, int fd)
 {
@@ -201,8 +290,11 @@ tpc_tls_teardown_fd(brix_tpc_pull_t *t, int fd)
     for (i = 0; i < t->nsub; i++) {
         if (t->sub[i].fd == fd) {
             tpc_tls_release(&t->sub[i].tls, &t->sub[i].tls_ctx);
+            t->sub[i].tls_verified = 0;
             return;
         }
     }
-    tpc_tls_teardown(t);
+    if (fd == t->primary_fd) {
+        tpc_tls_teardown(t);
+    }
 }
