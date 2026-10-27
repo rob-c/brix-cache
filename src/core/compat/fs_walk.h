@@ -119,4 +119,11 @@ ngx_int_t brix_fs_remove_tree_confined_checked(ngx_log_t *log,
     const char *root_canon, const char *path,
     brix_fs_remove_guard_pt guard, void *guard_cookie);
 
+/* Read-only authorization preflight over the same confined traversal used by
+ * recursive removal. The guard sees the root and every descendant; no
+ * namespace mutation occurs. Its first non-OK status is returned unchanged. */
+ngx_int_t brix_fs_guard_tree_confined(ngx_log_t *log,
+    const char *root_canon, const char *path,
+    brix_fs_remove_guard_pt guard, void *guard_cookie);
+
 #endif /* BRIX_COMPAT_FS_WALK_H */

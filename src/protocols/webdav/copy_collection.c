@@ -39,14 +39,16 @@
  * struct embeds a job plus the fields the event loop needs to reply.
  */
 typedef struct {
-    ngx_log_t  *log;
-    char        root_canon[WEBDAV_MAX_PATH];
-    char        src_path[WEBDAV_MAX_PATH];
-    char        dst_path[WEBDAV_MAX_PATH];
-    mode_t      src_mode;
-    ngx_flag_t  dst_existed;
-    ngx_flag_t  dst_was_dir;
-    ngx_flag_t  depth_infinity;
+    ngx_log_t                 *log;
+    char                       root_canon[WEBDAV_MAX_PATH];
+    char                       src_path[WEBDAV_MAX_PATH];
+    char                       dst_path[WEBDAV_MAX_PATH];
+    mode_t                     src_mode;
+    ngx_flag_t                 dst_existed;
+    ngx_flag_t                 dst_was_dir;
+    ngx_flag_t                 depth_infinity;
+    ngx_flag_t                 authz_required;
+    webdav_copy_authz_ctx_t    authz;
     /* Phase-105: the endpoint write posture, copied by VALUE at job build. The
      * job may run on a thread-pool worker long after the request that made it,
      * so it must never re-derive the posture from configuration; and because
@@ -75,23 +77,27 @@ typedef struct {
  * matching the prior per-field copies.
  */
 static void
-webdav_copy_job_init(webdav_copy_job_t *job, ngx_log_t *log,
-    const char *root_canon, brix_vfs_mutation_policy_t policy,
-    const webdav_copy_req_t *req)
+webdav_copy_job_init(webdav_copy_job_t *job, ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const webdav_copy_req_t *req)
 {
-    job->log            = log;
-    job->policy         = policy;
+    ngx_memzero(job, sizeof(*job));
+    job->log            = r->connection->log;
+    job->policy         = brix_vfs_policy_from_write_enable(
+                              conf->common.allow_write);
     job->src_mode       = req->src_sb.st_mode;
     job->dst_existed    = req->dst_existed;
     job->dst_was_dir    = req->dst_existed && S_ISDIR(req->dst_sb.st_mode);
     job->depth_infinity = req->depth_infinity;
 
-    ngx_cpystrn((u_char *) job->root_canon, (u_char *) root_canon,
+    ngx_cpystrn((u_char *) job->root_canon,
+                (u_char *) conf->common.root_canon,
                 sizeof(job->root_canon));
     ngx_cpystrn((u_char *) job->src_path, (u_char *) req->src_path,
                 sizeof(job->src_path));
     ngx_cpystrn((u_char *) job->dst_path, (u_char *) req->dst_path,
                 sizeof(job->dst_path));
+    webdav_copy_authz_init(&job->authz, r, conf, req);
+    job->authz_required = webdav_copy_authz_has_effective_rules(&job->authz);
 }
 
 /* Render the job's carried authority as an export operation context. The root
@@ -122,6 +128,7 @@ webdav_copy_collection_stage(const webdav_copy_job_t *job, char *tmp_path,
     size_t tmp_path_size)
 {
     brix_vfs_export_op_ctx_t export_op_ctx;
+    ngx_int_t                rc;
 
     webdav_copy_job_export_op_ctx(job, &export_op_ctx);
 
@@ -144,11 +151,17 @@ webdav_copy_collection_stage(const webdav_copy_job_t *job, char *tmp_path,
     webdav_dead_props_copy(job->log, job->src_path, tmp_path);
     brix_ns_copy_fattrs(job->log, job->src_path, tmp_path);
 
-    if (job->depth_infinity
-        && webdav_copy_dir_recursive(&export_op_ctx, job->src_path, tmp_path) != NGX_OK)
-    {
+    if (!job->depth_infinity) {
+        return NGX_OK;
+    }
+
+    rc = webdav_copy_dir_recursive(&export_op_ctx, job->src_path, tmp_path,
+        job->authz_required ? webdav_copy_authorize_child : NULL,
+        job->authz_required ? (void *) &job->authz : NULL);
+    if (rc != NGX_OK) {
         (void) webdav_delete_path_recursive(job->log, job->root_canon, tmp_path);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        return rc >= NGX_HTTP_BAD_REQUEST
+            ? rc : NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     return NGX_OK;
@@ -171,12 +184,30 @@ static ngx_int_t
 webdav_copy_collection_commit(const webdav_copy_job_t *job, const char *tmp_path)
 {
     if (job->dst_existed && job->dst_was_dir) {
-        if (webdav_delete_path_recursive(job->log, job->root_canon,
-                                         job->dst_path) != NGX_OK)
+        ngx_int_t delete_rc;
+
+        if (job->authz_required) {
+            delete_rc = brix_fs_guard_tree_confined(job->log,
+                job->root_canon, job->dst_path,
+                webdav_copy_authorize_delete, (void *) &job->authz);
+            if (delete_rc != NGX_OK) {
+                (void) webdav_delete_path_recursive(job->log,
+                    job->root_canon, tmp_path);
+                return delete_rc >= NGX_HTTP_BAD_REQUEST
+                    ? delete_rc : NGX_HTTP_INTERNAL_SERVER_ERROR;
+            }
+        }
+
+        delete_rc = webdav_delete_path_recursive_checked(job->log,
+            job->root_canon, job->dst_path,
+            job->authz_required ? webdav_copy_authorize_delete : NULL,
+            job->authz_required ? (void *) &job->authz : NULL);
+        if (delete_rc != NGX_OK)
         {
             (void) webdav_delete_path_recursive(job->log, job->root_canon,
                                                 tmp_path);
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+            return delete_rc >= NGX_HTTP_BAD_REQUEST
+                ? delete_rc : NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
     }
 
@@ -298,7 +329,7 @@ webdav_copy_collection_post_task(ngx_http_request_t *r,
      * the event-loop thread where the principal is set and the broker socket
      * has exactly one user.
      */
-    if (brix_imp_enabled()) {
+    if (brix_imp_enabled() || job->authz_required) {
         return NGX_DECLINED;
     }
 
@@ -353,8 +384,7 @@ webdav_copy_do_collection(ngx_http_request_t *r,
     webdav_copy_job_t job;
     ngx_int_t         rc;
 
-    webdav_copy_job_init(&job, r->connection->log, conf->common.root_canon,
-        brix_vfs_policy_from_write_enable(conf->common.allow_write), req);
+    webdav_copy_job_init(&job, r, conf, req);
 
     if (req->depth_infinity) {
         rc = webdav_copy_collection_post_task(r, conf, &job);

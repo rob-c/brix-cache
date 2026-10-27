@@ -16,9 +16,11 @@
 
 #include "webdav.h"
 #include "copy_internal.h"
+#include "core/compat/error_mapping.h"
 #include "fs/path/path.h"
 #include "fs/vfs/vfs_authz.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <sys/stat.h>
 
@@ -76,7 +78,7 @@ webdav_copy_append_relative(const char *root, const char *relative,
         if (ngx_strlen(root) >= out_size) {
             return NGX_HTTP_REQUEST_URI_TOO_LARGE;
         }
-        ngx_cpystrn((u_char *) out, (const u_char *) root, out_size);
+        ngx_cpystrn((u_char *) out, (u_char *) root, out_size);
         return NGX_OK;
     }
 
@@ -155,16 +157,16 @@ webdav_copy_authz_init(webdav_copy_authz_ctx_t *authz,
     authz->r = r;
     authz->conf = conf;
     ngx_cpystrn((u_char *) authz->src_logical,
-                (const u_char *) req->src_logical,
+                (u_char *) req->src_logical,
                 sizeof(authz->src_logical));
     ngx_cpystrn((u_char *) authz->src_resolved,
-                (const u_char *) req->src_path,
+                (u_char *) req->src_path,
                 sizeof(authz->src_resolved));
     ngx_cpystrn((u_char *) authz->dst_logical,
-                (const u_char *) req->dest_decoded,
+                (u_char *) req->dest_decoded,
                 sizeof(authz->dst_logical));
     ngx_cpystrn((u_char *) authz->dst_resolved,
-                (const u_char *) req->dst_path,
+                (u_char *) req->dst_path,
                 sizeof(authz->dst_resolved));
 }
 
@@ -234,7 +236,11 @@ webdav_copy_authorize_child(void *cookie, const char *src,
     if (rc != NGX_OK) {
         return rc;
     }
-    if (webdav_copy_probe(authz->r, dst_resolved, &dst_sb) != NGX_OK) {
+    rc = webdav_copy_probe(authz->r, dst_resolved, &dst_sb);
+    if (rc != NGX_OK && errno != ENOENT) {
+        return brix_http_errno_to_status(errno);
+    }
+    if (rc != NGX_OK) {
         return webdav_copy_authorize(authz->r, authz->conf, dst_logical,
             dst_resolved, "COPY create destination child", BRIX_AUTH_UPDATE,
             BRIX_AOP_CREATE, 1);

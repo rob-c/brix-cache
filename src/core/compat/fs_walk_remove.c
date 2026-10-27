@@ -53,6 +53,7 @@ typedef struct {
     const char               *root_canon;
     brix_fs_remove_guard_pt   guard;
     void                     *guard_cookie;
+    unsigned                  mutate:1;
 } brix_fs_remove_ctx_t;
 
 /* Depth-carrying recursive core; the public wrappers are depth-0 entries. */
@@ -103,6 +104,10 @@ brix_fs_remove_tree_entry(const brix_fs_remove_ctx_t *ctx, int rootfd,
         if (guard_rc != NGX_OK) {
             return guard_rc;
         }
+    }
+
+    if (!ctx->mutate) {
+        return NGX_OK;
     }
 
     if (brix_unlink_beneath(rootfd, child_rel, 0) != 0) {
@@ -208,7 +213,7 @@ brix_fs_remove_tree_at(const brix_fs_remove_ctx_t *ctx, const char *path,
 
     closedir(dp);
 
-    if (rc == NGX_OK
+    if (rc == NGX_OK && ctx->mutate
         && brix_unlink_beneath(rootfd, path_rel, 1) != 0)
     {
         BRIX_LOG(NGX_LOG_ERR, ctx->log, errno,
@@ -251,7 +256,42 @@ brix_fs_remove_tree_confined_checked(ngx_log_t *log, const char *root_canon,
         .root_canon = root_canon,
         .guard = guard,
         .guard_cookie = guard_cookie,
+        .mutate = 1,
     };
 
+    return brix_fs_remove_tree_at(&ctx, path, 0);
+}
+
+/* ---- Preflight a confined tree through a caller-supplied guard -----------
+ *
+ * WHAT: Traverses a confined tree without mutation, invokes `guard` on its
+ *       root and every descendant, and returns NGX_OK, NGX_ERROR, or the
+ *       guard's first non-OK status unchanged.
+ *
+ * WHY: A recursive replacement must know that every existing child is
+ *      authorized before deleting the first one; guarding only at each unlink
+ *      can otherwise leave a partially destroyed destination after a late
+ *      denial.
+ *
+ * HOW: Reuse the exact bounded, nofollow, impersonation-aware removal walker
+ *      with its mutation bit clear. The ordinary checked removal repeats the
+ *      guards at mutation time to narrow the race between preflight and use.
+ */
+ngx_int_t
+brix_fs_guard_tree_confined(ngx_log_t *log, const char *root_canon,
+    const char *path, brix_fs_remove_guard_pt guard, void *guard_cookie)
+{
+    brix_fs_remove_ctx_t ctx = {
+        .log = log,
+        .root_canon = root_canon,
+        .guard = guard,
+        .guard_cookie = guard_cookie,
+        .mutate = 0,
+    };
+
+    if (guard == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
     return brix_fs_remove_tree_at(&ctx, path, 0);
 }

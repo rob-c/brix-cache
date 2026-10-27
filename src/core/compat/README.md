@@ -42,7 +42,7 @@ The request/response-semantics files (`http_*`, `etag`) live in [`../http`](../h
 | File | Responsibility |
 |---|---|
 | `namespace_ops.c` / `namespace_ops.h` | **The mandatory mutation gateway.** `brix_ns_delete/_mkdir/_rename/_local_copy` over already-resolved paths, each opening a `RESOLVE_BENEATH` rootfd and routing every stat/open/unlink/mkdir/rename through `src/fs/path/beneath.h`. Neutral `brix_ns_status_t` result; recursive-vs-empty, overwrite, staged-commit, xattr-preserve policies. INVARIANT: protocol handlers MUST use these, not raw `*_beneath` calls. |
-| `fs_walk.c` / `fs_walk.h` | Directory traversal: dot-entry check, path join, empty-dir probe, options-driven recursive `brix_fs_walk` (depth/hidden/files-vs-dirs/cross-device), and confined recursive `brix_fs_remove_tree_confined` (unlinks/rmdir via beneath API). Backs dirlist, PROPFIND collections, S3 ListObjects, recursive DELETE/MOVE. |
+| `fs_walk.c` / `fs_walk.h` | Directory traversal: dot-entry check, path join, empty-dir probe, options-driven recursive `brix_fs_walk` (depth/hidden/files-vs-dirs/cross-device), confined recursive removal, and its read-only all-entry guard preflight. Backs dirlist, PROPFIND collections, S3 ListObjects, recursive DELETE/MOVE/COPY. |
 | `fs_usage.c` / `fs_usage.h` | `statvfs(2)` → total/free/available/used bytes + occupancy ppm (`brix_fs_usage_t`). For Prometheus, PROPFIND quota, and `kXR_query` space. |
 | `staged_file.c` / `staged_file.h` | Crash-safe atomic write lifecycle: `open` a unique `O_EXCL` temp under the confined root → write → `commit` or `abort` (close+unlink). `brix_commit_staged` is **backend-aware**: a POSIX final takes `rename(2)` (same-FS) or copy-then-rename (cross-device EXDEV); a **non-POSIX final export** (e.g. pblock) is published by streaming the partial INTO the backend via its driver `staged_*` state machine (`commit_staged_to_backend`, resolved by `brix_vfs_backend_resolve_for_path`) — the cross-filesystem atomic commit behind `upload_resume`/POSC on a pblock export. Used by S3 PUT, WebDAV PUT/COPY, and root:// close. |
 | `tmp_path.c` / `tmp_path.h` | Uniform temp name `<base>.xrd-tmp.<pid>.<random>` — one glob (`*.xrd-tmp.*`) cleans orphans from every subsystem. |
@@ -86,7 +86,7 @@ The request/response-semantics files (`http_*`, `etag`) live in [`../http`](../h
 | `cred_stage.c` / `.h` | private staging area for short-lived credential material. |
 | `cstr.h` | brix_cbuf_copy() copies len bytes into a caller buffer and NUL-terminates, refusing (returns NULL, buffer untouched) when the result would not fit; brix_str_cbuf() is the ngx_str_t wrapper; brix_pstrdup_z() pool-allocate. |
 | `fattr_codec.c` / `.h` | kXR_fattr nvec entry parser (see fattr_codec.h). |
-| `fs_walk_remove.c` | Recursively deletes a directory tree confined to an export root_canon. |
+| `fs_walk_remove.c` | Traverses a directory tree beneath an export root for read-only guard preflight or guarded recursive deletion; both modes are bounded, nofollow, and impersonation-aware. |
 | `host_format.c` / `.h` | see host_format.h. |
 | `host_split.c` / `.h` | Parses `port_str` as a decimal port, storing it into `*port` and returning 0 on success; returns -1 when the value is out of the valid 1..65535 range (or non-numeric, which atoi maps to 0). |
 | `integrity_info_internal.h` | Cross-declares the record-DIGEST fallback functions that the xattr-cache orchestrator in integrity_info.c calls across the file boundary into integrity_info_record.c, plus the xattr/record value-buffer size used by both. |

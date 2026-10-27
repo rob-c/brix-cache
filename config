@@ -2321,6 +2321,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                  $ngx_addon_dir/src/protocols/webdav/fs/copy_engine.c \
                  $ngx_addon_dir/src/protocols/webdav/methods/copy_conditionals.c \
                  $ngx_addon_dir/src/protocols/webdav/copy.c \
+	                 $ngx_addon_dir/src/protocols/webdav/copy_authorization.c \
                  $ngx_addon_dir/src/protocols/webdav/copy_collection.c \
                  $ngx_addon_dir/src/protocols/webdav/namespace.c \
                  $ngx_addon_dir/src/protocols/webdav/propfind.c \

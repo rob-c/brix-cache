@@ -130,7 +130,7 @@ def test_copy_xrdacc_overwrite_requires_destination_delete(make_copy_server):
 def test_copy_collection_denied_source_child_is_not_published(make_copy_server):
     """SECURITY-NEG: recursive COPY checks every source child for READ."""
     srv = make_copy_server(xrdacc_rules=(
-        "u * /copy-source r /copy-source/secret.txt -r "
+        "u * /copy-source/secret.txt -r /copy-source r "
         "/copy-target irwd\n"))
     source = _seed_collection(
         srv, "copy-source", {"public.txt": b"public\n",
@@ -146,16 +146,20 @@ def test_copy_collection_denied_source_child_is_not_published(make_copy_server):
 def test_copy_collection_denied_destination_child_survives(make_copy_server):
     """SECURITY-NEG: overwrite checks each destination child before deletion."""
     srv = make_copy_server(xrdacc_rules=(
-        "u * /copy-source r /copy-target irwd "
-        "/copy-target/protected.txt -d\n"))
+        "u * /copy-target/protected.txt -d /copy-source r "
+        "/copy-target irwd\n"))
     _seed_collection(srv, "copy-source", {"replacement.txt": b"new\n"})
     target = _seed_collection(
-        srv, "copy-target", {"protected.txt": b"keep\n"})
+        srv, "copy-target", {"before.txt": b"before\n",
+                             "protected.txt": b"keep\n",
+                             "after.txt": b"after\n"})
 
     response = _copy(srv, "copy-source", "copy-target")
 
     assert response.status_code == 403, response.text
+    assert (target / "before.txt").read_bytes() == b"before\n"
     assert (target / "protected.txt").read_bytes() == b"keep\n"
+    assert (target / "after.txt").read_bytes() == b"after\n"
     assert not (target / "replacement.txt").exists()
 
 

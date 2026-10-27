@@ -71,6 +71,7 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
 | `methods_basic.c` | OPTIONS (DAV/DASL/Allow/MS-Author-Via), HEAD (`webdav_resolve_stat`, Content-Type, ETag, Want-Digest), and PROPPATCH (dead-property set/remove via xattr, 207 Multi-Status). |
 | `namespace.c` | DELETE (require-empty 409 by default; an explicit `Depth: infinity` opts in to the RFC 4918 recursive walk — batched per level on a `CAP_BULK_DELETE` leaf; tree lock check either way) and MKCOL (delegates to `brix_ns_mkdir`). |
 | `copy.c` | RFC 4918 COPY (local, same-root): Destination/Overwrite/Depth parse, staged temp-path + atomic rename, recursive dir copy (thread-pool offloaded), xattr/dead-prop preservation, self-copy → 403. |
+| `copy_authorization.c` | Exact source/destination authorization for local COPY, including logical-to-resolved child mapping and recursive create/replace/delete guards. |
 | `move.c` | RFC 4918 MOVE: confined `rename(2)` via `brix_ns_rename`; collection moves offloaded to thread pool; Overwrite:F → 412, self-move → 403, non-empty dest dir → 409. |
 | `propfind.c` | RFC 4918 PROPFIND entry/dispatch: request + Depth parse, prop-name→bit, body assembly. *(Phase 38: split.)* |
 | `propfind_props.c` | The per-resource property emitter `propfind_entry` + RFC 3744 ACL property append. *(Phase 38 split of `propfind.c`.)* |
