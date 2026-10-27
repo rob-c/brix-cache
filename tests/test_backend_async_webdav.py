@@ -89,7 +89,8 @@ class _Server:
 
     def __init__(self, lifecycle, tmp_path, allow_write="on", batch="64",
                  wait="400ms", name="lc-backend-async-webdav",
-                 token_auth=False, xrdacc_rules=None):
+                 token_auth=False, xrdacc_rules=None,
+                 authz_backstop="observe"):
         self._lifecycle = lifecycle
         self._name = name
         self._allow_write = allow_write
@@ -97,6 +98,7 @@ class _Server:
         self._wait = wait
         self._token_auth = token_auth
         self._xrdacc_rules = xrdacc_rules
+        self._authz_backstop = authz_backstop
         self.data = pathlib.Path(tmp_path) / "data"
         self.data.mkdir(parents=True, exist_ok=True)
         self.journal = pathlib.Path(tmp_path) / "journal"
@@ -135,6 +137,7 @@ class _Server:
                 "ISSUER": self.issuer.issuer if self.issuer else "unused",
                 "AUDIENCE": self.issuer.audience if self.issuer else "unused",
                 "AUTHDB": str(self.authdb),
+                "AUTHZ_BACKSTOP": self._authz_backstop,
             },
             reason="throwaway WebDAV tier exercising the async backend-op queue",
         ))

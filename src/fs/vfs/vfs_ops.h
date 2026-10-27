@@ -194,8 +194,15 @@ ngx_int_t brix_vfs_pwrite_full(ngx_fd_t fd, const u_char *buf, size_t len,
  * -1/ERANGE when a value does not fit); set/remove return NGX_OK / NGX_ERROR
  * with errno set. set/remove mutate the export and are gated on the endpoint's
  * mutation policy (EROFS on a read-only endpoint), ahead of the capability and
- * credential gates; get/list are reads and are never gated. */
+ * credential gates; ordinary get/list require read/lookup authority.  The
+ * mutation-state form is for metadata a mutation must inspect after the edge
+ * has granted UPDATE: it re-runs the typed XATTR mutation gate, retains
+ * confinement/backend-credential checks, and deliberately does not demand a
+ * separate read grant. Its caller MUST already own the exact edge decision;
+ * an observe/off backstop is diagnostic rather than an edge substitute. */
 ssize_t brix_vfs_getxattr(brix_vfs_ctx_t *ctx, const char *name,
+    void *buf, size_t bufsz);
+ssize_t brix_vfs_getxattr_for_mutation(brix_vfs_ctx_t *ctx, const char *name,
     void *buf, size_t bufsz);
 ssize_t brix_vfs_listxattr(brix_vfs_ctx_t *ctx, void *buf, size_t bufsz);
 ngx_int_t brix_vfs_setxattr(brix_vfs_ctx_t *ctx, const char *name,

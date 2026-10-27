@@ -27,6 +27,11 @@ ngx_int_t webdav_lock_xattr_write(ngx_http_request_t *r, const char *path,
  * (or path gone); NGX_ERROR on a real getxattr fault. */
 ngx_int_t webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
     webdav_lock_xattr_t *e);
+/* Read the lock record as mutation-control state after an exact LOCK/UNLOCK
+ * edge decision.  Re-runs the typed VFS mutation gate instead of requiring an
+ * unrelated read grant; confinement and backend credential checks remain. */
+ngx_int_t webdav_lock_xattr_read_mutation(ngx_http_request_t *r,
+    const char *path, webdav_lock_xattr_t *e);
 /* removexattr the lock on `path`.  Idempotent: NGX_OK even if absent; NGX_ERROR
  * only on an unexpected fault. */
 ngx_int_t webdav_lock_xattr_delete(ngx_http_request_t *r, const char *path,

@@ -32,6 +32,17 @@
 static brix_acc_op_t
 webdav_method_aop(ngx_http_request_t *r)
 {
+    const brix_http_operation_t *op;
+
+    op = brix_http_operation_find(r, brix_webdav_operations,
+                                    brix_webdav_operations_count);
+    if (op != NULL && ngx_strcmp(op->name, "SEARCH") == 0) {
+        return BRIX_AOP_READDIR;
+    }
+    if (op != NULL && ngx_strcmp(op->name, "ACL") == 0) {
+        return BRIX_AOP_CHMOD;
+    }
+
     switch (r->method) {
     case NGX_HTTP_GET:
     case NGX_HTTP_HEAD:      return BRIX_AOP_READ;
@@ -54,6 +65,38 @@ webdav_method_aop(ngx_http_request_t *r)
     case NGX_HTTP_UNLOCK:    return BRIX_AOP_UPDATE;
     case NGX_HTTP_OPTIONS:   return BRIX_AOP_ANY;
     default:                 return BRIX_AOP_STAT;
+    }
+}
+
+/* Map the request's public operation to native authdb privileges.  Native
+ * rules use a smaller vocabulary than XrdAcc: create/update/metadata writes
+ * are `w`, source-side rename/delete is `d`, collections are `m`, ACL is `k`,
+ * and reads/listings are `r`. COPY/MOVE handlers independently authorize the
+ * destination and overwrite operands; this access-phase decision covers the
+ * request URI before any body or storage work. */
+static uint32_t
+webdav_method_native_privs(ngx_http_request_t *r)
+{
+    switch (webdav_method_aop(r)) {
+    case BRIX_AOP_DELETE:
+    case BRIX_AOP_RENAME:
+        return BRIX_AUTH_DELETE;
+    case BRIX_AOP_MKDIR:
+        return BRIX_AUTH_MKDIR;
+    case BRIX_AOP_CHMOD:
+    case BRIX_AOP_CHOWN:
+        return BRIX_AUTH_ADMIN;
+    case BRIX_AOP_CREATE:
+    case BRIX_AOP_INSERT:
+    case BRIX_AOP_UPDATE:
+    case BRIX_AOP_LOCK:
+        return BRIX_AUTH_UPDATE;
+    case BRIX_AOP_STAT:
+        return BRIX_AUTH_LOOKUP;
+    case BRIX_AOP_READ:
+    case BRIX_AOP_READDIR:
+    default:
+        return BRIX_AUTH_READ;
     }
 }
 
@@ -117,19 +160,6 @@ webdav_acc_check(ngx_http_request_t *r,
     return (rc == NGX_ERROR) ? NGX_HTTP_FORBIDDEN : NGX_OK;
 }
 
-/* Returns non-zero if the HTTP method is a mutating (write) operation. */
-static int
-webdav_is_write_method(ngx_http_request_t *r)
-{
-    const brix_http_operation_t *op;
-
-    op = brix_http_operation_find(r, brix_webdav_operations,
-                                    brix_webdav_operations_count);
-
-    return (op && (op->flags & BRIX_PROTO_OP_WRITE));
-}
-
-
 /*
  * webdav_is_mutating_method — is this method a MUTATION for policy purposes?
  *
@@ -144,10 +174,9 @@ webdav_is_write_method(ngx_http_request_t *r)
  * access-phase gate contradicted that advert, let LOCK through, and the
  * request died at the VFS xattr gate as a 500 instead of a 403.
  *
- * This is deliberately NOT folded into webdav_is_write_method(): that
- * predicate also makes access_apply_authdb() stand down (write methods carry
- * their own allow_write + xrdacc + scope gates), and widening it would silently
- * exempt LOCK/UNLOCK from the authdb and VO ACL checks.
+ * The native authorization gate now handles every method with its precise
+ * privilege; this predicate is deliberately limited to the coarse endpoint
+ * writability posture and includes both WRITE and LOCK operation families.
  */
 static int
 webdav_is_mutating_method(ngx_http_request_t *r)
@@ -305,20 +334,19 @@ access_capture_deleg_proxy(ngx_http_request_t *r,
 }
 
 /*
- * access_apply_authdb — native authdb + VO ACL read parity with root://.
+ * access_apply_authdb — native authdb + VO ACL parity with root://.
  *
- * WHAT: Gates READ methods (GET/HEAD/PROPFIND) by the SAME per-DN/VO rules
- * root:// enforces, so a WebDAV read — which may serve CACHED bytes — is
- * authorized identically to a cache miss.
+ * WHAT: Gates every data/namespace method with its native privilege under the
+ *       same per-DN/VO rules root:// enforces.
  *
  * WHY: Runs only when brix_authdb / brix_require_vo are
  * configured (the check helpers return NGX_OK for empty rule sets, so
- * existing deployments are unaffected).  Write methods keep their
- * allow_write + xrdacc + token-scope gates.  Skips OPTIONS (CORS preflight).
+ * existing deployments are unaffected). Multi-resource handlers retain their
+ * exact operand gates. Skips OPTIONS (CORS preflight).
  *
  * HOW: Resolves the confined canonical path, then applies the authdb and VO
- * ACL identity checks.  Returns NGX_OK to continue or the metrics-counted
- * rejection (path-resolution error code, or 403 on rule denial).
+ * ACL identity checks with the method-specific privilege. Returns NGX_OK to
+ * continue or the metrics-counted rejection (resolution status or 403).
  */
 static ngx_int_t
 access_apply_authdb(ngx_http_request_t *r,
@@ -330,8 +358,9 @@ access_apply_authdb(ngx_http_request_t *r,
     char        peer[NGX_SOCKADDR_STRLEN];
     size_t      pn;
     ngx_int_t   pr;
+    uint32_t    needed_privs;
 
-    if (webdav_is_write_method(r) || r->method == NGX_HTTP_OPTIONS
+    if (r->method == NGX_HTTP_OPTIONS
         || (conf->common.authdb_rules == NULL && conf->common.vo_rules == NULL))
     {
         return NGX_OK;
@@ -339,6 +368,7 @@ access_apply_authdb(ngx_http_request_t *r,
 
     actx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     aid = (actx != NULL) ? actx->identity : NULL;
+    needed_privs = webdav_method_native_privs(r);
 
     pr = ngx_http_brix_webdav_resolve_path(r, conf->common.root_canon,
                                              resolved, sizeof(resolved));
@@ -354,7 +384,7 @@ access_apply_authdb(ngx_http_request_t *r,
         .identity      = aid,
         .peer_ip       = peer,
         .resolved_path = resolved,
-        .needed_privs  = BRIX_AUTH_READ,
+        .needed_privs  = needed_privs,
     };
 
     if (brix_check_authdb_identity(r->connection->log, &query) != NGX_OK
@@ -397,10 +427,9 @@ access_is_oauth_endpoint(ngx_http_request_t *r)
  * access_check_scope — token scope check (read AND write).
  *
  * WHAT: Enforces the bearer token's path scope against the method being
- * performed.  Exempt: OPTIONS (capability query / CORS preflight, no data
- * access), LOCK/UNLOCK (advisory locks require no scope claim,
- * pre-existing), and the OAuth2 control-plane endpoints (see
- * access_is_oauth_endpoint).
+ * performed. Exempt: OPTIONS (capability query / CORS preflight, no data
+ * access) and the OAuth2 control-plane endpoints (see
+ * access_is_oauth_endpoint). LOCK/UNLOCK are write-class mutations.
  *
  * WHY: This is the LAST gate — the global allow_write check has already run
  * (INVARIANT 3: allow_write before token scope).
@@ -415,7 +444,6 @@ access_check_scope(ngx_http_request_t *r)
     const brix_http_operation_t *op;
     const char                  *mname;
     ngx_int_t                    rc;
-    int                          is_lock;
 
     if (r->method == NGX_HTTP_OPTIONS) {
         return NGX_OK;
@@ -423,10 +451,7 @@ access_check_scope(ngx_http_request_t *r)
 
     op = brix_http_operation_find(r, brix_webdav_operations,
                                     brix_webdav_operations_count);
-    is_lock = (op != NULL
-               && (ngx_strcmp(op->name, "LOCK") == 0
-                   || ngx_strcmp(op->name, "UNLOCK") == 0));
-    if (is_lock || access_is_oauth_endpoint(r)) {
+    if (access_is_oauth_endpoint(r)) {
         return NGX_OK;
     }
 

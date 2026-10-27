@@ -77,7 +77,7 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
 | `propfind_props.c` | The per-resource property emitter `propfind_entry` + RFC 3744 ACL property append. *(Phase 38 split of `propfind.c`.)* |
 | `propfind_walk.c` | Pool-owned iterative depth traversal `propfind_walk` + `propfind_do` Multi-Status orchestration. Directory depth does not consume the worker call stack; VFS confinement, per-child read checks, symlink refusal, entry caps and handle cleanup remain enforced. |
 | `propfind_internal.h` | Private split contract shared by `propfind*.c`. |
-| `lock.c` | RFC 4918 LOCK/UNLOCK; `webdav_check_locks` (ancestor walk) and `webdav_check_locks_tree` (+descendant scan); lock token UUID; lockdiscovery/supportedlock XML; `webdav_lock_startup_sweep`. |
+| `lock.c` | RFC 4918 LOCK acquisition/refresh, lock token UUID, lock-null handling, and the exact target-mutation authorization shared with UNLOCK. |
 | `search.c` | RFC 5323 DAV:basicsearch — conservative subset: scope walk + optional `DAV:contains`/`literal` displayname substring filter. |
 | `acl.c` | RFC 3744 ACL method — write is protected; always returns 403 `cannot-modify-protected-property` (ACL is read-only via PROPFIND). |
 | `dead_props.c` | Dead (client-owned) WebDAV properties persisted as `user.nginx_xrootd.webdav.*` xattrs; set/remove/append/copy; protects live DAV: props. |
@@ -88,7 +88,7 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
 | File | Responsibility |
 |------|----------------|
 | `auth_cert.c` | `webdav_verify_proxy_cert` — GSI/x509 proxy chain verification with a two-tier per-TLS-connection + per-SSL_SESSION auth cache (OpenSSL ex_data); optional VOMS VO extraction; populates `brix_identity_t`. |
-| `auth_token.c` | `webdav_verify_bearer_token` (WLCG JWT via JWKS + macaroon secret, grace-period old-secret fallback, cross-worker token cache) and `webdav_check_token_write_scope` (path-prefix write-scope on the raw URI). |
+| `auth_token.c` | `webdav_verify_bearer_token` (WLCG JWT via JWKS + macaroon secret, grace-period old-secret fallback, cross-worker token cache) and `webdav_check_token_scope` (path-prefix read/write scope on the decoded logical URI). |
 | `auth_store.c` | `webdav_build_ca_store` — build the `X509_STORE` from `cadir`/`cafile`/`crl` (no proxy certs in the plain trust store). |
 | `introspect.c` | OIDC RFC 7662 token-introspection revocation as a second access-phase handler: SHM revoke-cache fast path, non-blocking `ngx_http_subrequest` to the IdP, fail-open/closed policy. |
 | `macaroon_endpoint.c` | `POST /.oauth2/token` (issue scoped WLCG macaroon) + `GET /.well-known/oauth-authorization-server` discovery; maps `storage.*` scopes → macaroon activity/path caveats. |
@@ -157,8 +157,8 @@ standalone data structure behind the REST admin API.
 | `directives_tpc.h` | WebDAV HTTP-TPC directives (SSRF policy, curl pull settings, stall bounds, marker/streams, credential-forward + OAuth2/OIDC delegation). |
 | `directives_zones.h` | WebDAV shared-memory zone + packet-marking directives (kv/token/auth/revoke caches, rate-limit zones, SciTags pmark) #included into ngx_http_brix_webdav_commands[] in webdav/module.c (compiler concatenates; setters/enum. |
 | `lock_check.c` | Reads the lock xattr on `check`; if active and it covers the target and the client does not own it, reports the operation as blocked. |
-| `lock_discovery.c` | WebDAV UNLOCK, startup lock sweep, and PROPFIND lock-discovery/supportedlock XML (RFC 4918 §9.11, §10.1, §15.8/§15.10). |
-| `lock_internal.h` | cross-file helpers shared by the WebDAV lock translation units (lock.c / lock_check.c / lock_discovery.c). |
+| `lock_discovery.c` | WebDAV UNLOCK with exact target-mutation authorization, startup lock sweep, and PROPFIND lock-discovery/supportedlock XML (RFC 4918 §9.11, §10.1, §15.8/§15.10). |
+| `lock_internal.h` | Cross-file authorization and lifecycle helpers shared by the WebDAV lock translation units (`lock.c`, `lock_check.c`, `lock_discovery.c`). |
 | `macaroon_endpoint_internal.h` | shared internals of the WLCG macaroon-issuance endpoint, split across macaroon_endpoint.c (common front-gate/response helpers), macaroon_endpoint_oauth2.c (POST /.oauth2/token) and macaroon_endpoint_request.c (dCache mac. |
 | `macaroon_endpoint_oauth2.c` | descriptor table driving scope_to_activities. |
 | `macaroon_endpoint_request.c` | dCache-style POST macaroon-request handler. |

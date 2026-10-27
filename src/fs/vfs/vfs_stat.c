@@ -442,20 +442,12 @@ brix_vfs_space(brix_vfs_ctx_t *ctx, brix_sd_space_t *out)
  * NGX_DECLINED when it is absent (errno preserved from the underlying stat), or
  * NGX_ERROR on a confinement-guard failure.
  */
-ngx_int_t
-brix_vfs_probe(brix_vfs_ctx_t *ctx, int nofollow,
+static ngx_int_t
+brix_vfs_probe_storage(brix_vfs_ctx_t *ctx, int nofollow,
     brix_vfs_stat_t *stat_out)
 {
     struct stat               st;
     const brix_sd_driver_t *drv;
-
-    if (stat_out == NULL || brix_vfs_require_confined(ctx) != NGX_OK) {
-        errno = EINVAL;
-        return NGX_ERROR;
-    }
-    if (brix_vfs_require_authorized_lookup(ctx) != NGX_OK) {
-        return NGX_ERROR;
-    }
 
     drv = brix_vfs_ctx_driver(ctx);
     if (drv != NULL) {
@@ -518,4 +510,36 @@ brix_vfs_probe(brix_vfs_ctx_t *ctx, int nofollow,
 
     brix_vfs_fill_stat(&st, stat_out);
     return NGX_OK;
+}
+
+ngx_int_t
+brix_vfs_probe(brix_vfs_ctx_t *ctx, int nofollow,
+    brix_vfs_stat_t *stat_out)
+{
+    if (stat_out == NULL || brix_vfs_require_confined(ctx) != NGX_OK) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    if (brix_vfs_require_authorized_lookup(ctx) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    return brix_vfs_probe_storage(ctx, nofollow, stat_out);
+}
+
+ngx_int_t
+brix_vfs_probe_for_mutation(brix_vfs_ctx_t *ctx, int nofollow,
+    brix_vfs_stat_t *stat_out, brix_vfs_mutation_op_t op)
+{
+    if ((ngx_uint_t) op >= BRIX_VFS_MUTATE_OP_COUNT) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    if (stat_out == NULL || brix_vfs_require_confined(ctx) != NGX_OK) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    if (brix_vfs_gate_mutation(ctx, op) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    return brix_vfs_probe_storage(ctx, nofollow, stat_out);
 }

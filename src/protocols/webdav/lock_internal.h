@@ -14,6 +14,23 @@
 #include "fs/vfs/vfs.h"
 
 /*
+ * webdav_lock_authorize_target — exact mutation authority for LOCK/UNLOCK.
+ *
+ * WHAT: Re-evaluates the request URI's logical and resolved target through
+ *       every active bearer, native authdb/VO, and XrdAcc policy. Returns
+ *       NGX_OK on allow or a fail-closed HTTP status on denial/malformed input.
+ * WHY:  Lock metadata changes resource state and LOCK may materialise a
+ *       lock-null object; neither operation may rely on read authority or the
+ *       configurable observe-only VFS backstop.
+ * HOW:  Decode the request path through the shared logical-path seam, pair it
+ *       with the already confined resolved path, and require UPDATE authority.
+ */
+ngx_int_t
+webdav_lock_authorize_target(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *resolved_path,
+    const char *operation);
+
+/*
  * webdav_lock_reap_null — release a lock-null placeholder (defined in lock.c).
  * If `e` recorded a lock-null lock and the resource is still an empty regular
  * file, unlink it so the reserved name disappears with the lock.  Best-effort.

@@ -58,6 +58,46 @@ webdav_generate_uuid(char *buf, size_t bufsz)
              bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]);
 }
 
+/* ---- Authorize one LOCK/UNLOCK target ----------------------------------
+ *
+ * WHAT: Re-evaluates the request URI's logical and resolved target through
+ *       every active bearer, native authdb/VO, and XrdAcc policy. Returns
+ *       NGX_OK on allow or the edge-owned HTTP refusal.
+ *
+ * WHY: Lock acquisition, refresh, and release mutate resource metadata, and
+ *      acquisition may create a lock-null object. Read authority and an
+ *      observe-only VFS backstop are therefore insufficient.
+ *
+ * HOW: Decode the request path with the shared policy/storage transform, pair
+ *      it with the caller's already confined resolved path, require native
+ *      UPDATE plus XrdAcc UPDATE and bearer write authority, then delegate to
+ *      the canonical exact-resource evaluator.
+ */
+ngx_int_t
+webdav_lock_authorize_target(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *resolved_path,
+    const char *operation)
+{
+    char                   logical_path[WEBDAV_MAX_PATH];
+    brix_vfs_authz_exact_t exact;
+    ngx_int_t              rc;
+
+    rc = webdav_decode_request_path(r, logical_path, sizeof(logical_path));
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    ngx_memzero(&exact, sizeof(exact));
+    exact.logical_path = logical_path;
+    exact.resolved_path = resolved_path;
+    exact.operation = operation;
+    exact.needed_privs = BRIX_AUTH_UPDATE;
+    exact.acc_op = BRIX_AOP_UPDATE;
+    exact.need_write = 1;
+
+    return webdav_authorize_resource(r, conf, &exact);
+}
+
 /*
  * Build and send the RFC 4918 §9.10 LOCK response body (activelock XML)
  * plus Lock-Token response header.
@@ -145,10 +185,10 @@ webdav_lock_xml_response(ngx_http_request_t *r, webdav_lock_xattr_t *e)
  *       leave an orphaned 0-byte file behind. A resource the client PUT data into
  *       is non-empty and is never reaped, so the is_null flag becomes inert once
  *       real content exists — no need to clear it on PUT.
- * HOW:  Confined no-follow lstat; only a regular, zero-length file is unlinked,
- *       via the confined unlink. Best-effort — failures are ignored. MUST NOT be
- *       called on a path that is about to be re-locked (it would remove the file
- *       out from under a follow-up XATTR_CREATE).
+ * HOW:  Open through the mutation-authorized VFS path and inspect handle
+ *       metadata; only a regular, zero-length file is unlinked. Best-effort —
+ *       failures are ignored. MUST NOT be called on a path that is about to be
+ *       re-locked (it would remove the file out from under XATTR_CREATE).
  */
 void
 webdav_lock_reap_null(ngx_http_request_t *r, const char *path,
@@ -156,19 +196,30 @@ webdav_lock_reap_null(ngx_http_request_t *r, const char *path,
 {
     brix_vfs_ctx_t  vctx;
     brix_vfs_stat_t vst;
+    brix_vfs_file_t *fh;
+    int              verr = 0;
 
     if (!e->is_null) {
         return;
     }
 
-    /* Confined no-follow probe; only a regular, zero-length file is unlinked,
-     * through the VFS. Best-effort — failures are ignored. */
+    /* This is cleanup for an authorized mutation, not an ordinary metadata
+     * read. A writable handle preserves that authority classification under
+     * an enforcing backstop; its adopted metadata is the VFS-owned truth. */
     webdav_vfs_ctx_build(r, path, &vctx);
-    if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) == NGX_OK
-        && vst.is_regular && vst.size == 0)
-    {
-        (void) brix_vfs_unlink(&vctx);
+    fh = brix_vfs_open(&vctx, BRIX_VFS_O_WRITE, &verr);
+    if (fh == NULL) {
+        return;
     }
+
+    if (brix_vfs_file_stat(fh, &vst) == NGX_OK
+        && vst.is_regular && vst.size == 0) {
+        brix_vfs_close(fh, r->connection->log);
+        (void) brix_vfs_unlink(&vctx);
+        return;
+    }
+
+    brix_vfs_close(fh, r->connection->log);
 }
 
 /* Phase-105 Appendix H.2: expired-lock cleanup is a WRITE, and a read-only
@@ -223,10 +274,10 @@ webdav_handle_lock(ngx_http_request_t *r)
  *       host the lock, and report via *created_null whether we made it.
  * WHY:  A LOCK on a non-existent resource MUST reserve the name; the placeholder
  *       is reaped on UNLOCK/expiry if never converted by a PUT/MKCOL.
- * HOW:  Confined no-follow probe; on ENOENT do an O_CREATE|O_EXCL open. A race
- *       loser (EEXIST) is not an error and leaves created_null clear. Returns
- *       NGX_OK on success (whether or not a file was created) or
- *       NGX_HTTP_INTERNAL_SERVER_ERROR when the create fails for another reason.
+ * HOW:  Mutation-authorized no-follow probe, then one confined
+ *       O_CREATE|O_EXCL open on absence. Success atomically reserves the name;
+ *       EEXIST loses a create race harmlessly, while EBUSY means a target or
+ *       ancestor lock won the race and maps to 423. Other errors map to 500.
  */
 static ngx_int_t
 webdav_lock_create_null(ngx_http_request_t *r, const char *path,
@@ -235,21 +286,29 @@ webdav_lock_create_null(ngx_http_request_t *r, const char *path,
     brix_vfs_ctx_t  vctx;
     brix_vfs_stat_t vst;
     brix_vfs_file_t *fh;
+    ngx_int_t        rc;
     int              verr = 0;
 
     *created_null = 0;
 
     webdav_vfs_ctx_build(r, path, &vctx);
-    if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_DECLINED
-        || errno != ENOENT)
-    {
+    rc = brix_vfs_probe_for_mutation(&vctx, 1 /* no-follow */, &vst,
+                                      BRIX_VFS_MUTATE_XATTR);
+    if (rc == NGX_OK) {
         return NGX_OK;
+    }
+    if (rc != NGX_DECLINED || errno != ENOENT) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     fh = brix_vfs_open(&vctx,
         BRIX_VFS_O_WRITE | BRIX_VFS_O_CREATE | BRIX_VFS_O_EXCL, &verr);
     if (fh == NULL) {
-        return (verr == EEXIST) ? NGX_OK : NGX_HTTP_INTERNAL_SERVER_ERROR;
+        if (verr == EEXIST) {
+            return NGX_OK;
+        }
+        return (verr == EBUSY) ? NGX_HTTP_LOCKED
+                               : NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     brix_vfs_close(fh, r->connection->log);
@@ -438,6 +497,15 @@ webdav_handle_lock_inner(ngx_http_request_t *r)
         return;
     }
 
+    /* Refuse before parsing lock state, probing the inode, or materialising a
+     * lock-null placeholder. The access phase is an early rejection only;
+     * this exact-resource gate is the authoritative mutation decision. */
+    rc = webdav_lock_authorize_target(r, conf, path, "LOCK target");
+    if (rc != NGX_OK) {
+        webdav_metrics_finalize_request(r, rc);
+        return;
+    }
+
     rc = webdav_lock_parse_depth(r, &nl.depth_infinity);
     if (rc != NGX_OK) {
         webdav_metrics_finalize_request(r, rc);
@@ -453,7 +521,7 @@ webdav_handle_lock_inner(ngx_http_request_t *r)
         return;
     }
 
-    rc = webdav_lock_xattr_read(r, path, &e);
+    rc = webdav_lock_xattr_read_mutation(r, path, &e);
     if (rc == NGX_ERROR) {
         webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return;

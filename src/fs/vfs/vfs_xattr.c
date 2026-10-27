@@ -180,6 +180,32 @@ brix_vfs_getxattr(brix_vfs_ctx_t *ctx, const char *name,
     return brix_vfs_xattr_read(ctx, name, buf, bufsz);
 }
 
+/* Read mutation-control metadata without converting UPDATE authority into a
+ * separate READ requirement.  This is intentionally narrower than the quiet
+ * ancestor probe: it is metered and independently re-runs the typed XATTR
+ * mutation gate before the credential-aware leaf read.  Lock acquisition and
+ * release use it after their exact-resource edge decision so a modify-only
+ * principal can inspect the lock record it is authorized to change. The exact
+ * edge decision is a mandatory caller precondition because observe/off
+ * backstop modes intentionally do not refuse. */
+ssize_t
+brix_vfs_getxattr_for_mutation(brix_vfs_ctx_t *ctx, const char *name,
+    void *buf, size_t bufsz)
+{
+    const char *path = brix_vfs_ctx_path(ctx);
+    uint64_t    start = brix_vfs_now_ns();
+    ssize_t     n;
+
+    if (brix_vfs_require_confined(ctx) != NGX_OK
+        || brix_vfs_gate_mutation(ctx, BRIX_VFS_MUTATE_XATTR) != NGX_OK)
+    {
+        return brix_vfs_xattr_observe_count(ctx, path, -1, start);
+    }
+
+    n = brix_vfs_xattr_read_at(ctx, path, name, buf, bufsz);
+    return brix_vfs_xattr_observe_count(ctx, path, n, start);
+}
+
 /* List the attribute names on the resolved ctx path into buf[bufsz] (NUL-
  * separated; bufsz==0 asks for the required size). Returns the byte count, or
  * -1 with errno set. Metered as OP_XATTR. */

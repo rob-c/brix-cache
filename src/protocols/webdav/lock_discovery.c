@@ -163,7 +163,15 @@ webdav_handle_unlock(ngx_http_request_t *r)
         return rc;
     }
 
-    rc = webdav_lock_xattr_read(r, path, &e);
+    /* A valid lock token proves lock ownership, not namespace authority.
+     * Require the caller's complete mutation policy before reading lock state
+     * so denied principals gain neither an existence oracle nor a release. */
+    rc = webdav_lock_authorize_target(r, conf, path, "UNLOCK target");
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    rc = webdav_lock_xattr_read_mutation(r, path, &e);
     if (rc == NGX_ERROR) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }

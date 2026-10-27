@@ -425,6 +425,14 @@ int brix_vfs_chain_nearline_unstageable(brix_sd_instance_t *chain);
 ngx_int_t brix_vfs_probe(brix_vfs_ctx_t *ctx, int nofollow,
     brix_vfs_stat_t *stat_out);
 
+/* Confined existence/type probe used as preflight for an already-authorized
+ * mutation. Unlike brix_vfs_probe(), this re-runs the supplied typed mutation
+ * gate instead of requiring LOOKUP. It does not perform the mutation or the
+ * WebDAV lock-conflict gate; the subsequent VFS mutation remains authoritative.
+ * NGX_OK/NGX_DECLINED/NGX_ERROR have the same meanings as brix_vfs_probe(). */
+ngx_int_t brix_vfs_probe_for_mutation(brix_vfs_ctx_t *ctx, int nofollow,
+    brix_vfs_stat_t *stat_out, brix_vfs_mutation_op_t op);
+
 /* Open the resolved ctx directory under confinement. Returns a handle on
  * ctx->pool, or NULL with the errno in *err_out (if non-NULL). The open is
  * metered as OP_DIRLIST. Release with brix_vfs_closedir. */

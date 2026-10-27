@@ -102,9 +102,9 @@ webdav_lock_xattr_write(ngx_http_request_t *r, const char *path,
     return NGX_OK;
 }
 
-ngx_int_t
-webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
-    webdav_lock_xattr_t *e)
+static ngx_int_t
+webdav_lock_xattr_read_impl(ngx_http_request_t *r, const char *path,
+    webdav_lock_xattr_t *e, int for_mutation)
 {
     ngx_log_t        *log = r->connection->log;
     brix_vfs_ctx_t  vctx;
@@ -113,7 +113,11 @@ webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
 
     webdav_lock_vfs_ctx_init(r, path, &vctx);
 
-    n = brix_vfs_getxattr(&vctx, WEBDAV_LOCK_XATTR_KEY, buf, sizeof(buf) - 1);
+    n = for_mutation
+        ? brix_vfs_getxattr_for_mutation(&vctx, WEBDAV_LOCK_XATTR_KEY,
+                                         buf, sizeof(buf) - 1)
+        : brix_vfs_getxattr(&vctx, WEBDAV_LOCK_XATTR_KEY,
+                            buf, sizeof(buf) - 1);
     if (n < 0) {
         /* No lock present, OR a backend that cannot store xattrs at all (object /
          * remote root:// stores) — either way the resource carries no WebDAV lock,
@@ -138,6 +142,20 @@ webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
     }
 
     return brix_lock_record_decode(buf, (size_t) n, e);
+}
+
+ngx_int_t
+webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
+    webdav_lock_xattr_t *e)
+{
+    return webdav_lock_xattr_read_impl(r, path, e, 0);
+}
+
+ngx_int_t
+webdav_lock_xattr_read_mutation(ngx_http_request_t *r, const char *path,
+    webdav_lock_xattr_t *e)
+{
+    return webdav_lock_xattr_read_impl(r, path, e, 1);
 }
 
 ngx_int_t
