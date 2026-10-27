@@ -113,6 +113,8 @@ _KIND_BINARIES = {
 @functools.lru_cache(maxsize=None)
 def kind_unavailable_reason(kind: str) -> str | None:
     binary = _KIND_BINARIES.get(kind)
+    if binary and os.environ.get("BRIX_NATIVE_REFERENCE") == "off":
+        return "native XRootD reference explicitly disabled; use the separate remote-reference lane"
     if binary and shutil.which(binary) is None:
         return f"{binary} is not installed on this host"
     return None

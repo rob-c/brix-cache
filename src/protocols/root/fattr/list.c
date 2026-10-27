@@ -156,6 +156,75 @@ fattr_list_read_value(brix_vfs_ctx_t *vctx, const char *path, int fd,
     return NGX_OK;
 }
 
+static ngx_int_t
+fattr_list_prefix_size(int aData, size_t name_len, size_t used,
+    size_t resp_cap, size_t *entry_len)
+{
+    if (brix_size_add(name_len, 1U, entry_len) != NGX_OK
+        || (aData && brix_size_add(*entry_len, 4U, entry_len) != NGX_OK)
+        || used > resp_cap || *entry_len > resp_cap - used)
+    {
+        errno = ERANGE;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+static ngx_int_t
+fattr_list_value(brix_vfs_ctx_t *vctx, const char *path, int fd,
+    const char *full_key, const brix_fattr_stored_t *stored, u_char *dst,
+    size_t dst_cap, size_t *value_len)
+{
+    *value_len = 0;
+    if (stored->value != NULL) {
+        *value_len = stored->vlen;
+        if (*value_len > kXR_faMaxVlen || *value_len > dst_cap)
+        {
+            errno = ERANGE;
+            return NGX_ERROR;
+        }
+        return NGX_OK;
+    }
+    return fattr_list_read_value(vctx, path, fd, full_key, dst, dst_cap,
+                                  value_len);
+}
+
+static ngx_int_t
+fattr_list_append_entry(brix_vfs_ctx_t *vctx, const char *path, int fd,
+    int aData, const char *full_key, const brix_fattr_stored_t *stored,
+    u_char *resp, size_t resp_cap, size_t *used)
+{
+    size_t entry_len;
+    size_t value_len = 0;
+
+    if (fattr_list_prefix_size(aData, stored->nlen, *used, resp_cap,
+                              &entry_len) != NGX_OK)
+        return NGX_ERROR;
+    if (aData
+        && fattr_list_value(vctx, path, fd, full_key,
+             stored, resp + *used + entry_len,
+             resp_cap - *used - entry_len, &value_len) != NGX_OK)
+        return NGX_ERROR;
+    if (brix_size_add(entry_len, value_len, &entry_len) != NGX_OK)
+    {
+        errno = ERANGE;
+        return NGX_ERROR;
+    }
+    ngx_memcpy(resp + *used, stored->name, stored->nlen);
+    *used += stored->nlen;
+    resp[(*used)++] = '\0';
+    if (aData) {
+        uint32_t vlen_be = htonl((uint32_t) value_len);
+
+        ngx_memcpy(resp + *used, &vlen_be, 4);
+        *used += 4;
+        if (stored->value != NULL && value_len != 0)
+            ngx_memcpy(resp + *used, stored->value, value_len);
+        *used += value_len;
+    }
+    return NGX_OK;
+}
+
 /*
  *
  * WHAT: Builds the fattrList response body into `resp` (capacity resp_cap) by
@@ -175,9 +244,9 @@ fattr_list_build(ngx_pool_t *pool, brix_vfs_ctx_t *vctx, const char *path,
     size_t resp_cap)
 {
     /* wp = write cursor into resp; lp/lend stride the raw name list. */
-    u_char     *wp   = resp;
     const char *lp   = raw;
     const char *lend = raw + actual;
+    size_t      used = 0;
 
     while (lp < lend) {
         const char          *nul;
@@ -194,64 +263,15 @@ fattr_list_build(ngx_pool_t *pool, brix_vfs_ctx_t *vctx, const char *path,
         decoded = fattr_storage_decode_list(pool, vctx, path, fd, lp,
                                              &stored);
         if (decoded < 0) return -1;
-        if (decoded == 1) {
-            /* Strip the full internal "user.U." prefix (7 bytes) so the client
-             * sees the bare name it set — matching the reference XeqFALsd, which
-             * returns verbatim names (the 'U' namespace is internal only). */
-            const char *resp_name = stored.name;
-            size_t      resp_nlen = stored.nlen;
-            size_t      used = (size_t) (wp - resp);
-            size_t      entry_len;
-            size_t      value_len = 0;
-
-            if (brix_size_add(resp_nlen, 1U, &entry_len) != NGX_OK
-                || (aData && brix_size_add(entry_len, 4U, &entry_len) != NGX_OK)
-                || used > resp_cap || entry_len > resp_cap - used)
-            {
-                errno = ERANGE;
-                return -1;
-            }
-            if (aData && stored.value != NULL) {
-                value_len = stored.vlen;
-                if (value_len > kXR_faMaxVlen
-                    || value_len > resp_cap - used - entry_len)
-                {
-                    errno = ERANGE;
-                    return -1;
-                }
-            } else if (aData
-                       && fattr_list_read_value(vctx, path, fd, lp,
-                              resp + used + entry_len,
-                              resp_cap - used - entry_len,
-                              &value_len) != NGX_OK)
-            {
-                return -1;
-            }
-            if (brix_size_add(entry_len, value_len, &entry_len) != NGX_OK
-                || entry_len > resp_cap - used)
-            {
-                errno = ERANGE;
-                return -1;
-            }
-            ngx_memcpy(wp, resp_name, resp_nlen);
-            wp += resp_nlen;
-            *wp++ = '\0';
-            if (aData) {
-                uint32_t vlen_be = htonl((uint32_t) value_len);
-
-                ngx_memcpy(wp, &vlen_be, 4);
-                wp += 4;
-                if (stored.value != NULL && value_len != 0) {
-                    ngx_memcpy(wp, stored.value, value_len);
-                }
-                wp += value_len;
-            }
-        }
+        if (decoded == BRIX_FATTR_LIST_EMIT
+            && fattr_list_append_entry(vctx, path, fd, aData, lp, &stored,
+                                       resp, resp_cap, &used) != NGX_OK)
+            return -1;
         /* Advance past this name and its NUL terminator. */
         lp += full_nlen + 1;
     }
 
-    return (ssize_t) (wp - resp);
+    return (ssize_t) used;
 }
 
 /*

@@ -345,6 +345,68 @@ xattr_resolve_and_probe(brix_ctx_t *ctx, ngx_connection_t *c,
     return 1;
 }
 
+/* ---- Append the VFS-managed Qxattr attributes ----
+ *
+ * WHAT: Append every representable `user.U.*` value; return kXR_ok or error.
+ * WHY: Backend validation and bounded formatting form one reusable boundary.
+ * HOW: Validate the name vector, read each managed value, and append atomically.
+ */
+static uint16_t
+brix_qxattr_append_vfs_attributes(brix_vfs_ctx_t *vctx, char *response,
+    size_t capacity, size_t *used, const char **error_message)
+{
+    char    raw_list[BRIX_ROOT_FATTR_VAL_BUF];
+    ssize_t list_size;
+    char   *cursor;
+    char   *end;
+
+    list_size = brix_vfs_listxattr(vctx, raw_list, sizeof(raw_list));
+    if (list_size <= 0) {
+        return kXR_ok;
+    }
+    if ((size_t) list_size > sizeof(raw_list)) {
+        *error_message = "invalid xattr name list";
+        return kXR_IOError;
+    }
+
+    cursor = raw_list;
+    end = raw_list + list_size;
+    while (cursor < end) {
+        char   *name_end;
+        size_t  name_length;
+
+        name_end = memchr(cursor, '\0', (size_t) (end - cursor));
+        if (name_end == NULL) {
+            *error_message = "invalid xattr name list";
+            return kXR_IOError;
+        }
+        name_length = (size_t) (name_end - cursor);
+
+        if (name_length > 7 && strncmp(cursor, "user.U.", 7) == 0) {
+            char    value[BRIX_ROOT_FATTR_VAL_BUF / 4];
+            ssize_t value_length;
+
+            value_length = brix_vfs_getxattr(vctx, cursor, value,
+                                               sizeof(value) - 1);
+            if (value_length >= 0 && (size_t) value_length >= sizeof(value)) {
+                *error_message = "invalid xattr value length";
+                return kXR_IOError;
+            }
+            if (value_length >= 0
+                && !brix_qxattr_append_pair(response, capacity, used,
+                                             cursor + 5, name_length - 5,
+                                             value, (size_t) value_length))
+            {
+                *error_message = "xattr response is too large";
+                return kXR_ArgTooLong;
+            }
+        }
+
+        cursor = name_end + 1;
+    }
+    return kXR_ok;
+}
+
 /* ---- Return a path's extended attributes after the full read policy chain ----
  *
  * WHAT: Send oss.* metadata and user.U.* attributes, or a refusal response.
@@ -358,13 +420,13 @@ brix_query_xattr(brix_ctx_t *ctx, ngx_connection_t *c,
     char              pathbuf[BRIX_MAX_PATH + 1];
     char              full_path[PATH_MAX];
     char              resp[BRIX_ROOT_FATTR_VAL_BUF];
-    int               pos = 0;
-    char              raw_list[BRIX_ROOT_FATTR_VAL_BUF];
-    ssize_t           list_sz;
+    size_t            pos = 0;
     brix_vfs_ctx_t  vctx;
     brix_vfs_stat_t vst;
     char              ftype;
     char              facc;
+    const char       *error_message = NULL;
+    uint16_t          error_code;
 
     {
         ngx_int_t response_rc;
@@ -404,38 +466,30 @@ brix_query_xattr(brix_ctx_t *ctx, ngx_connection_t *c,
 
     facc = (vst.mode & S_IWUSR) ? 'w' : 'r';
 
-    pos = snprintf(resp, sizeof(resp) - 1,
-                   "oss.cgroup=default&oss.type=%c&oss.used=%lld"
-                   "&oss.mt=%ld&oss.ct=%ld&oss.at=%ld"
-                   "&oss.u=*&oss.g=*&oss.fs=%c",
-                   ftype, (long long) vst.size,
-                   (long) vst.mtime, (long) vst.ctime, (long) vst.atime,
-                   facc);
+    {
+        int written;
 
-    list_sz = brix_vfs_listxattr(&vctx, raw_list, sizeof(raw_list));
-    if (list_sz > 0) {
-        char *lp = raw_list;
-        char *lend = raw_list + list_sz;
-
-        while (lp < lend && pos < (int) sizeof(resp) - 256) {
-            size_t nlen = strlen(lp);
-
-            if (strncmp(lp, "user.U.", 7) == 0 && nlen > 7) {
-                char    val[BRIX_ROOT_FATTR_VAL_BUF / 4];
-                ssize_t vlen;
-
-                vlen = brix_vfs_getxattr(&vctx, lp, val, sizeof(val) - 1);
-                if (vlen >= 0) {
-                    val[vlen] = '\0';
-                    pos += snprintf(resp + pos, sizeof(resp) - pos - 1,
-                                    "&%s=%.*s", lp + 5, (int) vlen, val);
-                }
-            }
-
-            lp += nlen + 1;
+        written = snprintf(resp, sizeof(resp),
+                           "oss.cgroup=default&oss.type=%c&oss.used=%lld"
+                           "&oss.mt=%ld&oss.ct=%ld&oss.at=%ld"
+                           "&oss.u=*&oss.g=*&oss.fs=%c",
+                           ftype, (long long) vst.size,
+                           (long) vst.mtime, (long) vst.ctime,
+                           (long) vst.atime, facc);
+        if (written < 0 || (size_t) written >= sizeof(resp)) {
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_QUERY_XATTR, "QUERY", pathbuf,
+                            "xattr", kXR_ArgTooLong,
+                            "xattr response is too large");
         }
+        pos = (size_t) written;
     }
 
+    error_code = brix_qxattr_append_vfs_attributes(&vctx, resp, sizeof(resp),
+                                                    &pos, &error_message);
+    if (error_code != kXR_ok) {
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_QUERY_XATTR, "QUERY", pathbuf,
+                        "xattr", error_code, error_message);
+    }
     brix_log_access(ctx, c, "QUERY", pathbuf, "xattr", 1, 0, NULL, 0);
     BRIX_OP_OK(ctx, BRIX_OP_QUERY_XATTR);
 

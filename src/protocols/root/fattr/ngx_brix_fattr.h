@@ -53,6 +53,12 @@ typedef struct {
     size_t      vlen;
 } brix_fattr_stored_t;
 
+/* fattr_storage_decode_list outcomes. Invalid private storage is deliberately
+ * invisible to clients; only resource/system failures abort the whole list. */
+#define BRIX_FATTR_LIST_SKIP     0
+#define BRIX_FATTR_LIST_EMIT     1
+#define BRIX_FATTR_LIST_PRIVATE  2
+
 /* Map a POSIX errno to the nearest XRootD fattr status code. */
 uint16_t fattr_errno_to_xrd(int err);
 

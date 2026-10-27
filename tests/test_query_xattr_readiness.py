@@ -30,6 +30,18 @@ def query_binary(native_compile):
     ('invalid', ['extract', 'error']),
     ('auth', ['extract', 'auth']),
     ('probe', ['extract', 'auth', 'context', 'probe', 'error']),
+    ('exact', ['extract', 'auth', 'context', 'probe', 'list',
+               'get', 'get', 'get', 'get', 'access', 'ok']),
+    ('one_over', ['extract', 'auth', 'context', 'probe', 'list',
+                  'get', 'get', 'get', 'get', 'access', 'error']),
+    ('overflow', ['extract', 'auth', 'context', 'probe', 'list',
+                  'get', 'get', 'get', 'get', 'access', 'error']),
+    ('malformed_list', ['extract', 'auth', 'context', 'probe', 'list',
+                        'access', 'error']),
+    ('oversized_value', ['extract', 'auth', 'context', 'probe', 'list',
+                         'get', 'access', 'error']),
+    ('embedded_nul', ['extract', 'auth', 'context', 'probe', 'list',
+                      'get', 'access', 'ok']),
 ])
 def test_metadata_requires_ready_prologue(query_binary, scenario, calls, response_rc):
     """Only valid initialization reaches metadata use; preserve every send result."""

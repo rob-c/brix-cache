@@ -34,6 +34,25 @@ def test_missing_kdc_tooling_drops_kdc_and_dependants(monkeypatch):
     assert dropped["krb5"].startswith("requires krb5-kdc:")
 
 
+def test_operator_can_isolate_a_broken_native_reference(monkeypatch):
+    monkeypatch.setenv("BRIX_NATIVE_REFERENCE", "off")
+    host_caps.kind_unavailable_reason.cache_clear()
+    assert "remote-reference lane" in host_caps.kind_unavailable_reason("xrootd")
+    assert "remote-reference lane" in host_caps.kind_unavailable_reason("xrdhttp")
+    assert host_caps.kind_unavailable_reason("nginx") is None
+    host_caps.kind_unavailable_reason.cache_clear()
+
+
+@pytest.mark.parametrize("value", ["", "remote", "disabled", "OFF"])
+def test_unrecognized_reference_modes_never_silently_drop_coverage(
+        monkeypatch, value):
+    monkeypatch.setenv("BRIX_NATIVE_REFERENCE", value)
+    monkeypatch.setattr(host_caps.shutil, "which", lambda _binary: "/usr/bin/xrootd")
+    host_caps.kind_unavailable_reason.cache_clear()
+    assert host_caps.kind_unavailable_reason("xrootd") is None
+    host_caps.kind_unavailable_reason.cache_clear()
+
+
 @pytest.mark.parametrize("directive", ["brix_prepare_command", "brix_frm_stagecmd",
                                       "brix_frm_purge_polprog", "brix_cms_perf_pgm",
                                       "brix_cms_fsxeq"])

@@ -12,6 +12,47 @@
  * brix_handle_prepare() and argv length in brix_prepare_invoke_command(). */
 #define BRIX_PREPARE_CMD_MAX_PATHS  512
 
+/* ---- Append one Qxattr pair without partial output ----
+ *
+ * WHAT: Append `&name=value` and its trailing NUL within a fixed response.
+ * WHY: A formatter's would-have-written count must never become a wire length.
+ * HOW: Bound the text value, prove the complete pair fits, then copy it.
+ */
+static inline ngx_flag_t
+brix_qxattr_append_pair(char *response, size_t capacity, size_t *used,
+    const char *name, size_t name_length, const char *value,
+    size_t value_length)
+{
+    const char *value_nul;
+    size_t      text_length;
+    size_t      available;
+
+    if (response == NULL || used == NULL || name == NULL || value == NULL
+        || capacity == 0 || *used >= capacity)
+    {
+        return 0;
+    }
+
+    value_nul = memchr(value, '\0', value_length);
+    text_length = value_nul != NULL
+                  ? (size_t) (value_nul - value) : value_length;
+    available = capacity - *used - 1;
+    if (available < 2 || name_length > available - 2
+        || text_length > available - 2 - name_length)
+    {
+        return 0;
+    }
+
+    response[(*used)++] = '&';
+    ngx_memcpy(response + *used, name, name_length);
+    *used += name_length;
+    response[(*used)++] = '=';
+    ngx_memcpy(response + *used, value, text_length);
+    *used += text_length;
+    response[*used] = '\0';
+    return 1;
+}
+
 /* Adler-32 of an already-open O_RDONLY fd. `path` is for log context only.
  * Returns the checksum, or the sentinel 0xFFFFFFFF on I/O error. */
 uint32_t brix_query_adler32_fd(int fd, const char *path, ngx_log_t *log);

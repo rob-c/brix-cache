@@ -82,12 +82,17 @@ _RSP_HDR_LEN = 8
 _kXR_protocol = 3006
 _kXR_login    = 3007
 _kXR_query    = 3001
+_kXR_fattr    = 3020
 _kXR_ok       = 0
 
 _kXR_QStats  = 1
 _kXR_Qxattr  = 4
 _kXR_QFinfo  = 9
 _kXR_QFSinfo = 10
+
+_kXR_fattrList = 2
+_kXR_fattrSet = 3
+_kXR_fa_aData = 0x10
 
 
 def _recvall(sock: socket.socket, n: int) -> bytes:
@@ -142,14 +147,62 @@ def _send_query(sock: socket.socket, infotype: int, payload: bytes) -> bytes:
       streamid[2] requestid[2] infotype[2] reserved1[2]
       fhandle[4] reserved2[8] dlen[4]
     """
+    status, body = _send_query_response(sock, infotype, payload)
+    assert status == _kXR_ok, f"query infotype={infotype} failed: status={status}"
+    return body
+
+
+def _send_query_response(sock: socket.socket, infotype: int,
+                         payload: bytes) -> tuple[int, bytes]:
+    """Send kXR_query and return its status and exact bounded response body."""
     dlen = len(payload)
     # 2+2+2+2+4+8 = 20 bytes before dlen, then dlen[4] = 24 total
     hdr = struct.pack(">BB H H 2x 4x 8x I",
                       0, 1, _kXR_query, infotype, dlen)
     sock.sendall(hdr + payload)
-    status, body = _recv_response(sock)
-    assert status == _kXR_ok, f"query infotype={infotype} failed: status={status}"
-    return body
+    return _recv_response(sock)
+
+
+def _send_fattr(sock: socket.socket, path: str, subcode: int,
+                attributes=(), options: int = 0) -> tuple[int, bytes]:
+    """Send one bounded path-targeted kXR_fattr request."""
+    names = b"".join(b"\0\0" + name.encode() + b"\0"
+                     for name, _value in attributes)
+    values = b"".join(struct.pack("!i", len(value)) + value
+                      for _name, value in attributes)
+    payload = path.encode() + b"\0" + names
+    if subcode == _kXR_fattrSet:
+        payload += values
+    header = struct.pack("!BBH4sBBB9xI", 0, 1, _kXR_fattr, b"\0" * 4,
+                         subcode, len(attributes), options, len(payload))
+    sock.sendall(header + payload)
+    return _recv_response(sock)
+
+
+def _decode_fattr_values(body: bytes) -> dict[str, bytes]:
+    """Decode an aData list body without reading beyond any complete record."""
+    values = {}
+    offset = 0
+    while offset < len(body):
+        end = body.find(b"\0", offset)
+        assert end >= offset, "unterminated fattr list name"
+        name = body[offset:end].decode("utf-8")
+        offset = end + 1
+        assert offset + 4 <= len(body), "missing fattr list value length"
+        value_len = struct.unpack("!I", body[offset:offset + 4])[0]
+        offset += 4
+        assert value_len <= len(body) - offset, "truncated fattr list value"
+        values[name] = body[offset:offset + value_len]
+        offset += value_len
+    return values
+
+
+@pytest.fixture(scope="module")
+def working_xrootd_client():
+    """Require black-box client health, not merely importable Python bindings."""
+    status, _response = xrd_client.FileSystem(ANON_URL).query(QueryCode.STATS, "/")
+    if not status.ok:
+        pytest.skip(f"native XRootD Python client is unusable: {status.message}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

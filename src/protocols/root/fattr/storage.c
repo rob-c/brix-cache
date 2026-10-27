@@ -504,33 +504,33 @@ fattr_storage_decode_list(ngx_pool_t *pool, brix_vfs_ctx_t *vctx,
     if (strncmp(stored_key, BRIX_FATTR_XKEY_PFX,
                 BRIX_FATTR_XKEY_PFX_LEN) != 0
         || key_len <= BRIX_FATTR_XKEY_PFX_LEN)
-        return 0;
+        return BRIX_FATTR_LIST_SKIP;
     if (key_len == FATTR_STORED_KEY_LEN
         && memcmp(stored_key, FATTR_STORED_PREFIX,
                   FATTR_STORED_PREFIX_LEN) == 0)
     {
         char expected_key[BRIX_FATTR_XKEY_PFX_LEN + kXR_faMaxNlen + 1U];
         if (fattr_storage_read(pool, vctx, path, fd, stored_key, NULL, 0, 1,
-                               stored) != 0
-            /* Short logical names also use hashed keys for chunked values.
-             * Recompute that physical key, not the direct-name preference;
-             * every envelope must still match its exact logical-name digest. */
-            || fattr_storage_hashed_key(stored->name, stored->nlen,
-                                        expected_key, sizeof(expected_key)) != 0
-            || strcmp(expected_key, stored_key) != 0)
-        {
-            errno = EIO;
-            return -1;
+                               stored) != 0) {
+            if (errno == ENOMEM) return -1;
+            return BRIX_FATTR_LIST_PRIVATE;
         }
-        return 1;
+        /* Short logical names also use hashed keys for chunked values.
+         * Recompute that physical key, not the direct-name preference; every
+         * envelope must still match its exact logical-name digest. */
+        if (fattr_storage_hashed_key(stored->name, stored->nlen,
+                                     expected_key, sizeof(expected_key)) != 0
+            || strcmp(expected_key, stored_key) != 0)
+            return BRIX_FATTR_LIST_PRIVATE;
+        return BRIX_FATTR_LIST_EMIT;
     }
     if (key_len > FATTR_STORED_PREFIX_LEN
         && memcmp(stored_key, FATTR_STORED_PREFIX,
                   FATTR_STORED_PREFIX_LEN) == 0)
-        return -1;
+        return BRIX_FATTR_LIST_PRIVATE;
     stored->name = stored_key + BRIX_FATTR_XKEY_PFX_LEN;
     stored->nlen = key_len - BRIX_FATTR_XKEY_PFX_LEN;
     stored->value = NULL;
     stored->vlen = 0;
-    return 1;
+    return BRIX_FATTR_LIST_EMIT;
 }

@@ -39,6 +39,7 @@ def _assert_fsinfo_ranges(values):
     assert 0 <= utilization <= 100
     assert utilization == utilization_2
 
+@pytest.mark.usefixtures("working_xrootd_client")
 class TestFattr:
     """kXR_fattr: set / get / del / list extended attributes on files."""
 
@@ -201,11 +202,58 @@ class TestFattr:
         fs_gsi = xrd_client.FileSystem(GSI_URL)
         status, _ = fs_gsi.set_xattr(self.xrd_path, [("gsi_tag", "ok")])
         assert status.ok, f"GSI fattr set failed: {status.message}"
-
         status, attrs = fs_gsi.get_xattr(self.xrd_path, ["gsi_tag"])
         assert status.ok
         attr_map = _attribute_map(attrs)
         assert attr_map.get("gsi_tag") == "ok"
+
+
+class TestRawFattrStorage:
+    """Server fattr storage edges independent of third-party client health."""
+
+    def setup_method(self) -> None:
+        self.fname = f"fattr_raw_{os.getpid()}.txt"
+        self.xrd_path = make_file(self.fname)
+        self.local_path = os.path.join(DATA_DIR, self.fname)
+
+    def teardown_method(self) -> None:
+        rm_file(self.fname)
+
+    def _set(self, attributes) -> None:
+        encoded = [(name, value.encode()) for name, value in attributes.items()]
+        with _raw_session(ANON_HOST, ANON_PORT) as sock:
+            status, _body = _send_fattr(sock, self.xrd_path, _kXR_fattrSet,
+                                        encoded)
+        assert status == _kXR_ok
+
+    def _list(self):
+        with _raw_session(ANON_HOST, ANON_PORT) as sock:
+            status, body = _send_fattr(sock, self.xrd_path, _kXR_fattrList,
+                                       options=_kXR_fa_aData)
+        assert status == _kXR_ok
+        return _decode_fattr_values(body)
+
+    def test_chunked_value_round_trips(self):
+        self._set({'short': 'v' * 8192, 'safe': 'ok'})
+        assert self._list() == {'short': b'v' * 8192, 'safe': b'ok'}
+
+    def test_missing_private_chunk_is_ignored(self):
+        self._set({'short': 'v' * 8192, 'safe': 'ok'})
+        chunks = [key for key in os.listxattr(self.local_path)
+                  if key.startswith('user.$brix.fattr.')]
+        assert chunks
+        os.removexattr(self.local_path, chunks[0])
+        assert self._list() == {'safe': b'ok'}
+
+    def test_forged_private_envelope_is_ignored(self):
+        import hashlib
+
+        self._set({'safe': 'ok'})
+        key = 'user.U.$brix$' + hashlib.sha256(b'claimed').hexdigest()
+        name = b'different'
+        envelope = b'BXFA\x01\0\0\0' + struct.pack('>H', len(name)) + name + b'forged'
+        os.setxattr(self.local_path, key, envelope)
+        assert self._list() == {'safe': b'ok'}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -248,6 +296,7 @@ class TestQueryStats:
         finally:
             sock.close()
 
+    @pytest.mark.usefixtures("working_xrootd_client")
     def test_stats_via_python_client(self) -> None:
         """kXR_QStats can also be issued via the Python client's query API."""
         fs = xrd_client.FileSystem(ANON_URL)
@@ -317,6 +366,25 @@ class TestQueryXattr:
                 sock.close()
         finally:
             rm_file(fname2)
+
+    def test_xattr_query_rejects_response_overflow(self) -> None:
+        """Several legal xattrs cannot inflate Qxattr beyond initialized bytes."""
+        try:
+            for name in ("first", "second", "third", "fourth"):
+                os.setxattr(self.local_path, f"user.U.{name}", b"V" * 1023)
+        except OSError as error:
+            pytest.skip(f"xattr fixture unavailable: {error}")
+
+        sock = _raw_session(ANON_HOST, ANON_PORT)
+        try:
+            status, body = _send_query_response(
+                sock, _kXR_Qxattr, self.xrd_path.encode() + b"\x00")
+            assert status != _kXR_ok, "oversized Qxattr response was accepted"
+            assert len(body) >= 4, "Qxattr refusal omitted its error code"
+            assert struct.unpack(">I", body[:4])[0] == 3002, body
+            assert b"V" * 64 not in body, "Qxattr refusal leaked value bytes"
+        finally:
+            sock.close()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -406,6 +474,7 @@ class TestQueryFSinfo:
         finally:
             sock.close()
 
+    @pytest.mark.usefixtures("working_xrootd_client")
     def test_fsinfo_via_python_client_space(self) -> None:
         """Cross-check: kXR_Qspace and kXR_QFSinfo both report consistent free space."""
         fs = xrd_client.FileSystem(ANON_URL)

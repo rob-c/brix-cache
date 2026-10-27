@@ -840,6 +840,13 @@ remain outstanding.
 
 ### Optional external official-client validation
 
+When the installed native XRootD reference is present but fails its black-box
+startup or offset probes, set `BRIX_NATIVE_REFERENCE=off` for the native pytest
+fleet. This capability selection omits only `xrootd`/`xrdhttp` reference
+members and their declared dependants; their tests remain explicit skips. It
+does not replace those results with BriX, and no other spelling disables the
+reference accidentally. Run the remote-reference lane below separately.
+
 `tools/ci/remote_reference_target.py` and `tools/ci/remote_reference.py` provide
 an **opt-in, separate** interoperability check. BriX and its modules execute
 natively on the FreeBSD kernel, as the non-root test user. Independently
