@@ -9,7 +9,6 @@
 #include "protocols/webdav/locks/request.h" /* webdav_lock_token_header (C7) */
 #include "auth/impersonate/impersonate.h"
 #include "fs/path/path.h"
-#include "protocols/shared/backend_async_http.h"
 
 #include <errno.h>
 
@@ -60,6 +59,14 @@ typedef struct {
     ngx_flag_t                       overwrite;
     ngx_flag_t                       dst_existed;
 } webdav_move_req_t;
+
+/* Destination carries both policy and storage representations.  Keeping them
+ * together prevents a later caller from authorizing the client-visible name
+ * while mutating a separately decoded/confined path. */
+typedef struct {
+    char logical[WEBDAV_MAX_PATH];
+    char resolved[WEBDAV_MAX_PATH];
+} webdav_move_destination_t;
 
 /*
  * webdav_move_probe — confined stat of `path` (follow, matching the prior
@@ -322,7 +329,7 @@ webdav_move_collection_post_task(const webdav_move_req_t *req)
  * and resolve+confine it to `dst_path`.
  *
  * WHAT: Turns the raw Destination request header into a confined absolute
- *       filesystem path (dst_path, capacity dst_cap).
+ *       logical client-visible path and a confined absolute filesystem path.
  * WHY:  Lifts the four sequential "extract → decode → resolve" steps (each with
  *       its own early-return) out of webdav_handle_move so the top-level MOVE
  *       reads as a linear sequence of stages, dropping its branch count.
@@ -332,10 +339,9 @@ webdav_move_collection_post_task(const webdav_move_req_t *req)
  */
 static ngx_int_t
 webdav_move_resolve_dest(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf, char *dst_path, size_t dst_cap)
+    ngx_http_brix_webdav_loc_conf_t *conf, webdav_move_destination_t *dest)
 {
     ngx_table_elt_t *dest_hdr;
-    char             dest_decoded[WEBDAV_MAX_PATH];
     const u_char    *dest_path_start;
     size_t           dest_path_len;
     ngx_int_t        rc;
@@ -357,15 +363,16 @@ webdav_move_resolve_dest(ngx_http_request_t *r,
 
     /* URL-decode the destination path */
     rc = webdav_urldecode(dest_path_start, dest_path_len,
-                          dest_decoded, sizeof(dest_decoded));
+                          dest->logical, sizeof(dest->logical));
     if (rc != NGX_OK) {
         return rc;
     }
 
     /* Resolve destination */
     return webdav_resolve_destination_path(r->connection->log, "MOVE",
-                                           conf->common.root_canon, dest_decoded,
-                                           dst_path, dst_cap,
+                                           conf->common.root_canon, dest->logical,
+                                           dest->resolved,
+                                           sizeof(dest->resolved),
                                            conf->common.cache_store_endpoint);
 }
 
@@ -454,37 +461,58 @@ webdav_move_dispatch(const webdav_move_req_t *req, int is_dir)
     return webdav_move_run_sync(req);
 }
 
-/*
- * Async-queue wake for a deferred fresh-destination MOVE: render the response
- * for the batch's rename result and finalise. The destination did not exist when
- * the request was accepted (the intercept requires !dst_existed), so success is
- * always 201 Created; the error ladder mirrors webdav_move_execute_cred. Runs on
- * the event loop after the flush; ctx is unused.
+/* ---- Authorize one MOVE operand -----------------------------------------
+ *
+ * WHAT: Authorizes one paired logical/resolved MOVE resource and returns
+ *       NGX_OK or the edge-owned HTTP refusal.
+ *
+ * WHY: Source removal, destination creation/update, and overwrite removal are
+ *      distinct authority decisions but must use one representation-safe path.
+ *
+ * HOW: Populate the exact VFS authorization descriptor from explicit inputs
+ *      and delegate to the authoritative WebDAV resource gate.
  */
-static void
-webdav_move_async_render(ngx_http_request_t *r, void *ctx, int op_errno)
+static ngx_int_t
+webdav_move_authorize(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *logical_path,
+    const char *resolved_path, const char *operation, uint32_t needed_privs,
+    brix_acc_op_t acc_op)
 {
-    ngx_int_t status;
+    brix_vfs_authz_exact_t exact = {
+        .logical_path  = logical_path,
+        .resolved_path = resolved_path,
+        .operation     = operation,
+        .needed_privs  = needed_privs,
+        .acc_op        = acc_op,
+        .need_write    = 1,
+    };
 
-    (void) ctx;
+    return webdav_authorize_resource(r, conf, &exact);
+}
 
-    if (op_errno == 0) {
-        webdav_metrics_finalize_request(r,
-            webdav_send_no_body(r, NGX_HTTP_CREATED));
-        return;
+/* ---- Require authority to replace an existing MOVE destination ----------
+ *
+ * WHAT: Returns NGX_OK when no replacement occurs or when the caller may
+ *       delete the existing destination; otherwise returns the HTTP refusal.
+ *
+ * WHY: Overwrite:T removes the destination identity in addition to updating
+ *      its name, so destination update authority alone is insufficient.
+ *
+ * HOW: Bypass the extra decision for fresh or Overwrite:F targets; otherwise
+ *      authorize DELETE on the same paired destination representation.
+ */
+static ngx_int_t
+webdav_move_authorize_overwrite(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf,
+    const webdav_move_destination_t *dest, ngx_flag_t existed,
+    ngx_flag_t overwrite)
+{
+    if (!existed || !overwrite) {
+        return NGX_OK;
     }
-    if (op_errno == EEXIST) {
-        status = NGX_HTTP_PRECONDITION_FAILED;
-    } else if (op_errno == ENOTDIR || op_errno == ENOENT) {
-        status = NGX_HTTP_CONFLICT;
-    } else if (op_errno == EACCES || op_errno == EPERM) {
-        status = NGX_HTTP_FORBIDDEN;
-    } else {
-        BRIX_LOG(NGX_LOG_ERR, r->connection->log, op_errno,
-                      "brix_webdav MOVE: async rename() failed");
-        status = NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    webdav_metrics_finalize_request(r, status);
+    return webdav_move_authorize(r, conf, dest->logical, dest->resolved,
+                                 "MOVE overwrite destination",
+                                 BRIX_AUTH_DELETE, BRIX_AOP_DELETE);
 }
 
 /*
@@ -508,17 +536,30 @@ webdav_handle_move(ngx_http_request_t *r)
 {
     ngx_http_brix_webdav_loc_conf_t *conf;
     webdav_move_req_t   req;
+    webdav_move_destination_t dest;
+    char                src_logical[WEBDAV_MAX_PATH];
     char                src_path[WEBDAV_MAX_PATH];
-    char                dst_path[WEBDAV_MAX_PATH];
     ngx_int_t           rc;
     struct stat         src_sb;
     struct stat         dst_sb;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
-    /* Resolve source */
+    /* Keep the source's client-visible and confined forms paired for the
+     * authoritative edge decision. */
+    rc = webdav_decode_request_path(r, src_logical, sizeof(src_logical));
+    if (rc != NGX_OK) {
+        return rc;
+    }
     rc = ngx_http_brix_webdav_resolve_path(r, conf->common.root_canon,
                                               src_path, sizeof(src_path));
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    rc = webdav_move_authorize(r, conf, src_logical, src_path,
+                               "MOVE source", BRIX_AUTH_DELETE,
+                               BRIX_AOP_RENAME);
     if (rc != NGX_OK) {
         return rc;
     }
@@ -534,7 +575,16 @@ webdav_handle_move(ngx_http_request_t *r)
     }
 
     /* Read + strip + decode + confine the Destination header. */
-    rc = webdav_move_resolve_dest(r, conf, dst_path, sizeof(dst_path));
+    rc = webdav_move_resolve_dest(r, conf, &dest);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    /* Destination INSERT is required before even probing the target.  This
+     * denies cross-scope existence and lock oracles to a source-only caller. */
+    rc = webdav_move_authorize(r, conf, dest.logical, dest.resolved,
+                               "MOVE destination", BRIX_AUTH_UPDATE,
+                               BRIX_AOP_INSERT);
     if (rc != NGX_OK) {
         return rc;
     }
@@ -545,12 +595,20 @@ webdav_handle_move(ngx_http_request_t *r)
     req.sd          = (brix_sd_instance_t *)
                           brix_webdav_backend_instance(conf, r->connection->log);
     req.src_path    = src_path;
-    req.dst_path    = dst_path;
+    req.dst_path    = dest.resolved;
     req.overwrite   = !brix_http_overwrite_forbidden(r);
-    req.dst_existed = (webdav_move_probe(r, dst_path, &dst_sb) == NGX_OK);
+    req.dst_existed = (webdav_move_probe(r, dest.resolved, &dst_sb) == NGX_OK);
+
+    /* Replacing an existing resource removes that destination identity too.
+     * Require DELETE before its lock state, metadata, or contents are inspected. */
+    rc = webdav_move_authorize_overwrite(r, conf, &dest, req.dst_existed,
+                                         req.overwrite);
+    if (rc != NGX_OK) {
+        return rc;
+    }
 
     /* MOVE on a collection recursively checks child locks (dest subtree). */
-    rc = webdav_check_locks_tree(r, dst_path);
+    rc = webdav_check_locks_tree(r, dest.resolved);
     if (rc != NGX_OK) {
         return rc;
     }
@@ -563,38 +621,15 @@ webdav_handle_move(ngx_http_request_t *r)
     /* Prevent moving a resource onto itself — the same predicate COPY applies,
      * including the reason an inode-only test cannot be it on a remote export. */
     if (req.dst_existed
-        && brix_webdav_same_object(src_path, dst_path, &src_sb, &dst_sb))
+        && brix_webdav_same_object(src_path, dest.resolved, &src_sb, &dst_sb))
     {
         return NGX_HTTP_FORBIDDEN;
     }
 
-    /* Async backend: defer the rename to the coalescing queue and park the
-     * request until the batch flushes. Scoped to the fresh-destination, non-
-     * directory case (!dst_existed && !S_ISDIR): the queue's rename applies
-     * overwrite=0 and models a single leaf rename, so it exactly matches this
-     * branch (success => 201 Created) without diverging from the Overwrite:T
-     * replacement or collection-tree offload the sync dispatch handles. The
-     * Overwrite/self-move/412 preconditions above have all been checked
-     * synchronously, and MOVE is allow_write-gated at the access phase, so the
-     * mutation is fully authorised before it reaches the queue. Keyed by the
-     * absolute confined src_path/dst_path (matching the sync VFS rename). */
-    if (conf->common.backend_async && !req.dst_existed
-        && !S_ISDIR(src_sb.st_mode))
-    {
-        brix_baq_req_t req_q = {
-            .op         = BRIX_BAQ_RENAME,
-            .proto      = BRIX_PROTO_WEBDAV,
-            .root_canon = conf->common.root_canon,
-            .src_key    = src_path,
-            .dst_key    = dst_path,
-        };
-
-        if (brix_baq_http_try(r, &conf->common, &req_q,
-                              webdav_move_async_render, NULL) == NGX_DONE)
-        {
-            return NGX_DONE;
-        }
-    }
-
+    /* MOVE deliberately does not use the durable backend queue.  A replayed
+     * rename has no request identity or rule generation with which to preserve
+     * the exact source/destination decisions above.  The identity-aware VFS
+     * path remains fully functional; brix_backend_async still applies to the
+     * single-resource DELETE operations whose edge authority is complete. */
     return webdav_move_dispatch(&req, S_ISDIR(src_sb.st_mode));
 }

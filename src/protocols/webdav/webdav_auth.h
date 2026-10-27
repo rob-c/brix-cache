@@ -13,6 +13,7 @@
 
 #include "webdav.h"
 #include "fs/vfs/vfs.h"   /* brix_vfs_ctx_t for webdav_vfs_bind_deleg */
+#include "fs/vfs/vfs_authz.h" /* exact multi-resource edge decisions */
 
 /* Authentication */
 /* Allocate the global SSL/SSL_SESSION ex_data indices used to cache TLS auth
@@ -75,5 +76,13 @@ void webdav_vfs_ctx_build_ns(ngx_http_request_t *r,
 void webdav_vfs_ctx_build_data(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
     brix_vfs_ctx_t *vctx);
+
+/* Authoritative protocol-edge authorization for one exact resource operand.
+ * The logical path feeds bearer/XrdAcc policy and the resolved path feeds
+ * native authdb/VO. Unlike the configurable VFS backstop, this always enforces
+ * and returns 403 on a denied or indeterminate decision. */
+ngx_int_t webdav_authorize_resource(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf,
+    const brix_vfs_authz_exact_t *exact);
 
 #endif /* NGX_HTTP_BRIX_WEBDAV_AUTH_H */

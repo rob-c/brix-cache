@@ -25,6 +25,7 @@
 #include "protocols/webdav/locks/request.h" /* webdav_lock_token_header (C7) */
 #include "fs/backend/sd.h"  /* enum brix_cred_mode / BRIX_CRED_SELECT */
 #include "protocols/shared/vfs_authz_bind.h"
+#include "fs/vfs/vfs_authz.h"
 
 /* ---- webdav_vfs_bind_deleg -------------------------------------------------
  *
@@ -159,4 +160,40 @@ webdav_vfs_ctx_build_data(ngx_http_request_t *r,
      * the metadata builders above deliberately do NOT bind, both because they
      * move no bytes and because some run on an offload thread. */
     brix_http_monitor_bind(r, vctx);
+}
+
+/* ---- Authorize one exact WebDAV resource operand -------------------------
+ *
+ * WHAT: Re-evaluates one logical/resolved resource pair through every active
+ *       bearer, native authdb/VO, and XrdAcc policy. Returns NGX_OK on allow or
+ *       NGX_HTTP_FORBIDDEN on denial, missing authority, or malformed input.
+ *
+ * WHY: COPY and MOVE are multi-resource operations. Their Destination header
+ *      is not r->uri, so the ordinary access-phase decision cannot authorize it;
+ *      the configurable VFS backstop is deliberately insufficient as an edge
+ *      decision because OBSERVE and OFF modes do not refuse.
+ *
+ * HOW: Build the canonical request-identity VFS context on the confined path,
+ *      force ENFORCE only on this request-local copy, and delegate the exact
+ *      logical/resolved decision to the shared VFS authorization evaluator.
+ */
+ngx_int_t
+webdav_authorize_resource(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf,
+    const brix_vfs_authz_exact_t *exact)
+{
+    brix_vfs_ctx_t vctx;
+
+    if (r == NULL || conf == NULL || exact == NULL
+        || exact->resolved_path == NULL)
+    {
+        return NGX_HTTP_FORBIDDEN;
+    }
+
+    webdav_vfs_ctx_build(r, exact->resolved_path, &vctx);
+    vctx.authz.mode = BRIX_AUTHZ_BACKSTOP_ENFORCE;
+    if (brix_vfs_require_authorized_exact(&vctx, exact) != NGX_OK) {
+        return NGX_HTTP_FORBIDDEN;
+    }
+    return NGX_OK;
 }

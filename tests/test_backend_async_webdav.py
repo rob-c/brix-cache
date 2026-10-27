@@ -1,36 +1,41 @@
 """test_backend_async_webdav.py — durable async backend-op queue over WebDAV.
 
-`brix_backend_async on` routes WebDAV DELETE and fresh-destination MOVE through the
-same per-worker coalescing queue the root:// and S3 planes use: the unlink / rmdir /
-rename is journalled + enqueued and the HTTP request is *parked*
+`brix_backend_async on` routes WebDAV DELETE through the same per-worker
+coalescing queue the root:// and S3 planes use: the unlink / rmdir is journalled
+and enqueued and the HTTP request is *parked*
 (r->main->count++, NGX_DONE) until the batch flushes, at which point the real
-204 / 201 / 409 / 500 is rendered on the event loop and the request finalised.
-GET/PUT/PROPFIND pass through synchronously — only the mutation queues. The
+204 / 409 / 500 is rendered on the event loop and the request finalised.
+GET/PUT/PROPFIND/MOVE pass through synchronously. The
 allow_write gate runs at the access phase, *before* the enqueue, so a denied
 mutation never reaches the queue.
 
-Scope note: async MOVE covers the *fresh-destination, non-directory* case only —
-the queue's rename applies overwrite=0 and models a single leaf rename, which
-exactly matches a create (201). Overwrite:T replacement and collection-tree moves
-stay on the synchronous dispatch, so no behaviour diverges.
+Security note: MOVE intentionally stays on the identity-aware VFS path even when
+the async option is enabled. A durable replay has no request identity or policy
+generation with which to reproduce the independently authorized source and
+Destination decisions; refusing that optimization keeps restart replay from
+silently widening caller authority.
 
 Coverage (success + error + security-neg + the batch-size trigger):
   * DELETE of an existing file is deferred, flushes on the time trigger, removes
     the backend object, and returns 204.
-  * MOVE to a fresh destination is deferred, flushes, renames the backend object,
-    and returns 201 Created.
+  * MOVE to a fresh destination remains functional through the synchronous,
+    identity-aware path and returns 201 Created.
   * DELETE of a non-empty collection surfaces ENOTEMPTY as a 409 *through the async
     render* — the error branch, not just success.
-  * DELETE / MOVE whose backend op is denied at drain (EACCES) surface as 403 through
-    webdav_delete_respond / webdav_move_async_render — the async error ladders,
-    distinct from the 204/201/404/409 branches.
+  * DELETE denied at drain (EACCES) surfaces as 403 through the async renderer;
+    MOVE denied by the identity-aware VFS path also returns 403.
   * two concurrent DELETEs with a long wait flush promptly via the SIZE trigger
     (batch=2) — proving the size path released them, not the time backstop.
   * with `brix_allow_write off` the DELETE is rejected by the write gate BEFORE it
     can enqueue (403 Forbidden) and the object survives — fail-closed.
 
-Self-provisioning via the registry lifecycle harness (anonymous auth + write);
-skips when the nginx binary is absent or was built without the queue.
+  * scoped-token MOVE requires authority on both source and Destination; a
+    source-only token is rejected before any durable record is created.
+  * XrdAcc distinguishes destination Insert from Update, and overwriting an
+    existing destination additionally requires Delete.
+
+Self-provisioning via the registry lifecycle harness; skips when the nginx binary
+is absent or was built without the queue.
 """
 
 import os
@@ -42,10 +47,15 @@ import uuid
 
 import pytest
 import requests
+import urllib3
 
-from settings import BIND_HOST, HOST, NGINX_BIN
+from settings import (BIND_HOST, CA_CERT, HOST, NGINX_BIN, SERVER_CERT,
+                      SERVER_KEY)
 from server_registry import NginxInstanceSpec
 from brix_suite.nginx_capabilities import nginx_has_symbol
+from utils.make_token import TokenIssuer
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def _expression_1(srv):
     return (
@@ -78,22 +88,37 @@ class _Server:
     """A throwaway WebDAV posix tier with the async backend queue configured."""
 
     def __init__(self, lifecycle, tmp_path, allow_write="on", batch="64",
-                 wait="400ms", name="lc-backend-async-webdav"):
+                 wait="400ms", name="lc-backend-async-webdav",
+                 token_auth=False, xrdacc_rules=None):
         self._lifecycle = lifecycle
         self._name = name
         self._allow_write = allow_write
         self._batch = batch
         self._wait = wait
+        self._token_auth = token_auth
+        self._xrdacc_rules = xrdacc_rules
         self.data = pathlib.Path(tmp_path) / "data"
         self.data.mkdir(parents=True, exist_ok=True)
         self.journal = pathlib.Path(tmp_path) / "journal"
         self.journal.mkdir(parents=True, exist_ok=True)
+        self.issuer = None
+        if token_auth:
+            self.issuer = TokenIssuer(str(pathlib.Path(tmp_path) / "tokens"))
+            self.issuer.init_keys()
+        self.authdb = pathlib.Path(tmp_path) / "authdb"
+        if xrdacc_rules is not None:
+            self.authdb.write_text(xrdacc_rules)
         self.base = None
 
     def start(self):
+        template = "nginx_lc_backend_async_webdav.conf"
+        if self._token_auth:
+            template = "nginx_lc_backend_async_webdav_token.conf"
+        elif self._xrdacc_rules is not None:
+            template = "nginx_lc_backend_async_webdav_xrdacc.conf"
         ep = self._lifecycle.start(NginxInstanceSpec(
             name=self._name,
-            template="nginx_lc_backend_async_webdav.conf",
+            template=template,
             protocol="webdav",
             template_values={
                 "BIND_HOST": BIND_HOST,
@@ -103,10 +128,18 @@ class _Server:
                 "BATCH": self._batch,
                 "WAIT": self._wait,
                 "JOURNAL_DIR": str(self.journal),
+                "CA_CERT": CA_CERT,
+                "SERVER_CERT": SERVER_CERT,
+                "SERVER_KEY": SERVER_KEY,
+                "JWKS": self.issuer.jwks_path if self.issuer else "unused",
+                "ISSUER": self.issuer.issuer if self.issuer else "unused",
+                "AUDIENCE": self.issuer.audience if self.issuer else "unused",
+                "AUTHDB": str(self.authdb),
             },
             reason="throwaway WebDAV tier exercising the async backend-op queue",
         ))
-        self.base = f"http://{HOST}:{ep.port}"
+        scheme = "https" if self._token_auth else "http"
+        self.base = f"{scheme}://{HOST}:{ep.port}"
         return self
 
     def url(self, name=None):
@@ -144,12 +177,12 @@ def test_delete_deferred_then_flushed(make_server):
 
 
 # --------------------------------------------------------------------------- #
-# Success — MOVE (fresh destination, non-directory) deferred, flushed          #
+# Success — MOVE remains identity-aware when backend async is enabled          #
 # --------------------------------------------------------------------------- #
 
-def test_move_fresh_dest_deferred_then_flushed(make_server):
-    """MOVE to a non-existent destination is queued + parked, flushes, renames the
-    backend file and returns 201 Created — the fresh-destination async branch."""
+def test_move_fresh_dest_uses_identity_aware_path(make_server):
+    """MOVE stays functional through the identity-aware VFS path and returns 201
+    even when the endpoint enables asynchronous backend operations."""
     srv = make_server().start()
     src = srv.url("mv-src.txt")
     dst_name = "mv-dst.txt"
@@ -161,7 +194,7 @@ def test_move_fresh_dest_deferred_then_flushed(make_server):
     assert r.status_code == 201, r.text
     assert not (srv.data / "mv-src.txt").exists(), "source must be gone"
     assert (srv.data / dst_name).read_bytes() == b"payload\n", \
-        "destination must hold the moved bytes after the flush"
+        "destination must hold the moved bytes after the synchronous MOVE"
 
 
 def test_delete_empty_collection_flushed(make_server):
@@ -184,10 +217,8 @@ def test_delete_empty_collection_flushed(make_server):
 # --------------------------------------------------------------------------- #
 
 def test_move_overwrite_existing_stays_synchronous(make_server):
-    """With `brix_backend_async on`, a MOVE onto an *existing* destination is NOT
-    queued (the intercept requires !dst_existed): it runs on the synchronous
-    dispatch, replaces the target, and returns 204 No Content. Proves the scope
-    guard routes an overwrite move to the sync path even when async is enabled."""
+    """With `brix_backend_async on`, MOVE onto an existing destination remains
+    identity-aware: it replaces the target and returns 204 No Content."""
     srv = make_server().start()
     src = srv.url("ovr-src.txt")
     dst = srv.url("ovr-dst.txt")
@@ -203,10 +234,8 @@ def test_move_overwrite_existing_stays_synchronous(make_server):
 
 
 def test_move_collection_stays_synchronous(make_server):
-    """With async ON, a *collection* (directory) MOVE is NOT queued (the intercept
-    requires !S_ISDIR(src)): it runs on the synchronous collection-offload dispatch
-    and returns 201 for a fresh destination. Proves the scope guard routes a
-    directory move to the sync path even when async is enabled."""
+    """With async ON, a collection MOVE uses the identity-aware collection
+    offload and returns 201 for a fresh destination."""
     srv = make_server().start()
     assert requests.request("MKCOL", f"{srv.base}/coll",
                             timeout=15).status_code == 201
@@ -262,11 +291,8 @@ def test_delete_backend_error_forbidden(make_server):
 
 
 def test_move_backend_error_forbidden(make_server):
-    """A queued fresh-destination MOVE whose backend rename is denied at drain
-    (EACCES) surfaces as 403 Forbidden through webdav_move_async_render's EACCES arm
-    — the async *error* ladder, complementing the 201 success case. The destination
-    is fresh (so the async branch is taken) and shares the write-revoked parent, so
-    the drain rename is denied and both endpoints survive."""
+    """A fresh-destination MOVE whose identity-aware VFS rename is denied with
+    EACCES returns 403 and leaves both names unchanged."""
     srv = make_server().start()
     locked = srv.data / "locked"
     locked.mkdir()
@@ -334,3 +360,159 @@ def test_write_denied_never_enqueues(make_server):
     r = requests.delete(srv.url("protected.txt"), timeout=15)
     assert r.status_code == 403, r.text
     assert target.exists(), "denied DELETE must not touch the backend"
+
+
+# --------------------------------------------------------------------------- #
+# Resource-complete MOVE authorization                                        #
+# --------------------------------------------------------------------------- #
+
+def _bearer(token):
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _journal_records(srv):
+    return list(srv.journal.rglob("*.req"))
+
+
+def test_move_token_authorized_for_both_operands_succeeds(make_server):
+    """Success: a token covering source and Destination can MOVE normally."""
+    srv = make_server(token_auth=True, wait="30000ms").start()
+    src_dir = srv.data / "move-source"
+    dst_dir = srv.data / "move-target"
+    src_dir.mkdir()
+    dst_dir.mkdir()
+    source = src_dir / "allowed.txt"
+    source.write_bytes(b"authorized\n")
+    token = srv.issuer.generate(
+        scope="storage.write:/move-source storage.write:/move-target")
+
+    response = requests.request(
+        "MOVE", f"{srv.base}/move-source/allowed.txt",
+        headers={**_bearer(token),
+                 "Destination": f"{srv.base}/move-target/allowed.txt"},
+        verify=False, timeout=15)
+
+    assert response.status_code == 201, response.text
+    assert not source.exists()
+    assert (dst_dir / "allowed.txt").read_bytes() == b"authorized\n"
+    assert not _journal_records(srv), "MOVE must not create replayable records"
+
+
+def test_move_source_only_token_cannot_cross_destination_scope(make_server):
+    """SECURITY-NEG: source authority never implies Destination authority."""
+    srv = make_server(token_auth=True, wait="30000ms").start()
+    src_dir = srv.data / "move-source"
+    dst_dir = srv.data / "other-tenant"
+    src_dir.mkdir()
+    dst_dir.mkdir()
+    source = src_dir / "secret.txt"
+    source.write_bytes(b"stay\n")
+    token = srv.issuer.generate(scope="storage.write:/move-source")
+
+    started = time.monotonic()
+    response = requests.request(
+        "MOVE", f"{srv.base}/move-source/secret.txt",
+        headers={**_bearer(token),
+                 "Destination": f"{srv.base}/other-tenant/stolen.txt"},
+        verify=False, timeout=15)
+
+    assert response.status_code == 403, response.text
+    assert time.monotonic() - started < 5, "denial was parked in async replay"
+    assert source.read_bytes() == b"stay\n"
+    assert not (dst_dir / "stolen.txt").exists()
+    assert not _journal_records(srv), "denied MOVE reached the durable queue"
+
+
+def test_move_malformed_destination_fails_without_side_effects(make_server):
+    """Error: an absolute Destination without a path is 400 and never queues."""
+    srv = make_server(token_auth=True, wait="30000ms").start()
+    src_dir = srv.data / "move-source"
+    src_dir.mkdir()
+    source = src_dir / "bad-destination.txt"
+    source.write_bytes(b"stay\n")
+    token = srv.issuer.generate(scope="storage.write:/move-source")
+
+    response = requests.request(
+        "MOVE", f"{srv.base}/move-source/bad-destination.txt",
+        headers={**_bearer(token), "Destination": "https://localhost"},
+        verify=False, timeout=15)
+
+    assert response.status_code == 400, response.text
+    assert source.read_bytes() == b"stay\n"
+    assert not _journal_records(srv)
+
+
+# --------------------------------------------------------------------------- #
+# XrdAcc operation-complete MOVE authorization                                #
+# --------------------------------------------------------------------------- #
+
+def _xrdacc_move_server(make_server, destination_privileges):
+    rules = ("u * /move-source n\n"
+             f"u * /move-target {destination_privileges}\n")
+    return make_server(xrdacc_rules=rules, wait="30000ms").start()
+
+
+def test_move_xrdacc_insert_only_destination_succeeds(make_server):
+    """Success: a fresh destination requires Insert, matching root:// MOVE."""
+    srv = _xrdacc_move_server(make_server, "i")
+    src_dir = srv.data / "move-source"
+    dst_dir = srv.data / "move-target"
+    src_dir.mkdir()
+    dst_dir.mkdir()
+    source = src_dir / "insert.txt"
+    source.write_bytes(b"insert-only\n")
+
+    response = requests.request(
+        "MOVE", f"{srv.base}/move-source/insert.txt",
+        headers={"Destination": f"{srv.base}/move-target/insert.txt"},
+        timeout=15)
+
+    assert response.status_code == 201, response.text
+    assert not source.exists()
+    assert (dst_dir / "insert.txt").read_bytes() == b"insert-only\n"
+
+
+def test_move_xrdacc_overwrite_without_delete_is_forbidden(make_server):
+    """SECURITY-NEG: Insert authority cannot remove an existing destination."""
+    srv = _xrdacc_move_server(make_server, "i")
+    src_dir = srv.data / "move-source"
+    dst_dir = srv.data / "move-target"
+    src_dir.mkdir()
+    dst_dir.mkdir()
+    source = src_dir / "replace.txt"
+    target = dst_dir / "replace.txt"
+    source.write_bytes(b"new\n")
+    target.write_bytes(b"old\n")
+
+    response = requests.request(
+        "MOVE", f"{srv.base}/move-source/replace.txt",
+        headers={"Destination": f"{srv.base}/move-target/replace.txt"},
+        timeout=15)
+
+    assert response.status_code == 403, response.text
+    assert source.read_bytes() == b"new\n"
+    assert target.read_bytes() == b"old\n"
+    assert not _journal_records(srv)
+
+
+def test_move_xrdacc_insert_and_delete_can_overwrite(make_server):
+    """Control: Insert plus Delete permits replacement and returns 204."""
+    srv = _xrdacc_move_server(make_server, "id")
+    src_dir = srv.data / "move-source"
+    dst_dir = srv.data / "move-target"
+    src_dir.mkdir()
+    dst_dir.mkdir()
+    source = src_dir / "replace.txt"
+    target = dst_dir / "replace.txt"
+    source.write_bytes(b"new\n")
+    target.write_bytes(b"old\n")
+
+    response = requests.request(
+        "MOVE", f"{srv.base}/move-source/replace.txt",
+        headers={"Destination": f"{srv.base}/move-target/replace.txt"},
+        timeout=15)
+
+    assert response.status_code == 204, response.text
+    assert not source.exists()
+    assert target.read_bytes() == b"new\n"
+    assert not _journal_records(srv)

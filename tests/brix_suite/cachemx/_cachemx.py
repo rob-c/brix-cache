@@ -64,9 +64,24 @@ from settings import (
 # cachemx test with "native client binary missing", which reads as a host
 # without a built client rather than as a broken path.
 REPO = os.path.dirname(TESTS_DIR)
-XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
-XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
-XRDSSSADMIN = os.path.join(REPO, "client", "bin", "xrdsssadmin-brix")
+
+
+def configured_client_path(environment_name: str, binary_name: str) -> str:
+    """Return an explicit cross-host client override or the in-tree binary.
+
+    An empty override is treated as absent so a partially populated environment
+    cannot turn a launch into an attempt to execute the current directory.
+    """
+    override = os.environ.get(environment_name)
+    if override:
+        return override
+    return os.path.join(REPO, "client", "bin", binary_name)
+
+
+XRDCP = configured_client_path("TEST_XRDCP_BIN", "xrdcp")
+XRDFS = configured_client_path("TEST_XRDFS_BIN", "xrdfs")
+XRDSSSADMIN = configured_client_path(
+    "TEST_XRDSSSADMIN_BIN", "xrdsssadmin-brix")
 
 TOKEN_FILE = os.path.join(TOKENS_DIR, "upstream.jwt")
 CLIENT_CERT = os.path.join(PKI_DIR, "user", "usercert.pem")

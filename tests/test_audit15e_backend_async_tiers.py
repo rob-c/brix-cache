@@ -16,13 +16,11 @@ DEFECT CANDIDATE #6 (pinned here, discovered by this cross): the async queue
 drain executes UNLINK/RMDIR through `brix_vfs_unlink_path` /
 `brix_vfs_rmdir_path` (src/fs/vfs/vfs_walk.c:320) — posix-confined raw
 primitives on root_canon + logical path that never consult the VFS backend
-registry — while RENAME alone resolves the driver via
-`brix_vfs_backend_resolve` (src/fs/xfer/backend_async_queue.c:174).  So on
-ANY export whose truth is a remote/tiered backend, an async MOVE renames
-through correctly, but an async DELETE fails against the empty logical export
-tree (ENOENT) and the WebDAV render (src/protocols/webdav/namespace.c:282)
-answers 404 — for an object a GET serves fine immediately before and after,
-and which survives untouched on the origin.  The comment above the enqueue
+registry. So on ANY export whose truth is a remote/tiered backend, an async
+DELETE fails against the empty logical export tree (ENOENT) and the WebDAV
+render (src/protocols/webdav/namespace.c:282) answers 404 — for an object a GET
+serves fine immediately before and after, and which survives untouched on the
+origin. The comment above the enqueue
 ("The queue drives the same confined-VFS primitive as the sync path") is
 false for remote backends: the sync path routes through `brix_ns_delete` and
 the driver's delete slot (src/fs/backend/http/sd_http_mutate.c) and works —
@@ -35,9 +33,9 @@ Cases:
   * DEFECT PIN, cache cross — async DELETE answers 404, the origin object
     survives, and the object still serves.  Inverts on fix.
   * DEFECT PIN, stage cross — same shape through the write-through stage tier.
-  * MOVE control — a queued fresh-destination MOVE on the same /rt/ export
-    renames the origin object through the resolved driver: the queue CAN
-    route through the registry; only its UNLINK/RMDIR arms do not.
+  * MOVE control — an identity-aware synchronous MOVE on the same /rt/ export
+    renames the origin object through the resolved driver, proving that the
+    remote backend can rename and isolating the defect to queued DELETE.
   * security-negative — on /ro/ the write gate rejects the DELETE at the
     access phase (403) BEFORE it can enqueue: the origin object survives.
 """
@@ -173,17 +171,16 @@ def test_defect6_stage_cross_async_delete_404s_object_survives(tiers):
         g2.status_code, DEFECT6)
 
 
-def test_cache_cross_async_move_renames_through(tiers):
+def test_cache_cross_move_control_renames_through(tiers):
     port, origin, _, _ = tiers
     r = requests.put(_url(port, "/rt/mv-src.bin"), data=PAYLOAD, timeout=30)
     assert r.status_code in (201, 204), (r.status_code, r.text)
     g = requests.get(_url(port, "/rt/mv-src.bin"), timeout=30)
     assert g.status_code == 200, g.status_code
 
-    # The drain's RENAME arm resolves the backend driver
-    # (backend_async_queue.c:174) — the one queued op that routes correctly
-    # on a remote-backed export.  This working while DELETE 404s is the
-    # sharpest statement of defect #6.
+    # MOVE deliberately remains synchronous so its two-resource authorization
+    # is evaluated under the live request identity. Its success through the
+    # same remote driver isolates defect #6 to the queued DELETE path.
     m = requests.request(
         "MOVE", _url(port, "/rt/mv-src.bin"), timeout=30,
         headers={"Destination": _url(port, "/rt/mv-dst.bin")})
@@ -192,7 +189,7 @@ def test_cache_cross_async_move_renames_through(tiers):
     assert (origin / "rt" / "mv-dst.bin").read_bytes() == PAYLOAD
 
     assert requests.get(_url(port, "/rt/mv-src.bin"), timeout=30).status_code \
-        == 404, "old name still serves after the drained async MOVE"
+        == 404, "old name still serves after the identity-aware MOVE"
     g2 = requests.get(_url(port, "/rt/mv-dst.bin"), timeout=30)
     assert g2.status_code == 200 and g2.content == PAYLOAD, g2.status_code
 

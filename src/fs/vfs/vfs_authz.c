@@ -108,7 +108,8 @@ static brix_acc_op_t
 brix_vfs_authz_two_name_acc(brix_vfs_mutation_op_t op, int destination)
 {
     if (destination) {
-        return BRIX_AOP_UPDATE;
+        return op == BRIX_VFS_MUTATE_RENAME ? BRIX_AOP_INSERT
+                                             : BRIX_AOP_UPDATE;
     }
     return op == BRIX_VFS_MUTATE_RENAME ? BRIX_AOP_RENAME
                                          : BRIX_AOP_DELETE;
@@ -208,6 +209,94 @@ brix_vfs_authz_query_init(const brix_vfs_ctx_t *ctx, const char *path,
     query->peer_ip = ctx->authz.peer[0] != '\0' ? ctx->authz.peer : NULL;
     query->logical_path = brix_vfs_export_relative(ctx, path);
     query->resolved_path = path;
+}
+
+/* ---- Validate one exact authorization operand ---------------------------
+ *
+ * WHAT: Returns non-zero only when an exact authorization request has complete
+ *       logical/resolved names and the resolved name lies within the bound
+ *       export root.
+ *
+ * WHY: The public evaluator must fail closed on incomplete or mismatched path
+ *      representations without obscuring its authorization control flow.
+ *
+ * HOW: Check each required object/string, then reuse the shared root-boundary
+ *      predicate for the resolved storage name.
+ */
+static int
+brix_vfs_authz_exact_valid(const brix_vfs_ctx_t *ctx,
+    const brix_vfs_authz_exact_t *exact)
+{
+    if (ctx == NULL || exact == NULL || ctx->root_canon == NULL) {
+        return 0;
+    }
+    if (exact->logical_path == NULL || exact->logical_path[0] == '\0') {
+        return 0;
+    }
+    if (exact->resolved_path == NULL || exact->resolved_path[0] == '\0') {
+        return 0;
+    }
+    return brix_path_within_root(ctx->root_canon, exact->resolved_path);
+}
+
+/* ---- Evaluate one exact protocol-edge resource decision ------------------
+ *
+ * WHAT: Re-evaluates an explicit logical/resolved path pair and privilege
+ *       requirement through the authorization bundle bound to `ctx`. Returns
+ *       NGX_OK on allow (or observe/off policy) and NGX_ERROR with EACCES on an
+ *       enforced refusal; invalid or unconfined inputs fail with EINVAL.
+ *
+ * WHY: Multi-resource protocols cannot derive every policy operand from
+ *      ctx->resolved. WebDAV COPY/MOVE in particular carry an independently
+ *      decoded Destination whose client-visible spelling is required for token
+ *      and XrdAcc checks while native authdb/VO require the confined path.
+ *
+ * HOW: Validate the exact pair, preserve the existing bound/mode/no-rules
+ *      semantics, build the canonical identity query, replace its derived
+ *      logical path with the supplied edge path, and feed the result through
+ *      the ordinary bounded outcome/metric path.
+ */
+ngx_int_t
+brix_vfs_require_authorized_exact(const brix_vfs_ctx_t *ctx,
+    const brix_vfs_authz_exact_t *exact)
+{
+    brix_authz_identity_query_t query;
+    const char                 *operation;
+
+    if (!brix_vfs_authz_exact_valid(ctx, exact)) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+
+    operation = exact->operation != NULL ? exact->operation : "resource";
+    if (!ctx->authz.bound) {
+        return brix_vfs_authz_outcome(ctx, BRIX_AUTHZ_BACKSTOP_UNBOUND,
+                                      operation);
+    }
+    if (ctx->authz.mode == BRIX_AUTHZ_BACKSTOP_OFF) {
+        return NGX_OK;
+    }
+    if (!brix_vfs_authz_has_rules(ctx)) {
+        return brix_vfs_authz_outcome(ctx, BRIX_AUTHZ_BACKSTOP_NO_RULES,
+                                      operation);
+    }
+    if (exact->needed_privs == 0 || exact->acc_op == BRIX_AOP_ANY) {
+        return brix_vfs_authz_outcome(ctx,
+                                      BRIX_AUTHZ_BACKSTOP_EDGE_MISSING,
+                                      operation);
+    }
+
+    brix_vfs_authz_query_init(ctx, exact->resolved_path, &query);
+    query.logical_path = exact->logical_path;
+    query.needed_privs = exact->needed_privs;
+    query.acc_op = exact->acc_op;
+    query.need_write = exact->need_write ? 1 : 0;
+
+    return brix_vfs_authz_outcome(ctx,
+        brix_authz_check_identity(&query) == NGX_OK
+            ? BRIX_AUTHZ_BACKSTOP_AGREE
+            : BRIX_AUTHZ_BACKSTOP_EDGE_MISSING,
+        operation);
 }
 
 static ngx_int_t

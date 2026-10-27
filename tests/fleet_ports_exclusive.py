@@ -168,8 +168,9 @@ LIFECYCLE_EXCLUSIVE_PORTS: dict[str, dict] = {
     "lc-backend-async": {"port": 31170},
     "lc-backend-async-reboot": {"port": 31171},
     # HTTP-plane async backend queue (test_backend_async_s3.py /
-    # test_backend_async_webdav.py) — DELETE/MOVE park via r->main->count++ until
-    # the batch flushes; each family serialises on its own xdist_group.
+    # test_backend_async_webdav.py) — S3 mutations and WebDAV DELETE park via
+    # r->main->count++ until the batch flushes. WebDAV MOVE remains on its
+    # identity-aware VFS path; each family serialises on its own xdist_group.
     "lc-backend-async-s3": {"port": 31172},
     "lc-backend-async-webdav": {"port": 31173},
     # Phase-44 io_uring runtime subject (test_io_uring_runtime.py) — one

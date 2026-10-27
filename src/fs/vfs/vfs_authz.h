@@ -38,6 +38,7 @@
 
 #include "vfs.h"
 #include "vfs_policy.h"
+#include "auth/authz/acc/privs.h"
 
 /* The backstop's per-evaluation outcome, mirrored as a bounded metric label by
  * BRIX_AUTHZ_BACKSTOP_RESULT_COUNT (observability/metrics/unified.h); vfs_authz.c
@@ -54,6 +55,20 @@ typedef enum {
     BRIX_AUTHZ_BACKSTOP_UNBOUND,
     BRIX_AUTHZ_BACKSTOP_RESULT_N   /* never a real result — the array bound */
 } brix_authz_backstop_result_t;
+
+/* One exact resource decision at a protocol edge.  `logical_path` is the
+ * client-visible namespace spelling used by token/XrdAcc policy;
+ * `resolved_path` is the confined backing path used by native authdb/VO.
+ * The privilege and XrdAcc operation are explicit because multi-resource
+ * methods (COPY/MOVE) apply different authority to each operand. */
+typedef struct {
+    const char       *logical_path;
+    const char       *resolved_path;
+    const char       *operation;
+    uint32_t          needed_privs;
+    brix_acc_op_t     acc_op;
+    unsigned          need_write:1;
+} brix_vfs_authz_exact_t;
 
 /* Map a bounded mutation operation onto the BRIX_AUTH_* privilege the edge
  * already passes by hand for it (§C12.3). Returns the primary needed-privilege
@@ -78,6 +93,14 @@ ngx_int_t brix_vfs_require_authorized(const brix_vfs_ctx_t *ctx,
  * The ordinary form checks DELETE on the source. */
 ngx_int_t brix_vfs_require_authorized_target(const brix_vfs_ctx_t *ctx,
     const char *path, brix_vfs_mutation_op_t op);
+
+/* Evaluate one exact, already-confined resource decision from the identity and
+ * rule bundle bound to `ctx`.  The caller selects OBSERVE/ENFORCE through the
+ * ctx's existing backstop mode; a protocol edge that owns the wire refusal sets
+ * ENFORCE on its request-local ctx.  NGX_OK or NGX_ERROR with errno EACCES;
+ * malformed/unconfined inputs fail with EINVAL. */
+ngx_int_t brix_vfs_require_authorized_exact(const brix_vfs_ctx_t *ctx,
+    const brix_vfs_authz_exact_t *exact);
 
 /* Read-side twins. Data access asks for BRIX_AUTH_READ/BRIX_AOP_READ; namespace
  * metadata and enumeration ask for BRIX_AUTH_LOOKUP/BRIX_AOP_STAT. Keeping the
