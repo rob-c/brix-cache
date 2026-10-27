@@ -367,9 +367,9 @@ int tpc_outbound_finish_login(brix_tpc_pull_t *t, int fd,
 int tpc_outbound_gsi(brix_tpc_pull_t *t, int fd,
     const u_char *login_body, uint32_t login_dlen);
 /*
- * GSI handshake round 2: perform the DH key exchange, optionally verify the
- * server leaf cert against conf->gsi_store (proxy certs allowed; absent cert is
- * not fatal), send the encrypted client cert, and require a kXR_ok reply. body
+ * GSI handshake round 2: perform the DH key exchange and, when conf->gsi_store
+ * exists, require an affirmatively verified server leaf certificate (proxy certs
+ * allowed) before sending the encrypted client cert. Then require kXR_ok. body
  * is the borrowed kXR_authmore payload from round 1 (dlen bytes); x/chain/pkey/
  * certreq/cbio/kbio are the round-1 cert material it reuses. Returns 0 on
  * success, -1 with t->err_msg and t->xrd_error set on failure.

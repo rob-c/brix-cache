@@ -27,7 +27,7 @@ correct isolation.  The arm is the CLIENT's leg; the credential this file is
 about belongs to the destination, and nothing else should be able to satisfy
 the source on its behalf.
 
-The three faces and five destinations are laid out so that every refusal is
+The three faces and six destinations are laid out so that every refusal is
 attributable:
 
     {PORT}          gsi + brix_tls_require all   -- the cross
@@ -39,6 +39,7 @@ attributable:
     nocred    outbound TLS, nothing to present
     rogueca   outbound TLS + a credential + an anchor that signed neither side
     noca      outbound TLS + a credential + no explicit anchor (system defaults)
+    nostore   cleartext GSI + a credential + the deliberate no-store opt-out
 
 Every negative asserts twice: the pull reports an error AND the destination
 file was never committed.  A TPC leg that reports failure while leaving bytes
@@ -50,21 +51,13 @@ write-open on the destination with tpc.src/tpc.key/tpc.stage=copy -> kXR_sync
 #1 arms -> kXR_sync #2 starts the pull, whose reply (possibly via kXR_waitresp
 and a pushed kXR_attn) carries the outcome.
 
-DEFECT CANDIDATE #26, found by this file: the outbound GSI leg never verifies
-the source's certificate on a TPC destination.  src/tpc/gsi/gsi_outbound_exchange.c
-guards tpc_gsi_verify_server_cert() on ``conf->gsi_store``, but
-src/auth/gsi/config.c::brix_configure_gsi() returns early — leaving gsi_store
-NULL — unless the listener's own brix_auth (or a brix_protbind rule) selects
-GSI.  A pull destination is an outbound GSI *client*, not a GSI acceptor, so
-the store is never built for it and the check is dead code on exactly the
-listeners it was written for.  brix_trusted_ca is configured, and the refusal
-message at src/tpc/gsi/gsi_outbound_finish.c:87 tells the operator to configure
-it for GSI, but on the cleartext-GSI path nothing anchors the source: the
-destination hands its credential (potentially a delegated user proxy) to an
-unauthenticated peer.  The TLS leg is unaffected — tls.c builds its own store
-straight from brix_trusted_ca — so ``brix_tpc_outbound_tls on`` against a
-TLS-demanding source is the only configuration that authenticates the source
-today.  Both halves are pinned below.
+The cleartext GSI leg has its own certificate boundary.  An anonymous TPC
+destination with ``brix_trusted_ca`` builds ``gsi_store`` even though it is not
+an inbound GSI acceptor.  Once that store exists, the peer must supply a
+non-empty, parseable leaf that verifies affirmatively before the destination
+builds round two.  The hostile-peer tests below splice a real unsigned-DH GSI
+reply, remove or corrupt only its certificate bucket, and assert that no reply
+to a credential-bearing second auth request is observed.
 
 TRAP the tls.c leg imposes on deployments — the source host credential here
 carries an iPAddress SAN, not just a CN.  tls.c pins the peer name with
@@ -90,6 +83,8 @@ from test_audit15c_tpc_token_exchange import _drive_pull
 from test_phase25_ratelimit import (KXR_OK, _xrd_login, _xrd_open,
                                     _xrd_recv_status)
 from _test_gsi_handshake_helpers import _ca_hash_link, _make_ca, _mint_proxy, _signed
+from _test_tpc_gsi_peer_mutation import GsiPeerMutationProxy
+from test_tpc_pull_integrity import _port_up
 
 def _guard_pki_1():
     if not shutil.which("openssl"):
@@ -147,12 +142,6 @@ def _require_other_loopback():
 # the hostname negative from passing for each other's cause.
 BAD_ANCHOR = "unable to get local issuer certificate"
 TLS_REFUSED = "TPC TLS handshake to source failed"
-
-DEFECT26 = (
-    "DEFECT CANDIDATE #26 has been FIXED: the outbound GSI leg now verifies "
-    "the source's certificate against brix_trusted_ca.  Flip this expectation "
-    "to KXR_ERROR + _uncommitted and strike #26 from the audit.")
-
 
 def _knobs(*lines):
     """Render OUTBOUND_KNOBS: the destination template's only variable part."""
@@ -244,6 +233,7 @@ def tpcgsi(lifecycle, trees, pki):
         "rogueca": _knobs("brix_tpc_outbound_tls on;", *cred,
                           f"brix_trusted_ca {pki['rogue_certs']};"),
         "noca": _knobs("brix_tpc_outbound_tls on;", *cred),
+        "nostore": _knobs(*cred),
     }
     dests = {
         label: lifecycle.start(NginxInstanceSpec(
@@ -257,6 +247,24 @@ def tpcgsi(lifecycle, trees, pki):
         for label, knobs in variants.items()
     }
     return {"src": src, **dests}, dstdata
+
+
+@pytest.fixture()
+def gsi_peer_proxy(tpcgsi):
+    """A bounded splice in front of the real unsigned-DH GSI source."""
+    endpoints, _dstdata = tpcgsi
+    proxy = GsiPeerMutationProxy(HOST, _face(endpoints, "gsi"))
+    proxy.start()
+    deadline = time.time() + 5
+    while time.time() < deadline and not _port_up(HOST, proxy.listen):
+        time.sleep(0.05)
+    if not _port_up(HOST, proxy.listen):
+        proxy.stop()
+        pytest.fail("GSI peer-certificate mutation proxy did not become ready")
+    try:
+        yield proxy
+    finally:
+        proxy.stop()
 
 
 def _face(endpoints, which):
@@ -291,15 +299,16 @@ def _dest_open(s, dest_path, src_host, src_port, key):
     return _xrd_recv_status(s)
 
 
-def _pull(endpoints, dest, dest_path, face="tls", src_host=SRC_ADDR, arm=True):
+def _pull(endpoints, dest, dest_path, face="tls", src_host=SRC_ADDR, arm=True,
+          source_port=None):
     """Run one pull end to end; returns the terminal (status, body)."""
     key = "a15h" + dest_path.strip("/").replace(".", "").replace("-", "")
     armed = _arm(endpoints, key) if arm else None
     s = _xrd_login(HOST, endpoints[dest].port)
     s.settimeout(60)
     try:
-        status, body = _dest_open(s, dest_path, src_host,
-                                  _face(endpoints, face), key)
+        port = _face(endpoints, face) if source_port is None else source_port
+        status, body = _dest_open(s, dest_path, src_host, port, key)
         assert status == KXR_OK, ("dest-open refused", status, body)
         return _drive_pull(s, body[:4])
     finally:
@@ -356,6 +365,14 @@ def test_the_same_cleartext_destination_pulls_from_the_gsi_only_face(tpcgsi):
         ("the cleartext destination cannot authenticate at all, so the "
          "TLS-face refusal is not attributable to TLS", status, body)
     assert _landed(dstdata, "/notls-on-gsi.bin")
+
+
+def test_cleartext_gsi_no_store_remains_the_explicit_opt_out(tpcgsi):
+    """Compatibility: absent GSI trust deliberately skips peer verification."""
+    endpoints, dstdata = tpcgsi
+    status, body = _pull(endpoints, "nostore", "/nostore-on-gsi.bin", face="gsi")
+    assert status == KXR_OK, (status, body)
+    assert _landed(dstdata, "/nostore-on-gsi.bin")
 
 
 # --------------------------------------------------------------------------- #
@@ -473,6 +490,39 @@ def test_an_untrusted_source_chain_is_refused_at_the_gsi_layer(tpcgsi):
     assert status == KXR_ERROR, ("the GSI leg accepted an untrusted source",
                                  status, body)
     assert _uncommitted(dstdata, "/rogue-on-gsi.bin")
+
+
+def test_gsi_peer_proxy_passes_an_unchanged_trusted_source(tpcgsi,
+                                                           gsi_peer_proxy):
+    """Success: the observation splice does not break a trusted GSI exchange."""
+    endpoints, dstdata = tpcgsi
+    status, body = _pull(endpoints, "notls", "/proxy-clean-gsi.bin", face="gsi",
+                         source_port=gsi_peer_proxy.listen)
+    assert status == KXR_OK, (status, body)
+    assert _landed(dstdata, "/proxy-clean-gsi.bin")
+    assert gsi_peer_proxy.observations() == (0, 0)
+
+
+@pytest.mark.parametrize(
+    ("mode", "dest_path", "reason"),
+    (("missing-cert", "/missing-peer-cert.bin", b"no certificate to verify"),
+     ("empty-cert", "/empty-peer-cert.bin", b"no certificate to verify"),
+     ("malformed-cert", "/malformed-peer-cert.bin",
+      b"certificate verification failed")),
+)
+def test_gsi_peer_certificate_must_verify_before_round_two(
+        tpcgsi, gsi_peer_proxy, mode, dest_path, reason):
+    """SECURITY-NEG: absent/unevaluable peer certs receive no round two."""
+    endpoints, dstdata = tpcgsi
+    gsi_peer_proxy.arm(mode)
+    status, body = _pull(endpoints, "notls", dest_path, face="gsi",
+                         source_port=gsi_peer_proxy.listen)
+    assert status == KXR_ERROR, (mode, status, body)
+    assert reason in body, (mode, body)
+    assert gsi_peer_proxy.observations() == (1, 0), (
+        f"{mode} mutation was not applied exactly once or received a reply "
+        "to credential-bearing round two", gsi_peer_proxy.observations())
+    assert _uncommitted(dstdata, dest_path)
 
 
 def test_tls_without_an_explicit_anchor_uses_verified_system_defaults(tpcgsi):

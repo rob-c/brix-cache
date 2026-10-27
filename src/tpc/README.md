@@ -159,11 +159,11 @@ with `tpc.key` appended for client extraction) or `kXR_*` error in `engine/done.
   `engine/done.c::brix_aio_restore_request` fails and the callback unlinks the
   partial destination file, closes `dst_fd`, frees the fhandle slot, and marks
   the shared transfer `ERROR` — no half-written files are left exposed.
-- **GSI is hand-rolled.** `gsi/gsi_outbound_exchange.c` implements the DH key
-  exchange and `kXGS_cert` payload assembly directly against OpenSSL rather than
-  via a GSSAPI library; server-cert verification (with
-  `X509_V_FLAG_ALLOW_PROXY_CERTS`) is only performed when `conf->gsi_store` is
-  configured.
+- **GSI uses the shared clean-room kernel.** `gsi/gsi_outbound_exchange.c`
+  delegates DH agreement and `kXGS_cert` payload assembly to `auth/gsi/gsi_core`.
+  When `conf->gsi_store` is configured, the source must present a non-empty leaf
+  that verifies affirmatively (with `X509_V_FLAG_ALLOW_PROXY_CERTS`) before any
+  local proxy chain or proof is built; no store is the explicit operator opt-out.
 - **Subprocess token fetch.** `outbound/tpc_token.c` fork/execs `oidc-token`/`curl`; it
   uses an end-of-options `--` terminator before the endpoint URL and avoids
   `access()`-before-`execve` TOCTOU. The RFC 8693 body is written to a `mkstemp`

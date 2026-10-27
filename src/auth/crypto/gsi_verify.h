@@ -112,9 +112,9 @@ ngx_int_t brix_gsi_verify_chain(ngx_log_t         *log,
  *          0 when the certificate parsed but verification FAILED,
  *         -1 when no verdict could be reached (unparseable PEM, or the store
  *            context could not be created/initialised).
- * Never logs and never touches `store`'s ownership; callers decide what each
- * verdict means for them (the cache origin and the upstream fail closed on
- * anything but 1; the TPC destination treats -1 as "no certificate offered").
+ * Never logs and never touches `store`'s ownership. Every credential-bearing
+ * outbound caller fails closed on anything but 1; the tri-state result keeps
+ * diagnostics able to distinguish a trust rejection from an unevaluable input.
  * OpenSSL's error queue is cleared on return.
  */
 int brix_gsi_verify_peer_leaf(X509_STORE *store, const uint8_t *pem,

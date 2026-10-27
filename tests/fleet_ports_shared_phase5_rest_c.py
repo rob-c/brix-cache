@@ -320,3 +320,11 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
         "extra": {"CAPACITY_PORT": 31349},
     },
 })
+
+# TPC GSI peer-verification compatibility control
+# (tests/test_audit15h_tpc_gsi_tls.py): an explicit no-trust-store destination
+# proves the documented operator opt-out remains usable while configured trust
+# stores fail closed on missing or unevaluable peer certificates.
+LIFECYCLE_SHARED_PORTS_PHASE5.update({
+    "lc-audit15h-tpcgsitls-nostore": {"port": 31350},
+})

@@ -25,10 +25,10 @@
 /* File: gsi_outbound_exchange.c — GSI round-2 driver for native TPC pull
  * WHAT: tpc_outbound_gsi_exchange completes the outbound GSI handshake on a TPC
  *   pull socket after gsi_outbound_certreq.c has sent kXGC_certreq and received
- *   the server's kXGS_cert (`body`). It (optionally) verifies the server leaf cert
- *   against conf->gsi_store, serialises our proxy cert chain to PEM, and hands the
- *   server reply + proxy credential to the SHARED XrdSecgsi round-2 builder
- *   (brix_gsi_build_cert_response, src/gsi/gsi_core.c) — the exact
+ *   the server's kXGS_cert (`body`). When a trust store is configured, it requires
+ *   and verifies the server leaf cert before handing the server reply and our
+ *   serialised proxy chain to the shared XrdSecgsi round-2 builder
+ *   (brix_gsi_build_cert_response, auth/gsi/gsi_core.c) — the exact
  *   implementation the native client uses. It then sends the resulting kXGC_cert
  *   (kXR_auth seq=4) and checks the server's final status == kXR_ok.
  *
@@ -39,7 +39,7 @@
  *   carry it) and gives the destination the signed-DH path for free: whatever DH
  *   variant the server offers, the shared builder handles it.
  *
- * HOW: optional X509_verify_cert(conf->gsi_store, server-leaf) → BIO_s_mem +
+ * HOW: configured-store X509_verify_cert(server-leaf) → BIO_s_mem +
  *   PEM_write_bio_X509(chain) → brix_gsi_build_cert_response(body, dlen,
  *   chain_pem, pkey, &payload, &plen) → free(body) → tpc_send_kxr_auth(seq=4,
  *   payload) → tpc_recv_response → status==kXR_ok ? 0 : -1. Resource ownership:
@@ -64,18 +64,19 @@ tpc_gsi_exchange_cleanup(int rc, u_char *body, BIO *chain_bio, u_char *payload)
 }
 
 /*
- * tpc_gsi_verify_server_cert — optional CA-store check of the server leaf cert.
+ * tpc_gsi_verify_server_cert — enforce configured peer-certificate trust.
  *
- * WHAT: When conf->gsi_store is configured AND the server included its kXRS_x509
- *   bucket, PEM-parse the leaf and run X509_verify_cert against our store. Returns
- *   0 when verification succeeds, is skipped (no store / no bucket / unparseable
- *   leaf), or the store-ctx cannot be initialised (matching the original fall-
- *   through); returns -1 only on a present-and-invalid cert.
+ * WHAT: Returns 0 when no trust store was configured (the explicit operator
+ *   opt-out), or when a present non-empty kXRS_x509 leaf verifies affirmatively.
+ *   Returns -1 with kXR_NotAuthorized for a missing, empty, malformed, rejected,
+ *   or otherwise unevaluable peer certificate when a store is configured.
  * WHY: We must not derive a shared secret with an unverified server when a store
- *   is present. GSI delegated proxies are legitimate here, so
- *   X509_V_FLAG_ALLOW_PROXY_CERTS is set — identical to the pre-refactor path.
- * HOW: brix_gsi_verify_peer_leaf (auth/crypto/gsi_verify.c, shared with the
- *   cache origin and the transparent upstream) maps 1→0, 0→-1, -1→0.
+ *   is present, because round two carries the local proxy chain and proof. GSI
+ *   delegated proxies remain legitimate because the shared verifier enables
+ *   X509_V_FLAG_ALLOW_PROXY_CERTS.
+ * HOW: Locate the certificate bucket, reject an absent/empty value, then require
+ *   brix_gsi_verify_peer_leaf (shared with cache origin and upstream) to return
+ *   its sole affirmative verdict, 1. Every other verdict fails closed.
  */
 static int
 tpc_gsi_verify_server_cert(brix_tpc_pull_t *t, const u_char *body, uint32_t dlen)
@@ -91,11 +92,12 @@ tpc_gsi_verify_server_cert(brix_tpc_pull_t *t, const u_char *body, uint32_t dlen
                         &srv_pem, &srv_pem_len) != 0
         || srv_pem_len == 0)
     {
-        return 0;
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC GSI server presented no certificate to verify");
+        t->xrd_error = kXR_NotAuthorized;
+        return -1;
     }
-    /* -1 (unparseable leaf / no store ctx) keeps the historical fall-through;
-     * only a parsed-and-rejected leaf (0) refuses the destination. */
-    if (brix_gsi_verify_peer_leaf(conf->gsi_store, srv_pem, srv_pem_len) == 0) {
+    if (brix_gsi_verify_peer_leaf(conf->gsi_store, srv_pem, srv_pem_len) != 1) {
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC GSI server certificate verification failed");
         t->xrd_error = kXR_NotAuthorized;
@@ -192,9 +194,9 @@ tpc_outbound_gsi_exchange(brix_tpc_pull_t *t, int fd,
     tpc_gsi_round2_t r2 = { body, dlen, chain, pkey, NULL, NULL, 0 };
 
     /*
-     * Optional: verify the server leaf cert using our CA store before we derive a
-     * shared secret with it. Skipped entirely when no store is configured or the
-     * server omitted its kXRS_x509 bucket — only a present-but-invalid cert aborts.
+     * Verify the server leaf cert before deriving a shared secret. No store is an
+     * explicit operator opt-out; once a store exists, missing and indeterminate
+     * certificate states abort exactly like an ordinary trust rejection.
      */
     if (tpc_gsi_verify_server_cert(t, body, dlen) != 0) {
         return tpc_gsi_exchange_cleanup(rc, body, chain_bio, payload);

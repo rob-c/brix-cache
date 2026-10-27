@@ -42,7 +42,8 @@ pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-tpc")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
+XRDCP = os.environ.get(
+    "TEST_XRDCP_BIN", os.path.join(REPO, "client", "bin", "xrdcp"))
 XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
 
 

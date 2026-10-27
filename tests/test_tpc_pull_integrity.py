@@ -225,10 +225,16 @@ class _KxrPullFaultProxy:
         if size > 16 * 1024 * 1024:
             return False
         payload = _recv_exact(src, size)
+        if len(payload) == size:
+            self._observe_request(header, opcode, payload)
         with request_lock:
             requests[header[:2]] = opcode
         dst.sendall(header + payload)
         return len(payload) == size
+
+    def _observe_request(self, header, opcode, payload):
+        """Extension hook for suites that must inspect an outbound request."""
+        del header, opcode, payload
 
     @staticmethod
     def _shutdown_write(dst):
