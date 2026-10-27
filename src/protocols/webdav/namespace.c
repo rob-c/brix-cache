@@ -146,6 +146,26 @@ webdav_delete_path_recursive(ngx_log_t *log, const char *root_canon,
     return brix_fs_remove_tree_confined(log, root_canon, path);
 }
 
+/* ---- Recursively remove a caller-visible tree with a per-path guard ------
+ *
+ * WHAT: Delegates confined recursive removal to the shared checked walker and
+ *       returns NGX_OK, NGX_ERROR, or the guard's exact refusal.
+ *
+ * WHY: COPY replacement can destroy a destination subtree whose descendants
+ *      carry narrower policy than the root; every mutation needs its own edge
+ *      decision while preserving the one confinement implementation.
+ *
+ * HOW: Pass the WebDAV-provided guard and cookie unchanged to the shared
+ *      confined removal primitive.
+ */
+ngx_int_t
+webdav_delete_path_recursive_checked(ngx_log_t *log, const char *root_canon,
+    const char *path, brix_fs_remove_guard_pt guard, void *guard_cookie)
+{
+    return brix_fs_remove_tree_confined_checked(log, root_canon, path,
+                                                guard, guard_cookie);
+}
+
 /*
  * Map a completed DELETE's result (op_errno 0 = removed) to the WebDAV response.
  * Shared by the synchronous handler and the async-queue wake so both render the

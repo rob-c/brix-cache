@@ -15,6 +15,7 @@
 #include "fs/path/path.h"
 
 #include <errno.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -70,7 +71,7 @@ webdav_copy_errno_to_status(int err)
  * guard, mode for is-dir, mtime/size for the conditional checks). Non-metered
  * (the COPY op accounts for itself). Returns NGX_OK / NGX_DECLINED (errno kept).
  */
-static ngx_int_t
+ngx_int_t
 webdav_copy_probe(ngx_http_request_t *r, const char *path, struct stat *sb)
 {
     ngx_http_brix_webdav_loc_conf_t *conf =
@@ -150,8 +151,211 @@ webdav_copy_parse_request(ngx_http_request_t *r, webdav_copy_req_t *req)
         return rc;
     }
 
-    return webdav_urldecode(dest_path_start, dest_path_len,
-                            req->dest_decoded, sizeof(req->dest_decoded));
+    rc = webdav_urldecode(dest_path_start, dest_path_len,
+                          req->dest_decoded, sizeof(req->dest_decoded));
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    webdav_normalize_decoded_path(req->dest_decoded);
+
+    return webdav_decode_request_path(r, req->src_logical,
+                                       sizeof(req->src_logical));
+}
+
+/* ---- Map one recursive source child to its policy path pair --------------
+ *
+ * WHAT: Produces the logical source, logical final destination, and resolved
+ *       final destination for a confined source child. Returns NGX_OK or a
+ *       fail-closed HTTP status.
+ *
+ * WHY: The copy walker writes into an unpublished staging tree, but policy is
+ *      defined on the caller-visible final destination. Authorizing the temp
+ *      spelling would bypass destination rules.
+ *
+ * HOW: Derive the checked suffix relative to the resolved source root, then
+ *      append it independently to each stored logical/resolved root.
+ */
+static ngx_int_t
+webdav_copy_map_child(const webdav_copy_authz_ctx_t *authz,
+    const char *source_child, char *source_logical, char *dest_logical,
+    char *dest_resolved)
+{
+    char      relative[WEBDAV_MAX_PATH];
+    ngx_int_t rc;
+
+    if (authz == NULL || authz->r == NULL
+        || !brix_resolved_relative_to_root(authz->r->connection->log,
+            authz->src_resolved, source_child, relative, sizeof(relative)))
+    {
+        return NGX_HTTP_FORBIDDEN;
+    }
+
+    rc = webdav_copy_append_relative(authz->src_logical, relative,
+                                     source_logical, WEBDAV_MAX_PATH);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    rc = webdav_copy_append_relative(authz->dst_logical, relative,
+                                     dest_logical, WEBDAV_MAX_PATH);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    return webdav_copy_append_relative(authz->dst_resolved, relative,
+                                       dest_resolved, WEBDAV_MAX_PATH);
+}
+
+/* ---- Initialize request-bound COPY authorization state ------------------
+ *
+ * WHAT: Copies the request pointer, configuration pointer, and four path roots
+ *       into `authz`; NULL inputs leave a zeroed fail-closed context.
+ *
+ * WHY: Collection execution needs stable by-value paths and one shared mapper
+ *      for both copy and overwrite-removal guards.
+ *
+ * HOW: Zero the destination, retain request/config lifetimes, and bounded-copy
+ *      every logical/resolved root from the validated request.
+ */
+void
+webdav_copy_authz_init(webdav_copy_authz_ctx_t *authz,
+    ngx_http_request_t *r, ngx_http_brix_webdav_loc_conf_t *conf,
+    const webdav_copy_req_t *req)
+{
+    if (authz == NULL) {
+        return;
+    }
+    ngx_memzero(authz, sizeof(*authz));
+    if (r == NULL || conf == NULL || req == NULL) {
+        return;
+    }
+
+    authz->r = r;
+    authz->conf = conf;
+    ngx_cpystrn((u_char *) authz->src_logical,
+                (const u_char *) req->src_logical,
+                sizeof(authz->src_logical));
+    ngx_cpystrn((u_char *) authz->src_resolved,
+                (const u_char *) req->src_path,
+                sizeof(authz->src_resolved));
+    ngx_cpystrn((u_char *) authz->dst_logical,
+                (const u_char *) req->dest_decoded,
+                sizeof(authz->dst_logical));
+    ngx_cpystrn((u_char *) authz->dst_resolved,
+                (const u_char *) req->dst_path,
+                sizeof(authz->dst_resolved));
+}
+
+/* ---- Report whether COPY must retain caller-bound authorization ----------
+ *
+ * WHAT: Returns non-zero when the request's VFS context carries an effective
+ *       native, VO, XrdAcc, or token rule set.
+ *
+ * WHY: A collection with active rules must execute its per-child guards on the
+ *      request thread; an allow-all export may retain identity-free offload.
+ *
+ * HOW: Build the canonical request context on the source root and delegate to
+ *      the VFS evaluator's canonical rule-presence predicate.
+ */
+int
+webdav_copy_authz_has_effective_rules(const webdav_copy_authz_ctx_t *authz)
+{
+    brix_vfs_ctx_t vctx;
+
+    if (authz == NULL || authz->r == NULL || authz->conf == NULL) {
+        return 1;
+    }
+    webdav_vfs_ctx_build(authz->r, authz->src_resolved, &vctx);
+    return brix_vfs_authz_has_effective_rules(&vctx);
+}
+
+/* ---- Authorize one recursive COPY child ---------------------------------
+ *
+ * WHAT: Requires READ on the source child and destination UPDATE plus CREATE
+ *       for a fresh target or DELETE for a replacement. Returns NGX_OK or the
+ *       first fail-closed HTTP refusal.
+ *
+ * WHY: Root authorization does not cover narrower child rules, and the walker
+ *      otherwise reads/creates descendants with no caller identity decision.
+ *
+ * HOW: Map the source child to final logical/resolved paths, authorize source
+ *      READ and baseline destination UPDATE before probing existence, then
+ *      require CREATE or DELETE according to that probe.
+ */
+ngx_int_t
+webdav_copy_authorize_child(void *cookie, const char *src,
+    const char *staged_dst, int is_dir)
+{
+    webdav_copy_authz_ctx_t *authz = cookie;
+    char                     src_logical[WEBDAV_MAX_PATH];
+    char                     dst_logical[WEBDAV_MAX_PATH];
+    char                     dst_resolved[WEBDAV_MAX_PATH];
+    struct stat              dst_sb;
+    ngx_int_t                rc;
+
+    (void) staged_dst;
+    (void) is_dir;
+
+    rc = webdav_copy_map_child(authz, src, src_logical, dst_logical,
+                               dst_resolved);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    rc = webdav_copy_authorize(authz->r, authz->conf, src_logical, src,
+                               "COPY source child", BRIX_AUTH_READ,
+                               BRIX_AOP_READ, 0);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    rc = webdav_copy_authorize(authz->r, authz->conf, dst_logical,
+                               dst_resolved, "COPY destination child",
+                               BRIX_AUTH_UPDATE, BRIX_AOP_UPDATE, 1);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    if (webdav_copy_probe(authz->r, dst_resolved, &dst_sb) != NGX_OK) {
+        return webdav_copy_authorize(authz->r, authz->conf, dst_logical,
+            dst_resolved, "COPY create destination child", BRIX_AUTH_UPDATE,
+            BRIX_AOP_CREATE, 1);
+    }
+    return webdav_copy_authorize(authz->r, authz->conf, dst_logical,
+        dst_resolved, "COPY replace destination child", BRIX_AUTH_DELETE,
+        BRIX_AOP_DELETE, 1);
+}
+
+/* ---- Authorize deletion of one existing destination path ----------------
+ *
+ * WHAT: Requires DELETE authority on one resolved destination-tree path and
+ *       returns NGX_OK or the exact HTTP refusal.
+ *
+ * WHY: Replacing a collection recursively destroys descendants that may carry
+ *      narrower rules than the destination root.
+ *
+ * HOW: Derive the checked suffix beneath the final destination root, append it
+ *      to the logical root, and invoke the exact resource evaluator.
+ */
+ngx_int_t
+webdav_copy_authorize_delete(void *cookie, const char *path, int is_dir)
+{
+    webdav_copy_authz_ctx_t *authz = cookie;
+    char                     relative[WEBDAV_MAX_PATH];
+    char                     logical[WEBDAV_MAX_PATH];
+    ngx_int_t                rc;
+
+    (void) is_dir;
+
+    if (authz == NULL || authz->r == NULL
+        || !brix_resolved_relative_to_root(authz->r->connection->log,
+            authz->dst_resolved, path, relative, sizeof(relative)))
+    {
+        return NGX_HTTP_FORBIDDEN;
+    }
+    rc = webdav_copy_append_relative(authz->dst_logical, relative, logical,
+                                     sizeof(logical));
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    return webdav_copy_authorize(authz->r, authz->conf, logical, path,
+        "COPY delete destination child", BRIX_AUTH_DELETE,
+        BRIX_AOP_DELETE, 1);
 }
 
 /*
@@ -183,6 +387,13 @@ webdav_copy_resolve_pair(ngx_http_request_t *r,
         return rc;
     }
 
+    rc = webdav_copy_authorize(r, conf, req->src_logical, req->src_path,
+                               "COPY source", BRIX_AUTH_READ,
+                               BRIX_AOP_READ, 0);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
     if (webdav_copy_probe(r, req->src_path, &req->src_sb) != NGX_OK) {
         return (errno == ENOENT) ? NGX_HTTP_NOT_FOUND
                                  : NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -197,8 +408,31 @@ webdav_copy_resolve_pair(ngx_http_request_t *r,
         return rc;
     }
 
+    /* Require destination UPDATE before its existence, locks, or metadata can
+     * become an oracle. Fresh targets additionally require XrdAcc CREATE;
+     * replacement additionally requires DELETE below. */
+    rc = webdav_copy_authorize(r, conf, req->dest_decoded, req->dst_path,
+                               "COPY destination", BRIX_AUTH_UPDATE,
+                               BRIX_AOP_UPDATE, 1);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
     req->dst_existed = (webdav_copy_probe(r, req->dst_path, &req->dst_sb)
                         == NGX_OK);
+
+    if (!req->dst_existed) {
+        rc = webdav_copy_authorize(r, conf, req->dest_decoded, req->dst_path,
+                                   "COPY create destination",
+                                   BRIX_AUTH_UPDATE, BRIX_AOP_CREATE, 1);
+    } else if (req->overwrite) {
+        rc = webdav_copy_authorize(r, conf, req->dest_decoded, req->dst_path,
+                                   "COPY overwrite destination",
+                                   BRIX_AUTH_DELETE, BRIX_AOP_DELETE, 1);
+    }
+    if (rc != NGX_OK) {
+        return rc;
+    }
 
     rc = webdav_check_locks_tree(r, req->dst_path);
     if (rc != NGX_OK) {
@@ -240,14 +474,22 @@ static ngx_int_t
 webdav_copy_do_file(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf, const webdav_copy_req_t *req)
 {
+    webdav_copy_authz_ctx_t authz;
     brix_vfs_copy_opts_t copy_opts;
     brix_vfs_ctx_t       vctx;
     brix_sd_precond_t    precond;
 
     if (req->dst_existed && S_ISDIR(req->dst_sb.st_mode)) {
-        (void) webdav_delete_path_recursive(r->connection->log,
-                                            conf->common.root_canon,
-                                            req->dst_path);
+        ngx_int_t delete_rc;
+
+        webdav_copy_authz_init(&authz, r, conf, req);
+        delete_rc = webdav_delete_path_recursive_checked(
+            r->connection->log, conf->common.root_canon, req->dst_path,
+            webdav_copy_authorize_delete, &authz);
+        if (delete_rc != NGX_OK) {
+            return delete_rc == NGX_HTTP_FORBIDDEN
+                ? delete_rc : NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
     }
 
     /* Data-plane build so a remote-backed export sees the REQUESTING USER's

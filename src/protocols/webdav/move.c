@@ -367,6 +367,7 @@ webdav_move_resolve_dest(ngx_http_request_t *r,
     if (rc != NGX_OK) {
         return rc;
     }
+    webdav_normalize_decoded_path(dest->logical);
 
     /* Resolve destination */
     return webdav_resolve_destination_path(r->connection->log, "MOVE",

@@ -72,13 +72,19 @@ typedef struct {
 
 /* Map a bounded mutation operation onto the BRIX_AUTH_* privilege the edge
  * already passes by hand for it (§C12.3). Returns the primary needed-privilege
- * mask; *also_delete is set to 1 for RENAME/COPY, which the tree already treats
- * as UPDATE on the destination AND DELETE on the source (mv.c precedent). An
- * operation with no export-storage mapping (DEDUP, CREDENTIAL — governed by the
- * typed domain assert, not a rule) returns 0, which the kernel reads as
+ * mask; *also_delete is set to 1 for RENAME, which requires UPDATE on the
+ * destination and DELETE on the source. COPY returns READ for its source; its
+ * destination twin is promoted to UPDATE by the two-name evaluator. An
+ * operation with no export-storage mapping (DEDUP, CREDENTIAL — governed by
+ * the typed domain assert, not a rule) returns 0, which the kernel reads as
  * "undecidable" ⇒ fail-closed. Pure. */
 uint32_t brix_vfs_authz_level_for_op(brix_vfs_mutation_op_t op,
     int *also_delete);
+
+/* Non-zero iff a bound context carries native, VO, XrdAcc, or token rules that
+ * can affect a verdict. This is the canonical rule-presence predicate used by
+ * the evaluator and by callers deciding whether identity-free offload is safe. */
+int brix_vfs_authz_has_effective_rules(const brix_vfs_ctx_t *ctx);
 
 /* Position 1.5 for a mutation: re-derive the authorization verdict for `op` on
  * ctx->resolved from ctx->identity + ctx->authz. NGX_OK when the backstop

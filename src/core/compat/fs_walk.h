@@ -96,6 +96,12 @@ ngx_int_t brix_fs_dir_is_empty(const char *path, ngx_flag_t *is_empty);
 ngx_int_t brix_fs_walk(ngx_log_t *log, const char *start_path,
     const brix_fs_walk_options_t *opts, brix_fs_walk_pt cb, void *data);
 
+/* Pre-mutation guard for confined tree removal. It runs on every file and
+ * directory immediately before that path is traversed or removed. NGX_OK
+ * continues; any other status aborts without mutating that guarded path. */
+typedef ngx_int_t (*brix_fs_remove_guard_pt)(void *cookie, const char *path,
+    int is_dir);
+
 /*
  * brix_fs_remove_tree_confined — recursively delete tree confined to root_canon.
  *
@@ -105,5 +111,12 @@ ngx_int_t brix_fs_walk(ngx_log_t *log, const char *start_path,
 
 ngx_int_t brix_fs_remove_tree_confined(ngx_log_t *log,
     const char *root_canon, const char *path);
+
+/* Guarded form for caller-visible recursive deletion. The legacy wrapper above
+ * is equivalent to this function with guard=NULL and remains appropriate for
+ * service-owned staging cleanup. */
+ngx_int_t brix_fs_remove_tree_confined_checked(ngx_log_t *log,
+    const char *root_canon, const char *path,
+    brix_fs_remove_guard_pt guard, void *guard_cookie);
 
 #endif /* BRIX_COMPAT_FS_WALK_H */

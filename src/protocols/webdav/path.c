@@ -10,32 +10,68 @@
 #include <string.h>
 #include <unistd.h>
 
-/* WHAT: Produce the single logical WebDAV path used by authorization and VFS.
- * WHY: nginx has already normalized the wire URI once; comparing r->uri in an
- * authorization gate and decoding it again for storage lets double-encoded
- * bytes name different policy and storage paths.
- * HOW: Apply the module's NUL-rejecting decoder, then collapse repeated URI
- * separators because the VFS treats them as the same filesystem path. */
-ngx_int_t
-webdav_decode_request_path(ngx_http_request_t *r, char *out, size_t outsz)
+/* ---- Normalize one decoded logical WebDAV path --------------------------
+ *
+ * WHAT: Collapses repeated separators and removes trailing separators except
+ *       for the root path, in place. NULL is a no-op.
+ *
+ * WHY: Authorization and storage must use one spelling for paths that the
+ *      filesystem treats as identical, including independently decoded
+ *      Destination headers.
+ *
+ * HOW: Compact the string with read/write cursors, then trim trailing '/'
+ *      bytes while retaining a single root separator.
+ */
+void
+webdav_normalize_decoded_path(char *path)
 {
-    char     *src, *dst;
-    ngx_int_t rc;
+    char   *src;
+    char   *dst;
+    size_t  length;
 
-    rc = webdav_urldecode(r->uri.data, r->uri.len, out, outsz);
-    if (rc != NGX_OK) {
-        return rc;
+    if (path == NULL) {
+        return;
     }
-    src = out;
-    dst = out;
+
+    src = path;
+    dst = path;
     while (*src != '\0') {
-        if (*src == '/' && dst > out && dst[-1] == '/') {
+        if (*src == '/' && dst > path && dst[-1] == '/') {
             src++;
             continue;
         }
         *dst++ = *src++;
     }
     *dst = '\0';
+
+    length = (size_t) (dst - path);
+    while (length > 1 && path[length - 1] == '/') {
+        path[--length] = '\0';
+    }
+}
+
+/* ---- Decode the request URI into the canonical logical path ------------
+ *
+ * WHAT: Produces the normalized logical WebDAV path used by authorization and
+ *       VFS resolution. Returns NGX_OK or the decoder's HTTP error status.
+ *
+ * WHY: nginx has already normalized the wire URI once; comparing r->uri in an
+ *      authorization gate and decoding it again for storage lets encoded bytes
+ *      name different policy and storage paths.
+ *
+ * HOW: Apply the module's NUL-rejecting decoder, then delegate separator
+ *      normalization to the shared in-place helper.
+ */
+ngx_int_t
+webdav_decode_request_path(ngx_http_request_t *r, char *out, size_t outsz)
+{
+    ngx_int_t rc;
+
+    rc = webdav_urldecode(r->uri.data, r->uri.len, out, outsz);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    webdav_normalize_decoded_path(out);
     return NGX_OK;
 }
 

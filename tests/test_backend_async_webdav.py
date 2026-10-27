@@ -447,8 +447,8 @@ def test_move_malformed_destination_fails_without_side_effects(make_server):
 # --------------------------------------------------------------------------- #
 
 def _xrdacc_move_server(make_server, destination_privileges):
-    rules = ("u * /move-source n\n"
-             f"u * /move-target {destination_privileges}\n")
+    rules = ("u * /move-source n "
+             f"/move-target {destination_privileges}\n")
     return make_server(xrdacc_rules=rules, wait="30000ms").start()
 
 

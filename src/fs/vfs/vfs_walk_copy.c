@@ -14,7 +14,8 @@
  *
  * HOW:  brix_vfs_copyfile() stats+opens src and dst through the confined-canon
  *       helpers and byte-copies via brix_copy_range, optionally preserving xattrs
- *       and firing a per-entry meta callback. brix_vfs_copytree() is a depth-0
+ *       and firing pre-entry guard / post-copy metadata callbacks.
+ *       brix_vfs_copytree() is a depth-0
  *       wrapper over vfs_copytree_run(), whose loop classifies each readdir entry
  *       (lstat-nofollow) and dispatches to a subdir recursion or a file copy;
  *       BRIX_FS_TREE_MAX_DEPTH bounds the C-stack recursion.
@@ -96,11 +97,9 @@ brix_vfs_copyfile(ngx_log_t *log, const char *root_canon, const char *src,
  *       ctx for that subtree — so the context never outlives one frame.
  */
 typedef struct {
-    ngx_log_t                *log;
-    const char               *root_canon;
-    int                       preserve_xattrs;
-    brix_vfs_copy_meta_cb     meta_cb;
-    void                     *cookie;
+    ngx_log_t                 *log;
+    const char                *root_canon;
+    brix_vfs_copytree_opts_t   opts;
 } vfs_copy_ctx_t;
 
 /* Depth-carrying recursive core; brix_vfs_copytree() is a depth-0 wrapper.  The
@@ -124,11 +123,12 @@ vfs_copytree_subdir(const vfs_copy_ctx_t *ctx, const char *src_child,
     {
         return NGX_ERROR;
     }
-    if (ctx->preserve_xattrs) {
+    if (ctx->opts.preserve_xattrs) {
         brix_ns_copy_fattrs(ctx->log, src_child, dst_child);
     }
-    if (ctx->meta_cb != NULL
-        && ctx->meta_cb(ctx->cookie, src_child, dst_child, 1 /* is_dir */)
+    if (ctx->opts.meta_cb != NULL
+        && ctx->opts.meta_cb(ctx->opts.meta_cookie, src_child, dst_child,
+                             1 /* is_dir */)
                != NGX_OK)
     {
         return NGX_ERROR;
@@ -167,12 +167,23 @@ vfs_copytree_entry(const vfs_copy_ctx_t *ctx, const char *src, const char *dst,
         return NGX_OK;   /* vanished/unreadable child — skip */
     }
 
+    if ((S_ISDIR(sb.st_mode) || S_ISREG(sb.st_mode))
+        && ctx->opts.guard_cb != NULL)
+    {
+        ngx_int_t guard_rc = ctx->opts.guard_cb(ctx->opts.guard_cookie,
+            src_child, dst_child, S_ISDIR(sb.st_mode));
+        if (guard_rc != NGX_OK) {
+            return guard_rc;
+        }
+    }
+
     if (S_ISDIR(sb.st_mode)) {
         return vfs_copytree_subdir(ctx, src_child, dst_child, sb.st_mode, depth);
     }
     if (S_ISREG(sb.st_mode)) {
         return brix_vfs_copyfile(ctx->log, ctx->root_canon, src_child, dst_child,
-                                 ctx->preserve_xattrs, ctx->meta_cb, ctx->cookie);
+            ctx->opts.preserve_xattrs, ctx->opts.meta_cb,
+            ctx->opts.meta_cookie);
     }
     return NGX_OK;   /* symlink / special → skip */
 }
@@ -217,10 +228,16 @@ vfs_copytree_run(const vfs_copy_ctx_t *ctx, const char *src, const char *dst,
 /* Recursively copy a confined directory tree src→dst. See vfs.h. */
 ngx_int_t
 brix_vfs_copytree(ngx_log_t *log, const char *root_canon, const char *src,
-    const char *dst, int preserve_xattrs, brix_vfs_copy_meta_cb meta_cb,
-    void *cookie)
+    const char *dst, const brix_vfs_copytree_opts_t *opts)
 {
-    vfs_copy_ctx_t ctx = { log, root_canon, preserve_xattrs, meta_cb, cookie };
+    vfs_copy_ctx_t ctx;
+
+    ngx_memzero(&ctx, sizeof(ctx));
+    ctx.log = log;
+    ctx.root_canon = root_canon;
+    if (opts != NULL) {
+        ctx.opts = *opts;
+    }
 
     return vfs_copytree_run(&ctx, src, dst, 0);
 }

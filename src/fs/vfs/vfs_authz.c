@@ -95,11 +95,12 @@ brix_vfs_authz_level_for_op(brix_vfs_mutation_op_t op, int *also_delete)
     case BRIX_VFS_MUTATE_REMOVE:
         return BRIX_AUTH_DELETE;
     case BRIX_VFS_MUTATE_RENAME:
-    case BRIX_VFS_MUTATE_COPY:
         if (also_delete != NULL) {
             *also_delete = 1;
         }
         return BRIX_AUTH_UPDATE;
+    case BRIX_VFS_MUTATE_COPY:
+        return BRIX_AUTH_READ;
     default: return 0;
     }
 }
@@ -112,7 +113,7 @@ brix_vfs_authz_two_name_acc(brix_vfs_mutation_op_t op, int destination)
                                              : BRIX_AOP_UPDATE;
     }
     return op == BRIX_VFS_MUTATE_RENAME ? BRIX_AOP_RENAME
-                                         : BRIX_AOP_DELETE;
+                                         : BRIX_AOP_READ;
 }
 
 static brix_acc_op_t
@@ -138,10 +139,28 @@ brix_vfs_authz_acc_op(brix_vfs_mutation_op_t op, int destination)
     }
 }
 
-static int
-brix_vfs_authz_has_rules(const brix_vfs_ctx_t *ctx)
+/* ---- Report whether a VFS context carries an effective rule set ---------
+ *
+ * WHAT: Returns non-zero when native authdb, VO, XrdAcc, or bearer-token
+ *       authority can affect this context; NULL and allow-all contexts return
+ *       zero.
+ *
+ * WHY: Identity-free background work is safe only on an allow-all export.
+ *      Protocols need the evaluator's exact rule-presence definition rather
+ *      than a second, drift-prone approximation.
+ *
+ * HOW: Inspect the already-bound rule arrays/table count and the identity's
+ *      authentication method without allocating or evaluating a path.
+ */
+int
+brix_vfs_authz_has_effective_rules(const brix_vfs_ctx_t *ctx)
 {
-    const brix_vfs_authz_t *a = &ctx->authz;
+    const brix_vfs_authz_t *a;
+
+    if (ctx == NULL) {
+        return 0;
+    }
+    a = &ctx->authz;
 
     return (a->authdb_rules != NULL && a->authdb_rules->nelts != 0)
         || (a->vo_rules != NULL && a->vo_rules->nelts != 0)
@@ -186,6 +205,9 @@ brix_vfs_authz_need(brix_vfs_mutation_op_t op, int destination)
     int                   also_delete;
 
     need.privilege = brix_vfs_authz_level_for_op(op, &also_delete);
+    if (op == BRIX_VFS_MUTATE_COPY && destination) {
+        need.privilege = BRIX_AUTH_UPDATE;
+    }
     if (also_delete && !destination) {
         need.privilege = BRIX_AUTH_DELETE;
     }
@@ -276,7 +298,7 @@ brix_vfs_require_authorized_exact(const brix_vfs_ctx_t *ctx,
     if (ctx->authz.mode == BRIX_AUTHZ_BACKSTOP_OFF) {
         return NGX_OK;
     }
-    if (!brix_vfs_authz_has_rules(ctx)) {
+    if (!brix_vfs_authz_has_effective_rules(ctx)) {
         return brix_vfs_authz_outcome(ctx, BRIX_AUTHZ_BACKSTOP_NO_RULES,
                                       operation);
     }
@@ -317,7 +339,7 @@ brix_vfs_require_authorized_at(const brix_vfs_ctx_t *ctx, const char *path,
     if (ctx->authz.mode == BRIX_AUTHZ_BACKSTOP_OFF) {
         return NGX_OK;
     }
-    if (!brix_vfs_authz_has_rules(ctx)) {
+    if (!brix_vfs_authz_has_effective_rules(ctx)) {
         return brix_vfs_authz_outcome(ctx, BRIX_AUTHZ_BACKSTOP_NO_RULES,
                                       brix_vfs_mutation_op_name(op));
     }
@@ -377,7 +399,7 @@ brix_vfs_require_authorized_read_as(const brix_vfs_ctx_t *ctx,
     if (ctx->authz.mode == BRIX_AUTHZ_BACKSTOP_OFF) {
         return NGX_OK;
     }
-    if (!brix_vfs_authz_has_rules(ctx)) {
+    if (!brix_vfs_authz_has_effective_rules(ctx)) {
         return brix_vfs_authz_outcome(ctx, BRIX_AUTHZ_BACKSTOP_NO_RULES,
                                       operation);
     }

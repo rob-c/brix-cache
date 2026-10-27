@@ -13,6 +13,7 @@
 #define NGX_HTTP_BRIX_WEBDAV_METHODS_H
 
 #include "webdav.h"
+#include "core/compat/fs_walk.h"
 
 /* HTTP methods.  Unless noted, each fully handles its method and returns NGX_OK
  * or an NGX_HTTP_* status for the dispatcher to finalise; the `void` ones own
@@ -33,6 +34,11 @@ ngx_int_t webdav_handle_delete(ngx_http_request_t *r);
  * context).  Returns the underlying remove-tree result. */
 ngx_int_t webdav_delete_path_recursive(ngx_log_t *log, const char *root_canon,
     const char *path);
+/* Guarded recursive removal for caller-visible replacement. `guard` runs on
+ * every descendant before mutation and its refusal is propagated unchanged. */
+ngx_int_t webdav_delete_path_recursive_checked(ngx_log_t *log,
+    const char *root_canon, const char *path,
+    brix_fs_remove_guard_pt guard, void *guard_cookie);
 /* MKCOL: create one collection (201; 409 if parent missing, 405 if exists). */
 ngx_int_t webdav_handle_mkcol(ngx_http_request_t *r);
 

@@ -48,19 +48,25 @@
  *      match the original, and NGX_ERROR signals the loop to break.
  */
 
-/* Depth-carrying recursive core; the public brix_fs_remove_tree_confined() is a
- * depth-0 wrapper.  Threading depth here (rather than resetting it at the public
- * entry each level) is what makes the BRIX_FS_TREE_MAX_DEPTH cap actually bite. */
-static ngx_int_t brix_fs_remove_tree_at(ngx_log_t *log, const char *root_canon,
+typedef struct {
+    ngx_log_t                *log;
+    const char               *root_canon;
+    brix_fs_remove_guard_pt   guard;
+    void                     *guard_cookie;
+} brix_fs_remove_ctx_t;
+
+/* Depth-carrying recursive core; the public wrappers are depth-0 entries. */
+static ngx_int_t brix_fs_remove_tree_at(const brix_fs_remove_ctx_t *ctx,
     const char *path, ngx_uint_t depth);
 
 static ngx_int_t
-brix_fs_remove_tree_entry(ngx_log_t *log, const char *root_canon, int rootfd,
+brix_fs_remove_tree_entry(const brix_fs_remove_ctx_t *ctx, int rootfd,
     const char *path, const struct dirent *de, ngx_uint_t depth)
 {
     char        child[PATH_MAX];
     struct stat st;
     const char *child_rel;
+    ngx_int_t   guard_rc;
 
     if (brix_fs_is_dot_entry(de->d_name)) {
         return NGX_OK;
@@ -70,7 +76,7 @@ brix_fs_remove_tree_entry(ngx_log_t *log, const char *root_canon, int rootfd,
         return NGX_ERROR;
     }
 
-    child_rel = brix_beneath_strip_root(root_canon, child);
+    child_rel = brix_beneath_strip_root(ctx->root_canon, child);
     if (child_rel == NULL) {
         errno = EXDEV;
         return NGX_ERROR;
@@ -83,17 +89,24 @@ brix_fs_remove_tree_entry(ngx_log_t *log, const char *root_canon, int rootfd,
         if (errno == ENOENT) {
             return NGX_OK;
         }
-        BRIX_LOG(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, ctx->log, errno,
                       "brix: remove-tree lstat failed \"%s\"", child);
         return NGX_ERROR;
     }
 
     if (S_ISDIR(st.st_mode)) {
-        return brix_fs_remove_tree_at(log, root_canon, child, depth + 1);
+        return brix_fs_remove_tree_at(ctx, child, depth + 1);
+    }
+
+    if (ctx->guard != NULL) {
+        guard_rc = ctx->guard(ctx->guard_cookie, child, 0 /* file */);
+        if (guard_rc != NGX_OK) {
+            return guard_rc;
+        }
     }
 
     if (brix_unlink_beneath(rootfd, child_rel, 0) != 0) {
-        BRIX_LOG(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, ctx->log, errno,
                       "brix: remove-tree unlink failed \"%s\"", child);
         return NGX_ERROR;
     }
@@ -119,8 +132,8 @@ brix_fs_remove_tree_entry(ngx_log_t *log, const char *root_canon, int rootfd,
  */
 
 static ngx_int_t
-brix_fs_remove_tree_at(ngx_log_t *log, const char *root_canon,
-    const char *path, ngx_uint_t depth)
+brix_fs_remove_tree_at(const brix_fs_remove_ctx_t *ctx, const char *path,
+    ngx_uint_t depth)
 {
     DIR           *dp;
     struct dirent *de;
@@ -131,7 +144,7 @@ brix_fs_remove_tree_at(ngx_log_t *log, const char *root_canon,
     /* D-6/T2: independent C-stack recursion — bound it so a hostile deep tree
      * aborts cleanly instead of overflowing the worker stack. */
     if (depth > BRIX_FS_TREE_MAX_DEPTH) {
-        BRIX_LOG(NGX_LOG_ERR, log, 0,
+        BRIX_LOG(NGX_LOG_ERR, ctx->log, 0,
                       "brix: remove-tree depth cap (%d) exceeded at \"%s\"",
                       BRIX_FS_TREE_MAX_DEPTH, path);
         errno = ELOOP;
@@ -149,13 +162,20 @@ brix_fs_remove_tree_at(ngx_log_t *log, const char *root_canon,
      * openat(dirfd,...) walk would be a defence-in-depth refinement but is not a
      * confinement gap here.
      */
-    rootfd = brix_beneath_open_root(root_canon);
+    if (ctx->guard != NULL) {
+        rc = ctx->guard(ctx->guard_cookie, path, 1 /* directory */);
+        if (rc != NGX_OK) {
+            return rc;
+        }
+    }
+
+    rootfd = brix_beneath_open_root(ctx->root_canon);
     if (rootfd < 0) {
-        BRIX_LOG(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, ctx->log, errno,
                       "brix: remove-tree cannot open root for \"%s\"", path);
         return NGX_ERROR;
     }
-    path_rel = brix_beneath_strip_root(root_canon, path);
+    path_rel = brix_beneath_strip_root(ctx->root_canon, path);
     if (path_rel == NULL) {
         close(rootfd);
         errno = EXDEV;
@@ -166,13 +186,13 @@ brix_fs_remove_tree_at(ngx_log_t *log, const char *root_canon,
      * a multipart staging dir is owned 0700 by the mapped user, so a raw worker
      * opendir() here fails EACCES and breaks AbortMultipartUpload / the cleanup.
      * Off impersonation this is a plain opendir(). */
-    dp = brix_opendir_confined_canon(log, root_canon, path);
+    dp = brix_opendir_confined_canon(ctx->log, ctx->root_canon, path);
     if (dp == NULL) {
         close(rootfd);
         if (errno == ENOENT) {
             return NGX_OK;
         }
-        BRIX_LOG(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, ctx->log, errno,
                       "brix: remove-tree opendir failed \"%s\"", path);
         return NGX_ERROR;
     }
@@ -180,10 +200,8 @@ brix_fs_remove_tree_at(ngx_log_t *log, const char *root_canon,
     rc = NGX_OK;
 
     while ((de = readdir(dp)) != NULL) {
-        if (brix_fs_remove_tree_entry(log, root_canon, rootfd, path, de, depth)
-            != NGX_OK)
-        {
-            rc = NGX_ERROR;
+        rc = brix_fs_remove_tree_entry(ctx, rootfd, path, de, depth);
+        if (rc != NGX_OK) {
             break;
         }
     }
@@ -193,7 +211,7 @@ brix_fs_remove_tree_at(ngx_log_t *log, const char *root_canon,
     if (rc == NGX_OK
         && brix_unlink_beneath(rootfd, path_rel, 1) != 0)
     {
-        BRIX_LOG(NGX_LOG_ERR, log, errno,
+        BRIX_LOG(NGX_LOG_ERR, ctx->log, errno,
                       "brix: remove-tree rmdir failed \"%s\"", path);
         rc = NGX_ERROR;
     }
@@ -207,5 +225,33 @@ ngx_int_t
 brix_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
     const char *path)
 {
-    return brix_fs_remove_tree_at(log, root_canon, path, 0);
+    return brix_fs_remove_tree_confined_checked(log, root_canon, path,
+                                                NULL, NULL);
+}
+
+/* ---- Guarded entry into confined recursive removal ----------------------
+ *
+ * WHAT: Removes a confined tree while invoking `guard` on every file and
+ *       directory before that path is traversed or deleted. Returns NGX_OK,
+ *       NGX_ERROR, or the guard's exact non-OK refusal.
+ *
+ * WHY: Caller-visible recursive replacement must authorize every resource it
+ *      destroys; the ordinary helper remains available for service-owned temp
+ *      cleanup that has no caller namespace authority.
+ *
+ * HOW: Build one immutable recursion context and enter the bounded walker at
+ *      depth zero; the walker propagates guard refusals without translation.
+ */
+ngx_int_t
+brix_fs_remove_tree_confined_checked(ngx_log_t *log, const char *root_canon,
+    const char *path, brix_fs_remove_guard_pt guard, void *guard_cookie)
+{
+    brix_fs_remove_ctx_t ctx = {
+        .log = log,
+        .root_canon = root_canon,
+        .guard = guard,
+        .guard_cookie = guard_cookie,
+    };
+
+    return brix_fs_remove_tree_at(&ctx, path, 0);
 }

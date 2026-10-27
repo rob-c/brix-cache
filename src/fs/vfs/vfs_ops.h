@@ -56,6 +56,23 @@ ngx_int_t brix_vfs_walk(ngx_log_t *log, int rootfd, const char *logical,
 typedef ngx_int_t (*brix_vfs_copy_meta_cb)(void *cookie, const char *src,
     const char *dst, int is_dir);
 
+/* Pre-entry guard for a recursive copy. It runs after confined no-follow
+ * classification and immediately before the child is read or created. The
+ * callback may authorize the paired paths and returns NGX_OK to continue or
+ * any other status to abort before that child's storage operation. */
+typedef ngx_int_t (*brix_vfs_copy_guard_cb)(void *cookie, const char *src,
+    const char *dst, int is_dir);
+
+/* Immutable recursive-copy options. Separate cookies keep the security guard
+ * independent from protocol-specific metadata copying. */
+typedef struct {
+    brix_vfs_copy_guard_cb guard_cb;
+    void                  *guard_cookie;
+    brix_vfs_copy_meta_cb  meta_cb;
+    void                  *meta_cookie;
+    unsigned               preserve_xattrs:1;
+} brix_vfs_copytree_opts_t;
+
 /* Copy a single confined regular file src→dst under root_canon (impersonation-
  * aware, thread-safe: no pool allocation, no metric — usable on a thread-pool
  * worker). Bytes move via copy_file_range with a read/write fallback; when
@@ -68,11 +85,12 @@ ngx_int_t brix_vfs_copyfile(ngx_log_t *log, const char *root_canon,
 /* Recursively copy a confined directory tree src→dst under root_canon: each
  * subdirectory is mkdir'd on the dst side, each regular file copied via
  * brix_vfs_copyfile; symlinks/specials are skipped (never followed out of the
- * export). Impersonation-aware, thread-safe. meta_cb runs per copied file AND
- * per created directory. NGX_OK / NGX_ERROR with errno set. */
+ * export). Impersonation-aware. opts->guard_cb runs before every child storage
+ * operation; opts->meta_cb runs after every copied file/created directory.
+ * Thread-safe when both callbacks are thread-safe. Returns NGX_OK, NGX_ERROR
+ * with errno set, or the guard callback's non-OK abort status. */
 ngx_int_t brix_vfs_copytree(ngx_log_t *log, const char *root_canon,
-    const char *src, const char *dst, int preserve_xattrs,
-    brix_vfs_copy_meta_cb meta_cb, void *cookie);
+    const char *src, const char *dst, const brix_vfs_copytree_opts_t *opts);
 
 /* --- thread-safe confined open/unlink primitives (src/fs/vfs/vfs_walk.c) -------
  * Raw-fd / path primitives (no pool allocation, no metric — safe off the event
@@ -153,8 +171,7 @@ ngx_int_t brix_vfs_export_copyfile(const brix_vfs_export_op_ctx_t *export_op_ctx
     const char *src, const char *dst, int preserve_xattrs,
     brix_vfs_copy_meta_cb meta_cb, void *cookie);
 ngx_int_t brix_vfs_export_copytree(const brix_vfs_export_op_ctx_t *export_op_ctx,
-    const char *src, const char *dst, int preserve_xattrs,
-    brix_vfs_copy_meta_cb meta_cb, void *cookie);
+    const char *src, const char *dst, const brix_vfs_copytree_opts_t *opts);
 
 /* --- raw fd full read/write primitives (src/fs/vfs/vfs_read.c) -----------------
  * EINTR-safe, short-I/O-tolerant transfers that route the byte syscall through

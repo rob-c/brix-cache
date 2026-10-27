@@ -9,17 +9,23 @@
 #include "auth/token/token_cache.h"
 #include "auth/token/worker_cache.h"
 #include "auth/token/issuer_registry.h"
+#include "webdav_tpc.h"
 
 #include <string.h>
 #include "auth_token_internal.h"
 
-/* webdav_token_op_class — map HTTP method to registry op class.
+/* ---- Map a WebDAV request to its request-URI token operation class -------
  *
- * Read ops (authorize against read scopes):
- *   - GET, HEAD, PROPFIND, OPTIONS
+ * WHAT: Returns READ for methods that consume `r->uri` and WRITE for methods
+ *       that mutate it. A COPY pull carrying `Source` is WRITE; local COPY and
+ *       COPY push read `r->uri` and return READ.
  *
- * Write ops (require write scopes):
- *   - PUT, DELETE, MKCOL, MOVE, COPY, PROPPATCH, LOCK, ...
+ * WHY: COPY has direction-dependent semantics. Treating every COPY as WRITE
+ *      rejects a legitimate read-source/write-Destination token while still
+ *      leaving the independent Destination unchecked.
+ *
+ * HOW: Classify ordinary read methods directly, inspect COPY's Source header
+ *      to identify a pull, and classify every remaining method as WRITE.
  */
 brix_token_op_e
 webdav_token_op_class(ngx_http_request_t *r)
@@ -30,6 +36,10 @@ webdav_token_op_class(ngx_http_request_t *r)
     case NGX_HTTP_PROPFIND:
     case NGX_HTTP_OPTIONS:
         return BRIX_TOKEN_OP_READ;
+    case NGX_HTTP_COPY:
+        return webdav_tpc_find_header(r, "Source", sizeof("Source") - 1)
+                   != NULL
+            ? BRIX_TOKEN_OP_WRITE : BRIX_TOKEN_OP_READ;
     default:
         return BRIX_TOKEN_OP_WRITE;
     }

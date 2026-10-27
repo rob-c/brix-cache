@@ -297,8 +297,7 @@ brix_vfs_export_copyfile(const brix_vfs_export_op_ctx_t *export_op_ctx,
  */
 ngx_int_t
 brix_vfs_export_copytree(const brix_vfs_export_op_ctx_t *export_op_ctx,
-    const char *src, const char *dst, int preserve_xattrs,
-    brix_vfs_copy_meta_cb meta_cb, void *cookie)
+    const char *src, const char *dst, const brix_vfs_copytree_opts_t *opts)
 {
     if (brix_vfs_export_require_mutation(export_op_ctx, BRIX_VFS_MUTATE_COPY)
         != NGX_OK)
@@ -306,6 +305,6 @@ brix_vfs_export_copytree(const brix_vfs_export_op_ctx_t *export_op_ctx,
         return NGX_ERROR;
     }
 
-    return brix_vfs_copytree(export_op_ctx->log, export_op_ctx->root_canon, src, dst,
-                             preserve_xattrs, meta_cb, cookie);
+    return brix_vfs_copytree(export_op_ctx->log, export_op_ctx->root_canon,
+                             src, dst, opts);
 }

@@ -20,6 +20,9 @@
  * one seam prevents policy and storage from comparing different spellings. */
 ngx_int_t webdav_decode_request_path(ngx_http_request_t *r,
     char *out, size_t outsz);
+/* Normalize an already-decoded logical URI path in place by collapsing
+ * repeated separators and removing trailing separators except for root. */
+void webdav_normalize_decoded_path(char *path);
 /* Canonical helper (see HELPERS): url-decode r->uri, strip trailing slashes,
  * and resolve+confine under root_canon into out[outsz].  NGX_OK, else an
  * NGX_HTTP_* status (404/403/414/500/400-on-NUL). */

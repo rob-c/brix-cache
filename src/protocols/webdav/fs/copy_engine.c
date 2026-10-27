@@ -54,8 +54,16 @@ webdav_copy_file(const brix_vfs_export_op_ctx_t *export_op_ctx,
 
 ngx_int_t
 webdav_copy_dir_recursive(const brix_vfs_export_op_ctx_t *export_op_ctx,
-    const char *src, const char *dst)
+    const char *src, const char *dst, brix_vfs_copy_guard_cb guard_cb,
+    void *guard_cookie)
 {
-    return brix_vfs_export_copytree(export_op_ctx, src, dst,
-               1 /* preserve xattrs */, webdav_copy_meta_cb, export_op_ctx->log);
+    brix_vfs_copytree_opts_t opts;
+
+    ngx_memzero(&opts, sizeof(opts));
+    opts.preserve_xattrs = 1;
+    opts.guard_cb = guard_cb;
+    opts.guard_cookie = guard_cookie;
+    opts.meta_cb = webdav_copy_meta_cb;
+    opts.meta_cookie = export_op_ctx->log;
+    return brix_vfs_export_copytree(export_op_ctx, src, dst, &opts);
 }
