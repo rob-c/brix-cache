@@ -408,7 +408,6 @@ compress_write_handler(ngx_http_request_t *r)
         ngx_http_finalize_request(r, NGX_ERROR);
         return;
     }
-    rc = NGX_OK;
     if (wev->timedout && !wev->delayed) {
         r->connection->timedout = 1;
         rc = NGX_HTTP_REQUEST_TIME_OUT;

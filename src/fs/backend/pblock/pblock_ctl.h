@@ -86,7 +86,8 @@ uint32_t pblock_caps_apply(uint32_t caps, const pblock_opts_t *o);
 
 /* Read the static opts sidecar (<root>/pblock.opts, one query-string line — the
  * pblock `?tail`, written by the config finaliser) into *out. Returns 0 (parsed,
- * or file absent → all-zero opts ⇒ lab OFF), or -1/errno on a malformed sidecar. */
+ * or file absent → standard csi/nsidx defaults with lab OFF), or -1/errno on
+ * a malformed or incomplete sidecar. */
 int pblock_opts_load_sidecar(const char *root, pblock_opts_t *out);
 
 /* ctl table -------------------------------------------------------------- */

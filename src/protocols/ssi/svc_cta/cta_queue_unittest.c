@@ -336,6 +336,35 @@ static void test_journal_overlong_line_is_dropped_whole(void)
     remove(path);
 }
 
+/* SECURITY NEGATIVE: a corrupt journal cannot inject out-of-range enum values
+ * into the live state machine. The following valid record must still replay. */
+static void test_journal_invalid_enums_are_ignored(void)
+{
+    const char *path = journal_path("cta_ut_invalid_enum.jrnl");
+    FILE       *f;
+
+    remove(path);
+    f = fopen(path, "w");
+    CHECK(f != NULL);
+    if (f == NULL) {
+        return;
+    }
+    fprintf(f, "81\t999\t0\tmallory\t/tape/bad-op\n");
+    fprintf(f, "82\t0\t999\tmallory\t/tape/bad-state\n");
+    fprintf(f, "83\t0\t0\talice\t/tape/good\n");
+    CHECK(fclose(f) == 0);
+
+    {
+        brix_cta_queue_t *q = journal_replay(path);
+
+        CHECK(cta_queue_find(q, 81) == NULL);
+        CHECK(cta_queue_find(q, 82) == NULL);
+        CHECK(cta_queue_find(q, 83) != NULL);
+        cta_queue_destroy(q);
+    }
+    remove(path);
+}
+
 int main(void)
 {
     test_submit_and_find();
@@ -347,6 +376,7 @@ int main(void)
     test_journal_escapes_round_trip();
     test_journal_path_cannot_forge_a_record();
     test_journal_overlong_line_is_dropped_whole();
+    test_journal_invalid_enums_are_ignored();
     printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;
 }

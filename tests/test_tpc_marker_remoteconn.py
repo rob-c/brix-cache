@@ -68,6 +68,10 @@ class _RangeSource(BaseHTTPRequestHandler):
             start = int(start_s)
             end = int(end_s) if end_s else len(PAYLOAD) - 1
             body = PAYLOAD[start:end + 1]
+            if self.path == "/oversize.bin":
+                body += b"range-overrun"
+            elif self.path == "/short.bin":
+                body = body[:-1]
             self.send_response(206)
             self.send_header("Content-Range",
                              f"bytes {start}-{end}/{len(PAYLOAD)}")
@@ -170,6 +174,19 @@ def test_remote_lines_are_strict_endpoints(dest, source):
     assert raw, "expected RemoteConnections lines on a 2-stream pull"
     for line in raw:
         _assert_strict_endpoint(line)
+
+
+@pytest.mark.parametrize("origin_path", ["oversize.bin", "short.bin"])
+def test_multistream_rejects_malformed_range_lengths(dest, source, origin_path):
+    """(security-neg) an origin cannot cross a stripe boundary or complete a
+    stripe early; either malformed Range body fails without publishing a file."""
+    source_url = source["url"].rsplit("/", 1)[0] + f"/{origin_path}"
+    output_name = f"rejected-{origin_path}"
+    status, body = _copy(dest, source_url, f"/{output_name}", streams=3)
+    assert status == 202, f"COPY did not enter marker mode: {status}"
+    assert "error" in body.lower() or "failed" in body.lower(), body[-800:]
+    assert not (dest["data"] / output_name).exists(), \
+        "malformed multi-stream response was published"
 
 
 def _assert_strict_endpoint(line):

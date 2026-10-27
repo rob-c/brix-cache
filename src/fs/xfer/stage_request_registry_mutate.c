@@ -207,8 +207,8 @@ srq_event_name(uint8_t disk_status)
     case SRQ_ST_ONLINE:    return "online";
     case SRQ_ST_FAILED:    return "failed";
     case SRQ_ST_CANCELLED: return "cancelled";
+    default:               return "freed";
     }
-    return "freed";
 }
 
 ngx_int_t

@@ -84,8 +84,18 @@ pblock_pack_find(const pblock_state_t *st, const char *blob_id,
     pblock_pack_loc_t *out)
 {
     sqlite3_stmt *q;
+    pblock_pack_loc_t loc = {0};
     int           rc;
 
+    if (out == NULL) {
+        return cat_fail(EINVAL);
+    }
+    *out = loc;
+    if (st == NULL || st->cat == NULL || blob_id == NULL
+        || blob_id[0] == '\0')
+    {
+        return cat_fail(EINVAL);
+    }
     q = cat_prepare(st->cat,
         "SELECT seg, off, len FROM pack WHERE blob_id = ?1;");
     if (q == NULL) {
@@ -94,10 +104,14 @@ pblock_pack_find(const pblock_state_t *st, const char *blob_id,
     sqlite3_bind_text(q, 1, blob_id, -1, SQLITE_STATIC);
     rc = sqlite3_step(q);
     if (rc == SQLITE_ROW) {
-        out->seg = sqlite3_column_int64(q, 0);
-        out->off = sqlite3_column_int64(q, 1);
-        out->len = sqlite3_column_int64(q, 2);
+        loc.seg = sqlite3_column_int64(q, 0);
+        loc.off = sqlite3_column_int64(q, 1);
+        loc.len = sqlite3_column_int64(q, 2);
         sqlite3_finalize(q);
+        if (loc.seg <= 0 || loc.off < 0 || loc.len < 0) {
+            return cat_fail(EIO);
+        }
+        *out = loc;
         return 0;
     }
     sqlite3_finalize(q);
@@ -504,6 +518,10 @@ pblock_pack_or_block_read(const pblock_state_t *st, const char *blob_id,
     size_t            want = len;
     int               segfd, rc;
 
+    if (off < 0) {
+        errno = EINVAL;
+        return -1;
+    }
     if (!st->pack || (rc = pblock_pack_find(st, blob_id, &loc)) > 0) {
         return pblock_read_blocks(st, blob_id, bs, -1, buf, len, off);
     }

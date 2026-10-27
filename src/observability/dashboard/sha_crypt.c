@@ -81,15 +81,16 @@ sha_crypt_parse(const char *setting, sha_crypt_setting_t *s)
     return 0;
 }
 
-/* Feed `len` bytes taken cyclically from a `srclen`-byte block. */
+/* Feed `total_size` bytes taken cyclically from a `block_size`-byte block. */
 static void
-sha_crypt_update_repeat(EVP_MD_CTX *ctx, const unsigned char *src,
-    size_t srclen, size_t len)
+sha_crypt_update_repeat(EVP_MD_CTX *ctx, const unsigned char *block,
+    size_t block_size, size_t total_size)
 {
-    while (len > 0) {
-        size_t take = (len > srclen) ? srclen : len;
-        EVP_DigestUpdate(ctx, src, take);
-        len -= take;
+    while (total_size > 0) {
+        size_t take = total_size > block_size ? block_size : total_size;
+
+        EVP_DigestUpdate(ctx, block, take);
+        total_size -= take;
     }
 }
 

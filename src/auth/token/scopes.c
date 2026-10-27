@@ -290,7 +290,7 @@ brix_token_scope_path_is_canonical(const char *path, size_t path_len)
     for (index = 0; index < path_len; index++) {
         unsigned char character = (unsigned char)path[index];
 
-        if (character == '\0' || character < 0x20 || character == 0x7f
+        if (character < 0x20 || character == 0x7f
             || character == '\\') {
             return 0;
         }

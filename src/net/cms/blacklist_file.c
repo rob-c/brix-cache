@@ -378,6 +378,7 @@ blfile_reload(brix_cms_blfile_t *bl, const char *path, ngx_log_t *log)
     FILE   *f = fopen(path, "r");
     char    buf[BRIX_CMS_BLFILE_MAX_BYTES];
     size_t  got, pos;
+    int     io_failed, too_large, close_failed, saved_errno;
 
     if (f == NULL) {
         BRIX_LOG(NGX_LOG_WARN, log, ngx_errno,
@@ -386,7 +387,28 @@ blfile_reload(brix_cms_blfile_t *bl, const char *path, ngx_log_t *log)
         return;
     }
     got = fread(buf, 1, sizeof(buf) - 1, f);
-    fclose(f);
+    too_large = 0;
+    if (got == sizeof(buf) - 1 && fgetc(f) != EOF) {
+        too_large = 1;
+    }
+    io_failed = ferror(f);
+    saved_errno = errno;
+    close_failed = (fclose(f) != 0);
+    if (close_failed) {
+        saved_errno = errno;
+    }
+    if (io_failed || too_large || close_failed) {
+        if (too_large) {
+            saved_errno = EFBIG;
+        } else if (saved_errno == 0) {
+            saved_errno = EIO;
+        }
+        BRIX_LOG(NGX_LOG_WARN, log, saved_errno,
+                      "brix: cms blacklist file \"%s\" could not be read "
+                      "completely; keeping previous %ui entries",
+                      path, bl->nentries);
+        return;
+    }
     buf[got] = '\0';
 
     bl->nentries = 0;

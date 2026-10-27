@@ -43,6 +43,8 @@ typedef struct {
 typedef struct {
     int                fd;
     off_t              cur_offset;   /* increments with each write */
+    off_t              end_offset;   /* inclusive bound for this Range */
+    uint64_t           remaining;    /* bytes still required for this Range */
     ngx_uint_t         stream_idx;
     tpc_ms_progress_t *progress;     /* NULL if progress tracking disabled */
     CURL              *easy;         /* owning easy handle — lets the first

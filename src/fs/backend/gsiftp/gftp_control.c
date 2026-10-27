@@ -246,7 +246,7 @@ gftp_send_line(gftp_session_t *session, const char *line, size_t len)
     return rc;
 }
 
-static int
+static int __attribute__((format(printf, 2, 0)))
 gftp_command_v(gftp_session_t *session, const char *fmt, va_list args)
 {
     char line[GFTP_COMMAND_CAP];
@@ -337,11 +337,14 @@ gftp_connect(gftp_session_t *session, const gftp_session_cfg_t *cfg)
 static void
 gftp_record_peer(gftp_session_t *session)
 {
-    struct sockaddr_storage address;
+    struct sockaddr_storage address = {0};
     socklen_t               len = sizeof(address);
     void                   *src = NULL;
 
     if (getpeername(session->fd, (struct sockaddr *) &address, &len) != 0) {
+        return;
+    }
+    if (len < sizeof(address.ss_family)) {
         return;
     }
     if (address.ss_family == AF_INET) {

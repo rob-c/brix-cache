@@ -253,6 +253,7 @@ pblock_opts_load_sidecar(const char *root, pblock_opts_t *out)
     char  line[1024];
     FILE *f;
     char *nl;
+    int   close_rc;
 
     /* parse(NULL) = zeroed opts + the W5 standard-feature defaults, so an
      * absent/empty sidecar and a bare query agree on what "default" means. */
@@ -263,13 +264,22 @@ pblock_opts_load_sidecar(const char *root, pblock_opts_t *out)
         return (errno == ENOENT) ? 0 : -1;   /* no sidecar ⇒ defaults (lab off) */
     }
     if (fgets(line, sizeof(line), f) == NULL) {
-        fclose(f);
-        return 0;
+        int read_failed = ferror(f);
+
+        close_rc = fclose(f);
+        return (read_failed || close_rc != 0) ? -1 : 0;
     }
-    fclose(f);
     nl = strchr(line, '\n');
     if (nl != NULL) {
         *nl = '\0';
+    } else if (!feof(f)) {
+        (void) fclose(f);
+        errno = EOVERFLOW;
+        return -1;
+    }
+    close_rc = fclose(f);
+    if (close_rc != 0) {
+        return -1;
     }
     return pblock_opts_parse(line, out);
 }

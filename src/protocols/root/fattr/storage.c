@@ -378,12 +378,17 @@ fattr_storage_write_envelope(ngx_pool_t *pool, brix_vfs_ctx_t *vctx,
 {
     size_t  raw_len = FATTR_STORED_HEADER_LEN + nlen + vlen;
     u_char *raw = ngx_palloc(pool, raw_len);
+    size_t  i;
 
     if (raw == NULL) {
         errno = ENOMEM;
         return NGX_ERROR;
     }
-    memcpy(raw, FATTR_STORED_MAGIC, FATTR_STORED_MAGIC_LEN);
+    /* The magic is a binary envelope prefix, not a C string. Copy it bytewise
+     * so no caller or analyzer can infer a nonexistent terminator contract. */
+    for (i = 0; i < FATTR_STORED_MAGIC_LEN; i++) {
+        raw[i] = (u_char) FATTR_STORED_MAGIC[i];
+    }
     raw[FATTR_STORED_MAGIC_LEN] = (u_char) (nlen >> 8);
     raw[FATTR_STORED_MAGIC_LEN + 1U] = (u_char) nlen;
     memcpy(raw + FATTR_STORED_HEADER_LEN, name, nlen);

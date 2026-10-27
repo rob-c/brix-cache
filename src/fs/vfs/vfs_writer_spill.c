@@ -147,7 +147,7 @@ static ngx_int_t
 spill_create(brix_vfs_writer_t *w, const char *root)
 {
     char  base[PATH_MAX];
-    char  path[PATH_MAX];
+    char  tmp_path[PATH_MAX];
     int   attempts;
 
     if ((size_t) snprintf(base, sizeof(base), "%s/spill", root)
@@ -159,22 +159,22 @@ spill_create(brix_vfs_writer_t *w, const char *root)
     for (attempts = 0; attempts < 16; attempts++) {
         int fd;
 
-        if (brix_make_tmp_path(base, path, sizeof(path)) != NGX_OK) {
+        if (brix_make_tmp_path(base, tmp_path, sizeof(tmp_path)) != NGX_OK) {
             errno = ENAMETOOLONG;
             return NGX_ERROR;
         }
-        fd = open(path, O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0600); /* vfs-seam-allow: DOMAIN_STAGE — spill scratch under the service spill root, never export storage */
+        fd = open(tmp_path, O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0600); /* vfs-seam-allow: DOMAIN_STAGE — spill scratch under the service spill root, never export storage */
         if (fd >= 0) {
-            size_t plen = ngx_strlen(path);
+            size_t plen = ngx_strlen(tmp_path);
 
             w->spill.path = ngx_pnalloc(w->pool, plen + 1);
             if (w->spill.path == NULL) {
                 (void) close(fd);   /* vfs-seam-allow: DOMAIN_STAGE — spill scratch teardown */
-                (void) unlink(path); /* vfs-seam-allow: DOMAIN_STAGE — spill scratch teardown */
+                (void) unlink(tmp_path); /* vfs-seam-allow: DOMAIN_STAGE — spill scratch teardown */
                 errno = ENOMEM;
                 return NGX_ERROR;
             }
-            ngx_memcpy(w->spill.path, path, plen + 1);
+            ngx_memcpy(w->spill.path, tmp_path, plen + 1);
             w->spill.fd = fd;
             return NGX_OK;
         }

@@ -112,6 +112,8 @@ tpc_ms_setup_stream(webdav_tpc_ms_ctx_t *ctx, ngx_uint_t i)
 
     ctx->write_ctx[i].fd         = ctx->fd;
     ctx->write_ctx[i].cur_offset = start;
+    ctx->write_ctx[i].end_offset = end;
+    ctx->write_ctx[i].remaining  = (uint64_t) (end - start) + 1;
     ctx->write_ctx[i].stream_idx = i;
     ctx->write_ctx[i].progress   = ctx->progress;
 
@@ -183,24 +185,34 @@ tpc_ms_drive(ngx_log_t *log, CURLM *cm)
 /*
  * tpc_ms_harvest — drain completion messages; any stream error fails the run.
  *
- * WHAT: reads CURLMSG_DONE messages and maps the first per-stream failure to
- *       NGX_HTTP_BAD_GATEWAY (all messages are still drained/logged).
+ * WHAT: reads CURLMSG_DONE messages and maps a transfer failure or incomplete
+ *       assigned Range to NGX_HTTP_BAD_GATEWAY (all messages are drained).
  * WHY:  keeps result inspection out of the driver body.
  * HOW:  NGX_OK when every stream reported CURLE_OK; NGX_HTTP_BAD_GATEWAY
  *       otherwise.
  */
 static ngx_int_t
-tpc_ms_harvest(ngx_log_t *log, CURLM *cm)
+tpc_ms_harvest(ngx_log_t *log, CURLM *cm, const ms_stream_ctx_t *write_ctx,
+    ngx_uint_t n_streams)
 {
     CURLMsg  *msg;
     int       msgs_left;
     ngx_int_t rc = NGX_OK;
+    ngx_uint_t i;
 
     while ((msg = curl_multi_info_read(cm, &msgs_left)) != NULL) {
         if (msg->msg == CURLMSG_DONE && msg->data.result != CURLE_OK) {
             BRIX_LOG(NGX_LOG_WARN, log, 0,
                           "brix_webdav: HTTP-TPC multi-stream failed: %s",
                           curl_easy_strerror(msg->data.result));
+            rc = NGX_HTTP_BAD_GATEWAY;
+        }
+    }
+    for (i = 0; i < n_streams; i++) {
+        if (write_ctx[i].remaining != 0) {
+            BRIX_LOG(NGX_LOG_WARN, log, 0,
+                     "brix_webdav: HTTP-TPC stream %ui ended with %uL bytes missing",
+                     i, write_ctx[i].remaining);
             rc = NGX_HTTP_BAD_GATEWAY;
         }
     }
@@ -329,7 +341,7 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
                                                 resolve, n_streams, fd);
     }
 
-    rc = tpc_ms_harvest(log, cm);
+    rc = tpc_ms_harvest(log, cm, write_ctx, n_streams);
 
     rc = webdav_tpc_run_curl_multi_finish(rc, cm, easy, hdrs, resolve,
                                           n_streams, fd);

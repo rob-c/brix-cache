@@ -69,8 +69,9 @@ s3_batch_escape(char *dst, const char *s)
         case '\'': rep = "&apos;"; break;
         default:   dst[off++] = *s; continue;
         }
-        memcpy(dst + off, rep, strlen(rep));
-        off += strlen(rep);
+        while (*rep != '\0') {
+            dst[off++] = *rep++;
+        }
     }
     return off;
 }

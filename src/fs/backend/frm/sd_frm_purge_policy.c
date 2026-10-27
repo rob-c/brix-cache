@@ -176,6 +176,7 @@ policy_write_candidates(const brix_sd_frm_purge_policy_t *pol,
 {
     FILE   *fp;
     int     fd;
+    int     rc = 0;
     size_t  i;
 
     (void) unlink(path);
@@ -194,11 +195,15 @@ policy_write_candidates(const brix_sd_frm_purge_policy_t *pol,
         if (!policy_rule_is_polprog(pol, c)) {
             continue;
         }
-        fprintf(fp, "%s %" PRId64 " %" PRIu64 " %s\n",
-                pol->rules[c->rule].name, (int64_t) c->touched, c->size,
-                c->rel);
+        if (fprintf(fp, "%s %" PRId64 " %" PRIu64 " %s\n",
+                    pol->rules[c->rule].name, (int64_t) c->touched, c->size,
+                    c->rel) < 0)
+        {
+            rc = -1;
+            break;
+        }
     }
-    return (fclose(fp) == 0) ? 0 : -1;
+    return fclose(fp) == 0 && rc == 0 ? 0 : -1;
 }
 
 /* "<program> <candidates-file> <decision-file>", no shell, under the shared
@@ -313,14 +318,26 @@ policy_read_decision(frm_purge_policy_t *pp,
     }
     idx = policy_index(pol, s, &n);
     if (idx == NULL) {
-        fclose(fp);
+        int saved_errno = errno;
+
+        (void) fclose(fp);
+        errno = saved_errno;
         return -1;
     }
     while (fgets(line, sizeof(line), fp) != NULL) {
         policy_mark_line(pp, idx, n, line);
     }
     free(idx);
-    fclose(fp);
+    if (ferror(fp)) {
+        int saved_errno = errno != 0 ? errno : EIO;
+
+        (void) fclose(fp);
+        errno = saved_errno;
+        return -1;
+    }
+    if (fclose(fp) != 0) {
+        return -1;
+    }
     return 0;
 }
 

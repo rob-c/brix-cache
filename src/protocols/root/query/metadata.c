@@ -1,5 +1,6 @@
 #include "query_internal.h"
 #include "core/ident.h"
+#include "core/compat/fs_usage.h"
 
 #include <stdarg.h>
 #include <sys/statvfs.h>
@@ -69,7 +70,7 @@ brix_query_payload_equals(brix_ctx_t *ctx, const char *text)
 }
 
 /* ---- Bounded append for the stats document (qconfig-style) ---- */
-static void
+static void __attribute__((format(printf, 4, 5)))
 stats_append(char *resp, size_t cap, size_t *pos, const char *fmt, ...)
 {
     va_list ap;
@@ -264,12 +265,14 @@ brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c,
     /* oss + sgen ride the full document only, mirroring stock's 'a'. */
     if ((sel & BRIX_QSTATS_ALL) == BRIX_QSTATS_ALL) {
         struct statvfs vfs;
+        brix_fs_usage_t usage;
 
         stats_append(resp, sizeof(resp), &pos,
             "<stats id=\"ofs\"><role>%s</role></stats>",
             conf->manager_mode ? "manager" : "server");
         if (conf->common.root_canon[0] != '\0'
-            && statvfs(conf->common.root_canon, &vfs) == 0)
+            && statvfs(conf->common.root_canon, &vfs) == 0
+            && brix_fs_usage_from_statvfs(&vfs, &usage) == NGX_OK)
         {
             stats_append(resp, sizeof(resp), &pos,
                 "<stats id=\"oss\" v=\"2\"><paths>1"
@@ -278,8 +281,10 @@ brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c,
                 "<ino>%llu</ino><ifr>%llu</ifr></stats></paths>"
                 "<space>0</space></stats>",
                 conf->common.root_canon,
-                (unsigned long long) (vfs.f_blocks * (vfs.f_frsize / BRIX_ROOT_BYTES_TO_KB)),
-                (unsigned long long) (vfs.f_bavail * (vfs.f_frsize / BRIX_ROOT_BYTES_TO_KB)),
+                (unsigned long long)
+                    (usage.total_bytes / BRIX_ROOT_BYTES_TO_KB),
+                (unsigned long long)
+                    (usage.available_bytes / BRIX_ROOT_BYTES_TO_KB),
                 (unsigned long long) vfs.f_files,
                 (unsigned long long) vfs.f_favail);
         }

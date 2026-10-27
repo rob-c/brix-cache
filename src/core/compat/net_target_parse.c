@@ -131,7 +131,7 @@ net_scheme_chars_valid(const u_char *begin, const u_char *end)
 
     for (cursor = begin + 1; cursor < end; cursor++) {
         if (!net_ascii_alpha(*cursor) && !net_ascii_digit(*cursor)
-            && memchr("+-.", (int) *cursor, 3) == NULL)
+            && *cursor != '+' && *cursor != '-' && *cursor != '.')
         {
             return 0;
         }

@@ -22,14 +22,14 @@
 
 #include "metrics_internal.h"
 
-/* Emit one per-VO counter row per occupied slot: `row_fmt` carries the
- * family's row format ("...{vo=\"%s\"} %lu\n") and `counter_off` the
+/* Emit one per-VO counter row per occupied slot: `family` carries the fixed
+ * metric-family name and `counter_off` the
  * vo-slot-relative offset of its counter, read via the lock-free
  * ngx_atomic_fetch_add(&x, 0) load idiom. One copy of the fan-out loop for
  * the three per-VO counter families. */
 static void
 stream_tracking_emit_vo_rows(metrics_writer_t *mw, ngx_brix_metrics_t *shm,
-    const char *row_fmt, size_t counter_off)
+    const char *family, size_t counter_off)
 {
     ngx_uint_t i;
 
@@ -39,7 +39,7 @@ stream_tracking_emit_vo_rows(metrics_writer_t *mw, ngx_brix_metrics_t *shm,
 
         if (!vo->name[0]) { continue; }
         counter = (ngx_atomic_t *) ((char *) vo + counter_off);
-        mw_printf(mw, row_fmt, vo->name,
+        mw_printf(mw, "%s{vo=\"%s\"} %lu\n", family, vo->name,
                   (unsigned long) ngx_atomic_fetch_add(counter, 0));
     }
 }
@@ -56,7 +56,7 @@ brix_export_stream_tracking_metrics(metrics_writer_t *mw,
             "VO names are truncated to %d characters; the metric family has one entry per VO.\n"
         "# TYPE brix_vo_bytes_tx_total counter\n", BRIX_VO_NAME_LEN - 1);
     stream_tracking_emit_vo_rows(mw, shm,
-        "brix_vo_bytes_tx_total{vo=\"%s\"} %lu\n",
+        "brix_vo_bytes_tx_total",
         offsetof(ngx_brix_vo_slot_t, bytes_tx_total));
 
     mw_printf(mw,
@@ -65,7 +65,7 @@ brix_export_stream_tracking_metrics(metrics_writer_t *mw,
             "VO names are truncated to %d characters.\n"
         "# TYPE brix_vo_bytes_rx_total counter\n", BRIX_VO_NAME_LEN - 1);
     stream_tracking_emit_vo_rows(mw, shm,
-        "brix_vo_bytes_rx_total{vo=\"%s\"} %lu\n",
+        "brix_vo_bytes_rx_total",
         offsetof(ngx_brix_vo_slot_t, bytes_rx_total));
 
     mw_printf(mw,
@@ -73,7 +73,7 @@ brix_export_stream_tracking_metrics(metrics_writer_t *mw,
             "Requests grouped by virtual organisation. VO names are truncated.\n"
         "# TYPE brix_vo_requests_total counter\n");
     stream_tracking_emit_vo_rows(mw, shm,
-        "brix_vo_requests_total{vo=\"%s\"} %lu\n",
+        "brix_vo_requests_total",
         offsetof(ngx_brix_vo_slot_t, requests_total));
 
     mw_printf(mw,

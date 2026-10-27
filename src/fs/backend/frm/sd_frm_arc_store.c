@@ -84,6 +84,7 @@ arc_sidecar_lookup(const arc_ctx_t *c, const char *ds, const char *member,
     FILE *fp = arc_sidecar_open(c, ds, sealed_at);
     char  line[ARC_LINE_MAX];
     int   found = 0;
+    int   io_error = 0;
 
     if (fp == NULL) {
         return -1;
@@ -97,7 +98,16 @@ arc_sidecar_lookup(const arc_ctx_t *c, const char *ds, const char *member,
             found = 1;
         }
     }
-    fclose(fp);
+    if (ferror(fp)) {
+        io_error = errno != 0 ? errno : EIO;
+    }
+    if (fclose(fp) != 0 && io_error == 0) {
+        io_error = errno != 0 ? errno : EIO;
+    }
+    if (io_error != 0) {
+        errno = io_error;
+        return -1;
+    }
     return found;
 }
 
@@ -108,6 +118,7 @@ arc_sidecar_names(const arc_ctx_t *c, const char *ds,
     FILE *fp = arc_sidecar_open(c, ds, NULL);
     char  line[ARC_LINE_MAX];
     int   stop = 0;
+    int   io_error = 0;
 
     if (fp == NULL) {
         return -1;
@@ -120,7 +131,16 @@ arc_sidecar_names(const arc_ctx_t *c, const char *ds,
             stop = cb(ud, cur.name);
         }
     }
-    fclose(fp);
+    if (ferror(fp)) {
+        io_error = errno != 0 ? errno : EIO;
+    }
+    if (fclose(fp) != 0 && io_error == 0) {
+        io_error = errno != 0 ? errno : EIO;
+    }
+    if (io_error != 0) {
+        errno = io_error;
+        return -1;
+    }
     return 0;
 }
 

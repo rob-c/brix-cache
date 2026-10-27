@@ -50,6 +50,7 @@ PORT_CIDR     = 42101
 PORT_MTIME    = 42102
 PORT_MALFORM  = 42103
 PORT_UNDRAIN  = 42104
+PORT_OVERSIZE = 42105
 
 
 class _BlfileManager:
@@ -205,5 +206,24 @@ def test_file_wins_over_admin_undrain(manager):
 
         # Within ~1 ping tick the file must re-assert the blacklist.
         manager.wait_draining(PORT_UNDRAIN, True)
+    finally:
+        sock.close()
+
+
+def test_oversized_replacement_fails_closed(manager):
+    """security-neg: an oversized rewrite is never parsed as a truncated
+    policy. The last complete blacklist remains authoritative."""
+    manager.write_blacklist(f"{NODE_IP}:{PORT_OVERSIZE}\n")
+    sock = manager.login_node(PORT_OVERSIZE)
+    try:
+        manager.wait_draining(PORT_OVERSIZE, True)
+
+        status, body = manager.admin(
+            "POST", f"/cluster/servers/{NODE_IP}/{PORT_OVERSIZE}/undrain")
+        assert status == 200, body
+        assert json.loads(body.decode())["result"] == "undrained"
+
+        manager.write_blacklist("#" + ("x" * 70000) + "\n")
+        manager.wait_draining(PORT_OVERSIZE, True)
     finally:
         sock.close()

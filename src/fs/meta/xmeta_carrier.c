@@ -379,7 +379,7 @@ xmeta_load_from_xattr(brix_sd_instance_t *store, const char *key,
     }
     free(buf);
     if (n < 0 && errno != ENODATA && errno != ENOENT
-#ifdef ENOATTR
+#if defined(ENOATTR) && ENOATTR != ENODATA
         && errno != ENOATTR
 #endif
         && !xmeta_xattr_unfit(errno))

@@ -18,6 +18,7 @@
 #endif
 
 #include "fs/backend/sd.h"
+#include "pblock_ctl.h"
 #include "sd_pblock_catalog.h"
 #include "sd_pblock_unittest_internal.h"
 
@@ -79,6 +80,45 @@ def_flip_block0(const char *root, const char *blob, long off)
     close(fd);
 }
 
+/* Exercise the sidecar reader independently of driver startup: a valid line
+ * parses, an absent sidecar yields defaults, and an overlong first line is
+ * rejected whole rather than being applied as a truncated configuration. */
+static void
+def_test_sidecar_read_contract(void)
+{
+    char          root[] = "/tmp/pb_sidecar.XXXXXX";
+    char          path[PATH_MAX];
+    pblock_opts_t opts;
+    FILE         *f;
+    size_t        i;
+
+    CHECK(mkdtemp(root) != NULL, "sidecar mkdtemp");
+    CHECK(pblock_opts_load_sidecar(root, &opts) == 0,
+          "absent sidecar must yield defaults");
+    CHECK(opts.csi == -1 && opts.nsidx == -1,
+          "absent sidecar lost standard defaults");
+
+    lab_write_sidecar(root, "csi=0&nsidx=0");
+    CHECK(pblock_opts_load_sidecar(root, &opts) == 0,
+          "valid sidecar parse");
+    CHECK(opts.csi == 0 && opts.nsidx == 0,
+          "valid sidecar values not applied");
+
+    snprintf(path, sizeof(path), "%s/pblock.opts", root);
+    f = fopen(path, "w");
+    CHECK(f != NULL, "open overlong sidecar");
+    if (f != NULL) {
+        for (i = 0; i < 1100; i++) {
+            CHECK(fputc('x', f) != EOF, "write overlong sidecar");
+        }
+        CHECK(fclose(f) == 0, "close overlong sidecar");
+        errno = 0;
+        CHECK(pblock_opts_load_sidecar(root, &opts) == -1
+              && errno == EOVERFLOW,
+              "overlong sidecar must fail whole (errno=%d)", errno);
+    }
+}
+
 void
 test_standard_defaults(void)
 {
@@ -86,6 +126,8 @@ test_standard_defaults(void)
     const size_t DLEN = strlen("standard-defaults-payload-0123456789");
     char        buf[128], blob[PBLOCK_BLOB_ID_CAP], bxi[PATH_MAX];
     ssize_t     n;
+
+    def_test_sidecar_read_contract();
 
     /* SUCCESS: a bare export (NO sidecar) arms csi + nsidx. */
     {

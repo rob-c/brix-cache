@@ -91,8 +91,8 @@ brix_xml_escaped_len(const unsigned char *src, size_t len, unsigned flags)
  * WHY:  isolates the per-char escaping table so the escaper stays a flat loop;
  *       the arms here must mirror brix_xml_escaped_len() exactly, or the
  *       pre-flight size and the bytes actually written disagree.
- * HOW:  switch the byte. The memcpy(...)+N idiom copies an entity literal and
- *       bumps the cursor by that literal's length. The APOS flag selects
+ * HOW:  switch the byte, select an entity literal and copy its known byte
+ *       length without relying on intermediate C-string termination. The APOS flag selects
  *       &apos; vs &#39;. With CONTROL_PERCENT a control byte (below 0x20, plus
  *       DEL 0x7f) becomes "%XX" — high nibble then low nibble — keeping raw
  *       control chars out of the body; everything else copies through as-is.
@@ -100,20 +100,36 @@ brix_xml_escaped_len(const unsigned char *src, size_t len, unsigned flags)
 static unsigned char *
 brix_xml_escape_char(unsigned char c, unsigned flags, unsigned char *out)
 {
+    const unsigned char *entity;
+    size_t               entity_len;
+    size_t               i;
+
     switch (c) {
     case '&':
-        return (unsigned char *) memcpy(out, "&amp;", 5) + 5;
+        entity = (const unsigned char *) "&amp;";
+        entity_len = 5;
+        break;
     case '<':
-        return (unsigned char *) memcpy(out, "&lt;", 4) + 4;
+        entity = (const unsigned char *) "&lt;";
+        entity_len = 4;
+        break;
     case '>':
-        return (unsigned char *) memcpy(out, "&gt;", 4) + 4;
+        entity = (const unsigned char *) "&gt;";
+        entity_len = 4;
+        break;
     case '"':
-        return (unsigned char *) memcpy(out, "&quot;", 6) + 6;
+        entity = (const unsigned char *) "&quot;";
+        entity_len = 6;
+        break;
     case '\'':
         if (flags & BRIX_XML_ESCAPE_APOS_ENTITY) {
-            return (unsigned char *) memcpy(out, "&apos;", 6) + 6;
+            entity = (const unsigned char *) "&apos;";
+            entity_len = 6;
+            break;
         }
-        return (unsigned char *) memcpy(out, "&#39;", 5) + 5;
+        entity = (const unsigned char *) "&#39;";
+        entity_len = 5;
+        break;
     default:
         if ((flags & BRIX_XML_ESCAPE_CONTROL_PERCENT)
             && (c < 0x20 || c == 0x7f))
@@ -126,6 +142,11 @@ brix_xml_escape_char(unsigned char c, unsigned flags, unsigned char *out)
         *out++ = c;
         return out;
     }
+
+    for (i = 0; i < entity_len; i++) {
+        *out++ = entity[i];
+    }
+    return out;
 }
 
 /*
@@ -138,8 +159,8 @@ brix_xml_escape_char(unsigned char c, unsigned flags, unsigned char *out)
  *       escaper all XML/S3 builders route through.
  * HOW:  pre-flight the exact size via escaped_len and bail if dst can't hold
  *       it plus the NUL (no partial writes). Then advance `out` per char:
- *       the memcpy(...)+N idiom copies an entity and bumps the cursor by its
- *       literal length. The arms must mirror escaped_len() exactly.
+ *       the entity helper returns the advanced cursor. The arms must mirror
+ *       escaped_len() exactly.
  */
 int
 brix_xml_escape(const unsigned char *src, size_t len, unsigned flags,

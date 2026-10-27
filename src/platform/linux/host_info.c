@@ -103,7 +103,7 @@ sysload_paging(brix_plat_sysload_t *sample)
             break;
         }
     }
-    fclose(input);
+    (void) fclose(input);
 }
 
 int

@@ -554,6 +554,20 @@ def oci_parse(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
     )
 
 
+def fs_usage_arithmetic(base: Path,
+                        ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    """Compile the overflow-checked shared statvfs conversion contract."""
+    return _compile_and_run(
+        base / "test_fs_usage_arithmetic",
+        [
+            "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror",
+            *_nginx_includes(ngx_src),
+            str(TEST_C / "test_fs_usage_arithmetic.c"),
+            str(REPO_ROOT / "src/core/compat/fs_usage.c"),
+        ],
+    )
+
+
 RUNNERS = {
     "cache_lock_reclaim": cache_lock_reclaim,
     "flush_deadletter": flush_deadletter,
@@ -601,6 +615,7 @@ RUNNERS = {
     "gftp_parse": gftp_parse,
     "cvmfs_url_rewrite": cvmfs_url_rewrite,
     "oci_parse": oci_parse,
+    "fs_usage_arithmetic": fs_usage_arithmetic,
     "frm_stage_metrics": frm_stage_metrics,
     "tpc_progress_total": tpc_progress_total,
     "tpc_xfr_cap": tpc_xfr_cap,

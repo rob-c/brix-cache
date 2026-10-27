@@ -49,7 +49,7 @@ policy_parse_threshold(const ngx_str_t *arg, off_t *bytes, ngx_uint_t *ppm)
     }
     if (arg->data[arg->len - 1] != '%') {
         *bytes = ngx_parse_offset(&size);
-        return (*bytes == (off_t) NGX_ERROR || *bytes < 0) ? -1 : 0;
+        return *bytes < 0 ? -1 : 0;
     }
     if (arg->len - 1 >= sizeof(buf)) {
         return -1;

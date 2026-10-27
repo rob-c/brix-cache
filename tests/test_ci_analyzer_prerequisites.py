@@ -1,5 +1,7 @@
 """Analyzer wrappers must inspect the same configured build as their runners."""
 
+import json
+
 from pathlib import Path
 
 import pytest
@@ -120,6 +122,57 @@ def test_clang_analyzer_retains_its_native_warning_spelling(monkeypatch):
     cflags, includes = runner._compiler_flags()
     assert '-Wconditional-uninitialized' in cflags.split()
     assert includes == '-Iselected-sdk'
+
+
+def _codechecker_database(tmp_path, monkeypatch, cflags, includes, source):
+    from tools.ci import run_codechecker as runner
+
+    build = tmp_path / 'nginx-build'
+    build.mkdir()
+    monkeypatch.setattr(runner, 'NGX_BUILD', str(build))
+    path = runner._write_compile_database(
+        str(tmp_path), cflags, includes, [str(source)])
+    return json.loads(Path(path).read_text())[0]
+
+
+def test_codechecker_database_preserves_quoted_define(tmp_path, monkeypatch):
+    source = tmp_path / 'source.c'
+    entry = _codechecker_database(
+        tmp_path, monkeypatch,
+        '-O2 -DBRIX_DEFAULT_CURL_PATH="/usr/bin/curl"',
+        '-Iselected-sdk', source)
+    assert '-DBRIX_DEFAULT_CURL_PATH="/usr/bin/curl"' in entry['arguments']
+    assert 'command' not in entry
+
+
+def test_codechecker_database_preserves_spaced_string_define(
+        tmp_path, monkeypatch):
+    source = tmp_path / 'source.c'
+    entry = _codechecker_database(
+        tmp_path, monkeypatch,
+        '-DPRODUCT_LABEL="BriX secure cache"',
+        '-Iselected-sdk', source)
+    assert '-DPRODUCT_LABEL="BriX secure cache"' in entry['arguments']
+
+
+def test_codechecker_database_keeps_each_include_as_one_argument(
+        tmp_path, monkeypatch):
+    source = tmp_path / 'source.c'
+    entry = _codechecker_database(
+        tmp_path, monkeypatch, '-O2',
+        '-Iselected-sdk -I"dependency include"', source)
+    assert entry['arguments'][0:3] == ['clang', '-c', '-O2']
+    assert entry['arguments'][3:5] == [
+        '-Iselected-sdk', '-Idependency include']
+
+
+def test_codechecker_database_never_shell_parses_source_path(
+        tmp_path, monkeypatch):
+    source = tmp_path / 'source;touch-forbidden.c'
+    entry = _codechecker_database(
+        tmp_path, monkeypatch, '-O2', '-Iselected-sdk', source)
+    assert str(source) in entry['arguments']
+    assert not (tmp_path / 'touch-forbidden.c').exists()
 
 
 def test_explicit_gcc_analyzer_does_not_replace_the_server_compiler(monkeypatch):

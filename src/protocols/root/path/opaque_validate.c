@@ -159,18 +159,19 @@ brix_opaque_key_len(const char *seg, size_t seg_len)
     return seg_len;
 }
 
-/* Does key[0..key_len) exactly equal the NUL-terminated cand? */
+/* Does bounded[0..bounded_len) exactly equal the NUL-terminated candidate? */
 static int
-brix_opaque_key_eq(const char *key, size_t key_len, const char *cand)
+brix_opaque_key_eq(const char *bounded, size_t bounded_len,
+    const char *candidate)
 {
     size_t i;
 
-    for (i = 0; i < key_len; i++) {
-        if (cand[i] == '\0' || key[i] != cand[i]) {
+    for (i = 0; i < bounded_len; i++) {
+        if (candidate[i] == '\0' || bounded[i] != candidate[i]) {
             return 0;
         }
     }
-    return cand[key_len] == '\0';
+    return candidate[bounded_len] == '\0';
 }
 
 /* Does key[0..key_len) begin with the NUL-terminated prefix? */

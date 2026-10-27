@@ -206,7 +206,10 @@ sd_gsiftp_server_copy_impl(brix_sd_instance_t *inst, const char *src,
         return NGX_ERROR;
     }
     if (sd_gsiftp_session(&session, state, proxy) != 0) {
-        fclose(scratch);
+        int saved_errno = errno;
+
+        (void) fclose(scratch);
+        errno = saved_errno;
         return NGX_ERROR;
     }
     rc = sd_gsiftp_copy_fetch(&session, remote_src, source_stat.size,
@@ -215,7 +218,7 @@ sd_gsiftp_server_copy_impl(brix_sd_instance_t *inst, const char *src,
         rc = sd_gsiftp_copy_publish(&session, remote_dst, fileno(scratch));
     }
     gftp_session_close(&session);
-    fclose(scratch);
+    (void) fclose(scratch);
     if (rc != 0) {
         return NGX_ERROR;
     }

@@ -86,7 +86,7 @@ s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *export_op
 {
     ngx_log_t  *log = export_op_ctx->log;
     const char *root_canon = export_op_ctx->root_canon;
-    char        part_path[PATH_MAX];
+    char        src_part_path[PATH_MAX];
     int         final_fd, part_fd, part_num;
     off_t       dst_off = 0;
     struct stat pst;
@@ -115,11 +115,11 @@ s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *export_op
 
     /* Concatenate part.1 through part.10000 in order, skipping missing ones. */
     for (part_num = 1; part_num <= MPU_MAX_PART_NUMBER; part_num++) {
-        p = ngx_snprintf((u_char *) part_path, sizeof(part_path) - 1,
+        p = ngx_snprintf((u_char *) src_part_path, sizeof(src_part_path) - 1,
                          "%s/part.%d", mpu_dir, part_num);
         *p = '\0';
 
-        part_fd = brix_vfs_open_fd(log, root_canon, part_path,
+        part_fd = brix_vfs_open_fd(log, root_canon, src_part_path,
                                     O_RDONLY, 0);
         if (part_fd < 0) {
             if (errno == ENOENT) {
@@ -142,13 +142,8 @@ s3_mpu_assemble(ngx_http_request_t *r, const brix_vfs_export_op_ctx_t *export_op
         }
 
         if (pst.st_size > 0
-            /* phase74-fp: argument order is correct — brix_copy_range takes
-             * (log, src_fd, src_off, dst_fd, dst_off, len, src_path, dst_path);
-             * the part.* file IS the source and final_tmp the destination. The
-             * name-similarity heuristic misfires on part_path vs src_path. */
-            /* NOLINTNEXTLINE(bugprone-suspicious-call-argument) */
             && brix_copy_range(log, part_fd, 0, final_fd, dst_off,
-                                 (size_t) pst.st_size, part_path,
+                                 (size_t) pst.st_size, src_part_path,
                                  final_tmp) != NGX_OK)
         {
             BRIX_LOG(NGX_LOG_ERR, log, errno,

@@ -46,6 +46,7 @@ from tools.logging_support import diagnostic as _brix_diagnostic
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -196,13 +197,42 @@ def run(cc: str, regen: int, flt: str, cflags: str, all_incs: str,
 
 def _write_compile_database(work, cflags, all_incs, selected):
     path = f"{work}/compile_commands.json"
+    compiler_args = ["clang", "-c", *_split_compiler_flags(cflags),
+                     *_split_compiler_flags(all_incs)]
     db = [{"directory": NGX_BUILD,
-           "command": f"clang -c {cflags} {all_incs} {s} -o /dev/null",
-           "file": s} for s in selected]
+           "arguments": [*compiler_args, source, "-o", "/dev/null"],
+           "file": source} for source in selected]
     with open(path, "w") as fh:
         json.dump(db, fh)
     print(f"compile_commands.json: {len(db)} entrie(s)")
     return path
+
+
+def _split_compiler_flags(flags):
+    """Split shell-form flags without discarding quotes in C macro values.
+
+    Make emits string-valued definitions as ``-DNAME="value"``.  Those quotes
+    are data for the preprocessor, not merely shell grouping; a plain
+    ``shlex.split`` silently turns the definition into an invalid token.  Hide
+    the two delimiters inside their existing shell quotes while splitting, then
+    restore them in the resulting argv.  NUL cannot occur in an argv string, so
+    it is an unambiguous temporary marker.
+    """
+    if "\0" in flags:
+        raise ValueError("compiler flags contain an invalid NUL byte")
+
+    define_string = re.compile(
+        r'(?<!\S)(-D[A-Za-z_][A-Za-z0-9_]*=)'
+        r'(["\'])(.*?)(?<!\\)\2(?=\s|$)')
+
+    def protect(match):
+        prefix, quote, value = match.groups()
+        marker = "\0D" if quote == '"' else "\0S"
+        return f"{prefix}{quote}{marker}{value}{marker}{quote}"
+
+    protected = define_string.sub(protect, flags)
+    return [arg.replace("\0D", '"').replace("\0S", "'")
+            for arg in shlex.split(protected)]
 
 
 def _write_skip_file(work):

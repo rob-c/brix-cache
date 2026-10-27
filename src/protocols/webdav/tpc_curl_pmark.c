@@ -139,13 +139,42 @@ webdav_tpc_capture_remote(CURL *easy, tpc_ms_progress_t *progress,
     progress->remote_ready[idx] = 1;
 }
 
-/* Write callback for multi-stream range downloads. */
+/* ---- Write one bounded multi-stream Range response into its assigned span ----
+ *
+ * WHAT: Writes exactly the callback bytes inside one stream's assigned Range
+ *       and returns their count; returns 0 on malformed callback dimensions,
+ *       invalid progress state, a short/zero backend write, or Range overflow.
+ *
+ * WHY: An origin is untrusted and may ignore Range or send an oversized body.
+ *      Letting that body cross the stream boundary corrupts adjacent stripes;
+ *      trusting an invalid stream index also writes outside progress storage.
+ *
+ * HOW: 1. Validate the callback dimensions, context, progress index and Range
+ *          budget before any storage mutation.
+ *      2. Write the bounded body completely, treating a zero write as failure.
+ *      3. Advance the offset/budget and then publish bounded progress.
+ */
 size_t
 ms_write_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
     ms_stream_ctx_t *ctx   = userdata;
-    size_t           total = size * nmemb;
+    size_t           total;
     size_t           done  = 0;
+
+    if (ctx == NULL || (size != 0 && nmemb > SIZE_MAX / size)) {
+        return 0;
+    }
+    total = size * nmemb;
+    if (total == 0
+        || (ctx->progress != NULL
+            && ctx->stream_idx >= BRIX_TPC_MAX_STREAMS)
+        || ctx->cur_offset < 0 || ctx->cur_offset > ctx->end_offset
+        || (uint64_t) total
+           > (uint64_t) (ctx->end_offset - ctx->cur_offset) + 1
+        || (uint64_t) total > ctx->remaining)
+    {
+        return 0;
+    }
 
     webdav_tpc_capture_remote(ctx->easy, ctx->progress, ctx->stream_idx);
 
@@ -157,14 +186,17 @@ ms_write_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
          * so a non-POSIX backend serves this path unchanged. */
         ssize_t n = obj.driver->pwrite(&obj, ptr + done, total - done,
                                        ctx->cur_offset + (off_t) done);
-        if (n < 0) {
-            if (errno == EINTR) continue;
+        if (n < 0 && errno == EINTR) {
+            continue;
+        }
+        if (n <= 0) {
             return 0;  /* signal error to curl */
         }
         done += (size_t) n;
     }
 
     ctx->cur_offset += (off_t) total;
+    ctx->remaining -= (uint64_t) total;
 
     if (ctx->progress != NULL) {
         ngx_atomic_fetch_add(

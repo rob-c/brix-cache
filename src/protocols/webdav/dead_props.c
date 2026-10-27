@@ -181,14 +181,14 @@ webdav_dead_prop_remove(ngx_http_request_t *r, const char *path,
 
     webdav_vfs_ctx_build(r, path, &vctx);
 
-    /* "not present" == already removed, so treat ENODATA/ENOATTR as success. */
-    /* phase74-fp: ENOATTR is an alias of ENODATA on Linux but a distinct errno
-     * on BSD/macOS — both are checked deliberately for portability, so the
-     * "equivalent nested operands" finding is moot. */
-    /* NOLINTNEXTLINE(misc-redundant-expression) */
+    /* "not present" == already removed. ENOATTR aliases ENODATA on Linux but
+     * is distinct on BSD/macOS, so compare it only where it adds a value. */
     if (brix_vfs_removexattr(&vctx, attr) != NGX_OK
-        && errno != ENODATA && errno != ENOATTR)
-    {
+        && errno != ENODATA
+#if defined(ENOATTR) && ENOATTR != ENODATA
+        && errno != ENOATTR
+#endif
+       ) {
         BRIX_LOG(NGX_LOG_WARN, r->connection->log, errno,
                       "brix_webdav: removexattr dead property failed");
         return NGX_ERROR;

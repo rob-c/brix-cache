@@ -132,27 +132,62 @@ stage_events_put(u_char *line, size_t len, const char *src)
     if (src == NULL || src[0] == '\0') {
         src = "-";
     }
-    n   = strlen(src);
+    n = strlen(src);
+    if (len > STAGE_EVENTS_LINE_MAX - 2
+        || n > STAGE_EVENTS_LINE_MAX - len - 2)
+    {
+        return 0;
+    }
     esc = ngx_escape_uri(NULL, (u_char *) src, n, NGX_ESCAPE_URI);
-    if (len + n + 2 * esc + 2 > STAGE_EVENTS_LINE_MAX) {  /* + ' ' + '\n' */
+    if (esc > (STAGE_EVENTS_LINE_MAX - len - n - 2) / 2) {
         return 0;
     }
     (void) ngx_escape_uri(line + len, (u_char *) src, n, NGX_ESCAPE_URI);
     return len + n + 2 * esc;
 }
 
+/* Source, event and pair-name are grammar tokens, not data fields. Keeping
+ * their alphabet narrow makes a future caller unable to inject separators or
+ * control bytes into the append-only feed. */
+static size_t
+stage_events_put_token(u_char *line, size_t len, const char *src)
+{
+    size_t n, room;
+
+    if (src == NULL || src[0] == '\0' || len > STAGE_EVENTS_LINE_MAX - 2) {
+        return 0;
+    }
+    room = STAGE_EVENTS_LINE_MAX - len - 2;
+    for (n = 0; src[n] != '\0'; n++) {
+        u_char ch = (u_char) src[n];
+
+        if (!((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+              || (ch >= '0' && ch <= '9') || ch == '_' || ch == '-'
+              || ch == '.')
+            || n >= room)
+        {
+            return 0;
+        }
+        line[len + n] = ch;
+    }
+    return len + n;
+}
+
 static size_t
 stage_events_put_pair(u_char *line, size_t len, const char *name,
     const char *value)
 {
-    size_t  n = strlen(name);
+    size_t next;
 
-    if (len + n + 3 > STAGE_EVENTS_LINE_MAX) {
+    if (len >= STAGE_EVENTS_LINE_MAX - 2) {
         return 0;
     }
     line[len++] = ' ';
-    memcpy(line + len, name, n);
-    len += n;
+    next = stage_events_put_token(line, len, name);
+    if (next == 0 || next >= STAGE_EVENTS_LINE_MAX - 1) {
+        return 0;
+    }
+    len = next;
     line[len++] = '=';
     return stage_events_put(line, len, value);
 }
@@ -163,6 +198,7 @@ brix_stage_events_emit(const char *source, const char *event,
 {
     u_char      line[STAGE_EVENTS_LINE_MAX];
     size_t      len, next;
+    int         written;
     time_t      now;
     ngx_tm_t    tm;
     va_list     ap;
@@ -173,11 +209,23 @@ brix_stage_events_emit(const char *source, const char *event,
     }
     now = time(NULL);
     ngx_gmtime(now, &tm);
-    len = (size_t) snprintf((char *) line, sizeof(line),
-                            "%04d-%02d-%02dT%02d:%02d:%02dZ %s %s ",
-                            tm.ngx_tm_year, tm.ngx_tm_mon, tm.ngx_tm_mday,
-                            tm.ngx_tm_hour, tm.ngx_tm_min, tm.ngx_tm_sec,
-                            source, event);
+    written = snprintf((char *) line, sizeof(line),
+                       "%04d-%02d-%02dT%02d:%02d:%02dZ ",
+                       tm.ngx_tm_year, tm.ngx_tm_mon, tm.ngx_tm_mday,
+                       tm.ngx_tm_hour, tm.ngx_tm_min, tm.ngx_tm_sec);
+    if (written < 0 || (size_t) written >= sizeof(line)) {
+        return;
+    }
+    len = stage_events_put_token(line, (size_t) written, source);
+    if (len == 0 || len >= STAGE_EVENTS_LINE_MAX - 2) {
+        return;
+    }
+    line[len++] = ' ';
+    len = stage_events_put_token(line, len, event);
+    if (len == 0 || len >= STAGE_EVENTS_LINE_MAX - 2) {
+        return;
+    }
+    line[len++] = ' ';
     len = stage_events_put(line, len, reqid);
     if (len == 0) {
         return;

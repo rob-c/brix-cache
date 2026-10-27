@@ -43,7 +43,7 @@ sd_gsiftp_staged_free(brix_sd_staged_t *handle)
 
         if (state != NULL) {
             if (state->scratch != NULL) {
-                fclose(state->scratch);
+                (void) fclose(state->scratch);
             }
             free(state);
         }

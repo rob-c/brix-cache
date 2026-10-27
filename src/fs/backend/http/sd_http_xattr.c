@@ -75,6 +75,10 @@ sd_http_xattr_elem(const char *name, char *out, size_t cap)
     }
     memcpy(out, "bxa", 3);
     brix_hex_encode((const uint8_t *) name, nlen, out + 3);
+    /* Keep the complete element-name contract visible at this boundary too:
+     * brix_hex_encode terminates its output, and this write pins the final
+     * index to the capacity check above for callers and static analyzers. */
+    out[3 + 2 * nlen] = '\0';
     return 0;
 }
 

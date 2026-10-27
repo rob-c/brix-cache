@@ -3,6 +3,7 @@
  */
 
 #include "cta_queue.h"
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -136,7 +137,15 @@ journal_line_whole(FILE *f, const char *line)
     while ((c = fgetc(f)) != EOF && c != '\n') {
         /* discard the remainder of the over-long line */
     }
-    return 0;
+    return c == '\n' ? 0 : -1;
+}
+
+
+static int
+journal_enum_values_valid(int op, int state)
+{
+    return op >= CTA_OP_ARCHIVE && op <= CTA_OP_UNKNOWN
+           && state >= CTA_ST_SUBMITTED && state <= CTA_ST_CANCELED;
 }
 
 
@@ -270,6 +279,7 @@ cta_queue_open_journal(brix_cta_queue_t *q, const char *path)
     FILE *f = fopen(path, "r");   /* replay cursor, separate from the append fd */
     char  line[CTA_JOURNAL_LINE_MAX];
     int   fd;
+    int   replay_error = 0;
 
     while (f != NULL && fgets(line, sizeof(line), f) != NULL) {
         unsigned long long id;
@@ -279,7 +289,12 @@ cta_queue_open_journal(brix_cta_queue_t *q, const char *path)
         char       owner[64] = "", pathbuf[1024] = "";
         cta_req_t *e;
 
-        if (!journal_line_whole(f, line)) {
+        int whole = journal_line_whole(f, line);
+
+        if (whole < 0) {
+            break;
+        }
+        if (whole == 0) {
             continue;   /* over-long: see journal_line_whole */
         }
         /* "id\top\tstate\towner\tpath" — the text fields are escaped
@@ -289,6 +304,9 @@ cta_queue_open_journal(brix_cta_queue_t *q, const char *path)
         if (sscanf(line, "%llu\t%d\t%d\t%127[^\t]\t%2047[^\n]",
                    &id, &op, &state, owner_esc, path_esc) < 3) {
             continue;   /* need at least id/op/state */
+        }
+        if (!journal_enum_values_valid(op, state)) {
+            continue;
         }
         journal_unescape(owner_esc, owner, sizeof(owner));
         journal_unescape(path_esc, pathbuf, sizeof(pathbuf));
@@ -306,7 +324,16 @@ cta_queue_open_journal(brix_cta_queue_t *q, const char *path)
         }
     }
     if (f != NULL) {
-        fclose(f);
+        if (ferror(f)) {
+            replay_error = errno != 0 ? errno : EIO;
+        }
+        if (fclose(f) != 0 && replay_error == 0) {
+            replay_error = errno != 0 ? errno : EIO;
+        }
+    }
+    if (replay_error != 0) {
+        errno = replay_error;
+        return -1;
     }
     /*
      * The append descriptor. Opened here — which, for the shared queue, means

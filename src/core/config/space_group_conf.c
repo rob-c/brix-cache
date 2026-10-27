@@ -91,7 +91,7 @@ space_parse_quota(ngx_conf_t *cf, const ngx_str_t *arg, off_t *quota)
         return NGX_CONF_OK;
     }
     *quota = ngx_parse_offset(&v);
-    if (*quota == (off_t) NGX_ERROR || *quota < 0) {
+    if (*quota < 0) {
         BRIX_CONF_LOG(NGX_LOG_EMERG, cf, 0,
             "brix_oss_space: quota \"%V\" is not a non-negative size or -1", &v);
         return NGX_CONF_ERROR;

@@ -60,7 +60,7 @@ sd_ceph_striper_read(rados_striper_t s, const char *soid, void *buf,
     size_t len, uint64_t off)
 {
     int rc = rados_striper_read(s, soid, (char *) buf, len, off);
-    return (rc < 0) ? (ssize_t) rc : (ssize_t) rc;   /* rc = bytes read, or -errno */
+    return (ssize_t) rc;   /* rc = bytes read, or -errno */
 }
 
 ssize_t

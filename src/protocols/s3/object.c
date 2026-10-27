@@ -493,7 +493,7 @@ s3_handle_get(ngx_http_request_t *r,
 {
     brix_vfs_ctx_t    vctx;
     brix_vfs_file_t  *fh;
-    brix_vfs_stat_t   vst;
+    brix_vfs_stat_t   vst = { 0 };
     ngx_int_t           rc;
     char                identity[128];
 
@@ -540,10 +540,7 @@ s3_handle_get(ngx_http_request_t *r,
      * NGX_DECLINED we fall through to serve the object.
      */
     {
-        /* phase78-fp: s3_get_resolve populated vst via brix_vfs_file_stat
-         * above, NGX_DECLINED path
-         */
-        ngx_int_t crc = s3_handle_conditional(r, vst.mtime, vst.size); /* NOLINT(clang-analyzer-core.CallAndMessage) */
+        ngx_int_t crc = s3_handle_conditional(r, vst.mtime, vst.size);
         if (crc != NGX_DECLINED) {
             brix_vfs_close(fh, r->connection->log);
             return crc;

@@ -16,6 +16,7 @@
 #include "core/types/tunables.h"
 #include "resolv_conf.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -458,13 +459,18 @@ brix_resolv_conf_load(brix_resolv_conf_t *rc, const char *path)
     }
     buf = malloc(RESOLV_READ_MAX);
     if (buf == NULL) {
-        fclose(fp);
+        int saved_errno = errno;
+
+        (void) fclose(fp);
         brix_resolv_conf_apply_env(rc, getenv("LOCALDOMAIN"),
                                    getenv("RES_OPTIONS"));
+        errno = saved_errno;
         return -1;
     }
     n = fread(buf, 1, RESOLV_READ_MAX, fp);
-    if (n == 0 && ferror(fp)) {
+    if (ferror(fp)) {
+        int saved_errno = errno != 0 ? errno : EIO;
+
         /* The path opened but holds no readable content — a directory (fopen
          * succeeds, the first read is EISDIR) or an I/O error. That is the
          * operator's own path being unusable, not an empty resolv.conf, so
@@ -472,13 +478,22 @@ brix_resolv_conf_load(brix_resolv_conf_t *rc, const char *path)
          * 127.0.0.1 default. A genuinely empty file reads 0 bytes with no
          * error and still defaults, as glibc does.
          */
-        fclose(fp);
+        (void) fclose(fp);
         free(buf);
         brix_resolv_conf_apply_env(rc, getenv("LOCALDOMAIN"),
                                    getenv("RES_OPTIONS"));
+        errno = saved_errno;
         return -1;
     }
-    fclose(fp);
+    if (fclose(fp) != 0) {
+        int saved_errno = errno != 0 ? errno : EIO;
+
+        free(buf);
+        brix_resolv_conf_apply_env(rc, getenv("LOCALDOMAIN"),
+                                   getenv("RES_OPTIONS"));
+        errno = saved_errno;
+        return -1;
+    }
 
     rc->defaulted = 0;
     brix_resolv_conf_parse_text(rc, buf, n);

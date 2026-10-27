@@ -216,6 +216,7 @@ exec_list(void *mss, const char *key,
     int                         pfd[2];
     pid_t                       pid;
     int                         status;
+    int                         io_error = 0;
     FILE                       *out;
     char                        line[NAME_MAX + 2];
 
@@ -253,7 +254,12 @@ exec_list(void *mss, const char *key,
             break;
         }
     }
-    fclose(out);   /* closes pfd[0] */
+    if (ferror(out)) {
+        io_error = errno != 0 ? errno : EIO;
+    }
+    if (fclose(out) != 0 && io_error == 0) {   /* closes pfd[0] */
+        io_error = errno != 0 ? errno : EIO;
+    }
 
     while (waitpid(pid, &status, 0) < 0) {
         if (errno == ECHILD) {
@@ -266,11 +272,19 @@ exec_list(void *mss, const char *key,
              * reached EOF and the dread contract prints entries only on
              * success, so what was read is the answer. Every verb whose result
              * IS the exit status runs under the reparented agent (exec_run). */
+            if (io_error != 0) {
+                errno = io_error;
+                return -1;
+            }
             return 0;
         }
         if (errno != EINTR) {
             return -1;
         }
+    }
+    if (io_error != 0) {
+        errno = io_error;
+        return -1;
     }
     return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
 }

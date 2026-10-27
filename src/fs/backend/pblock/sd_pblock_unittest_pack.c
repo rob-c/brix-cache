@@ -275,6 +275,37 @@ test_pack_arena(void)
             pb_close(o);
         }
     }
+
+    /* SECURITY-NEG: a corrupted catalog location fails closed before any
+     * offset arithmetic or segment read; it can never select unintended bytes. */
+    CHECK(pk_staged_put(&inst, "/badloc", DATA, DLEN) == 0,
+          "staged put badloc");
+    {
+        char     db[PATH_MAX];
+        sqlite3 *catalog = NULL;
+        char    *sql_error = NULL;
+        int      err = 0;
+        brix_sd_obj_t *o;
+
+        snprintf(db, sizeof(db), "%s/catalog.db", root);
+        CHECK(sqlite3_open(db, &catalog) == SQLITE_OK, "badloc db open");
+        CHECK(sqlite3_exec(catalog,
+              "UPDATE pack SET off = -1 WHERE blob_id = "
+              "(SELECT blob_id FROM objects WHERE path = '/badloc');",
+              NULL, NULL, &sql_error) == SQLITE_OK,
+              "install corrupt pack location: %s",
+              sql_error != NULL ? sql_error : "unknown");
+        sqlite3_free(sql_error);
+        sqlite3_close(catalog);
+
+        o = D->open(&inst, "/badloc", BRIX_SD_O_READ, 0, &err);
+        CHECK(o == NULL && err == EIO,
+              "negative pack offset refused with EIO (obj %p err %d)",
+              (void *) o, err);
+        if (o != NULL) {
+            pb_close(o);
+        }
+    }
     D->cleanup(&inst);
 
     /* INTERPLAY: pack + dedup — the second identical commit byte-verifies
