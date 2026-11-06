@@ -31,7 +31,7 @@ pytest-xdist>=3.8.0,<4
 pytest-rerunfailures>=16.4,<17
 
 # --- HTTP / WebDAV / token plane ---------------------------------------------
-requests>=2.25,<3
+requests>=2.34.2,<3
 # Imported directly for InsecureRequestWarning suppression and Retry tuning.
 urllib3>=1.26,<3
 
