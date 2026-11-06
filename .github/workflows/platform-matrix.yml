@@ -53,7 +53,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       
       - name: Set matrix configuration
         id: set-matrix
@@ -125,7 +125,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       
       - name: Install dependencies
         run: |
@@ -205,14 +205,14 @@ jobs:
           /tmp/test_endian
       
       - name: Upload nginx binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nginx-linux-x86_64
           path: nginx-${{ env.NGINX_VERSION }}/objs/nginx
           retention-days: 30
       
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-linux-x86_64
@@ -239,7 +239,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       
       - name: Install dependencies
         run: |
@@ -325,14 +325,14 @@ jobs:
           /tmp/test_endian
       
       - name: Upload nginx binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nginx-linux-arm64
           path: nginx-${{ env.NGINX_VERSION }}/objs/nginx
           retention-days: 30
       
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-linux-arm64
@@ -359,7 +359,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       
       - name: Install dependencies
         run: |
@@ -399,14 +399,14 @@ jobs:
         continue-on-error: true
       
       - name: Upload nginx binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nginx-macos-intel
           path: nginx-${{ env.NGINX_VERSION }}/objs/nginx
           retention-days: 30
       
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-macos-intel
@@ -433,7 +433,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       
       - name: Install dependencies
         run: |
@@ -512,14 +512,14 @@ jobs:
           /tmp/test_random
       
       - name: Upload nginx binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nginx-macos-arm64
           path: nginx-${{ env.NGINX_VERSION }}/objs/nginx
           retention-days: 30
       
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-macos-arm64
@@ -543,7 +543,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -687,7 +687,7 @@ jobs:
           }
       
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-windows
@@ -707,7 +707,7 @@ jobs:
     
     steps:
       - name: Download all test results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: test-results-*
           merge-multiple: true
@@ -735,7 +735,7 @@ jobs:
           done
       
       - name: Upload summary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: platform-test-summary
           path: test-results/

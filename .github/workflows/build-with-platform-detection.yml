@@ -21,10 +21,10 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: '3.11'
     
@@ -100,14 +100,14 @@ jobs:
         ./objs/nginx -t 2>&1 || true  # Configuration test may fail without config file
     
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: nginx-brix-${{ steps.platform.outputs.platform_name }}-${{ steps.platform.outputs.arch_family }}
         path: /tmp/nginx-1.28.3/objs/nginx
         if-no-files-found: error
     
     - name: Upload platform detection results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: platform-detection-${{ matrix.os }}
         path: /tmp/platform.json
@@ -121,7 +121,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     
     - name: Detect ARM64 features
       id: platform
