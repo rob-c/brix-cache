@@ -64,7 +64,7 @@ stable and cheap, matching `XrdClS3` expectations.
 | `post_response.c` | The empty/created/success POST responses. *(Phase 38 split of `post_object.c`.)* |
 | `s3_post_internal.h` | Private split contract shared by `post_*.c`. |
 | `copy.c` | CopyObject (`PUT` + `x-amz-copy-source`, no `uploadId`): server-side `brix_ns_local_copy` (copy_file_range with read/write fallback), staged commit, `CopyObjectResult` XML. Source and dest both confined to root. Honours `x-amz-metadata-directive`: REPLACE stores the request's `x-amz-meta-*` on the dest, COPY (default) carries the source's metadata across; a **copy-onto-self with REPLACE skips the byte copy** (metadata-only update — the path `sd_s3_set_meta` drives). |
-| `delete_objects.c` | Batch DeleteObjects (`POST /<bucket>/?delete`): libxml2-parsed `<Delete>` body (network + XXE disabled), per-key `brix_ns_delete`, `<DeleteResult>` XML with per-key `<Deleted>`/`<Error>`. |
+| `delete_objects.c` | Batch DeleteObjects (`POST /<bucket>/?delete`): libxml2-parsed `<Delete>` body (network + XXE disabled), resource-complete authorization before mutation, one VFS batch, and `<DeleteResult>` XML with per-key `<Deleted>`/`<Error>`. |
 | `list_objects_v2.c` | ListObjectsV2 (`GET /<bucket>/?list-type=2`): query parsing, b64url continuation-token pagination, delimiter common-prefix grouping, and `ListBucketResult` XML emission. |
 | `list_objects_v1.c` | ListObjects **V1** (`GET /<bucket>` with no `list-type=2`, phase-43 W2): shares the `s3_walk`/`entry_cmp` walker with V2; differs only in `marker`/`NextMarker` pagination and the V1 XML dialect (no `KeyCount`/continuation token). |
 | `conditional.c` | Conditional requests + response overrides (phase-43 W3/W4): `s3_handle_conditional` (If-Match/If-None-Match/If-(Un)Modified-Since → 304/412 on GET/HEAD, S3 `before` semantics), `s3_put_precondition` (create-if-absent / overwrite-if-match PUT), and `s3_apply_response_overrides` (response-content-type/-disposition/… query overrides, CRLF-rejected). |
@@ -94,7 +94,8 @@ stable and cheap, matching `XrdClS3` expectations.
 | `aws_chunked_encoding.c` | Owns the two header-inspection predicates the S3 PUT path consults before decoding: s3_body_is_aws_chunked() (does the body use the aws-chunked application-layer framing?) and s3_aws_chunked_has_inner_ coding() (does Con. |
 | `aws_chunked_internal.h` | Cross-declares the framing-parser context (s3_chunk_ctx_t), its parser state enum (s3_chunk_state_t), the two line/extension caps, and the exactly-two functions that call across the decoder's translation units: s3_chunk_. |
 | `aws_chunked_parse.c` | Owns the byte-level chunk framing parser — the per-state scanners (size line, extension, CRLF terminators, payload, trailer), the decoded-payload writer, the trailer-line capture, and the security- relevant per-chunk sig. |
-| `delete_objects_internal.h` | Internal seam for the S3 DeleteObjects handler split across delete_objects.c (body read, batch loop, response finalise) and delete_objects_xml.c (the DeleteResult XML rendering + <Delete> DOM navigation helpers). |
+| `delete_objects_batch.c` | Collects and confines every body key, authorizes DELETE on every canonical `/bucket/key` before mutation, executes one atomic-policy VFS batch, and maps per-key results. |
+| `delete_objects_internal.h` | Internal seam for the S3 DeleteObjects handler split across body parsing, authorization/batch execution, and result rendering. |
 | `delete_objects_xml.c` | DeleteResult XML rendering + <Delete> DOM navigation helpers for the S3 DeleteObjects handler (POST /bucket/?delete). |
 | `handler_dispatch.c` | Owns the S3 content handler's post-authentication routing. |
 | `handler_object_route.c` | Routes a resolved object request (/<bucket>/<key>) to the correct S3 sub-handler by HTTP method — GetObject/ListParts/tagging/ACL (GET), HeadObject (HEAD), PutObject/UploadPart/UploadPartCopy/CopyObject/tagging (PUT), De. |
@@ -218,7 +219,9 @@ empty-key rejection → `s3_resolve_key` → per-method dispatch. Async write pa
 - **DeleteObjects XML parsing is hardened.** `delete_objects.c` uses libxml2 with
   `XML_PARSE_NONET` (+ `XML_PARSE_NO_XXE` when available); `NOENT`/`DTDLOAD`/`HUGE`
   are deliberately *not* set, so no file:// XXE and the billion-laughs cap stays
-  on. Body capped at 1 MiB, ≤ 1000 keys.
+  on. Body capped at 1 MiB, ≤ 1000 keys. When XrdAcc is selected, every confined
+  body key receives an exact DELETE decision before any key is mutated; one
+  denial rejects the batch atomically.
 - **List bounds.** `s3_walk` is capped at `S3_LIST_MAX_ENTRIES` (65536); the XML
   buffer sizing in `list_objects_v2.c` assumes a 6× worst-case entity expansion —
   keep that multiplier if you add escaped fields. Pagination is a b64url

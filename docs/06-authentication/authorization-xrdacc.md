@@ -169,7 +169,17 @@ engine:
 |---|---|---|
 | **root://** (stream) | open-rd→read, open-wr→update, stat→stat, dirlist→readdir, mkdir→insert, rm→delete, mv→rename, chmod→chmod | DN / token subject + FQAN VO/role/group |
 | **WebDAV** (davs://) | GET/HEAD→read, PUT→create, DELETE→delete, MKCOL→mkdir, MOVE→rename, COPY→read, PROPFIND→readdir, PROPPATCH/LOCK→update | cert DN / bearer-token subject |
-| **S3** | GET→read, HEAD→stat, PUT/POST→create, DELETE→delete | SigV4 access key |
+| **S3** | GET→read, HEAD→stat, PUT/POST→create, DELETE→delete; DeleteObjects→one exact delete decision per body key | SigV4 access key |
+
+S3 `DeleteObjects` is body-addressed: the request URI names the bucket while
+the XML body names as many as 1,000 objects. BriX therefore defers only the
+bucket-root `POST /<bucket>/?delete` decision until the body has been parsed and
+each key has been confined. It then authorizes `AOP_Delete` on every canonical
+`/<bucket>/<key>` path before entering the VFS batch. If any decision denies,
+the request returns HTTP 403 `AccessDenied` and no selected key is mutated. A
+malformed body also reaches no mutation. The exemption is exact: an object-path
+request such as `POST /<bucket>/<key>?delete` still goes through ordinary URI
+authorization and cannot claim the body-addressed route.
 
 To arm the XrdAcc engine, in the `stream` server block (root://) set
 `brix_authdb_engine xrdacc;` + `brix_authdb <path>;`; in an `http` location

@@ -43,10 +43,11 @@ typedef struct {
 } s3_del_ctx_t;
 
 /*
- * s3_del_item_t — one <Object> entry's journey through the two-phase batch
- * (phase-107 C4): collection resolves and confines every key BEFORE any
- * delete, then ONE brix_vfs_delete_many() call disposes the confinable subset,
- * then rendering emits per-key XML in the client's order.
+ * s3_del_item_t — one <Object> entry's journey through the batch
+ * (phase-107 C4): collection resolves and confines every key, authorization
+ * grants every mutatable resource BEFORE any delete, one
+ * brix_vfs_delete_many() call disposes the confinable subset, and rendering
+ * emits per-key XML in the client's order.
  *
  *   key/key_len  pool copy of the client's key text (render needs it after
  *                the parsed document is freed)
@@ -67,9 +68,12 @@ typedef struct {
     int           batch_err;
 } s3_del_item_t;
 
-/* Two-phase batch stages — defined in delete_objects_batch.c. */
+/* Collect, authorize, mutate, and render stages — defined in
+ * delete_objects_batch.c. */
 ngx_int_t s3_delete_collect_one(s3_del_ctx_t *dc, xmlNodePtr obj,
     s3_del_item_t *it, int *malformed_500);
+ngx_int_t s3_delete_authorize(s3_del_ctx_t *dc, const s3_del_item_t *items,
+    size_t count);
 ngx_int_t s3_delete_execute(s3_del_ctx_t *dc, s3_del_item_t *items,
     size_t count);
 ngx_int_t s3_delete_render(s3_del_ctx_t *dc, const s3_del_item_t *items,

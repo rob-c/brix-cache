@@ -246,7 +246,10 @@ Implemented: multipart upload (`CreateMultipartUpload`, `UploadPart`,
 `CompleteMultipartUpload`, `AbortMultipartUpload`) with staging-directory
 lifecycle, part-number validation (1–10 000), atomic assembly via temp-file +
 rename, SigV4 presigned URLs, and static-secret `X-Amz-Security-Token`
-compatibility via `brix_s3_allow_unsigned_session_token`. Not implemented:
+compatibility via `brix_s3_allow_unsigned_session_token`. Batch
+`DeleteObjects` confines all body-selected keys and, when XrdAcc is selected,
+requires an exact delete grant for every canonical object path before making
+any mutation; one denial rejects the complete batch with HTTP 403. Not implemented:
 virtual-hosted-style buckets, dynamic STS credential stores, and full AWS S3
 policy/IAM semantics.
 

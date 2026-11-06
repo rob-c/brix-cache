@@ -281,6 +281,7 @@ s3_delete_run_batch(s3_del_ctx_t *dc, ngx_uint_t method_slot, xmlNodePtr root)
     s3_del_item_t      *items;
     xmlNodePtr           obj;
     ngx_uint_t           nkeys = 0;
+    ngx_int_t            auth_rc;
 
     items = ngx_palloc(r->pool, S3_DEL_MAX_KEYS * sizeof(s3_del_item_t));
     if (items == NULL) {
@@ -327,6 +328,20 @@ s3_delete_run_batch(s3_del_ctx_t *dc, ngx_uint_t method_slot, xmlNodePtr root)
             s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST,
                               "MalformedXML",
                               "DeleteObjects request has no Object entries."));
+        return NGX_DONE;
+    }
+
+    auth_rc = s3_delete_authorize(dc, items, nkeys);
+    if (auth_rc == NGX_DECLINED) {
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_ACCESS_DENIED]);
+        s3_metrics_finalize_request_method(r, method_slot,
+            s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
+                              "Delete is not authorized for every object."));
+        return NGX_DONE;
+    }
+    if (auth_rc != NGX_OK) {
+        s3_metrics_finalize_request_method(r, method_slot,
+                                           NGX_HTTP_INTERNAL_SERVER_ERROR);
         return NGX_DONE;
     }
 

@@ -1,7 +1,7 @@
 /*
- * delete_objects_batch.c - the S3 DeleteObjects two-phase batch stages
- * (phase-107 C4): collect every key, dispose them in ONE
- * brix_vfs_delete_many() call, render per-key results in client order.
+ * delete_objects_batch.c - the S3 DeleteObjects batch stages (phase-107 C4):
+ * collect and confine every key, authorize every mutatable resource, dispose
+ * them in ONE brix_vfs_delete_many() call, then render results in client order.
  *
  * WHAT: s3_delete_collect_one() extracts, validates and CONFINES one <Object>
  *       key (s3_resolve_key_ex before any delete - security-load-bearing);
@@ -24,6 +24,7 @@
  */
 
 #include "s3.h"
+#include "s3_handler_internal.h"
 #include "core/http/http_headers.h"   /* brix_http_request_is_tls */
 #include "fs/vfs/vfs.h"                 /* brix_vfs_delete_many */
 
@@ -31,6 +32,7 @@
 #include <libxml/tree.h>
 
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 #include <limits.h>
 
@@ -121,8 +123,118 @@ s3_delete_collect_one(s3_del_ctx_t *dc, xmlNodePtr obj, s3_del_item_t *it,
     return NGX_OK;
 }
 
+/* ---- Derive the canonical XrdAcc path for one collected key ----
+ *
+ * WHAT: Writes the path that an ordinary /bucket/key request would authorize,
+ * using the collected key's confined canonical filesystem target. Returns
+ * NGX_OK on success or NGX_ERROR if the target is not beneath the export or
+ * the output would overflow.
+ *
+ * WHY: Reusing raw XML text would authorize a different spelling from the one
+ * storage resolved (leading slashes, dot segments, and percent encodings).
+ * Authorization must describe the exact resource that the VFS will delete.
+ *
+ * HOW: Verify the root boundary, derive the canonical export-relative suffix,
+ * prepend the configured path-style bucket, and reject truncation.
+ */
+static ngx_int_t
+s3_delete_build_acc_path(const s3_del_ctx_t *dc, const s3_del_item_t *item,
+    char *path, size_t path_size)
+{
+    const char *root = dc->cf->common.root_canon;
+    const char *relative;
+    size_t      root_len = ngx_strlen(root);
+    int         written;
+
+    if (ngx_strncmp(item->fs, root, root_len) != 0) {
+        return NGX_ERROR;
+    }
+    if (root_len == 1 && root[0] == '/') {
+        relative = item->fs;
+    } else {
+        relative = item->fs + root_len;
+        if (relative[0] != '\0' && relative[0] != '/') {
+            return NGX_ERROR;
+        }
+    }
+    if (relative[0] == '\0') {
+        relative = "/";
+    }
+
+    if (dc->cf->bucket.len == 0) {
+        written = snprintf(path, path_size, "%s", relative);
+    } else if (dc->cf->bucket.len > INT_MAX) {
+        return NGX_ERROR;
+    } else {
+        written = snprintf(path, path_size, "/%.*s%s",
+                           (int) dc->cf->bucket.len,
+                           (const char *) dc->cf->bucket.data, relative);
+    }
+    if (written < 0 || (size_t) written >= path_size) {
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/* ---- Authorize every body-selected key before batch mutation ----
+ *
+ * WHAT: Returns NGX_OK only when the configured XrdAcc engine grants DELETE
+ * on every collected, mutatable key; returns NGX_DECLINED on denial and
+ * NGX_ERROR on allocation/path-construction failure. It performs no storage
+ * mutation or response I/O.
+ *
+ * WHY: The outer POST names only the bucket, while the XML body selects up to
+ * 1,000 independent resources. One bucket-level CREATE decision cannot grant
+ * DELETE on those later paths, and partial mutation on denial is unsafe.
+ *
+ * HOW: Skip pre-disposed entries, derive each exact canonical /bucket/key path,
+ * and call the shared S3 XrdAcc decision helper with BRIX_AOP_DELETE. The caller
+ * invokes the VFS batch only after this complete pass succeeds.
+ */
+ngx_int_t
+s3_delete_authorize(s3_del_ctx_t *dc, const s3_del_item_t *items,
+    size_t count)
+{
+    ngx_http_s3_req_ctx_t *request_ctx;
+    char                   *logical_path;
+    size_t                  path_size;
+    size_t                 index;
+
+    if (dc->cf->common.acc.format != BRIX_AUTHDB_FORMAT_XRDACC) {
+        return NGX_OK;
+    }
+
+    if (dc->cf->bucket.len > (size_t) -1 - PATH_MAX - 2) {
+        return NGX_ERROR;
+    }
+    path_size = PATH_MAX + dc->cf->bucket.len + 2;
+    logical_path = ngx_pnalloc(dc->r->pool, path_size);
+    if (logical_path == NULL) {
+        return NGX_ERROR;
+    }
+
+    request_ctx = ngx_http_get_module_ctx(dc->r, ngx_http_brix_s3_module);
+    for (index = 0; index < count; index++) {
+        if (items[index].fs == NULL) {
+            continue;
+        }
+        if (s3_delete_build_acc_path(dc, &items[index], logical_path,
+                                     path_size) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+        if (s3_acc_authorize_path(dc->r, dc->cf,
+                request_ctx != NULL ? request_ctx->identity : NULL,
+                BRIX_AOP_DELETE, logical_path) != NGX_OK)
+        {
+            return NGX_DECLINED;
+        }
+    }
+    return NGX_OK;
+}
+
 /*
- * s3_delete_execute - phase 2: ONE brix_vfs_delete_many() call for every key
+ * s3_delete_execute - phase 3: ONE brix_vfs_delete_many() call for every key
  * that survived collection (one write gate, one OP_DELETE observation, one
  * driver batch where the leaf has unlink_many).
  *
@@ -233,7 +345,7 @@ s3_delete_batch_err_pair(int e, s3_del_err_t *err)
 }
 
 /*
- * s3_delete_render - phase 3: one <Deleted> or <Error> element per item, in
+ * s3_delete_render - phase 4: one <Deleted> or <Error> element per item, in
  * the client's original order. <Deleted> covers: pre-disposed at collection
  * (reserved-absent), removed (batch_err 0), and idempotent-missing (ENOENT).
  * Returns NGX_ERROR only on output-buffer overflow (caller maps to 500).

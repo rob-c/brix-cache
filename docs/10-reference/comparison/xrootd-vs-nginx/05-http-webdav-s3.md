@@ -314,7 +314,9 @@ project invariant (S3 SigV4 ≠ WLCG token — never shared).
   confinement, and commits via the staged-file pattern; **batch DeleteObjects**
   (`delete_objects.c`) parses up to 1000 `<Object><Key>` entries (libxml2 with network
   disabled), treats `ENOENT` as success (S3 idempotency), and returns per-key
-  `<Deleted>`/`<Error>`. **Tagging** (`tagging.c`) stores tags in the `user.s3.tagging`
+  `<Deleted>`/`<Error>`. Under XrdAcc it authorizes every confined canonical key
+  for delete before the VFS batch begins; any denial returns 403 and leaves the
+  entire batch unchanged. **Tagging** (`tagging.c`) stores tags in the `user.s3.tagging`
   xattr; **POST Object** (`post_object.c`) handles browser multipart-form uploads with
   policy + SigV4 verification.
 

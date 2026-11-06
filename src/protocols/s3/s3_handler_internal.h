@@ -39,6 +39,17 @@ brix_acc_op_t s3_method_aop(ngx_http_request_t *r);
 ngx_int_t s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     brix_identity_t *id);
 
+/* Defined in auth_acc.c. Returns non-zero only for the bucket-root
+ * POST ?delete form whose body supplies the actual resources. */
+ngx_flag_t s3_is_delete_objects_request(ngx_http_request_t *r,
+    const ngx_http_s3_loc_conf_t *cf);
+
+/* Defined in auth_acc.c. Applies the configured XrdAcc engine to one exact
+ * logical resource and operation without emitting a response. */
+ngx_int_t s3_acc_authorize_path(ngx_http_request_t *r,
+    ngx_http_s3_loc_conf_t *cf, brix_identity_t *id, brix_acc_op_t op,
+    const char *path);
+
 /* Defined in handler_dispatch.c. Post-auth S3 op dispatch (parse URI -> route by
  * method); runs inside the caller's impersonation bracket. Called by the entry
  * handler (handler.c). */

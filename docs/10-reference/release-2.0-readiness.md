@@ -19,6 +19,19 @@ may retain that row as deferred, but must not describe external Globus/dCache
 interoperability as certified. If certification is claimed, the 9/9 evidence
 file is a release gate; any skipped PROT-P cell refuses it.
 
+### Post-reconciliation security closure — 2026-11-06
+
+The S3 `DeleteObjects` XrdAcc boundary is now resource-complete. The outer
+`POST /<bucket>/?delete` request no longer stands in for the objects named by
+its XML body: every confined canonical key receives its own delete decision,
+all decisions finish before the VFS batch starts, and one denial returns 403
+without deleting any selected object. The exact-route guard also prevents an
+object-path `POST …?delete` from claiming the bucket-batch deferral. Evidence:
+`tests/test_s3_delete_objects_authorization.py` (success, malformed/error,
+mixed-policy security negative, and alternate-route security negative), the
+existing batch and native-authorization suites, and the 13/13 combined
+AlmaLinux 9 ARM64 result recorded in the v2.0 changelog.
+
 **Status:** IMPLEMENTED — audited 2026-09-05 against `main` @ `6b78de61a`,
 and every recommendation the audit produced was carried out in the working
 tree the same day and re-verified (see "Guard status" and "Remaining before

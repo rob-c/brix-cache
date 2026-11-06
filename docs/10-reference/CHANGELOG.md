@@ -1063,6 +1063,23 @@ register, the registry and the prose in step.
   `O_DIRECTORY` fd, so there is no "opendir" broker verb to add.
 
 ### Fixed
+- **S3 `DeleteObjects` now authorizes every body-selected object before any
+  object is deleted.** The ordinary HTTP authorization gate sees only
+  `POST /<bucket>/?delete`; previously its bucket-level decision could not
+  describe the keys supplied later in the XML body, so an XrdAcc policy that
+  denied one of those keys was not enforced by the batch handler. The handler
+  now confines and canonicalizes every key, derives the exact
+  `/<bucket>/<key>` authorization path from that confined target, and requires
+  `AOP_Delete` for every mutatable entry before it calls the VFS batch. A single
+  denial rejects the whole request with S3 `AccessDenied` (HTTP 403) and leaves
+  all selected objects unchanged; allocation or canonicalization failures fail
+  closed. The request-time deferral applies only to the bucket-root
+  `POST ?delete` form, so `POST /<bucket>/<key>?delete` cannot bypass normal
+  URI authorization. Malformed batches likewise mutate nothing. Pinned by
+  `tests/test_s3_delete_objects_authorization.py` (four live XrdAcc cases) and
+  the adjacent six-case batch suite; the combined S3 authorization/batch run is
+  13/13 green on AlmaLinux 9 ARM64.
+
 - **`brix_idmap map` silently disabled atomic two-name swaps.** Every confined
   filesystem operation is performed as the mapped user by the privileged
   impersonation broker — except `exchange`, which had no broker verb and so
