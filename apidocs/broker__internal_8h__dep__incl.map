@@ -1,0 +1,19 @@
+<map id="src/auth/impersonate/broker_internal.h" name="src/auth/impersonate/broker_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="559,5,718,50"/>
+<area shape="rect" id="Node000002" href="$broker_8c.html" title=" " alt="" coords="5,98,165,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="540,42,372,68,177,101,166,103,164,98,177,95,372,63,545,40"/>
+<area shape="rect" id="Node000003" href="$broker__creds_8c.html" title=" " alt="" coords="189,98,349,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="541,53,350,102,348,97,546,51"/>
+<area shape="rect" id="Node000004" href="$broker__fixed_8c.html" title=" " alt="" coords="373,98,533,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="583,56,498,100,496,95,578,58"/>
+<area shape="rect" id="Node000005" href="$broker__fixed__spawn_8c.html" title=" " alt="" coords="556,98,720,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="640,64,640,99,636,96,637,68"/>
+<area shape="rect" id="Node000006" href="$broker__ops_8c.html" title=" " alt="" coords="707,191,866,235"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="690,56,714,75,735,96,764,144,782,191,778,189,760,147,731,100,711,79,689,62"/>
+<area shape="rect" id="Node000007" href="$broker__ops__internal_8h.html" title=" " alt="" coords="796,98,961,143"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="710,53,824,97,818,97,710,59"/>
+<area shape="rect" id="Node000008" href="$broker__ops__ns_8c.html" title=" " alt="" coords="904,191,1063,235"/>
+<area shape="poly" id="edge9_Node000001_Node000008" title=" " alt="" coords="733,33,804,42,875,55,936,72,959,83,975,96,988,118,993,144,990,192,987,188,988,144,983,120,971,100,956,88,934,77,874,60,803,47,733,39"/>
+<area shape="poly" id="edge7_Node000007_Node000006" title=" " alt="" coords="848,153,809,193,807,188,843,155"/>
+<area shape="poly" id="edge8_Node000007_Node000008" title=" " alt="" coords="916,150,961,191,956,189,914,155"/>
+</map>

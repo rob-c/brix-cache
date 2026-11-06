@@ -1,0 +1,9 @@
+<map id="brix_codec_stream_t" name="brix_codec_stream_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="93,207,250,234"/>
+<area shape="rect" id="Node000002" href="$structbrix__codec__desc__t.html" title=" " alt="" coords="17,106,158,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="110,143,163,206,158,207,107,148"/>
+<area shape="rect" id="Node000003" href="$structbrix__codec__backend__t.html" title=" " alt="" coords="5,5,170,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="89,46,90,106,85,105,86,51"/>
+<area shape="rect" id="Node000004" href="$structbrix__codec__guard__t.html" title=" " alt="" coords="182,106,329,134"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="237,145,184,208,181,204,232,146"/>
+</map>

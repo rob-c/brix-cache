@@ -1,0 +1,17 @@
+<map id="client/lib/platform/mountinfo.c" name="client/lib/platform/mountinfo.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="311,5,449,50"/>
+<area shape="rect" id="Node000002" href="$mounts__internal_8h.html" title=" " alt="" coords="79,98,278,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="324,52,226,94,224,89,329,49"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="302,98,367,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="370,49,351,86,347,82,366,52"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="392,98,461,126"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="393,48,414,85,409,84,391,53"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="485,98,555,126"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="417,48,488,90,482,90,417,53"/>
+<area shape="rect" id="Node000003" href="$src_2platform_2platform_8h.html" title=" " alt="" coords="104,174,253,201"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="180,124,181,159,176,157,177,129"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="5,249,179,294"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="167,201,128,241,124,236,162,203"/>
+<area shape="rect" id="Node000005" href="$platform__arch_8h.html" title=" " alt="" coords="203,258,328,286"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="194,199,243,247,238,247,192,204"/>
+</map>

@@ -1,0 +1,9 @@
+<map id="gftp_session_cfg_t" name="gftp_session_cfg_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="42,207,183,234"/>
+<area shape="rect" id="Node000002" href="$structbrix__dns__policy__s.html" title=" " alt="" coords="46,106,180,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="115,148,115,207,110,205,111,151"/>
+<area shape="rect" id="Node000003" href="$structngx__str__t.html" title=" " alt="" coords="5,5,87,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="64,43,106,105,101,106,63,48"/>
+<area shape="rect" id="Node000004" href="$structbrix__resolv__conf__t.html" title=" " alt="" coords="110,5,251,33"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="165,44,124,107,120,104,161,48"/>
+</map>

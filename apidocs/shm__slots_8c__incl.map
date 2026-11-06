@@ -1,0 +1,15 @@
+<map id="src/core/compat/shm_slots.c" name="src/core/compat/shm_slots.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="59,5,216,50"/>
+<area shape="rect" id="Node000002" href="$log__event_8h.html" title=" " alt="" coords="129,98,312,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="160,48,199,86,194,87,159,53"/>
+<area shape="rect" id="Node000006" href="$shm__slots_8h.html" title=" " alt="" coords="5,98,105,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="114,53,81,89,77,85,117,48"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="125,182,228,210"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="216,125,192,170,189,167,211,128"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="9,182,101,210"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="195,129,96,177,94,172,193,124"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="252,174,442,218"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="241,124,304,165,298,165,240,129"/>
+<area shape="poly" id="edge6_Node000006_Node000003" title=" " alt="" coords="75,124,147,172,142,175,74,129"/>
+<area shape="poly" id="edge7_Node000006_Node000004" title=" " alt="" coords="57,124,58,167,52,166,53,128"/>
+</map>

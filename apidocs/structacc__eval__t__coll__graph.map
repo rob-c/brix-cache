@@ -1,0 +1,20 @@
+<map id="acc_eval_t" name="acc_eval_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="274,584,365,612"/>
+<area shape="rect" id="Node000002" href="$structbrix__acc__tables__t.html" title=" " alt="" coords="135,483,269,511"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="230,519,306,583,301,584,228,524"/>
+<area shape="rect" id="Node000003" href="$structbrix__acc__named__t.html" title=" " alt="" coords="216,216,356,244"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="280,258,209,484,204,482,275,260"/>
+<area shape="rect" id="Node000004" href="$structbrix__acc__cap__t.html" title=" " alt="" coords="141,106,258,134"/>
+<area shape="poly" id="edge5_Node000002_Node000004" title=" " alt="" coords="184,150,174,176,164,207,159,247,159,289,168,369,185,437,200,483,195,483,180,438,163,370,153,289,154,247,159,206,169,174,186,145"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="219,143,279,216,273,217,219,148"/>
+<area shape="rect" id="Node000006" href="$structbrix__acc__idrule__t.html" title=" " alt="" coords="380,216,512,244"/>
+<area shape="poly" id="edge7_Node000006_Node000004" title=" " alt="" coords="247,137,293,155,421,215,417,217,290,160,249,142"/>
+<area shape="rect" id="Node000005" href="$structbrix__acc__priv__caps__t.html" title=" " alt="" coords="5,5,162,33"/>
+<area shape="poly" id="edge10_Node000001_Node000005" title=" " alt="" coords="74,51,69,82,65,119,65,498,70,513,86,527,111,541,141,553,210,573,277,589,271,589,209,578,140,558,109,546,83,532,66,516,60,499,60,118,63,81,75,45"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="110,40,186,104,182,106,111,46"/>
+<area shape="poly" id="edge6_Node000002_Node000006" title=" " alt="" coords="440,257,425,304,400,358,365,413,344,439,320,461,296,476,271,486,269,481,294,471,317,457,340,435,361,410,395,355,420,302,437,261"/>
+<area shape="rect" id="Node000007" href="$structbrix__acc__entity__t.html" title=" " alt="" coords="293,483,426,511"/>
+<area shape="poly" id="edge8_Node000001_Node000007" title=" " alt="" coords="351,524,327,585,323,581,346,527"/>
+<area shape="rect" id="Node000008" href="$structbrix__acc__attr__t.html" title=" " alt="" coords="450,483,568,511"/>
+<area shape="poly" id="edge9_Node000001_Node000008" title=" " alt="" coords="473,518,346,586,344,581,468,519"/>
+</map>

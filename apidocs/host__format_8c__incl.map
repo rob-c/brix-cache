@@ -1,0 +1,19 @@
+<map id="src/core/compat/host_format.c" name="src/core/compat/host_format.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="273,5,430,50"/>
+<area shape="rect" id="Node000002" href="$host__format_8h.html" title=" " alt="" coords="34,98,146,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="280,53,147,95,145,90,284,49"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="171,98,241,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="315,49,244,92,241,88,310,52"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="265,98,331,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="339,49,317,87,313,83,335,52"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="355,98,457,126"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="367,48,391,86,386,84,365,53"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="480,98,572,126"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="398,48,487,91,482,91,397,53"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="596,98,691,126"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="429,48,585,93,579,94,429,53"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,174,79,201"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="84,125,61,162,57,159,79,128"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="103,174,173,201"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="100,124,124,161,119,161,97,129"/>
+</map>

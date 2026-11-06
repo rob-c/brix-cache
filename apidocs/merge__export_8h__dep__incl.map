@@ -1,0 +1,15 @@
+<map id="src/protocols/shared/merge_export.h" name="src/protocols/shared/merge_export.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="479,5,631,50"/>
+<area shape="rect" id="Node000002" href="$cvmfs__module__build_8c.html" title=" " alt="" coords="5,98,177,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="464,48,190,101,178,103,176,98,189,95,463,43"/>
+<area shape="rect" id="Node000003" href="$oci__merge_8c.html" title=" " alt="" coords="201,98,352,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="477,55,344,100,342,95,471,56"/>
+<area shape="rect" id="Node000004" href="$rpm__merge_8c.html" title=" " alt="" coords="376,98,540,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="523,60,482,100,480,95,518,62"/>
+<area shape="rect" id="Node000005" href="$module__merge_8c.html" title=" " alt="" coords="564,98,740,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="590,58,632,98,627,97,588,63"/>
+<area shape="rect" id="Node000006" href="$merge__export_8c.html" title=" " alt="" coords="764,98,916,143"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="638,52,775,98,769,97,637,58"/>
+<area shape="rect" id="Node000007" href="$config__merge_8c.html" title=" " alt="" coords="941,98,1100,143"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="647,42,929,95,943,101,937,100,928,101,646,47"/>
+</map>

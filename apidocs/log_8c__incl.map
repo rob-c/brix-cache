@@ -1,0 +1,15 @@
+<map id="src/core/compat/log.c" name="src/core/compat/log.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="42,5,202,33"/>
+<area shape="rect" id="Node000002" href="$log__event_8h.html" title=" " alt="" coords="102,81,284,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="135,31,173,69,167,70,134,36"/>
+<area shape="rect" id="Node000006" href="$log_8h.html" title=" " alt="" coords="25,81,78,109"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="108,36,76,72,72,68,111,31"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="121,165,224,193"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="192,108,182,152,177,149,188,111"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="5,165,98,193"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="172,111,89,159,86,155,168,108"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="248,157,439,201"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="218,107,293,148,287,149,216,112"/>
+<area shape="poly" id="edge6_Node000006_Node000003" title=" " alt="" coords="72,107,144,155,139,158,70,112"/>
+<area shape="poly" id="edge7_Node000006_Node000004" title=" " alt="" coords="53,107,54,150,49,149,50,111"/>
+</map>

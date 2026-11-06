@@ -1,0 +1,9 @@
+<map id="src/protocols/webdav/macaroon_endpoint_internal.h" name="src/protocols/webdav/macaroon_endpoint_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="192,5,416,50"/>
+<area shape="rect" id="Node000002" href="$macaroon__endpoint_8c.html" title=" " alt="" coords="5,98,171,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="241,56,141,100,139,95,236,57"/>
+<area shape="rect" id="Node000003" href="$macaroon__endpoint__oauth2_8c.html" title=" " alt="" coords="195,98,413,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="306,64,306,99,302,96,302,68"/>
+<area shape="rect" id="Node000004" href="$macaroon__endpoint__request_8c.html" title=" " alt="" coords="437,98,659,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="377,53,492,97,487,98,376,58"/>
+</map>

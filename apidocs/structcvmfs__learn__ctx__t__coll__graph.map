@@ -1,0 +1,11 @@
+<map id="cvmfs_learn_ctx_t" name="cvmfs_learn_ctx_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="176,207,317,234"/>
+<area shape="rect" id="Node000002" href="$structcvmfs__learn__reg__t.html" title=" " alt="" coords="5,106,147,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="112,139,226,205,222,207,111,144"/>
+<area shape="rect" id="Node000003" href="$structcvmfs__learn__conn__t.html" title=" " alt="" coords="171,106,322,134"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="249,148,249,207,244,205,245,151"/>
+<area shape="rect" id="Node000004" href="$structcvmfs__learn__node__t.html" title=" " alt="" coords="346,106,499,134"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="389,141,271,209,269,204,383,142"/>
+<area shape="rect" id="Node000005" href="$structcvmfs__learn__succ__t.html" title=" " alt="" coords="348,5,497,33"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="424,47,425,107,420,104,421,51"/>
+</map>

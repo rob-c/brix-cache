@@ -1,0 +1,11 @@
+<map id="acc_sel_ctx_t" name="acc_sel_ctx_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="104,307,212,335"/>
+<area shape="rect" id="Node000002" href="$structbrix__acc__idrule__t.html" title=" " alt="" coords="18,207,149,234"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="104,244,151,306,146,307,101,249"/>
+<area shape="rect" id="Node000003" href="$structbrix__acc__cap__t.html" title=" " alt="" coords="25,106,142,134"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="85,147,86,206,81,206,82,152"/>
+<area shape="rect" id="Node000004" href="$structbrix__acc__priv__caps__t.html" title=" " alt="" coords="5,5,162,33"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="84,46,86,106,81,105,83,51"/>
+<area shape="rect" id="Node000005" href="$structbrix__acc__attr__t.html" title=" " alt="" coords="173,207,290,234"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="215,246,170,309,166,305,210,247"/>
+</map>

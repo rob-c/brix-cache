@@ -1,0 +1,7 @@
+<map id="src/auth/authz/authdb_grammar.h" name="src/auth/authz/authdb_grammar.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="99,5,261,50"/>
+<area shape="rect" id="Node000002" href="$authdb__grammar_8c.html" title=" " alt="" coords="5,98,168,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="149,60,110,100,107,96,145,62"/>
+<area shape="rect" id="Node000003" href="$authdb__parse_8c.html" title=" " alt="" coords="192,98,354,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="214,58,254,98,249,98,212,63"/>
+</map>

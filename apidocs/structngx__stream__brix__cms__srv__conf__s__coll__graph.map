@@ -1,0 +1,11 @@
+<map id="ngx_stream_brix_cms_srv_conf_t" name="ngx_stream_brix_cms_srv_conf_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="97,251,262,296"/>
+<area shape="rect" id="Node000002" href="$structngx__str__t.html" title=" " alt="" coords="5,106,87,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="50,147,63,188,72,208,85,225,117,250,112,251,81,229,68,211,58,190,49,152"/>
+<area shape="rect" id="Node000003" href="$structbrix__cms__meter__t.html" title=" " alt="" coords="110,106,248,134"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="181,148,182,252,177,250,177,151"/>
+<area shape="rect" id="Node000004" href="$structbrix__cms__blfile__t.html" title=" " alt="" coords="272,106,404,134"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="317,144,233,229,206,253,204,248,230,225,312,146"/>
+<area shape="rect" id="Node000005" href="$structbrix__cms__blfile__entry__t.html" title=" " alt="" coords="252,5,424,33"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="339,46,340,106,336,104,337,51"/>
+</map>

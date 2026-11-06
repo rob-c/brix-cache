@@ -1,0 +1,9 @@
+<map id="src/observability/accesslog/access_log.h" name="src/observability/accesslog/access_log.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="227,5,424,50"/>
+<area shape="rect" id="Node000002" href="$accesslog_2access__log_8c.html" title=" " alt="" coords="5,98,203,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="261,56,158,100,156,95,256,57"/>
+<area shape="rect" id="Node000003" href="$access__log__sesslog_8c.html" title=" " alt="" coords="227,98,424,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="327,64,328,99,323,96,323,68"/>
+<area shape="rect" id="Node000004" href="$sesslog__ngx_8c.html" title=" " alt="" coords="448,98,630,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="391,54,490,97,485,97,390,59"/>
+</map>

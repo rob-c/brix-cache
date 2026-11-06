@@ -1,0 +1,10 @@
+<map id="brix_s3_sts_conf_t" name="brix_s3_sts_conf_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,293,147,321"/>
+<area shape="rect" id="Node000002" href="$structngx__str__t.html" title=" " alt="" coords="25,5,106,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="67,47,70,220,77,293,72,293,64,220,62,49"/>
+<area shape="rect" id="Node000003" href="$structbrix__dns__policy__s.html" title=" " alt="" coords="144,149,278,177"/>
+<area shape="poly" id="edge3_Node000003_Node000002" title=" " alt="" coords="90,41,200,148,195,150,89,46"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="190,190,90,295,87,291,186,187"/>
+<area shape="rect" id="Node000004" href="$structbrix__resolv__conf__t.html" title=" " alt="" coords="140,5,281,33"/>
+<area shape="poly" id="edge4_Node000003_Node000004" title=" " alt="" coords="212,47,213,149,208,148,209,51"/>
+</map>

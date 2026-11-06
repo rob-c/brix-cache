@@ -1,0 +1,17 @@
+<map id="client/lib/platform/linux/posix.c" name="client/lib/platform/linux/posix.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="353,5,490,50"/>
+<area shape="rect" id="Node000002" href="$src_2platform_2platform_8h.html" title=" " alt="" coords="104,98,253,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="355,52,233,95,231,90,359,49"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="277,98,347,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="395,49,343,91,341,86,390,52"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="371,98,472,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="423,48,424,84,419,81,420,53"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="496,98,600,126"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="455,48,518,89,512,89,454,53"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="624,98,720,126"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="488,48,620,92,615,93,488,53"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,174,179,218"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="167,125,128,165,124,161,162,128"/>
+<area shape="rect" id="Node000004" href="$platform__arch_8h.html" title=" " alt="" coords="203,182,328,210"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="194,124,243,172,238,172,192,129"/>
+</map>

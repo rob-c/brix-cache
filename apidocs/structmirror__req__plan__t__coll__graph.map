@@ -1,0 +1,8 @@
+<map id="mirror_req_plan_t" name="mirror_req_plan_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,271,142,299"/>
+<area shape="rect" id="Node000002" href="$structbrix__mirror__target__t.html" title=" " alt="" coords="90,160,241,188"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="147,201,86,273,83,269,142,200"/>
+<area shape="rect" id="Node000003" href="$structngx__str__t.html" title=" " alt="" coords="10,5,92,33"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="46,46,40,117,40,157,44,197,56,237,70,271,64,271,51,239,39,199,35,158,35,117,45,51"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="71,43,158,159,153,161,69,48"/>
+</map>

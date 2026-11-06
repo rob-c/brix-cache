@@ -1,0 +1,17 @@
+<map id="src/auth/crypto/pki_build.h" name="src/auth/crypto/pki_build.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="130,5,272,50"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,98,98,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="160,53,90,92,87,88,163,48"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="52,182,171,210"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="189,48,163,99,127,170,122,167,158,97,186,53"/>
+<area shape="rect" id="Node000004" href="$signing__policy_8h.html" title=" " alt="" coords="364,174,510,218"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="272,44,326,65,376,96,403,126,424,161,418,159,399,129,372,100,324,70,272,49"/>
+<area shape="rect" id="Node000006" href="$store__policy_8h.html" title=" " alt="" coords="173,98,362,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="219,48,250,86,245,86,218,53"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="400,266,474,294"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="439,217,439,252,435,249,435,221"/>
+<area shape="poly" id="edge7_Node000006_Node000003" title=" " alt="" coords="240,128,151,177,148,172,244,125"/>
+<area shape="poly" id="edge6_Node000006_Node000004" title=" " alt="" coords="295,124,381,166,376,167,294,129"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="195,182,340,210"/>
+<area shape="poly" id="edge8_Node000006_Node000007" title=" " alt="" coords="269,124,270,168,265,166,266,128"/>
+</map>

@@ -1,0 +1,13 @@
+<map id="client/lib/platform/fuse_bsd.c" name="client/lib/platform/fuse_bsd.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="242,5,379,50"/>
+<area shape="rect" id="Node000002" href="$src_2platform_2platform_8h.html" title=" " alt="" coords="104,98,253,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="273,52,214,92,211,87,278,49"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="277,98,344,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="312,48,313,84,308,81,309,53"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="369,98,439,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="336,48,380,88,375,87,335,53"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,174,179,218"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="167,125,128,165,124,161,162,128"/>
+<area shape="rect" id="Node000004" href="$platform__arch_8h.html" title=" " alt="" coords="203,182,328,210"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="194,124,243,172,238,172,192,129"/>
+</map>

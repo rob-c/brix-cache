@@ -1,0 +1,16 @@
+<map id="acc_parse_ctx_t" name="acc_parse_ctx_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="173,584,299,612"/>
+<area shape="rect" id="Node000002" href="$structbrix__acc__tables__t.html" title=" " alt="" coords="95,483,230,511"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="182,521,229,583,223,583,180,526"/>
+<area shape="rect" id="Node000003" href="$structbrix__acc__named__t.html" title=" " alt="" coords="66,216,206,244"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="134,257,133,350,136,404,146,459,157,483,151,483,141,460,131,405,127,350,132,262"/>
+<area shape="rect" id="Node000004" href="$structbrix__acc__cap__t.html" title=" " alt="" coords="77,106,195,134"/>
+<area shape="poly" id="edge5_Node000002_Node000004" title=" " alt="" coords="86,143,47,170,28,187,14,208,9,230,14,253,33,316,56,362,85,405,126,458,149,483,144,483,122,461,81,408,51,365,29,318,9,255,3,230,9,206,24,184,43,165,89,138"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="136,146,139,217,133,216,135,151"/>
+<area shape="rect" id="Node000006" href="$structbrix__acc__idrule__t.html" title=" " alt="" coords="230,216,362,244"/>
+<area shape="poly" id="edge7_Node000006_Node000004" title=" " alt="" coords="167,140,279,215,274,217,167,145"/>
+<area shape="rect" id="Node000005" href="$structbrix__acc__priv__caps__t.html" title=" " alt="" coords="58,5,214,33"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="136,46,139,106,133,105,135,51"/>
+<area shape="poly" id="edge8_Node000001_Node000006" title=" " alt="" coords="296,257,291,349,277,460,267,511,252,561,243,585,239,582,247,559,261,510,272,459,286,348,293,262"/>
+<area shape="poly" id="edge6_Node000002_Node000006" title=" " alt="" coords="246,254,234,266,222,280,208,303,202,325,200,365,201,409,197,433,189,460,175,484,171,481,184,458,192,432,195,408,194,365,196,324,204,301,217,276,231,262,250,250"/>
+</map>

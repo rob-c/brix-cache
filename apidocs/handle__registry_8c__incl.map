@@ -1,0 +1,13 @@
+<map id="src/platform/windows/handle_registry.c" name="src/platform/windows/handle_registry.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="98,5,259,50"/>
+<area shape="rect" id="Node000002" href="$handle__internal_8h.html" title=" " alt="" coords="112,98,246,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="179,48,181,83,176,82,178,53"/>
+<area shape="rect" id="Node000003" href="$handle__abstraction_8h.html" title=" " alt="" coords="100,174,257,201"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="180,124,181,159,176,157,178,129"/>
+<area shape="rect" id="Node000004" href="$src_2platform_2platform_8h.html" title=" " alt="" coords="128,249,229,277"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="180,200,181,235,176,233,177,204"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="5,325,179,370"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="167,276,128,316,124,312,162,279"/>
+<area shape="rect" id="Node000006" href="$platform__arch_8h.html" title=" " alt="" coords="203,334,328,361"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="194,275,243,323,238,323,192,280"/>
+</map>

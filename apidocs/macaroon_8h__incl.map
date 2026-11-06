@@ -1,0 +1,13 @@
+<map id="src/auth/token/macaroon.h" name="src/auth/token/macaroon.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="81,5,276,33"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,81,109,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="155,36,93,75,90,71,158,31"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="132,81,224,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="180,31,181,66,176,64,177,36"/>
+<area shape="rect" id="Node000004" href="$token_8h.html" title=" " alt="" coords="249,81,318,109"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="198,31,255,72,250,73,197,36"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="171,157,282,184"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="276,108,247,147,244,142,271,110"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="306,157,376,184"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="295,107,324,145,319,144,293,112"/>
+</map>

@@ -1,0 +1,28 @@
+var vfs__internal_8h =
+[
+    [ "brix_deleg_live_t", "structbrix__deleg__live__s.html", "structbrix__deleg__live__s" ],
+    [ "brix_vfs_file_t", "structbrix__vfs__file__s.html", "structbrix__vfs__file__s" ],
+    [ "brix_vfs_dir_t", "structbrix__vfs__dir__s.html", "structbrix__vfs__dir__s" ],
+    [ "brix_vfs_staged_t", "structbrix__vfs__staged__s.html", "structbrix__vfs__staged__s" ],
+    [ "brix_vfs_adopt_fd", "vfs__internal_8h.html#afc016a95cefa1640da8411c2893ca6df", null ],
+    [ "brix_vfs_confined_mutation_checked", "vfs__internal_8h.html#a3a6033511960abc2c6e1389ca65e2dc0", null ],
+    [ "brix_vfs_copy_path", "vfs__internal_8h.html#ac8cb8302cccd54fba34f4ceb1b85fb14", null ],
+    [ "brix_vfs_ctx_driver", "vfs__internal_8h.html#a23f403a637e4ed999144ffad7715af90", null ],
+    [ "brix_vfs_ctx_path", "vfs__internal_8h.html#ade9fadd2fca862021377cd489f513d71", null ],
+    [ "brix_vfs_ctx_pool_clone", "vfs__internal_8h.html#a58197fdbd97de24e5e9860f53add4083", null ],
+    [ "brix_vfs_ctx_sd_obj", "vfs__internal_8h.html#ab39b480559601b6a076f8af0b2e3a4ab", null ],
+    [ "brix_vfs_decorator_source", "vfs__internal_8h.html#a68483446d3f11d1cbf727fd85dbfe284", null ],
+    [ "brix_vfs_driver_rmtree", "vfs__internal_8h.html#ae433a5106571305da894c2051613e9bd", null ],
+    [ "brix_vfs_export_relative", "vfs__internal_8h.html#a19f963da3bee83d17232bf90d7b994c0", null ],
+    [ "brix_vfs_export_relative_root", "vfs__internal_8h.html#afee34912923fee10db9903d7f1f45b42", null ],
+    [ "brix_vfs_fill_stat", "vfs__internal_8h.html#a93b9df9840f35c72f49c911c149a32b6", null ],
+    [ "brix_vfs_getxattr_quiet_at", "vfs__internal_8h.html#a2bf4f623a0aad76ada6ddb4d2c7e79e5", null ],
+    [ "brix_vfs_handle_sd_obj", "vfs__internal_8h.html#aac798cc4e16b6684c72696dbde614f17", null ],
+    [ "brix_vfs_handle_sendfile_fd", "vfs__internal_8h.html#a674c11c23ee252783b1f3003927b3ab4", null ],
+    [ "brix_vfs_mutation_denied_observe", "vfs__internal_8h.html#add0ed6a2d8af51f4f7e153c05ed3bf92", null ],
+    [ "brix_vfs_ns_status_errno", "vfs__internal_8h.html#ae8608819198cf7fc8368388d05f5b36b", null ],
+    [ "brix_vfs_precond_refused_observe", "vfs__internal_8h.html#acfff4ce432d6fa2064716c9928d18542", null ],
+    [ "brix_vfs_require_confined", "vfs__internal_8h.html#a167afe0ba96740212bcb3d1500c26c66", null ],
+    [ "brix_vfs_rmtree_dispatch", "vfs__internal_8h.html#a6212abc78f1e93b82a9bda96433f505e", null ],
+    [ "brix_vfs_sd_stat_fill", "vfs__internal_8h.html#a820cf603d54afed9e0f8a82e6a4fe467", null ]
+];

@@ -1,0 +1,57 @@
+var conform_8h =
+[
+    [ "brix_conform_key", "structbrix__conform__key.html", "structbrix__conform__key" ],
+    [ "brix_conform_object", "structbrix__conform__object.html", "structbrix__conform__object" ],
+    [ "brix_conform_read_answer", "structbrix__conform__read__answer.html", "structbrix__conform__read__answer" ],
+    [ "brix_conform_page_answer", "structbrix__conform__page__answer.html", "structbrix__conform__page__answer" ],
+    [ "brix_conform_page_case", "structbrix__conform__page__case.html", "structbrix__conform__page__case" ],
+    [ "brix_conform_vector_case", "structbrix__conform__vector__case.html", "structbrix__conform__vector__case" ],
+    [ "brix_conform_http_range_case", "structbrix__conform__http__range__case.html", "structbrix__conform__http__range__case" ],
+    [ "BRIX_CONFORM_AXIS_MAX", "conform_8h.html#a9061a92eb76742f7597fa070336c3935", null ],
+    [ "BRIX_CONFORM_KEY_SIZE", "conform_8h.html#a42a94feeff7789cf403b91c9d18b8a95", null ],
+    [ "BRIX_CONFORM_PAGE_SIZE", "conform_8h.html#a624927691c942bfe4c4d6afd51d0673b", null ],
+    [ "BRIX_CONFORM_SHAPE_MAX", "conform_8h.html#ae63ec8cf9306f6b6c32eebb5e49f28b2", null ],
+    [ "brix_conform_budget", "conform_8h.html#a7e2d8ddc95b80f7b3408a5c3dda6a66d", [
+      [ "BRIX_CONFORM_EXHAUSTIVE", "conform_8h.html#a7e2d8ddc95b80f7b3408a5c3dda6a66da427d2f31a2f276956237d559cb7cada6", null ],
+      [ "BRIX_CONFORM_PAIRWISE", "conform_8h.html#a7e2d8ddc95b80f7b3408a5c3dda6a66da8eb3228a1bb5488da6e873d16ce651d8", null ],
+      [ "BRIX_CONFORM_BOUNDARY", "conform_8h.html#a7e2d8ddc95b80f7b3408a5c3dda6a66daec35ce9acc804614be06683e845d44a0", null ]
+    ] ],
+    [ "brix_conform_http_range_kind", "conform_8h.html#a3d923fb767760d4eef6863d6811aa393", [
+      [ "BRIX_CONFORM_HTTP_RANGE_VALID", "conform_8h.html#a3d923fb767760d4eef6863d6811aa393ab1f8b715007cc68050dceca309ac508d", null ],
+      [ "BRIX_CONFORM_HTTP_RANGE_UNSATISFIABLE", "conform_8h.html#a3d923fb767760d4eef6863d6811aa393a0d749f7cd349bc803c58d8695b6b55d7", null ],
+      [ "BRIX_CONFORM_HTTP_RANGE_INVALID", "conform_8h.html#a3d923fb767760d4eef6863d6811aa393a7a2399c852c5936e03f8855e65932d63", null ],
+      [ "BRIX_CONFORM_HTTP_RANGE_OVER_LIMIT", "conform_8h.html#a3d923fb767760d4eef6863d6811aa393a2d9a63becf2c227f12d4a982021e289e", null ]
+    ] ],
+    [ "brix_conform_vector_geometry", "conform_8h.html#a399967d3a3c675d07e2cefdae1c8b303", [
+      [ "BRIX_CONFORM_VECTOR_ASCENDING", "conform_8h.html#a399967d3a3c675d07e2cefdae1c8b303a970f9d5a9ad24fe88a4c5ccb4a4b71c3", null ],
+      [ "BRIX_CONFORM_VECTOR_DESCENDING", "conform_8h.html#a399967d3a3c675d07e2cefdae1c8b303a5a3ba86077e983a34a915ba3697b0eb1", null ],
+      [ "BRIX_CONFORM_VECTOR_INTERLEAVED", "conform_8h.html#a399967d3a3c675d07e2cefdae1c8b303ac7965b91b3cb4b8121ab9eb852ac5045", null ],
+      [ "BRIX_CONFORM_VECTOR_DUPLICATED", "conform_8h.html#a399967d3a3c675d07e2cefdae1c8b303a92ef66dc97169e7afd1d6aae12b29747", null ],
+      [ "BRIX_CONFORM_VECTOR_OVERLAPPING", "conform_8h.html#a399967d3a3c675d07e2cefdae1c8b303a09a4cb76f748d3dfb947e7a4667e7603", null ],
+      [ "BRIX_CONFORM_VECTOR_ADJACENT", "conform_8h.html#a399967d3a3c675d07e2cefdae1c8b303a1599e2f3d4486e67455d3dcf3c1f6dbc", null ],
+      [ "BRIX_CONFORM_VECTOR_GAPPED", "conform_8h.html#a399967d3a3c675d07e2cefdae1c8b303a6cae3cb8959d7eb3e5d03e8e441d1c65", null ],
+      [ "BRIX_CONFORM_VECTOR_EOF_STRADDLING", "conform_8h.html#a399967d3a3c675d07e2cefdae1c8b303a90da0b0aa4c86aa855e484af9f13d489", null ],
+      [ "BRIX_CONFORM_VECTOR_PAST_EOF", "conform_8h.html#a399967d3a3c675d07e2cefdae1c8b303aec54bbf0115eb00fb20c0f803db21f85", null ]
+    ] ],
+    [ "brix_conform_budget_name", "conform_8h.html#a7452132ff9739412a9b09bb435427a7b", null ],
+    [ "brix_conform_budget_parse", "conform_8h.html#aaa1272d2848ffc1496e87a68d47db48b", null ],
+    [ "brix_conform_byte", "conform_8h.html#ae8b72d91def8fc150df4eca13a77a928", null ],
+    [ "brix_conform_case_selected", "conform_8h.html#a8d0d78251ef24cc72e279ab541859b65", null ],
+    [ "brix_conform_fill", "conform_8h.html#a0d88e6a4505550875c9ad6266f2a294d", null ],
+    [ "brix_conform_http_range_cases", "conform_8h.html#acff48a4aff692e8b0491cc146646d4b9", null ],
+    [ "brix_conform_key_format", "conform_8h.html#af22a0ba3babdad353f7ba16f3675cc37", null ],
+    [ "brix_conform_key_parse", "conform_8h.html#a3ffb5d1398f0b5d7eb2266f77e00511e", null ],
+    [ "brix_conform_lengths", "conform_8h.html#a61cbc3e398520c637f533cb1f47fa844", null ],
+    [ "brix_conform_limit_values", "conform_8h.html#ad224286f05306fe7e14574437c422fa4", null ],
+    [ "brix_conform_objects", "conform_8h.html#a37f256452a041b5a3a514f10be44bbe2", null ],
+    [ "brix_conform_offsets", "conform_8h.html#aa4a05e1a49745e9245d2c988b0c9b989", null ],
+    [ "brix_conform_option_masks", "conform_8h.html#a104bdcfb1fe932a182f67fe61ee87aa8", null ],
+    [ "brix_conform_page_cases", "conform_8h.html#a8c59bf23a2b20e2fb8d7e274aafcdb5b", null ],
+    [ "brix_conform_page_expected", "conform_8h.html#a036ae1c22af45b980f0a0c7e46d65e96", null ],
+    [ "brix_conform_prf64", "conform_8h.html#ad0bb26f6dbc422672fdcd76309dfde46", null ],
+    [ "brix_conform_product_selected", "conform_8h.html#acc3ea29dc3e932d7aac2f13f16f2558a", null ],
+    [ "brix_conform_read_expected", "conform_8h.html#acdd4dda29a7d7db6a6458c8ce68a85d1", null ],
+    [ "brix_conform_vector_cases", "conform_8h.html#a69d0a9d5d4c39a6412689312927a7cf3", null ],
+    [ "brix_conform_vector_geometry_name", "conform_8h.html#a9cafc3a5763b68e508c9e76cb838b513", null ],
+    [ "brix_conform_verify", "conform_8h.html#ac3d61f5d66ea50d5bcdae4242f99a7f8", null ]
+];

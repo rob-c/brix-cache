@@ -1,0 +1,31 @@
+<map id="src/auth/crypto/name_compat.h" name="src/auth/crypto/name_compat.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="999,5,1158,50"/>
+<area shape="rect" id="Node000002" href="$credinfo_8c.html" title=" " alt="" coords="29,98,171,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="981,31,830,39,630,51,407,71,183,101,173,102,170,98,182,95,406,65,630,46,830,34,986,31"/>
+<area shape="rect" id="Node000004" href="$proxy_8c.html" title=" " alt="" coords="195,98,328,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="981,33,695,55,518,74,340,101,329,103,328,98,340,95,517,69,694,50,986,32"/>
+<area shape="rect" id="Node000005" href="$tls__certinfo_8c.html" title=" " alt="" coords="352,98,474,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="981,36,756,60,621,77,487,101,475,103,474,98,486,95,620,72,756,54,986,35"/>
+<area shape="rect" id="Node000006" href="$gsi__verify_8c.html" title=" " alt="" coords="499,98,640,143"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="981,43,829,69,654,101,641,103,640,98,653,95,828,63,986,42"/>
+<area shape="rect" id="Node000007" href="$key__compat__unittest_8c.html" title=" " alt="" coords="665,98,810,143"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="987,53,811,102,810,97,981,55"/>
+<area shape="rect" id="Node000008" href="$pki__check_8c.html" title=" " alt="" coords="834,98,976,143"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1026,57,947,100,946,95,1021,58"/>
+<area shape="rect" id="Node000009" href="$store__policy_8c.html" title=" " alt="" coords="1001,98,1156,143"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1080,64,1081,100,1077,96,1077,68"/>
+<area shape="rect" id="Node000010" href="$auth_2gsi_2auth__cert_8c.html" title=" " alt="" coords="1180,106,1353,134"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1138,54,1242,106,1237,106,1137,60"/>
+<area shape="rect" id="Node000011" href="$proxy__req__sign_8c.html" title=" " alt="" coords="1377,98,1514,143"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1173,49,1366,95,1379,101,1374,101,1365,101,1173,54"/>
+<area shape="rect" id="Node000012" href="$gftp__dc__tls_8c.html" title=" " alt="" coords="1538,98,1692,143"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="1173,39,1339,63,1527,95,1540,100,1534,100,1526,101,1338,68,1173,44"/>
+<area shape="rect" id="Node000013" href="$gftp__gsi_8c.html" title=" " alt="" coords="1716,98,1870,143"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="1174,33,1415,56,1560,73,1704,95,1719,100,1713,100,1704,101,1559,79,1415,61,1174,39"/>
+<area shape="rect" id="Node000014" href="$protocols_2webdav_2auth__cert_8c.html" title=" " alt="" coords="1895,98,2054,143"/>
+<area shape="poly" id="edge13_Node000001_Node000014" title=" " alt="" coords="1174,30,1490,51,1686,69,1883,95,1897,100,1892,100,1882,101,1686,75,1489,56,1174,36"/>
+<area shape="rect" id="Node000015" href="$module__directives__cert_8c.html" title=" " alt="" coords="2078,98,2266,143"/>
+<area shape="poly" id="edge14_Node000001_Node000015" title=" " alt="" coords="1173,29,1564,48,1815,67,2067,95,2080,100,2075,99,2066,101,1814,73,1564,53,1173,34"/>
+<area shape="rect" id="Node000003" href="$credinfo__voms__unittest_8c.html" title=" " alt="" coords="5,191,195,235"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="102,156,102,191,98,190,98,160"/>
+</map>

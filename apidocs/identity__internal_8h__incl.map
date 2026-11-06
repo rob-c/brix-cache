@@ -1,0 +1,15 @@
+<map id="src/core/types/identity_internal.h" name="src/core/types/identity_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="95,5,262,50"/>
+<area shape="rect" id="Node000002" href="$identity_8h.html" title=" " alt="" coords="138,98,219,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="179,48,181,83,176,82,177,53"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,174,109,201"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="155,128,93,168,90,163,158,124"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="132,174,224,201"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="180,124,181,159,176,157,177,128"/>
+<area shape="rect" id="Node000005" href="$token_8h.html" title=" " alt="" coords="248,174,391,201"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="204,124,284,165,278,167,203,129"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="207,249,318,277"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="312,201,283,239,280,235,307,203"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="342,249,412,277"/>
+<area shape="poly" id="edge6_Node000005_Node000007" title=" " alt="" coords="331,199,360,238,355,236,329,204"/>
+</map>

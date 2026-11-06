@@ -1,0 +1,13 @@
+<map id="src/net/mirror/stream_mirror.h" name="src/net/mirror/stream_mirror.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="373,5,533,50"/>
+<area shape="rect" id="Node000002" href="$stream__mirror_8c.html" title=" " alt="" coords="5,98,165,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="358,55,166,102,164,97,357,50"/>
+<area shape="rect" id="Node000003" href="$stream__mirror__config_8c.html" title=" " alt="" coords="189,98,349,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="398,57,314,100,312,95,393,58"/>
+<area shape="rect" id="Node000004" href="$stream__mirror__launch_8c.html" title=" " alt="" coords="373,98,533,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="455,64,455,99,451,96,451,67"/>
+<area shape="rect" id="Node000005" href="$root_2handshake_2dispatch_8c.html" title=" " alt="" coords="557,98,722,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="512,55,598,98,593,97,511,60"/>
+<area shape="rect" id="Node000006" href="$protocols_2root_2stream_2module_8c.html" title=" " alt="" coords="747,98,882,143"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="548,49,735,95,749,101,744,101,734,101,547,54"/>
+</map>

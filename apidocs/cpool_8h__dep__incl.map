@@ -1,0 +1,28 @@
+<map id="client/lib/net/cpool.h" name="client/lib/net/cpool.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="620,5,773,33"/>
+<area shape="rect" id="Node000002" href="$__xrootdfs__part2_8c.html" title=" " alt="" coords="49,81,222,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="604,36,223,92,222,87,605,31"/>
+<area shape="rect" id="Node000003" href="$xrootdfs_8c.html" title=" " alt="" coords="5,182,183,210"/>
+<area shape="poly" id="edge9_Node000001_Node000003" title=" " alt="" coords="602,37,510,58,408,84,249,136,126,184,125,179,247,131,407,78,509,53,607,36"/>
+<area shape="rect" id="Node000004" href="$brixcvmfs__split_8h.html" title=" " alt="" coords="419,81,596,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="655,39,559,83,557,78,650,40"/>
+<area shape="rect" id="Node000010" href="$cpool_8c.html" title=" " alt="" coords="620,90,773,117"/>
+<area shape="poly" id="edge10_Node000001_Node000010" title=" " alt="" coords="698,47,699,91,695,88,695,51"/>
+<area shape="rect" id="Node000011" href="$cpool__unittest_8c.html" title=" " alt="" coords="797,81,938,126"/>
+<area shape="poly" id="edge11_Node000001_Node000011" title=" " alt="" coords="738,37,825,81,819,80,737,43"/>
+<area shape="rect" id="Node000012" href="$client_2lib_2net_2pool_8c.html" title=" " alt="" coords="963,90,1108,117"/>
+<area shape="poly" id="edge12_Node000001_Node000012" title=" " alt="" coords="767,34,951,78,985,89,979,89,949,84,766,40"/>
+<area shape="rect" id="Node000013" href="$webfile_8c.html" title=" " alt="" coords="1133,81,1274,126"/>
+<area shape="poly" id="edge13_Node000001_Node000013" title=" " alt="" coords="789,28,945,49,1121,78,1135,84,1130,83,1120,84,944,54,789,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="121,139,102,183,98,180,117,141"/>
+<area shape="rect" id="Node000005" href="$brixcvmfs_8c.html" title=" " alt="" coords="206,182,395,210"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="446,132,331,184,330,179,441,133"/>
+<area shape="rect" id="Node000006" href="$brixcvmfs__mount_8c.html" title=" " alt="" coords="419,174,596,218"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="509,139,509,175,505,172,505,143"/>
+<area shape="rect" id="Node000007" href="$brixcvmfs__ops_8c.html" title=" " alt="" coords="620,174,797,218"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="570,130,663,173,658,173,569,135"/>
+<area shape="rect" id="Node000008" href="$brixcvmfs__prefetch_8c.html" title=" " alt="" coords="821,174,999,218"/>
+<area shape="poly" id="edge7_Node000004_Node000008" title=" " alt="" coords="611,125,824,175,818,175,611,130"/>
+<area shape="rect" id="Node000009" href="$brixcvmfs__transport_8c.html" title=" " alt="" coords="1023,174,1200,218"/>
+<area shape="poly" id="edge8_Node000004_Node000009" title=" " alt="" coords="611,123,725,139,813,147,901,156,1012,171,1025,176,1020,175,1011,176,900,161,813,152,724,144,611,129"/>
+</map>

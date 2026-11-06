@@ -1,0 +1,11 @@
+<map id="src/auth/token/macaroon_internal.h" name="src/auth/token/macaroon_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="326,5,508,50"/>
+<area shape="rect" id="Node000002" href="$macaroon_8c.html" title=" " alt="" coords="5,106,199,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="328,57,149,108,147,103,326,52"/>
+<area shape="rect" id="Node000003" href="$macaroon__caveats_8c.html" title=" " alt="" coords="223,98,405,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="384,59,340,100,337,95,379,61"/>
+<area shape="rect" id="Node000004" href="$macaroon__crypto_8c.html" title=" " alt="" coords="430,98,612,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="454,58,498,98,493,97,452,63"/>
+<area shape="rect" id="Node000005" href="$macaroon__parse_8c.html" title=" " alt="" coords="636,98,818,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="506,52,656,97,650,98,505,57"/>
+</map>

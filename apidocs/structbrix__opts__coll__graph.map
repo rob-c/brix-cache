@@ -1,0 +1,19 @@
+<map id="brix_opts" name="brix_opts">
+<area shape="rect" id="Node000001" title=" " alt="" coords="298,307,379,335"/>
+<area shape="rect" id="Node000002" href="$structbrix__cred__store.html" title=" " alt="" coords="198,207,319,234"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="279,244,330,307,325,306,277,248"/>
+<area shape="rect" id="Node000003" href="$structbrix__cred__config.html" title=" " alt="" coords="5,106,133,134"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="108,138,235,205,231,208,107,144"/>
+<area shape="rect" id="Node000004" href="$structbrix__cred__handler.html" title=" " alt="" coords="156,106,294,134"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="235,146,248,182,256,207,251,205,242,184,233,151"/>
+<area shape="rect" id="Node000005" href="$structcred__slot.html" title=" " alt="" coords="318,106,398,134"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="343,145,311,185,280,208,278,204,307,181,338,148"/>
+<area shape="rect" id="Node000006" href="$structbrix__cred__view.html" title=" " alt="" coords="291,5,410,33"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="354,46,360,106,355,104,351,50"/>
+<area shape="rect" id="Node000007" href="$structbrix__sss__id__registry.html" title=" " alt="" coords="360,207,511,234"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="415,245,353,309,350,304,410,246"/>
+<area shape="rect" id="Node000008" href="$structsss__id__slot.html" title=" " alt="" coords="431,106,523,134"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="468,146,443,208,439,204,464,149"/>
+<area shape="rect" id="Node000009" href="$structbrix__sss__ident.html" title=" " alt="" coords="434,5,549,33"/>
+<area shape="poly" id="edge8_Node000008_Node000009" title=" " alt="" coords="489,46,481,107,477,104,486,50"/>
+</map>

@@ -1,0 +1,48 @@
+var xrd__conform__adversarial_8c =
+[
+    [ "adv_outcome", "structadv__outcome.html", "structadv__outcome" ],
+    [ "adv_wire", "structadv__wire.html", "structadv__wire" ],
+    [ "adv_metrics", "structadv__metrics.html", "structadv__metrics" ],
+    [ "adv_corpus_result", "structadv__corpus__result.html", "structadv__corpus__result" ],
+    [ "ADV_REPLY_MAX", "xrd__conform__adversarial_8c.html#a70f94012ec3d90d7dc1a346bc723ea59", null ],
+    [ "ADV_TIMEOUT_MS", "xrd__conform__adversarial_8c.html#a55b84f9d47b418f2452e896f0ec7cd0e", null ],
+    [ "adv_case_kind", "xrd__conform__adversarial_8c.html#a2e7a1086eba9b9f58810697504b3e7b4", [
+      [ "ADV_PING_RESERVED", "xrd__conform__adversarial_8c.html#a2e7a1086eba9b9f58810697504b3e7b4abdca378d6c0d249717c3239ca4943594", null ],
+      [ "ADV_OPCODE_ZERO", "xrd__conform__adversarial_8c.html#a2e7a1086eba9b9f58810697504b3e7b4aca4272963f35a53582ad078f9436fca2", null ],
+      [ "ADV_OPCODE_GAP", "xrd__conform__adversarial_8c.html#a2e7a1086eba9b9f58810697504b3e7b4a6d05b3f4fea9f7632060fe012dda2d37", null ],
+      [ "ADV_OPCODE_MAX", "xrd__conform__adversarial_8c.html#a2e7a1086eba9b9f58810697504b3e7b4a346a7f2ba93b8ba6f01bb3cce6f6096d", null ],
+      [ "ADV_OPCODE_KEYED", "xrd__conform__adversarial_8c.html#a2e7a1086eba9b9f58810697504b3e7b4a29d4ff8345cf819faad597c0417852c5", null ],
+      [ "ADV_NESTED_CGI", "xrd__conform__adversarial_8c.html#a2e7a1086eba9b9f58810697504b3e7b4ad0dc81f02f21132ccb1a22e29c8f9f46", null ],
+      [ "ADV_ENCODED_PATH", "xrd__conform__adversarial_8c.html#a2e7a1086eba9b9f58810697504b3e7b4a896867b9c20e05ba01a8a9b065e7b80d", null ],
+      [ "ADV_TRUNCATED_HEADER", "xrd__conform__adversarial_8c.html#a2e7a1086eba9b9f58810697504b3e7b4a2bc141fcb1e6484c4b59811ebe485006", null ],
+      [ "ADV_SHORT_BODY", "xrd__conform__adversarial_8c.html#a2e7a1086eba9b9f58810697504b3e7b4aecbd525a83cc0832d4c919a88ecc2149", null ],
+      [ "ADV_EXTREME_LENGTH", "xrd__conform__adversarial_8c.html#a2e7a1086eba9b9f58810697504b3e7b4af9b6d1b23b42afe94972f4c7ea9bbc18", null ],
+      [ "ADV_CASE_COUNT", "xrd__conform__adversarial_8c.html#a2e7a1086eba9b9f58810697504b3e7b4a6cb1c4e610703af719a098d4475c079a", null ]
+    ] ],
+    [ "adv_finding", "xrd__conform__adversarial_8c.html#aebdaa099eff45937f2bcdcc7650c764a", [
+      [ "ADV_FINDING_NONE", "xrd__conform__adversarial_8c.html#aebdaa099eff45937f2bcdcc7650c764aa28b085aaf99d38acdf09aa8c862d5391", null ],
+      [ "ADV_FINDING_HALF_OPEN", "xrd__conform__adversarial_8c.html#aebdaa099eff45937f2bcdcc7650c764aabc3a911d1b950697c24761e83c357ca8", null ],
+      [ "ADV_FINDING_INTERNAL", "xrd__conform__adversarial_8c.html#aebdaa099eff45937f2bcdcc7650c764aa73175175178e3db32da94899362c77cf", null ]
+    ] ],
+    [ "adversarial_active", "xrd__conform__adversarial_8c.html#a0a5bc7bb4ae00ee0eedb7e62b9694966", null ],
+    [ "build_case_wire", "xrd__conform__adversarial_8c.html#af62a46a7d2b5edcb4264ffe7f0b85531", null ],
+    [ "candidate_preserves", "xrd__conform__adversarial_8c.html#ae1ef1d280579d69aa7bd9bed0ae048c4", null ],
+    [ "case_payload", "xrd__conform__adversarial_8c.html#aead9e3abbd4dc99a926696f2d2dda952", null ],
+    [ "connect_case", "xrd__conform__adversarial_8c.html#a87037b1cba9be3e7b3e6bf1ca5ba6160", null ],
+    [ "endpoint_alive", "xrd__conform__adversarial_8c.html#aedf7aa7c770b2d4b44b519085124fd2b", null ],
+    [ "finding_class", "xrd__conform__adversarial_8c.html#ab561504e1cd216b37ff91640e3aea950", null ],
+    [ "generator_domains_complete", "xrd__conform__adversarial_8c.html#abce1a06a62c8626af1f8ed22756772e0", null ],
+    [ "generator_is_deterministic", "xrd__conform__adversarial_8c.html#a57fce012a5a003b62e394a7396f58b1b", null ],
+    [ "grade_corpus_definition", "xrd__conform__adversarial_8c.html#aac37e367c9ac68028aaee5b522f99b47", null ],
+    [ "grade_corpus_health", "xrd__conform__adversarial_8c.html#a3d7d858d4872673c71d0600a284de951", null ],
+    [ "grade_resources", "xrd__conform__adversarial_8c.html#a81a7655af731d4925346152a907de6ab", null ],
+    [ "keyed_opcode", "xrd__conform__adversarial_8c.html#a55d095063e824f5208115157ead8b2e5", null ],
+    [ "make_request", "xrd__conform__adversarial_8c.html#a4ad27f648a01479f36ff280dbcc1fb0c", null ],
+    [ "minimize_finding", "xrd__conform__adversarial_8c.html#a2f1bd89e7e87b09e8e025ac78844f6ba", null ],
+    [ "read_metrics", "xrd__conform__adversarial_8c.html#a73e3339e049444df2e4cadd878166c21", null ],
+    [ "read_outcome", "xrd__conform__adversarial_8c.html#af5fe2cd41233a454dcdf70a2237318fd", null ],
+    [ "retain_reproducer", "xrd__conform__adversarial_8c.html#ab58f3cedf955eb413f5f9115f6263e8e", null ],
+    [ "run_adversarial_cases", "xrd__conform__adversarial_8c.html#ad9bf683195ed59496eb38a909ad27f1b", null ],
+    [ "run_wire", "xrd__conform__adversarial_8c.html#ab687cd2071944c3738c887f20a6f7b6c", null ],
+    [ "xrd_conform_probe_adversarial", "xrd__conform__adversarial_8c.html#aa84936d55103cef11ee369c6d5fe51ff", null ]
+];

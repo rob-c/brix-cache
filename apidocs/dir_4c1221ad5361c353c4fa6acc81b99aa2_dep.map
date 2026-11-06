@@ -1,0 +1,16 @@
+<map id="src/observability/sesslog" name="src/observability/sesslog">
+<area shape="rect" id="node1" href="dir_f484faad840238837d5706dc7f658fd7.html" title="accesslog" alt="" coords="27,130,112,158"/>
+<area shape="rect" id="node2" href="dir_4c1221ad5361c353c4fa6acc81b99aa2.html" title="sesslog" alt="" coords="42,54,112,82"/>
+<area shape="poly" id="edge4" href="dir_000132_000002.html" alt="" coords="77,80,75,115,70,113,74,85"/>
+<area shape="rect" id="edge4-headlabel" href="dir_000132_000002.html" title="1" alt="" coords="77,104,85,121"/>
+<area shape="rect" id="node3" href="dir_79690749eba542503bb1a9a3dbb495e1.html" title="protocols" alt="" coords="137,130,218,158"/>
+<area shape="poly" id="edge1" href="dir_000132_000107.html" alt="" coords="96,80,150,120,145,122,95,85"/>
+<area shape="rect" id="edge1-headlabel" href="dir_000132_000107.html" title="2" alt="" coords="146,104,154,121"/>
+<area shape="rect" id="node4" href="dir_7d71b6c457a61cbf03a04bfdc57b6110.html" title="fs" alt="" coords="242,130,281,158"/>
+<area shape="poly" id="edge2" href="dir_000132_000052.html" alt="" coords="111,80,230,127,226,131,110,85"/>
+<area shape="rect" id="edge2-headlabel" href="dir_000132_000052.html" title="1" alt="" coords="224,111,232,128"/>
+<area shape="rect" id="node5" href="dir_aebb8dcc11953d78e620bbef0b9e2183.html" title="core" alt="" coords="305,130,354,158"/>
+<area shape="poly" id="edge3" href="dir_000132_000030.html" alt="" coords="113,76,291,127,288,131,112,82"/>
+<area shape="rect" id="edge3-headlabel" href="dir_000132_000030.html" title="3" alt="" coords="285,112,293,129"/>
+<area shape="rect" id="clust1" href="dir_b74ed0efa461d1dc3d2a2bcdca1c8270.html" title="observability" alt="" coords="16,16,123,168"/>
+</map>

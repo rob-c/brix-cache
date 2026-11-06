@@ -1,0 +1,27 @@
+var xrd__conform__root__basic_8c =
+[
+    [ "bootstrap_observation", "structbootstrap__observation.html", "structbootstrap__observation" ],
+    [ "grade", "xrd__conform__root__basic_8c.html#a72d15c45456d83444e7c933c236c5885", null ],
+    [ "reserve_request", "xrd__conform__root__basic_8c.html#acc6b8bf354ee6dc6b1fa762758caf8c3", null ],
+    [ "grade_bootstrap_observation", "xrd__conform__root__basic_8c.html#a3bd17a3a724e28edfb479f457a797b45", null ],
+    [ "grade_clause", "xrd__conform__root__basic_8c.html#a050033ef5eaed879590a11e7be5b3ddf", null ],
+    [ "probe_bootstrap_shape", "xrd__conform__root__basic_8c.html#ac35f176f8404727e8fa279bb67a4d6a4", null ],
+    [ "probe_cross_session_handle", "xrd__conform__root__basic_8c.html#a440cbd6c25422425f254aff2023ac8e7", null ],
+    [ "probe_directory", "xrd__conform__root__basic_8c.html#a015495d609bca47da085e97878a8b0e7", null ],
+    [ "probe_directory_open", "xrd__conform__root__basic_8c.html#abb0aa4894669e66a915d7911a2cb7f79", null ],
+    [ "probe_dstat_directory", "xrd__conform__root__basic_8c.html#a8dcf39dec7f2dd0b8f197232ee8efccf", null ],
+    [ "probe_invalid_directories", "xrd__conform__root__basic_8c.html#ab8572ea22bec8bea0215577d8a7d98d8", null ],
+    [ "probe_open_handles", "xrd__conform__root__basic_8c.html#a653c5acd99572f78800cca9a22b6a59a", null ],
+    [ "probe_plain_directory", "xrd__conform__root__basic_8c.html#a25ade97e54d224a8283c0cb9ff1e21d2", null ],
+    [ "probe_protocol_bootstrap", "xrd__conform__root__basic_8c.html#aeb4c9a5d5449038ae05cad15116bedaf", null ],
+    [ "probe_protocol_expectations", "xrd__conform__root__basic_8c.html#a3574d145dc748dcd1c334e8ebe041beb", null ],
+    [ "probe_protocol_repeats", "xrd__conform__root__basic_8c.html#ae06984fb100d3edc5684f97c3d9504a1", null ],
+    [ "protocol_exchange", "xrd__conform__root__basic_8c.html#a6db818b5a654be0e496b2e8978d34f7e", null ],
+    [ "protocol_flags_match", "xrd__conform__root__basic_8c.html#a6a69036713afb27724bc0b430afd421c", null ],
+    [ "read_bootstrap_observation", "xrd__conform__root__basic_8c.html#a5a2fc651ce78b1798b11bf42e276a4b3", null ],
+    [ "split_path", "xrd__conform__root__basic_8c.html#ac9f96cf9c80befc6f448ca01035ffc0f", null ],
+    [ "xrd_conform_basic_grade", "xrd__conform__root__basic_8c.html#a2572b85c2092a1f32050502af38b2b5e", null ],
+    [ "xrd_conform_basic_reserve", "xrd__conform__root__basic_8c.html#a0428f29f54740842c9aaf81182b55d08", null ],
+    [ "xrd_conform_probe_protocol_claims", "xrd__conform__root__basic_8c.html#aad8ffa8db2ad95777ea2d1d983bd1e7f", null ],
+    [ "xrd_conform_probe_root_basic", "xrd__conform__root__basic_8c.html#a06a965b692836e2d7251e1e61abbfc34", null ]
+];

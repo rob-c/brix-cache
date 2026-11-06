@@ -1,0 +1,7 @@
+<map id="brix_readv_run_ctx_t" name="brix_readv_run_ctx_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="93,106,250,134"/>
+<area shape="rect" id="Node000002" href="$structbrix__vfs__readv__seg__t.html" title=" " alt="" coords="5,5,165,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="108,42,163,105,157,106,105,47"/>
+<area shape="rect" id="Node000003" href="$structbrix__byte__range__t.html" title=" " alt="" coords="189,5,328,33"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="245,45,218,84,191,108,188,103,214,80,240,48"/>
+</map>

@@ -1,0 +1,20 @@
+<map id="src/auth/authz/acc/access.c" name="src/auth/authz/acc/access.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="106,5,245,50"/>
+<area shape="rect" id="Node000002" href="$acc_8h.html" title=" " alt="" coords="222,98,278,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="195,48,230,86,225,86,195,53"/>
+<area shape="rect" id="Node000009" href="$alloc__guard_8h.html" title=" " alt="" coords="5,98,199,126"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="155,53,126,88,122,84,158,48"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="172,174,275,201"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="247,124,235,161,231,158,243,128"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="56,174,148,201"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="221,128,143,169,140,164,226,125"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="299,174,401,201"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="268,124,323,164,317,165,267,129"/>
+<area shape="rect" id="Node000006" href="$privs_8h.html" title=" " alt="" coords="425,174,491,201"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="278,120,413,169,408,170,278,126"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="373,249,447,277"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="452,201,428,239,425,234,447,203"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="471,249,541,277"/>
+<area shape="poly" id="edge7_Node000006_Node000008" title=" " alt="" coords="468,200,492,237,487,235,465,204"/>
+<area shape="poly" id="edge9_Node000009_Node000004" title=" " alt="" coords="103,124,105,159,99,157,101,129"/>
+</map>

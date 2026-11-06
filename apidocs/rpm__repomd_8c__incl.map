@@ -1,0 +1,11 @@
+<map id="src/protocols/rpm/rpm_repomd.c" name="src/protocols/rpm/rpm_repomd.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="96,5,260,50"/>
+<area shape="rect" id="Node000002" href="$rpm__repomd_8h.html" title=" " alt="" coords="5,98,122,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="146,52,96,91,93,87,150,48"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="146,98,211,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="180,48,181,83,176,81,177,53"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="235,98,305,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="203,48,247,87,242,88,202,53"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="27,174,100,201"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="65,124,66,159,61,157,62,128"/>
+</map>

@@ -1,0 +1,13 @@
+<map id="client/lib/observability/metabench/metabench.c" name="client/lib/observability/metabench/metabench.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="108,5,294,50"/>
+<area shape="rect" id="Node000002" href="$metabench_8h.html" title=" " alt="" coords="36,98,142,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="169,52,120,91,117,86,173,49"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="166,98,235,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="202,48,203,83,198,81,199,53"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="259,98,329,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="226,48,270,87,265,88,225,53"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,174,79,201"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="83,125,60,162,56,159,78,128"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="103,174,168,201"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="98,124,122,161,116,161,96,129"/>
+</map>

@@ -1,0 +1,20 @@
+<map id="src/observability/dashboard/events.c" name="src/observability/dashboard/events.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="333,5,534,50"/>
+<area shape="rect" id="Node000002" href="$dashboard_8h.html" title=" " alt="" coords="132,98,234,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="365,52,239,95,237,90,370,49"/>
+<area shape="rect" id="Node000006" href="$shm__slots_8h.html" title=" " alt="" coords="258,98,442,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="414,49,376,89,373,85,409,52"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="466,98,572,126"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="457,48,497,87,492,86,455,53"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="596,98,666,126"/>
+<area shape="poly" id="edge9_Node000001_Node000009" title=" " alt="" coords="487,48,588,91,583,92,486,53"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,174,76,201"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="159,128,80,169,78,164,156,124"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="290,174,383,201"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="211,124,298,166,293,167,210,129"/>
+<area shape="rect" id="Node000005" href="$proto__list_8h.html" title=" " alt="" coords="100,174,266,201"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="185,124,185,159,181,157,181,128"/>
+<area shape="poly" id="edge7_Node000006_Node000004" title=" " alt="" coords="349,124,344,160,340,157,345,128"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="406,174,510,201"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="370,124,429,165,423,164,368,129"/>
+</map>

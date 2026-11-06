@@ -1,0 +1,13 @@
+<map id="client/lib/platform/preload.h" name="client/lib/platform/preload.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="295,5,433,50"/>
+<area shape="rect" id="Node000002" href="$src_2platform_2platform_8h.html" title=" " alt="" coords="104,106,253,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="317,52,220,102,218,97,322,49"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="277,98,451,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="366,48,366,84,362,81,362,52"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="475,106,560,134"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="401,48,485,98,480,99,400,53"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,191,179,235"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="169,133,125,181,121,177,164,136"/>
+<area shape="rect" id="Node000004" href="$platform__arch_8h.html" title=" " alt="" coords="203,199,328,227"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="192,132,245,188,240,188,190,137"/>
+</map>

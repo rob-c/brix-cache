@@ -1,0 +1,15 @@
+<map id="src/core/compat/wverify.h" name="src/core/compat/wverify.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="292,5,479,33"/>
+<area shape="rect" id="Node000002" href="$wverify_8c.html" title=" " alt="" coords="5,90,192,117"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="324,40,145,91,144,86,326,35"/>
+<area shape="rect" id="Node000003" href="$pblock__refs_8h.html" title=" " alt="" coords="215,81,376,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="362,42,321,83,318,78,357,45"/>
+<area shape="rect" id="Node000004" href="$vfs__writer__internal_8h.html" title=" " alt="" coords="401,81,550,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="412,41,454,81,449,80,410,46"/>
+<area shape="rect" id="Node000007" href="$vfs__wverify_8c.html" title=" " alt="" coords="574,90,743,117"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="444,35,617,88,612,89,443,41"/>
+<area shape="rect" id="Node000005" href="$vfs__writer_8c.html" title=" " alt="" coords="307,182,466,210"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="446,136,401,184,398,179,442,138"/>
+<area shape="rect" id="Node000006" href="$vfs__writer__spill_8c.html" title=" " alt="" coords="490,174,640,218"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="509,134,547,174,542,173,507,139"/>
+</map>

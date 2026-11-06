@@ -1,0 +1,28 @@
+var structbrix__cache__cinfo__t =
+[
+    [ "access_count", "structbrix__cache__cinfo__t.html#a57f28218a86f63a22cc57202731fbb20", null ],
+    [ "block_size", "structbrix__cache__cinfo__t.html#a48ddd34078fadb266f19b776353d8355", null ],
+    [ "bytes_flushed", "structbrix__cache__cinfo__t.html#ae066861a88ab341c2b9f7de701902c4a", null ],
+    [ "bytes_served", "structbrix__cache__cinfo__t.html#ade8b3d94fa7a603d586d24008ba6ed71", null ],
+    [ "cks_alg", "structbrix__cache__cinfo__t.html#a9a9ec865444d0cd02c2c3f21790b7dcf", null ],
+    [ "cks_alg_len", "structbrix__cache__cinfo__t.html#ab8eb80f1ecaf270075cf8f523622a090", null ],
+    [ "cks_hex", "structbrix__cache__cinfo__t.html#a4c87c033d5fd6d3acd289c80332c4ef0", null ],
+    [ "cks_len", "structbrix__cache__cinfo__t.html#a1f618ace42555fb3c0281f3c21465ac6", null ],
+    [ "dirty_hi", "structbrix__cache__cinfo__t.html#a0627f222b5d3c27937dc2e6a7c8030c2", null ],
+    [ "dirty_lo", "structbrix__cache__cinfo__t.html#ac4b9943f060ae874de03535629b77150", null ],
+    [ "dirty_since", "structbrix__cache__cinfo__t.html#ad7a49e64125099f8c8da2a952f48b918", null ],
+    [ "etag", "structbrix__cache__cinfo__t.html#aafadae894ee3a55c1f1ab67bba789da7", null ],
+    [ "etag_len", "structbrix__cache__cinfo__t.html#a2a00432821a4ea5127d8460d6cb7a5f5", null ],
+    [ "expires_at", "structbrix__cache__cinfo__t.html#a01ea6139caf6336e254b671fdd8de935", null ],
+    [ "filled_at", "structbrix__cache__cinfo__t.html#a7f83159f3100c62569274924febe4da0", null ],
+    [ "flags", "structbrix__cache__cinfo__t.html#a138a3e7cab83d7d7dd8225f0598c75ad", null ],
+    [ "flush_gen", "structbrix__cache__cinfo__t.html#ac1ef3cc7effafad55416a9cd7ef27dfa", null ],
+    [ "last_access", "structbrix__cache__cinfo__t.html#a4549d6f37390337ae645ed3092e4911d", null ],
+    [ "last_flush", "structbrix__cache__cinfo__t.html#adad58b62dfa3719fa8dec9b648bb9a2b", null ],
+    [ "magic", "structbrix__cache__cinfo__t.html#ad5cb5d5dde22659c894b50792016e49f", null ],
+    [ "mode", "structbrix__cache__cinfo__t.html#a9d0d67a262a299e0ffcc275ef9e4c167", null ],
+    [ "mtime", "structbrix__cache__cinfo__t.html#a0c0dfc5e8df3de8a3d3be58f15de9834", null ],
+    [ "nblocks", "structbrix__cache__cinfo__t.html#afb9dc30354d31cbfb06bfa9993b4127d", null ],
+    [ "size", "structbrix__cache__cinfo__t.html#a7708fdad8cf03f553de49cdd516135b0", null ],
+    [ "version", "structbrix__cache__cinfo__t.html#a2d990199fd1c083d49bd39ce720215ee", null ]
+];

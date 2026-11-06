@@ -1,0 +1,8 @@
+<map id="pmark_dns_t" name="pmark_dns_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="16,229,121,257"/>
+<area shape="rect" id="Node000002" href="$structbrix__pmark__conf__t.html" title=" " alt="" coords="87,128,229,156"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="139,167,82,230,79,226,134,167"/>
+<area shape="rect" id="Node000003" href="$structngx__str__t.html" title=" " alt="" coords="5,5,87,33"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="41,46,37,99,40,156,51,195,65,228,60,229,46,197,35,156,32,99,40,51"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="69,42,148,127,143,129,67,47"/>
+</map>

@@ -1,0 +1,9 @@
+<map id="src/protocols/s3/delete_objects_internal.h" name="src/protocols/s3/delete_objects_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="197,5,366,50"/>
+<area shape="rect" id="Node000002" href="$delete__objects_8c.html" title=" " alt="" coords="5,98,174,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="224,56,136,100,134,95,219,58"/>
+<area shape="rect" id="Node000003" href="$delete__objects__batch_8c.html" title=" " alt="" coords="197,98,366,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="283,64,284,99,279,96,280,68"/>
+<area shape="rect" id="Node000004" href="$delete__objects__xml_8c.html" title=" " alt="" coords="389,98,558,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="342,54,431,98,425,98,341,60"/>
+</map>

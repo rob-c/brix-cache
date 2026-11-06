@@ -1,0 +1,7 @@
+<map id="brix_acc_idrule_t" name="brix_acc_idrule_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="18,207,149,234"/>
+<area shape="rect" id="Node000002" href="$structbrix__acc__cap__t.html" title=" " alt="" coords="25,106,142,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="86,148,86,207,81,205,81,151"/>
+<area shape="rect" id="Node000003" href="$structbrix__acc__priv__caps__t.html" title=" " alt="" coords="5,5,162,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="85,46,86,106,81,105,82,51"/>
+</map>

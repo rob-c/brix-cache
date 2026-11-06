@@ -1,0 +1,25 @@
+var xrd__conform__root__locate_8c =
+[
+    [ "CONFORM_LOCATE_ENDPOINT_MAX", "xrd__conform__root__locate_8c.html#a3890e2155241f5fee4b14854085b92bd", null ],
+    [ "CONFORM_LOCATE_URL_MAX", "xrd__conform__root__locate_8c.html#a47e3a4b67522c321cd007b49b20ac467", null ],
+    [ "compare_manager_set", "xrd__conform__root__locate_8c.html#afd32af42b8a3aeb3a7f5947f090c633b", null ],
+    [ "connect_locate_fixture", "xrd__conform__root__locate_8c.html#a5b857a170ed0f65026ef8c214ef0dfbd", null ],
+    [ "endpoint_compare", "xrd__conform__root__locate_8c.html#a134eef60159d037611efb1a3252bc042", null ],
+    [ "endpoint_serves_path", "xrd__conform__root__locate_8c.html#acda810a064e73269956ec3f44487c868", null ],
+    [ "grade_locate_refresh", "xrd__conform__root__locate_8c.html#a19890ab9407f80092dc435e04c623628", null ],
+    [ "grade_outage_rows", "xrd__conform__root__locate_8c.html#a783797f4c2f56d90e2cbbf668150fb01", null ],
+    [ "join_holders", "xrd__conform__root__locate_8c.html#aee9b63246e9713578f2a67c46176b121", null ],
+    [ "locate_fixture_target", "xrd__conform__root__locate_8c.html#a8d28e28fdbf906597a1ded95614da7a5", null ],
+    [ "locate_row_active", "xrd__conform__root__locate_8c.html#aa54c3f6633bd229632685eb33c7f67ed", null ],
+    [ "next_holder", "xrd__conform__root__locate_8c.html#a235356f3a1f1b399ddf34e840cd76ad8", null ],
+    [ "probe_locate_nowait_fixture", "xrd__conform__root__locate_8c.html#abe8a14e3d3e838c1186ee53e3249bfca", null ],
+    [ "probe_locate_refresh_fixture", "xrd__conform__root__locate_8c.html#a001072a72ba41a2ea28aac17d0c0edac", null ],
+    [ "probe_manager_direct_service", "xrd__conform__root__locate_8c.html#af9964e039fd7a4097e59d3c74c3832f7", null ],
+    [ "probe_missing_holder_set", "xrd__conform__root__locate_8c.html#a0458318edbd838a7ca3b9a8c1e9359ef", null ],
+    [ "verify_data_endpoints", "xrd__conform__root__locate_8c.html#adf119f11af28acf74297f74bf9cf6963", null ],
+    [ "xrd_conform_canonical_holder_set", "xrd__conform__root__locate_8c.html#a8bcccbb6dc3f4a8b845f319a3c1e7940", null ],
+    [ "xrd_conform_cms_outage_exact_selected", "xrd__conform__root__locate_8c.html#ada0d9c15f8a9d68657318fdd32c9b60f", null ],
+    [ "xrd_conform_first_data_endpoint", "xrd__conform__root__locate_8c.html#aa8092ab9189fbe1f67e8bd1ce0e1f8d3", null ],
+    [ "xrd_conform_probe_cms_manager", "xrd__conform__root__locate_8c.html#a790b0024306009289c102f623338d54f", null ],
+    [ "xrd_conform_probe_locate_endpoint", "xrd__conform__root__locate_8c.html#adc08a086d000b1c86303f1263923a18d", null ]
+];

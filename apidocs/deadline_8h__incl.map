@@ -1,0 +1,28 @@
+<map id="src/protocols/root/connection/deadline.h" name="src/protocols/root/connection/deadline.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="263,5,432,50"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,359,98,387"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="267,52,225,73,184,100,145,139,120,174,81,267,67,307,59,345,54,343,62,306,76,265,116,172,140,135,180,96,222,68,271,49"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="373,98,474,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="368,48,404,86,398,86,367,53"/>
+<area shape="rect" id="Node000004" href="$context_8h.html" title=" " alt="" coords="194,98,349,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="329,48,296,88,292,85,326,52"/>
+<area shape="rect" id="Node000012" href="$state_8h.html" title=" " alt="" coords="498,98,637,126"/>
+<area shape="poly" id="edge14_Node000001_Node000012" title=" " alt="" coords="406,48,521,92,516,93,406,53"/>
+<area shape="rect" id="Node000005" href="$ctx__structs_8h.html" title=" " alt="" coords="375,182,480,210"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="297,124,392,174,387,175,296,129"/>
+<area shape="rect" id="Node000006" href="$io__monitor_8h.html" title=" " alt="" coords="192,174,351,218"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="273,124,274,159,269,157,270,129"/>
+<area shape="poly" id="edge7_Node000006_Node000002" title=" " alt="" coords="202,221,162,241,123,268,89,307,66,346,62,343,85,304,119,264,160,237,206,217"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="312,359,415,387"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="284,217,352,345,347,345,281,221"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="367,275,437,302"/>
+<area shape="poly" id="edge8_Node000006_Node000008" title=" " alt="" coords="303,216,373,265,368,266,302,221"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="462,275,532,302"/>
+<area shape="poly" id="edge9_Node000006_Node000009" title=" " alt="" coords="329,216,450,264,456,268,451,268,448,269,329,222"/>
+<area shape="rect" id="Node000010" href="$observability_2metrics_2unified_8h.html" title=" " alt="" coords="133,266,292,311"/>
+<area shape="poly" id="edge10_Node000006_Node000010" title=" " alt="" coords="260,217,237,255,233,252,256,220"/>
+<area shape="poly" id="edge12_Node000010_Node000002" title=" " alt="" coords="173,312,92,354,90,349,167,311"/>
+<area shape="poly" id="edge11_Node000010_Node000007" title=" " alt="" coords="253,309,329,351,324,352,252,314"/>
+<area shape="rect" id="Node000011" href="$proto__list_8h.html" title=" " alt="" coords="122,359,288,387"/>
+<area shape="poly" id="edge13_Node000010_Node000011" title=" " alt="" coords="213,310,210,345,205,342,209,313"/>
+</map>

@@ -1,0 +1,21 @@
+<map id="src/protocols/webdav/webdav_module_internal.h" name="src/protocols/webdav/webdav_module_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="632,5,834,50"/>
+<area shape="rect" id="Node000002" href="$auth__token__internal_8h.html" title=" " alt="" coords="94,98,260,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="615,45,454,70,272,101,261,103,260,98,271,95,453,65,620,43"/>
+<area shape="rect" id="Node000005" href="$authz__endpoint_8c.html" title=" " alt="" coords="284,98,443,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="627,55,445,102,443,97,632,53"/>
+<area shape="rect" id="Node000006" href="$protocols_2webdav_2module_8c.html" title=" " alt="" coords="468,98,627,143"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="678,56,593,100,591,95,672,58"/>
+<area shape="rect" id="Node000007" href="$module__commands_8c.html" title=" " alt="" coords="651,98,815,143"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="735,64,735,99,731,96,731,68"/>
+<area shape="rect" id="Node000008" href="$module__directives_8c.html" title=" " alt="" coords="839,98,998,143"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="791,55,877,98,872,97,791,60"/>
+<area shape="rect" id="Node000009" href="$module__directives__cert_8c.html" title=" " alt="" coords="1022,98,1210,143"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="840,51,1027,97,1021,98,839,57"/>
+<area shape="rect" id="Node000010" href="$module__init_8c.html" title=" " alt="" coords="1233,98,1393,143"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="849,40,1026,63,1223,95,1236,100,1230,100,1222,101,1025,69,849,45"/>
+<area shape="rect" id="Node000003" href="$auth__token_8c.html" title=" " alt="" coords="5,191,165,235"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="147,153,108,193,105,188,142,155"/>
+<area shape="rect" id="Node000004" href="$auth__token__verify_8c.html" title=" " alt="" coords="189,191,349,235"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="211,151,250,191,245,190,209,156"/>
+</map>

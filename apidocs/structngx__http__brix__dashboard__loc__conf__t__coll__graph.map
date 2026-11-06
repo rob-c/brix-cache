@@ -1,0 +1,13 @@
+<map id="ngx_http_brix_dashboard_loc_conf_t" name="ngx_http_brix_dashboard_loc_conf_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,419,191,464"/>
+<area shape="rect" id="Node000002" href="$structngx__str__t.html" title=" " alt="" coords="152,5,233,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="166,47,128,95,108,126,94,159,85,194,80,231,79,305,86,370,95,419,90,418,81,371,74,305,74,231,80,193,89,157,104,123,124,92,169,42"/>
+<area shape="rect" id="Node000003" href="$structbrix__rl__rule__t.html" title=" " alt="" coords="140,296,246,324"/>
+<area shape="poly" id="edge3_Node000003_Node000002" title=" " alt="" coords="195,47,195,296,190,296,190,50"/>
+<area shape="rect" id="Node000004" href="$structbrix__rl__zone__t.html" title=" " alt="" coords="295,106,408,134"/>
+<area shape="poly" id="edge6_Node000004_Node000002" title=" " alt="" coords="226,39,333,104,328,106,226,44"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="177,336,116,421,112,417,172,337"/>
+<area shape="poly" id="edge4_Node000003_Node000004" title=" " alt="" coords="333,144,206,297,202,294,328,147"/>
+<area shape="rect" id="Node000005" href="$structbrix__rl__shctx__t.html" title=" " alt="" coords="293,5,410,33"/>
+<area shape="poly" id="edge5_Node000004_Node000005" title=" " alt="" coords="352,46,354,106,349,105,350,51"/>
+</map>

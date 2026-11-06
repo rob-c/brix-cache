@@ -1,0 +1,9 @@
+<map id="ngx_http_brix_guard_loc_conf_t" name="ngx_http_brix_guard_loc_conf_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="9,207,163,251"/>
+<area shape="rect" id="Node000002" href="$structngx__str__t.html" title=" " alt="" coords="5,106,87,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="58,146,81,206,75,206,55,150"/>
+<area shape="rect" id="Node000003" href="$structguard__ruleset__t.html" title=" " alt="" coords="110,106,232,134"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="154,145,105,208,101,204,149,147"/>
+<area shape="rect" id="Node000004" href="$structguard__sig__t.html" title=" " alt="" coords="123,5,220,33"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="173,46,174,106,169,105,170,51"/>
+</map>

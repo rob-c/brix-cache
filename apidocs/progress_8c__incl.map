@@ -1,0 +1,15 @@
+<map id="src/tpc/common/progress.c" name="src/tpc/common/progress.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="70,5,266,33"/>
+<area shape="rect" id="Node000002" href="$tpc_2common_2registry_8h.html" title=" " alt="" coords="127,81,208,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="169,31,170,66,165,65,167,36"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,232,109,260"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="157,107,116,158,74,221,70,217,112,155,153,111"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="227,232,319,260"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="181,106,223,155,262,219,256,218,219,158,179,112"/>
+<area shape="rect" id="Node000005" href="$transfer_8h.html" title=" " alt="" coords="126,157,209,184"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="169,107,170,142,165,140,166,112"/>
+<area shape="poly" id="edge5_Node000005_Node000003" title=" " alt="" coords="150,184,90,226,88,222,145,186"/>
+<area shape="poly" id="edge6_Node000005_Node000004" title=" " alt="" coords="187,182,245,223,239,224,186,187"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="132,232,203,260"/>
+<area shape="poly" id="edge7_Node000005_Node000006" title=" " alt="" coords="169,183,170,218,165,215,166,187"/>
+</map>

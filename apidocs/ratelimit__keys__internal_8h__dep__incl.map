@@ -1,0 +1,9 @@
+<map id="src/net/ratelimit/ratelimit_keys_internal.h" name="src/net/ratelimit/ratelimit_keys_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="215,5,400,50"/>
+<area shape="rect" id="Node000002" href="$ratelimit__keys_8c.html" title=" " alt="" coords="5,98,191,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="246,56,149,100,147,95,241,57"/>
+<area shape="rect" id="Node000003" href="$ratelimit__keys__parse_8c.html" title=" " alt="" coords="215,98,400,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="309,64,310,99,305,96,305,68"/>
+<area shape="rect" id="Node000004" href="$ratelimit__keys__rules_8c.html" title=" " alt="" coords="424,98,609,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="372,54,469,97,464,98,371,59"/>
+</map>

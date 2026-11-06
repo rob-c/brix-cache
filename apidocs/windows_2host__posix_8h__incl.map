@@ -1,0 +1,9 @@
+<map id="src/platform/windows/host_posix.h" name="src/platform/windows/host_posix.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="32,5,193,50"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,98,92,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="94,53,70,87,66,84,97,48"/>
+<area shape="rect" id="Node000003" href="$openat2__abi_8h.html" title=" " alt="" coords="115,98,240,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="130,48,161,85,155,86,129,53"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="143,174,213,201"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="180,124,180,159,176,157,176,128"/>
+</map>

@@ -1,0 +1,9 @@
+<map id="src/observability/dashboard/dashboard.h" name="src/observability/dashboard/dashboard.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="45,5,246,50"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,98,76,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="121,50,71,90,68,86,116,51"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="100,98,192,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="148,48,148,84,143,81,144,52"/>
+<area shape="rect" id="Node000004" href="$proto__list_8h.html" title=" " alt="" coords="216,98,382,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="187,48,264,90,259,91,186,53"/>
+</map>

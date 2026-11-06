@@ -1,0 +1,10 @@
+<map id="xrdhttp_req_ctx_t" name="xrdhttp_req_ctx_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,352,141,380"/>
+<area shape="rect" id="Node000002" href="$structbrix__http__query__t.html" title=" " alt="" coords="5,251,141,279"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="75,293,76,352,70,351,71,296"/>
+<area shape="rect" id="Node000003" href="$structngx__str__t.html" title=" " alt="" coords="32,5,114,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="70,46,67,109,66,178,74,251,69,251,61,178,62,108,69,51"/>
+<area shape="rect" id="Node000004" href="$structbrix__http__query__param__t.html" title=" " alt="" coords="108,151,292,178"/>
+<area shape="poly" id="edge4_Node000004_Node000003" title=" " alt="" coords="95,42,190,149,186,151,94,48"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="170,190,92,253,88,249,172,186"/>
+</map>

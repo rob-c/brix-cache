@@ -1,0 +1,25 @@
+var structbrix__cms__rrdata__t =
+[
+    [ "avoid", "structbrix__cms__rrdata__t.html#a9534515cd5711c2ecb3f0d1b2e7dd8cd", null ],
+    [ "avoid_len", "structbrix__cms__rrdata__t.html#acc4a9596499a303d4255e5f3386734fe", null ],
+    [ "has_opts", "structbrix__cms__rrdata__t.html#a0d1143d65cffd316d488bcaced36e416", null ],
+    [ "ident", "structbrix__cms__rrdata__t.html#adaaa31845c98a75cfc7bff2822aad884", null ],
+    [ "ident_len", "structbrix__cms__rrdata__t.html#a644a5464b906151a80a16dfb51a0ba4d", null ],
+    [ "mode", "structbrix__cms__rrdata__t.html#a92098c1b48215794edb8e0a9e6391e2d", null ],
+    [ "mode_len", "structbrix__cms__rrdata__t.html#a7fccef0729e90c5e2543b205cfabf016", null ],
+    [ "notify", "structbrix__cms__rrdata__t.html#a1057151c3264c5925bf9d500c8f02304", null ],
+    [ "notify_len", "structbrix__cms__rrdata__t.html#a5f57767271e98385c4a3f391138fc0e4", null ],
+    [ "opaque", "structbrix__cms__rrdata__t.html#a19874e1025aae8716d152d3db924d7da", null ],
+    [ "opaque2", "structbrix__cms__rrdata__t.html#a0da5dc01ff769edf4aae508507cf45f7", null ],
+    [ "opaque2_len", "structbrix__cms__rrdata__t.html#a76e7285d16d9f24d5e55cbf6dc59ec66", null ],
+    [ "opaque_len", "structbrix__cms__rrdata__t.html#aca2e7b6441f1db120e9985e083632f4f", null ],
+    [ "opts", "structbrix__cms__rrdata__t.html#a465c196cf5db3ec820e859943648a212", null ],
+    [ "path", "structbrix__cms__rrdata__t.html#ab302ea897ba6e6b17537a8de183473f3", null ],
+    [ "path2", "structbrix__cms__rrdata__t.html#aa749a6c974705a9cdb6535af4102c6a2", null ],
+    [ "path2_len", "structbrix__cms__rrdata__t.html#a01f230046adfdba7d26e5b299e6af8ce", null ],
+    [ "path_len", "structbrix__cms__rrdata__t.html#a5d27773c7d9da3c38fdf450df7b25587", null ],
+    [ "prty", "structbrix__cms__rrdata__t.html#a511e7a1e1c1cf8c9f60e1d68ae9c05dc", null ],
+    [ "prty_len", "structbrix__cms__rrdata__t.html#ab0691cbdfd350614c983063917bee5ec", null ],
+    [ "reqid", "structbrix__cms__rrdata__t.html#a0123f9fe1a8f40fb41e08ea64fbde708", null ],
+    [ "reqid_len", "structbrix__cms__rrdata__t.html#a86cdb27badba205b968fd1e045691a23", null ]
+];

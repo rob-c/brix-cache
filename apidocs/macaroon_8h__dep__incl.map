@@ -1,0 +1,25 @@
+<map id="src/auth/token/macaroon.h" name="src/auth/token/macaroon.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1007,5,1202,33"/>
+<area shape="rect" id="Node000002" href="$token_8c.html" title=" " alt="" coords="5,90,153,117"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="989,22,829,28,623,38,394,55,165,84,126,92,125,86,164,78,393,50,622,32,829,23,994,21"/>
+<area shape="rect" id="Node000003" href="$macaroon_8c.html" title=" " alt="" coords="177,90,370,117"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="989,27,714,48,549,64,383,84,336,91,336,86,383,78,548,59,714,43,994,26"/>
+<area shape="rect" id="Node000004" href="$macaroon__caveats_8c.html" title=" " alt="" coords="394,81,577,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="994,31,804,54,590,84,578,86,577,80,589,78,803,49,989,31"/>
+<area shape="rect" id="Node000005" href="$macaroon__crypto_8c.html" title=" " alt="" coords="601,81,784,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="1025,36,797,84,784,86,783,81,796,78,1020,37"/>
+<area shape="rect" id="Node000006" href="$macaroon__parse_8c.html" title=" " alt="" coords="808,81,990,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="1060,39,954,83,953,78,1055,40"/>
+<area shape="rect" id="Node000007" href="$validate_8c.html" title=" " alt="" coords="1014,90,1195,117"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="1106,47,1106,91,1102,87,1102,51"/>
+<area shape="rect" id="Node000008" href="$auth__token_8c.html" title=" " alt="" coords="1219,81,1379,126"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1150,37,1250,81,1245,80,1149,42"/>
+<area shape="rect" id="Node000009" href="$auth__token__verify_8c.html" title=" " alt="" coords="1403,81,1563,126"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1183,34,1392,78,1405,84,1400,83,1390,84,1183,39"/>
+<area shape="rect" id="Node000010" href="$macaroon__endpoint_8c.html" title=" " alt="" coords="1587,81,1752,126"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1217,29,1387,50,1575,78,1589,83,1584,83,1575,84,1386,55,1217,35"/>
+<area shape="rect" id="Node000011" href="$macaroon__endpoint__oauth2_8c.html" title=" " alt="" coords="1777,81,1994,126"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1217,25,1469,46,1765,78,1779,83,1774,83,1764,84,1468,51,1217,31"/>
+<area shape="rect" id="Node000012" href="$macaroon__endpoint__request_8c.html" title=" " alt="" coords="2019,81,2240,126"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="1217,22,1570,40,1788,56,2007,78,2021,83,2016,82,2007,84,1788,62,1570,45,1217,27"/>
+</map>

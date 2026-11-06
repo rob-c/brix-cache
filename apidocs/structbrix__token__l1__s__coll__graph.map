@@ -1,0 +1,9 @@
+<map id="brix_token_l1_t" name="brix_token_l1_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="21,307,141,335"/>
+<area shape="rect" id="Node000002" href="$structbrix__token__l1__slot__t.html" title=" " alt="" coords="5,207,157,234"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="83,248,84,307,78,306,79,252"/>
+<area shape="rect" id="Node000003" href="$structbrix__token__claims__t.html" title=" " alt="" coords="5,106,157,134"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="82,147,84,206,78,206,80,152"/>
+<area shape="rect" id="Node000004" href="$structbrix__token__scope__t.html" title=" " alt="" coords="8,5,154,33"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="82,46,84,106,78,105,80,51"/>
+</map>

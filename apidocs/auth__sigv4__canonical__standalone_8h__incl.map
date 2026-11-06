@@ -1,0 +1,11 @@
+<map id="src/protocols/s3/auth_sigv4_canonical_standalone.h" name="src/protocols/s3/auth_sigv4_canonical_standalone.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="77,5,300,50"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,98,76,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="152,52,79,92,76,88,147,49"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="100,98,170,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="177,49,154,87,150,83,172,52"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="194,98,290,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="204,48,227,85,222,84,201,53"/>
+<area shape="rect" id="Node000005" href="$tunables__s3_8h.html" title=" " alt="" coords="314,98,498,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="247,48,359,92,354,93,246,53"/>
+</map>

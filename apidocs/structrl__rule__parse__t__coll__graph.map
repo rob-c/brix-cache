@@ -1,0 +1,13 @@
+<map id="rl_rule_parse_t" name="rl_rule_parse_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,307,123,335"/>
+<area shape="rect" id="Node000002" href="$structbrix__rl__rule__t.html" title=" " alt="" coords="78,207,184,234"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="116,247,75,308,71,305,111,247"/>
+<area shape="rect" id="Node000003" href="$structngx__str__t.html" title=" " alt="" coords="90,5,171,33"/>
+<area shape="poly" id="edge6_Node000001_Node000003" title=" " alt="" coords="107,48,74,96,57,126,45,158,39,200,43,242,52,279,61,307,56,307,47,280,38,243,34,200,40,157,53,124,70,93,109,43"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="133,47,133,207,128,206,129,50"/>
+<area shape="rect" id="Node000004" href="$structbrix__rl__zone__t.html" title=" " alt="" coords="233,106,346,134"/>
+<area shape="poly" id="edge5_Node000004_Node000003" title=" " alt="" coords="164,39,271,104,266,106,164,44"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="254,144,153,208,150,204,258,140"/>
+<area shape="rect" id="Node000005" href="$structbrix__rl__shctx__t.html" title=" " alt="" coords="231,5,348,33"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="291,46,292,106,287,104,288,51"/>
+</map>

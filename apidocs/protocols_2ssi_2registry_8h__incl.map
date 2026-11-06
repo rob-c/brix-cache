@@ -1,0 +1,27 @@
+<map id="src/protocols/ssi/registry.h" name="src/protocols/ssi/registry.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="118,5,308,33"/>
+<area shape="rect" id="Node000002" href="$ssi_2session_8h.html" title=" " alt="" coords="172,81,254,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="214,31,215,66,210,65,212,36"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="125,308,199,336"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="212,108,171,294,166,292,207,110"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="444,232,514,260"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="252,107,306,127,362,154,412,187,456,222,450,222,409,192,359,159,304,132,252,112"/>
+<area shape="rect" id="Node000005" href="$ssi__req_8h.html" title=" " alt="" coords="269,157,348,184"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="230,107,282,147,277,147,230,112"/>
+<area shape="rect" id="Node000009" href="$provider_8h.html" title=" " alt="" coords="20,157,106,184"/>
+<area shape="poly" id="edge13_Node000002_Node000009" title=" " alt="" coords="184,111,105,152,102,147,187,107"/>
+<area shape="poly" id="edge5_Node000005_Node000003" title=" " alt="" coords="290,184,259,208,228,234,201,265,179,297,176,293,197,262,224,230,255,204,285,186"/>
+<area shape="poly" id="edge6_Node000005_Node000004" title=" " alt="" coords="340,182,438,226,432,226,339,188"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="353,308,456,336"/>
+<area shape="poly" id="edge7_Node000005_Node000006" title=" " alt="" coords="319,182,354,231,392,295,387,294,349,234,317,187"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="233,308,326,336"/>
+<area shape="poly" id="edge8_Node000005_Node000007" title=" " alt="" coords="318,182,334,218,337,240,334,261,323,282,307,300,305,295,318,279,329,259,332,240,329,220,316,187"/>
+<area shape="rect" id="Node000008" href="$respbuf_8h.html" title=" " alt="" coords="237,232,319,260"/>
+<area shape="poly" id="edge9_Node000005_Node000008" title=" " alt="" coords="305,183,291,220,287,216,301,187"/>
+<area shape="poly" id="edge10_Node000008_Node000003" title=" " alt="" coords="260,260,197,302,194,297,255,261"/>
+<area shape="poly" id="edge11_Node000008_Node000006" title=" " alt="" coords="301,258,372,300,367,300,300,263"/>
+<area shape="poly" id="edge12_Node000008_Node000007" title=" " alt="" coords="280,259,281,294,277,291,276,262"/>
+<area shape="rect" id="Node000010" href="$ssi__service_8h.html" title=" " alt="" coords="5,232,111,260"/>
+<area shape="poly" id="edge14_Node000009_Node000010" title=" " alt="" coords="63,182,63,217,57,216,62,187"/>
+<area shape="poly" id="edge15_Node000010_Node000003" title=" " alt="" coords="77,258,134,298,129,300,76,263"/>
+</map>

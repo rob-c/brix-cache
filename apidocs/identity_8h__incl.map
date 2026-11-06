@@ -1,0 +1,13 @@
+<map id="src/core/types/identity.h" name="src/core/types/identity.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="90,5,266,33"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,81,109,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="155,36,93,75,90,71,158,31"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="132,81,224,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="180,31,181,66,176,64,177,36"/>
+<area shape="rect" id="Node000004" href="$token_8h.html" title=" " alt="" coords="248,81,391,109"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="204,31,284,73,278,74,203,36"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="207,157,318,184"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="312,108,283,147,280,142,307,110"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="342,157,412,184"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="331,107,360,145,355,144,329,112"/>
+</map>

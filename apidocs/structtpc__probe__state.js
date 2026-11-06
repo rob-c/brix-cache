@@ -1,0 +1,25 @@
+var structtpc__probe__state =
+[
+    [ "absent", "structtpc__probe__state.html#a28190ecc52bd687cb84c0127202e7d8a", null ],
+    [ "attempts_known", "structtpc__probe__state.html#aa5d4215c7d5ff4f7c643750ec29ae76e", null ],
+    [ "claims_ok", "structtpc__probe__state.html#a56ee214e8c5a4c1cd1048fa7016458db", null ],
+    [ "copy_elapsed", "structtpc__probe__state.html#ae452811ad9eb89ae91dc91aa27a486b8", null ],
+    [ "copy_ok", "structtpc__probe__state.html#abb6f0ca1ed27bd33601dea568b1e5a0f", null ],
+    [ "destination", "structtpc__probe__state.html#abe032cc426eb13f0157f3540e4f75fe3", null ],
+    [ "destination_claim", "structtpc__probe__state.html#ae12cbe52d463e0495f096038f1dafe8d", null ],
+    [ "destination_object", "structtpc__probe__state.html#ad02e3cf1de1d6d31d3ad1881af12ba32", null ],
+    [ "destination_ready", "structtpc__probe__state.html#a6becfefb613e43250371b4536ba7e9c0", null ],
+    [ "destination_text", "structtpc__probe__state.html#a3818b67a32c642fb238203e4e54cae6a", null ],
+    [ "destination_url", "structtpc__probe__state.html#af4af5c2a346ef797f6065ea39b139afc", null ],
+    [ "exact", "structtpc__probe__state.html#a1c00acaf312c984bab392f1826870a2a", null ],
+    [ "opts", "structtpc__probe__state.html#ab8e35d5c89b0afa7f71e61c4df268a36", null ],
+    [ "payload", "structtpc__probe__state.html#acb78a420c1aa41e326a2440782cec971", null ],
+    [ "planted", "structtpc__probe__state.html#a78b8d25b8d053330074a1c141ddc11b8", null ],
+    [ "source", "structtpc__probe__state.html#a4b1e5f568631fbb387f4ce199d00810a", null ],
+    [ "source_attempts", "structtpc__probe__state.html#a4c95687598c2510f73de7e84abe7bbd6", null ],
+    [ "source_claim", "structtpc__probe__state.html#a10e8c1b5db5fe8e212d435f15a5e5d65", null ],
+    [ "source_object", "structtpc__probe__state.html#aaf4c13f411975f27c75fbc9265c5e679", null ],
+    [ "source_text", "structtpc__probe__state.html#a03ca551360d7e3864f0a801b5dfb80db", null ],
+    [ "source_url", "structtpc__probe__state.html#a3287bd73d1a64e4a8a53f78c88734770", null ],
+    [ "status", "structtpc__probe__state.html#a0543b1997ace81afc4d84633ab7ac3c4", null ]
+];

@@ -1,0 +1,15 @@
+<map id="src/protocols/root/protocol/sec_protocol.h" name="src/protocols/root/protocol/sec_protocol.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="499,5,675,50"/>
+<area shape="rect" id="Node000002" href="$xrd__conform__auth__errors_8c.html" title=" " alt="" coords="5,98,180,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="484,49,192,101,181,103,180,98,191,95,483,43"/>
+<area shape="rect" id="Node000003" href="$xrd__conform__root__login_8c.html" title=" " alt="" coords="203,98,368,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="503,54,359,100,357,95,498,55"/>
+<area shape="rect" id="Node000004" href="$xrd__conform__token__fixtures_8c.html" title=" " alt="" coords="392,98,585,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="555,60,513,100,511,95,550,62"/>
+<area shape="rect" id="Node000005" href="$client_2lib_2auth_2auth_8c.html" title=" " alt="" coords="609,106,763,134"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="623,58,674,107,669,105,621,63"/>
+<area shape="rect" id="Node000006" href="$net_2upstream_2bootstrap_8c.html" title=" " alt="" coords="787,106,995,134"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="675,52,849,106,844,106,674,58"/>
+<area shape="rect" id="Node000007" href="$gsi__outbound__finish_8c.html" title=" " alt="" coords="1019,98,1198,143"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="691,42,1008,95,1022,100,1016,100,1007,101,691,47"/>
+</map>

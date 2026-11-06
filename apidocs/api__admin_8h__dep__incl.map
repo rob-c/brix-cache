@@ -1,0 +1,19 @@
+<map id="src/observability/dashboard/api_admin.h" name="src/observability/dashboard/api_admin.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="700,5,901,50"/>
+<area shape="rect" id="Node000002" href="$dashboard__api__admin__internal_8h.html" title=" " alt="" coords="438,98,675,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="731,55,616,100,614,95,726,56"/>
+<area shape="rect" id="Node000008" href="$observability_2dashboard_2module_8c.html" title=" " alt="" coords="700,98,901,143"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="802,64,803,99,799,96,799,68"/>
+<area shape="rect" id="Node000009" href="$module__dispatch_8c.html" title=" " alt="" coords="925,98,1127,143"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="869,54,975,98,969,97,868,59"/>
+<area shape="rect" id="Node000003" href="$api__admin_8c.html" title=" " alt="" coords="5,191,207,235"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="434,149,208,194,207,189,433,144"/>
+<area shape="rect" id="Node000004" href="$api__admin__cluster_8c.html" title=" " alt="" coords="231,191,432,235"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="491,148,386,193,384,188,486,149"/>
+<area shape="rect" id="Node000005" href="$api__admin__config_8c.html" title=" " alt="" coords="456,191,657,235"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="559,156,559,192,555,189,555,160"/>
+<area shape="rect" id="Node000006" href="$api__admin__proxy_8c.html" title=" " alt="" coords="681,191,883,235"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="625,146,731,190,725,190,624,152"/>
+<area shape="rect" id="Node000007" href="$api__admin__routing_8c.html" title=" " alt="" coords="907,191,1108,235"/>
+<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="680,144,909,191,903,192,679,149"/>
+</map>

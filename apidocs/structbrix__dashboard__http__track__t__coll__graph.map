@@ -1,0 +1,7 @@
+<map id="brix_dashboard_http_track_t" name="brix_dashboard_http_track_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="6,207,161,251"/>
+<area shape="rect" id="Node000002" href="$structbrix__transfer__table__t.html" title=" " alt="" coords="5,106,162,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="86,148,86,207,81,205,81,151"/>
+<area shape="rect" id="Node000003" href="$structbrix__transfer__slot__t.html" title=" " alt="" coords="10,5,157,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="84,46,86,106,81,105,83,51"/>
+</map>

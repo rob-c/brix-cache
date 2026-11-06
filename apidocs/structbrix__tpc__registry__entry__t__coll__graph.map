@@ -1,0 +1,7 @@
+<map id="brix_tpc_registry_entry_t" name="brix_tpc_registry_entry_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,229,189,257"/>
+<area shape="rect" id="Node000002" href="$structbrix__tpc__transfer__t.html" title=" " alt="" coords="25,128,169,156"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="99,170,100,229,94,228,95,173"/>
+<area shape="rect" id="Node000003" href="$structngx__str__t.html" title=" " alt="" coords="56,5,138,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="98,46,100,128,94,127,96,51"/>
+</map>

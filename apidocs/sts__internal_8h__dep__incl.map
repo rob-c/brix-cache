@@ -1,0 +1,9 @@
+<map id="src/auth/s3/sts_internal.h" name="src/auth/s3/sts_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="143,5,327,33"/>
+<area shape="rect" id="Node000002" href="$sts_8c.html" title=" " alt="" coords="5,81,132,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="194,41,99,83,97,78,190,38"/>
+<area shape="rect" id="Node000003" href="$sts__http_8c.html" title=" " alt="" coords="156,81,315,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="237,47,237,82,233,79,233,51"/>
+<area shape="rect" id="Node000004" href="$sts__sign_8c.html" title=" " alt="" coords="339,81,499,109"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="283,37,389,80,384,81,282,42"/>
+</map>

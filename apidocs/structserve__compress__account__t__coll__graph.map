@@ -1,0 +1,13 @@
+<map id="serve_compress_account_t" name="serve_compress_account_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,330,203,357"/>
+<area shape="rect" id="Node000002" href="$structserve__ctx__t.html" title=" " alt="" coords="138,229,235,257"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="169,268,117,331,113,327,164,269"/>
+<area shape="rect" id="Node000003" href="$structbrix__vfs__stat__t.html" title=" " alt="" coords="391,106,508,134"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="417,141,359,175,293,207,230,231,228,226,291,203,356,171,412,143"/>
+<area shape="rect" id="Node000004" href="$structbrix__http__serve__opts__t.html" title=" " alt="" coords="197,106,366,134"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="264,144,199,230,195,227,260,147"/>
+<area shape="rect" id="Node000005" href="$structbrix__http__serve__result__t.html" title=" " alt="" coords="39,5,217,33"/>
+<area shape="poly" id="edge6_Node000001_Node000005" title=" " alt="" coords="121,46,110,99,100,158,98,207,99,256,105,330,100,329,93,256,92,207,95,157,105,98,119,51"/>
+<area shape="poly" id="edge5_Node000002_Node000005" title=" " alt="" coords="129,46,135,89,143,133,162,186,182,229,177,229,157,188,138,134,130,90,128,51"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="161,39,263,104,258,106,161,44"/>
+</map>

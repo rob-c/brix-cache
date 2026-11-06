@@ -1,0 +1,28 @@
+var xrd__conform__root__login_8c =
+[
+    [ "auth_fixture_completes", "xrd__conform__root__login_8c.html#a2d9268b2ef14d32aaa5b063df35010c0", null ],
+    [ "connect_aux", "xrd__conform__root__login_8c.html#a4f5067572e1f4d2a1ed6fadb9599cb99", null ],
+    [ "connect_no_login", "xrd__conform__root__login_8c.html#a3c075a516b085069add8a86094688144", null ],
+    [ "finalize_mechanism_specific_rows", "xrd__conform__root__login_8c.html#aa11ab02cd73d2aa83dfe172d8e0cf49d", null ],
+    [ "login_with_name", "xrd__conform__root__login_8c.html#a3dec65458b35e686914b44a4814b6345", null ],
+    [ "probe_endsess", "xrd__conform__root__login_8c.html#a65d155cedd2cb9f6a5dc5918714cb5a7", null ],
+    [ "probe_gsi_transcript", "xrd__conform__root__login_8c.html#a794c65dd151b4f086588b5582b5869ae", null ],
+    [ "probe_login_security", "xrd__conform__root__login_8c.html#a9345853b64de22d7665753932e83fbaa", null ],
+    [ "probe_login_session", "xrd__conform__root__login_8c.html#a191cb025e9c13445af3900c9020bb925", null ],
+    [ "probe_login_shapes", "xrd__conform__root__login_8c.html#a5cc137eb6274c8506a891c76b9c4f213", null ],
+    [ "probe_prelogin_auth", "xrd__conform__root__login_8c.html#a7d3891ef88ff7e1148c6b4d19f232b23", null ],
+    [ "probe_second_login", "xrd__conform__root__login_8c.html#a368f31cae62a7aa8e3eefaa176614de7", null ],
+    [ "probe_security_claims", "xrd__conform__root__login_8c.html#acff03c5bb6cc82c3d59482f8de75b0b7", null ],
+    [ "probe_session_ids", "xrd__conform__root__login_8c.html#a57b1786be76d79aa1d67b462bd33a85f", null ],
+    [ "probe_signature_baseline", "xrd__conform__root__login_8c.html#aaed3029ccadfc93469aeff0419210ea4", null ],
+    [ "probe_signature_family", "xrd__conform__root__login_8c.html#a67cc473b740a3445fdd56c7acd083447", null ],
+    [ "request", "xrd__conform__root__login_8c.html#a148db134cced55b3b8c9d2d421e998cb", null ],
+    [ "send_endsess", "xrd__conform__root__login_8c.html#a5febaa4e0183bb08ddcbfe78a534c091", null ],
+    [ "session_can_stat", "xrd__conform__root__login_8c.html#a8bbd16d71bb44e6d04783d461d5f4a1a", null ],
+    [ "session_ids_unique", "xrd__conform__root__login_8c.html#aa43c1f5b4f12b87d8a29ec4ef301dec4", null ],
+    [ "set_if_pending", "xrd__conform__root__login_8c.html#a9b820c42779990b9fe2edee106c84b55", null ],
+    [ "set_signature_family", "xrd__conform__root__login_8c.html#aa1efef65735c40cd4c9f7bdd9458192c", null ],
+    [ "signing_claimed", "xrd__conform__root__login_8c.html#aac2b6ba5d19dff403f0802c12a628ec1", null ],
+    [ "skip_absent_security", "xrd__conform__root__login_8c.html#a8396ebc0d6b21caf71e0210b2da4d1a4", null ],
+    [ "xrd_conform_probe_login", "xrd__conform__root__login_8c.html#a2f1ccc2d6e05e035929a14dff4f204b6", null ]
+];

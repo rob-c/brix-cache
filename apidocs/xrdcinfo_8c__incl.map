@@ -1,0 +1,25 @@
+<map id="client/apps/cksum/xrdcinfo.c" name="client/apps/cksum/xrdcinfo.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="294,5,502,33"/>
+<area shape="rect" id="Node000002" href="$version_8h.html" title=" " alt="" coords="5,81,119,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="337,36,135,80,133,75,338,31"/>
+<area shape="rect" id="Node000003" href="$progname_8h.html" title=" " alt="" coords="194,81,325,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="376,32,298,76,296,71,371,35"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="177,165,243,193"/>
+<area shape="poly" id="edge5_Node000001_Node000004" title=" " alt="" coords="311,35,234,56,203,68,184,83,178,99,179,116,194,153,189,152,173,118,172,98,180,79,201,64,233,51,315,32"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="272,165,342,193"/>
+<area shape="poly" id="edge8_Node000001_Node000005" title=" " alt="" coords="393,32,324,154,320,150,388,34"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="399,81,469,109"/>
+<area shape="poly" id="edge6_Node000001_Node000006" title=" " alt="" coords="406,31,423,68,418,66,403,36"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="492,81,562,109"/>
+<area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="422,31,494,73,489,73,421,36"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="586,81,682,109"/>
+<area shape="poly" id="edge9_Node000001_Node000008" title=" " alt="" coords="440,31,580,76,575,76,440,36"/>
+<area shape="rect" id="Node000009" href="$src_2platform_2platform_8h.html" title=" " alt="" coords="706,81,855,109"/>
+<area shape="poly" id="edge10_Node000001_Node000009" title=" " alt="" coords="467,31,700,77,694,78,467,36"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="254,108,227,154,224,150,249,111"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="268,107,295,153,290,151,266,112"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="607,157,781,201"/>
+<area shape="poly" id="edge11_Node000009_Node000010" title=" " alt="" coords="769,108,729,148,727,143,764,110"/>
+<area shape="rect" id="Node000011" href="$platform__arch_8h.html" title=" " alt="" coords="805,165,930,193"/>
+<area shape="poly" id="edge12_Node000009_Node000011" title=" " alt="" coords="796,107,845,155,840,154,794,112"/>
+</map>

@@ -1,0 +1,19 @@
+<map id="src/auth/authz/acc" name="src/auth/authz/acc">
+<area shape="rect" id="node1" href="dir_c1cce246a8ca3b6db27e9bf6b8b15d6e.html" title="acc" alt="" coords="182,54,226,82"/>
+<area shape="rect" id="node2" href="dir_4b68c2fef3e151b6b93d5e93b14f1857.html" title="platform" alt="" coords="5,130,83,158"/>
+<area shape="poly" id="edge1" href="dir_000001_000097.html" alt="" coords="183,82,87,126,85,121,180,77"/>
+<area shape="rect" id="edge1-headlabel" href="dir_000001_000097.html" title="1" alt="" coords="89,121,97,138"/>
+<area shape="rect" id="node3" href="dir_8871a34fceeeb416fb017aaac8b471ce.html" title="pwd" alt="" coords="106,130,155,158"/>
+<area shape="poly" id="edge2" href="dir_000001_000109.html" alt="" coords="193,82,156,121,153,117,188,84"/>
+<area shape="rect" id="edge2-headlabel" href="dir_000001_000109.html" title="1" alt="" coords="158,114,166,131"/>
+<area shape="rect" id="node4" href="dir_aebb8dcc11953d78e620bbef0b9e2183.html" title="core" alt="" coords="179,130,229,158"/>
+<area shape="poly" id="edge3" href="dir_000001_000030.html" alt="" coords="206,81,206,116,202,113,202,84"/>
+<area shape="rect" id="edge3-headlabel" href="dir_000001_000030.html" title="15" alt="" coords="204,103,220,120"/>
+<area shape="rect" id="node5" href="dir_b74ed0efa461d1dc3d2a2bcdca1c8270.html" title="observability" alt="" coords="252,130,358,158"/>
+<area shape="poly" id="edge4" href="dir_000001_000086.html" alt="" coords="223,80,278,121,272,121,221,85"/>
+<area shape="rect" id="edge4-headlabel" href="dir_000001_000086.html" title="4" alt="" coords="274,104,282,121"/>
+<area shape="rect" id="node6" href="dir_c72b25b75abe208498b36a3e44a3726c.html" title="net" alt="" coords="383,130,425,158"/>
+<area shape="poly" id="edge5" href="dir_000001_000084.html" alt="" coords="227,75,371,128,366,130,226,80"/>
+<area shape="rect" id="edge5-headlabel" href="dir_000001_000084.html" title="1" alt="" coords="364,112,372,129"/>
+<area shape="rect" id="clust1" href="dir_581f3915f9e1f7f984af5af41f44c9ce.html" title="authz" alt="" coords="172,16,236,93"/>
+</map>

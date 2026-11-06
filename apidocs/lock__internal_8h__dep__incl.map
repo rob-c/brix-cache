@@ -1,0 +1,9 @@
+<map id="src/protocols/webdav/lock_internal.h" name="src/protocols/webdav/lock_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="189,5,349,50"/>
+<area shape="rect" id="Node000002" href="$protocols_2webdav_2lock_8c.html" title=" " alt="" coords="5,98,165,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="214,56,130,100,128,95,209,58"/>
+<area shape="rect" id="Node000003" href="$lock__check_8c.html" title=" " alt="" coords="189,98,349,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="271,64,271,99,267,96,267,68"/>
+<area shape="rect" id="Node000004" href="$lock__discovery_8c.html" title=" " alt="" coords="373,98,533,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="327,55,412,98,407,98,326,60"/>
+</map>

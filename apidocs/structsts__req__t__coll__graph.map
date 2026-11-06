@@ -1,0 +1,17 @@
+<map id="sts_req_t" name="sts_req_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="226,617,306,645"/>
+<area shape="rect" id="Node000002" href="$structbrix__s3__sts__conf__t.html" title=" " alt="" coords="129,517,270,544"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="218,555,260,617,254,616,215,559"/>
+<area shape="rect" id="Node000003" href="$structngx__str__t.html" title=" " alt="" coords="47,5,128,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="66,48,65,58,29,166,17,212,10,256,9,299,16,343,32,390,58,442,77,467,102,487,129,502,157,515,152,517,127,507,99,491,73,471,53,445,27,392,11,344,4,299,4,255,12,211,24,165,60,56,68,43"/>
+<area shape="rect" id="Node000004" href="$structbrix__dns__policy__s.html" title=" " alt="" coords="132,373,267,400"/>
+<area shape="poly" id="edge4_Node000004_Node000003" title=" " alt="" coords="79,51,72,99,66,165,70,236,78,271,91,304,126,333,182,371,177,373,123,337,87,307,73,273,65,237,60,165,67,98,80,45"/>
+<area shape="rect" id="Node000006" href="$structbrix__identity__t.html" title=" " alt="" coords="291,373,406,400"/>
+<area shape="poly" id="edge7_Node000006_Node000003" title=" " alt="" coords="116,41,128,56,135,80,138,111,136,185,137,256,143,284,153,304,167,315,180,321,209,322,242,319,260,321,279,327,313,348,339,372,334,373,309,352,277,332,259,326,242,324,210,327,179,326,164,320,149,307,138,286,132,257,131,184,132,111,130,81,124,58,117,46"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="201,414,202,517,197,515,198,418"/>
+<area shape="rect" id="Node000005" href="$structbrix__resolv__conf__t.html" title=" " alt="" coords="219,5,359,33"/>
+<area shape="poly" id="edge5_Node000004_Node000005" title=" " alt="" coords="291,46,294,99,292,164,282,236,262,306,240,345,215,374,210,371,235,342,257,304,277,235,286,163,289,99,290,51"/>
+<area shape="poly" id="edge6_Node000001_Node000006" title=" " alt="" coords="342,415,273,618,268,615,337,416"/>
+<area shape="rect" id="Node000007" href="$structbrix__token__scope__t.html" title=" " alt="" coords="384,5,530,33"/>
+<area shape="poly" id="edge8_Node000006_Node000007" title=" " alt="" coords="451,46,355,373,350,371,446,49"/>
+</map>

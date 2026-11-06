@@ -1,0 +1,9 @@
+<map id="client/lib/fs/vfs.h" name="client/lib/fs/vfs.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="178,5,308,33"/>
+<area shape="rect" id="Node000002" href="$vfs_8c.html" title=" " alt="" coords="5,81,134,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="200,41,101,83,99,78,196,38"/>
+<area shape="rect" id="Node000003" href="$vfs__block_8c.html" title=" " alt="" coords="158,81,328,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="245,47,245,82,241,79,241,51"/>
+<area shape="rect" id="Node000004" href="$vfs__posix_8c.html" title=" " alt="" coords="352,81,523,109"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="292,36,406,80,400,81,291,41"/>
+</map>

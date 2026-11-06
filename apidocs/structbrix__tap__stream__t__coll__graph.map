@@ -1,0 +1,8 @@
+<map id="brix_tap_stream_t" name="brix_tap_stream_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="18,207,157,234"/>
+<area shape="rect" id="Node000002" href="$structbrix__tap__ctx__t.html" title=" " alt="" coords="103,106,216,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="144,145,99,208,95,204,139,146"/>
+<area shape="rect" id="Node000003" href="$structbrix__tap__frame__t.html" title=" " alt="" coords="5,5,138,33"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="67,46,65,89,66,133,75,173,85,206,80,206,70,174,61,134,59,89,66,51"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="94,42,150,105,145,106,93,47"/>
+</map>

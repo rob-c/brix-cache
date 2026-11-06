@@ -1,0 +1,9 @@
+<map id="src/core/config/conf_handler.h" name="src/core/config/conf_handler.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="248,5,396,50"/>
+<area shape="rect" id="Node000002" href="$observability_2dashboard_2module_8c.html" title=" " alt="" coords="5,98,207,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="259,56,159,100,157,95,254,57"/>
+<area shape="rect" id="Node000003" href="$observability_2metrics_2module_8c.html" title=" " alt="" coords="231,98,413,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="324,64,324,99,320,96,320,68"/>
+<area shape="rect" id="Node000004" href="$protocols_2srr_2module_8c.html" title=" " alt="" coords="437,106,626,134"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="386,54,504,106,498,106,385,59"/>
+</map>

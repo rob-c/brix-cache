@@ -1,0 +1,7 @@
+<map id="brix_dns_req_t" name="brix_dns_req_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="50,128,167,156"/>
+<area shape="rect" id="Node000002" href="$structngx__str__t.html" title=" " alt="" coords="5,5,87,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="62,45,104,127,99,128,58,49"/>
+<area shape="rect" id="Node000003" href="$structbrix__dns__addr__t.html" title=" " alt="" coords="110,5,235,33"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="168,46,160,77,146,106,125,130,122,126,141,103,155,75,164,50"/>
+</map>

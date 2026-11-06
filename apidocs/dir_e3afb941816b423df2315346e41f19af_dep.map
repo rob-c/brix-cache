@@ -1,0 +1,10 @@
+<map id="client/lib/platform/freebsd" name="client/lib/platform/freebsd">
+<area shape="rect" id="node1" href="dir_e3afb941816b423df2315346e41f19af.html" title="freebsd" alt="" coords="30,54,101,82"/>
+<area shape="rect" id="node2" href="dir_68267d1309a1af8e8297ef4c3efbcdba.html" title="src" alt="" coords="5,130,46,158"/>
+<area shape="poly" id="edge1" href="dir_000047_000136.html" alt="" coords="60,81,42,118,38,115,56,84"/>
+<area shape="rect" id="edge1-headlabel" href="dir_000047_000136.html" title="1" alt="" coords="45,109,53,126"/>
+<area shape="rect" id="node3" href="dir_afac39c45d0d37c32a9736b43f4e4e24.html" title="preload" alt="" coords="70,130,141,158"/>
+<area shape="poly" id="edge2" href="dir_000047_000102.html" alt="" coords="74,80,94,116,88,116,71,85"/>
+<area shape="rect" id="edge2-headlabel" href="dir_000047_000102.html" title="1" alt="" coords="93,101,101,118"/>
+<area shape="rect" id="clust1" href="dir_1fee3ae48ff8fd8619fc8c191b2a517f.html" title="platform" alt="" coords="20,16,111,93"/>
+</map>

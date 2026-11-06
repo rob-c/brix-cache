@@ -1,0 +1,7 @@
+<map id="brix_auth_cache_conf_t" name="brix_auth_cache_conf_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,207,180,234"/>
+<area shape="rect" id="Node000002" href="$structbrix__kv__t.html" title=" " alt="" coords="52,106,133,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="95,148,95,207,90,205,90,151"/>
+<area shape="rect" id="Node000003" href="$structngx__str__t.html" title=" " alt="" coords="52,5,133,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="94,46,95,106,90,105,91,51"/>
+</map>

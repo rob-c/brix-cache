@@ -1,0 +1,17 @@
+<map id="src/tpc/common/auth.h" name="src/tpc/common/auth.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="118,5,289,33"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,157,109,184"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="178,35,149,56,118,83,93,113,73,144,69,141,88,110,114,79,146,52,182,32"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="299,157,391,184"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="229,31,263,52,295,79,318,110,336,143,331,142,314,113,291,83,260,56,229,36"/>
+<area shape="rect" id="Node000004" href="$identity_8h.html" title=" " alt="" coords="127,81,280,109"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="205,31,206,66,201,64,203,36"/>
+<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="176,111,98,152,95,147,179,107"/>
+<area shape="poly" id="edge5_Node000004_Node000003" title=" " alt="" coords="229,107,309,149,304,150,229,112"/>
+<area shape="rect" id="Node000005" href="$token_8h.html" title=" " alt="" coords="132,157,275,184"/>
+<area shape="poly" id="edge6_Node000004_Node000005" title=" " alt="" coords="205,107,206,142,201,140,202,111"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="91,232,202,260"/>
+<area shape="poly" id="edge7_Node000005_Node000006" title=" " alt="" coords="196,184,167,222,164,218,191,186"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="226,232,296,260"/>
+<area shape="poly" id="edge8_Node000005_Node000007" title=" " alt="" coords="215,182,244,221,239,220,213,187"/>
+</map>

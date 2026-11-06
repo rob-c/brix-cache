@@ -1,0 +1,9 @@
+<map id="src/fs/cache/cache_admit.h" name="src/fs/cache/cache_admit.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="173,5,314,50"/>
+<area shape="rect" id="Node000002" href="$cache__admit_8c.html" title=" " alt="" coords="5,98,146,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="192,57,117,100,114,95,187,59"/>
+<area shape="rect" id="Node000003" href="$fetch_8c.html" title=" " alt="" coords="170,106,317,134"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="245,64,246,107,241,104,242,67"/>
+<area shape="rect" id="Node000004" href="$writethrough__decision_8c.html" title=" " alt="" coords="340,98,526,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="303,54,391,97,385,98,302,60"/>
+</map>

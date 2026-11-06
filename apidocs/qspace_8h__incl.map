@@ -1,0 +1,11 @@
+<map id="src/protocols/root/protocol/qspace.h" name="src/protocols/root/protocol/qspace.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="110,5,251,50"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,98,79,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="147,51,79,92,76,87,141,51"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="103,98,168,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="171,49,152,86,148,82,166,52"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="193,98,262,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="194,48,215,85,210,84,192,53"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="286,98,356,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="219,48,288,90,283,90,217,53"/>
+</map>

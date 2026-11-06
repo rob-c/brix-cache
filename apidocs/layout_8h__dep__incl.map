@@ -1,0 +1,19 @@
+<map id="client/lib/oci/layout.h" name="client/lib/oci/layout.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="593,5,751,33"/>
+<area shape="rect" id="Node000002" href="$brixoci__internal_8h.html" title=" " alt="" coords="390,81,552,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="628,38,525,83,523,78,623,40"/>
+<area shape="rect" id="Node000007" href="$layout__internal_8h.html" title=" " alt="" coords="801,81,946,126"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="719,37,823,80,817,80,718,42"/>
+<area shape="rect" id="Node000003" href="$brixoci_8c.html" title=" " alt="" coords="5,182,179,210"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="375,130,148,184,147,179,374,125"/>
+<area shape="rect" id="Node000004" href="$brixoci__convert_8c.html" title=" " alt="" coords="203,174,365,218"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="415,132,329,176,327,171,410,133"/>
+<area shape="rect" id="Node000005" href="$brixoci__copy_8c.html" title=" " alt="" coords="390,174,552,218"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="473,139,473,175,469,172,469,143"/>
+<area shape="rect" id="Node000006" href="$brixoci__gc_8c.html" title=" " alt="" coords="576,182,771,210"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="534,130,647,182,641,182,532,135"/>
+<area shape="rect" id="Node000008" href="$layout_8c.html" title=" " alt="" coords="795,182,952,210"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="875,139,875,183,871,180,871,143"/>
+<area shape="rect" id="Node000009" href="$layout__index_8c.html" title=" " alt="" coords="975,174,1121,218"/>
+<area shape="poly" id="edge8_Node000007_Node000009" title=" " alt="" coords="929,131,1009,174,1004,173,928,136"/>
+</map>

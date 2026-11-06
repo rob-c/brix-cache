@@ -1,0 +1,11 @@
+<map id="src/protocols/root/connection/shutdown_hold.h" name="src/protocols/root/connection/shutdown_hold.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="285,5,448,67"/>
+<area shape="rect" id="Node000002" href="$open__or__fill_8c.html" title=" " alt="" coords="5,115,160,160"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="273,70,145,117,144,112,267,72"/>
+<area shape="rect" id="Node000003" href="$disconnect_8c.html" title=" " alt="" coords="184,115,365,160"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="331,78,296,117,293,112,326,80"/>
+<area shape="rect" id="Node000004" href="$protocols_2root_2connection_2recv_8c.html" title=" " alt="" coords="389,115,528,160"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="406,76,441,115,436,114,404,81"/>
+<area shape="rect" id="Node000005" href="$protocols_2root_2connection_2recv__frame_8c.html" title=" " alt="" coords="551,115,736,160"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="463,69,586,114,580,114,463,74"/>
+</map>

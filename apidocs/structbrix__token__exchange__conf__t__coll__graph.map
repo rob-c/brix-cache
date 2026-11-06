@@ -1,0 +1,10 @@
+<map id="brix_token_exchange_conf_t" name="brix_token_exchange_conf_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,249,165,293"/>
+<area shape="rect" id="Node000002" href="$structngx__str__t.html" title=" " alt="" coords="47,5,128,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="84,45,79,106,80,185,85,249,80,248,74,185,74,106,82,51"/>
+<area shape="rect" id="Node000003" href="$structbrix__dns__policy__s.html" title=" " alt="" coords="179,127,314,155"/>
+<area shape="poly" id="edge3_Node000003_Node000002" title=" " alt="" coords="117,40,231,125,227,128,116,45"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="220,166,114,251,110,246,216,163"/>
+<area shape="rect" id="Node000004" href="$structbrix__resolv__conf__t.html" title=" " alt="" coords="176,5,316,33"/>
+<area shape="poly" id="edge4_Node000003_Node000004" title=" " alt="" coords="248,46,249,127,244,126,245,51"/>
+</map>

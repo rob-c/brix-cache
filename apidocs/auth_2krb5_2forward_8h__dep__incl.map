@@ -1,0 +1,13 @@
+<map id="src/auth/krb5/forward.h" name="src/auth/krb5/forward.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="274,5,446,33"/>
+<area shape="rect" id="Node000002" href="$auth_2krb5_2deleg__capture_8c.html" title=" " alt="" coords="5,81,152,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="298,40,153,83,151,78,302,36"/>
+<area shape="rect" id="Node000003" href="$auth_2krb5_2forward_8c.html" title=" " alt="" coords="176,90,347,117"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="335,42,278,91,275,87,330,44"/>
+<area shape="rect" id="Node000004" href="$kxr__wire_8h.html" title=" " alt="" coords="371,90,549,117"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="388,41,447,89,441,89,387,46"/>
+<area shape="rect" id="Node000006" href="$vfs__deleg__hooks_8c.html" title=" " alt="" coords="573,81,720,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="421,35,575,80,570,82,420,40"/>
+<area shape="rect" id="Node000005" href="$kxr__wire_8c.html" title=" " alt="" coords="371,174,548,201"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="462,131,462,175,458,172,458,135"/>
+</map>

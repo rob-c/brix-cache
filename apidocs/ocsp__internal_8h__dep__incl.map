@@ -1,0 +1,9 @@
+<map id="src/auth/crypto/ocsp_internal.h" name="src/auth/crypto/ocsp_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="192,5,344,50"/>
+<area shape="rect" id="Node000002" href="$ocsp_8c.html" title=" " alt="" coords="5,106,169,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="214,58,114,108,112,104,209,57"/>
+<area shape="rect" id="Node000003" href="$ocsp__request_8c.html" title=" " alt="" coords="192,98,344,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="270,64,271,99,266,96,266,68"/>
+<area shape="rect" id="Node000004" href="$ocsp__transport_8c.html" title=" " alt="" coords="368,98,520,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="325,55,405,98,400,98,323,60"/>
+</map>

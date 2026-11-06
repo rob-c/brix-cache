@@ -1,0 +1,29 @@
+<map id="src/protocols/cvmfs/cvmfs_module_internal.h" name="src/protocols/cvmfs/cvmfs_module_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1118,5,1308,50"/>
+<area shape="rect" id="Node000002" href="$attest_8c.html" title=" " alt="" coords="5,98,154,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1099,30,922,37,689,48,427,68,165,101,155,102,154,97,164,95,427,63,688,43,922,32,1105,30"/>
+<area shape="rect" id="Node000003" href="$bundle_8c.html" title=" " alt="" coords="177,98,326,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="1099,32,951,41,760,54,549,73,339,101,326,103,326,98,338,95,549,68,760,48,950,36,1105,32"/>
+<area shape="rect" id="Node000004" href="$cvmfs__module__build_8c.html" title=" " alt="" coords="350,98,521,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="1099,37,842,62,687,79,533,101,522,103,521,97,532,95,687,74,841,56,1105,36"/>
+<area shape="rect" id="Node000005" href="$cvmfs__module__georank_8c.html" title=" " alt="" coords="545,98,737,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="1105,44,749,101,738,103,737,97,748,95,1100,44"/>
+<area shape="rect" id="Node000006" href="$cvmfs__module__merge_8c.html" title=" " alt="" coords="761,98,942,143"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="1114,54,938,100,938,95,1109,55"/>
+<area shape="rect" id="Node000007" href="$delta_8c.html" title=" " alt="" coords="967,98,1115,143"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="1161,57,1082,100,1081,95,1156,58"/>
+<area shape="rect" id="Node000008" href="$dict_8c.html" title=" " alt="" coords="1139,98,1287,143"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1215,64,1215,100,1211,96,1211,67"/>
+<area shape="rect" id="Node000009" href="$protocols_2cvmfs_2handler_8c.html" title=" " alt="" coords="1311,98,1459,143"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1268,55,1347,98,1341,97,1267,60"/>
+<area shape="rect" id="Node000010" href="$handler__finalize_8c.html" title=" " alt="" coords="1483,98,1631,143"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1310,52,1485,100,1479,99,1310,57"/>
+<area shape="rect" id="Node000011" href="$protocols_2cvmfs_2module_8c.html" title=" " alt="" coords="1655,98,1803,143"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1324,41,1476,65,1644,95,1657,101,1652,100,1643,101,1475,70,1323,47"/>
+<area shape="rect" id="Node000012" href="$secure_8c.html" title=" " alt="" coords="1827,98,1975,143"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="1324,35,1551,57,1684,74,1816,95,1829,100,1823,100,1815,101,1683,80,1551,63,1323,40"/>
+<area shape="rect" id="Node000013" href="$secure__x509_8c.html" title=" " alt="" coords="1999,98,2147,143"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="1323,31,1624,51,1806,70,1988,95,2001,100,1995,100,1987,101,1806,75,1624,57,1323,36"/>
+<area shape="rect" id="Node000014" href="$virtual_8c.html" title=" " alt="" coords="2171,98,2319,143"/>
+<area shape="poly" id="edge13_Node000001_Node000014" title=" " alt="" coords="1324,28,1487,34,1696,46,1928,66,2160,95,2173,100,2167,100,2159,101,1927,71,1695,51,1487,39,1324,34"/>
+</map>

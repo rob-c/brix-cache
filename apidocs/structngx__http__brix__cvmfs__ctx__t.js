@@ -1,0 +1,19 @@
+var structngx__http__brix__cvmfs__ctx__t =
+[
+    [ "attest_label", "structngx__http__brix__cvmfs__ctx__t.html#a5e4639772974946b306e10f6476f5c8b", null ],
+    [ "cache_status", "structngx__http__brix__cvmfs__ctx__t.html#a48c3ee9879bc3cdc9093fd38bf578670", null ],
+    [ "origin_used", "structngx__http__brix__cvmfs__ctx__t.html#a45f2c2025422fd454c69428c0d5628ec", null ],
+    [ "repo", "structngx__http__brix__cvmfs__ctx__t.html#a52dc9fc3adce043c32bcd39ac5f9389a", null ],
+    [ "sd_override", "structngx__http__brix__cvmfs__ctx__t.html#aab99af78a7b63d8891fdbbb4ed056892", null ],
+    [ "secure", "structngx__http__brix__cvmfs__ctx__t.html#ab8901bdb9489aaba6e783e401514fb3e", null ],
+    [ "sess_attempt_logged", "structngx__http__brix__cvmfs__ctx__t.html#ad9360fe3b640c8a27dd55385dc173fd6", null ],
+    [ "sess_xfer", "structngx__http__brix__cvmfs__ctx__t.html#a7360bbf75e4b0451a2bc28204bd94cee", null ],
+    [ "sess_xfer_started", "structngx__http__brix__cvmfs__ctx__t.html#a4285b4ae830a233d92ddfa3d66c0be1a", null ],
+    [ "token_sub", "structngx__http__brix__cvmfs__ctx__t.html#aee2a9f7bcdcf5c8adc6ffdd945da417f", null ],
+    [ "up_root", "structngx__http__brix__cvmfs__ctx__t.html#a5c7e681ee5a83e9db17fc42c9e7bb3bb", null ],
+    [ "url", "structngx__http__brix__cvmfs__ctx__t.html#aebcd5895c126ed823d87e1ea4c19a11b", null ],
+    [ "virt", "structngx__http__brix__cvmfs__ctx__t.html#adecf02e99daa5d8a6653e6894ba876bf", null ],
+    [ "virt_idx", "structngx__http__brix__cvmfs__ctx__t.html#a39c7fb9fd8eaa97a317b89d39a2bb58c", null ],
+    [ "virt_off", "structngx__http__brix__cvmfs__ctx__t.html#a84fdfb81c49c57f8c2a05c97d7d8afd3", null ],
+    [ "virt_uri", "structngx__http__brix__cvmfs__ctx__t.html#a80e9bb16331d6c2198fc844e2e652212", null ]
+];

@@ -1,0 +1,12 @@
+<map id="ngx_http_brix_cvmfs_ctx_t" name="ngx_http_brix_cvmfs_ctx_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="192,249,350,293"/>
+<area shape="rect" id="Node000002" href="$structngx__brix__cvmfs__repo__metrics__t.html" title=" " alt="" coords="5,118,166,163"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="109,173,133,199,159,222,204,248,199,248,156,227,129,203,108,178"/>
+<area shape="rect" id="Node000003" href="$structngx__str__t.html" title=" " alt="" coords="194,5,276,33"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="230,46,224,107,224,142,228,175,242,214,260,249,255,247,237,216,223,176,219,142,219,107,227,51"/>
+<area shape="rect" id="Node000005" href="$structbrix__cvmfs__virtual__t.html" title=" " alt="" coords="323,127,477,155"/>
+<area shape="poly" id="edge5_Node000005_Node000003" title=" " alt="" coords="266,40,385,126,380,127,264,45"/>
+<area shape="rect" id="Node000004" href="$structbrix__sess__xfer__t.html" title=" " alt="" coords="502,127,629,155"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="525,161,491,178,322,251,320,246,488,173,519,162"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="379,165,294,251,291,246,374,167"/>
+</map>

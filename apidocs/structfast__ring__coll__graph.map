@@ -1,0 +1,8 @@
+<map id="fast_ring" name="fast_ring">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,84,33"/>
+<area shape="rect" id="Node000002" href="$structfast__slot.html" title=" " alt="" coords="58,106,135,134"/>
+<area shape="poly" id="edge2_Node000002_Node000001" title=" " alt="" coords="30,45,28,65,31,81,43,94,60,105,55,107,40,98,26,83,22,65,28,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="82,92,65,58,52,36,54,31,70,56,87,92"/>
+<area shape="rect" id="Node000003" href="$structbrix__status.html" title=" " alt="" coords="119,5,212,33"/>
+<area shape="poly" id="edge3_Node000002_Node000003" title=" " alt="" coords="151,44,125,84,108,107,104,103,121,80,146,47"/>
+</map>

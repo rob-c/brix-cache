@@ -1,0 +1,17 @@
+<map id="src/protocols/root/protocol/readv_seg.h" name="src/protocols/root/protocol/readv_seg.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="85,5,246,50"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,174,76,201"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="151,52,62,163,58,160,147,49"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="100,174,170,201"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="162,49,151,99,141,160,136,158,146,97,158,53"/>
+<area shape="rect" id="Node000004" href="$frame__hdr_8h.html" title=" " alt="" coords="160,98,260,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="178,48,198,84,193,84,176,53"/>
+<area shape="rect" id="Node000007" href="$flags_8h.html" title=" " alt="" coords="283,98,347,126"/>
+<area shape="poly" id="edge8_Node000001_Node000007" title=" " alt="" coords="206,48,281,90,276,91,205,53"/>
+<area shape="poly" id="edge5_Node000004_Node000002" title=" " alt="" coords="181,129,85,170,83,165,179,124"/>
+<area shape="poly" id="edge6_Node000004_Node000003" title=" " alt="" coords="199,125,161,165,158,160,194,127"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="194,174,268,201"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="215,124,226,160,221,158,212,128"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="292,174,384,201"/>
+<area shape="poly" id="edge7_Node000004_Node000006" title=" " alt="" coords="233,124,305,166,300,166,232,129"/>
+</map>

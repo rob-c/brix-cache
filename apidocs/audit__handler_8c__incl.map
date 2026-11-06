@@ -1,0 +1,15 @@
+<map id="src/net/httpguard/audit_handler.c" name="src/net/httpguard/audit_handler.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="151,5,320,50"/>
+<area shape="rect" id="Node000002" href="$guard__http_8h.html" title=" " alt="" coords="184,98,287,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="237,48,238,83,233,81,234,53"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,174,109,201"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="202,128,104,170,102,165,205,124"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="132,174,224,201"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="227,125,200,163,196,160,223,128"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="249,174,340,201"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="247,124,277,162,272,161,245,129"/>
+<area shape="rect" id="Node000006" href="$guard_8h.html" title=" " alt="" coords="364,174,500,201"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="271,124,385,167,380,169,270,129"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="395,249,468,277"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="434,200,434,235,430,232,430,204"/>
+</map>

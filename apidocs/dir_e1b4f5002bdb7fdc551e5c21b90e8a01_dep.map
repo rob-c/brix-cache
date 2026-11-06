@@ -1,0 +1,43 @@
+<map id="src/protocols/root/connection" name="src/protocols/root/connection">
+<area shape="rect" id="node1" href="dir_01c02c5cfca8079e4ca9a022394e2808.html" title="session" alt="" coords="26,130,96,158"/>
+<area shape="rect" id="node2" href="dir_3842b38a04873a4717f586e104d91c94.html" title="zip" alt="" coords="121,130,162,158"/>
+<area shape="rect" id="node3" href="dir_65c5f38eaa7af83360707bd38ce15751.html" title="write" alt="" coords="186,130,240,158"/>
+<area shape="rect" id="node4" href="dir_a575014d06306916639e4fbec33e7794.html" title="relay" alt="" coords="265,130,319,158"/>
+<area shape="rect" id="node5" href="dir_c94b32439c0e4ec17fa2463a2e62bc44.html" title="handoff" alt="" coords="344,130,414,158"/>
+<area shape="rect" id="node6" href="dir_eb1d7d51c60d8790150eb043bb834be0.html" title="protocol" alt="" coords="438,130,512,158"/>
+<area shape="rect" id="node7" href="dir_e1b4f5002bdb7fdc551e5c21b90e8a01.html" title="connection" alt="" coords="419,54,512,82"/>
+<area shape="poly" id="edge1" href="dir_000027_000131.html" alt="" coords="416,77,286,100,112,132,111,127,285,94,422,75"/>
+<area shape="rect" id="edge1-headlabel" href="dir_000027_000131.html" title="9" alt="" coords="112,129,120,146"/>
+<area shape="poly" id="edge2" href="dir_000027_000162.html" alt="" coords="416,78,312,100,177,133,176,127,311,94,422,76"/>
+<area shape="rect" id="edge2-headlabel" href="dir_000027_000162.html" title="2" alt="" coords="178,129,186,146"/>
+<area shape="poly" id="edge3" href="dir_000027_000158.html" alt="" coords="421,82,256,132,255,127,416,83"/>
+<area shape="rect" id="edge3-headlabel" href="dir_000027_000158.html" title="3" alt="" coords="257,128,265,145"/>
+<area shape="poly" id="edge7" href="dir_000027_000115.html" alt="" coords="437,82,334,128,332,123,432,83"/>
+<area shape="rect" id="edge7-headlabel" href="dir_000027_000115.html" title="1" alt="" coords="335,123,343,140"/>
+<area shape="poly" id="edge11" href="dir_000027_000062.html" alt="" coords="452,82,407,122,404,118,447,84"/>
+<area shape="rect" id="edge11-headlabel" href="dir_000027_000062.html" title="3" alt="" coords="409,116,417,133"/>
+<area shape="poly" id="edge12" href="dir_000027_000105.html" alt="" coords="469,80,473,116,469,113,465,85"/>
+<area shape="rect" id="edge12-headlabel" href="dir_000027_000105.html" title="2" alt="" coords="475,102,483,119"/>
+<area shape="rect" id="node8" href="dir_6ae9f3ae5b9dfc23fd6a97ddffe7b464.html" title="tpc" alt="" coords="535,130,577,158"/>
+<area shape="poly" id="edge4" href="dir_000027_000148.html" alt="" coords="482,80,531,120,525,119,481,85"/>
+<area shape="rect" id="edge4-headlabel" href="dir_000027_000148.html" title="1" alt="" coords="527,103,535,120"/>
+<area shape="rect" id="node9" href="dir_7d71b6c457a61cbf03a04bfdc57b6110.html" title="fs" alt="" coords="601,130,639,158"/>
+<area shape="poly" id="edge5" href="dir_000027_000052.html" alt="" coords="494,80,589,127,584,127,492,85"/>
+<area shape="rect" id="edge5-headlabel" href="dir_000027_000052.html" title="12" alt="" coords="580,109,596,126"/>
+<area shape="rect" id="node10" href="dir_94e4da69fc26a6a4a984451d79cfe747.html" title="ssi" alt="" coords="663,130,702,158"/>
+<area shape="poly" id="edge6" href="dir_000027_000139.html" alt="" coords="508,80,651,129,645,129,507,85"/>
+<area shape="rect" id="edge6-headlabel" href="dir_000027_000139.html" title="2" alt="" coords="644,112,652,129"/>
+<area shape="rect" id="node11" href="dir_aebb8dcc11953d78e620bbef0b9e2183.html" title="core" alt="" coords="726,130,775,158"/>
+<area shape="poly" id="edge8" href="dir_000027_000030.html" alt="" coords="512,77,601,97,714,129,708,129,600,103,512,82"/>
+<area shape="rect" id="edge8-headlabel" href="dir_000027_000030.html" title="29" alt="" coords="703,112,719,129"/>
+<area shape="rect" id="node12" href="dir_b74ed0efa461d1dc3d2a2bcdca1c8270.html" title="observability" alt="" coords="799,130,905,158"/>
+<area shape="poly" id="edge9" href="dir_000027_000086.html" alt="" coords="512,75,786,129,781,130,512,81"/>
+<area shape="rect" id="edge9-headlabel" href="dir_000027_000086.html" title="5" alt="" coords="778,112,786,129"/>
+<area shape="rect" id="node13" href="dir_c72b25b75abe208498b36a3e44a3726c.html" title="net" alt="" coords="930,130,972,158"/>
+<area shape="poly" id="edge10" href="dir_000027_000084.html" alt="" coords="512,70,686,86,798,103,917,130,912,130,797,109,685,92,512,75"/>
+<area shape="rect" id="edge10-headlabel" href="dir_000027_000084.html" title="16" alt="" coords="905,112,921,129"/>
+<area shape="rect" id="node14" href="dir_ecb37285c0bc658c97bb749f37c59e79.html" title="auth" alt="" coords="996,130,1046,158"/>
+<area shape="poly" id="edge13" href="dir_000027_000009.html" alt="" coords="512,69,713,85,845,102,984,130,979,130,844,108,712,91,512,74"/>
+<area shape="rect" id="edge13-headlabel" href="dir_000027_000009.html" title="2" alt="" coords="976,113,984,130"/>
+<area shape="rect" id="clust1" href="dir_06270a8a9910c35b994c4cb506fb3aa6.html" title="root" alt="" coords="16,16,523,168"/>
+</map>

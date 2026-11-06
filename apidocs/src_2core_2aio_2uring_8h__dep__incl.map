@@ -1,0 +1,37 @@
+<map id="src/core/aio/uring.h" name="src/core/aio/uring.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="828,5,974,33"/>
+<area shape="rect" id="Node000002" href="$vfs__block_8c.html" title=" " alt="" coords="5,98,176,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="810,23,690,29,533,40,361,57,188,84,128,100,126,95,187,78,360,52,533,34,689,24,816,22"/>
+<area shape="rect" id="Node000003" href="$vfs__posix_8c.html" title=" " alt="" coords="200,98,370,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="811,27,615,47,499,63,383,84,324,100,322,95,382,78,498,58,615,42,816,25"/>
+<area shape="rect" id="Node000004" href="$resume_8c.html" title=" " alt="" coords="394,98,555,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="811,35,699,57,574,84,515,100,514,95,573,78,698,52,816,33"/>
+<area shape="rect" id="Node000005" href="$src_2core_2aio_2uring_8c.html" title=" " alt="" coords="433,199,577,227"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="811,31,731,51,688,65,648,83,619,104,583,137,519,201,516,196,580,133,616,100,645,79,686,60,729,46,816,29"/>
+<area shape="rect" id="Node000006" href="$uring__admin_8c.html" title=" " alt="" coords="938,90,1072,134"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="928,41,983,90,978,88,927,46"/>
+<area shape="rect" id="Node000007" href="$uring__bringup_8c.html" title=" " alt="" coords="601,191,734,235"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="811,33,726,54,691,67,670,83,658,108,655,137,657,165,663,192,658,189,652,166,649,137,653,107,666,79,689,62,725,49,816,31"/>
+<area shape="rect" id="Node000008" href="$uring__internal_8h.html" title=" " alt="" coords="680,90,813,134"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="868,40,785,91,783,86,863,42"/>
+<area shape="rect" id="Node000009" href="$uring__probe_8c.html" title=" " alt="" coords="758,191,892,235"/>
+<area shape="poly" id="edge12_Node000001_Node000009" title=" " alt="" coords="893,46,835,192,832,189,888,49"/>
+<area shape="rect" id="Node000010" href="$uring__reap_8c.html" title=" " alt="" coords="916,191,1049,235"/>
+<area shape="poly" id="edge13_Node000001_Node000010" title=" " alt="" coords="905,47,913,93,929,142,945,167,963,192,958,190,940,170,924,144,908,95,902,51"/>
+<area shape="rect" id="Node000011" href="$uring__submit_8c.html" title=" " alt="" coords="1096,90,1229,134"/>
+<area shape="poly" id="edge14_Node000001_Node000011" title=" " alt="" coords="957,36,1085,78,1109,89,1103,89,1083,84,956,41"/>
+<area shape="rect" id="Node000012" href="$postconfiguration_8c.html" title=" " alt="" coords="1253,98,1496,126"/>
+<area shape="poly" id="edge15_Node000001_Node000012" title=" " alt="" coords="990,32,1242,78,1320,97,1315,97,1241,84,989,38"/>
+<area shape="rect" id="Node000013" href="$core_2config_2process_8c.html" title=" " alt="" coords="1520,98,1701,126"/>
+<area shape="poly" id="edge16_Node000001_Node000013" title=" " alt="" coords="989,22,1225,39,1367,56,1508,78,1574,98,1569,97,1507,84,1366,61,1224,45,989,27"/>
+<area shape="rect" id="Node000014" href="$disconnect_8c.html" title=" " alt="" coords="1725,90,1906,134"/>
+<area shape="poly" id="edge17_Node000001_Node000014" title=" " alt="" coords="989,19,1129,22,1310,32,1512,50,1714,78,1750,89,1745,89,1713,84,1511,55,1310,37,1129,28,989,24"/>
+<area shape="rect" id="Node000015" href="$disconnect__report_8c.html" title=" " alt="" coords="1931,81,2101,143"/>
+<area shape="poly" id="edge18_Node000001_Node000015" title=" " alt="" coords="989,20,1467,40,1729,57,1837,67,1919,78,1933,83,1927,83,1918,84,1836,72,1728,62,1467,45,989,26"/>
+<area shape="rect" id="Node000016" href="$protocols_2root_2connection_2handler_8c.html" title=" " alt="" coords="2126,90,2285,134"/>
+<area shape="poly" id="edge19_Node000001_Node000016" title=" " alt="" coords="990,19,1237,25,1561,36,1881,53,2013,65,2114,78,2148,89,2143,89,2113,84,2013,70,1880,58,1561,41,1237,30,990,25"/>
+<area shape="poly" id="edge8_Node000008_Node000005" title=" " alt="" coords="682,140,538,201,537,196,677,141"/>
+<area shape="poly" id="edge9_Node000008_Node000007" title=" " alt="" coords="723,145,686,193,684,188,718,147"/>
+<area shape="poly" id="edge10_Node000008_Node000009" title=" " alt="" coords="774,144,811,191,806,189,772,149"/>
+<area shape="poly" id="edge11_Node000008_Node000010" title=" " alt="" coords="813,138,933,190,928,190,812,143"/>
+</map>

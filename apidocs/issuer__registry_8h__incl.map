@@ -1,0 +1,13 @@
+<map id="src/auth/token/issuer_registry.h" name="src/auth/token/issuer_registry.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="100,5,256,50"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,98,109,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="145,53,91,91,87,87,148,48"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="132,98,224,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="180,48,181,83,176,81,177,53"/>
+<area shape="rect" id="Node000004" href="$token_8h.html" title=" " alt="" coords="249,98,318,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="207,48,258,88,252,89,205,53"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="171,174,282,201"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="276,125,247,164,244,159,271,127"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="306,174,376,201"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="295,124,324,162,319,161,293,129"/>
+</map>

@@ -1,0 +1,9 @@
+<map id="src/protocols/root/write/writev_internal.h" name="src/protocols/root/write/writev_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="148,5,320,50"/>
+<area shape="rect" id="Node000002" href="$writev_8c.html" title=" " alt="" coords="5,98,140,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="185,57,112,100,110,95,180,59"/>
+<area shape="rect" id="Node000003" href="$writev__aio_8c.html" title=" " alt="" coords="163,98,304,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="236,64,236,99,232,96,232,68"/>
+<area shape="rect" id="Node000004" href="$writev__staged_8c.html" title=" " alt="" coords="328,98,494,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="290,55,372,98,366,98,289,60"/>
+</map>

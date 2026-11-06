@@ -1,0 +1,11 @@
+<map id="src/protocols/ssi/registry.h" name="src/protocols/ssi/registry.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="310,5,500,33"/>
+<area shape="rect" id="Node000002" href="$src_2protocols_2ssi_2registry_8c.html" title=" " alt="" coords="5,90,195,117"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="342,40,150,92,148,86,341,35"/>
+<area shape="rect" id="Node000003" href="$registry__unittest_8c.html" title=" " alt="" coords="219,81,400,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="381,42,336,83,334,78,376,44"/>
+<area shape="rect" id="Node000004" href="$ssi_8c.html" title=" " alt="" coords="423,90,582,117"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="433,41,490,90,485,89,431,46"/>
+<area shape="rect" id="Node000005" href="$ssi__dispatch_8c.html" title=" " alt="" coords="606,81,754,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="465,35,610,80,604,80,464,41"/>
+</map>

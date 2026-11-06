@@ -1,0 +1,9 @@
+<map id="src/auth/voms/voms_internal.h" name="src/auth/voms/voms_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="212,5,365,50"/>
+<area shape="rect" id="Node000002" href="$collect_8c.html" title=" " alt="" coords="5,98,177,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="225,57,124,100,122,95,219,56"/>
+<area shape="rect" id="Node000003" href="$auth_2voms_2extract_8c.html" title=" " alt="" coords="201,98,376,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="290,64,290,99,286,96,286,68"/>
+<area shape="rect" id="Node000004" href="$trust_8c.html" title=" " alt="" coords="400,98,558,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="353,54,451,97,446,97,352,59"/>
+</map>

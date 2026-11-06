@@ -1,0 +1,18 @@
+<map id="sd_cache_follow_t" name="sd_cache_follow_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="164,307,304,335"/>
+<area shape="rect" id="Node000002" href="$structsd__cache__inst__state.html" title=" " alt="" coords="158,207,310,234"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="236,248,236,308,232,305,232,252"/>
+<area shape="rect" id="Node000003" href="$structbrix__sd__cache__peer__t.html" title=" " alt="" coords="5,5,167,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="56,46,40,65,25,87,18,110,19,121,24,132,51,161,84,182,121,197,160,209,155,211,119,202,82,187,47,165,20,135,14,123,13,110,20,85,36,61,59,41"/>
+<area shape="rect" id="Node000004" href="$structbrix__sd__cache__ring__t.html" title=" " alt="" coords="78,106,235,134"/>
+<area shape="poly" id="edge4_Node000004_Node000003" title=" " alt="" coords="104,43,150,105,145,106,104,48"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="176,143,205,181,225,206,220,206,201,184,175,149"/>
+<area shape="rect" id="Node000005" href="$structbrix__cstore__t.html" title=" " alt="" coords="260,106,365,134"/>
+<area shape="poly" id="edge5_Node000002_Node000005" title=" " alt="" coords="297,145,269,184,248,208,245,204,265,181,293,148"/>
+<area shape="rect" id="Node000006" href="$structbrix__cinfo__l1__t.html" title=" " alt="" coords="249,5,366,33"/>
+<area shape="poly" id="edge6_Node000005_Node000006" title=" " alt="" coords="310,46,314,106,309,105,308,50"/>
+<area shape="rect" id="Node000007" href="$structbrix__cache__policy__t.html" title=" " alt="" coords="401,106,550,134"/>
+<area shape="poly" id="edge7_Node000002_Node000007" title=" " alt="" coords="432,142,340,185,275,209,273,204,338,180,437,140"/>
+<area shape="rect" id="Node000008" href="$structbrix__cache__urlcgi__conf__t.html" title=" " alt="" coords="390,5,571,33"/>
+<area shape="poly" id="edge8_Node000007_Node000008" title=" " alt="" coords="481,46,478,107,474,104,478,50"/>
+</map>

@@ -1,0 +1,13 @@
+<map id="sd_xroot_fwd_inst_state" name="sd_xroot_fwd_inst_state">
+<area shape="rect" id="Node000001" title=" " alt="" coords="114,324,292,352"/>
+<area shape="rect" id="Node000002" href="$structbrix__sd__xroot__origin__cfg__t.html" title=" " alt="" coords="36,207,189,251"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="142,261,195,324,190,324,139,266"/>
+<area shape="rect" id="Node000003" href="$structbrix__dns__policy__s.html" title=" " alt="" coords="46,106,180,134"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="114,147,115,207,110,205,112,152"/>
+<area shape="rect" id="Node000004" href="$structngx__str__t.html" title=" " alt="" coords="5,5,87,33"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="63,43,106,105,101,106,63,49"/>
+<area shape="rect" id="Node000005" href="$structbrix__resolv__conf__t.html" title=" " alt="" coords="110,5,251,33"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="162,48,124,107,120,104,164,43"/>
+<area shape="rect" id="Node000006" href="$structsd__xroot__fwd__child__t.html" title=" " alt="" coords="214,215,371,243"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="275,254,216,326,213,322,270,256"/>
+</map>

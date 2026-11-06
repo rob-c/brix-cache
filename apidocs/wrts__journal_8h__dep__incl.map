@@ -1,0 +1,33 @@
+<map id="src/protocols/root/write/wrts_journal.h" name="src/protocols/root/write/wrts_journal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1210,5,1364,50"/>
+<area shape="rect" id="Node000002" href="$core_2aio_2write_8c.html" title=" " alt="" coords="5,115,150,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1192,32,963,42,665,55,374,75,254,87,163,101,110,117,108,112,162,95,254,82,374,69,665,50,963,36,1197,31"/>
+<area shape="rect" id="Node000003" href="$close_8c.html" title=" " alt="" coords="174,106,309,151"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="1192,33,741,57,497,76,397,88,321,101,293,109,292,103,320,95,396,83,497,71,741,52,1197,32"/>
+<area shape="rect" id="Node000004" href="$open__resolved__file_8c.html" title=" " alt="" coords="333,98,486,160"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="1191,30,1058,37,883,49,690,69,498,101,487,103,486,98,497,95,690,63,883,43,1057,32,1197,30"/>
+<area shape="rect" id="Node000005" href="$open__resolved__file__dispatch_8c.html" title=" " alt="" coords="510,98,664,160"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="1191,34,957,56,816,75,675,101,664,103,663,98,674,95,815,69,957,51,1196,33"/>
+<area shape="rect" id="Node000006" href="$open__resolved__file__finalize_8c.html" title=" " alt="" coords="688,98,841,160"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="1197,39,1034,65,853,101,842,103,841,98,852,95,1033,59,1192,39"/>
+<area shape="rect" id="Node000007" href="$open__resolved__file__open_8c.html" title=" " alt="" coords="865,98,1018,160"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="1197,52,1030,101,1019,104,1018,99,1029,95,1192,53"/>
+<area shape="rect" id="Node000008" href="$open__resolved__file__staging_8c.html" title=" " alt="" coords="1042,98,1196,160"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1239,58,1171,100,1169,95,1234,59"/>
+<area shape="rect" id="Node000009" href="$pgwrite_8c.html" title=" " alt="" coords="1220,106,1354,151"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1289,64,1289,108,1285,104,1285,67"/>
+<area shape="rect" id="Node000010" href="$pgwrite__helpers_8c.html" title=" " alt="" coords="1378,106,1556,151"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1340,55,1430,106,1425,105,1339,60"/>
+<area shape="rect" id="Node000011" href="$sync_8c.html" title=" " alt="" coords="1580,106,1714,151"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1380,46,1472,68,1569,95,1594,106,1589,106,1567,101,1470,73,1379,51"/>
+<area shape="rect" id="Node000012" href="$protocols_2root_2write_2write_8c.html" title=" " alt="" coords="1738,106,1873,151"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="1380,36,1543,58,1635,75,1726,95,1754,106,1749,106,1725,101,1634,80,1542,63,1380,41"/>
+<area shape="rect" id="Node000013" href="$write__stream_8c.html" title=" " alt="" coords="1896,106,2056,151"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="1380,31,1610,52,1748,70,1885,95,1917,106,1912,106,1884,101,1747,76,1610,57,1379,37"/>
+<area shape="rect" id="Node000014" href="$writev_8c.html" title=" " alt="" coords="2080,106,2214,151"/>
+<area shape="poly" id="edge13_Node000001_Node000014" title=" " alt="" coords="1379,26,1515,30,1688,41,1879,61,1975,77,2069,95,2098,106,2093,106,2068,101,1974,82,1878,67,1687,46,1515,36,1380,32"/>
+<area shape="rect" id="Node000015" href="$writev__aio_8c.html" title=" " alt="" coords="2238,106,2379,151"/>
+<area shape="poly" id="edge14_Node000001_Node000015" title=" " alt="" coords="1379,30,1819,53,2055,72,2152,83,2226,95,2257,106,2251,106,2225,101,2151,88,2054,77,1819,59,1379,35"/>
+<area shape="rect" id="Node000016" href="$wrts__journal_8c.html" title=" " alt="" coords="2404,106,2557,151"/>
+<area shape="poly" id="edge15_Node000001_Node000016" title=" " alt="" coords="1380,29,1899,51,2184,70,2302,82,2391,95,2425,106,2419,106,2390,101,2301,87,2184,76,1899,56,1380,34"/>
+</map>

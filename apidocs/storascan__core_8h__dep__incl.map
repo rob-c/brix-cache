@@ -1,0 +1,13 @@
+<map id="client/apps/scan/storascan_core.h" name="client/apps/scan/storascan_core.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="440,5,633,50"/>
+<area shape="rect" id="Node000002" href="$storascan__bench_8c.html" title=" " alt="" coords="5,98,199,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="425,55,200,102,199,96,425,49"/>
+<area shape="rect" id="Node000003" href="$storascan__core_8c.html" title=" " alt="" coords="223,98,416,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="473,56,372,100,371,95,468,57"/>
+<area shape="rect" id="Node000004" href="$storascan__unittest_8c.html" title=" " alt="" coords="440,98,633,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="539,64,539,100,535,96,535,67"/>
+<area shape="rect" id="Node000005" href="$storascan__verify_8c.html" title=" " alt="" coords="657,98,851,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="603,54,705,98,699,97,602,59"/>
+<area shape="rect" id="Node000006" href="$xrdstorascan_8c.html" title=" " alt="" coords="875,106,1100,134"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="649,49,924,106,919,106,648,54"/>
+</map>

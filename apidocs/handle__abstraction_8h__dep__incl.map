@@ -1,0 +1,19 @@
+<map id="src/platform/windows/handle_abstraction.h" name="src/platform/windows/handle_abstraction.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="295,5,456,50"/>
+<area shape="rect" id="Node000002" href="$handle__internal_8h.html" title=" " alt="" coords="203,98,364,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="345,60,307,100,303,96,340,62"/>
+<area shape="rect" id="Node000004" href="$win32__compat_8h.html" title=" " alt="" coords="484,98,645,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="435,54,522,97,517,98,434,60"/>
+<area shape="rect" id="Node000003" href="$handle__registry_8c.html" title=" " alt="" coords="5,191,167,235"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="225,149,134,193,132,188,220,150"/>
+<area shape="rect" id="Node000005" href="$copy__range__unittest_8c.html" title=" " alt="" coords="191,191,360,235"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="484,147,345,193,344,188,478,148"/>
+<area shape="rect" id="Node000006" href="$windows_2host__api_8h.html" title=" " alt="" coords="384,191,545,235"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="532,152,490,193,487,188,527,154"/>
+<area shape="rect" id="Node000007" href="$xattr__complete__unittest_8c.html" title=" " alt="" coords="570,191,762,235"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="601,150,644,191,639,190,599,155"/>
+<area shape="rect" id="Node000008" href="$xattr__list__unittest_8c.html" title=" " alt="" coords="787,191,948,235"/>
+<area shape="poly" id="edge7_Node000004_Node000008" title=" " alt="" coords="652,145,798,190,792,190,651,150"/>
+<area shape="rect" id="Node000009" href="$xattr__unittest_8c.html" title=" " alt="" coords="972,191,1133,235"/>
+<area shape="poly" id="edge8_Node000004_Node000009" title=" " alt="" coords="661,134,961,188,974,193,969,193,960,193,660,140"/>
+</map>

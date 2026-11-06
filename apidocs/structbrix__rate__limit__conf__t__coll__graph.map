@@ -1,0 +1,7 @@
+<map id="brix_rate_limit_conf_t" name="brix_rate_limit_conf_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,207,169,234"/>
+<area shape="rect" id="Node000002" href="$structbrix__kv__t.html" title=" " alt="" coords="46,106,128,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="89,148,90,207,84,205,85,151"/>
+<area shape="rect" id="Node000003" href="$structngx__str__t.html" title=" " alt="" coords="46,5,128,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="88,46,90,106,84,105,86,51"/>
+</map>

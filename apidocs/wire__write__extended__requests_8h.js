@@ -1,0 +1,27 @@
+var wire__write__extended__requests_8h =
+[
+    [ "ClientPgWriteRequest", "structClientPgWriteRequest.html", "structClientPgWriteRequest" ],
+    [ "ClientWriteRequest", "structClientWriteRequest.html", "structClientWriteRequest" ],
+    [ "ClientSyncRequest", "structClientSyncRequest.html", "structClientSyncRequest" ],
+    [ "ClientTruncateRequest", "structClientTruncateRequest.html", "structClientTruncateRequest" ],
+    [ "ClientMkdirRequest", "structClientMkdirRequest.html", "structClientMkdirRequest" ],
+    [ "ClientRmRequest", "structClientRmRequest.html", "structClientRmRequest" ],
+    [ "ClientRmdirRequest", "structClientRmdirRequest.html", "structClientRmdirRequest" ],
+    [ "ClientMvRequest", "structClientMvRequest.html", "structClientMvRequest" ],
+    [ "ClientChmodRequest", "structClientChmodRequest.html", "structClientChmodRequest" ],
+    [ "ClientBindRequest", "structClientBindRequest.html", "structClientBindRequest" ],
+    [ "ClientEndsessRequest", "structClientEndsessRequest.html", "structClientEndsessRequest" ],
+    [ "ClientLocateRequest", "structClientLocateRequest.html", "structClientLocateRequest" ],
+    [ "ClientSigverRequest", "structClientSigverRequest.html", "structClientSigverRequest" ],
+    [ "ClientStatxRequest", "structClientStatxRequest.html", "structClientStatxRequest" ],
+    [ "ClientFattrRequest", "structClientFattrRequest.html", "structClientFattrRequest" ],
+    [ "ClientSetRequest", "structClientSetRequest.html", "structClientSetRequest" ],
+    [ "ClientWriteVRequest", "structClientWriteVRequest.html", "structClientWriteVRequest" ],
+    [ "ClientPgReadRequest", "structClientPgReadRequest.html", "structClientPgReadRequest" ],
+    [ "ClientCloneRequest", "structClientCloneRequest.html", "structClientCloneRequest" ],
+    [ "clone_item", "structclone__item.html", "structclone__item" ],
+    [ "ClientChkPointRequest", "structClientChkPointRequest.html", "structClientChkPointRequest" ],
+    [ "ServerResponseBody_ChkPoint", "structServerResponseBody__ChkPoint.html", "structServerResponseBody__ChkPoint" ],
+    [ "readahead_list", "structreadahead__list.html", "structreadahead__list" ],
+    [ "write_list", "structwrite__list.html", "structwrite__list" ]
+];

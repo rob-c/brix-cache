@@ -1,0 +1,13 @@
+<map id="vfs_s3_file" name="vfs_s3_file">
+<area shape="rect" id="Node000001" title=" " alt="" coords="86,207,177,234"/>
+<area shape="rect" id="Node000002" href="$structbrix__vfs__file.html" title=" " alt="" coords="23,106,123,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="90,145,126,206,121,206,87,149"/>
+<area shape="rect" id="Node000003" href="$structbrix__vfs__ops.html" title=" " alt="" coords="5,5,109,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="62,46,74,105,68,105,61,51"/>
+<area shape="rect" id="Node000004" href="$structsd__s3__file.html" title=" " alt="" coords="164,106,249,134"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="190,145,143,208,140,204,185,147"/>
+<area shape="rect" id="Node000005" href="$structbrix__s3__transport__t.html" title=" " alt="" coords="133,5,280,33"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="208,46,209,106,204,104,205,51"/>
+<area shape="rect" id="Node000006" href="$structsd__s3__part__etag.html" title=" " alt="" coords="304,5,431,33"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="341,41,280,84,235,108,233,103,277,80,336,44"/>
+</map>

@@ -1,0 +1,17 @@
+<map id="src/protocols/webdav/proxy_pool.h" name="src/protocols/webdav/proxy_pool.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="588,5,747,50"/>
+<area shape="rect" id="Node000002" href="$dashboard__api__admin__internal_8h.html" title=" " alt="" coords="438,98,675,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="632,59,584,100,582,95,627,61"/>
+<area shape="rect" id="Node000008" href="$proxy__pool_8c.html" title=" " alt="" coords="700,98,859,143"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="706,57,755,98,750,97,705,62"/>
+<area shape="rect" id="Node000003" href="$api__admin_8c.html" title=" " alt="" coords="5,191,207,235"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="434,149,208,194,207,189,433,144"/>
+<area shape="rect" id="Node000004" href="$api__admin__cluster_8c.html" title=" " alt="" coords="231,191,432,235"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="491,148,386,193,384,188,486,149"/>
+<area shape="rect" id="Node000005" href="$api__admin__config_8c.html" title=" " alt="" coords="456,191,657,235"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="559,156,559,192,555,189,555,160"/>
+<area shape="rect" id="Node000006" href="$api__admin__proxy_8c.html" title=" " alt="" coords="681,191,883,235"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="625,146,731,190,725,190,624,152"/>
+<area shape="rect" id="Node000007" href="$api__admin__routing_8c.html" title=" " alt="" coords="907,191,1108,235"/>
+<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="680,144,909,191,903,192,679,149"/>
+</map>

@@ -1,0 +1,25 @@
+var searchData=
+[
+  ['validation_0',['validation',['../dir_f3332be28e8ee555e12d73d9c45578ed.html#autotoc_md357',1,'Build and validation'],['../dir_7a28b23fbf41965e0daf488b4f1ef717.html#autotoc_md360',1,'Build and validation'],['../dir_a6a1f0f55ed07d71127005b6168e86f9.html#autotoc_md69',1,'token — WLCG/SciToken JWT and macaroon bearer-token validation']]],
+  ['validation_20and_20per_20worker_20resource_20init_1',['config — directive lifecycle, startup validation, and per-worker resource init',['../dir_310b47614135aad694cafb7265578956.html#autotoc_md118',1,'']]],
+  ['value_20store_20and_20token_20bucket_20rate_20limiter_20in_20nginx_20shared_20memory_2',['shm — generic cross-worker key/value store and token-bucket rate limiter in nginx shared memory',['../dir_285a02c2ba6f924aa1329b9acdbc5e76.html#autotoc_md140',1,'']]],
+  ['variant_3',['cvmfs — the cvmfs:// site cache (+ experimental scvmfs:// TLS variant)',['../dir_06b5f782b20bf701b191fc6d0c827262.html#autotoc_md379',1,'']]],
+  ['vector_20provenance_4',['Golden-vector provenance',['../dir_e52fb505131379c6d043fcba7795d429.html#autotoc_md575',1,'']]],
+  ['verb_20layer_5',['src/fs/core — the shared `vfs` I/O verb layer',['../dir_b8e37d9a85075c24566d940f37bcb736.html#autotoc_md192',1,'']]],
+  ['verb_20match_20rule_6',['The verb-match rule',['../dir_6a3d969aa2859dbcb950484d47a7c7af.html#autotoc_md243',1,'']]],
+  ['verified_20x_20509_20proxies_20native_20verifier_7',['voms — VO / FQAN extraction from verified X.509 proxies (native verifier)',['../dir_afd760938acfe1bc9552e8ce0d07f566.html#autotoc_md86',1,'']]],
+  ['verifier_8',['voms — VO / FQAN extraction from verified X.509 proxies (native verifier)',['../dir_afd760938acfe1bc9552e8ce0d07f566.html#autotoc_md86',1,'']]],
+  ['verify_20inventory_20engine_9',['`src/fs/scan/` — bulk storage scan / verify / inventory engine',['../dir_4628302aa5ad104105ff895a7cf18a9b.html#autotoc_md218',1,'']]],
+  ['vfs_10',['Cache storage on a driver (exclusively-VFS)',['../dir_68fb8e79c18f7d14f9093e77ee72f0ed.html#autotoc_md184',1,'']]],
+  ['vfs_20—_20the_20vfs_20facade_20public_20api_20per_20op_20implementations_11',['fs/vfs — the VFS facade (public API + per-op implementations)',['../dir_4f3e26b8b67e40a4401952554a1fee3f.html#autotoc_md229',1,'']]],
+  ['vfs_20export_20browser_20brix_5fdashboard_5fvfs_5fbrowse_20on_12',['VFS export browser (&lt;span class=&quot;tt&quot;&gt;brix_dashboard_vfs_browse on&lt;/span&gt;)',['../dir_811f7f270fed05af692d0fe417b1df94.html#autotoc_md335',1,'']]],
+  ['vfs_20facade_20public_20api_20per_20op_20implementations_13',['fs/vfs — the VFS facade (public API + per-op implementations)',['../dir_4f3e26b8b67e40a4401952554a1fee3f.html#autotoc_md229',1,'']]],
+  ['vfs_20handle_20data_20plane_20lifecycle_14',['Status — POSIX driver mediates the VFS handle data plane + lifecycle',['../dir_ce3aa255f0d0e2a628573fc3b1b82afb.html#autotoc_md161',1,'']]],
+  ['vfs_20i_20o_20verb_20layer_15',['src/fs/core — the shared `vfs` I/O verb layer',['../dir_b8e37d9a85075c24566d940f37bcb736.html#autotoc_md192',1,'']]],
+  ['vfs_3a_20the_20single_20posix_20filesystem_20data_20plane_16',['fs — Unified VFS: the single POSIX-filesystem data plane',['../dir_7d71b6c457a61cbf03a04bfdc57b6110.html#autotoc_md208',1,'']]],
+  ['via_20kxr_5fattn_20implemented_17',['Phase 2: async server-push via &lt;span class=&quot;tt&quot;&gt;kXR_attn&lt;/span&gt; (implemented)',['../dir_94e4da69fc26a6a4a984451d79cfe747.html#autotoc_md555',1,'']]],
+  ['view_20not_20owned_18',['5. Strings — &lt;span class=&quot;tt&quot;&gt;ngx_str_t&lt;/span&gt; is a view, not owned',['../index.html#autotoc_md695',1,'']]],
+  ['vo_20fqan_20extraction_20from_20verified_20x_20509_20proxies_20native_20verifier_19',['voms — VO / FQAN extraction from verified X.509 proxies (native verifier)',['../dir_afd760938acfe1bc9552e8ce0d07f566.html#autotoc_md86',1,'']]],
+  ['voms_20—_20vo_20fqan_20extraction_20from_20verified_20x_20509_20proxies_20native_20verifier_20',['voms — VO / FQAN extraction from verified X.509 proxies (native verifier)',['../dir_afd760938acfe1bc9552e8ce0d07f566.html#autotoc_md86',1,'']]],
+  ['vs_20file_20descriptor_20abstraction_21',['1. HANDLE vs File Descriptor Abstraction',['../dir_972f138192ae14f23850fe4a6433774e.html#autotoc_md373',1,'']]]
+];

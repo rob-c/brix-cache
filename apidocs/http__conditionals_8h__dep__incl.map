@@ -1,0 +1,33 @@
+<map id="src/core/http/http_conditionals.h" name="src/core/http/http_conditionals.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1296,5,1428,50"/>
+<area shape="rect" id="Node000002" href="$http__conditionals_8c.html" title=" " alt="" coords="5,98,138,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1278,32,708,57,385,76,251,88,149,101,139,103,137,97,148,95,250,83,385,71,708,51,1283,31"/>
+<area shape="rect" id="Node000003" href="$protocols_2cvmfs_2handler_8c.html" title=" " alt="" coords="161,98,310,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="1277,30,1106,36,868,47,597,67,458,82,323,101,310,103,310,97,322,95,457,77,596,62,868,42,1106,31,1283,29"/>
+<area shape="rect" id="Node000004" href="$oci__mirror_8c.html" title=" " alt="" coords="334,98,484,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="1278,31,1133,40,937,52,717,72,496,101,485,103,484,97,495,95,717,66,937,47,1133,35,1283,31"/>
+<area shape="rect" id="Node000005" href="$conditional_8c.html" title=" " alt="" coords="508,106,718,134"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="1283,36,1034,63,731,101,682,109,681,103,730,95,1033,58,1278,36"/>
+<area shape="rect" id="Node000006" href="$put__finalize_8c.html" title=" " alt="" coords="743,98,891,143"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="1283,39,1107,66,903,101,892,103,891,98,902,95,1106,60,1278,39"/>
+<area shape="rect" id="Node000007" href="$src_2protocols_2webdav_2copy_8c.html" title=" " alt="" coords="914,98,1074,143"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="1283,49,1075,102,1074,97,1278,49"/>
+<area shape="rect" id="Node000008" href="$copy__collection_8c.html" title=" " alt="" coords="1098,98,1258,143"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1307,57,1223,100,1221,95,1302,58"/>
+<area shape="rect" id="Node000009" href="$webdav_2get_8c.html" title=" " alt="" coords="1282,98,1442,143"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1364,64,1364,100,1360,96,1360,67"/>
+<area shape="rect" id="Node000010" href="$get__serve_8c.html" title=" " alt="" coords="1466,98,1626,143"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1420,55,1505,98,1500,97,1419,60"/>
+<area shape="rect" id="Node000011" href="$copy__conditionals_8c.html" title=" " alt="" coords="1650,98,1864,143"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1444,45,1665,97,1659,97,1443,50"/>
+<area shape="rect" id="Node000012" href="$move_8c.html" title=" " alt="" coords="1888,98,2047,143"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="1444,35,1641,59,1876,95,1890,100,1885,100,1875,101,1641,64,1444,40"/>
+<area shape="rect" id="Node000013" href="$webdav_2put_8c.html" title=" " alt="" coords="2072,98,2231,143"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="1444,31,1718,53,1889,71,2060,95,2074,100,2069,100,2059,101,1888,77,1718,58,1444,36"/>
+<area shape="rect" id="Node000014" href="$put__body_8c.html" title=" " alt="" coords="2256,98,2415,143"/>
+<area shape="poly" id="edge13_Node000001_Node000014" title=" " alt="" coords="1444,29,1594,35,1793,47,2018,67,2244,95,2258,100,2253,100,2243,101,2017,72,1792,53,1593,41,1444,34"/>
+<area shape="rect" id="Node000015" href="$put__body__digest_8c.html" title=" " alt="" coords="2440,98,2599,143"/>
+<area shape="poly" id="edge14_Node000001_Node000015" title=" " alt="" coords="1444,27,1622,32,1866,42,2145,63,2288,77,2428,95,2442,100,2437,100,2427,101,2288,83,2145,68,1866,48,1621,37,1444,33"/>
+<area shape="rect" id="Node000016" href="$put__setup_8c.html" title=" " alt="" coords="2624,98,2783,143"/>
+<area shape="poly" id="edge15_Node000001_Node000016" title=" " alt="" coords="1444,26,1649,28,1939,38,2273,59,2444,75,2612,95,2626,100,2621,100,2611,101,2444,80,2273,64,1939,43,1649,34,1444,31"/>
+</map>

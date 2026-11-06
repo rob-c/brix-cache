@@ -1,0 +1,9 @@
+<map id="src/protocols/root/session/offload_registry.c" name="src/protocols/root/session/offload_registry.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="40,5,229,50"/>
+<area shape="rect" id="Node000002" href="$offload__registry_8h.html" title=" " alt="" coords="5,98,139,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="117,53,93,87,89,84,120,48"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="162,98,232,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="152,48,181,85,175,85,150,53"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="35,174,109,201"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="74,124,75,159,69,157,70,128"/>
+</map>

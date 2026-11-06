@@ -1,0 +1,28 @@
+var impersonate__state_8c =
+[
+    [ "brix_idmap_get_min_uid", "impersonate__state_8c.html#aa740a9efa2579e1e29888c904cec225d", null ],
+    [ "brix_idmap_get_primary_only", "impersonate__state_8c.html#a9304da699ff402bb7afa41ae74444a3e", null ],
+    [ "brix_idmap_is_gate_loaded", "impersonate__state_8c.html#a2407cc51f97261a8b05dbd35bcb31c9c", null ],
+    [ "brix_idmap_is_initialized", "impersonate__state_8c.html#a0c4ed03df4d554221bf0e0e4c59a9db6", null ],
+    [ "brix_idmap_mark_initialized", "impersonate__state_8c.html#a889aeabe8c675657c02947a6dea08baf", null ],
+    [ "brix_idmap_set_gate_loaded", "impersonate__state_8c.html#aed3218c673caed637069d5ed42004a36", null ],
+    [ "brix_idmap_set_min_uid", "impersonate__state_8c.html#a3bd3bcaf1cfc3bcdf9069ac9c249f2b9", null ],
+    [ "brix_idmap_set_primary_only", "impersonate__state_8c.html#a3f1768d78ec5a425c91a9c39684aded2", null ],
+    [ "brix_idmap_state_init", "impersonate__state_8c.html#ac95b77c3da0d279061f74640b8d13b88", null ],
+    [ "brix_imp_get_base_gid", "impersonate__state_8c.html#afc09c5b5c9e6d98ac2e2dfea9d67e7d8", null ],
+    [ "brix_imp_get_base_groups", "impersonate__state_8c.html#a84bfddabe0159099257561e1945924f7", null ],
+    [ "brix_imp_get_base_ngroups", "impersonate__state_8c.html#a3fc4288dc943a2388833ae4d2390e4bc", null ],
+    [ "brix_imp_get_base_uid", "impersonate__state_8c.html#a0f23b8facd2bf53f6a010749ffb32585", null ],
+    [ "brix_imp_get_broker_allow_uid", "impersonate__state_8c.html#a9c72a4cd169b2abb40732a258467cbe8", null ],
+    [ "brix_imp_get_self_uid", "impersonate__state_8c.html#a6df9a8cdd41edde532141a59b7785630", null ],
+    [ "brix_imp_is_initialized", "impersonate__state_8c.html#a1911df320a2e35b88d94fdad6d08f245", null ],
+    [ "brix_imp_mark_initialized", "impersonate__state_8c.html#a9e744b0e0c142abee87fd08d8bb568f1", null ],
+    [ "brix_imp_set_base_gid", "impersonate__state_8c.html#ab05b7eec01e52c6ce23853e07cfac1a8", null ],
+    [ "brix_imp_set_base_groups", "impersonate__state_8c.html#a9b8245c244986a4f37b0b3f0df09c652", null ],
+    [ "brix_imp_set_base_uid", "impersonate__state_8c.html#aa5d444049916c4d47bc1ce02f511208c", null ],
+    [ "brix_imp_set_broker_allow_uid", "impersonate__state_8c.html#a09e2cc0fe69f845c19e35b855c5a6c9c", null ],
+    [ "brix_imp_set_self_uid", "impersonate__state_8c.html#ab9d1ea4135a01165ac1176f9d9b6244b", null ],
+    [ "brix_imp_state_init", "impersonate__state_8c.html#a110b02a33ccadd4b8389ce4084b8b45a", null ],
+    [ "brix_idmap_state", "impersonate__state_8c.html#af4300dd50611b3c59fe3f86ac195645b", null ],
+    [ "brix_imp_state", "impersonate__state_8c.html#aba32bb842c81eb41ee49cad8ae7187cc", null ]
+];

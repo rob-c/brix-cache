@@ -1,0 +1,16 @@
+<map id="sd_cache_inst_state" name="sd_cache_inst_state">
+<area shape="rect" id="Node000001" title=" " alt="" coords="158,207,310,234"/>
+<area shape="rect" id="Node000002" href="$structbrix__sd__cache__peer__t.html" title=" " alt="" coords="5,5,167,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="56,46,40,65,25,87,18,110,19,121,24,132,51,161,84,182,121,197,160,209,155,210,119,202,82,187,47,165,20,135,14,123,13,110,20,85,36,61,59,41"/>
+<area shape="rect" id="Node000003" href="$structbrix__sd__cache__ring__t.html" title=" " alt="" coords="78,106,235,134"/>
+<area shape="poly" id="edge3_Node000003_Node000002" title=" " alt="" coords="105,43,150,105,145,106,103,48"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="176,144,205,181,225,207,220,205,201,184,174,148"/>
+<area shape="rect" id="Node000004" href="$structbrix__cstore__t.html" title=" " alt="" coords="260,106,365,134"/>
+<area shape="poly" id="edge4_Node000001_Node000004" title=" " alt="" coords="297,145,269,184,248,209,245,204,265,181,292,148"/>
+<area shape="rect" id="Node000005" href="$structbrix__cinfo__l1__t.html" title=" " alt="" coords="249,5,366,33"/>
+<area shape="poly" id="edge5_Node000004_Node000005" title=" " alt="" coords="310,46,314,106,310,104,307,50"/>
+<area shape="rect" id="Node000006" href="$structbrix__cache__policy__t.html" title=" " alt="" coords="401,106,550,134"/>
+<area shape="poly" id="edge6_Node000001_Node000006" title=" " alt="" coords="437,140,340,185,275,209,274,204,338,180,432,141"/>
+<area shape="rect" id="Node000007" href="$structbrix__cache__urlcgi__conf__t.html" title=" " alt="" coords="390,5,571,33"/>
+<area shape="poly" id="edge7_Node000006_Node000007" title=" " alt="" coords="481,46,478,107,474,104,477,50"/>
+</map>

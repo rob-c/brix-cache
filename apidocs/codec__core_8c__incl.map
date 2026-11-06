@@ -1,0 +1,13 @@
+<map id="src/core/compat/codec_core.c" name="src/core/compat/codec_core.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="118,5,286,50"/>
+<area shape="rect" id="Node000002" href="$codec__core_8h.html" title=" " alt="" coords="37,98,143,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="171,52,122,91,118,86,175,49"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="167,98,237,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="203,48,204,83,200,81,201,53"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="260,98,330,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="227,48,272,87,266,88,226,53"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,174,79,201"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="84,125,61,162,57,159,79,128"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="103,174,173,201"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="100,124,124,161,119,161,97,129"/>
+</map>

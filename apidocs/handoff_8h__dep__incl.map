@@ -1,0 +1,13 @@
+<map id="src/protocols/root/handoff/handoff.h" name="src/protocols/root/handoff/handoff.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="405,5,544,50"/>
+<area shape="rect" id="Node000002" href="$protocols_2root_2connection_2recv_8c.html" title=" " alt="" coords="5,98,144,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="390,49,155,101,145,103,144,98,154,95,389,44"/>
+<area shape="rect" id="Node000003" href="$protocols_2root_2connection_2recv__frame_8c.html" title=" " alt="" coords="167,98,352,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="412,56,312,100,310,95,406,57"/>
+<area shape="rect" id="Node000004" href="$recv__process_8c.html" title=" " alt="" coords="376,98,573,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="476,64,477,99,472,96,473,67"/>
+<area shape="rect" id="Node000005" href="$handoff_8c.html" title=" " alt="" coords="597,98,736,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="535,54,624,98,618,97,534,60"/>
+<area shape="rect" id="Node000006" href="$protocols_2root_2stream_2module_8c.html" title=" " alt="" coords="760,98,896,143"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="560,48,748,95,762,101,757,101,747,101,559,53"/>
+</map>

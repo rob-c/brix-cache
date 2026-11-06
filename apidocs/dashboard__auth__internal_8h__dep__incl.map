@@ -1,0 +1,11 @@
+<map id="src/observability/dashboard/dashboard_auth_internal.h" name="src/observability/dashboard/dashboard_auth_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="343,5,544,50"/>
+<area shape="rect" id="Node000002" href="$src_2observability_2dashboard_2auth_8c.html" title=" " alt="" coords="5,98,207,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="350,54,187,100,186,95,345,55"/>
+<area shape="rect" id="Node000003" href="$dashboard__auth__creds_8c.html" title=" " alt="" coords="231,98,432,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="407,59,359,100,357,95,402,61"/>
+<area shape="rect" id="Node000004" href="$dashboard__auth__login_8c.html" title=" " alt="" coords="456,98,657,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="483,57,532,98,527,97,481,62"/>
+<area shape="rect" id="Node000005" href="$dashboard__auth__parse_8c.html" title=" " alt="" coords="681,98,883,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="540,52,704,97,698,98,539,57"/>
+</map>

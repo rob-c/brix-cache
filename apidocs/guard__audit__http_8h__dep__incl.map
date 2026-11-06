@@ -1,0 +1,9 @@
+<map id="src/protocols/shared/guard_audit_http.h" name="src/protocols/shared/guard_audit_http.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="186,5,338,50"/>
+<area shape="rect" id="Node000002" href="$oci__errors_8c.html" title=" " alt="" coords="5,98,156,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="207,57,125,100,122,95,202,58"/>
+<area shape="rect" id="Node000003" href="$rpm__gate_8c.html" title=" " alt="" coords="180,98,344,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="264,64,264,99,260,96,260,68"/>
+<area shape="rect" id="Node000004" href="$guard__audit__http_8c.html" title=" " alt="" coords="368,98,521,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="320,55,404,98,398,98,319,60"/>
+</map>

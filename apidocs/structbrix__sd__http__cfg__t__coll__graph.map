@@ -1,0 +1,13 @@
+<map id="brix_sd_http_cfg_t" name="brix_sd_http_cfg_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="172,207,313,234"/>
+<area shape="rect" id="Node000002" href="$structbrix__s3__transport__t.html" title=" " alt="" coords="5,106,152,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="109,140,172,180,217,206,212,206,169,185,108,145"/>
+<area shape="rect" id="Node000003" href="$structbrix__dns__policy__s.html" title=" " alt="" coords="175,106,310,134"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="244,148,245,207,240,205,241,151"/>
+<area shape="rect" id="Node000004" href="$structngx__str__t.html" title=" " alt="" coords="134,5,215,33"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="193,43,236,105,231,105,191,48"/>
+<area shape="rect" id="Node000005" href="$structbrix__resolv__conf__t.html" title=" " alt="" coords="239,5,379,33"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="294,44,253,107,249,104,290,47"/>
+<area shape="rect" id="Node000006" href="$structbrix__sd__http__ep__cfg__t.html" title=" " alt="" coords="334,106,498,134"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="382,141,267,209,265,204,377,142"/>
+</map>

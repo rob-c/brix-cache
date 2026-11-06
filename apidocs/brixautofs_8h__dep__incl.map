@@ -1,0 +1,13 @@
+<map id="client/apps/fs/brixautofs.h" name="client/apps/fs/brixautofs.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="172,5,362,33"/>
+<area shape="rect" id="Node000002" href="$brixautofs_8c.html" title=" " alt="" coords="5,182,195,210"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="160,40,130,58,105,83,94,107,92,134,99,182,93,181,86,134,89,106,100,79,127,53,164,37"/>
+<area shape="rect" id="Node000003" href="$brixautofs__ext_8c.html" title=" " alt="" coords="230,174,408,218"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="287,43,308,80,319,129,321,174,317,172,314,130,303,82,285,48"/>
+<area shape="rect" id="Node000004" href="$brixautofs__ext__internal_8h.html" title=" " alt="" coords="115,81,293,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="249,44,223,82,219,78,245,47"/>
+<area shape="rect" id="Node000005" href="$brixautofs__unittest_8c.html" title=" " alt="" coords="368,81,546,126"/>
+<area shape="poly" id="edge6_Node000001_Node000005" title=" " alt="" coords="312,37,409,80,404,81,311,42"/>
+<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="171,135,117,184,114,179,165,137"/>
+<area shape="poly" id="edge5_Node000004_Node000003" title=" " alt="" coords="244,133,294,173,289,173,242,138"/>
+</map>

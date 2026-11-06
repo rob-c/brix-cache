@@ -1,0 +1,9 @@
+<map id="src/protocols/oci/oci_referrers.h" name="src/protocols/oci/oci_referrers.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="180,5,330,50"/>
+<area shape="rect" id="Node000002" href="$oci__manifest__put_8c.html" title=" " alt="" coords="5,98,156,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="202,57,123,100,121,95,197,58"/>
+<area shape="rect" id="Node000003" href="$oci__referrers_8c.html" title=" " alt="" coords="180,98,330,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="257,64,257,99,253,96,253,68"/>
+<area shape="rect" id="Node000004" href="$oci__registry_8c.html" title=" " alt="" coords="355,98,505,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="311,55,391,98,386,98,310,60"/>
+</map>

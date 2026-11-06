@@ -1,0 +1,11 @@
+<map id="src/auth/impersonate/client_internal.h" name="src/auth/impersonate/client_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="283,5,442,50"/>
+<area shape="rect" id="Node000002" href="$broker__fixed_8c.html" title=" " alt="" coords="5,98,165,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="284,55,152,100,151,95,279,56"/>
+<area shape="rect" id="Node000003" href="$broker__fixed__spawn_8c.html" title=" " alt="" coords="188,98,352,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="332,60,293,100,291,96,327,62"/>
+<area shape="rect" id="Node000004" href="$client_8c.html" title=" " alt="" coords="376,98,535,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="396,58,436,98,431,97,394,63"/>
+<area shape="rect" id="Node000005" href="$client__ops_8c.html" title=" " alt="" coords="560,98,719,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="443,53,576,97,571,98,443,58"/>
+</map>

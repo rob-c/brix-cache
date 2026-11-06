@@ -1,0 +1,9 @@
+<map id="ServerStatusResponse_pgWrite" name="ServerStatusResponse_pgWrite">
+<area shape="rect" id="Node000001" title=" " alt="" coords="175,123,342,168"/>
+<area shape="rect" id="Node000002" href="$structServerResponseHdr.html" title=" " alt="" coords="5,14,155,42"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="114,48,228,121,223,124,112,53"/>
+<area shape="rect" id="Node000003" href="$structServerResponseBody__Status.html" title=" " alt="" coords="179,5,338,50"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="261,64,261,124,256,121,257,68"/>
+<area shape="rect" id="Node000004" href="$structServerResponseBody__pgWrite.html" title=" " alt="" coords="363,5,522,50"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="398,58,294,125,292,120,393,59"/>
+</map>

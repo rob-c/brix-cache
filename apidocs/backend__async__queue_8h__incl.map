@@ -1,0 +1,23 @@
+<map id="src/fs/xfer/backend_async_queue.h" name="src/fs/xfer/backend_async_queue.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="331,5,475,50"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="115,266,219,294"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="328,34,253,46,166,70,123,88,82,112,46,140,16,175,8,196,16,217,29,228,50,239,105,260,101,263,47,244,26,232,12,220,3,196,11,172,42,136,79,107,120,84,164,65,252,41,333,31"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="433,266,525,294"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="411,48,474,252,468,251,408,52"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="524,98,594,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="445,48,523,90,518,91,444,53"/>
+<area shape="rect" id="Node000005" href="$vfs__policy_8h.html" title=" " alt="" coords="250,98,388,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="383,49,345,89,342,85,379,52"/>
+<area shape="poly" id="edge5_Node000005_Node000002" title=" " alt="" coords="295,125,261,149,229,175,201,214,180,254,176,250,196,212,225,172,258,144,290,128"/>
+<area shape="poly" id="edge6_Node000005_Node000003" title=" " alt="" coords="345,124,380,145,413,172,445,212,469,254,464,252,441,215,409,176,377,149,345,129"/>
+<area shape="rect" id="Node000006" href="$observability_2metrics_2unified_8h.html" title=" " alt="" coords="239,174,399,218"/>
+<area shape="poly" id="edge7_Node000005_Node000006" title=" " alt="" coords="321,124,321,159,317,156,318,128"/>
+<area shape="rect" id="Node000008" href="$site__n2n_8h.html" title=" " alt="" coords="26,182,164,210"/>
+<area shape="poly" id="edge11_Node000005_Node000008" title=" " alt="" coords="282,128,146,179,144,174,285,124"/>
+<area shape="poly" id="edge8_Node000006_Node000002" title=" " alt="" coords="281,218,206,261,204,256,276,220"/>
+<area shape="poly" id="edge9_Node000006_Node000003" title=" " alt="" coords="362,216,443,259,437,259,361,222"/>
+<area shape="rect" id="Node000007" href="$proto__list_8h.html" title=" " alt="" coords="243,266,409,294"/>
+<area shape="poly" id="edge10_Node000006_Node000007" title=" " alt="" coords="323,217,326,252,321,249,319,221"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="18,266,92,294"/>
+<area shape="poly" id="edge12_Node000008_Node000009" title=" " alt="" coords="91,209,70,254,66,251,86,212"/>
+</map>

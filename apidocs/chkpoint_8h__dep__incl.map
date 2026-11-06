@@ -1,0 +1,7 @@
+<map id="src/protocols/root/write/chkpoint.h" name="src/protocols/root/write/chkpoint.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="115,5,249,50"/>
+<area shape="rect" id="Node000002" href="$process__server__init_8c.html" title=" " alt="" coords="5,106,175,151"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="154,60,112,108,108,104,149,63"/>
+<area shape="rect" id="Node000003" href="$dispatch__write_8c.html" title=" " alt="" coords="198,98,352,160"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="214,59,250,98,244,97,212,64"/>
+</map>

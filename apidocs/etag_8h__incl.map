@@ -1,0 +1,11 @@
+<map id="src/core/http/etag.h" name="src/core/http/etag.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,153,33"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="52,157,125,184"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="58,36,44,50,28,68,19,87,22,108,36,128,55,147,50,148,32,132,16,110,14,87,24,65,40,46,61,31"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="31,81,127,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="80,31,82,66,76,65,78,36"/>
+<area shape="rect" id="Node000004" href="$time_8h.html" title=" " alt="" coords="151,81,215,109"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="98,31,155,71,150,73,97,36"/>
+<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="169,108,119,149,116,145,164,110"/>
+<area shape="poly" id="edge5_Node000004_Node000004" title=" " alt="" coords="215,78,233,81,239,87,241,95,238,104,231,109,229,104,234,101,236,95,235,90,231,86,215,83"/>
+</map>

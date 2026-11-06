@@ -1,0 +1,13 @@
+<map id="src/protocols/shared/deleg_wire.h" name="src/protocols/shared/deleg_wire.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="339,5,491,50"/>
+<area shape="rect" id="Node000002" href="$op__path_8c.html" title=" " alt="" coords="5,98,140,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="325,55,152,101,141,103,140,98,150,95,324,50"/>
+<area shape="rect" id="Node000003" href="$op__path__vfs_8c.html" title=" " alt="" coords="164,98,312,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="362,57,281,100,279,95,357,58"/>
+<area shape="rect" id="Node000004" href="$s3_2util_8c.html" title=" " alt="" coords="336,106,495,134"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="417,64,417,108,413,104,413,67"/>
+<area shape="rect" id="Node000005" href="$deleg__wire_8c.html" title=" " alt="" coords="519,98,671,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="472,55,555,98,550,97,471,60"/>
+<area shape="rect" id="Node000006" href="$access__vfs__ctx_8c.html" title=" " alt="" coords="696,98,855,143"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="507,49,698,99,693,99,506,55"/>
+</map>

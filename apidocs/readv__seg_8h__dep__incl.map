@@ -1,0 +1,23 @@
+<map id="src/protocols/root/protocol/readv_seg.h" name="src/protocols/root/protocol/readv_seg.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="454,5,616,50"/>
+<area shape="rect" id="Node000002" href="$xrd__conform__root__read__raw_8c.html" title=" " alt="" coords="5,98,198,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="438,51,199,102,197,96,440,46"/>
+<area shape="rect" id="Node000003" href="$xrd__conform__root__readv__limits_8c.html" title=" " alt="" coords="222,98,437,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="474,56,380,100,378,95,469,58"/>
+<area shape="rect" id="Node000004" href="$ops__internal_8h.html" title=" " alt="" coords="461,98,608,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="537,64,537,99,533,96,533,68"/>
+<area shape="rect" id="Node000010" href="$protocols_2root_2read_2readv_8c.html" title=" " alt="" coords="633,98,767,143"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="588,55,664,98,658,97,587,61"/>
+<area shape="rect" id="Node000011" href="$readv__window_8c.html" title=" " alt="" coords="791,98,953,143"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="631,52,794,97,789,98,630,57"/>
+<area shape="rect" id="Node000005" href="$ops__file_8c.html" title=" " alt="" coords="111,191,252,235"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="449,144,253,196,252,191,443,144"/>
+<area shape="rect" id="Node000006" href="$ops__file__pg_8c.html" title=" " alt="" coords="276,191,418,235"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="479,149,392,193,391,188,473,150"/>
+<area shape="rect" id="Node000007" href="$ops__file__pg__status_8c.html" title=" " alt="" coords="442,191,628,235"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="537,156,537,192,533,189,533,160"/>
+<area shape="rect" id="Node000008" href="$ops__file__readv_8c.html" title=" " alt="" coords="652,191,812,235"/>
+<area shape="poly" id="edge7_Node000004_Node000008" title=" " alt="" coords="596,147,688,190,682,190,595,152"/>
+<area shape="rect" id="Node000009" href="$ops__file__rw_8c.html" title=" " alt="" coords="836,191,978,235"/>
+<area shape="poly" id="edge8_Node000004_Node000009" title=" " alt="" coords="624,140,825,188,838,194,833,193,824,193,623,146"/>
+</map>

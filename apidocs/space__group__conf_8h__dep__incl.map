@@ -1,0 +1,21 @@
+<map id="src/core/config/space_group_conf.h" name="src/core/config/space_group_conf.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="470,5,628,50"/>
+<area shape="rect" id="Node000002" href="$frm__purge__policy__conf_8c.html" title=" " alt="" coords="5,98,162,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="454,48,175,101,163,103,161,98,174,95,456,42"/>
+<area shape="rect" id="Node000003" href="$process__frm__purge_8c.html" title=" " alt="" coords="186,98,355,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="465,56,338,100,336,95,470,54"/>
+<area shape="rect" id="Node000004" href="$space__group__conf_8c.html" title=" " alt="" coords="380,98,537,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="519,60,481,100,478,96,514,62"/>
+<area shape="rect" id="Node000005" href="$open__request_8c.html" title=" " alt="" coords="561,98,718,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="582,59,621,98,616,97,580,64"/>
+<area shape="rect" id="Node000006" href="$protocols_2root_2stream_2module_8c.html" title=" " alt="" coords="742,98,878,143"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="626,53,750,97,745,98,626,58"/>
+<area shape="rect" id="Node000007" href="$write__space__group_8h.html" title=" " alt="" coords="901,98,1098,143"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="643,45,904,99,898,100,642,50"/>
+<area shape="rect" id="Node000008" href="$protocols_2root_2query_2space_8c.html" title=" " alt="" coords="774,191,908,235"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="951,150,879,193,878,188,946,151"/>
+<area shape="rect" id="Node000009" href="$protocols_2root_2write_2write_8c.html" title=" " alt="" coords="932,191,1067,235"/>
+<area shape="poly" id="edge8_Node000007_Node000009" title=" " alt="" coords="1001,156,1001,192,998,189,998,160"/>
+<area shape="rect" id="Node000010" href="$write__space__group_8c.html" title=" " alt="" coords="1091,191,1286,235"/>
+<area shape="poly" id="edge9_Node000007_Node000010" title=" " alt="" coords="1059,147,1146,191,1141,190,1058,152"/>
+</map>

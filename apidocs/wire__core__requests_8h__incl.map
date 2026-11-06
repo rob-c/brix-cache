@@ -1,0 +1,9 @@
+<map id="src/protocols/root/protocol/wire_core_requests.h" name="src/protocols/root/protocol/wire_core_requests.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="18,5,164,67"/>
+<area shape="rect" id="Node000002" href="$types_8h.html" title=" " alt="" coords="6,115,75,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="73,70,58,103,53,100,75,65"/>
+<area shape="rect" id="Node000004" href="$opcodes_8h.html" title=" " alt="" coords="100,115,187,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="109,65,131,101,125,101,108,70"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,191,76,218"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="42,141,43,175,38,175,39,145"/>
+</map>

@@ -1,0 +1,7 @@
+<map id="client/apps/diag/brix_fault_priv_internal.h" name="client/apps/diag/brix_fault_priv_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="6,5,165,50"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,98,72,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="75,49,56,86,51,83,71,52"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="95,98,168,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="99,48,119,84,114,84,96,53"/>
+</map>

@@ -1,0 +1,13 @@
+<map id="src/platform/windows/win32_compat.h" name="src/platform/windows/win32_compat.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="400,5,561,50"/>
+<area shape="rect" id="Node000002" href="$copy__range__unittest_8c.html" title=" " alt="" coords="5,98,174,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="385,54,175,102,173,97,384,48"/>
+<area shape="rect" id="Node000003" href="$windows_2host__api_8h.html" title=" " alt="" coords="198,98,360,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="421,56,328,100,326,95,415,57"/>
+<area shape="rect" id="Node000004" href="$xattr__complete__unittest_8c.html" title=" " alt="" coords="384,98,576,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="482,64,482,99,478,96,478,67"/>
+<area shape="rect" id="Node000005" href="$xattr__list__unittest_8c.html" title=" " alt="" coords="601,98,762,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="543,54,636,98,631,97,542,59"/>
+<area shape="rect" id="Node000006" href="$xattr__unittest_8c.html" title=" " alt="" coords="786,98,948,143"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="576,49,789,100,783,100,576,54"/>
+</map>

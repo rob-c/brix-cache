@@ -1,0 +1,8 @@
+<map id="brix_cms_conf_t" name="brix_cms_conf_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,293,133,321"/>
+<area shape="rect" id="Node000002" href="$structngx__str__t.html" title=" " alt="" coords="28,5,110,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="65,45,62,106,59,163,62,220,70,293,64,293,56,221,54,163,56,106,64,51"/>
+<area shape="rect" id="Node000003" href="$structbrix__cms__fsxeq__prog__t.html" title=" " alt="" coords="141,149,312,177"/>
+<area shape="poly" id="edge3_Node000003_Node000002" title=" " alt="" coords="95,41,214,148,209,150,94,46"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="203,189,85,295,82,291,199,186"/>
+</map>

@@ -1,0 +1,28 @@
+var sesslog__ngx_8c =
+[
+    [ "brix_sess_alloc", "sesslog__ngx_8c.html#adc39ff40d4f968fb17ab6958efd2ec36", null ],
+    [ "brix_sess_am_from_stream_auth", "sesslog__ngx_8c.html#a21cc973d9beffc9dd7241828b404c870", null ],
+    [ "brix_sess_attempt", "sesslog__ngx_8c.html#a325b27736760d1e71ba68d14bae9bcd4", null ],
+    [ "brix_sess_auth", "sesslog__ngx_8c.html#abff384395fa4bdfa2a612788b0a3cd0b", null ],
+    [ "brix_sess_auth_once", "sesslog__ngx_8c.html#a4986406539859d94284cdca50a954382", null ],
+    [ "brix_sess_begin", "sesslog__ngx_8c.html#a61e85289db4287556eead66c5f89840d", null ],
+    [ "brix_sess_copy_value", "sesslog__ngx_8c.html#a9761dda7df17be2f2974fb55d0cefc35", null ],
+    [ "brix_sess_emit", "sesslog__ngx_8c.html#aff57ac5502ae7f89877b9cd13508d7e1", null ],
+    [ "brix_sess_end", "sesslog__ngx_8c.html#a1325920f115539d265870ac7cd8b3990", null ],
+    [ "brix_sess_id", "sesslog__ngx_8c.html#ae2bbaf0764edbe869e59caa3c9705970", null ],
+    [ "brix_sess_mint_id", "sesslog__ngx_8c.html#ae986547785a5cc30f17596bad8c7bcb6", null ],
+    [ "brix_sess_ngx_strnlen_or_dash", "sesslog__ngx_8c.html#ae2da686379fed3f6333d53d9ded3d707", null ],
+    [ "brix_sess_registry_init", "sesslog__ngx_8c.html#ae43478e594de15e47387a2382665bc15", null ],
+    [ "brix_sess_release", "sesslog__ngx_8c.html#a23fb3c69beacf349d6a88147bcbd92e4", null ],
+    [ "brix_sess_result", "sesslog__ngx_8c.html#ac1bac671601931de5bdb5a847c0dbb77", null ],
+    [ "brix_sess_sanitize_ngx", "sesslog__ngx_8c.html#aa2fbc7e6a4edefb610e9949736f1591b", null ],
+    [ "brix_sess_xfer_add", "sesslog__ngx_8c.html#ac7dbae02379143225bd8c52ac6bb9cf1", null ],
+    [ "brix_sess_xfer_end", "sesslog__ngx_8c.html#ad02a56fd96d0593604373564b89a44b1", null ],
+    [ "brix_sess_xfer_start", "sesslog__ngx_8c.html#aca3742553f0a6d2a719f076eccc55e42", null ],
+    [ "brix_sesslog_shutdown_flush", "sesslog__ngx_8c.html#a33d3cff15ddb8b93d133df5527d5eb18", null ],
+    [ "brix_sess_fallback_counter", "sesslog__ngx_8c.html#a8b98c272e798042e37187e824cfdd5a4", null ],
+    [ "brix_sess_free_head", "sesslog__ngx_8c.html#a9cdb408a538225fa67cf77dbfe900ac4", null ],
+    [ "brix_sess_full_warned", "sesslog__ngx_8c.html#a17c2dd3b36f35944cf1588158e9cb53f", null ],
+    [ "brix_sess_registry", "sesslog__ngx_8c.html#abcf6af84f3ade78f8d6352d88f77ad44", null ],
+    [ "brix_sess_registry_ready", "sesslog__ngx_8c.html#a89df63f52d5b3624b549521e7842a1bb", null ]
+];

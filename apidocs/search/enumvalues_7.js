@@ -1,0 +1,25 @@
+var searchData=
+[
+  ['imp_5fop_5fchmod_0',['IMP_OP_CHMOD',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba7b0de58cdecf5209c2a462de3babbda6',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fchown_1',['IMP_OP_CHOWN',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba2b0815947bd202864bb89d80ce5b91f1',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fgetxattr_2',['IMP_OP_GETXATTR',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba1d2fcb3d9a64a6dbed98d5baba295eef',1,'impersonate_proto.h']]],
+  ['imp_5fop_5flink_3',['IMP_OP_LINK',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba7772490578316d4b23679d00021da8ff',1,'impersonate_proto.h']]],
+  ['imp_5fop_5flistxattr_4',['IMP_OP_LISTXATTR',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba007f98b99ad0bf573ace0993009ad266',1,'impersonate_proto.h']]],
+  ['imp_5fop_5flock_5fstore_5',['IMP_OP_LOCK_STORE',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6bad0537f6dbadf2114f0f5422e1782cdc5',1,'impersonate_proto.h']]],
+  ['imp_5fop_5flstat_6',['IMP_OP_LSTAT',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6baa6227e72cadfcfdfc4d378ca5ce0c68d',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fmkdir_7',['IMP_OP_MKDIR',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba3058bfa143aef5452365ba6e7d38218d',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fopen_8',['IMP_OP_OPEN',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba03b5f4a550f37c71b4d470854e05b951',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fping_9',['IMP_OP_PING',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba27d7303d1a05bc793349ad2266a5ebd3',1,'impersonate_proto.h']]],
+  ['imp_5fop_5freadlink_10',['IMP_OP_READLINK',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6bae5ddd2cec90993bcde487ead33340876',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fremovexattr_11',['IMP_OP_REMOVEXATTR',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba624a9b4c88cea208ddf9dfc606672482',1,'impersonate_proto.h']]],
+  ['imp_5fop_5frename_12',['IMP_OP_RENAME',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba2732ca48ecd4d7bb9e08b74296975f26',1,'impersonate_proto.h']]],
+  ['imp_5fop_5frename_5fexchange_13',['IMP_OP_RENAME_EXCHANGE',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba3367ac26d39e0bb0f988e06a3bf1d082',1,'impersonate_proto.h']]],
+  ['imp_5fop_5frename_5fnoreplace_14',['IMP_OP_RENAME_NOREPLACE',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6bace0bc090306ac1cb9a8833cd64486af9',1,'impersonate_proto.h']]],
+  ['imp_5fop_5frmdir_15',['IMP_OP_RMDIR',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6bad65722b54c3afe7915852c454946c7a8',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fsetattr_16',['IMP_OP_SETATTR',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba3287250cc0f56776dcce9d607b6eb35c',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fsetxattr_17',['IMP_OP_SETXATTR',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba7c4ab11b00e6a5b1c106bb382d333796',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fstat_18',['IMP_OP_STAT',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba448ec18cd8367a5b2529a647ebbad3d8',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fsymlink_19',['IMP_OP_SYMLINK',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba6df25bc30fb12c17d13da8620562827f',1,'impersonate_proto.h']]],
+  ['imp_5fop_5ftruncate_20',['IMP_OP_TRUNCATE',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba3efe6fa90aa5aa45530d39942bc10f2b',1,'impersonate_proto.h']]],
+  ['imp_5fop_5funlink_21',['IMP_OP_UNLINK',['../impersonate__proto_8h.html#a97432320aa1823ec8ffb849ff060ce6ba8a98962ff8d90e34293bd1f0e06d8bac',1,'impersonate_proto.h']]]
+];

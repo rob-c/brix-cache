@@ -1,0 +1,13 @@
+<map id="src/fs/backend/remote" name="src/fs/backend/remote">
+<area shape="rect" id="node1" href="dir_980dc972111ce22b389f6e13dafdbaa7.html" title="s3" alt="" coords="42,130,81,158"/>
+<area shape="rect" id="node2" href="dir_bb780084dbd99fba955ee8492d1e2335.html" title="remote" alt="" coords="27,54,96,82"/>
+<area shape="poly" id="edge2" href="dir_000116_000125.html" alt="" coords="63,80,64,115,59,114,60,85"/>
+<area shape="rect" id="edge2-headlabel" href="dir_000116_000125.html" title="10" alt="" coords="62,103,78,120"/>
+<area shape="rect" id="node3" href="dir_4b68c2fef3e151b6b93d5e93b14f1857.html" title="platform" alt="" coords="117,130,195,158"/>
+<area shape="poly" id="edge1" href="dir_000116_000097.html" alt="" coords="79,80,130,119,125,121,78,85"/>
+<area shape="rect" id="edge1-headlabel" href="dir_000116_000097.html" title="2" alt="" coords="126,103,134,120"/>
+<area shape="rect" id="node4" href="dir_aebb8dcc11953d78e620bbef0b9e2183.html" title="core" alt="" coords="219,130,269,158"/>
+<area shape="poly" id="edge3" href="dir_000116_000030.html" alt="" coords="94,80,207,125,202,128,94,85"/>
+<area shape="rect" id="edge3-headlabel" href="dir_000116_000030.html" title="2" alt="" coords="201,109,209,126"/>
+<area shape="rect" id="clust1" href="dir_ce3aa255f0d0e2a628573fc3b1b82afb.html" title="backend" alt="" coords="16,16,107,168"/>
+</map>

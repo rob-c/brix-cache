@@ -1,0 +1,7 @@
+<map id="brix_wt_conf_t" name="brix_wt_conf_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="62,128,179,156"/>
+<area shape="rect" id="Node000002" href="$structngx__str__t.html" title=" " alt="" coords="5,5,87,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="58,45,88,103,109,128,104,128,84,106,55,49"/>
+<area shape="rect" id="Node000003" href="$structbrix__wt__decision__cfg__t.html" title=" " alt="" coords="111,5,280,33"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="192,46,183,77,168,106,143,130,140,126,164,103,178,75,188,50"/>
+</map>

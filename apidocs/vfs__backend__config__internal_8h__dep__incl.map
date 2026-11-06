@@ -1,0 +1,19 @@
+<map id="src/fs/vfs/vfs_backend_config_internal.h" name="src/fs/vfs/vfs_backend_config_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="668,5,833,50"/>
+<area shape="rect" id="Node000002" href="$vfs__backend__config_8c.html" title=" " alt="" coords="5,98,171,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="650,38,437,64,183,101,172,103,170,97,182,95,436,59,655,38"/>
+<area shape="rect" id="Node000003" href="$vfs__backend__config__ceph_8c.html" title=" " alt="" coords="195,98,360,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="655,46,373,101,361,103,360,98,371,95,650,46"/>
+<area shape="rect" id="Node000004" href="$vfs__backend__config__fwd_8c.html" title=" " alt="" coords="384,98,549,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="671,55,535,100,534,95,665,56"/>
+<area shape="rect" id="Node000005" href="$vfs__backend__config__gsiftp_8c.html" title=" " alt="" coords="573,98,739,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="720,60,679,100,677,95,715,62"/>
+<area shape="rect" id="Node000006" href="$vfs__backend__config__http_8c.html" title=" " alt="" coords="763,98,928,143"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="785,58,826,99,821,97,783,63"/>
+<area shape="rect" id="Node000007" href="$vfs__backend__config__n2n_8c.html" title=" " alt="" coords="952,98,1117,143"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="834,53,969,98,964,97,833,58"/>
+<area shape="rect" id="Node000008" href="$vfs__backend__config__s3_8c.html" title=" " alt="" coords="1141,98,1307,143"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="849,43,1130,95,1144,101,1138,100,1129,101,849,48"/>
+<area shape="rect" id="Node000009" href="$vfs__backend__store__params_8c.html" title=" " alt="" coords="1331,98,1496,143"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="849,35,1065,59,1319,95,1333,100,1328,100,1318,101,1065,64,849,41"/>
+</map>

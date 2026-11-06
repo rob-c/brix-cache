@@ -1,0 +1,22 @@
+<map id="client/apps/rpm/brixrpm.c" name="client/apps/rpm/brixrpm.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="478,5,667,33"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,81,196,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="488,36,211,83,210,78,489,31"/>
+<area shape="rect" id="Node000003" href="$brixrpm__internal_8h.html" title=" " alt="" coords="219,90,360,117"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="525,34,351,87,349,82,530,33"/>
+<area shape="rect" id="Node000006" href="$version_8h.html" title=" " alt="" coords="385,90,498,117"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="554,33,477,83,474,79,549,35"/>
+<area shape="rect" id="Node000007" href="$jsonout_8h.html" title=" " alt="" coords="522,90,623,117"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="574,32,575,76,570,73,571,36"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="584,174,649,201"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="594,31,618,52,638,80,643,100,642,122,631,161,628,157,637,121,637,101,633,82,615,56,592,36"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="698,90,767,117"/>
+<area shape="poly" id="edge9_Node000001_Node000009" title=" " alt="" coords="599,31,696,82,691,82,598,36"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="791,90,861,117"/>
+<area shape="poly" id="edge10_Node000001_Node000010" title=" " alt="" coords="625,31,699,52,780,78,787,83,782,83,778,84,697,57,624,36"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="156,174,266,201"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="280,117,235,165,232,160,275,119"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="290,174,444,201"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="303,115,347,163,342,162,301,120"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="581,115,605,161,600,159,578,120"/>
+</map>

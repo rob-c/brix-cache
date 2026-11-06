@@ -1,0 +1,23 @@
+<map id="src/core/compat/json_iter.h" name="src/core/compat/json_iter.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="868,5,1024,50"/>
+<area shape="rect" id="Node000002" href="$brixcvmfs__ingest__diffid_8c.html" title=" " alt="" coords="5,98,183,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="850,35,559,59,377,77,194,101,184,102,183,97,194,95,376,72,558,53,855,34"/>
+<area shape="rect" id="Node000003" href="$brixcvmfs__ingest__image_8c.html" title=" " alt="" coords="207,98,384,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="850,39,643,65,396,101,385,103,384,97,395,95,642,60,855,38"/>
+<area shape="rect" id="Node000004" href="$brixoci__convert_8c.html" title=" " alt="" coords="408,98,570,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="855,46,583,101,570,103,570,98,581,95,850,46"/>
+<area shape="rect" id="Node000005" href="$brixoci__copy_8c.html" title=" " alt="" coords="594,98,756,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="869,55,741,100,740,95,864,56"/>
+<area shape="rect" id="Node000006" href="$layout_8c.html" title=" " alt="" coords="781,106,938,134"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="918,60,873,108,871,104,913,62"/>
+<area shape="rect" id="Node000007" href="$layout__index_8c.html" title=" " alt="" coords="961,98,1107,143"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="978,59,1016,99,1011,97,976,64"/>
+<area shape="rect" id="Node000008" href="$reg__client_8c.html" title=" " alt="" coords="1131,98,1257,143"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1020,53,1137,98,1132,97,1019,58"/>
+<area shape="rect" id="Node000009" href="$reg__verbs_8c.html" title=" " alt="" coords="1281,98,1406,143"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1040,45,1269,95,1283,101,1278,101,1268,101,1039,50"/>
+<area shape="rect" id="Node000010" href="$json__iter_8c.html" title=" " alt="" coords="1430,98,1587,143"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1039,38,1216,62,1418,95,1433,101,1427,100,1418,101,1215,67,1039,43"/>
+<area shape="rect" id="Node000011" href="$sd__http__nearline_8c.html" title=" " alt="" coords="1611,98,1756,143"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1039,32,1293,54,1447,72,1600,95,1613,100,1608,100,1599,101,1446,77,1293,59,1039,37"/>
+</map>

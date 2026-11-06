@@ -1,0 +1,8 @@
+<map id="brix_http_query_t" name="brix_http_query_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,251,141,279"/>
+<area shape="rect" id="Node000002" href="$structngx__str__t.html" title=" " alt="" coords="32,5,114,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="70,46,67,109,66,178,74,251,69,251,61,178,62,108,69,51"/>
+<area shape="rect" id="Node000003" href="$structbrix__http__query__param__t.html" title=" " alt="" coords="108,151,292,178"/>
+<area shape="poly" id="edge3_Node000003_Node000002" title=" " alt="" coords="96,42,190,149,186,151,94,47"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="174,189,91,253,88,249,169,187"/>
+</map>

@@ -1,0 +1,14 @@
+<map id="pblock_obj_t" name="pblock_obj_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="26,408,130,436"/>
+<area shape="rect" id="Node000002" href="$structpblock__state__t.html" title=" " alt="" coords="104,307,220,335"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="144,347,91,409,87,405,139,347"/>
+<area shape="rect" id="Node000003" href="$structpblock__catalog.html" title=" " alt="" coords="102,207,222,234"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="163,248,165,307,159,306,161,252"/>
+<area shape="rect" id="Node000004" href="$structpblock__nscache__ent.html" title=" " alt="" coords="79,106,232,134"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="158,146,164,206,158,206,156,151"/>
+<area shape="rect" id="Node000005" href="$structpblock__meta.html" title=" " alt="" coords="5,5,111,33"/>
+<area shape="poly" id="edge6_Node000001_Node000005" title=" " alt="" coords="48,51,43,82,39,119,39,322,43,347,51,370,71,408,66,408,46,372,37,348,34,323,34,118,38,81,49,45"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="81,42,145,104,140,106,82,47"/>
+<area shape="rect" id="Node000006" href="$structpblock__xform__t.html" title=" " alt="" coords="246,207,368,234"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="274,245,183,309,180,305,278,242"/>
+</map>

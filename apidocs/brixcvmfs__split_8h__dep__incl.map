@@ -1,0 +1,13 @@
+<map id="client/apps/fs/brixcvmfs_split.h" name="client/apps/fs/brixcvmfs_split.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="419,5,596,50"/>
+<area shape="rect" id="Node000002" href="$brixcvmfs_8c.html" title=" " alt="" coords="5,106,194,134"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="404,54,159,109,158,103,403,49"/>
+<area shape="rect" id="Node000003" href="$brixcvmfs__mount_8c.html" title=" " alt="" coords="218,98,395,143"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="448,56,355,100,353,95,443,57"/>
+<area shape="rect" id="Node000004" href="$brixcvmfs__ops_8c.html" title=" " alt="" coords="419,98,596,143"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="509,64,510,99,505,96,506,67"/>
+<area shape="rect" id="Node000005" href="$brixcvmfs__prefetch_8c.html" title=" " alt="" coords="620,98,798,143"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="570,54,663,98,658,97,569,59"/>
+<area shape="rect" id="Node000006" href="$brixcvmfs__transport_8c.html" title=" " alt="" coords="822,98,999,143"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="612,50,824,99,819,99,611,55"/>
+</map>

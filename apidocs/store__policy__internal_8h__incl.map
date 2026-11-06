@@ -1,0 +1,13 @@
+<map id="src/auth/crypto/store_policy_internal.h" name="src/auth/crypto/store_policy_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="158,5,314,50"/>
+<area shape="rect" id="Node000002" href="$store__policy_8h.html" title=" " alt="" coords="142,98,330,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="237,48,238,83,233,81,235,53"/>
+<area shape="rect" id="Node000003" href="$signing__policy_8h.html" title=" " alt="" coords="5,174,152,218"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="209,128,135,168,132,164,212,124"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="176,182,296,210"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="237,124,238,168,233,166,234,128"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="320,182,464,210"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="261,124,356,174,351,175,260,129"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="42,266,115,294"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="80,217,81,252,76,250,77,221"/>
+</map>

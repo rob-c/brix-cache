@@ -1,0 +1,70 @@
+<map id="ssi_resp_state_t" name="ssi_resp_state_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1147,279,1273,306"/>
+<area shape="rect" id="Node000002" href="$structbrix__ssi__req__t.html" title=" " alt="" coords="959,60,1071,88"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1039,97,1199,278,1193,279,1038,102"/>
+<area shape="rect" id="Node000003" href="$structbrix__ssi__respbuf__t.html" title=" " alt="" coords="678,5,817,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="831,27,936,46,976,59,971,60,935,51,833,32"/>
+<area shape="rect" id="Node000004" href="$structbrix__ctx__t.html" title=" " alt="" coords="972,579,1058,606"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="1032,563,1197,309,1201,305,1036,567"/>
+<area shape="rect" id="Node000005" href="$structbrix__ctx__recv__t.html" title=" " alt="" coords="687,61,807,89"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="822,77,891,86,918,94,937,105,950,122,961,143,979,199,992,267,1002,341,1013,484,1016,579,1011,577,1008,484,997,342,987,268,974,200,956,145,945,124,934,109,916,99,889,91,824,82"/>
+<area shape="rect" id="Node000006" href="$structbrix__ctx__login__t.html" title=" " alt="" coords="685,113,809,141"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="824,130,891,141,919,149,937,160,958,193,975,242,988,302,999,367,1011,493,1016,579,1011,577,1006,493,993,368,983,303,970,244,954,196,933,164,917,154,890,146,825,135"/>
+<area shape="rect" id="Node000007" href="$structbrix__sess__t.html" title=" " alt="" coords="700,165,794,193"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="809,182,884,194,916,204,937,216,956,245,971,287,995,394,1009,502,1015,579,1010,577,1003,503,989,395,966,288,951,247,933,220,914,208,883,199,810,187"/>
+<area shape="rect" id="Node000008" href="$structbrix__sess__xfer__t.html" title=" " alt="" coords="352,96,479,124"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="488,91,525,87,564,87,602,94,638,109,648,119,652,130,655,141,663,151,681,161,702,170,697,172,678,166,659,154,650,143,647,132,644,122,636,113,601,99,563,93,525,92,491,95"/>
+<area shape="rect" id="Node000013" href="$structbrix__file__t.html" title=" " alt="" coords="704,217,790,245"/>
+<area shape="poly" id="edge13_Node000013_Node000008" title=" " alt="" coords="482,126,578,154,638,176,651,189,663,202,707,222,702,224,659,207,647,193,636,180,577,159,484,131"/>
+<area shape="rect" id="Node000009" href="$structbrix__identity__t.html" title=" " alt="" coords="690,341,805,369"/>
+<area shape="poly" id="edge8_Node000004_Node000009" title=" " alt="" coords="820,344,881,350,910,360,937,376,959,398,977,424,1000,482,1012,537,1016,579,1011,577,1007,538,995,483,972,426,955,401,934,380,908,365,880,355,821,349"/>
+<area shape="rect" id="Node000010" href="$structngx__str__t.html" title=" " alt="" coords="375,419,456,446"/>
+<area shape="poly" id="edge32_Node000004_Node000010" title=" " alt="" coords="431,404,472,353,501,329,533,310,605,298,728,291,794,291,855,295,904,303,937,317,953,336,967,365,989,441,1005,520,1014,579,1009,577,1000,521,984,442,962,367,948,339,934,321,903,308,854,300,794,297,729,296,606,303,535,315,504,333,476,357,435,407"/>
+<area shape="poly" id="edge9_Node000009_Node000010" title=" " alt="" coords="432,457,475,512,503,539,535,558,564,570,588,576,611,574,635,559,651,539,656,519,655,498,650,475,644,452,641,428,645,404,659,380,672,369,691,362,687,365,675,373,663,384,650,406,647,428,649,451,655,474,660,497,662,519,656,542,639,563,613,579,588,582,562,575,533,563,499,543,471,516,432,462"/>
+<area shape="rect" id="Node000011" href="$structbrix__token__scope__t.html" title=" " alt="" coords="342,632,488,660"/>
+<area shape="poly" id="edge10_Node000009_Node000011" title=" " alt="" coords="503,640,583,629,615,620,635,608,644,590,648,564,647,497,646,429,650,401,659,380,672,368,691,361,687,365,675,373,663,383,655,402,651,429,653,497,654,564,649,592,639,611,617,625,584,634,505,644"/>
+<area shape="rect" id="Node000023" href="$structbrix__ctx__token__t.html" title=" " alt="" coords="683,393,811,421"/>
+<area shape="poly" id="edge24_Node000023_Node000011" title=" " alt="" coords="455,664,499,681,547,692,571,693,594,691,616,683,635,670,645,652,650,625,649,555,646,483,649,454,659,432,685,416,681,420,663,435,655,455,651,484,654,555,655,626,650,654,639,674,618,688,595,696,571,699,546,697,497,686,456,669"/>
+<area shape="rect" id="Node000012" href="$structbrix__ctx__pmark__t.html" title=" " alt="" coords="680,445,814,473"/>
+<area shape="poly" id="edge11_Node000004_Node000012" title=" " alt="" coords="829,461,884,472,937,494,961,513,981,535,1009,579,1004,578,977,538,957,517,934,499,883,477,830,466"/>
+<area shape="poly" id="edge12_Node000004_Node000013" title=" " alt="" coords="805,236,882,251,915,261,937,275,953,299,968,333,990,422,1006,513,1015,579,1010,577,1001,514,985,423,962,335,949,301,934,278,913,266,881,256,806,241"/>
+<area shape="rect" id="Node000014" href="$structbrix__wrts__entry__t.html" title=" " alt="" coords="348,180,482,208"/>
+<area shape="poly" id="edge14_Node000013_Node000014" title=" " alt="" coords="497,201,706,225,702,228,499,206"/>
+<area shape="rect" id="Node000015" href="$structbrix__pgw__fob__entry__t.html" title=" " alt="" coords="335,236,496,264"/>
+<area shape="poly" id="edge15_Node000013_Node000015" title=" " alt="" coords="510,250,637,246,706,238,702,241,637,251,513,255"/>
+<area shape="rect" id="Node000016" href="$structbrix__ctx__out__t.html" title=" " alt="" coords="690,499,804,526"/>
+<area shape="poly" id="edge16_Node000004_Node000016" title=" " alt="" coords="818,517,877,528,936,545,968,559,996,578,991,578,965,564,934,550,876,533,820,522"/>
+<area shape="rect" id="Node000017" href="$structbrix__resp__slot__t.html" title=" " alt="" coords="353,716,478,744"/>
+<area shape="poly" id="edge17_Node000016_Node000017" title=" " alt="" coords="473,745,514,753,557,755,599,747,618,738,635,726,652,706,657,684,655,662,650,638,644,614,641,589,645,564,659,539,673,527,692,520,688,523,676,531,663,542,650,566,646,589,649,613,655,637,661,661,662,685,656,708,639,730,621,743,601,752,558,760,513,758,474,751"/>
+<area shape="rect" id="Node000018" href="$structbrix__ctx__rd__t.html" title=" " alt="" coords="694,552,800,580"/>
+<area shape="poly" id="edge18_Node000004_Node000018" title=" " alt="" coords="814,570,975,587,970,589,815,575"/>
+<area shape="rect" id="Node000019" href="$structbrix__read__slot__t.html" title=" " alt="" coords="353,772,478,800"/>
+<area shape="poly" id="edge19_Node000018_Node000019" title=" " alt="" coords="470,802,511,811,555,814,598,807,618,798,635,786,652,765,658,743,656,720,650,696,644,671,641,646,644,620,659,593,674,580,696,572,692,575,677,585,663,597,650,621,646,646,649,670,655,695,661,719,663,744,657,767,639,790,620,803,600,812,555,819,510,816,471,807"/>
+<area shape="rect" id="Node000020" href="$structbrix__ctx__gsi__t.html" title=" " alt="" coords="692,607,803,634"/>
+<area shape="poly" id="edge20_Node000004_Node000020" title=" " alt="" coords="818,620,875,618,935,612,974,605,969,608,936,617,876,624,819,625"/>
+<area shape="rect" id="Node000021" href="$structbrix__ctx__pwd__t.html" title=" " alt="" coords="688,663,807,690"/>
+<area shape="poly" id="edge21_Node000004_Node000021" title=" " alt="" coords="822,673,878,666,934,650,970,629,997,609,1002,605,973,633,936,655,879,671,823,678"/>
+<area shape="rect" id="Node000022" href="$structbrix__ctx__krb5__t.html" title=" " alt="" coords="686,719,808,746"/>
+<area shape="poly" id="edge22_Node000004_Node000022" title=" " alt="" coords="822,731,880,721,908,712,934,699,959,679,979,653,1006,609,1010,605,984,656,963,682,937,704,910,717,881,727,824,736"/>
+<area shape="poly" id="edge23_Node000004_Node000023" title=" " alt="" coords="826,402,884,411,911,421,937,436,969,469,991,508,1006,547,1013,579,1008,577,1001,549,986,511,964,472,934,440,909,426,882,416,827,407"/>
+<area shape="rect" id="Node000024" href="$structbrix__ctx__throttle__t.html" title=" " alt="" coords="677,775,817,802"/>
+<area shape="poly" id="edge25_Node000004_Node000024" title=" " alt="" coords="832,789,885,780,911,770,934,757,951,741,966,722,988,680,1002,638,1010,609,1013,605,1007,640,993,682,970,725,955,744,937,761,913,775,887,785,833,794"/>
+<area shape="rect" id="Node000025" href="$structbrix__ctx__prepare__t.html" title=" " alt="" coords="676,831,818,858"/>
+<area shape="poly" id="edge26_Node000004_Node000025" title=" " alt="" coords="833,849,887,840,911,831,934,817,956,794,974,767,987,737,997,706,1008,648,1012,609,1015,604,1013,649,1002,708,992,739,978,769,960,797,937,821,914,836,888,846,835,854"/>
+<area shape="rect" id="Node000026" href="$structbrix__ctx__totals__t.html" title=" " alt="" coords="682,887,812,914"/>
+<area shape="poly" id="edge27_Node000004_Node000026" title=" " alt="" coords="827,908,855,906,883,902,910,892,934,877,948,857,962,827,984,748,1000,666,1010,609,1013,605,1006,667,990,749,967,829,953,860,937,881,912,897,885,907,856,912,828,913"/>
+<area shape="rect" id="Node000027" href="$structbrix__io__monitor__t.html" title=" " alt="" coords="680,943,815,970"/>
+<area shape="poly" id="edge28_Node000004_Node000027" title=" " alt="" coords="830,966,858,965,885,961,911,952,933,937,951,913,966,875,989,778,1003,677,1011,609,1014,605,1008,678,994,779,971,877,956,915,937,941,913,956,887,966,858,971,831,971"/>
+<area shape="rect" id="Node000028" href="$structngx__brix__srv__metrics__t.html" title=" " alt="" coords="661,999,833,1026"/>
+<area shape="poly" id="edge29_Node000004_Node000028" title=" " alt="" coords="841,1025,891,1019,913,1010,933,997,954,968,970,923,983,868,993,807,1006,688,1012,609,1015,604,1011,688,999,807,988,869,975,925,958,970,937,1001,916,1015,892,1024,841,1030"/>
+<area shape="rect" id="Node000029" href="$structngx__brix__proxy__metrics__t.html" title=" " alt="" coords="321,999,510,1026"/>
+<area shape="poly" id="edge30_Node000028_Node000029" title=" " alt="" coords="526,1010,663,1012,658,1013,526,1015"/>
+<area shape="rect" id="Node000030" href="$structngx__brix__proxy__upstream__metrics__t.html" title=" " alt="" coords="5,990,196,1035"/>
+<area shape="poly" id="edge31_Node000029_Node000030" title=" " alt="" coords="210,1010,322,1011,318,1014,211,1015"/>
+<area shape="rect" id="Node000031" href="$structbrix__ctx__sigver__t.html" title=" " alt="" coords="681,1055,813,1082"/>
+<area shape="poly" id="edge33_Node000004_Node000031" title=" " alt="" coords="826,1082,855,1083,883,1079,910,1071,934,1056,945,1041,956,1022,974,970,988,906,997,835,1008,698,1012,609,1015,604,1013,699,1003,836,993,907,979,972,961,1024,950,1045,937,1059,913,1076,885,1084,855,1088,827,1087"/>
+<area shape="rect" id="Node000032" href="$structbrix__ctx__rl__t.html" title=" " alt="" coords="696,1111,798,1138"/>
+<area shape="poly" id="edge34_Node000004_Node000032" title=" " alt="" coords="813,1137,845,1140,877,1138,907,1129,934,1113,947,1097,959,1075,978,1016,992,943,1001,863,1010,709,1012,609,1015,605,1015,709,1007,863,997,944,983,1017,963,1077,951,1100,937,1117,909,1134,878,1143,845,1145,813,1143"/>
+<area shape="rect" id="Node000033" href="$structbrix__ctx__deadline__t.html" title=" " alt="" coords="673,1167,821,1194"/>
+<area shape="poly" id="edge35_Node000004_Node000033" title=" " alt="" coords="819,1195,849,1197,880,1195,908,1186,934,1170,948,1152,961,1128,982,1061,996,980,1005,890,1012,718,1013,609,1016,605,1017,718,1010,891,1001,980,987,1063,966,1130,953,1155,937,1174,911,1191,881,1200,849,1202,818,1200"/>
+</map>

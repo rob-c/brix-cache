@@ -1,0 +1,25 @@
+var xrootdfs__nodes_8h =
+[
+    [ "xfs_node", "structxfs__node.html", "structxfs__node" ],
+    [ "xfs_alias", "structxfs__alias.html", "structxfs__alias" ],
+    [ "xfs_nodes", "structxfs__nodes.html", "structxfs__nodes" ],
+    [ "xfs_node_ticket", "structxfs__node__ticket.html", "structxfs__node__ticket" ],
+    [ "XFS_ALIAS_BYTES", "xrootdfs__nodes_8h.html#afd0ada9fb2cd69669d74a8d239fd4dc4", null ],
+    [ "XFS_ALIAS_LIMIT", "xrootdfs__nodes_8h.html#acf1dc5497def484256d2ee1131a51c52", null ],
+    [ "XFS_NODE_BUCKETS", "xrootdfs__nodes_8h.html#ad4eddd8a8fd2f0a1f68ec454b062a20d", null ],
+    [ "XFS_NODE_LIMIT", "xrootdfs__nodes_8h.html#a22d8fc67e986e2d8c7d05ad900d0d7fa", null ],
+    [ "xfs_node_path", "xrootdfs__nodes_8h.html#aa7af6aeec3c75c6b2878ac7c47e251bc", null ],
+    [ "xfs_nodes_alias", "xrootdfs__nodes_8h.html#a374a7a45b2ef929048728768284a81df", null ],
+    [ "xfs_nodes_bind", "xrootdfs__nodes_8h.html#af15d2ed745fd2e51c34deef22f123394", null ],
+    [ "xfs_nodes_cancel", "xrootdfs__nodes_8h.html#abc114099d222b204596e6fbfba561174", null ],
+    [ "xfs_nodes_close", "xrootdfs__nodes_8h.html#a45ec34194332b1fe1bc9c8e243631d91", null ],
+    [ "xfs_nodes_destroy", "xrootdfs__nodes_8h.html#a742100400cf4c0c6b13e25f63cc2b226", null ],
+    [ "xfs_nodes_find", "xrootdfs__nodes_8h.html#aa4b13a236a59efcec16c04b07b5e9b53", null ],
+    [ "xfs_nodes_forget", "xrootdfs__nodes_8h.html#a033111327ee7aee54774cc198d259dbe", null ],
+    [ "xfs_nodes_init", "xrootdfs__nodes_8h.html#a390f93d7149831d6d0c413bb5d8fb426", null ],
+    [ "xfs_nodes_ino_hint", "xrootdfs__nodes_8h.html#a01301903fd2fc5755b676cb8a7a7c4ef", null ],
+    [ "xfs_nodes_prepare", "xrootdfs__nodes_8h.html#a23fedd34334e085fe49286bd0a00f29e", null ],
+    [ "xfs_nodes_rename_finish", "xrootdfs__nodes_8h.html#a096fb770d973141e6bf475b6d6735ebf", null ],
+    [ "xfs_nodes_rename_prepare", "xrootdfs__nodes_8h.html#a9b777bb130c79fa55ce5af44eac8565b", null ],
+    [ "xfs_nodes_unlink", "xrootdfs__nodes_8h.html#ae857d53989c364f2f8d3149f3c0313a1", null ]
+];
