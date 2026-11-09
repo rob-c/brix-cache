@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-22.04
     name: Linux x86_64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       
       - name: Install dependencies
         run: |
@@ -88,7 +88,7 @@ jobs:
           python3 tools/ci/check_pal_seam.py --directory=src --check-implementation
       
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: success()
         with:
           name: nginx-linux-x86_64
@@ -101,7 +101,7 @@ jobs:
     runs-on: ubuntu-22.04
     name: Linux ARM64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       
       - name: Install cross-compiler
         run: |
@@ -137,7 +137,7 @@ jobs:
     runs-on: macos-12
     name: macOS x86_64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       
       - name: Install dependencies
         run: |
@@ -182,7 +182,7 @@ jobs:
           /tmp/nginx-1.28.3/objs/nginx -v
       
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: success()
         with:
           name: nginx-macos-x86_64
@@ -195,7 +195,7 @@ jobs:
     runs-on: macos-14
     name: macOS ARM64 (Apple Silicon)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       
       - name: Install dependencies
         run: |
@@ -251,7 +251,7 @@ jobs:
           python3 tools/ci/check_pal_seam.py --directory=src --check-implementation
       
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: success()
         with:
           name: nginx-macos-arm64
@@ -264,7 +264,7 @@ jobs:
     runs-on: ubuntu-22.04
     name: Windows x86_64 (Cross-Compile)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       
       - name: Install MinGW cross-compiler
         run: |
@@ -302,7 +302,7 @@ jobs:
     runs-on: ubuntu-22.04
     name: PAL Integrity Check
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       
       - name: Install Python dependencies
         run: |

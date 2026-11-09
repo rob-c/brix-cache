@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Build and execute on FreeBSD 15.1
-        uses: vmactions/freebsd-vm@d800eb013575a88d2248a6a9bf5d018eb08b3357
+        uses: vmactions/freebsd-vm@9531fe5c80f1b1da4fabc932aeb721f62fb29240
         with:
           release: '15.1'
           arch: ${{ matrix.arch }}
