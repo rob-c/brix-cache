@@ -80,10 +80,10 @@ class TestTreeDepthCap:
         # The per-entry helper must recurse into the depth-carrying core
         # (`_at(..., depth + 1)`), never back through the public wrapper which
         # would reset depth to 0 and defeat the cap.
-        assert "brix_fs_remove_tree_at(log, root_canon, child, depth + 1)" \
+        assert "brix_fs_remove_tree_at(ctx, child, depth + 1)" \
             in remove_tree
         # The public entry is a thin depth-0 wrapper only.
-        assert "return brix_fs_remove_tree_at(log, root_canon, path, 0);" \
+        assert "return brix_fs_remove_tree_at(&ctx, path, 0);" \
             in remove_tree
 
     def test_copytree_recurses_through_depth_carrying_core(self, copytree):

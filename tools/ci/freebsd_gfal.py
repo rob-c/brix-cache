@@ -24,8 +24,8 @@ def source_releases():
     return (
         ('davix', 'ebf04ce538dd97d7fca57746c500ca439438d76c',
          '54a1a4e019f979c12b863c8a814b73c6f078955169ca028c3b29753facd37e6c'),
-        ('gfal2', 'e301920ec26a1134d5003d189703bd5333875962',
-         'a9cf6b3e45ce7333bb305fdb0c92926007359769cd935d8fbc9ca0613d3c8f0f'),
+        ('gfal2', '35211221fac4e231116be7d64c0be0ce593d9e72',
+         '4c67a870d9d711300c108794c0d1c9bfa8dbd87b690847d84ec99bf23b590dec'),
         ('gfal2-python', '4f6b29bde0c5603049d299967cdab2c2414ec6e6',
          '289c46d52cd97b818930325bdceb2005a0e9b10f35d122443aa06791cb739d82'),
         ('gfal2-util', '1041a9aa449d327bffb8f26810159ffd67f525d0',

@@ -66,7 +66,6 @@ def test_kubernetes_security_negative_rejects_mutable_image_tags():
 
 def test_kubernetes_backend_preserves_the_run_api(tmp_path):
     import brixtest.runtime.kubernetes as kubernetes_module
-    from brixtest.runtime.manager import KubernetesCaseManager
     executable = binary(
         "origin_bin", image="registry.example/origin@sha256:" + "b" * 64,
         image_path="/opt/origin/bin/server",

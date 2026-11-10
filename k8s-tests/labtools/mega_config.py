@@ -50,6 +50,7 @@ SHARED_PORTS = {
     "{GSI_TLS_PORT}": "11096", "{TOKEN_PORT}": "11097", "{WEBDAV_PORT}": "8443",
     "{WEBDAV_GSI_TLS_PORT}": "8444", "{HTTP_WEBDAV_PORT}": "8080", "{S3_PORT}": "9001",
     "{METRICS_PORT}": "9100", "{AUTH_PORT}": "18445", "{HTTP_STUB_PORT}": "11123",
+    "{DASHBOARD_PORT}": "8445",
 }
 _PROLOGUE_KEEP = re.compile(r"(rate_limit_zone|^\s*(map|upstream|geo|limit_req_zone|js_)\b|^\s*[}])")
 
@@ -134,6 +135,10 @@ def _append_servers(extra, keyword, servers, used):
 
 
 def _collect_config(cfgdir, name, port, used, extra, prologues):
+    # The native fleet consolidated this anonymous writable endpoint onto the
+    # same template. Keep its dedicated port in the remote mega server too.
+    if name == "nginx_open_flags_lifecycle.conf":
+        name = "nginx_tpc_ssrf_default.conf"
     raw = _apply((cfgdir / name).read_text(), {**SHARED_PORTS, "{PORT}": port})
     for keyword in (r"\bstream\b", r"\bhttp\b"):
         body = _top_block(raw, keyword)

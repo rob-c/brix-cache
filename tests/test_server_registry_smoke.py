@@ -725,13 +725,19 @@ def test_ipv6_fleet_specs_declare_host6():
 
 
 def test_operator_child_teardown_preserves_the_live_parent_fleet(test_env, tmp_path):
-    """An empty child registry cannot authorize stopping the parent's listener."""
+    """An empty child registry cannot stop the parent's main or mesh listeners."""
     import socket
     from cmdscripts.operator_runtime import teardown_test_fleet
 
-    endpoint = (settings.BIND_HOST, settings.NGINX_ANON_PORT)
-    with socket.create_connection(endpoint, timeout=2):
-        pass
+    servers = manifest_read()["servers"]
+    endpoints = [(settings.BIND_HOST, settings.NGINX_ANON_PORT)]
+    endpoints.extend((servers[name]["endpoint"]["host"],
+                      servers[name]["endpoint"]["port"])
+                     for name in ("cms-mesh", "hybrid-mesh") if name in servers)
+    for endpoint in endpoints:
+        with socket.create_connection(endpoint, timeout=2):
+            pass
     teardown_test_fleet(tmp_path / 'operator-child')
-    with socket.create_connection(endpoint, timeout=2):
-        pass
+    for endpoint in endpoints:
+        with socket.create_connection(endpoint, timeout=2):
+            pass

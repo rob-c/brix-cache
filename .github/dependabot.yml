@@ -15,6 +15,7 @@ updates:
   - package-ecosystem: pip
     directories:
       - "/"                       # requirements{,-optional,-dev}.txt
+      - "/brixtest"               # distributable test harness and its extras
       - "/k8s-tests/pytests"      # cluster-lab only
     schedule:
       interval: weekly
@@ -31,6 +32,17 @@ updates:
       python-minor:
         patterns: ["*"]
         exclude-patterns: ["pytest", "pytest-*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: npm
+    directory: "/site"
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "site"]
+    groups:
+      site-minor:
+        patterns: ["*"]
         update-types: ["minor", "patch"]
 
   # --- GitHub Actions: the guard/analysis lanes run as root-equivalent --------
@@ -52,9 +64,20 @@ updates:
   - package-ecosystem: docker
     directories:
       - "/packaging/rpm"
+      - "/packaging/deb"
+      - "/deploy/docker"
       - "/k8s-tests/Dockerfiles/server"
       - "/k8s-tests/Dockerfiles/client"
+      - "/k8s-tests/Dockerfiles/test-runner"
+      - "/k8s-tests/Dockerfiles/gridftp-client"
+      - "/k8s-tests/Dockerfiles/rpm-builder"
+      - "/k8s-tests/Dockerfiles/xrootd-reference"
       - "/k8s-tests/images/server"
+      - "/k8s-tests/images/client"
+      - "/k8s-tests/images/test-runner"
+      - "/k8s-tests/images/authority"
+      - "/k8s-tests/images/krb5-kdc"
+      - "/k8s-tests/images/smoke"
       - "/deploy/cvmfs/docker"
       - "/tests/ceph"
     schedule:

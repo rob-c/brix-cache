@@ -35,20 +35,6 @@ imp_worker_prepare_drop(ngx_log_t *log)
     struct __user_cap_header_struct hdr;
     struct __user_cap_data_struct   data[2];
     unsigned                        keep;
-    /* The dangerous set — always shed from the bounding set (best-effort) and
-     * from permitted+effective. SETUID/SETGID are deliberately NOT here: they are
-     * retained IFF currently held, so a legitimate later identity drop still works
-     * — the end-of-init worker de-escalation (brix_imp_worker_deescalate) uses them
-     * to setuid the worker down to brix_worker_user/nobody, and the pblock backend's
-     * off-root drop uses them too. Keeping SETUID adds no escalation a root (or
-     * already-CAP_SETUID) worker does not already have, and it is stripped again by
-     * the re-harden right after the de-escalation setuid. */
-    static const int kill_caps[] = {
-        CAP_SETPCAP, CAP_DAC_OVERRIDE, CAP_DAC_READ_SEARCH, CAP_FOWNER,
-        CAP_CHOWN, CAP_FSETID, CAP_SYS_ADMIN, CAP_SYS_PTRACE, CAP_MKNOD,
-        CAP_SETFCAP,
-    };
-    unsigned i;
 #endif
 
 #if BRIX_HAS_NO_NEW_PRIVS
@@ -73,6 +59,9 @@ imp_worker_prepare_drop(ngx_log_t *log)
 #endif
 
 #if BRIX_HAS_CAPABILITIES
+    if (brix_imp_worker_drop_bounds(log) != NGX_OK) {
+        return NGX_ERROR;
+    }
     ngx_memzero(&hdr, sizeof(hdr));
     ngx_memzero(data, sizeof(data));
     hdr.version = _LINUX_CAPABILITY_VERSION_3;
@@ -95,10 +84,6 @@ imp_worker_prepare_drop(ngx_log_t *log)
                 "to start with potentially retained privileges");
         }
         return NGX_ERROR;
-    }
-    /* Best-effort bounding-set drop of the dangerous caps (needs CAP_SETPCAP). */
-    for (i = 0; i < sizeof(kill_caps) / sizeof(kill_caps[0]); i++) {
-        (void) brix_plat_prctl(PR_CAPBSET_DROP, kill_caps[i]);
     }
 #endif
     return NGX_OK;

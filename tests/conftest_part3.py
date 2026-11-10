@@ -19,6 +19,7 @@ import fleet_declares
 from brix_suite.harness.xdist_groups import (
     configure_group_failfast,
     materialize_xdist_group,
+    set_item_nodeid,
 )
 from server_launcher import LifecycleHarness, RegistryLauncher
 from server_registry import fleet_ready_for_test_root, manifest_owns_test_root
@@ -263,7 +264,7 @@ def _add_xdist_group(item, group, suffix=False, prepend=False):
     item.add_marker(pytest.mark.xdist_group(group), append=not prepend)
     marker = f"@{group}"
     if suffix and not item.nodeid.endswith(marker):
-        item._nodeid = f"{item.nodeid}{marker}"
+        set_item_nodeid(item, f"{item.nodeid}{marker}")
 
 
 def _force_xdist_group(item, group):

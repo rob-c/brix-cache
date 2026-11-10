@@ -33,6 +33,12 @@ spec:
           {{- end }}
           ports:
             - containerPort: {{ .port }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .port }}
+            periodSeconds: 1
+            failureThreshold: 30
           {{- with .mounts }}
           volumeMounts: {{ toYaml . | nindent 12 }}
           {{- end }}

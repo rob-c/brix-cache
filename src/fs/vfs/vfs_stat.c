@@ -449,6 +449,13 @@ brix_vfs_probe_storage(brix_vfs_ctx_t *ctx, int nofollow,
     struct stat               st;
     const brix_sd_driver_t *drv;
 
+    /* Both public callers already reject NULL through the confinement guard.
+     * Keep that precondition explicit at this separately analyzed helper too. */
+    if (ctx == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+
     drv = brix_vfs_ctx_driver(ctx);
     if (drv != NULL) {
         brix_sd_ucred_t  store;

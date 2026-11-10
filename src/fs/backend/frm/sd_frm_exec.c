@@ -206,6 +206,45 @@ exec_emit_line(char *line, int (*cb)(void *ud, const char *name, int is_dir),
     return cb(ud, line, is_dir);
 }
 
+/* ---- Finish the streamed listing ----
+ * WHAT: Return the child result, preserving read/close errors.
+ * WHY: A worker may already have reaped this one streaming child.
+ * HOW: Retry interrupted waits, apply the documented ECHILD rule, then
+ *      prefer the captured stream error over a successful child status.
+ */
+static int
+exec_list_result(pid_t pid, int io_error)
+{
+    int status;
+
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno == ECHILD) {
+            /* nginx's SIGCHLD handler reaps children in workers too, and this
+             * is the ONE adapter path that still spawns one directly: `dread`
+             * streams an unbounded listing through the pipe while the program
+             * runs, which the fixed-buffer capture in brix_subprocess_run
+             * cannot do without silently truncating a large directory. The
+             * stolen status is survivable HERE and nowhere else: the pipe
+             * reached EOF and the dread contract prints entries only on
+             * success, so what was read is the answer. Every verb whose result
+             * IS the exit status runs under the reparented agent (exec_run). */
+            if (io_error != 0) {
+                errno = io_error;
+                return -1;
+            }
+            return 0;
+        }
+        if (errno != EINTR) {
+            return -1;
+        }
+    }
+    if (io_error != 0) {
+        errno = io_error;
+        return -1;
+    }
+    return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
+}
+
 static int
 exec_list(void *mss, const char *key,
     int (*cb)(void *ud, const char *name, int is_dir), void *ud)
@@ -261,32 +300,7 @@ exec_list(void *mss, const char *key,
         io_error = errno != 0 ? errno : EIO;
     }
 
-    while (waitpid(pid, &status, 0) < 0) {
-        if (errno == ECHILD) {
-            /* nginx's SIGCHLD handler reaps children in workers too, and this
-             * is the ONE adapter path that still spawns one directly: `dread`
-             * streams an unbounded listing through the pipe while the program
-             * runs, which the fixed-buffer capture in brix_subprocess_run
-             * cannot do without silently truncating a large directory. The
-             * stolen status is survivable HERE and nowhere else: the pipe
-             * reached EOF and the dread contract prints entries only on
-             * success, so what was read is the answer. Every verb whose result
-             * IS the exit status runs under the reparented agent (exec_run). */
-            if (io_error != 0) {
-                errno = io_error;
-                return -1;
-            }
-            return 0;
-        }
-        if (errno != EINTR) {
-            return -1;
-        }
-    }
-    if (io_error != 0) {
-        errno = io_error;
-        return -1;
-    }
-    return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
+    return exec_list_result(pid, io_error);
 }
 
 /* exec_mkpath — §3.7 rcreate analog: "<stagecmd> rcreate <key> ''", exit 0 = the

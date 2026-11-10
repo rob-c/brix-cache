@@ -73,19 +73,26 @@ def _large_fattr_list(target, count):
 
 
 def _decode_fattr_list_values(body):
-    """Decode the complete name-NUL/length/value sequence; reject truncation."""
-    decoded = {}
+    """Decode every complete fattr record, rejecting truncation."""
+    values = {}
     offset = 0
     while offset < len(body):
-        end = body.find(b'\0', offset)
-        assert end >= 0 and end + 5 <= len(body)
-        name = body[offset:end].decode('ascii')
-        value_len = struct.unpack('!I', body[end + 1:end + 5])[0]
-        offset = end + 5
-        assert value_len <= len(body) - offset
-        decoded[name] = body[offset:offset + value_len]
-        offset += value_len
-    return decoded
+        name, value, offset = _decode_fattr_record(body, offset)
+        values[name] = value
+    return values
+
+
+def _decode_fattr_record(body, offset):
+    """Validate one name and length before slicing its bounded value."""
+    end = body.find(b'\0', offset)
+    assert end >= offset, "unterminated fattr list name"
+    name = body[offset:end].decode('ascii')
+    offset = end + 1
+    assert offset + 4 <= len(body), "missing fattr list value length"
+    value_len = struct.unpack('!I', body[offset:offset + 4])[0]
+    offset += 4
+    assert value_len <= len(body) - offset, "truncated fattr list value"
+    return name, body[offset:offset + value_len], offset + value_len
 
 
 def test_value_bearing_fattr_list_accepts_a_bounded_large_response(attribute_target):
@@ -141,8 +148,10 @@ def test_recursive_list_refuses_over_cap_without_partial_success(attribute_targe
     endpoint, root, _outside = attribute_target
     bulk = root / 'bulk'
     bulk.mkdir()
-    attr_name = 'a' * 240
-    for index in range(560):
+    # Keep each native xattr name within the macOS limit as well as Linux's;
+    # more entries still force the wire inventory beyond its 256 KiB cap.
+    attr_name = 'a' * 100
+    for index in range(800):
         name = f'f{index:04d}-' + ('x' * 230)
         target = bulk / name
         target.write_bytes(b'x')

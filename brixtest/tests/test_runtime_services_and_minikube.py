@@ -163,8 +163,11 @@ def test_minikube_status_requires_all_control_plane_components():
         json.dumps({"Host": "Running", "Kubelet": "Stopped", "APIServer": "Running"}),
         "",
     )
-    result = minikube_status(MinikubeConfig())
-    assert result["ok"] is False and result["running"] is False
+    try:
+        result = minikube_status(MinikubeConfig())
+        assert result["ok"] is False and result["running"] is False
+    finally:
+        minikube_module.subprocess.run = old_run
 
 
 def test_minikube_backend_selects_explicit_context_for_docker_profile():
@@ -192,13 +195,17 @@ def test_minikube_backend_selects_explicit_context_for_docker_profile():
 
     context = Context()
     backend = MinikubeCaseBackend()
-    backend.validate(SimpleNamespace(servers=(), clients=()))
-    backend.prepare(context)
-    assert context.selected == "brixtest"
-    assert backend.plan(context) == {
-        "backend": "minikube", "profile": "brixtest",
-        "driver": "docker", "context": "brixtest",
-    }
+    try:
+        backend.validate(SimpleNamespace(servers=(), clients=()))
+        backend.prepare(context)
+        assert context.selected == "brixtest"
+        assert backend.plan(context) == {
+            "backend": "minikube", "profile": "brixtest",
+            "driver": "docker", "context": "brixtest",
+        }
+    finally:
+        backends_module.shutil.which = old_which
+        backends_module.subprocess.run = old_run
 
 
 @pytest.mark.parametrize("driver", ["podman", "kvm2"])

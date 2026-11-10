@@ -50,15 +50,20 @@ def _base_image(server: Server, binaries: Sequence[Binary], config: Optional[Bri
     direct = server.placement.image or server.image
     if direct:
         return direct
+    _check_base_images(server, binaries)
+    if config is not None and config.oci_base_image:
+        return config.oci_base_image
+    return os.environ.get("BRIXTEST_OCI_BASE_IMAGE", "")
+
+
+def _check_base_images(server: Server, binaries: Sequence[Binary]) -> None:
+    """Reject ambiguous base images before selecting the configured default."""
     images = {item.image for item in binaries if item.image}
     if len(images) > 1:
         raise SpecError(
             "server %s generated image" % server.name, sorted(images),
             "needs at most one explicit base image",
         )
-    if config is not None and config.oci_base_image:
-        return config.oci_base_image
-    return os.environ.get("BRIXTEST_OCI_BASE_IMAGE", "")
 
 
 def _selected_server_binaries(owner, servers: Sequence[Server]) -> dict[str, tuple[Binary, ...]]:

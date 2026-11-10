@@ -106,7 +106,9 @@ def test_scanner_empty_dir_is_clean(tmp_path):
 
 
 # --- sanitizer env: findings are logged, not fatal; leaks are suppressed -----
-def test_sanitizer_env_logs_and_suppresses(tmp_path):
+@pytest.mark.parametrize("host,leaks", [("linux", 1), ("darwin", 0), ("freebsd14", 1)])
+def test_sanitizer_env_logs_and_suppresses(tmp_path, monkeypatch, host, leaks):
+    monkeypatch.setattr(asan.sys, "platform", host)
     supp = str(tmp_path / "lsan.supp")
     env = asan._sanitizer_env({"PATH": "/usr/bin"}, str(tmp_path), supp)
 
@@ -118,7 +120,7 @@ def test_sanitizer_env_logs_and_suppresses(tmp_path):
     assert "abort_on_error=0" in env["ASAN_OPTIONS"]
     assert "exitcode=0" in env["ASAN_OPTIONS"]
     assert f"log_path={tmp_path}/asan" in env["ASAN_OPTIONS"]
-    assert "detect_leaks=1" in env["ASAN_OPTIONS"]
+    assert f"detect_leaks={leaks}" in env["ASAN_OPTIONS"]
     # UBSan continues + records; LSan uses the curated suppressions and stays
     # quiet about accounting so clean runs leave no false-positive report.
     assert "halt_on_error=0" in env["UBSAN_OPTIONS"]

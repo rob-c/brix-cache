@@ -25,7 +25,7 @@
  *       blocks are covered by verify-on-fill and scrub, not the hot path).
  *       Writes never touch the record: the engine folds CRCs of fully
  *       covered blocks into a handle-local table as the bytes stream through
- *       and merges them into the record ONCE at close (brix_csi_flush),
+ *       and merges them into the record at sync/close (brix_csi_flush),
  *       recomputing up to BRIX_CSI_FLUSH_READ blocks of unaligned edges
  *       from disk. Fail-closed: a crash before flush leaves stale CRCs, so
  *       reads of a torn upload fail kXR_ChkSumErr until rewritten.
@@ -89,5 +89,8 @@ int  brix_csi_write_update(brix_csi_t *c, const unsigned char *buf,
  * lock: resize/create the record from the file's current size, store folded
  * CRCs, recompute up to BRIX_CSI_FLUSH_READ edge blocks from disk. */
 int  brix_csi_flush(brix_csi_t *c);
+
+/* SYNC variant: refuse to publish when path no longer names the open fd. */
+int  brix_csi_flush_bound(brix_csi_t *c, int fd);
 
 #endif /* BRIX_FS_BACKEND_CSI_TAGSTORE_H */

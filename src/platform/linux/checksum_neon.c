@@ -2,9 +2,8 @@
  * src/platform/linux/checksum_neon.c - ARM64 NEON SIMD checksum optimizations
  * 
  * Uses ARM NEON SIMD instructions for vectorized checksum and hash operations.
- * Provides 4x parallelism for Adler-32, Fletcher, and custom checksums.
+ * Computes Adler-32, Fletcher, CRC32C and simple checksums over bounded blocks.
  * 
- * Performance: 3-4x faster than scalar implementation on NEON-capable ARM64.
  * 
  * References:
  * - ARM NEON Programming Guide
@@ -28,14 +27,31 @@
 #include <arm_acle.h>
 #endif
 
+/* ---- Weighted contribution of one 16-byte block ----
+ * WHAT: Returns sum((16 - i) * byte[i]) for a loaded vector.
+ * WHY: Adler and Fletcher's second sum includes every prefix of the block.
+ * HOW: 1. Multiply each half by descending weights. 2. Widen and add both sums.
+ */
+static uint32_t
+brix_neon_weighted_sum(uint8x16_t bytes)
+{
+    const uint8_t low_weights[8] = {16, 15, 14, 13, 12, 11, 10, 9};
+    const uint8_t high_weights[8] = {8, 7, 6, 5, 4, 3, 2, 1};
+    uint16x8_t low = vmull_u8(vget_low_u8(bytes), vld1_u8(low_weights));
+    uint16x8_t high = vmull_u8(vget_high_u8(bytes), vld1_u8(high_weights));
+    return vaddlvq_u16(low) + vaddlvq_u16(high);
+}
+
 /*
  * NEON-accelerated Adler-32 checksum
+ *
+ * WHAT: Extends Adler-32 with every input byte, retaining the supplied seed.
+ * WHY: The vector second sum must include all sixteen byte prefixes.
+ * HOW: 1. Add weighted blocks modulo 65521. 2. Add scalar tail bytes.
  * 
  * Processes 16 bytes per iteration using NEON vector operations.
  * Maintains two 32-bit accumulators (s1, s2) in parallel.
  * 
- * Performance: ~2.5-3.5 GB/s on Cortex-A72, ~4-5 GB/s on Neoverse N1
- * Scalar performance: ~800 MB/s
  * 
  * @param buf  Input buffer
  * @param len  Buffer length in bytes
@@ -56,18 +72,9 @@ uint32_t brix_adler32_neon(const uint8_t *buf, size_t len, uint32_t adler)
         /* Load 16 bytes into NEON register */
         uint8x16_t v = vld1q_u8(ptr);
         
-        /* Extract and sum bytes for s1 */
-        uint16x8_t v16_low = vmovl_u8(vget_low_u8(v));
-        uint16x8_t v16_high = vmovl_u8(vget_high_u8(v));
-        uint16x8_t v16_sum = vpaddq_u16(v16_low, v16_high);
-        
-        uint32x4_t v32_sum = vpaddlq_u16(v16_sum);
-        uint32x2_t v32_sum_low = vget_low_u32(v32_sum);
-        uint32x2_t v32_sum_high = vget_high_u32(v32_sum);
-        uint32x2_t v32_total = vpadd_u32(v32_sum_low, v32_sum_high);
-        
-        s1 += vget_lane_u32(v32_total, 0);
-        s2 += s1;
+        /* Each prefix contributes the incoming s1 plus its weighted bytes. */
+        s2 += 16 * s1 + brix_neon_weighted_sum(v);
+        s1 += vaddlvq_u8(v);
         
         /* Reduce modulo ADLER_MOD periodically */
         s1 %= MOD_ADLER;
@@ -92,11 +99,14 @@ uint32_t brix_adler32_neon(const uint8_t *buf, size_t len, uint32_t adler)
 
 /*
  * NEON-accelerated Fletcher-16 checksum
+ *
+ * WHAT: Returns the two modulo-255 sums of the entire input.
+ * WHY: Weighted prefix sums and bounded reduction preserve the scalar result.
+ * HOW: 1. Add weighted blocks modulo 255. 2. Add and reduce the scalar tail.
  * 
  * Similar to Adler-32 but uses modulo 255 instead of 65521.
  * Processes 16 bytes per iteration.
  * 
- * Performance: ~3-4 GB/s on modern ARM64
  * 
  * @param buf  Input buffer
  * @param len  Buffer length
@@ -112,17 +122,8 @@ uint16_t brix_fletcher16_neon(const uint8_t *buf, size_t len)
     while (nblocks > 0) {
         uint8x16_t v = vld1q_u8(ptr);
         
-        uint16x8_t v16_low = vmovl_u8(vget_low_u8(v));
-        uint16x8_t v16_high = vmovl_u8(vget_high_u8(v));
-        uint16x8_t v16_sum = vpaddq_u16(v16_low, v16_high);
-        
-        uint32x4_t v32_sum = vpaddlq_u16(v16_sum);
-        uint32x2_t v32_sum_low = vget_low_u32(v32_sum);
-        uint32x2_t v32_sum_high = vget_high_u32(v32_sum);
-        uint32x2_t v32_total = vpadd_u32(v32_sum_low, v32_sum_high);
-        
-        s1 += vget_lane_u32(v32_total, 0);
-        s2 += s1;
+        s2 = (s2 + 16 * s1 + brix_neon_weighted_sum(v)) % 255;
+        s1 = (s1 + vaddlvq_u8(v)) % 255;
         
         ptr += 16;
         nblocks--;
@@ -142,12 +143,15 @@ uint16_t brix_fletcher16_neon(const uint8_t *buf, size_t len)
 
 /*
  * NEON-accelerated XOR-based checksum (64-bit)
+ *
+ * WHAT: XORs each little-endian word and a zero-padded tail into the seed.
+ * WHY: The seed must contribute once, including for an empty buffer.
+ * HOW: 1. XOR zero-initialized vector lanes. 2. Fold into seed. 3. Add tail.
  * 
  * Computes 64-bit XOR checksum by processing 16 bytes at a time.
  * Useful for quick integrity checks where cryptographic strength
  * is not required.
  * 
- * Performance: ~5-7 GB/s on modern ARM64
  * 
  * @param buf  Input buffer
  * @param len  Buffer length
@@ -156,22 +160,21 @@ uint16_t brix_fletcher16_neon(const uint8_t *buf, size_t len)
  */
 uint64_t brix_xor_checksum_neon(const uint8_t *buf, size_t len, uint64_t seed)
 {
-    uint64x2_t vseed = vdupq_n_u64(seed);
-    const uint64_t *ptr64 = (const uint64_t *)buf;
+    uint64x2_t vseed = vdupq_n_u64(0);
+    const uint8_t *ptr = buf;
     size_t qwords = len / 16;
     
     while (qwords > 0) {
-        uint64x2_t v = vld1q_u64(ptr64);
+        uint64x2_t v = vreinterpretq_u64_u8(vld1q_u8(ptr));
         vseed = veorq_u64(vseed, v);
-        ptr64 += 2;
+        ptr += 16;
         qwords--;
     }
     
     /* Combine lanes */
-    uint64_t result = vgetq_lane_u64(vseed, 0) ^ vgetq_lane_u64(vseed, 1);
+    uint64_t result = seed ^ vgetq_lane_u64(vseed, 0) ^ vgetq_lane_u64(vseed, 1);
     
     /* Handle remaining bytes */
-    const uint8_t *ptr = (const uint8_t *)ptr64;
     size_t remaining = len % 16;
     
     for (size_t i = 0; i < remaining; i++) {
@@ -183,11 +186,14 @@ uint64_t brix_xor_checksum_neon(const uint8_t *buf, size_t len, uint64_t seed)
 
 /*
  * NEON-accelerated memcpy with checksum
+ *
+ * WHAT: Copies len bytes and extends the public, complemented CRC32C value.
+ * WHY: Hardware and software paths must checksum identical bytes and seeds.
+ * HOW: 1. Complement seed. 2. Copy/checksum blocks and tail. 3. Complement back.
  * 
  * Combines memory copy and checksum computation in a single pass,
  * improving cache efficiency and reducing memory bandwidth.
  * 
- * Performance: ~3-4 GB/s (copy + checksum) on modern ARM64
  * 
  * @param dest Destination buffer
  * @param src  Source buffer
@@ -200,6 +206,8 @@ uint32_t brix_memcpy_crc32_neon(void *dest, const void *src, size_t len, uint32_
 #if defined(__ARM_FEATURE_CRC32)
     uint8_t *dst = (uint8_t *)dest;
     const uint8_t *source = (const uint8_t *)src;
+    /* Match brix_crc32c_extend's complemented public checksum convention. */
+    crc = ~crc;
     
     size_t qwords = len / 16;
     
@@ -211,9 +219,9 @@ uint32_t brix_memcpy_crc32_neon(void *dest, const void *src, size_t len, uint32_
         vst1q_u8(dst, v);
         
         /* Compute CRC on the data */
-        const uint64_t *src64 = (const uint64_t *)source;
-        crc = __crc32cd(crc, src64[0]);
-        crc = __crc32cd(crc, src64[1]);
+        uint64x2_t words = vreinterpretq_u64_u8(v);
+        crc = __crc32cd(crc, vgetq_lane_u64(words, 0));
+        crc = __crc32cd(crc, vgetq_lane_u64(words, 1));
         
         source += 16;
         dst += 16;
@@ -224,9 +232,10 @@ uint32_t brix_memcpy_crc32_neon(void *dest, const void *src, size_t len, uint32_
     size_t remaining = len % 16;
     for (size_t i = 0; i < remaining; i++) {
         dst[i] = source[i];
+        crc = __crc32cb(crc, source[i]);
     }
     
-    return crc;
+    return ~crc;
 #else
     /* Fallback: separate memcpy and CRC */
     memcpy(dest, src, len);
@@ -240,7 +249,6 @@ uint32_t brix_memcpy_crc32_neon(void *dest, const void *src, size_t len, uint32_
  * Computes sum of all bytes in buffer using NEON parallelism.
  * Returns 32-bit sum (can be used for simple error detection).
  * 
- * Performance: ~4-6 GB/s on modern ARM64
  * 
  * @param buf  Input buffer
  * @param len  Buffer length
@@ -306,34 +314,6 @@ uint32_t brix_byte_sum_neon(const uint8_t *buf, size_t len)
     return sum;
 }
 
-/*
- * Performance benchmarks (representative measurements)
- * 
- * CPU: AWS Graviton2 (Cortex-A72-based, 2.5 GHz)
- * Buffer size: 1 MB
- * 
- * Function                  Throughput    Speedup vs scalar
- * ---------------------------------------------------------
- * brix_adler32_neon         2.8 GB/s      3.5x
- * brix_fletcher16_neon      3.2 GB/s      3.8x
- * brix_xor_checksum_neon    5.1 GB/s      4.2x
- * brix_byte_sum_neon        4.8 GB/s      4.0x
- * 
- * CPU: Ampere Altra (Neoverse N1, 3.0 GHz)
- * Buffer size: 1 MB
- * 
- * Function                  Throughput    Speedup vs scalar
- * ---------------------------------------------------------
- * brix_adler32_neon         4.2 GB/s      3.6x
- * brix_fletcher16_neon      4.8 GB/s      4.0x
- * brix_xor_checksum_neon    6.5 GB/s      4.5x
- * brix_byte_sum_neon        6.2 GB/s      4.3x
- * 
- * Notes:
- * - NEON provides 4x parallelism for byte operations
- * - Memory bandwidth becomes limiting factor at ~6-7 GB/s
- * - L1 cache bandwidth on Neoverse N1: ~15 GB/s
- * - L2 cache bandwidth: ~8-10 GB/s
- */
+
 
 #endif /* BRIX_PLATFORM_LINUX && BRIX_ARCH_ARM64 */

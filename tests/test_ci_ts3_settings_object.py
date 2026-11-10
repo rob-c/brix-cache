@@ -320,7 +320,7 @@ def test_repo_root_brixtest_dir_never_shadows_the_real_package():
     assert not (REPO / "brixtest" / "__init__.py").exists(), (
         "brixtest/__init__.py at the repo root would shadow brixtest/src/brixtest")
     probe = (
-        "import sys; sys.path.append(%r)\n"
+        "import sys; sys.path[:] = [p for p in sys.path if 'site-packages' not in p]; sys.path.append(%r)\n"
         "import brixtest.config.ports as p; print(p.__file__)" % str(SRC)
     )
     env = dict(os.environ)

@@ -21,10 +21,10 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7.0.1
     
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7.1.0
       with:
         python-version: '3.11'
     
@@ -62,9 +62,9 @@ jobs:
     - name: Configure nginx with BriX-Cache
       run: |
         cd /tmp
-        wget https://nginx.org/download/nginx-1.28.3.tar.gz
-        tar xzf nginx-1.28.3.tar.gz
-        cd nginx-1.28.3
+        wget https://nginx.org/download/nginx-1.31.8.tar.gz
+        tar xzf nginx-1.31.8.tar.gz
+        cd nginx-1.31.8
         
         # Use detected optimization flags
         MARCH="${{ steps.platform.outputs.march }}"
@@ -90,24 +90,24 @@ jobs:
     
     - name: Build
       run: |
-        cd /tmp/nginx-1.28.3
+        cd /tmp/nginx-1.31.8
         make -j$(nproc)
     
     - name: Test binary
       run: |
-        cd /tmp/nginx-1.28.3
+        cd /tmp/nginx-1.31.8
         ./objs/nginx -v
         ./objs/nginx -t 2>&1 || true  # Configuration test may fail without config file
     
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7.0.2
       with:
         name: nginx-brix-${{ steps.platform.outputs.platform_name }}-${{ steps.platform.outputs.arch_family }}
-        path: /tmp/nginx-1.28.3/objs/nginx
+        path: /tmp/nginx-1.31.8/objs/nginx
         if-no-files-found: error
     
     - name: Upload platform detection results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7.0.2
       with:
         name: platform-detection-${{ matrix.os }}
         path: /tmp/platform.json
@@ -121,7 +121,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7.0.1
     
     - name: Detect ARM64 features
       id: platform
@@ -138,9 +138,9 @@ jobs:
     - name: Build with ARM64 optimizations
       run: |
         cd /tmp
-        wget https://nginx.org/download/nginx-1.28.3.tar.gz
-        tar xzf nginx-1.28.3.tar.gz
-        cd nginx-1.28.3
+        wget https://nginx.org/download/nginx-1.31.8.tar.gz
+        tar xzf nginx-1.31.8.tar.gz
+        cd nginx-1.31.8
         
         export CFLAGS="${{ steps.platform.outputs.march }} -O3"
         
@@ -155,6 +155,6 @@ jobs:
     
     - name: Test ARM64 binary
       run: |
-        cd /tmp/nginx-1.28.3
+        cd /tmp/nginx-1.31.8
         ./objs/nginx -v
         file ./objs/nginx

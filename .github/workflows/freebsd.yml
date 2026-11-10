@@ -37,9 +37,9 @@ jobs:
       matrix:
         arch: [x86_64, aarch64]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Build and execute on FreeBSD 15.1
-        uses: vmactions/freebsd-vm@d800eb013575a88d2248a6a9bf5d018eb08b3357
+        uses: vmactions/freebsd-vm@c46abacb49f09938ca4e1702d15d836285d694cc
         with:
           release: '15.1'
           arch: ${{ matrix.arch }}
@@ -102,13 +102,13 @@ jobs:
             fi
           run: |
             set -eu
-            fetch -o /var/tmp/nginx-1.30.5.tar.gz https://nginx.org/download/nginx-1.30.5.tar.gz
-            test "$(sha256 -q /var/tmp/nginx-1.30.5.tar.gz)" = \
+            fetch -o /var/tmp/nginx-1.30.6.tar.gz https://nginx.org/download/nginx-1.30.6.tar.gz
+            test "$(sha256 -q /var/tmp/nginx-1.30.6.tar.gz)" = \
               '6c20565aa2325cb82216ae804f4a4ff1875179014759a381c42ddc8e11c4906d'
-            tar -xzf /var/tmp/nginx-1.30.5.tar.gz -C /var/tmp
+            tar -xzf /var/tmp/nginx-1.30.6.tar.gz -C /var/tmp
             chown -R brixvalidate:brixvalidate "$GITHUB_WORKSPACE"
             su -l brixvalidate -c '/usr/local/bin/python3.12 -m venv --system-site-packages /home/brixvalidate/test-python'
-            su -l brixvalidate -c '/home/brixvalidate/test-python/bin/python -m pip install "radon>=6,<7" "complexipy>=6,<8" "pytest-rerunfailures>=16.4,<17" "pyOpenSSL>=23,<26"'
+            su -l brixvalidate -c '/home/brixvalidate/test-python/bin/python -m pip install "radon>=6.0.1,<7" "complexipy>=8.3.0,<9" "pytest-rerunfailures>=16.7,<17" "pyOpenSSL>=26.4.0,<27"'
             su -l brixvalidate -c 'env GOBIN=/tmp/gohep-bin go install go-hep.org/x/hep/xrootd/cmd/xrd-cp@v0.40.0 go-hep.org/x/hep/xrootd/cmd/xrd-ls@v0.40.0'
             install -d -o brixvalidate -g brixvalidate "$GITHUB_WORKSPACE/build/freebsd"
             env PYTHONPATH="$GITHUB_WORKSPACE/tests" \
@@ -135,7 +135,7 @@ jobs:
                 TEST_GOHEP_BIN=/tmp/gohep-bin \
                 /home/brixvalidate/test-python/bin/python tools/ci/freebsd_pending_peer.py \
                 --user brixvalidate -- /home/brixvalidate/test-python/bin/python \
-                tools/ci/freebsd_native.py --nginx-source /var/tmp/nginx-1.30.5 \
+                tools/ci/freebsd_native.py --nginx-source /var/tmp/nginx-1.30.6 \
                 --build-dir "$GITHUB_WORKSPACE/build/freebsd" --test-level full \
                 || brix_suite_status=$?
               # The bounded, separate host-root lane proves saved-ID drop,
@@ -143,16 +143,16 @@ jobs:
               # Preserve its evidence even if the ordinary full lane is red.
               env XRD_NETWORKSTACK=IPv4 TEST_GOHEP_BIN=/tmp/gohep-bin \
                 /home/brixvalidate/test-python/bin/python tools/ci/freebsd_native.py \
-                --nginx-source /var/tmp/nginx-1.30.5 \
+                --nginx-source /var/tmp/nginx-1.30.6 \
                 --build-dir "$GITHUB_WORKSPACE/build/freebsd" \
                 --test-level privileged --no-build || brix_suite_status=$?
               exit "$brix_suite_status"
             else
-              su -l brixvalidate -c "cd '$GITHUB_WORKSPACE' && env XRD_NETWORKSTACK=IPv4 TEST_STAGE_DEVICE_ROOT=/var/tmp/brix-cross-device-stage TEST_GOHEP_BIN=/tmp/gohep-bin /home/brixvalidate/test-python/bin/python tools/ci/freebsd_native.py --nginx-source /var/tmp/nginx-1.30.5 --build-dir '$GITHUB_WORKSPACE/build/freebsd' --test-level contracts"
+              su -l brixvalidate -c "cd '$GITHUB_WORKSPACE' && env XRD_NETWORKSTACK=IPv4 TEST_STAGE_DEVICE_ROOT=/var/tmp/brix-cross-device-stage TEST_GOHEP_BIN=/tmp/gohep-bin /home/brixvalidate/test-python/bin/python tools/ci/freebsd_native.py --nginx-source /var/tmp/nginx-1.30.6 --build-dir '$GITHUB_WORKSPACE/build/freebsd' --test-level contracts"
             fi
       - name: Preserve native test evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: freebsd15-${{ matrix.arch }}-tests
           path: |

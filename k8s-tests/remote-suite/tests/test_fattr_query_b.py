@@ -1,3 +1,5 @@
+# brix-remote-adapted
+# Filesystem fixtures and xattrs are accessed through klib.
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_fattr_query_helpers")
 
@@ -53,28 +55,22 @@ class TestFattrRecurse:
         pid = os.getpid()
         self.dir_name = f"fattr_recurse_{pid}"
         self.dir_fs   = os.path.join(DATA_DIR, self.dir_name)
-        os.makedirs(self.dir_fs, exist_ok=True)
+        klib.svc_mkdir(SERVER_SVC, self.dir_fs)
 
         # Top-level file with one xattr
         self.top_file_fs = os.path.join(self.dir_fs, "top.txt")
-        with open(self.top_file_fs, "w") as f:
-            f.write("top\n")
-        try:
-            os.setxattr(self.top_file_fs, b"user.U.color", b"blue")
-        except OSError:
-            pytest.skip("xattr not supported on test filesystem")
+        klib.svc_write(SERVER_SVC, self.top_file_fs, b"top\n")
+        klib.svc_setxattr(SERVER_SVC, self.top_file_fs, b"user.U.color", b"blue")
 
         # Subdirectory + nested file with a different xattr
         sub_fs = os.path.join(self.dir_fs, "sub")
-        os.makedirs(sub_fs, exist_ok=True)
+        klib.svc_mkdir(SERVER_SVC, sub_fs)
         self.nested_file_fs = os.path.join(sub_fs, "nested.txt")
-        with open(self.nested_file_fs, "w") as f:
-            f.write("nested\n")
-        os.setxattr(self.nested_file_fs, b"user.U.project", b"cms")
+        klib.svc_write(SERVER_SVC, self.nested_file_fs, b"nested\n")
+        klib.svc_setxattr(SERVER_SVC, self.nested_file_fs, b"user.U.project", b"cms")
 
     def teardown_method(self) -> None:
-        import shutil
-        shutil.rmtree(self.dir_fs, ignore_errors=True)
+        klib.svc_rmtree(SERVER_SVC, self.dir_fs)
 
     # ── Tests ─────────────────────────────────────────────────────────────
 

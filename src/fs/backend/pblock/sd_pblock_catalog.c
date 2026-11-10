@@ -66,14 +66,19 @@ nscache_ok(const char *p)
     return p != NULL && strlen(p) < PBLOCK_NSCACHE_PATHMAX;
 }
 
-/* Positive hit → 1 and fills *out (when non-NULL); miss → 0. */
+/* ---- Read committed namespace cache entries ----
+ * WHAT: Return 1 for a positive cache hit, otherwise 0.
+ * WHY: An active transaction must observe its own SQL changes, not an older
+ *      committed cache entry shared with other connections.
+ * HOW: 1. Bypass during transactions. 2. Validate the key. 3. Read its bucket.
+ */
 int
 nscache_get(pblock_catalog *cat, const char *path, pblock_meta *out)
 {
     pblock_nscache_ent *e;
     int                 hit = 0;
 
-    if (!nscache_ok(path)) {
+    if (!sqlite3_get_autocommit(cat->db) || !nscache_ok(path)) {
         return 0;
     }
     if (cat->nsidx != NULL) {                 /* W4: the shared mmap table */
@@ -112,15 +117,19 @@ nscache_gen(pblock_catalog *cat)
     return g;
 }
 
-/* Store a positive entry, but only if no invalidation happened since `gen` was
- * snapshotted (else the row we read may already be stale → drop it). */
+/* ---- Cache a committed lookup without reviving stale metadata ----
+ * WHAT: Store a positive result only while its generation remains current.
+ * WHY: Uncommitted reads must never escape through the shared namespace cache.
+ * HOW: 1. Bypass transaction-local results. 2. Validate the key. 3. Match the
+ *      captured generation before installing the result.
+ */
 void
 nscache_store(pblock_catalog *cat, const char *path, const pblock_meta *meta,
     uint64_t gen)
 {
     pblock_nscache_ent *e;
 
-    if (!nscache_ok(path)) {
+    if (!sqlite3_get_autocommit(cat->db) || !nscache_ok(path)) {
         return;
     }
     if (cat->nsidx != NULL) {                 /* W4 */
@@ -140,16 +149,22 @@ nscache_store(pblock_catalog *cat, const char *path, const pblock_meta *meta,
     pthread_mutex_unlock(&cat->cache_mtx);
 }
 
-/* Authoritative install after a write (put): bump the generation (discarding any
- * concurrent lookup-fill for this path) and store the just-written meta, so the
- * common write-then-read sequence (create → chmod → stat) serves the reads from
- * memory. Assumes a path is not written concurrently from two threads (true on
- * the worker event loop; the SQL write remains the source of truth regardless). */
+/* ---- Publish committed metadata or invalidate a pending write ----
+ * WHAT: Install an autocommitted row; invalidate its key during a transaction.
+ * WHY: A successful SQL statement is not a committed transaction. Publishing
+ *      early leaks pending rows and leaves phantom objects after rollback.
+ * HOW: 1. Invalidate pending changes. 2. Otherwise advance the generation and
+ *      install the committed row in the selected cache.
+ */
 void
 nscache_put(pblock_catalog *cat, const char *path, const pblock_meta *meta)
 {
     pblock_nscache_ent *e;
 
+    if (!sqlite3_get_autocommit(cat->db)) {
+        nscache_inval(cat, path);
+        return;
+    }
     if (cat->nsidx != NULL) {                 /* W4 */
         if (nscache_ok(path)) {
             nsidx_put(cat, path, meta);
@@ -237,12 +252,24 @@ cat_prepare(pblock_catalog *cat, const char *sql)
     return stmt;
 }
 
-/* cat_exec — run a parameterless statement (PRAGMA/DDL/transaction control).
- * Returns 0 or -1 with errno=EIO. */
+/* ---- Execute catalog control SQL and retire transaction-era cache entries ----
+ * WHAT: Run a parameterless statement, returning 0 or -1/EIO.
+ * WHY: Other connections can cache the old committed row while a write is
+ *      pending. Commit, rollback and automatic rollback must invalidate those
+ *      results and any in-flight fills from the preceding generation.
+ * HOW: 1. Observe transaction state. 2. Execute SQL. 3. Clear cache when the
+ *      transaction ends, including error paths. 4. Preserve the SQL result.
+ */
 int
 cat_exec(pblock_catalog *cat, const char *sql)
 {
-    if (sqlite3_exec(cat->db, sql, NULL, NULL, NULL) != SQLITE_OK) {
+    int in_transaction = !sqlite3_get_autocommit(cat->db);
+    int rc = sqlite3_exec(cat->db, sql, NULL, NULL, NULL);
+
+    if (in_transaction && sqlite3_get_autocommit(cat->db)) {
+        nscache_clear(cat);
+    }
+    if (rc != SQLITE_OK) {
         return cat_fail(EIO);
     }
     return 0;

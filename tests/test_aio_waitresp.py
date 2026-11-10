@@ -32,7 +32,7 @@ import shutil
 import socket
 import struct
 import subprocess
-from brix_suite.client_build import client_make
+from brix_suite.client_build import client_make, client_snapshot
 import threading
 import tempfile
 import time
@@ -219,30 +219,12 @@ def _free_port():
     return free_port(BIND_HOST)
 
 
-def _same_file_version(before, after):
-    return (before.st_size, before.st_mtime_ns) == \
-           (after.st_size, after.st_mtime_ns)
-
-
 def _snapshot_driver(directory, source=DRIVER):
     """Copy one complete driver version outside the mutable build tree."""
     source = Path(source)
     target_dir = Path(directory)
     target_dir.mkdir(parents=True, exist_ok=True)
-    target = target_dir / source.name
-    for _ in range(8):
-        try:
-            before = source.stat()
-            shutil.copy2(source, target)
-            after = source.stat()
-        except OSError:
-            time.sleep(0.05)
-            continue
-        if before.st_size and _same_file_version(before, after):
-            target.chmod(0o755)
-            return target
-        time.sleep(0.05)
-    raise RuntimeError(f"could not snapshot stable test driver: {source}")
+    return client_snapshot(CLIENT_DIR, source, target_dir / source.name)
 
 
 @functools.lru_cache(maxsize=1)

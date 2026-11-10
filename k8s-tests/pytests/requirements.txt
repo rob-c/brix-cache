@@ -5,5 +5,5 @@
 # the kubernetes client tracks the API server's version, so an unbounded major
 # is a live break waiting for the next cluster upgrade.
 # Enforced by tools/ci/check_python_deps.py.
-kubernetes>=28,<37
-pytest>=9.1.1,<10
+kubernetes>=37.0.2,<38
+pytest>=9.2.0,<10

@@ -2,17 +2,21 @@
 # krb5.conf + service keytab into the release namespace on startup.
 ARG BRIX_BASE_IMAGE=almalinux:9
 FROM ${BRIX_BASE_IMAGE}
+ARG TARGETARCH
 ARG BRIX_OS_TARGET=alma9
 ARG BRIX_ENABLE_CEPH_SIG=0
 ARG BRIX_CEPH_SIG_RELEASE=tentacle
 COPY k8s-tests/lib/el-target.sh /tmp/el-target.sh
 RUN bash /tmp/el-target.sh \
-    && dnf install -y krb5-server krb5-workstation python3 \
+    && dnf install -y krb5-server krb5-workstation python3.12 python3.12-pip \
+    && alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 \
     && dnf clean all
 RUN curl -fsSLo /usr/local/bin/kubectl \
-        "https://dl.k8s.io/release/v1.31.4/bin/linux/amd64/kubectl" \
+        "https://dl.k8s.io/release/v1.37.2/bin/linux/${TARGETARCH}/kubectl" \
     && chmod +x /usr/local/bin/kubectl
 COPY tests/ /opt/brix/tests/
+COPY brixtest/ /opt/brix/brixtest/
+RUN python3 -m pip install --no-cache-dir /opt/brix/brixtest
 WORKDIR /opt/brix
 CMD ["/bin/bash","-lc","\
     export TEST_ROOT=${TEST_ROOT:-/work} && mkdir -p \"$TEST_ROOT\" && \

@@ -80,7 +80,7 @@ def handle_stat_binary(native_compile):
 #include <stdlib.h>
 #include <string.h>
 struct brix_mfile { brix_aconn *ac; int max_stall_ms; };
-static int mfile_stat_once(brix_mfile *, const uint8_t *, brix_statinfo *, brix_status *);
+static int mfile_stat_once(brix_mfile *, const uint8_t[4], brix_statinfo *, brix_status *);
 /* WHAT: Inject stat transport results. WHY: Exercise real malformed reply arms.
  * HOW: 1. Check handle-only framing. 2. Return controlled bytes or transport error. */
 int brix_aio_call_ex(brix_aconn *ac, const void *header, const void *payload,

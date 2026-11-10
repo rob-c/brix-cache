@@ -19,7 +19,7 @@ HOST_ARCH ?= $(shell uname -m)
 # Homebrew OpenSSL is keg-only. Standalone builds of this archive need the same
 # automatic metadata discovery as the parent client build.
 ifeq ($(HOST_OS),Darwin)
-HOMEBREW_OPENSSL_PREFIX := $(shell brew --prefix openssl@3 2>/dev/null)
+HOMEBREW_OPENSSL_PREFIX := $(shell brew --prefix openssl@4 2>/dev/null)
 ifneq ($(strip $(HOMEBREW_OPENSSL_PREFIX)),)
 PKG_CONFIG_PATH := $(HOMEBREW_OPENSSL_PREFIX)/lib/pkgconfig:$(PKG_CONFIG_PATH)
 endif

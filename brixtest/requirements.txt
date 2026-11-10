@@ -1,4 +1,5 @@
 # Runtime dependency for the pytest plugin and supervised case helpers.
-packaging>=22,<26
+packaging>=22,<27
 pluggy>=1.5,<2
 pytest>=8,<10
+xattr>=1.3,<2; sys_platform == 'darwin'

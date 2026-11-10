@@ -18,7 +18,7 @@ import test_ha_failover as subject
 def test_failover_owns_only_its_registered_member(monkeypatch, tmp_path,
                                                 failure_at, expected):
     """No member is touched before a good baseline; every stopped one returns."""
-    calls, payloads, transfers = [], [], []
+    calls, payloads, transfers, health = [], [], [], []
 
     def member_action(action, name):
         assert name == "ha-nginx1"
@@ -29,7 +29,7 @@ def test_failover_owns_only_its_registered_member(monkeypatch, tmp_path,
         restart=lambda name: member_action("restart", name))
     monkeypatch.setattr(subject, "RegistryLauncher", lambda: launcher)
     monkeypatch.setattr(subject, "_write_shared", lambda name, data: payloads.append(data))
-    monkeypatch.setattr(subject.time, "sleep", lambda duration: None)
+    monkeypatch.setattr(subject, "wait_backend_states", health.append)
 
     def transfer(source, destination, **kwargs):
         index = len(transfers)
@@ -43,3 +43,5 @@ def test_failover_owns_only_its_registered_member(monkeypatch, tmp_path,
         subject.TestHAFailover().test_new_connections_handled_after_nginx1_stop(
             {"haproxy_url": "root://fixture.invalid/"}, tmp_path)
     assert calls == expected
+    assert health == ([] if failure_at == 0 else [
+        {"nginx1": "UP", "nginx2": "UP"}, {"nginx1": "DOWN", "nginx2": "UP"}])

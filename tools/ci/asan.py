@@ -137,8 +137,11 @@ def _sanitizer_env(base: dict, log_dir: str, supp: str) -> dict:
     env = dict(base)
     env["SANITIZE"] = "1"
     env["SANITIZE_LOG_DIR"] = log_dir
+    # Apple's sanitizer runtime aborts at startup when leak detection is enabled.
+    # Keep address/UB checks active; Linux retains the full leak gate.
+    leaks = int(sys.platform != "darwin")
     env["ASAN_OPTIONS"] = (
-        f"detect_leaks=1:abort_on_error=0:exitcode=0:log_path={log_dir}/asan:print_legend=0"
+        f"detect_leaks={leaks}:abort_on_error=0:exitcode=0:log_path={log_dir}/asan:print_legend=0"
     )
     env["UBSAN_OPTIONS"] = f"halt_on_error=0:print_stacktrace=1:log_path={log_dir}/asan"
     env["LSAN_OPTIONS"] = f"suppressions={supp}:print_suppressions=0:report_objects=0"
@@ -287,8 +290,8 @@ def _verdict(log_dir, suite_rc):
         _brix_diagnostic('ERROR', 'tools/ci/asan.py', '_verdict', f"asan: FAIL — driver command exited {suite_rc} "
               "(no sanitizer report, but the I/O leg itself failed)", file=sys.stderr)
         return suite_rc
-    print("asan: OK — sanitized fleet served the workload with zero "
-          "ASan/UBSan/LSan findings")
+    checks = "ASan/UBSan (LSan unavailable on Darwin)" if sys.platform == "darwin" else "ASan/UBSan/LSan"
+    print(f"asan: OK — sanitized fleet served the workload with zero {checks} findings")
     return 0
 
 

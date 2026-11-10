@@ -57,8 +57,8 @@ flags_to_str(int f, char *out, size_t sz)
 
 /* command handlers — argv[0] is the command name; argv[1..argc-1] args */
 
-/* Print one labelled "%Y-%m-%d %H:%M:%S" time line in UTC (matching official
- * xrdfs, which formats stat times with gmtime); falls back to the raw epoch. */
+/* Print a labelled UTC time with its numeric offset, matching current xrdfs
+ * output without depending on the caller's timezone; fall back to raw epoch. */
 void
 print_stat_time(const char *label, long epoch)
 {
@@ -67,7 +67,7 @@ print_stat_time(const char *label, long epoch)
     char      tb[32];
 
     if (gmtime_r(&t, &tmv) != NULL
-        && strftime(tb, sizeof(tb), "%Y-%m-%d %H:%M:%S", &tmv) > 0) {
+        && strftime(tb, sizeof(tb), "%Y-%m-%d %H:%M:%S +0000", &tmv) > 0) {
         printf("%s%s\n", label, tb);
     } else {
         printf("%s%ld\n", label, epoch);

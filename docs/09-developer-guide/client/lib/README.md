@@ -66,6 +66,35 @@ basenames; their bucket paths are in the phase-69 map linked above.
 | `xfer/copy_recursive.c` | Recursive tree download/upload + web-auth headers. |
 | `xfer/copy_internal.h` | Private split contract shared by `copy*.c` (anchors deliberately excluded). |
 
+`brix_aconn_set_resilience` may update a connection after its event loop starts.
+Each policy field uses an atomic handoff; heartbeat and reconnect decisions take
+one local snapshot of their interval. This prevents disabling keepalive during
+an idle check from turning a recent connection into an immediately due ping.
+`tests/test_aio_resilience_native.py` interleaves that update at the clock read;
+`tests/test_aio_waitresp.py` checks the resulting request/reply behavior.
+
+Reconnect replay keeps unissued requests on the connection's pending list and
+stops if the connection leaves the alive state. A second transport failure can
+therefore complete or park every request without losing the unissued tail.
+`tests/test_aio_reconnect_native.py` checks failed poll registration, replay
+failure, worker creation failure and non-retry-safe requests with multiple
+parked callers.
+
+Loop startup reports the error returned by `pthread_create`, and deadline
+scanning clamps the 64-bit wait interval before converting it to `int`.
+The lifecycle and deadline native tests cover resource refusal, socket
+ownership, exact expiry, surviving requests and far-future deadlines.
+`tests/test_aio_worker_native.py` verifies real worker-thread handoff with a
+finite transport and clock, including retry backoff and deadline exhaustion.
+
+Async response dispatch removes and fails a request if its reply cannot be
+accumulated. Allocation or landing-buffer refusal cannot become a successful
+truncated reply; later frames for that completed stream are ignored.
+`tests/test_aio_transport_native.py` checks exact bytes across fragmented reads,
+partial writes, TLS retry boundaries and accumulation refusal.
+`tests/test_aio_manager_native.py` checks eager/lazy connection ownership,
+partial construction cleanup and fallback after a lazy connection fails.
+
 The **CLI apps** in `client/apps/` are grouped into tool families (`copy/ fs/
 cksum/ auth/ diag/ scan/ prep/`). Each binary's translation units — including its
 Phase-38 split siblings — are listed in a `<name>_OBJS` variable in

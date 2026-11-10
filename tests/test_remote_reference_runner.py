@@ -196,7 +196,8 @@ def test_fixed_fixture_commands_execute_without_a_shell_or_caller_code(tmp_path,
         command = policy.fixture_command(dict(argv=['stat', str(path)]), args)
     else:
         command = policy.fixture_create_command(dict(argv=[str(path), str(0o600)]), args)
-    result = subprocess.run(command, check=True, capture_output=True, timeout=5)
+    result = subprocess.run(command, check=True, capture_output=True, timeout=5,
+                            cwd=tmp_path, env={**os.environ, 'PYTHONPATH': ''})
     record = json.loads(result.stdout)
     assert record['st_size'] == 5 if operation == 'stat' else record == {'created': True}
 
@@ -211,6 +212,22 @@ def test_native_metadata_and_fifo_paths_need_no_remote_route(tmp_path, monkeypat
     assert reference_disk_stat(path) == path.stat()
     with pytest.raises(FileExistsError):
         reference_mkfifo(path, 0o600)
+
+
+@pytest.mark.parametrize('operation,relative,mode', [
+    ('mkfifo', 'outside', 0o600), ('mkfifo', 'root/new', 0o4600),
+    ('exec', 'root/new', 0o600),
+], ids=['outside', 'privileged-mode', 'unknown-command'])
+def test_fixture_script_rejects_invalid_requests_from_private_cwd(tmp_path, operation,
+                                                                relative, mode):
+    root = tmp_path / 'root'
+    root.mkdir()
+    destination = tmp_path / relative
+    result = subprocess.run(
+        [sys.executable, policy.__file__, operation, str(root), str(destination), str(mode)],
+        cwd=tmp_path, env={**os.environ, 'PYTHONPATH': ''}, capture_output=True, timeout=5)
+    assert result.returncode != 0
+    assert not destination.exists()
 
 
 @pytest.mark.parametrize('values', [dict(st_mode=0o40755, st_size=4096, st_blocks=8),

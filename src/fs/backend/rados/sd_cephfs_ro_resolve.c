@@ -130,10 +130,12 @@ cephfsro_obj_version(rados_ioctx_t ioctx, const char *oid, uint64_t *version)
 {
     rados_read_op_t op = rados_create_read_op();
     uint64_t        psize = 0;
-    struct timespec pmt;
+    time_t          pmt;
     int             prval = 0, rc;
 
-    rados_read_op_stat2(op, &psize, &pmt, &prval);
+    /* Only the object version is consumed; the older stat API also supports
+     * the librados shipped by the maintained EL9 compatibility target. */
+    rados_read_op_stat(op, &psize, &pmt, &prval);
     rc = rados_read_op_operate(op, ioctx, oid, 0);
     rados_release_read_op(op);
     if (rc < 0) { errno = -rc; return -1; }

@@ -136,6 +136,29 @@ lg_xfs_fill_stat(const brix_statinfo *si, struct stat *stbuf)
     brix_statinfo_to_stat(si, 0, stbuf);
 }
 
+/* WHAT: Read authoritative metadata from an already open legacy handle.
+ * WHY: CREATE is staged until close, and unlink may remove the visible name.
+ * HOW: Hold the handle lock, flush accepted writes, then stat its live handle. */
+static int
+lg_xfs_handle_stat(struct fuse_file_info *fi, struct stat *stbuf)
+{
+    lg_xfs_handle *handle = (lg_xfs_handle *) (uintptr_t) fi->fh;
+    brix_statinfo info;
+    brix_status status;
+    int rc;
+
+    brix_status_clear(&status);
+    pthread_mutex_lock(&handle->lock);
+    rc = lg_xfs_flush_wbuf(handle, &status);
+    if (rc == 0)
+        rc = brix_rfile_stat(&handle->f, &info, &status);
+    pthread_mutex_unlock(&handle->lock);
+    if (rc != 0)
+        return lg_xfs_err(&status);
+    lg_xfs_fill_stat(&info, stbuf);
+    return 0;
+}
+
 /* fuse_operations                                                     */
 
 static int
@@ -145,7 +168,8 @@ lg_xfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
     brix_status   st;
     int           rc;
 
-    (void) fi;
+    if (fi != NULL && fi->fh != 0)
+        return lg_xfs_handle_stat(fi, stbuf);
     if (strcmp(path, "/") == 0) {
         memset(stbuf, 0, sizeof(*stbuf));
         stbuf->st_mode = S_IFDIR | 0755;

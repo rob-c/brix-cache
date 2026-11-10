@@ -15,4 +15,7 @@ def fsync_interposer(name, base):
     ])
     if built.returncode:
         raise RuntimeError("fsync interposer compile failed:\n" + built.stderr)
-    return [str(library)], {"DYLD_INSERT_LIBRARIES": str(library)}
+    # The dylib reaches this executable callback through dynamic lookup. Newer
+    # Darwin linkers discard unexported executable symbols even without strip.
+    return [str(library), "-Wl,-exported_symbol,___wrap_fsync"], {
+        "DYLD_INSERT_LIBRARIES": str(library)}

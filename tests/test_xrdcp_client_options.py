@@ -34,10 +34,9 @@ _OPTION_SUPPORT_CACHE: dict = {}
 def _xrdcp_supports_option(opt: str) -> bool:
     """Return True when the installed xrdcp recognizes the long option *opt*.
 
-    Probes with a valid operand where required; a client that does not
-    know a flag emits ``unknown option '<opt>'`` to stderr (and exits non-zero),
-    whereas a recognized option instead produces an argument/usage diagnostic
-    that never contains that phrase.  The result is cached per option so the
+    Probes with a valid operand where required; unknown flags can be reported
+    as "unknown", "invalid", or "unrecognized" options depending on the client.
+    Recognized options produce argument/usage diagnostics instead. The result is cached per option so the
     probe runs at most once per option per session.
     """
     if opt in _OPTION_SUPPORT_CACHE:
@@ -54,7 +53,8 @@ def _xrdcp_supports_option(opt: str) -> bool:
         timeout=30,
     )
     text = (proc.stdout + proc.stderr).decode(errors="replace")
-    supported = f"unknown option '{opt}'" not in text
+    supported = not any(f"{word} option" in text.lower()
+                        for word in ("unknown", "invalid", "unrecognized"))
     _OPTION_SUPPORT_CACHE[opt] = supported
     return supported
 

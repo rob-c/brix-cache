@@ -49,6 +49,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from brix_suite.client_build import client_make
 
 from settings import BIND_HOST, NGINX_BIN, PKI_DIR, SERVER_HOST
 from server_launcher import LifecycleHarness
@@ -216,9 +217,8 @@ def test_post_gss_control_channel_rejects_raw_commands(gateway):
     payload = b"raw commands must not mutate this object\n"
     target.write_bytes(payload)
 
-    build = subprocess.run(
-        ["make", "-C", str(REPO / "client"),
-         "gridftp-control-integrity-probe-unit"],
+    build = client_make(
+        REPO / "client", "gridftp-control-integrity-probe-unit",
         capture_output=True, text=True, timeout=180)
     assert build.returncode == 0, build.stdout + build.stderr
 

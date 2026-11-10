@@ -17,6 +17,7 @@
 #if BRIX_PLATFORM_LINUX && BRIX_ARCH_ARM64
 
 #include "../platform_api.h"
+#include "core/compat/crc32c.h"
 #include <sys/auxv.h>
 #include <asm/hwcap.h>
 #include <stdio.h>
@@ -122,25 +123,17 @@ brix_crc32c_arm64_hw(const uint8_t *buf, size_t len, uint32_t crc)
 
 #endif /* __ARM_FEATURE_CRC32 */
 
-/*
- * Generic CRC32C fallback
- * Used when hardware CRC32 not available
+/* ---- Raw CRC32C compatibility fallback ----
+ * WHAT: Extends a raw, uncomplemented CRC32C register over the input bytes.
+ * WHY: The hardware helper exposes raw register state; the canonical helper
+ * exposes a complemented checksum. Both dispatch arms must preserve the ABI.
+ * HOW: 1. Complement the incoming state. 2. Extend through the shared engine.
+ * 3. Complement its result back to the raw register convention.
  */
 uint32_t
 brix_crc32c_generic(const uint8_t *buf, size_t len, uint32_t crc)
 {
-    static const uint32_t crc32c_table[256] = {
-        /* Precomputed CRC32C table */
-        /* Generated using polynomial 0x1EDC6F41 */
-        0x00000000, 0xF26B8303, 0xE13B70F7, 0x1350F3F4,
-        /* ... full table would be here ... */
-    };
-    
-    while (len--) {
-        crc = crc32c_table[(crc ^ *buf++) & 0xFF] ^ (crc >> 8);
-    }
-    
-    return crc;
+    return ~brix_crc32c_extend(~crc, buf, len);
 }
 
 /*
@@ -165,8 +158,32 @@ brix_crc32c_dispatch(const uint8_t *buf, size_t len, uint32_t crc)
 
 #include <arm_neon.h>
 
+/* ---- Sum a partial vector as zero-padded 64-bit words ----
+ * WHAT: Returns the modulo-2^64 sum of all remaining whole and partial words.
+ * WHY: Adding tail bytes individually changes the checksum at vector boundaries.
+ * HOW: 1. Copy at most eight bytes into a zeroed word. 2. Add and advance.
+ */
+static uint64_t
+brix_arm64_word_tail(const uint8_t *data, size_t length)
+{
+    uint64_t sum = 0;
+    while (length != 0) {
+        uint64_t word = 0;
+        size_t count = length < sizeof(word) ? length : sizeof(word);
+        memcpy(&word, data, count);
+        sum += word;
+        data += count;
+        length -= count;
+    }
+    return sum;
+}
+
 /*
  * NEON-accelerated checksum using SIMD
+ *
+ * WHAT: Returns the modulo-2^64 sum of native words, zero-padding the last word.
+ * WHY: Vector and scalar paths must give the same result for unaligned tails.
+ * HOW: 1. Sum groups of four words. 2. Reduce lanes. 3. Add bounded tail words.
  * 
  * Processes 16 bytes per iteration using 128-bit NEON registers
  * Can be extended to 32 bytes with SVE (Scalable Vector Extension)
@@ -179,15 +196,15 @@ brix_crc32c_dispatch(const uint8_t *buf, size_t len, uint32_t crc)
 uint64_t
 brix_checksum_neon(const void *buf, size_t len)
 {
-    const uint64_t *data = (const uint64_t *)buf;
+    const uint8_t *data = (const uint8_t *)buf;
     uint64x2_t sum0 = vdupq_n_u64(0);
     uint64x2_t sum1 = vdupq_n_u64(0);
     size_t i;
     
     /* Process 32 bytes (4 x 64-bit words) per iteration */
     for (i = 0; i < len / 32; i++) {
-        uint64x2_t v0 = vld1q_u64(data + i * 4);
-        uint64x2_t v1 = vld1q_u64(data + i * 4 + 2);
+        uint64x2_t v0 = vreinterpretq_u64_u8(vld1q_u8(data + i * 32));
+        uint64x2_t v1 = vreinterpretq_u64_u8(vld1q_u8(data + i * 32 + 16));
         
         sum0 = vaddq_u64(sum0, v0);
         sum1 = vaddq_u64(sum1, v1);
@@ -201,13 +218,7 @@ brix_checksum_neon(const void *buf, size_t len)
     
     /* Handle remaining bytes */
     size_t remaining = len % 32;
-    const uint8_t *remaining_buf = (const uint8_t *)(data + i * 4);
-    
-    for (size_t j = 0; j < remaining; j++) {
-        result += remaining_buf[j];
-    }
-    
-    return result;
+    return result + brix_arm64_word_tail(data + i * 32, remaining);
 }
 
 #endif /* __ARM_NEON */

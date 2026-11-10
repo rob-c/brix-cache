@@ -165,20 +165,34 @@ and re-encoding a captured binary fixture (a VOMS AC DER blob whose internal
 RDNs repeat) as a single opaque hex string literal rather than a row-shaped
 byte array.
 
-## Coverage (report-only lane)
+## Coverage
 
 `coverage.py` builds a gcov-instrumented module + client
 (`cmdscripts.operator_build build_coverage` → `./configure --with-cc-opt='--coverage
--O0 -g'`), runs a test command against it (default the fast fleet tier;
-override with `COVERAGE_TEST_CMD`), and emits an lcov line/branch report for
-`src/` + `client/` under `coverage/` (html + `coverage.info`). It is
-**report-only** — it enforces a floor only when `COVERAGE_MIN` is set, and skips
-cleanly (exit 0) if `lcov`/`gcov` or the nginx source are absent. Runs weekly +
-on dispatch (`.github/workflows/coverage.yml`, `continue-on-error`, artifact
-upload). Graduation to a blocking gate follows the same discipline as the
-static-analysis lanes: read a stable baseline on the runner first, THEN set
-`COVERAGE_MIN` a few points under it and drop `continue-on-error` — never flip a
-numeric gate to blocking pre-baseline.
+-O0 -g'`), runs the full functional fleet suite including standalone C jobs,
+and emits an lcov line report for `src/` + `client/` under `coverage/`
+(`html/index.html` and `coverage.info`). The analyzer, sanitizer and recursive
+coverage jobs run separately because they replace the build being measured.
+`COVERAGE_TEST_CMD` can select a smaller diagnostic run.
+
+The initial production `.gcno` inventory fixes the denominator. Compiler
+wrappers preserve standalone C counters outside disposable pytest directories;
+the merge attributes their execution only to lines in that initial inventory.
+Test harness lines and alternate unit-only preprocessor branches cannot inflate
+the measured scope. The gate uses the unrounded percentage, and any test failure
+fails the job even when the percentage exceeds `COVERAGE_MIN`.
+
+The weekly/manual workflow enforces an **80% line floor** and uploads diagnostic
+reports on failure. An explicit `COVERAGE_MIN` also makes missing build/collector
+prerequisites fatal; omitting it permits a local report-only run.
+
+On a disposable Linux test host, `COVERAGE_PRIVILEGED=1` appends the existing root
+contract suites through noninteractive sudo after the ordinary suite. This is
+explicit because those fixtures provision accounts and isolated network
+namespaces. Both groups contribute to one measurement without resetting
+counters between them. FUSE, reference clients, GFAL and the full Python
+requirements must be installed; see [BUILD.md](../../03-configuration/BUILD.md)
+for the environment and recorded results.
 
 ## ASan + UBSan (dynamic-sanitizer lane, B-2)
 
@@ -195,8 +209,8 @@ nightly cron widens it to the `not slow and not serial` fast tier), then
 sanitizer signature**. A match — heap error, UB, or an *unsuppressed* leak (the
 third-party library leaks are curated out by `tests/lsan.supp`) — fails the job;
 the scan, not `abort_on_error`, is the gate, and it covers both the fleet and
-the sanitized client `xrdcp` the smoke spawns. Unlike the report-only coverage
-lane it is **blocking on PRs** and a required status check on `main`. Run by
+the sanitized client `xrdcp` the smoke spawns. This sanitizer lane is
+**blocking on PRs** and a required status check on `main`. Run by
 hand it self-skips cleanly (exit 0) when the compiler / configured nginx source
 (`NGINX_SRC`) / a bootable fleet are absent, so a laptop missing infra is never
 reddened. On the workflow that tolerance is wrong — a skipped required check

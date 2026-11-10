@@ -15,7 +15,7 @@ pytestmark = pytest.mark.skipif(
 
 PYTHON = binary(
     "infra_python", path=sys.executable,
-    image="python@sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a",
+    image="python@sha256:e97b88e416c3c01eb427b21fd8cd3ebf006e6ee38afcfcc3cae1c54ee2ab0a75",
     image_path="/usr/local/bin/python3",
 )
 READER = identity(

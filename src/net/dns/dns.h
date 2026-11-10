@@ -241,6 +241,29 @@ void brix_dns_bridge_stats(ngx_uint_t *requests, ngx_uint_t *timeouts);
 
 /* ---- per-worker cache (mutex-guarded: loop + thread-pool callers) -------- */
 
+/* WHAT: Locate the first cache node with an equal hash key.
+ * WHY: Tree rotations can put equal keys on either side; both DNS caches must
+ * inspect every collision before deciding that a full identity is absent.
+ * HOW: 1. Descend toward the lower bound. 2. Retain each equal candidate.
+ * 3. Return the leftmost equal node, or NULL when the key is absent. */
+static ngx_inline ngx_rbtree_node_t *
+brix_dns_cache_first(ngx_rbtree_t *tree, ngx_rbtree_key_t key)
+{
+    ngx_rbtree_node_t *node = tree->root;
+    ngx_rbtree_node_t *first = NULL;
+    while (node != tree->sentinel) {
+        if (key <= node->key) {
+            if (key == node->key) {
+                first = node;
+            }
+            node = node->left;
+        } else {
+            node = node->right;
+        }
+    }
+    return first;
+}
+
 void brix_dns_cache_set_max(ngx_uint_t max);
 void brix_dns_reverse_cache_set_max(ngx_uint_t max);
 ngx_int_t brix_dns_cache_lookup(brix_dns_req_t *req);   /* NGX_OK hit / DECLINED */

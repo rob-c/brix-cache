@@ -104,7 +104,7 @@ s3_post_basename(char *s)
  *       on success) so a partial/failed upload never leaves a corrupt object
  *       visible — the same durability contract as PUT. The VFS layer keeps every
  *       op confined to root_canon and meters the publish (OP_WRITE) + access log.
- * HOW:  ensure the parent directory exists (brix_vfs_mkdir, parents=1), open a
+ * HOW:  ensure the parent directory exists (shared PUT/POST helper), open a
  *       staged handle (brix_vfs_staged_open), pwrite the whole buffer to its
  *       fd, commit (atomic rename), then stat the result for the ETag.
  * Cleanup: any write error calls brix_vfs_staged_abort (discard temp) before
@@ -121,30 +121,8 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     int                  vfs_err;
     struct stat          sb;
 
-    /* Create the key's parent directories (S3 keys may embed '/') through the
-     * VFS mkdir (parents=1).  EEXIST is benign; any other mkdir failure aborts
-     * the write. */
-    {
-        char   parent[PATH_MAX];
-        char  *last_slash;
-        size_t flen = strlen(fs_path);
-
-        if (flen < sizeof(parent)) {
-            ngx_memcpy(parent, fs_path, flen + 1);
-            last_slash = strrchr(parent, '/');
-            /* Skip if the slash is the root itself (last_slash == parent). */
-            if (last_slash && last_slash != parent) {
-                brix_vfs_ctx_t pctx;
-
-                *last_slash = '\0';
-                s3_build_vfs_ctx(r, parent, cf, &pctx);
-                if (brix_vfs_mkdir(&pctx, 0755, 1 /* parents */) != NGX_OK
-                    && errno != EEXIST)
-                {
-                    return NGX_ERROR;
-                }
-            }
-        }
+    if (s3_ensure_parent_dirs(r, cf, fs_path) != NGX_OK) {
+        return NGX_ERROR;
     }
 
     s3_build_vfs_ctx(r, fs_path, cf, &vctx);

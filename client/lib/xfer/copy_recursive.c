@@ -349,6 +349,11 @@ mirror_delete_remote(brix_conn *c, const char *rpath, const char *lpath,
         if (dirent_is_dot(ents[i].name)) {
             continue;
         }
+        if (brix_rel_is_unsafe(ents[i].name)) {
+            BRIX_CLIENT_LOG("ERROR", "xrdcp: --delete: refusing unsafe remote name: %s\n",
+                            ents[i].name);
+            continue;
+        }
         if (rel_join(rel, ents[i].name, relc, sizeof(relc)) != 0
             || path_join(rpath, ents[i].name, rchild, sizeof(rchild)) != 0
             || path_join(lpath, ents[i].name, lchild, sizeof(lchild)) != 0) {
@@ -454,6 +459,11 @@ tree_dl_entry(const copy_walk_ctx *w, const brix_dirent *e)
 
     if (dirent_is_dot(e->name)) {
         return 0;
+    }
+    if (brix_rel_is_unsafe(e->name)) {
+        brix_status_set(w->st, XRDC_EPROTO, 0,
+                        "recursive copy: unsafe remote name: %s", e->name);
+        return -1;
     }
     /* Build the path of this entry relative to the copy root so that
      * brix_copy_filter_match can match at both full-rel and basename. */

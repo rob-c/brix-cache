@@ -32,7 +32,7 @@ import time
 
 import pytest
 
-from cmdscripts.compile_run import pal_xattr_addons
+from cmdscripts.compile_run import pal_storage_link_args, pal_xattr_addons
 from server_registry import NginxInstanceSpec
 
 def _wait_for_reaped(paths, has_record, deadline):
@@ -184,6 +184,7 @@ def test_cache_reap_reason_metrics(lifecycle, tmp_path):
     objs = [_CINFO_O, *_CINFO_DEPS,
             *map(str, pal_xattr_addons(Path(_CINFO_O).parents[1]))]
     subprocess.run([_CC, "-O", "-o", str(planter), str(src)] + objs
+                   + pal_storage_link_args()
                    + _sanitizer_flags(objs), check=True)
 
     state = tmp_path / "state"

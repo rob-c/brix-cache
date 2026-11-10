@@ -401,9 +401,8 @@ def _gridftp_outbound(sel):
 
 
 def _deploy_auth(ns):
-    subprocess.run(["kubectl", "get", "namespace", ns], capture_output=True) \
-        .returncode or subprocess.run(["kubectl", "create", "namespace", ns])
     _helm("upgrade", "--install", "auth", str(_CHARTS / "auth-authority"), "-n", ns,
+          "--create-namespace",
           "--set", "services.ca=true,services.token=true,services.voms=false,services.krb5=false",
           "--wait", "--timeout", "3m")
 
@@ -416,8 +415,12 @@ def _collect(ns, releases):
     ok = subprocess.run(["kubectl", "-n", ns, "get", "job", "run-test-runner",
                          "-o", "jsonpath={.status.succeeded}"],
                         capture_output=True, text=True).stdout
-    subprocess.run(["helm", "uninstall", *releases, "-n", ns], capture_output=True)
     lines = logs.strip().splitlines()[-20:]
+    if ok != "1":
+        diagnostic = subprocess.run(
+            ["kubectl", "-n", ns, "describe", "pods"], capture_output=True, text=True)
+        lines.extend((diagnostic.stdout + diagnostic.stderr).splitlines()[-50:])
+    subprocess.run(["helm", "uninstall", *releases, "-n", ns], capture_output=True)
     if ok != "1":
         from .lab import _fail
         _fail("\n".join(lines) + "\nsuite FAILED")

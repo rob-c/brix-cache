@@ -357,6 +357,17 @@ brix_cache_fill_from_source(brix_cache_fill_t *t,
                                "cache source open failed");
         return -1;
     }
+    /* POSIX opens defer metadata to fstat; the zeroed open snapshot is not
+     * evidence that the source is empty. Read handle metadata before applying
+     * admission limits or declaring the staged object's size. */
+    if (src->driver->fstat != NULL
+        && src->driver->fstat(src, &src->snap) != NGX_OK)
+    {
+        e = errno;
+        brix_cache_src_close(source, src);
+        brix_cache_set_error(t, kXR_IOError, e, "cache source stat failed");
+        return -1;
+    }
     t->file_size = (uint64_t) src->snap.size;
 
     if (brix_cache_fill_admitted(conf, t->clean_path, (off_t) t->file_size)) {

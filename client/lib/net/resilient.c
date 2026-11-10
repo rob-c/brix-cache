@@ -143,7 +143,7 @@ brix_with_resilience(brix_conn *c, int max_stall_ms, brix_op_class cls,
              * already been applied server-side (its reply was lost to the sever),
              * the re-issue reports the benign "already in desired state" code —
              * normalize that to success rather than a spurious EEXIST/ENOENT. */
-            if (benign_errno != 0 && brix_kxr_to_errno(st) == benign_errno) {
+            if (benign_errno > 0 && brix_kxr_to_errno(st) == -benign_errno) {
                 brix_status_clear(st);
                 return 0;
             }
@@ -198,7 +198,7 @@ brix_roundtrip_resilient(brix_conn *c, void *hdr24, const void *payload,
             /* Re-issued ONCE after reconnect: if the original had already been
              * applied (its reply lost to the sever), the benign "already in the
              * desired state" code means success, not a spurious EEXIST/ENOENT. */
-            if (benign_errno != 0 && brix_kxr_to_errno(st) == benign_errno) {
+            if (benign_errno > 0 && brix_kxr_to_errno(st) == -benign_errno) {
                 brix_status_clear(st);
                 return 0;
             }
@@ -308,66 +308,141 @@ brix_rfile_open_write(brix_conn *c, const char *path, int force, int posc,
     }
 }
 
+/* ---- Publish cancellation before touching a remote handle ----
+ * WHAT: Returns 1 with ECANCELED when the caller canceled this transfer.
+ * WHY: Every synchronous handle operation must stop before sending more bytes.
+ * HOW: 1. Read the shared cancellation flag. 2. Set the public error once here.
+ */
+static int
+rfile_check_canceled(brix_rfile *rf, brix_status *st)
+{
+    if (!rfile_canceled(rf)) {
+        return 0;
+    }
+    brix_status_set(st, XRDC_EUSAGE, ECANCELED, "transfer canceled");
+    return 1;
+}
+
+/* ---- Retry a recoverable file operation within its original deadline ----
+ * WHAT: Reopens the handle and returns 1, or returns 0 when retry is forbidden.
+ * WHY: Reads, writes and handle-stat share cancellation and bounded recovery;
+ * only reads shrink their next request after a transport fault.
+ * HOW: 1. Check retry policy. 2. Optionally shrink. 3. Back off and reopen.
+ */
+static int
+rfile_retry_operation(brix_rfile *rf, brix_status *st, uint64_t deadline,
+                      unsigned *attempt, int shrink)
+{
+    if (!brix_status_retryable(st) || rf->max_stall_ms <= 0
+        || rfile_canceled(rf) || brix_mono_ns() >= deadline) {
+        return 0;
+    }
+    if (shrink && rf->cur_chunk > XRDC_RFILE_FLOOR) {
+        rf->cur_chunk /= 2;
+    }
+    brix_backoff_sleep_fast((*attempt)++);
+    (void) rfile_reopen(rf, st);
+    return 1;
+}
+
+typedef ssize_t (*rfile_operation_fn)(brix_rfile *, void *, brix_status *);
+
+typedef struct {
+    int64_t off;
+    size_t length;
+    void *read_buffer;
+    const void *write_buffer;
+} rfile_io_request_t;
+
+/* WHAT: Execute a handle operation with bounded recovery and cancellation.
+ * WHY: Read, write and stat must share one deadline/reopen contract.
+ * HOW: Check cancellation, invoke one attempt, then apply the common retry gate;
+ *      only the read caller enables adaptive request shrinking. */
+static ssize_t
+rfile_run_operation(brix_rfile *rf, rfile_operation_fn operation, void *request,
+                     int shrink, brix_status *st)
+{
+    uint64_t deadline = brix_mono_ns() + (uint64_t) rf->max_stall_ms * 1000000ULL;
+    unsigned attempt = 0;
+    for (;;) {
+        if (rfile_check_canceled(rf, st)) {
+            return -1;
+        }
+        ssize_t n = operation(rf, request, st);
+        if (n >= 0) {
+            return n;
+        }
+        if (!rfile_retry_operation(rf, st, deadline, &attempt, shrink)) {
+            return -1;
+        }
+    }
+}
+
+/* WHAT: Read one bounded chunk using the selected wire operation.
+ * WHY: A recovered read must recompute its size after adaptive shrinking.
+ * HOW: Cap the requested bytes by the current chunk and dispatch read/pgread. */
+static ssize_t
+rfile_read_once(brix_rfile *rf, void *opaque, brix_status *st)
+{
+    rfile_io_request_t *request = opaque;
+    size_t want = request->length < rf->cur_chunk ? request->length : rf->cur_chunk;
+    return rf->pgrw
+        ? brix_file_pgread(rf->c, &rf->f, request->off, request->read_buffer, want, st)
+        : brix_file_read(rf->c, &rf->f, request->off, request->read_buffer, want, st);
+}
+
+/* WHAT: Write one complete requested chunk through the selected wire operation.
+ * WHY: Write retries preserve the original offset, bytes and length.
+ * HOW: Dispatch write/pgwrite and normalize its zero-success contract. */
+static ssize_t
+rfile_write_once(brix_rfile *rf, void *opaque, brix_status *st)
+{
+    rfile_io_request_t *request = opaque;
+    int rc = rf->pgrw
+        ? brix_file_pgwrite(rf->c, &rf->f, request->off, request->write_buffer, request->length, st)
+        : brix_file_write(rf->c, &rf->f, request->off, request->write_buffer, request->length, st);
+    return rc == 0 ? 0 : -1;
+}
+
+/* WHAT: Fetch one current-handle stat result. WHY: Reopen must refresh its handle identity.
+ * HOW: Use the same handle-stat operation on each bounded retry. */
+static ssize_t
+rfile_stat_once(brix_rfile *rf, void *output, brix_status *st)
+{
+    return brix_file_stat(rf->c, &rf->f, output, st) == 0 ? 0 : -1;
+}
+
+/* WHAT: Read with adaptive recovery. WHY: Reads may shrink after a transport fault.
+ * HOW: Bind the caller's buffer and offset to the shared operation runner. */
 ssize_t
 brix_rfile_pread(brix_rfile *rf, int64_t off, void *buf, size_t len,
                  brix_status *st)
 {
-    uint64_t deadline = brix_mono_ns() + (uint64_t) rf->max_stall_ms * 1000000ULL;
-    unsigned attempt = 0;
-    for (;;) {
-        if (rfile_canceled(rf)) {
-            brix_status_set(st, XRDC_EUSAGE, ECANCELED, "transfer canceled");
-            return -1;
-        }
-        size_t  want = (len < rf->cur_chunk) ? len : rf->cur_chunk;
-        ssize_t n = rf->pgrw ? brix_file_pgread(rf->c, &rf->f, off, buf, want, st)
-                             : brix_file_read(rf->c, &rf->f, off, buf, want, st);
-        if (n >= 0) {
-            return n;
-        }
-        if (!brix_status_retryable(st) || rf->max_stall_ms <= 0
-            || rfile_canceled(rf) || brix_mono_ns() >= deadline) {
-            return -1;
-        }
-        /* Transport fault: shrink the request, reconnect+reopen, retry at the
-         * same absolute offset (idempotent). */
-        if (rf->cur_chunk > XRDC_RFILE_FLOOR) {
-            rf->cur_chunk /= 2;
-        }
-        brix_backoff_sleep_fast(attempt++);
-        (void) rfile_reopen(rf, st);
-    }
+    rfile_io_request_t request = {.off = off, .length = len, .read_buffer = buf};
+    return rfile_run_operation(rf, rfile_read_once, &request, 1, st);
 }
 
+/* WHAT: Write with bounded recovery. WHY: Replayed writes must retain their byte range.
+ * HOW: Bind the immutable input and disable adaptive shrinking in the common runner. */
 int
 brix_rfile_pwrite(brix_rfile *rf, int64_t off, const void *buf, size_t len,
                   brix_status *st)
 {
-    uint64_t deadline = brix_mono_ns() + (uint64_t) rf->max_stall_ms * 1000000ULL;
-    unsigned attempt = 0;
-    for (;;) {
-        if (rfile_canceled(rf)) {
-            brix_status_set(st, XRDC_EUSAGE, ECANCELED, "transfer canceled");
-            return -1;
-        }
-        int rc = rf->pgrw ? brix_file_pgwrite(rf->c, &rf->f, off, buf, len, st)
-                          : brix_file_write(rf->c, &rf->f, off, buf, len, st);
-        if (rc == 0) {
-            return 0;
-        }
-        if (!brix_status_retryable(st) || rf->max_stall_ms <= 0
-            || rfile_canceled(rf) || brix_mono_ns() >= deadline) {
-            return -1;
-        }
-        /* Re-issuing the same bytes at the same offset onto an in-place reopened
-         * handle is idempotent (overwrites identical content). */
-        brix_backoff_sleep_fast(attempt++);
-        (void) rfile_reopen(rf, st);
-    }
+    rfile_io_request_t request = {.off = off, .length = len, .write_buffer = buf};
+    return (int) rfile_run_operation(rf, rfile_write_once, &request, 0, st);
 }
 
 int
 brix_rfile_close(brix_rfile *rf, brix_status *st)
 {
     return brix_file_close(rf->c, &rf->f, st);
+}
+
+/* WHAT: Fetch metadata from the current live synchronous file handle.
+ * WHY: A path lookup may name no object, or a replacement after unlink.
+ * HOW: Reuse the file reopen, cancellation and bounded retry contracts. */
+int
+brix_rfile_stat(brix_rfile *rf, brix_statinfo *out, brix_status *st)
+{
+    return (int) rfile_run_operation(rf, rfile_stat_once, out, 0, st);
 }

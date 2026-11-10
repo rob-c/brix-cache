@@ -260,8 +260,9 @@ imp_broker_child(int lfd, int rootfd, ngx_log_t *log)
  * WHAT: Resolve the nginx worker uid the broker will be gated to.
  * WHY:  The broker socket is chowned to this uid and the broker refuses any
  *       caller uid but this one — defence in depth atop path confinement.  A
- *       missing/unset `user` directive means "no gate" ((uid_t)-1).
- * HOW:  Read ngx_core_module's parsed conf; treat NGX_CONF_UNSET_UINT as none.
+ *       missing/unset `user` directive uses nginx's default account. Failure
+ *       to resolve that account returns (uid_t)-1 and prevents broker startup.
+ * HOW:  Read ngx_core_module's parsed conf, falling back to the nobody account.
  */
 static uid_t
 imp_worker_uid(ngx_cycle_t *cycle)
@@ -495,6 +496,15 @@ brix_imp_init_module(ngx_cycle_t *cycle)
                  &imp_settings.export_root);
 
     wuid = imp_worker_uid(cycle);
+    if (wuid == (uid_t) -1) {
+        BRIX_DIAG_EMERG(cycle->log, 0,
+            "impersonate: cannot resolve the worker identity",
+            "the user directive is unset and the default nobody account "
+            "cannot be resolved",
+            "configure an existing unprivileged worker user or restore "
+            "the default account before enabling map mode");
+        return NGX_ERROR;
+    }
 
     if (imp_resolve_broker_user(cycle, wuid) != NGX_OK) {
         return NGX_ERROR;

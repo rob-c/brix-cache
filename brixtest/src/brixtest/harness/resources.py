@@ -11,6 +11,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
 from brixtest.results.model import Finding, Sample
 from brixtest.results.store import ResultStore
+from brixtest.fleet.orphans import _process_exists
 
 __all__ = ["ResourcePolicy", "ResourceWatch"]
 
@@ -152,10 +153,14 @@ class ResourceWatch:
         # and only a pid it STILL claims counts as one.
         if self.provider().get(name) != pid:
             return
+        # /proc is absent on macOS and may be unreadable on other hosts.
+        # Missing telemetry alone cannot establish that a registered PID died.
+        if _process_exists(pid):
+            return
         self._reported.add(key)
         self._emit(Finding(
             kind="crash", instance=name,
-            detail="pid %d vanished from /proc while still registered" % pid,
+            detail="pid %d exited while still registered" % pid,
             during_test=during, at=_utc_now(),
         ))
 

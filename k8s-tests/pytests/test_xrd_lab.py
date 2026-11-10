@@ -11,7 +11,7 @@ def _flat(cmds):
 
 def test_up_plan_pins_version_and_nodes():
     assert ["minikube", "start", "--driver=docker", "--nodes=1",
-            "--kubernetes-version=v1.31.4"] in lab.plan_up()
+            "--kubernetes-version=v1.37.2"] in lab.plan_up()
 
 
 def test_up_plan_honors_nodes_override(monkeypatch):

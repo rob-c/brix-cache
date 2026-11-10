@@ -18,6 +18,7 @@ import zlib
 import pytest
 
 from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
+from ephemeral_port import free_port
 from lib_py.util import linked_libraries
 
 def _guard_tools_1():
@@ -127,8 +128,9 @@ def test_wait41_ready(tools):
 
 
 def test_wait41_timeout(tools):
-    # A port with nothing listening → non-zero within ~2s.
-    r = _run(tools["wait41-brix"], "--timeout", "2", f"{SERVER_HOST}:12977", timeout=10)
+    # Lease an unused slot so another worker cannot start a mock on this port.
+    port = free_port(SERVER_HOST)
+    r = _run(tools["wait41-brix"], "--timeout", "2", f"{SERVER_HOST}:{port}", timeout=10)
     assert r.returncode != 0, "wait41 reported ready on a closed port"
 
 

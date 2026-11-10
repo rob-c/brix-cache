@@ -23,12 +23,13 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import os
+from pathlib import Path
 import shutil
 import stat
 import subprocess
 import sys
 
-__all__ = ["client_make", "client_run", "make_lock_path"]
+__all__ = ["client_make", "client_run", "client_snapshot", "make_lock_path"]
 
 # Not ``tempfile.gettempdir()``: the suite pins TMPDIR per lane at settings
 # import, and this lock has to span lanes — two lanes on one tree is the case.
@@ -99,3 +100,21 @@ def client_run(client_dir, argv, **run_kwargs):
     """
     with _tree_lock(client_dir):
         return subprocess.run(argv, **run_kwargs)
+
+
+def client_snapshot(client_dir, source, destination):
+    """Copy a complete executable while excluding the tree's build writers.
+
+    Size/mtime comparisons cannot prove that a linker has finished: a linker
+    can pause between writes with a nonempty but incomplete output. Share the
+    same lock as client_make, then release it before running the private copy.
+    """
+    source, destination = Path(source), Path(destination)
+    with _tree_lock(client_dir):
+        metadata = source.stat()
+        if not stat.S_ISREG(metadata.st_mode) or not metadata.st_size:
+            raise ValueError(f"client executable is not a nonempty regular file: {source}")
+        if not metadata.st_mode & 0o111:
+            raise ValueError(f"client executable has no execute permission: {source}")
+        shutil.copy2(source, destination)
+    return destination

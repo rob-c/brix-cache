@@ -107,6 +107,21 @@ afh_open(uid_t uid, const char *path, int writable, int force, struct fuse_file_
     h->mf = brix_mfile_open(brix_mgr_pick(mgr), srv_path(path, pbuf, sizeof(pbuf)),
                             writable, force, 0, opaque,
                             g_max_stall, g_max_retries, &st);
+    /* POSIX create/truncate publishes the empty file before open returns.
+     * An origin with upload-resume stages these opens until remote close;
+     * deferring that close to FUSE RELEASE races a subsequent OPEN because
+     * RELEASE is asynchronous. Publish now, then retain an update-in-place
+     * handle for reads/writes and for descriptor operations after unlink. */
+    if (h->mf != NULL && writable && force != 2) {
+        int published = brix_mfile_close(h->mf, &st);
+        h->mf = NULL;
+        if (published == 0) {
+            h->mf = brix_mfile_open(brix_mgr_pick(mgr),
+                                    srv_path(path, pbuf, sizeof(pbuf)),
+                                    1, 2, 0, opaque,
+                                    g_max_stall, g_max_retries, &st);
+        }
+    }
     if (h->mf == NULL) {
         afh_free(h);
         return xfs_err(&st);
@@ -265,6 +280,11 @@ xfs_flush(const char *path, struct fuse_file_info *fi)
     brix_status_clear(&st);
     pthread_mutex_lock(&h->lock);
     rc = afh_flush_wbuf(h, &st);
+    /* RELEASE can run after a subsequent OPEN. Publish the origin's integrity
+     * metadata before FLUSH replies, while retaining this handle for dup/unlink. */
+    if (rc == 0 && h->writable) {
+        rc = brix_mfile_sync(h->mf, &st);
+    }
     pthread_mutex_unlock(&h->lock);
     return rc != 0 ? xfs_err(&st) : 0;
 }

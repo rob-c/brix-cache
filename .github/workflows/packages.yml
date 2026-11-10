@@ -18,10 +18,10 @@ jobs:
       matrix:
         distro: [ubuntu24, ubuntu26]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Build distro-nginx packages
         run: packaging/deb/build-deb-container.sh -d "${{ matrix.distro }}" -f distro -o "dist/${{ matrix.distro }}"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: brix-cache-${{ matrix.distro }}-arm64
           path: dist/${{ matrix.distro }}/*.deb
@@ -48,10 +48,10 @@ jobs:
           - centos-stream9
           - centos-stream10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Build native-repository packages
         run: packaging/rpm/build-rpm-container.sh -d "${{ matrix.distro }}" -o "dist/${{ matrix.distro }}"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: brix-cache-${{ matrix.distro }}-arm64
           path: dist/${{ matrix.distro }}/*.rpm
@@ -78,7 +78,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Evaluate and build the pinned flake
         run: |
           docker run --rm -v "$PWD:/src:ro" -w /src nixos/nix:2.32.1 \
@@ -90,14 +90,14 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Install build dependencies
         run: brew install brotli krb5 lz4 openssl@3 pkgconf xz zstd
       - name: Build and test bottle
         env:
           BRIX_HOMEBREW_LOCAL_SOURCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
         run: packaging/homebrew/build-bottle.sh "${{ github.event.release.tag_name || 'v2.0.0' }}"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: brix-cache-homebrew-arm64
           path: dist/homebrew/*

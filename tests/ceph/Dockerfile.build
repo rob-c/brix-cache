@@ -11,7 +11,7 @@
 ARG BRIX_BASE_IMAGE=quay.io/centos/centos:stream9
 FROM ${BRIX_BASE_IMAGE}
 
-ARG NGINX_VER=1.28.3
+ARG NGINX_VER=1.31.8
 ARG BRIX_CEPH_SIG_RELEASE=tentacle
 
 # CRB (liburing-devel etc.) + EPEL (brotli) widen the dep set on CentOS Stream 9.

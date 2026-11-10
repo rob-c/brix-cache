@@ -387,7 +387,8 @@ CXX_SUFFIXES = (".cc", ".cpp", ".cxx", ".hh", ".hpp")
 # pages, the Python/shell tooling that ships beside the sources, and contrib/'s
 # config example, Grafana dashboard and Prometheus alert rules.
 NON_SOURCE_SUFFIXES = {".md", ".py", ".sh", ".bash", ".txt", ".1", ".7",
-                       ".example", ".json", ".yml"}
+                       ".example", ".json", ".yml",
+                       ".apparmor"}  # kernel policy data, not a C/C++ translation unit
 
 
 def test_generated_c_includes_are_scanned_for_resolver_bypasses(tmp_path):

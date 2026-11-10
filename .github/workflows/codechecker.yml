@@ -51,24 +51,24 @@ jobs:
             libcurl-devel sqlite-devel krb5-devel \
             jansson-devel libxml2-devel librados-devel
           clang --version
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Install CodeChecker
         run: pip install --user codechecker
       - name: Fetch and configure nginx with the module
         run: |
-          curl -fsSL https://nginx.org/download/nginx-1.28.3.tar.gz | tar -xz -C /tmp
-          cd /tmp/nginx-1.28.3
+          curl -fsSL https://nginx.org/download/nginx-1.31.8.tar.gz | tar -xz -C /tmp
+          cd /tmp/nginx-1.31.8
           ./configure --with-stream --with-stream_ssl_module \
             --with-http_ssl_module --with-http_dav_module --with-http_auth_request_module --with-threads \
             --add-module="$GITHUB_WORKSPACE"
       - name: Run CodeChecker ratchet (blocking on new findings vs baseline)
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          NGX_BUILD=/tmp/nginx-1.28.3 \
+          NGX_BUILD=/tmp/nginx-1.31.8 \
             tools/ci/run_codechecker.py 2>&1 | tee /tmp/codechecker-report.txt
       - name: Upload findings
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: codechecker-report
           path: /tmp/codechecker-report.txt

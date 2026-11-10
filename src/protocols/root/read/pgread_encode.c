@@ -202,7 +202,9 @@ brix_pgread_read_encode_inplace(brix_sd_obj_t *obj, off_t offset,
         {
             /* Compat seam: drivers without a native preadv slot (remote/object
              * backends) fall back to per-iovec pread inside the helper. */
-            n = brix_sd_obj_preadv(obj, batch.iov, batch.k, batch_off);
+            do {
+                n = brix_sd_obj_preadv(obj, batch.iov, batch.k, batch_off);
+            } while (n < 0 && errno == EINTR);
             if (n < 0) {
                 io->nread = -1;
                 io->io_errno = errno;

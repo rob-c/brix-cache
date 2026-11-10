@@ -268,10 +268,13 @@ peer_name_certificate(const char *names)
     assert(X509_gmtime_adj(X509_getm_notBefore(certificate), -60) != NULL);
     assert(X509_gmtime_adj(X509_getm_notAfter(certificate), 3600) != NULL);
     assert(X509_set_pubkey(certificate, key) == 1);
-    subject = X509_get_subject_name(certificate);
+    subject = X509_NAME_new();
+    assert(subject != NULL);
     assert(X509_NAME_add_entry_by_txt(subject, "CN", MBSTRING_ASC,
         (const unsigned char *) "127.0.0.1", -1, -1, 0) == 1);
+    assert(X509_set_subject_name(certificate, subject) == 1);
     assert(X509_set_issuer_name(certificate, subject) == 1);
+    X509_NAME_free(subject);
     extension = X509V3_EXT_conf_nid(NULL, NULL, NID_subject_alt_name, (char *) names);
     assert(extension != NULL && X509_add_ext(certificate, extension, -1) == 1);
     X509_EXTENSION_free(extension);
@@ -381,6 +384,7 @@ check_name_errors(void)
     X509_NAME *name = name_with_cn("Alice");
     char output[16] = "old identity", small[4] = "old", sentinel = 'x';
 
+    assert(brix_crypto_asn1_length(NULL) == -1);
     assert(brix_crypto_name_oneline(NULL, output, sizeof(output)) == NULL);
     assert(output[0] == '\0');
     assert(brix_crypto_name_oneline(name, small, sizeof(small)) == NULL);

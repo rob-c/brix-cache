@@ -16,8 +16,8 @@ import sys
 #: client with no krb5 protocol at all (Apple's Heimdal ships no .pc file).
 _KRB5_PKGCONFIG_DIRS = ("/usr/local/opt/krb5/lib/pkgconfig",
                         "/opt/homebrew/opt/krb5/lib/pkgconfig")
-_OPENSSL_PREFIXES = ("/usr/local/opt/openssl@3",
-                     "/opt/homebrew/opt/openssl@3")
+_OPENSSL_PREFIXES = ("/usr/local/opt/openssl@4",
+                     "/opt/homebrew/opt/openssl@4")
 _HOMEBREW_PREFIXES = ("/usr/local", "/opt/homebrew")
 
 

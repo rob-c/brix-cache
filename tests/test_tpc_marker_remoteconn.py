@@ -184,7 +184,7 @@ def test_multistream_rejects_malformed_range_lengths(dest, source, origin_path):
     output_name = f"rejected-{origin_path}"
     status, body = _copy(dest, source_url, f"/{output_name}", streams=3)
     assert status == 202, f"COPY did not enter marker mode: {status}"
-    assert "error" in body.lower() or "failed" in body.lower(), body[-800:]
+    assert body.rstrip().endswith("failure"), body[-800:]
     assert not (dest["data"] / output_name).exists(), \
         "malformed multi-stream response was published"
 

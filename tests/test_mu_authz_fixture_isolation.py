@@ -20,7 +20,7 @@ def _capture_start(specs, shared_authdb, spec):
 @pytest.mark.parametrize("module,fixture,extra,expected", [
     ("test_root_open_existence_oracle", "direct_authz_env", {}, "g cms / rl\n"),
     ("test_mu_webdav_authz", "webdav_authz_env", {"cast": {}},
-     "u * /cms rl\nu * /restricted rl\n"),
+     "u * /cms rl\nu * /restricted rlw\n"),
     ("test_mu_cache_serve_authz", "noimp_env", {"cast": {}},
      "# MU no-imp cache verification authdb\ng cms / rl\n"),
 ])

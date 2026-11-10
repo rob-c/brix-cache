@@ -12,6 +12,8 @@ import sys
 
 from . import LAB, REPO
 from . import targets
+from .chart_dependencies import dependency_build_plan
+from .cluster_health import reusable_cluster
 
 CHART = LAB / "charts" / "brix-test-lab"
 
@@ -23,7 +25,7 @@ def _dry():
 def _cfg():
     return (os.environ.get("XRD_LAB_DRIVER", "docker"),
             os.environ.get("XRD_LAB_NODES", "1"),
-            os.environ.get("XRD_LAB_K8S_VERSION", "v1.31.4"))
+            os.environ.get("XRD_LAB_K8S_VERSION", "v1.37.2"))
 
 
 def _dockerfile(image):
@@ -83,7 +85,7 @@ def plan_deploy(profile):
         ["kubectl", "create", "namespace", ns],
         ["kubectl", "label", "namespace", ns,
          "pod-security.kubernetes.io/enforce=baseline", "--overwrite"],
-        ["helm", "dependency", "build", str(CHART)],
+        *dependency_build_plan(CHART),
         ["helm", "upgrade", "--install", f"brix-{profile}", str(CHART),
          "--namespace", ns, "--create-namespace", "--values", str(values),
          "--wait", "--timeout", "5m"],
@@ -123,13 +125,30 @@ def _run_plan(cmds, check=True):
 
 
 def _probe(ns, name, image, script):
-    """Run a throwaway pod, return its stdout (empty on failure)."""
-    r = subprocess.run(
-        ["kubectl", "-n", ns, "run", f"{name}-{os.getpid()}", "--rm", "-i",
-         "--restart=Never", f"--image={image}", "--image-pull-policy=Never",
-         "--quiet", "--command", "--", "bash", "-lc", script],
-        capture_output=True, text=True)
-    return r.stdout.strip()
+    """Collect persistent pod logs; attaching can miss a short-lived command."""
+    pod = f"{name}-{os.getpid()}"
+    kube = ["kubectl", "-n", ns]
+    _sh([*kube, "run", pod, "--restart=Never", f"--image={image}",
+         "--image-pull-policy=Never", "--quiet", "--command", "--",
+         "bash", "-lc", script], capture=True)
+    try:
+        logs = _sh([*kube, "logs", "-f", pod, "--pod-running-timeout=180s"],
+                   capture=True)
+        # Log EOF can precede the kubelet's terminal-status update.
+        finished = _sh([*kube, "wait", f"pod/{pod}", "--timeout=30s",
+                        "--for=jsonpath={.status.containerStatuses[0].state.terminated}"],
+                       check=False, capture=True)
+        if finished.returncode != 0:
+            raise RuntimeError(
+                f"probe {ns}/{pod} did not publish an exit status: {logs.stdout}")
+        code = _sh([*kube, "get", "pod", pod, "-o",
+                    "jsonpath={.status.containerStatuses[0].state.terminated.exitCode}"],
+                   capture=True).stdout
+        if code != "0":
+            raise RuntimeError(f"probe {ns}/{pod} exited {code}: {logs.stdout}")
+        return logs.stdout.strip()
+    finally:
+        _sh([*kube, "delete", "pod", pod, "--wait=false"], capture=True)
 
 
 def _http_probe(ns, name, url):
@@ -338,6 +357,16 @@ def _run_command_plan(plan):
     return 0
 
 
+def _up(_rest):
+    plan = plan_up()
+    if not _dry() and reusable_cluster(_sh, *_cfg()):
+        _sh(["kubectl", "wait", "--for=condition=Ready", "nodes", "--all",
+             "--timeout=60s"])
+        plan = plan[1:]
+    _run_plan(plan)
+    return 0
+
+
 def _run_profile_command(rest, command, plan, *, check=True):
     if not rest:
         print(f"error: {command} requires a <profile> argument", file=sys.stderr)
@@ -354,7 +383,7 @@ def _show_help(_rest):
 
 def _command_handlers():
     return {
-        "up": lambda _rest: _run_command_plan(plan_up),
+        "up": _up,
         "deploy": lambda rest: _run_profile_command(rest, "deploy", plan_deploy),
         "down": lambda rest: _run_profile_command(
             rest, "down", plan_down, check=False),

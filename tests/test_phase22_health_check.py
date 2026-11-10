@@ -260,9 +260,17 @@ def _make_pki(base):
     osl("req", "-nodes", "-newkey", "rsa:2048",
         "-subj", f"/O=HcTlsTest/CN={fqdn}",
         "-keyout", str(srv / "hostkey.pem"), "-out", str(csr))
+    # OpenSSL 4 verifies SANs rather than falling back to the common name.
+    # The manager connects to the registry's numeric host for this local lab.
+    extensions = base / "host.ext"
+    extensions.write_text(
+        f"subjectAltName=DNS:{fqdn},DNS:localhost,IP:{BIND_HOST}\n"  # net-literal-allow: certificate SAN for the local lab
+        "basicConstraints=CA:FALSE\n"
+        "keyUsage=digitalSignature,keyEncipherment\n"
+        "extendedKeyUsage=serverAuth\n")
     osl("x509", "-req", "-in", str(csr), "-CA", str(ca / "ca.pem"),
         "-CAkey", str(ca / "ca.key"), "-CAcreateserial", "-days", "1",
-        "-out", str(srv / "hostcert.pem"))
+        "-extfile", str(extensions), "-out", str(srv / "hostcert.pem"))
 
     # A CA that did NOT sign the host cert — trusting it must fail the probe.
     osl("req", "-x509", "-nodes", "-newkey", "rsa:2048", "-days", "1",

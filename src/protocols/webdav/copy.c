@@ -161,6 +161,38 @@ webdav_copy_parse_request(ngx_http_request_t *r, webdav_copy_req_t *req)
                                        sizeof(req->src_logical));
 }
 
+/* ---- Confine and authorize the COPY source ----
+ * WHAT: Populate the source path and stat, returning an HTTP error on failure.
+ * WHY: Source authority must precede its metadata probe and destination work.
+ * HOW: Resolve, pass the existing resource gate, then probe through the VFS.
+ */
+static ngx_int_t
+webdav_copy_resolve_source(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, webdav_copy_req_t *req)
+{
+    ngx_int_t rc;
+
+    rc = ngx_http_brix_webdav_resolve_path(r, conf->common.root_canon,
+                                           req->src_path, sizeof(req->src_path));
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    rc = webdav_copy_authorize(r, conf, req->src_logical, req->src_path,
+                               "COPY source", BRIX_AUTH_READ,
+                               BRIX_AOP_READ, 0);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    if (webdav_copy_probe(r, req->src_path, &req->src_sb) != NGX_OK) {
+        return (errno == ENOENT) ? NGX_HTTP_NOT_FOUND
+                                 : NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    return NGX_OK;
+}
+
 /*
  * WHAT: Resolve and validate the source/destination pair: fill req->src_path,
  * req->dst_path, their stat records, and req->dst_existed, then run the lock,
@@ -184,22 +216,9 @@ webdav_copy_resolve_pair(ngx_http_request_t *r,
 {
     ngx_int_t rc;
 
-    rc = ngx_http_brix_webdav_resolve_path(r, conf->common.root_canon,
-                                           req->src_path, sizeof(req->src_path));
+    rc = webdav_copy_resolve_source(r, conf, req);
     if (rc != NGX_OK) {
         return rc;
-    }
-
-    rc = webdav_copy_authorize(r, conf, req->src_logical, req->src_path,
-                               "COPY source", BRIX_AUTH_READ,
-                               BRIX_AOP_READ, 0);
-    if (rc != NGX_OK) {
-        return rc;
-    }
-
-    if (webdav_copy_probe(r, req->src_path, &req->src_sb) != NGX_OK) {
-        return (errno == ENOENT) ? NGX_HTTP_NOT_FOUND
-                                 : NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     rc = webdav_resolve_destination_path(r->connection->log, "COPY",

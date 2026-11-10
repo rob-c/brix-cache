@@ -200,6 +200,8 @@ web_range_read_headers(brix_webfile *wf, char *hbuf, brix_status *st,
         status = sp ? atoi(sp + 1) : 0;
     }
     if (status == 416) {                 /* range past EOF → no bytes */
+        /* An error body may still follow. Do not reuse an undrained socket. */
+        web_disconnect(wf);
         return 0;
     }
     if (status != 206 && status != 200) {
@@ -230,6 +232,40 @@ web_range_read_headers(brix_webfile *wf, char *hbuf, brix_status *st,
     out->clen = clen;
     out->status = status;
     return 1;
+}
+
+/* Consume a known body span without retaining it. Used for both an ignored
+ * Range prefix and a trailing body; the shared I/O helper handles TLS too. */
+static int
+web_range_discard(brix_webfile *wf, size_t length, brix_status *st)
+{
+    char sink[8192];
+    while (length != 0) {
+        size_t chunk = length < sizeof(sink) ? length : sizeof(sink);
+        if (brix_read_full(&wf->io, sink, chunk, st) != 0) {
+            web_disconnect(wf);
+            return -1;
+        }
+        length -= chunk;
+    }
+    return 0;
+}
+
+/* A 200 response starts at byte zero even when Range requested a later offset.
+ * Advance past the prefix already buffered, then discard the rest on the wire.
+ * Adjust the body view so the ordinary streaming path sees only the remainder. */
+static int
+web_range_skip_prefix(brix_webfile *wf, int64_t off, web_range_hdr_t *hdr,
+                      brix_status *st)
+{
+    size_t skip, have, buffered;
+    if (hdr->status != 200 || off == 0) { return 0; }
+    skip = (size_t) (off < hdr->clen ? off : hdr->clen);
+    have = hdr->hlen - (size_t) (hdr->eoh + 4 - hdr->hbuf);
+    buffered = have < skip ? have : skip;
+    hdr->eoh += buffered;
+    hdr->clen -= (long long) skip;
+    return web_range_discard(wf, skip - buffered, st);
 }
 
 
@@ -286,22 +322,9 @@ web_range_stream_body(brix_webfile *wf, void *buf, size_t len,
     }
     /* drain any body beyond what we wanted, to keep the connection aligned
      * for the next keep-alive request (status 200 = server ignored Range) */
-    while (consumed < total_body) {
-        char    sink[8192];
-        size_t  chunk = total_body - consumed;
-        if (chunk > sizeof(sink)) {
-            chunk = sizeof(sink);
-        }
-        if (brix_read_full(&wf->io, sink, chunk, st) != 0) {
-            web_disconnect(wf);
-            return (ssize_t) want;   /* have the wanted bytes; lost keep-alive */
-        }
-        consumed += chunk;
-    }
-    if (hdr->status == 200) {
-        /* Range ignored: keep-alive is fine (we consumed the whole body), but
-         * for a large file that is wasteful — leave the connection up; the
-         * caller still got the right bytes for this offset. */
+    if (consumed < total_body
+        && web_range_discard(wf, total_body - consumed, st) != 0) {
+        return (ssize_t) want;   /* have the wanted bytes; lost keep-alive */
     }
     return (ssize_t) want;
 }
@@ -318,6 +341,11 @@ web_get_range(brix_webfile *wf, int64_t off, void *buf, size_t len,
     web_range_hdr_t hdr = {0};
     int             hr;
 
+    if (off < 0 || len > (uint64_t) INT64_MAX - (uint64_t) off) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "web GET: invalid range");
+        return -1;
+    }
+    if (len == 0) { return 0; }
     if (web_range_send_req(wf, off, len, st) != 0) {
         return -1;
     }
@@ -326,6 +354,7 @@ web_get_range(brix_webfile *wf, int64_t off, void *buf, size_t len,
     if (hr <= 0) {
         return (ssize_t) hr;      /* 0 = 416 (no bytes), -1 = error (st set) */
     }
+    if (web_range_skip_prefix(wf, off, &hdr, st) != 0) { return -1; }
 
     return web_range_stream_body(wf, buf, len, &hdr, st);
 }

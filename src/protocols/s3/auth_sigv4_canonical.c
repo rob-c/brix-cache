@@ -86,8 +86,8 @@ sigv4_encoded_cmp(const u_char *a, size_t alen,
 {
     sigv4_encoded_cursor_t ac = { a, alen, 0, 0 };
     sigv4_encoded_cursor_t bc = { b, blen, 0, 0 };
-    u_char                 av;
-    u_char                 bv;
+    u_char                 av = 0;
+    u_char                 bv = 0;
     int                    ahas;
     int                    bhas;
 

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
 from brixtest.errors import SpecError
+from brixtest.fleet.orphans import _process_exists
 from brixtest.util.http import http_url
 from brixtest.util.immutable import freeze_mapping
 
@@ -357,7 +358,7 @@ class CollectorManager:
 
     def _process_crashes(self, roots) -> None:
         for owner, pid in self._known_pids.items():
-            if roots.get(owner) != pid or Path("/proc/%d" % pid).exists():
+            if roots.get(owner) != pid or _process_exists(pid):
                 continue
             finding = {
                 "kind": "process-crash", "name": "process.crash",

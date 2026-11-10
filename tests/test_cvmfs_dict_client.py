@@ -50,7 +50,7 @@ zstandard = pytest.importorskip("zstandard")
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402
-from lib_py.fuse_host import FUSE_READY  # noqa: E402
+from lib_py.fuse_host import FUSE_READY, reap_unmounted_process  # noqa: E402
 from repo_forge import Dir, File, RepoForge  # noqa: E402
 from settings import BIND_HOST, HOST
 
@@ -226,11 +226,7 @@ def _stop_mount(mnt, proc):
 
 
 def _terminate_mount_process(proc):
-    proc.terminate()
-    try:
-        proc.wait(3)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    reap_unmounted_process(proc)
 
 
 # ---- CAS identity: object key = sha1 of the STORED (zlib) form -------------

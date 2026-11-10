@@ -73,6 +73,7 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
 | `copy.c` | RFC 4918 COPY (local, same-root): Destination/Overwrite/Depth parse, staged temp-path + atomic rename, recursive dir copy (thread-pool offloaded), xattr/dead-prop preservation, self-copy → 403. |
 | `copy_authorization.c` | Exact source/destination authorization for local COPY, including logical-to-resolved child mapping and recursive create/replace/delete guards. |
 | `move.c` | RFC 4918 MOVE: confined `rename(2)` via `brix_ns_rename`; collection moves offloaded to thread pool; Overwrite:F → 412, self-move → 403, non-empty dest dir → 409. |
+| `move_destination.c` / `.h` | Decode and confine MOVE destinations while retaining both logical and storage paths. |
 | `propfind.c` | RFC 4918 PROPFIND entry/dispatch: request + Depth parse, prop-name→bit, body assembly. *(Phase 38: split.)* |
 | `propfind_props.c` | The per-resource property emitter `propfind_entry` + RFC 3744 ACL property append. *(Phase 38 split of `propfind.c`.)* |
 | `propfind_walk.c` | Pool-owned iterative depth traversal `propfind_walk` + `propfind_do` Multi-Status orchestration. Directory depth does not consume the worker call stack; VFS confinement, per-child read checks, symlink refusal, entry caps and handle cleanup remain enforced. |

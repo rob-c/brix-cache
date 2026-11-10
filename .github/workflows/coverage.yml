@@ -1,11 +1,12 @@
 # gcov/lcov line-coverage report for src/ and client/ (QUALITY_ROADMAP §2.3/§3.4).
 #
-# Blocking line-coverage ratchet. The 67% floor is 1.9 points below the reviewed
-# 2026-09-03 instrumented fast-tier baseline of 68.9%; increase it only after a
-# new reproducible observation. The report is still uploaded on every failure.
+# Blocking 90% line-coverage ratchet. The 2026-11-10 full-suite measurement
+# reached 90.1229%, including privileged and standalone namespace groups;
+# see BUILD.md §18. The report is still uploaded on every failure.
 #
-# The fast tier boots the test fleet (self-provisioned PKI); a meaningful figure
-# needs that to run. A failed fleet or test command is a failed coverage job;
+# The full suite boots the test fleet (self-provisioned PKI), followed by the
+# explicit privileged group on this disposable runner. A failed fleet or test
+# command is a failed coverage job;
 # partial counters remain available through the always-run artifact step.
 name: coverage
 on:
@@ -25,32 +26,56 @@ concurrency:
 jobs:
   coverage:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Install build + coverage deps
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential lcov \
             libssl-dev zlib1g-dev libpcre3-dev libpcre2-dev \
             libcurl4-openssl-dev libsqlite3-dev libkrb5-dev \
-            libjansson-dev libxml2-dev librados-dev
-          pip install --user pytest pytest-xdist pytest-timeout
-          pip install --user -e brixtest/
+            libjansson-dev libxml2-dev librados-dev libseccomp-dev liburing-dev \
+            libbz2-dev liblzma-dev libzstd-dev liblz4-dev libbrotli-dev \
+            libfuse3-dev fuse3 libcap-dev libacl1-dev libattr1-dev attr \
+            python3-venv python3-dev pkg-config rsync git sudo uidmap bubblewrap apparmor apparmor-utils \
+            xrootd-client xrootd-server xrootd-server-plugins \
+            xrootd-scitokens-plugins xrootd-voms-plugins \
+            krb5-kdc krb5-admin-server krb5-user haproxy nghttp2-server \
+            rpm dnf createrepo-c brotli lz4 zstd gnupg fail2ban iproute2 nftables \
+            gfal2-util-scripts gfal2-plugin-file gfal2-plugin-xrootd \
+            gfal2-plugin-http gfal2-plugin-gridftp globus-gass-copy-progs
+          python3 -m venv .venv-coverage
+          .venv-coverage/bin/pip install --only-binary=xrootd \
+            -r requirements.txt -r requirements-optional.txt './brixtest[all]'
+          .venv-coverage/bin/pip check
+          sudo modprobe fuse
+          echo user_allow_other | sudo tee -a /etc/fuse.conf
+      - name: Permit the test user-namespace launchers
+        id: coverage_userns
+        run: sudo apparmor_parser --add tools/ci/coverage_userns.apparmor
       - name: Fetch nginx source
-        run: curl -fsSL https://nginx.org/download/nginx-1.28.3.tar.gz | tar -xz -C /tmp
+        run: curl -fsSL https://nginx.org/download/nginx-1.31.8.tar.gz | tar -xz -C /tmp
       - name: Build instrumented module, run suite, capture coverage
         env:
-          NGINX_SRC: /tmp/nginx-1.28.3
+          NGINX_SRC: /tmp/nginx-1.31.8
           PYTHONPATH: tests
-          COVERAGE_MIN: 67
+          COVERAGE_MIN: 90
+          COVERAGE_PRIVILEGED: "1"
+          COVERAGE_USERNS_PROFILE: brix-coverage-userns-tests
+          TEST_ROOT: /tmp/brix-cov
+          PYTEST_ADDOPTS: "-p no:brixtest -p no:platformdirs"
         run: |
           set -o pipefail
-          export PATH="$HOME/.local/bin:$PATH"
+          export PATH="$NGINX_SRC/objs:$PWD/.venv-coverage/bin:$PATH"
+          python3 tests/rpm/make_fixtures.py
           tools/ci/coverage.py 2>&1 | tee /tmp/coverage-report.txt
+      - name: Remove the test user-namespace profile
+        if: ${{ always() && steps.coverage_userns.outcome == 'success' }}
+        run: sudo apparmor_parser --remove tools/ci/coverage_userns.apparmor
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: coverage-report
           path: |

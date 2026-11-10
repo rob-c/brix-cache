@@ -21,6 +21,7 @@
  *       is the entry's verdict.
  */
 
+#include "auth/crypto/asn1_compat.h"
 #include "voms_ac.h"
 #include "voms_asn1.h"
 #include "voms_lsc.h"
@@ -324,7 +325,7 @@ voms_target_names_host(const GENERAL_NAME *gn, const char *host)
     } else {
         return 0;
     }
-    return (size_t) ASN1_STRING_length(s) == strlen(host)
+    return (size_t) brix_crypto_asn1_length(s) == strlen(host)
            && strncasecmp((const char *) ASN1_STRING_get0_data(s), host,
                           strlen(host)) == 0;
 }

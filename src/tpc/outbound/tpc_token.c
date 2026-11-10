@@ -125,8 +125,8 @@ tpc_token_parse_access_token(const char *json, char *out, size_t out_sz)
  * WHY: A delegation backend (oidc-agent / token-exchange) can return a string
  * that is well-formed JSON-wise but not a usable credential; validating here
  * fails fast with kXR_AuthFailed rather than letting a bad token surface as an
- * opaque remote-open rejection later. An empty token is treated as "no
- * delegation requested" and accepted (returns 0).
+ * opaque remote-open rejection later. Empty helper output fails closed; the
+ * no-delegation and optional-passthrough cases return before this validator.
  * HOW: Wrap delegated_token in an ngx_str_t, parse+validate it as a
  * BRIX_TPC_CREDENTIAL_TOKEN; on any failure set err_msg/xrd_error and -1. */
 static int
@@ -135,9 +135,12 @@ tpc_token_validate_delegated(brix_tpc_pull_t *t)
     ngx_str_t                  raw;
     brix_tpc_credential_t    cred;
 
-    /* Empty token => caller did not request delegation; nothing to validate. */
+    /* Fetching was explicitly requested, so absence cannot become fallback. */
     if (t->delegated_token[0] == '\0') {
-        return 0;
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC token: delegation returned an empty token");
+        t->xrd_error = kXR_AuthFailed;
+        return -1;
     }
 
     raw.data = (u_char *) t->delegated_token;

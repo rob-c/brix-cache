@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-22.04
     name: Linux x86_64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       
       - name: Install dependencies
         run: |
@@ -59,8 +59,8 @@ jobs:
       - name: Download nginx source
         run: |
           cd /tmp
-          wget -q http://nginx.org/download/nginx-1.28.3.tar.gz
-          tar xzf nginx-1.28.3.tar.gz
+          wget -q https://nginx.org/download/nginx-1.31.8.tar.gz
+          tar xzf nginx-1.31.8.tar.gz
       
       - name: Build PAL verification
         run: |
@@ -69,7 +69,7 @@ jobs:
       
       - name: Build nginx module
         run: |
-          cd /tmp/nginx-1.28.3
+          cd /tmp/nginx-1.31.8
           ./configure \
             --with-stream \
             --with-stream_ssl_module \
@@ -79,8 +79,8 @@ jobs:
       
       - name: Verify binary
         run: |
-          file /tmp/nginx-1.28.3/objs/nginx
-          /tmp/nginx-1.28.3/objs/nginx -v
+          file /tmp/nginx-1.31.8/objs/nginx
+          /tmp/nginx-1.31.8/objs/nginx -v
       
       - name: Run PAL seam check
         run: |
@@ -88,11 +88,11 @@ jobs:
           python3 tools/ci/check_pal_seam.py --directory=src --check-implementation
       
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         if: success()
         with:
           name: nginx-linux-x86_64
-          path: /tmp/nginx-1.28.3/objs/nginx
+          path: /tmp/nginx-1.31.8/objs/nginx
           retention-days: 7
 
   # Linux ARM64 Build (cross-compile)
@@ -101,7 +101,7 @@ jobs:
     runs-on: ubuntu-22.04
     name: Linux ARM64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       
       - name: Install cross-compiler
         run: |
@@ -137,7 +137,7 @@ jobs:
     runs-on: macos-12
     name: macOS x86_64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       
       - name: Install dependencies
         run: |
@@ -158,8 +158,8 @@ jobs:
       - name: Download nginx source
         run: |
           cd /tmp
-          curl -O http://nginx.org/download/nginx-1.28.3.tar.gz
-          tar xzf nginx-1.28.3.tar.gz
+          curl -O https://nginx.org/download/nginx-1.31.8.tar.gz
+          tar xzf nginx-1.31.8.tar.gz
       
       - name: Build PAL verification
         run: |
@@ -168,7 +168,7 @@ jobs:
       
       - name: Build nginx module
         run: |
-          cd /tmp/nginx-1.28.3
+          cd /tmp/nginx-1.31.8
           ./configure \
             --with-stream \
             --with-stream_ssl_module \
@@ -178,15 +178,15 @@ jobs:
       
       - name: Verify binary
         run: |
-          file /tmp/nginx-1.28.3/objs/nginx
-          /tmp/nginx-1.28.3/objs/nginx -v
+          file /tmp/nginx-1.31.8/objs/nginx
+          /tmp/nginx-1.31.8/objs/nginx -v
       
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         if: success()
         with:
           name: nginx-macos-x86_64
-          path: /tmp/nginx-1.28.3/objs/nginx
+          path: /tmp/nginx-1.31.8/objs/nginx
           retention-days: 7
 
   # macOS ARM64 Build (Apple Silicon)
@@ -195,7 +195,7 @@ jobs:
     runs-on: macos-14
     name: macOS ARM64 (Apple Silicon)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       
       - name: Install dependencies
         run: |
@@ -216,8 +216,8 @@ jobs:
       - name: Download nginx source
         run: |
           cd /tmp
-          curl -O http://nginx.org/download/nginx-1.28.3.tar.gz
-          tar xzf nginx-1.28.3.tar.gz
+          curl -O https://nginx.org/download/nginx-1.31.8.tar.gz
+          tar xzf nginx-1.31.8.tar.gz
       
       - name: Build PAL verification
         run: |
@@ -226,7 +226,7 @@ jobs:
       
       - name: Build nginx module with optimizations
         run: |
-          cd /tmp/nginx-1.28.3
+          cd /tmp/nginx-1.31.8
           BRIX_OPTIMIZE=apple_silicon ./configure \
             --with-stream \
             --with-stream_ssl_module \
@@ -236,10 +236,10 @@ jobs:
       
       - name: Verify binary
         run: |
-          file /tmp/nginx-1.28.3/objs/nginx
-          /tmp/nginx-1.28.3/objs/nginx -v
+          file /tmp/nginx-1.31.8/objs/nginx
+          /tmp/nginx-1.31.8/objs/nginx -v
           # Verify ARM64 architecture
-          if ! file /tmp/nginx-1.28.3/objs/nginx | grep -q "arm64"; then
+          if ! file /tmp/nginx-1.31.8/objs/nginx | grep -q "arm64"; then
             echo "❌ Binary is not ARM64!"
             exit 1
           fi
@@ -251,11 +251,11 @@ jobs:
           python3 tools/ci/check_pal_seam.py --directory=src --check-implementation
       
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         if: success()
         with:
           name: nginx-macos-arm64
-          path: /tmp/nginx-1.28.3/objs/nginx
+          path: /tmp/nginx-1.31.8/objs/nginx
           retention-days: 7
 
   # Windows Cross-Compile (from Linux)
@@ -264,7 +264,7 @@ jobs:
     runs-on: ubuntu-22.04
     name: Windows x86_64 (Cross-Compile)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       
       - name: Install MinGW cross-compiler
         run: |
@@ -302,7 +302,7 @@ jobs:
     runs-on: ubuntu-22.04
     name: PAL Integrity Check
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       
       - name: Install Python dependencies
         run: |

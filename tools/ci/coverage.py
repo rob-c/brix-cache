@@ -8,40 +8,44 @@ from tools.logging_support import diagnostic as _brix_diagnostic
 # WHAT: Build the brix module (objs/nginx) + client with gcov instrumentation,
 #       run the test suite against that instrumented binary, and emit an lcov
 #       line/branch-coverage report for src/ and client/ and enforce the line
-#       floor selected from the reviewed fast-tier baseline (COVERAGE_MIN).
+#       floor selected by COVERAGE_MIN.
 #
-# WHY:  QUALITY_ROADMAP §2.3.3/§3.4 called for coverage tracking; it was the one
-#       genuinely-open quality-gate item (there was no gcov lane at all, so the
-#       85%/90% targets were unmeasured). This stands the lane up. It ships
-#       The CI lane sets COVERAGE_MIN=67 after the 2026-09-03 instrumented
-#       fast-tier baseline measured 68.9%. Local callers may omit the variable
-#       when they only need a report, but a failing test command always fails.
+# WHY:  Enforce the measured production coverage floor without losing counters
+#       from standalone C tests. CI sets COVERAGE_MIN=90 after the 2026-11-10
+#       full-suite measurement reached 90.1229% (BUILD.md §18). Local callers
+#       may omit the variable when they only need a report, but a failing
+#       test command always fails.
 #
 # HOW:  1. operator_build build_coverage → ./configure --with-cc-opt='--coverage
 #          -O0 -g' + make (nginx + client). Instrumented objects drop .gcno now,
 #          .gcda as the binary runs.
-#       2. Run $COVERAGE_TEST_CMD (default: the fast fleet tier) so real request
-#          paths through src/ execute and populate .gcda.
-#       3. lcov --capture over the nginx build dir + client, restrict to src/ +
+#       2. Capture the production inventory, then run $COVERAGE_TEST_CMD
+#          (default: all functional fleet tiers). Standalone C test compiles
+#          retain their own notes/counters outside disposable test roots.
+#       3. lcov --capture over nginx + client + shared build dirs, restrict to src/ +
 #          client/, strip system headers, print the total line rate, genhtml.
 #       4. Fail when the suite failed or the total line rate is below an enabled
 #          COVERAGE_MIN floor. Counter capture still runs after a suite failure
 #          so CI retains the diagnostic report.
 #
 # USAGE:
-#   tools/ci/coverage.py                       # build + fast-tier run + report
+#   tools/ci/coverage.py                       # build + full-suite run + report
 #   COVERAGE_TEST_CMD='pytest tests/test_root_basic.py' tools/ci/coverage.py
-#   COVERAGE_MIN=85 tools/ci/coverage.py       # also enforce an 85% line floor
+#   COVERAGE_MIN=90 COVERAGE_PRIVILEGED=1 tools/ci/coverage.py  # disposable Linux host
 #
 # Requires: lcov (geninfo/genhtml), gcov. The generic local runner skips when
 #           absent; the workflow installs both before invoking it.
 
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
+
+from tools.ci import coverage_compiler, coverage_merge
 
 
 def run_or_abort(cmd, **kwargs) -> subprocess.CompletedProcess:
@@ -60,7 +64,8 @@ def main() -> int:
     reason = _skip_reason(nginx_src)
     if reason:
         print(reason)
-        return 0
+        # An explicitly requested floor requires an actual measurement.
+        return 1 if os.environ.get("COVERAGE_MIN") else 0
     return _collect(root, nginx_src, out_dir, test_cmd)
 
 
@@ -68,9 +73,20 @@ def _settings():
     root = str(Path(__file__).resolve().parents[2])
     nginx_src = os.environ.get("NGINX_SRC") or "/tmp/nginx-1.28.3"
     out_dir = os.environ.get("COVERAGE_OUT") or f"{root}/coverage"
-    test_cmd = os.environ.get("COVERAGE_TEST_CMD") or \
-        "python3 -m cmdscripts.operator_runtime suite --fast"
+    test_cmd = os.environ.get("COVERAGE_TEST_CMD") or _default_test_command()
     return root, nginx_src, out_dir, test_cmd
+
+
+def _default_test_command() -> str:
+    """Include native C harness jobs while keeping build-mutating jobs separate."""
+    separate = (
+        "tests/test_ci_guards.py::test_ci_analyzer_runner_green",
+        "tests/test_ci_guards.py::test_ci_coverage_runner_green",
+        "tests/test_ci_asan_lane.py::test_ci_asan_runner_green",
+    )
+    return shlex.join(["python3", "-m", "cmdscripts.operator_runtime", "suite",
+                       "--include-suite-jobs", "--",
+                       *(f"--deselect={node}" for node in separate)])
 
 
 def _skip_reason(nginx_src: str) -> str:
@@ -90,48 +106,163 @@ def _collect(root: str, nginx_src: str, out_dir: str, test_cmd: str) -> int:
         ["python3", "-m", "cmdscripts.operator_build", "build_coverage"],
         cwd=f"{root}/tests",
     )
+    return _run_and_capture(root, nginx_src, out_dir, test_cmd)
 
-    # Zero any stale counters from a prior run so the number reflects THIS suite only.
-    with open(os.devnull, "wb") as devnull:
-        subprocess.run(
-            ["lcov", "--directory", f"{nginx_src}/objs",
-             "--directory", f"{root}/client", "--zerocounters"],
-            stdout=devnull, stderr=devnull,
-        )
+
+def _run_and_capture(root: str, nginx_src: str, out_dir: str, test_cmd: str) -> int:
+    """Measure one complete test command against the current instrumented build."""
+    # Freeze the production build's executable-line inventory before tests
+    # compile extra harnesses or rebuild client objects with different options.
+    initial = f"{out_dir}/coverage.initial.info"
+    # libxrdproto compiles src/ kernels into shared/xrdproto/build. Their
+    # client-side execution belongs to the same production-source inventory.
+    directories = [f"{nginx_src}/objs", f"{root}/client", f"{root}/shared"]
+    _capture(root, directories, initial, initial=True)
+    unit_dir = Path(tempfile.mkdtemp(prefix="unit-counters-", dir=out_dir))
+    environment = coverage_compiler.install(
+        Path(root), unit_dir, _build_environment(nginx_src, os.environ))
+
+    _reset_counters(directories)
 
     print("coverage: 2/4 running suite against the instrumented binary…")
     print(f"          $COVERAGE_TEST_CMD = {test_cmd}")
-    suite_rc = subprocess.run(test_cmd, shell=True, cwd=f"{root}/tests").returncode
+    suite_rc = _run_suites(root, test_cmd, environment)
     if suite_rc != 0:
         _brix_diagnostic('ERROR', 'tools/ci/coverage.py', '_collect', f"coverage: FAIL — test command exited {suite_rc}; "
               "capturing partial counters for diagnostics", file=sys.stderr)
 
     print("coverage: 3/4 capturing counters with lcov…")
-    raw = f"{out_dir}/coverage.raw.info"
+    requests = f"{out_dir}/coverage.requests.info"
     info = f"{out_dir}/coverage.info"
-    run_or_abort([
-        "lcov", "--capture", "--quiet",
-        "--directory", f"{nginx_src}/objs", "--directory", f"{root}/client",
-        "--rc", "geninfo_unexecuted_blocks=1",
-        "--output-file", raw,
-    ])
-    # Keep only OUR sources; drop nginx core, system headers, and generated code.
-    run_or_abort([
-        "lcov", "--quiet", "--extract", raw,
-        f"{root}/src/*", f"{root}/client/*", "--output-file", info,
-    ])
-    Path(raw).unlink(missing_ok=True)
+    _capture(root, directories, requests)
+    captures = [Path(requests)]
+    if any(unit_dir.rglob("*.gcda")):
+        units = f"{out_dir}/coverage.units.info"
+        _capture(root, [str(unit_dir)], units)
+        captures.append(Path(units))
+    coverage_merge.merge_execution(Path(initial), captures, Path(info))
 
     print("coverage: 4/4 rendering html + summary…")
-    subprocess.run(["genhtml", "--quiet", "--output-directory",
-                    f"{out_dir}/html", info])
+    run_or_abort(["genhtml", "--quiet", "--output-directory",
+                  f"{out_dir}/html", info])
 
-    summary = _coverage_summary(info)
-    pct = _line_rate(summary)
+    _coverage_summary(info)
+    pct = coverage_merge.line_rate(Path(info))
     print(f"coverage: total line coverage = {pct or 'unknown'}%  "
           f"(html: {out_dir}/html/index.html)")
     return _coverage_verdict(
         suite_rc, pct, os.environ.get("COVERAGE_MIN"))
+
+
+def _reset_counters(directories):
+    """Reset the same build directories used by inventory and execution capture."""
+    arguments = [argument for directory in directories
+                 for argument in ('--directory', directory)]
+    with open(os.devnull, 'wb') as devnull:
+        run_or_abort(['lcov', *arguments, '--zerocounters'],
+                     stdout=devnull, stderr=devnull)
+
+
+def _run_suites(root: str, test_cmd: str, environment: dict[str, str]) -> int:
+    """Run ordinary tests, then the explicitly enabled root group without reset."""
+    privileged = environment.get('COVERAGE_PRIVILEGED') == '1'
+    if privileged:
+        ready = subprocess.run(['sudo', '-n', 'true'], env=environment)
+        if ready.returncode:
+            return ready.returncode
+    result = subprocess.run(test_cmd, shell=True, cwd=f'{root}/tests',
+                            env=environment)
+    if result.returncode or not privileged:
+        return result.returncode
+    helper = str(Path(root) / 'tools/ci/coverage_privileged.py')
+    result = subprocess.run(['sudo', '-n', '-E', sys.executable, helper],
+                            cwd=root, env=environment)
+    if result.returncode:
+        return result.returncode
+    return _run_userns_group(root, environment)
+
+
+def _run_userns_group(root, environment):
+    """Append the standalone namespace root without resetting prior counters."""
+    test_root = environment.get('TEST_ROOT', '/tmp/xrd-test') + '-userns'
+    environment = {**environment, 'TEST_ROOT': test_root, 'TMPDIR': test_root + '/tmp'}
+    Path(environment['TMPDIR']).mkdir(parents=True, exist_ok=True)
+    helper = str(Path(root) / 'tools/ci/coverage_privileged.py')
+    control = ['sudo', '-n', '-E', sys.executable, helper, '--counters-only']
+    prepared = subprocess.run([*control, 'prepare'], cwd=root, env=environment)
+    if prepared.returncode:
+        return prepared.returncode
+    directory = str(Path(root) / 'tests/userns')
+    command = [sys.executable, '-m', 'pytest', directory,
+               '--confcutdir=' + directory, '-c', directory + '/pytest.ini',
+               '-n0', '-o', 'addopts=', '-ra', '-q', '-p', 'no:randomly',
+               '-p', 'no:rerunfailures', '-p', 'no:brixtest', '-p', 'no:platformdirs']
+    profile = environment.get('COVERAGE_USERNS_PROFILE')
+    if profile:
+        command = ['aa-exec', '-p', profile, '--', *command]
+    try:
+        result = subprocess.run(command, cwd=root, env=environment)
+    finally:
+        finished = subprocess.run([*control, 'finish'], cwd=root, env=environment)
+    return result.returncode or finished.returncode
+
+
+def _build_environment(nginx_src, environment):
+    """Bind every test consumer to this static instrumented build's SDK/binary."""
+    source = str(Path(nginx_src).resolve())
+    objects = str(Path(source) / 'objs')
+    binary = str(Path(objects) / 'nginx')
+    return {**environment, 'NGINX_SRC': source, 'NGX_SRC': source,
+            'TEST_NGINX_SRC': source, 'TEST_NGINX_OBJS': objects,
+            'BRIX_NGINX_BUILD_DIR': objects, 'TEST_NGINX_BIN': binary,
+            'NGINX_BIN': binary, 'TEST_NGINX_LOAD_MODULES': ''}
+
+
+def _capture(root: str, directories: list[str], output: str, *, initial=False) -> None:
+    """Capture one counter source with the same production-source filter."""
+    if not initial and not _counter_files(directories):
+        # A standalone-only run legitimately has no server/client-process
+        # counters. Its unit capture still supplies the measured execution.
+        Path(output).write_text('')
+        return
+    raw = output + ".raw"
+    command = ["lcov", "--capture", "--quiet"]
+    if initial:
+        command.append("--initial")
+    for directory in directories:
+        command.extend(["--directory", directory])
+    run_or_abort([*command, "--rc", "geninfo_unexecuted_blocks=1", "--output-file", raw])
+    run_or_abort(["lcov", "--quiet", "--extract", raw,
+                  f"{root}/src/*", f"{root}/client/*", "--output-file", output])
+    _remove_test_drivers(root, output)
+    Path(raw).unlink(missing_ok=True)
+
+
+def _remove_test_drivers(root: str, output: str) -> None:
+    """Remove fixture code while accepting a successfully extracted empty stream."""
+    # Optional client smoke targets leave their own notes beside production
+    # objects. Their driver code is test infrastructure, not the shipped client.
+    # Linking prebuilt production objects may instrument only the new test main
+    # in this stream. A successful extract then produces an empty file; LCOV's
+    # remove command rejects that valid empty input. Corrupt profiles still fail
+    # during capture above, and the fixed initial inventory keeps unhit lines.
+    if Path(output).stat().st_size:
+        run_or_abort(["lcov", "--quiet", "--remove", output,
+                      f"{root}/client/tests/*", "--output-file", output])
+
+
+def _counter_files(directories):
+    """Reject unrecognized/truncated GCC headers before LCOV can ignore them."""
+    counters = [path for directory in directories
+                for path in Path(directory).rglob('*.gcda')]
+    for path in counters:
+        with path.open('rb') as stream:
+            header = stream.read(12)
+        if len(header) < 12 or header[:4] not in (b'adcg', b'gcda'):
+            _brix_diagnostic('ERROR', 'tools/ci/coverage.py', '_counter_files',
+                            f'invalid gcov counter header: {path}', file=sys.stderr)
+            raise SystemExit(1)
+    return counters
 
 
 def _coverage_summary(info: str) -> str:

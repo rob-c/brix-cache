@@ -23,6 +23,7 @@ import struct
 import tempfile
 import time
 import pytest
+import klib
 from settings import (
     CA_DIR,
     DATA_ROOT,
@@ -50,7 +51,8 @@ ANON_URL  = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}/"
 GSI_URL   = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}/"
 ANON_HOST = SERVER_HOST
 ANON_PORT = NGINX_ANON_PORT
-DATA_DIR  = DATA_ROOT
+DATA_DIR  = "/data/xrootd"
+SERVER_SVC = "mega"
 PROXY_PEM = PROXY_STD
 
 
@@ -58,19 +60,15 @@ PROXY_PEM = PROXY_STD
 
 def make_file(name: str, content: bytes = b"hello fattr\n") -> str:
     """Create a test file under DATA_DIR and return the XRootD path."""
-    os.makedirs(DATA_DIR, exist_ok=True)
+    klib.svc_mkdir(SERVER_SVC, DATA_DIR)
     fpath = os.path.join(DATA_DIR, name)
-    with open(fpath, "wb") as f:
-        f.write(content)
+    klib.svc_write(SERVER_SVC, fpath, content)
     return "/" + name
 
 
 def rm_file(name: str) -> None:
     path = os.path.join(DATA_DIR, name)
-    try:
-        os.remove(path)
-    except FileNotFoundError:
-        pass
+    klib.svc_rm(SERVER_SVC, path)
 
 
 # ── Raw-socket helpers (for query subtypes the Python client doesn't expose) ──

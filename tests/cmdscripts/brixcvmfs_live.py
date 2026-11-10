@@ -37,6 +37,7 @@ from cmdscripts.compile_run import (
     PLATFORM_HOST_FLAGS, client_pal_host_sources, pal_xattr_sources,
 )
 from lib_py.fuse_host import FUSE_READY, SKIP_REASON as FUSE_SKIP_REASON, unmount as host_unmount
+from lib_py.fuse_host import reap_unmounted_process
 
 _PORTS = cmdscript_ports("brixcvmfs_live")
 
@@ -312,6 +313,13 @@ def _unmount(mnt: Path) -> None:
             return
 
 
+def _unmount_owned(process, mount):
+    """Unmount, then finish the known child's cleanup before LiveRun teardown."""
+    _unmount(mount)
+    if process is not None:
+        reap_unmounted_process(process)
+
+
 def _wait_mounted(mnt: Path, timeout: float = 30.0) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -383,15 +391,16 @@ def brixmount_live(nginx: Path | None = None) -> int:
         expect = _make_repo(run, mkrepo, web, pub)
         port = _serve(run, web)
         env = _repo_env(run, port, pub, cache=cache)
+        process = None
         try:
             print("== serve + mount via umbrella ==")
-            run.spawn([brixmount, "cvmfs", REPO, mnt, "-o", "auto_unmount", "-f"], env=env)
+            process = run.spawn([brixmount, "cvmfs", REPO, mnt, "-o", "auto_unmount", "-f"], env=env)
             mounted = _wait_mounted(mnt)
             listing = _listing(mnt)
             got = _read(mnt / "hello")
             print(f"   ls:{listing} got:[{got}]")
         finally:
-            _unmount(mnt)
+            _unmount_owned(process, mnt)
         print("== unknown-type rejection ==")
         bogus = run.call([brixmount, "bogus", "x", "/tmp"], check=False)
         return _checks([
@@ -413,9 +422,10 @@ def brixcvmfs_live(nginx: Path | None = None) -> int:
         print(f"   expected content: [{expect}]")
         port = _serve(run, web)
         env = _repo_env(run, port, pub, cache=cache)
+        process = None
         try:
             print("== mount ==")
-            run.spawn([brixcvmfs, REPO, mnt, "-o", "auto_unmount", "-f"], env=env)
+            process = run.spawn([brixcvmfs, REPO, mnt, "-o", "auto_unmount", "-f"], env=env)
             mounted = _wait_mounted(mnt)
             listing = _listing(mnt)
             print(f"== readdir ==\n   ls: {listing}")
@@ -427,7 +437,7 @@ def brixcvmfs_live(nginx: Path | None = None) -> int:
                 size = -1
             print(f"== stat ==\n   size: {size}")
         finally:
-            _unmount(mnt)
+            _unmount_owned(process, mnt)
         return _checks([
             (mounted, "brixcvmfs produced a live mount"),
             (listing == ["hello"], "readdir shows the repo root"),

@@ -250,9 +250,10 @@ def topology():
     lab, torn = Lab(), []
     def _run(profile):
         deploy = LIVE[profile][0]
-        lab("up")
+        lab("up").ok()
         if deploy:
-            lab("deploy", deploy); torn.append(deploy)
+            torn.append(deploy)
+            lab("deploy", deploy).ok()
         return lab("test", profile)
     yield _run
     for d in torn:

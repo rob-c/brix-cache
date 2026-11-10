@@ -16,7 +16,7 @@ HOST_ARCH ?= $(shell uname -m)
 # pkg-config's default path. Export the discovered locations for this make and
 # the recursive shared/xrdproto build; explicit caller paths remain in place.
 ifeq ($(HOST_OS),Darwin)
-HOMEBREW_OPENSSL_PREFIX := $(shell brew --prefix openssl@3 2>/dev/null)
+HOMEBREW_OPENSSL_PREFIX := $(shell brew --prefix openssl@4 2>/dev/null)
 HOMEBREW_KRB5_PREFIX := $(shell brew --prefix krb5 2>/dev/null)
 ifneq ($(strip $(HOMEBREW_OPENSSL_PREFIX)),)
 PKG_CONFIG_PATH := $(HOMEBREW_OPENSSL_PREFIX)/lib/pkgconfig:$(PKG_CONFIG_PATH)
@@ -863,7 +863,7 @@ vfs-s3-smoke: tests/c/vfs_s3_smoke.c $(CLIENT_LIB) | $(BINDIR)
 # Shared sd_s3 driver object-metadata smoke (get_meta/set_meta/advisory).
 # Run against a live S3 server: ./sd_s3_meta_smoke <host> <port> </bucket/key>
 .PHONY: sd-s3-meta-smoke
-sd-s3-meta-smoke: ../tests/c/sd_s3_meta_smoke.c $(CLIENT_LIB) | $(BINDIR)
+sd-s3-meta-smoke: ../tests/c/sd_s3_meta_smoke.c $(CLIENT_LIB) $(PROTO_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) ../tests/c/sd_s3_meta_smoke.c \
 	    $(call whole_archive,$(CLIENT_LIB)) \
 	    $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/sd_s3_meta_smoke
@@ -935,6 +935,14 @@ brix-fault-proxy: $(BINDIR)/brix-fault-proxy
 $(BINDIR)/brix-fault-proxy: $(FAULT_PROXY_SRCS) $(FAULT_PROXY_HDRS) lib/core/version.h | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) -Iapps/diag $(FAULT_PROXY_SRCS) -o $@
 	@echo " + built $@ (standalone; no libbrix)"
+
+# Exercise the real control dispatcher with a finite, normal-exit test driver.
+# Reuse the shipped tool's entire link closure; only its main symbol is renamed.
+.PHONY: fault-proxy-control-unit fault-proxy-relay-unit
+fault-proxy-control-unit fault-proxy-relay-unit: fault-proxy-%-unit: $(FAULT_PROXY_SRCS) $(FAULT_PROXY_HDRS) ../tests/c/fault_proxy_%_unit.c | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) -Iapps/diag \
+	    -Dmain=brix_fault_proxy_main $(FAULT_PROXY_SRCS) \
+	    ../tests/c/fault_proxy_$*_unit.c -o $(BINDIR)/fault_proxy_$*_unit
 
 # Offline XRootD-configuration migration assistant. Keep the build-tree entry
 # as a relative link so edits to the canonical tool are immediately visible.
@@ -1209,7 +1217,7 @@ install-automount:
 # vfs_s3_smoke is excluded (needs an external S3 endpoint; run it manually).
 # Each test is a standalone main() linking the client lib + libxrdproto, the
 # same recipe as the Build+run comment in each test's header.
-CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit rfile_stream_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit ftp_client_unit web_proxy_pem_unit sigver_kernel_unit metalink_unit kxr_errors_unit conform_unit pg_status_unit
+CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit rfile_stream_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit ftp_client_unit web_proxy_pem_unit sigver_kernel_unit metalink_unit kxr_errors_unit conform_unit pg_status_unit file_stat_unit redir_registry_unit
 ifeq ($(HOST_OS),Darwin)
 CLIENT_UNIT_TESTS += darwin_storage_unit
 endif

@@ -162,13 +162,16 @@ Depends: ${misc:Depends},
          python3-pytest-xdist,
          python3-cryptography,
          python3-requests,
-         python3-urllib3
+         python3-urllib3,
+         python3-yaml,
+         python3-packaging,
+         openssl
 Suggests: python3-xrootd
 Description: Integration and conformance test-suite for BriX-Cache
  The full pytest integration, conformance, and adversarial test-suite for
  BriX-Cache (root://, WebDAV, S3, CMS, metrics, FRM, TPC, ...), installed
  under /usr/share/brix.  Run with, e.g.:
-     cd /usr/share/brix && PYTHONPATH=tests python3 -m pytest tests/ -v
+     cd /usr/share/brix && PYTHONPATH=tests:brixtest/src python3 -m pytest tests/ -v
  .
  python3-xrootd (the official XRootD python bindings) is only needed by the
  cross-backend / reference-daemon comparison tests and is not packaged in the

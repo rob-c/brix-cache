@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-int main() {
+int main(void) {
     const char *json = "{\"foo\":\"bar\",\"num\":42}";
     const char *escaped_json = "{\"foo\":\"line\\nnext\",\"num\":-17,"
                                "\"wlcg.groups\":[\"/cms\",\"/atlas\\u002dprod\"]}";

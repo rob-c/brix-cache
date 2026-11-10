@@ -18,7 +18,7 @@ const nodes = [
   { id: 't2b',    x: 596, y: 360, w: 192, h: 82,  run: 'xrootd', kicker: 'TIER 2b',   title: 'Reference Origin',  sub: 'stock XRootD · cross-check', accent: 'root' },
   { id: 'redir',  x: 298, y: 480, w: 192, h: 82,  run: 'nginx',  kicker: 'DISCOVERY', title: 'CMS Redirector',    sub: 'manager · late start',     accent: 'dav'  },
   { id: 'ds',     x: 596, y: 480, w: 192, h: 82,  run: 'nginx',  kicker: 'DISCOVERY', title: 'Data Server',       sub: 'registers · kYR_login',    accent: 's3'   },
-];
+] as const;
 
 // The edges. `d` is the SVG path; packets animate along it. `reverse` flips
 // packet direction (used for the data-server → manager registration).

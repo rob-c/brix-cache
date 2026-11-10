@@ -40,8 +40,10 @@ Mutation paths are unique per test so the shared module fixture is deterministic
 
 import hashlib
 import os
+import re
 import subprocess
 import zlib
+from datetime import datetime
 
 import pytest
 
@@ -120,6 +122,23 @@ def _fields(out):
             k, _, v = line.partition(":")
             d[k.strip()] = v.strip()
     return d
+
+
+def _stat_field_value(key, value):
+    """Compare UTC stat values across reference clients with/without an offset.
+
+    Only the current client's explicit zero offset is optional. Other offsets,
+    malformed timestamps and non-time fields remain byte-for-byte significant.
+    """
+    if key not in ("MTime", "CTime", "ATime") or not isinstance(value, str):
+        return value
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \+0000", value):
+        try:
+            datetime.fromisoformat(value[:-6])
+        except ValueError:
+            return value
+        return value[:-6]
+    return value
 
 
 def _read(p):

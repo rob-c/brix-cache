@@ -408,9 +408,8 @@ def run_exchange(base: Path) -> list[tuple[bool, str]]:
 
 
 # Forge the TPC delegated-proxy expiry corpus (phase-58 §5.8): the leaf proxy
-# whose lifetime brix_tpc_proxy_pem_expired() inspects. The forge epoch is FIXED
-# at 2026-01-01, so a 1-day window is already expired in real time (the "refuse"
-# case), while a far-future window stays valid.
+# whose lifetime brix_tpc_proxy_pem_expired() inspects. Validity is relative
+# to the forge's current UTC day so the expired case never ages into validity.
 TPC_EXPIRY_FORGE = """
 import pathlib, sys
 import x509forge
@@ -418,9 +417,11 @@ import x509forge
 d = pathlib.Path(sys.argv[1])
 ca = x509forge.make_ca("/DC=test/CN=TPC Expiry CA")
 
-# Expired: EEC + proxy pinned to a 1-day window off the 2026-01-01 epoch.
-exp_eec = x509forge.make_eec(ca, "/DC=test/CN=alice", not_after_days=1)
-exp_proxy = x509forge.make_proxy(exp_eec, not_after_days=1)
+# Expired: both credentials ended yesterday.
+exp_eec = x509forge.make_eec(ca, "/DC=test/CN=alice",
+                             not_before_days=-2, not_after_days=-1)
+exp_proxy = x509forge.make_proxy(exp_eec,
+                                 not_before_days=-2, not_after_days=-1)
 (d / "expired.pem").write_bytes(exp_proxy.pem)
 
 # Valid: a far-future window clears real time by years.

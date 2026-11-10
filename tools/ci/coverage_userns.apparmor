@@ -1,0 +1,11 @@
+# Disposable Ubuntu coverage runner only. Permit the installroot tests' exact
+# user-namespace launcher without changing global namespace restrictions.
+# Load before the suite and remove afterward (see coverage.yml).
+abi <abi/4.0>,
+profile brix-coverage-unshare /usr/bin/unshare flags=(unconfined) {
+  userns,
+}
+# Only the standalone test process opts into this named profile with aa-exec.
+profile brix-coverage-userns-tests flags=(unconfined) {
+  userns,
+}

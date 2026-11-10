@@ -100,6 +100,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+from ephemeral_port import free_port
 
 from log_records import semantic_log_text
 
@@ -210,7 +211,7 @@ class _CleartextZtnPeer:
     def __init__(self, auth_protocols=b"&P=ztn,test"):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server.bind((BIND_HOST, 0))
+        self.server.bind((BIND_HOST, free_port()))
         self.server.listen(1)
         self.server.settimeout(20)
         self.port = self.server.getsockname()[1]
@@ -424,7 +425,7 @@ class _Planes:
 
 
 @pytest.fixture(scope="module")
-def planes(tmp_path_factory):
+def planes(tmp_path_factory, request):
     """One instance, six planes, one splice — module-scoped because every plane
     is a static arm of a config, not a per-test variable."""
     if not os.access(NGINX_BIN, os.X_OK):
@@ -434,10 +435,20 @@ def planes(tmp_path_factory):
     bearer = data / "cleartext-ztn-canary.jwt"
     bearer.write_bytes(CLEARTEXT_CANARY)
     bearer.chmod(0o600)
+    template = TEMPLATE
+    if getattr(request, "param", None) == "cleartext-size-guard":
+        # The fault splice must see stat replies. Required TLS rejects this
+        # cleartext source before the size gate, so isolate that gate in a
+        # separate fixture lifetime, retaining every other armed directive.
+        template = data / "size-guard.conf"
+        text = TEMPLATE.read_text()
+        armed_tls = "brix_tpc_outbound_tls         on;"
+        assert text.count(armed_tls) == 1
+        template.write_text(text.replace(armed_tls, "brix_tpc_outbound_tls off;"))
     harness = LifecycleHarness()
     endpoint = harness.start(NginxInstanceSpec(
         name=NAME,
-        template="nginx_audit16v_tpc_off_arms.conf",
+        template=str(template),
         protocol="root",
         readiness="tcp",
         data_root=str(data),

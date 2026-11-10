@@ -8,7 +8,7 @@ from brixtest import binary, case, endpoint, probe, server, tcp
 
 PYTHON = binary(
     "network_python", path=sys.executable,
-    image="python@sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a",
+    image="python@sha256:e97b88e416c3c01eb427b21fd8cd3ebf006e6ee38afcfcc3cae1c54ee2ab0a75",
     image_path="/usr/local/bin/python3",
 )
 
@@ -38,10 +38,12 @@ UDP = server(
         PYTHON, "-u", "-c",
         "import socket,sys\n"
         "s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind((sys.argv[1],int(sys.argv[2])))\n"
+        "print('udp ready',flush=True)\n"
         "while True:\n data,peer=s.recvfrom(65507);s.sendto(data,peer)",
         "{host}", "{echo_port}",
     ),
-    endpoints=(endpoint("echo", protocol="udp"),), probe=probe("none"),
+    endpoints=(endpoint("echo", protocol="udp"),),
+    probe=probe("log", endpoint="echo", pattern="udp ready"),
 )
 
 

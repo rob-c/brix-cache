@@ -117,6 +117,8 @@ brix_handle_sync(brix_ctx_t *ctx, ngx_connection_t *c)
 
 		brix_vfs_job_sync_init(&job, ctx->files[idx].fd);
 		brix_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
+		job.csi = ctx->files[idx].csi;
+		job.mutation_policy = ctx->files[idx].mutation_policy;
 		brix_vfs_io_execute(&job);
 		if (job.io_errno != 0) {
 			BRIX_RETURN_ERR(ctx, c, BRIX_OP_SYNC, "SYNC",

@@ -107,31 +107,26 @@ dns_rcache_key(const struct sockaddr *sa, socklen_t len, u_char *addr,
 }
 
 
+/* WHAT: Match a PTR entry by its full address identity.
+ * WHY: Equal CRC keys can move to either subtree during balancing.
+ * HOW: 1. Find the first hash match. 2. Inspect its equal-key successors.
+ * 3. Accept only the exact family and address bytes. */
 static dns_rcache_entry_t *
 dns_rcache_find(uint32_t key, const u_char *addr, size_t alen,
     sa_family_t family)
 {
-    ngx_rbtree_node_t  *node = dns_rcache.tree.root;
-    ngx_rbtree_node_t  *sentinel = dns_rcache.tree.sentinel;
+    ngx_rbtree_node_t  *node;
 
-    while (node != sentinel) {
-        dns_rcache_entry_t *e;
-
-        if (key < node->key) {
-            node = node->left;
-            continue;
-        }
-        if (key > node->key) {
-            node = node->right;
-            continue;
-        }
-        e = (dns_rcache_entry_t *) node;
+    for (node = brix_dns_cache_first(&dns_rcache.tree, key);
+         node != NULL && node->key == key;
+         node = ngx_rbtree_next(&dns_rcache.tree, node))
+    {
+        dns_rcache_entry_t *e = (dns_rcache_entry_t *) node;
         if (e->alen == alen && e->family == family
             && ngx_memcmp(e->addr, addr, alen) == 0)
         {
             return e;
         }
-        node = node->right;               /* crc collision: keep walking */
     }
     return NULL;
 }

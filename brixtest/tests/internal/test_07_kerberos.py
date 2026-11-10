@@ -20,7 +20,8 @@ class Reservation:
         self.closed = True
 
 
-def _fake_realm_tools():
+@pytest.fixture
+def fake_realm_tools():
     import brixtest.auth.kerberos as kerberos_module
     old_tool = kerberos_module._tool
     old_free_port = kerberos_module._free_port
@@ -57,16 +58,14 @@ def test_062_kdc_config_confines_database_and_logs(tmp_path):
     assert "kdc = FILE:%s/kdc.log" % tmp_path in kdc
 
 
-def test_063_offline_realm_creates_config_keytab_and_cache(tmp_path):
-    _fake_realm_tools
+def test_063_offline_realm_creates_config_keytab_and_cache(tmp_path, fake_realm_tools):
     realm = create_realm(tmp_path / "realm", kerberos_auth(start_kdc=False))
     assert realm.files["config"].is_file()
     assert realm.files["keytab"].read_bytes() == b"keytab"
     assert realm.files["cache"].read_bytes() == b""
 
 
-def test_064_realm_metadata_names_principals(tmp_path):
-    _fake_realm_tools
+def test_064_realm_metadata_names_principals(tmp_path, fake_realm_tools):
     realm = create_realm(
         tmp_path / "realm",
         kerberos_auth(realm="AUTH.TEST", user="alice", service="host/server.auth.test", start_kdc=False),
@@ -75,8 +74,7 @@ def test_064_realm_metadata_names_principals(tmp_path):
     assert realm.metadata["service_principal"] == "host/server.auth.test@AUTH.TEST"
 
 
-def test_065_auth_store_hands_keytab_only_to_server(tmp_path):
-    _fake_realm_tools
+def test_065_auth_store_hands_keytab_only_to_server(tmp_path, fake_realm_tools):
     item = AuthStore(tmp_path / "auth").materialize(kerberos_auth(start_kdc=False))
     assert "KRB5_KTNAME" in item.server_env
     assert "KRB5_KTNAME" not in item.client_env

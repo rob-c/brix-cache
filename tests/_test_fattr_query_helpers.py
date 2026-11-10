@@ -179,22 +179,27 @@ def _send_fattr(sock: socket.socket, path: str, subcode: int,
     return _recv_response(sock)
 
 
-def _decode_fattr_values(body: bytes) -> dict[str, bytes]:
-    """Decode an aData list body without reading beyond any complete record."""
+def _decode_fattr_values(body):
+    """Decode every complete fattr record, rejecting truncation."""
     values = {}
     offset = 0
     while offset < len(body):
-        end = body.find(b"\0", offset)
-        assert end >= offset, "unterminated fattr list name"
-        name = body[offset:end].decode("utf-8")
-        offset = end + 1
-        assert offset + 4 <= len(body), "missing fattr list value length"
-        value_len = struct.unpack("!I", body[offset:offset + 4])[0]
-        offset += 4
-        assert value_len <= len(body) - offset, "truncated fattr list value"
-        values[name] = body[offset:offset + value_len]
-        offset += value_len
+        name, value, offset = _decode_fattr_record(body, offset)
+        values[name] = value
     return values
+
+
+def _decode_fattr_record(body, offset):
+    """Validate one name and length before slicing its bounded value."""
+    end = body.find(b'\0', offset)
+    assert end >= offset, "unterminated fattr list name"
+    name = body[offset:end].decode('utf-8')
+    offset = end + 1
+    assert offset + 4 <= len(body), "missing fattr list value length"
+    value_len = struct.unpack('!I', body[offset:offset + 4])[0]
+    offset += 4
+    assert value_len <= len(body) - offset, "truncated fattr list value"
+    return name, body[offset:offset + value_len], offset + value_len
 
 
 @pytest.fixture(scope="module")

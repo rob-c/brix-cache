@@ -10,12 +10,13 @@ _SCRIPT = (
     "import socket, sys\n"
     "server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)\n"
     "server.bind((sys.argv[1], int(sys.argv[2])))\n"
+    "print('udp ready', flush=True)\n"
     "while True:\n"
     "    payload, peer = server.recvfrom(65507)\n"
     "    server.sendto(payload, peer)\n"
 )
 _PYTHON_IMAGE = (
-    "python@sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a"
+    "python@sha256:e97b88e416c3c01eb427b21fd8cd3ebf006e6ee38afcfcc3cae1c54ee2ab0a75"
 )
 PYTHON = binary(
     "udp_python", path=sys.executable, image=_PYTHON_IMAGE,
@@ -24,7 +25,7 @@ PYTHON = binary(
 UDP_ECHO = server(
     "udp_echo", command=(PYTHON, "-c", _SCRIPT, "{host}", "{port}"),
     endpoints=(endpoint("echo", protocol="udp"),),
-    probe=probe("none", timeout=30),
+    probe=probe("log", endpoint="echo", pattern="udp ready", timeout=30),
 )
 
 

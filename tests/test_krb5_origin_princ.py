@@ -16,8 +16,9 @@ from pathlib import Path
 
 import pytest
 
-from cmdscripts.c_auth_units import NGX_SRC, OBJS
+from cmdscripts.c_auth_units import OBJS
 from cmdscripts.compile_run import PLATFORM_HOST_FLAGS, REPO_ROOT, run
+from cmdscripts.object_unit_layout import _NGX_CORE_INC, _NGX_HTTP_INC, _inc
 
 # There are two forward.o (cms/ and krb5/); pick the krb5-module object, which
 # carries brix_krb5_origin_princ_from_host().
@@ -52,12 +53,7 @@ def harness(tmp_path_factory) -> Path:
         # assembled here has to say it too, or the harness "fails to compile"
         # and the three cases silently skip.
         *PLATFORM_HOST_FLAGS,
-        "-I", "src",
-        "-I", str(NGX_SRC / "src/core"),
-        "-I", str(NGX_SRC / "src/event"),
-        "-I", str(NGX_SRC / "src/os/unix"),
-        "-I", str(NGX_SRC / "src/stream"),
-        "-I", str(OBJS),
+        *_inc("src", *_NGX_CORE_INC, *_NGX_HTTP_INC, OBJS),
         "tests/c/krb5_origin_princ_test.c",
         str(_FORWARD),
         str(OBJS / "src/core/ngx_string.o"),

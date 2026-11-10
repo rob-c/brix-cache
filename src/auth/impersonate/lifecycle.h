@@ -71,6 +71,9 @@ ngx_int_t brix_imp_worker_harden(ngx_log_t *log);
 /* True iff this process currently holds `cap` (effective or permitted). */
 int brix_imp_cap_held(int cap);
 
+/* Clear and verify the bounding set before dropping CAP_SETPCAP. */
+ngx_int_t brix_imp_worker_drop_bounds(ngx_log_t *log);
+
 /* Force a root-capable worker (uid 0, or a non-root account holding CAP_SETUID)
  * down to the confined `brix_worker_user` account (default "nobody" + a warning),
  * fail-closed. A safe capability-free nginx service account wins when no target

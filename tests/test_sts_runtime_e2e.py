@@ -8,7 +8,7 @@ front-door capture -> VFS deleg gate -> sd_remote open — driven through a boot
 root:// gateway.
 
 Topology (all live, unprivileged):
-  * a real MinIO (docker-direct, mirrors test_sts_minio_live) is BOTH the S3
+  * a real MinIO (native or container, mirrors test_sts_minio_live) is BOTH the S3
     object store and the STS endpoint;
   * a booted nginx root:// gateway whose storage backend is that MinIO and whose
     `brix_backend_delegation exchange` mints a per-request origin credential via
@@ -30,8 +30,8 @@ Ritual (success + two fail-closed security-negatives):
   * exchange + BROKEN STS service secret   -> AssumeRole is refused by MinIO, the
     EXCHANGE gate denies with no service-cred fallback, no bytes (fail-closed).
 
-Run (opt-out): runs whenever docker + a minio image + the built nginx are
-present; force-skip with STS_MINIO_LIVE=0.  Docker-direct (not a TEST_REGISTRY
+Run (opt-out): runs whenever native MinIO or a local image + the built nginx
+are present; force-skip with STS_MINIO_LIVE=0.  Direct fixture (not a TEST_REGISTRY
 suite), so serial.
 """
 
@@ -43,7 +43,6 @@ import hmac
 import os
 import socket
 import struct
-import time
 
 import pytest
 
@@ -59,14 +58,12 @@ from test_sts_minio_live import (
     ROOT_PW,
     ROOT_USER,
     _http,
-    _minio_images,
+    _minio_service,
     _now,
-    _pick_image,
+    _wait_minio,
     _sha,
     _signing_key,
 )
-from cmdscripts.compile_run import REPO_ROOT, run
-from cmdscripts.container_runtime import container_runtime
 
 # Adjust import path for the token issuer utility (mirrors test_token_auth.py).
 import sys
@@ -90,22 +87,6 @@ def _guard_minio_store_1():
 def _guard_minio_store_2():
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
-
-def _guard_minio_store_3(runtime):
-    if runtime is None:
-        pytest.skip("no working container runtime (docker or rootless podman)")
-
-def _guard_minio_store_4(image):
-    if image is None:
-        pytest.skip("no local minio image (expected one of: "
-                    + ", ".join(_minio_images()) + ")")
-
-def _guard_minio_store_5(cid):
-    if not cid:
-        pytest.skip("failed to launch minio container")
-
-def _check_minio_store_1(healthy):
-    assert healthy, "MinIO never became healthy"
 
 def _check_minio_store_2(hdr, uri):
     assert _http("PUT", ENDPOINT + uri, hdr, b"")[0] == 200, "bucket create"
@@ -168,45 +149,20 @@ def _sign_put_at(host_port: str, ak: str, sk: str, bucket: str, key: str,
 # ---- lab lifecycle --------------------------------------------------------
 
 @pytest.fixture(scope="module")
-def minio_store():
+def minio_store(tmp_path_factory):
     """A live MinIO (S3 + STS) seeded with one object; yields its authority."""
     _guard_minio_store_1()
     _guard_minio_store_2()
-    runtime = container_runtime()
-    _guard_minio_store_3(runtime)
-    image = _pick_image(runtime)
-    _guard_minio_store_4(image)
-
-    cid = run(
-        [runtime, "run", "-d", "--rm", "-p", f"{MINIO_PORT}:9000",
-         "-e", f"MINIO_ROOT_USER={ROOT_USER}",
-         "-e", f"MINIO_ROOT_PASSWORD={ROOT_PW}",
-         image, "server", "/data"],
-        cwd=REPO_ROOT,
-    ).stdout.strip()
-    _guard_minio_store_5(cid)
-
     host_port = f"{HOST}:{MINIO_PORT}"
-    try:
-        healthy = False
-        for _ in range(80):
-            try:
-                if _http("GET", f"{ENDPOINT}/minio/health/live", {})[0] == 200:
-                    healthy = True
-                    break
-            except OSError:
-                pass
-            time.sleep(0.5)
-        _check_minio_store_1(healthy)
-
+    root = tmp_path_factory.mktemp('sts-runtime-minio')
+    with _minio_service(root, MINIO_PORT) as process:
+        _wait_minio(process, ENDPOINT)
         uri, hdr = _sign_put_at(host_port, ROOT_USER, ROOT_PW, BUCKET, "", b"")
         _check_minio_store_2(hdr, uri)
         uri, hdr = _sign_put_at(host_port, ROOT_USER, ROOT_PW, BUCKET, KEY, BODY)
         _check_minio_store_3(hdr, uri)
 
         yield host_port
-    finally:
-        run([runtime, "rm", "-f", cid], cwd=REPO_ROOT)
 
 
 @pytest.fixture(scope="module")

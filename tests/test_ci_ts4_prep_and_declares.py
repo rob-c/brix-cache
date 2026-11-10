@@ -136,6 +136,8 @@ _ADDED_SINCE_MOVE = {
         # host, it does not change this one's answers.
         "_all_pids", "_listener_pids_lsof",
         "_ps_parse", "_ps_snapshot", "_ps_split_command", "_ps_table",
+        # Select native credential snapshots separately from cache expiry.
+        "_host_process_table",
         # One snapshot is shared across an ownership pass and its marker
         # extraction, avoiding internally inconsistent Darwin ps answers.
         "_ownership_markers", "_refresh_ps_cache",

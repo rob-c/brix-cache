@@ -131,12 +131,15 @@ override_dh_auto_install:
 	# --- test-suite (brix-cache-tests, arch-independent data) ---
 	install -d $(TMP)/usr/share/brix
 	cp -a tests $(TMP)/usr/share/brix/tests
+	install -d $(TMP)/usr/share/brix/brixtest
+	cp -a brixtest/src $(TMP)/usr/share/brix/brixtest/src
 	# Never ship the prebuilt test nginx binary, python bytecode caches, or
 	# stray compiled test helpers (e.g. tests/fuzz corpora artefacts).
 	rm -f $(TMP)/usr/share/brix/tests/nginx-bin
-	find $(TMP)/usr/share/brix/tests -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || :
-	find $(TMP)/usr/share/brix/tests -name '*.pyc' -delete
-	find $(TMP)/usr/share/brix/tests -type f \
+	find $(TMP)/usr/share/brix/tests $(TMP)/usr/share/brix/brixtest \
+	    -name '__pycache__' -type d -exec rm -rf {} +
+	find $(TMP)/usr/share/brix/tests $(TMP)/usr/share/brix/brixtest -name '*.pyc' -delete
+	find $(TMP)/usr/share/brix/tests $(TMP)/usr/share/brix/brixtest -type f \
 	    -exec sh -c 'head -c4 "$$1" | od -An -tx1 | grep -q "7f 45 4c 46"' _ {} \; -delete
 	install -Dpm0644 conftest.py      $(TMP)/usr/share/brix/conftest.py
 	install -Dpm0644 pytest.ini       $(TMP)/usr/share/brix/pytest.ini

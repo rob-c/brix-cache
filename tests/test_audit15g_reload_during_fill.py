@@ -292,8 +292,11 @@ def test_a_filled_object_survives_the_reload_without_the_origin(fill,
     assert _store_size(store) == SIZE
 
     origin.stop()
+    old_workers = _workers(lifecycle)
+    assert len(old_workers) == 1, "reload witness requires the original worker"
     _reload(lifecycle)
-    wait_until(lambda: len(_workers(lifecycle)) == 1, timeout=15,
+    wait_until(lambda: len(current := _workers(lifecycle)) == 1
+               and current.isdisjoint(old_workers), timeout=15,
                what="the new generation settling to a single worker")
 
     assert read_whole(endpoint.port, PATH, SIZE, chunk=CHUNK) == PAYLOAD, \

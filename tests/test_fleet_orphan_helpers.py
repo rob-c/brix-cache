@@ -191,7 +191,8 @@ def test_unreadable_owned_process_environment_refuses_cleanup(monkeypatch):
     from lib_py.process_host import _native_process_row
 
     info = dict(ppid=1, name='python', cmdline=['python', '-m', 'pytest'],
-                status='sleeping', environ=None, uids=SimpleNamespace(real=os.geteuid()))
+                status='sleeping', environ=None,
+                uids=SimpleNamespace(real=os.geteuid(), effective=os.geteuid()))
     row = _native_process_row(info)
     assert row[3] is None
     monkeypatch.setattr(orphans, '_HAVE_PROCFS', False)
@@ -261,7 +262,7 @@ def test_native_snapshot_rechecks_exit_without_hiding_live_owner(live, readable)
 
     info = dict(ppid=1, name='python', cmdline=['python', '-m', 'pytest'],
                 status='sleeping', environ={'TEST_ROOT': '/tmp/owned'} if readable else None,
-                uids=SimpleNamespace(real=os.geteuid()))
+                uids=SimpleNamespace(real=os.geteuid(), effective=os.geteuid()))
     process = SimpleNamespace(info=info, is_running=lambda: live)
     row = _live_native_process_row(process)
     if not live:
@@ -428,7 +429,7 @@ def test_native_busy_environment_keeps_ownership_unknown_not_foreign(busy, alive
     from lib_py.process_host import _native_process_info, _live_native_process_row
 
     info = dict(ppid=1, name='fixture', cmdline=['fixture'], status='running',
-                uids=SimpleNamespace(real=os.geteuid() + int(not own)),
+                uids=SimpleNamespace(real=os.geteuid(), effective=os.geteuid() + int(not own)),
                 environ={'TEST_ROOT': '/private-owned-test'})
     calls = []
 
@@ -545,7 +546,7 @@ def test_native_busy_then_denied_environment_preserves_ownership(monkeypatch, ow
     from lib_py import process_host
 
     info = dict(ppid=1, name='python', cmdline=['python', '-m', 'pytest'],
-                status='running', uids=SimpleNamespace(real=os.geteuid() + int(not own)))
+                status='running', uids=SimpleNamespace(real=os.geteuid(), effective=os.geteuid() + int(not own)))
 
     def snapshot(attrs, **kwargs):
         if 'environ' in attrs:

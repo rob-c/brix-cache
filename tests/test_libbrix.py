@@ -123,7 +123,11 @@ def _demo_command(installed, static):
 def test_shared_consumer_runs(installed, tmp_path):
     demo = _build_demo(installed, tmp_path, static=False)
     env = dict(os.environ)
-    env["LD_LIBRARY_PATH"] = os.path.join(installed, "lib")
+    # Resolve this staged installation on ELF and Mach-O hosts, preserving
+    # the selected SDK paths needed by its third-party dependencies.
+    for loader in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
+        env[loader] = os.pathsep.join(filter(None, (
+            os.path.join(installed, "lib"), env.get(loader, ""))))
     r = subprocess.run([demo, f"root://{SERVER_HOST}:{NGINX_ANON_PORT}", "/test.txt"],
                        capture_output=True, text=True, env=env, timeout=30)
     assert r.returncode == 0, r.stderr

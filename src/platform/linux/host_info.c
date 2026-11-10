@@ -32,6 +32,14 @@ brix_plat_cpu_count(void)
     return (int) sysconf(_SC_NPROCESSORS_ONLN);
 }
 
+/* ---- Recognize Linux userspace pointer shapes ----
+ * WHAT: Return whether the value fits the architecture's user address range.
+ * WHY: Five-level x86 paging and user-mode emulators can place valid module
+ *      vtables above 47 bits; rejecting those addresses breaks storage I/O.
+ * HOW: 1. Preserve AArch64's zero-extended 48-bit range. 2. Permit x86's
+ *      56-bit userspace range while rejecting kernel and noncanonical values.
+ *      This is a shape check, not proof that an address is mapped or live.
+ */
 int
 brix_plat_pointer_is_canonical(const void *ptr)
 {
@@ -41,8 +49,8 @@ brix_plat_pointer_is_canonical(const void *ptr)
     /* Linux AArch64 exposes the full zero-extended 48-bit user VA range. */
     return (v >> 48) == 0;
 #else
-    /* x86-64 user mappings occupy the lower canonical 47-bit range. */
-    return (v >> 47) == 0;
+    /* Linux five-level paging permits zero-extended 56-bit user mappings. */
+    return (v >> 56) == 0;
 #endif
 }
 

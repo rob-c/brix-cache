@@ -102,7 +102,8 @@ acc_tok_skip_gap(acc_tok_t *t)
 
 /*
  * acc_tok_next — return the next word (ACC_TOK_WORD, *word set), an end-of-record
- * marker (ACC_TOK_EOR, at a non-continued newline), or ACC_TOK_EOF.  Whitespace
+ * marker (ACC_TOK_EOR, at a non-continued newline), ACC_TOK_EOF, or
+ * ACC_TOK_ERROR when the word cannot be allocated. Whitespace
  * separates words; `\` immediately before a newline continues the record; `#`
  * starts a comment to end of line.
  */
@@ -126,5 +127,6 @@ acc_tok_next(acc_tok_t *t, char **word)
     }
 
     *word = acc_pstrdup(t->pool, start, (size_t) (t->p - start));
-    return (*word == NULL) ? ACC_TOK_EOF : ACC_TOK_WORD;
+    /* Allocation failure cannot truncate a generation into a valid prefix. */
+    return (*word == NULL) ? ACC_TOK_ERROR : ACC_TOK_WORD;
 }

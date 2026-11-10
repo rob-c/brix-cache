@@ -67,6 +67,11 @@ def _rule(name, pattern, repl=""):
     return (name, re.compile(pattern, re.MULTILINE), repl)
 
 
+def _walltime_or_stat(match):
+    """Preserve server stat fields; only wall-clock diagnostics are volatile."""
+    return match.group(1) or "<TS>"
+
+
 NORMALIZERS = [
     # ANSI colour / cursor control.
     _rule("ansi", r"\x1b\[[0-9;?]*[A-Za-z]"),
@@ -86,11 +91,15 @@ NORMALIZERS = [
     _rule("gsi-proxy-note", r"(?im)^.*GSI proxy (?:has )?(?:EXPIRED|not found).*$"),
     # PIDs in diagnostics.
     _rule("pid", r"(?i)\bpid[:=]\s*\d+", "pid=<PID>"),
-    # Timestamps (ISO-ish and "MTime:" lines vary only by clock skew rarely;
-    # keep MTime — it is server truth and identical across clients — but strip
-    # free-floating wall-clock stamps in banners).
-    _rule("walltime", r"\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\b(?!.*MTime)",
-          "<TS>"),
+    # Both clients run in UTC. Older packaged clients omit the UTC suffix;
+    # preserve the timestamp and every non-UTC or malformed offset.
+    _rule("stat-utc", r"^([ \t]*[MCA]Time:[ \t]+\d{4}-\d{2}-\d{2} "
+          r"\d{2}:\d{2}:\d{2}) \+0000[ \t]*$", r"\1"),
+    # Stat timestamps are server metadata, including malformed values that
+    # must fail parity. Only free-floating diagnostic timestamps are volatile.
+    _rule("walltime", r"(^[ \t]*[MCA]Time:[^\n]*$)|"
+          r"\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\b",
+          _walltime_or_stat),
     # Collapse trailing whitespace and blank-line runs (stock 'stat' prints a
     # leading blank line ours omits — a cosmetic frame, not information).
     _rule("trailing-ws", r"[ \t]+$", ""),

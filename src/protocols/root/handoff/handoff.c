@@ -1,6 +1,8 @@
 #include "core/compat/log_event.h"
 #include "core/ngx_brix_module.h"
 #include "core/config/config.h"
+#include "protocols/root/connection/disconnect.h"
+#include "protocols/root/connection/fd_table.h"
 #include "handoff.h"
 
 /*
@@ -26,7 +28,6 @@ typedef struct {
     u_char  *uc;
     size_t   uc_off, uc_end;
 
-    ngx_brix_srv_metrics_t  *metrics;   /* for connections_active-- on close */
     ngx_msec_t                 connect_timeout;
     ngx_msec_t                 idle_timeout;
     unsigned                   connected:1;
@@ -56,24 +57,26 @@ static void handoff_peer_free(ngx_peer_connection_t *pc, void *data,
 { (void) pc; (void) data; (void) state; }
 
 
-/* Tear the relay down once: free the upstream connection (best effort) and
- * finalize the stream session (which closes the client and frees its pool). */
+/* Tear the relay down once through the normal connection cleanup.
+ * The embedded shutdown-hold timer must leave nginx's timer tree before its
+ * connection pool is freed; cleanup also owns connection metrics accounting. */
 static void
 handoff_close(brix_handoff_t *h)
 {
+    brix_ctx_t *ctx;
+
     if (h->closed) {
         return;
     }
     h->closed = 1;
 
-    if (h->metrics != NULL) {
-        ngx_atomic_fetch_add(&h->metrics->connections_active,
-                             (ngx_atomic_int_t) -1);
-    }
     if (h->upstream != NULL) {
         ngx_close_connection(h->upstream);
         h->upstream = NULL;
     }
+    ctx = ngx_stream_get_module_ctx(h->s, ngx_stream_brix_module);
+    brix_on_disconnect(ctx, h->client);
+    brix_close_all_files(ctx);
     ngx_stream_finalize_session(h->s, NGX_STREAM_OK);
 }
 
@@ -274,7 +277,6 @@ brix_http_handoff_start(ngx_stream_session_t *s, ngx_connection_t *c,
 
     h->s       = s;
     h->client  = c;
-    h->metrics = ctx->metrics;
     h->connect_timeout = conf->http_handoff_connect_timeout;
     h->idle_timeout = conf->http_handoff_idle_timeout;
 

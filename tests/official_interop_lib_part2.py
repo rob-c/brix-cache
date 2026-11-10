@@ -410,7 +410,7 @@ def err_code(stderr_or_out):
     error-conformance (the tools print '[ERROR] ... (code)' / named errors)."""
     s = (stderr_or_out or "").lower()
     for key in ("no such file", "not found", "not authorized", "permission",
-                "invalid", "already exists", "not a directory", "is a directory",
+                "invalid", "not a directory", "is a directory",
                 "not empty", "no space", "unsupported", "exists"):
         if key in s:
             return key

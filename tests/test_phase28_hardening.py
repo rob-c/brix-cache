@@ -129,13 +129,15 @@ class TestD3AdminBitPathScope:
 
     def test_admin_census_no_new_consumer_without_review(self):
         # Ratchet: the ADMIN bit is consumed in exactly these places — the
-        # define, the 'k' parse case, and the acc-op mapping.  Any new file
+        # define, the 'k' parse case, the acc-op mapping, and WebDAV's
+        # operation-to-required-privilege mapping. Any new file
         # touching BRIX_AUTH_ADMIN must update this census consciously (and
         # must not introduce an "admin ⇒ allow-all" shortcut).
         expected = {
             "src/core/types/config.h",
             "src/auth/authz/authdb_grammar.c",
             "src/auth/authz/auth_gate.c",
+            "src/protocols/webdav/access.c",
         }
         found = set()
         for p in (ROOT / "src").rglob("*.[ch]"):

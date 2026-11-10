@@ -17,7 +17,7 @@ start() {
         --cpus="$CPUS" \
         --memory="${MEMORY}m" \
         --driver=docker \
-        --kubernetes-version=v1.28.3 \
+        --kubernetes-version=v1.37.2 \
         --extra-config=kubeadm.pod-network-cidr=10.244.0.0/16,fd00:10:244::/64 \
         --extra-config=kubeadm.service-cluster-ip-range=172.16.0.0/16,fd00:172:16::/112 \
         --feature-gates=IPv6DualStack=true \

@@ -96,11 +96,13 @@ def test_download_large_200mb(native_xrdcp, tmp_path):
     if not os.path.exists(origin):
         pytest.skip("large200.bin not seeded")
     out = str(tmp_path / "large.bin")
-    rc = subprocess.run(
+    result = subprocess.run(
         [native_xrdcp, "-f", f"{NGINX_URL}//large200.bin", out],
         capture_output=True, text=True, env=_CLEAN_ENV, timeout=120,
-    ).returncode
-    assert rc == 0, f"200MB download failed rc={rc}"
+    )
+    assert result.returncode == 0, (
+        f"200MB download failed rc={result.returncode}: {result.stdout}\n{result.stderr}"
+    )
     assert _md5_file(out) == _md5_file(origin)
 
 

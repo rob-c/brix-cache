@@ -54,6 +54,7 @@ stable and cheap, matching `XrdClS3` expectations.
 | `object.c` | GetObject / HeadObject / DeleteObject. GET opens via the cache-aware VFS and hands the whole range/header/send pipeline to `brix_http_serve_file_ranged`; HEAD stats and sends headers only; DELETE uses idempotent `brix_ns_delete`. GET/HEAD echo `x-amz-checksum-crc64nvme` + `x-amz-checksum-type: FULL_OBJECT` **from the xattr cache only** (no read-path recompute), and the stored `x-amz-meta-*` user metadata (`s3_echo_user_metadata`). |
 | `object_scope.c` | Shared object-operation VFS policy, identity, backend credential and monitoring bindings. |
 | `put.c` | PutObject / UploadPart body handler `s3_put_body_handler` + streaming dispatch + dashboard glue. *(Phase 38: split.)* |
+| `put_inner.c` | PUT preconditions/open phases and `s3_ensure_parent_dirs`, shared with POST. Existing directories are probed without mutation so a depth-zero parent lock does not block child uploads. |
 | `put_finalize.c` | The `s3_put_finalize_*` result family, `s3_commit_put`, and the CRC64-NVME checksum verify (mismatch → 400 `BadDigest`). *(Phase 38 split of `put.c`.)* |
 | `put_chunk.c` | `aws-chunked` decode path (`s3_chunk_*` finalize/aio + chunk-verify build). *(Phase 38 split of `put.c`.)* |
 | `put_aio.c` | Thread-pool offload (`s3_put_aio_*`, VFS ctx, lazy thread-pool) for in-memory bodies. *(Phase 38 split of `put.c`.)* |

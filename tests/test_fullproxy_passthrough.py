@@ -93,6 +93,9 @@ def _copy(native_xrdcp, url, dest, env):
     )
 
 
+# These live cases inspect one shared server log; a concurrent opt-in case
+# would contaminate the default-off case's negative assertion.
+@pytest.mark.xdist_group("fullproxy-passthrough")
 def test_fullproxy_optin_accepted_over_tls(native_xrdcp, tmp_path):
     """Opt-in over roots://: transfer succeeds AND the server promotes the
     pushed proxy (identity-verified) for backend delegation."""
@@ -107,6 +110,7 @@ def test_fullproxy_optin_accepted_over_tls(native_xrdcp, tmp_path):
         "kXRS_x509_fullproxy bucket was not sent or not promoted")
 
 
+@pytest.mark.xdist_group("fullproxy-passthrough")
 def test_default_off_sends_no_fullproxy(native_xrdcp, tmp_path):
     """Without XRD_DELEGATEFULLPROXY the copy works and nothing is pushed —
     stock GSI behaviour is unchanged."""
@@ -119,6 +123,7 @@ def test_default_off_sends_no_fullproxy(native_xrdcp, tmp_path):
     assert "fullproxy" not in text
 
 
+@pytest.mark.xdist_group("fullproxy-passthrough")
 def test_fullproxy_over_cleartext_rejected(native_xrdcp, tmp_path):
     """Opt-in over plain root://: the server must reject the login — a full
     proxy (private key) may never be accepted from a cleartext session."""

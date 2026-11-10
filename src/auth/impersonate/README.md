@@ -93,6 +93,8 @@ its own export rootfd, so a worker bug cannot escape the export root.
   bounding-set clear) — crucially **no `CAP_DAC_OVERRIDE`**, so the impersonated
   user's own DAC applies. It fails closed if it cannot drop them.
 - Broker socket is `0600`, owned by the worker uid, and `SO_PEERCRED`-gated.
+- Map-mode startup fails if the worker identity cannot be resolved, including a
+  missing default `nobody` account when no `user` directive is configured.
 - Authorization stays in the worker (the 3-tier gate); the broker only maps +
   impersonates + confines (defence in depth: it re-applies `RESOLVE_BENEATH`).
 - Fails closed: an unreachable broker, a failed cap-drop, or an uncertain mapping

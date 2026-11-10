@@ -41,6 +41,30 @@ areq_note_deferral(brix_areq *r, const uint8_t *body, uint32_t dlen)
 }
 
 
+/* WHAT: Append a data-bearing reply or fail its request exactly once.
+ * WHY: A failed allocation or caller-buffer bound must never become a truncated
+ * successful reply, including when a later terminal frame follows oksofar.
+ * HOW: 1. Ignore statuses without accumulated data. 2. Append with the shared
+ * buffer helper. 3. On refusal, remove the request before delivering failure. */
+static int
+aconn_append_reply(brix_aconn *ac, brix_areq *r, uint16_t stat,
+                   const uint8_t *body, uint32_t dlen)
+{
+    if (stat != kXR_oksofar && stat != kXR_ok && stat != kXR_redirect
+        && stat != kXR_wait && stat != kXR_authmore) {
+        return 0;
+    }
+    if (areq_accumulate(r, body, dlen) == 0) {
+        return 0;
+    }
+    brix_status st;
+    brix_status_set(&st, XRDC_EPROTO, 0, "cannot accumulate response body");
+    reqmap_del(&ac->inflight, r->sid);
+    areq_complete(r, -1, XRDC_EPROTO, &st);
+    return -1;
+}
+
+
 /* Dispatch one response (direct, or unwrapped from an asynresp envelope) to its
  * in-flight request by streamid. Handles response statuses ONLY — kXR_attn never
  * reaches here from the wire (aconn_dispatch_frame routes it first), so a nested
@@ -54,10 +78,12 @@ aconn_dispatch_response(brix_aconn *ac, uint16_t sid, uint16_t stat,
     if (r == NULL) {
         return;   /* late frame for a completed/cancelled request — ignore */
     }
+    if (aconn_append_reply(ac, r, stat, body, dlen) != 0) {
+        return;
+    }
 
     switch (stat) {
     case kXR_oksofar:
-        (void) areq_accumulate(r, body, dlen);
         return;   /* more frames follow; keep the entry */
 
     case kXR_waitresp:
@@ -73,7 +99,6 @@ aconn_dispatch_response(brix_aconn *ac, uint16_t sid, uint16_t stat,
     case kXR_redirect:   /* delivered to the upper layer (M2/M3 acts) */
     case kXR_wait:
     case kXR_authmore:
-        (void) areq_accumulate(r, body, dlen);
         reqmap_del(&ac->inflight, sid);
         areq_complete(r, 0, stat, NULL);
         return;

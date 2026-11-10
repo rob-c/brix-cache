@@ -16,7 +16,7 @@ ARG BRIX_RUNTIME_IMAGE=almalinux:9
 
 # ---------------------------------------------------------------- builder --
 FROM ${BRIX_BASE_IMAGE} AS builder
-ARG NGINX_VERSION=1.28.3
+ARG NGINX_VERSION=1.31.8
 ARG NGINX_TARBALL_URL=https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz
 
 # jansson-devel/liburing-devel live in CRB; voms-devel, fuse3-devel in EPEL.

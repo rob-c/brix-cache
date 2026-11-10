@@ -152,34 +152,37 @@ def test_launch_builds_private_bridge_spec_without_secret_argv(tmp_path):
     )
     old_build = isolation_module.build_helper_bundle
     isolation_module.build_helper_bundle = lambda *a, **k: fake
-    root = tmp_path / "project"
-    root.mkdir()
-    (root / "test_remote.py").write_text("def test_remote(): pass\n")
-    control = tmp_path / "control"
-    control.mkdir()
-    run = tmp_path / "run"
-    session = tmp_path / "session"
-    environment = {
-        "BRIXTEST_HELPER": "1", "BRIXTEST_HELPER_RESULT": str(control / "result.json"),
-        "BRIXTEST_CASE_RUN": str(run), "BRIXTEST_METRICS_SESSION": str(session),
-        "BRIXTEST_HELPER_HEARTBEAT": str(control / "heartbeat.json"),
-        "BRIXTEST_HELPER_CANCEL": str(control / "cancel.json"),
-        "BRIXTEST_TEST_ENV_KEYS_JSON": '["TOKEN"]', "TOKEN": "secret-value",
-    }
-    launch = build_launch(
-        kubernetes(_DIGEST, context="minikube", namespace="tests", service_account="runner"),
-        [sys.executable, "-m", "pytest", "test_remote.py::test_remote"], environment,
-        cwd=root, readonly_roots=(root,), writable_root=tmp_path,
-        control_dir=control, validate_executable=False,
-    )
-    assert launch.argv[1:3] == ("-m", "brixtest.kubernetes_helper_bridge")
-    assert "secret-value" not in " ".join(launch.argv)
-    spec = json.loads(Path(launch.argv[-1]).read_text())
-    manifest = json.loads(Path(spec["manifest"]).read_text())
-    assert spec["pytest"][:2] == ["-m", "pytest"]
-    assert spec["run"] == str(run) and spec["bundle_identity"]["sha256"] == "a" * 64
-    assert base64.b64decode(manifest["items"][0]["data"]["TOKEN"]) == b"secret-value"
-    assert launch.cleanup[0][0:3] == ("kubectl", "--context", "minikube")
+    try:
+        root = tmp_path / "project"
+        root.mkdir()
+        (root / "test_remote.py").write_text("def test_remote(): pass\n")
+        control = tmp_path / "control"
+        control.mkdir()
+        run = tmp_path / "run"
+        session = tmp_path / "session"
+        environment = {
+            "BRIXTEST_HELPER": "1", "BRIXTEST_HELPER_RESULT": str(control / "result.json"),
+            "BRIXTEST_CASE_RUN": str(run), "BRIXTEST_METRICS_SESSION": str(session),
+            "BRIXTEST_HELPER_HEARTBEAT": str(control / "heartbeat.json"),
+            "BRIXTEST_HELPER_CANCEL": str(control / "cancel.json"),
+            "BRIXTEST_TEST_ENV_KEYS_JSON": '["TOKEN"]', "TOKEN": "secret-value",
+        }
+        launch = build_launch(
+            kubernetes(_DIGEST, context="minikube", namespace="tests", service_account="runner"),
+            [sys.executable, "-m", "pytest", "test_remote.py::test_remote"], environment,
+            cwd=root, readonly_roots=(root,), writable_root=tmp_path,
+            control_dir=control, validate_executable=False,
+        )
+        assert launch.argv[1:3] == ("-m", "brixtest.kubernetes_helper_bridge")
+        assert "secret-value" not in " ".join(launch.argv)
+        spec = json.loads(Path(launch.argv[-1]).read_text())
+        manifest = json.loads(Path(spec["manifest"]).read_text())
+        assert spec["pytest"][:2] == ["-m", "pytest"]
+        assert spec["run"] == str(run) and spec["bundle_identity"]["sha256"] == "a" * 64
+        assert base64.b64decode(manifest["items"][0]["data"]["TOKEN"]) == b"secret-value"
+        assert launch.cleanup[0][0:3] == ("kubectl", "--context", "minikube")
+    finally:
+        isolation_module.build_helper_bundle = old_build
 
 
 def _image_manifest(path):

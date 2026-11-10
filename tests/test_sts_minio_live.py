@@ -80,7 +80,9 @@ def _check_minio_sts_lab_3(hdr, uri):
     assert _http("PUT", ENDPOINT + uri, hdr, BODY)[0] == 200, "object put"
 
 
-pytestmark = [pytest.mark.timeout(300), pytest.mark.slow]
+# The module-scoped oracle owns one fixed port and must stay on one worker.
+pytestmark = [pytest.mark.timeout(300), pytest.mark.slow,
+              pytest.mark.xdist_group("sts-minio")]
 
 # A minio image is present locally under one of these tags (see `docker images`).
 MINIO_IMAGES = (
@@ -200,9 +202,9 @@ def _native_minio_binary() -> str | None:
 
 
 @contextmanager
-def _native_minio(binary, root):
+def _native_minio(binary, root, port=PORT):
     """Start only our private child; never stop an existing port occupant."""
-    if not _port_released(HOST, PORT):
+    if not _port_released(HOST, port):
         raise RuntimeError("native MinIO test endpoint is already occupied")
     data, certs = root / "data", root / "certs"
     data.mkdir()
@@ -210,7 +212,7 @@ def _native_minio(binary, root):
     environment = {**os.environ, "MINIO_ROOT_USER": ROOT_USER,
         "MINIO_ROOT_PASSWORD": ROOT_PW, "MINIO_BROWSER": "off",
         "MINIO_UPDATE": "off"}
-    command = [binary, "server", "--address", f"{HOST}:{PORT}",
+    command = [binary, "server", "--address", f"{HOST}:{port}",
                "--certs-dir", str(certs), "--json", "--anonymous", str(data)]
     with (root / "minio.log").open("wb") as log:
         process = subprocess.Popen(command, env=environment, stdout=log, stderr=log)
@@ -235,25 +237,25 @@ def _selected_native_minio():
 
 
 @contextmanager
-def _minio_service(root):
+def _minio_service(root, port=PORT):
     """Use one owned service, preserving explicit selection errors."""
     binary = _selected_native_minio()
     if binary:
-        with _native_minio(binary, root) as process:
+        with _native_minio(binary, root, port) as process:
             yield process
         return
-    with _container_minio():
+    with _container_minio(port):
         yield None
 
 
 @contextmanager
-def _container_minio():
+def _container_minio(port=PORT):
     """Keep the existing local-image oracle when native execution is absent."""
     runtime = container_runtime()
     _guard_minio_sts_lab_2(runtime)
     image = _pick_image(runtime)
     _guard_minio_sts_lab_3(image)
-    result = run([runtime, "run", "-d", "--rm", "-p", f"{HOST}:{PORT}:9000",
+    result = run([runtime, "run", "-d", "--rm", "-p", f"{HOST}:{port}:9000",
         "-e", f"MINIO_ROOT_USER={ROOT_USER}",
         "-e", f"MINIO_ROOT_PASSWORD={ROOT_PW}", image, "server", "/data"], cwd=REPO_ROOT)
     assert result.returncode == 0, "MinIO container launch failed"
@@ -265,13 +267,13 @@ def _container_minio():
         run([runtime, "rm", "-f", cid], cwd=REPO_ROOT)
 
 
-def _wait_minio(process):
+def _wait_minio(process, endpoint=ENDPOINT):
     """A dead native child cannot borrow an unrelated service's health proof."""
     for _ in range(80):
         if process is not None and process.poll() is not None:
             raise RuntimeError("native MinIO exited during readiness; see minio.log")
         try:
-            if _http("GET", f"{ENDPOINT}/minio/health/live", {})[0] == 200:
+            if _http("GET", f"{endpoint}/minio/health/live", {})[0] == 200:
                 return
         except OSError:
             pass

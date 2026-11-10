@@ -44,7 +44,7 @@ jobs:
     # ceiling has to clear ~10 harnesses x 10 min plus the clang builds.
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Install build deps
         run: |
           sudo apt-get update
@@ -64,7 +64,7 @@ jobs:
       # truncated log (that is what happened to fuzz_b64url on 2026-08-05).
       - name: Upload crash reproducers
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: fuzz-reproducers
           path: tests/fuzz/artifacts/
@@ -81,7 +81,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           # A full checkout with push credentials so the bot can commit back.
           persist-credentials: true

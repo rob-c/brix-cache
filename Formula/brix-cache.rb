@@ -11,7 +11,7 @@ class BrixCache < Formula
   depends_on "krb5"
   depends_on "lz4"
   depends_on :macos
-  depends_on "openssl@3"
+  depends_on "openssl@4"
   depends_on "python@3.14"
   depends_on "xz"
   depends_on "zstd"
@@ -19,7 +19,7 @@ class BrixCache < Formula
   def install
     build_args = [
       "BRIX_CLIENT_VERSION=#{version}",
-      "BRIX_OPTIMIZE=apple_silicon",
+      "BRIX_OPTIMIZE=#{Hardware::CPU.arm? ? "apple_silicon" : "v2"}",
       "HAVE_FUSE3=no",
       "PREFIX=#{prefix}",
       "LIBDIR=#{lib}",

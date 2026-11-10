@@ -1,7 +1,7 @@
 /*
  * sd_frm_arc_internal.h — shared state of the dataset archiver adapter
  * (sd_frm_arc.c: vtable + key grammar; sd_frm_arc_store.c: sidecar, seal,
- * extract). Not for use outside src/fs/backend/frm/.
+ * compose; sd_frm_arc_extract.c: extract). Not for use outside src/fs/backend/frm/.
  */
 
 #ifndef BRIX_FS_BACKEND_FRM_SD_FRM_ARC_INTERNAL_H

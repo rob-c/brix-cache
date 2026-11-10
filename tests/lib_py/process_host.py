@@ -90,7 +90,10 @@ def _environment_tokens(info):
     if environment is not None:
         return [name + "=" + value for name, value in environment.items()]
     credentials = info["uids"]
-    if credentials and credentials.real == os.geteuid():
+    # A setuid login process may retain our real UID while running as root.
+    # Its sealed environment is foreign; effective credentials govern whether
+    # it can be one of our harnesses. Unknown state of our own user stays fatal.
+    if credentials and credentials.effective == os.geteuid():
         return None
     return []
 
@@ -157,7 +160,7 @@ def _native_process_info(process, fields):
 
 
 def native_process_table():
-    """FreeBSD's native sysctl-backed API avoids lossy ps environment text."""
+    """Native BSD/macOS process APIs preserve argument/environment boundaries."""
     try:
         import psutil
     except ImportError as error:

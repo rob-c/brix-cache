@@ -390,6 +390,22 @@ static const brix_vfs_ops s_posix_ops = {
 };
 
 /* Backend open + stat */
+/* WHAT: Reclaim resources after opening an unpublished local destination.
+ * WHY: Allocation or mandatory ring setup can fail after the staging name exists;
+ *      freeing its pathname alone leaves an orphan on disk.
+ * HOW: Close the owned fd, unlink only the successfully created temp (if any),
+ *      then free both path copies. Never call this after a failed exclusive open. */
+static void
+posix_discard_open(int fd, char *final_path, char *tmp_path)
+{
+    close(fd);
+    if (tmp_path != NULL) {
+        unlink(tmp_path);
+    }
+    free(final_path);
+    free(tmp_path);
+}
+
 /*
  * posix_be_open — allocate a vfs_posix_file and open the underlying fd.
  *
@@ -480,9 +496,7 @@ posix_be_open(const brix_vfs_backend *be, const char *path, int flags,
     if (pf == NULL) {
         brix_status_set(st, XRDC_EIO, ENOMEM,
                         "vfs posix open: out of memory");
-        close(fd);
-        free(final_copy);
-        free(tmp_path);
+        posix_discard_open(fd, final_copy, tmp_path);
         return -1;
     }
 
@@ -492,9 +506,7 @@ posix_be_open(const brix_vfs_backend *be, const char *path, int flags,
     pf->ring       = NULL;
 
     if (posix_ring_select(fd, uring_mode, uring_direct, &pf->ring, st) != 0) {
-        close(fd);
-        free(final_copy);
-        free(tmp_path);
+        posix_discard_open(fd, final_copy, tmp_path);
         free(pf);
         return -1;
     }

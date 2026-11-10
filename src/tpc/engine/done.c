@@ -123,25 +123,31 @@ tpc_done_teardown_dst(brix_tpc_pull_t *t, brix_ctx_t *ctx, int idx,
                       ngx_log_t *log)
 {
     int remove_final = 1;
+    brix_file_t *file = NULL;
+
+    if (ctx != NULL && ctx->files != NULL && idx >= 0 && idx < BRIX_MAX_FILES) {
+        file = &ctx->files[idx];
+    }
 
     if (t->dst_writer != NULL) {
         remove_final = 0;
         brix_vfs_writer_abort(t->dst_writer);
     }
-    if (ctx != NULL && ctx->files != NULL && idx >= 0 && idx < BRIX_MAX_FILES
-        && ctx->files[idx].writer != NULL)
-    {
+    if (file != NULL && file->writer != NULL) {
         remove_final = 0;
     }
-    if (t->dst_writer == NULL && t->dst_fd >= 0) {
+    /* A storage driver owns its descriptor until brix_free_fhandle closes the
+     * object. Raw-closing the alias first would close that descriptor twice. */
+    if (t->dst_writer == NULL && t->dst_fd >= 0
+        && (file == NULL || file->sd_obj.driver == NULL)) {
         close(t->dst_fd);
     }
     if (remove_final) {
         tpc_done_remove_partial(t, log);
     }
-    if (ctx != NULL && ctx->files != NULL && idx >= 0 && idx < BRIX_MAX_FILES) {
-        ctx->files[idx].fd = -1;
-        ctx->files[idx].tpc_transfer_id = 0;
+    if (file != NULL) {
+        file->fd = -1;
+        file->tpc_transfer_id = 0;
         brix_free_fhandle(ctx, idx);
     }
 }
@@ -174,7 +180,6 @@ tpc_done_refresh_stat(brix_tpc_pull_t *t, brix_ctx_t *ctx,
     brix_vfs_ctx_t  vctx;
     brix_vfs_stat_t vst;
     brix_file_t    *file;
-    const char      *logical;
 
     if (t == NULL || ctx == NULL || c == NULL || ctx->files == NULL
         || idx < 0 || idx >= BRIX_MAX_FILES)
@@ -184,13 +189,12 @@ tpc_done_refresh_stat(brix_tpc_pull_t *t, brix_ctx_t *ctx,
 
     file = &ctx->files[idx];
 
-    logical = brix_vfs_export_relative_root(file->path,
-                                             t->conf->common.root_canon);
-
+    /* Keep the confined export path through policy and POSIX probing. The VFS
+     * translates it into a storage key only after those checks. */
     brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
         t->conf->common.root_canon, NULL,
         brix_vfs_policy_from_write_enable(t->conf->common.allow_write),
-        0, ctx->identity, logical);
+        0, ctx->identity, file->path);
     vctx.rootfd = t->conf->rootfd;
     brix_vfs_ctx_bind_backend_cred(&vctx,
         &t->conf->common.storage_credential_dir,
@@ -261,7 +265,6 @@ tpc_done_sync_fail(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
     if (file != NULL) {
         int had_writer = file->writer != NULL;
 
-        file->fd = -1;
         file->tpc_transfer_id = 0;
         brix_free_fhandle(ctx, idx);
         if (!had_writer) {

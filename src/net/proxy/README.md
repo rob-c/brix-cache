@@ -55,7 +55,7 @@ overrides on `brix_proxy_upstream`.
 | `forward_request.c` | `brix_proxy_forward_request()` — copy client header+payload, then per-opcode: translate file handles (`open`/`read`/`write`/`close`/`stat`/`readv`/`writev`/`clone`/...), rewrite paths, capture audit paths, trigger bound-secondary lazy-open, save a `kXR_wait` retry copy, queue+flush to upstream. |
 | `forward_relay_response.c` | `brix_proxy_relay_to_client()` — the response state machine: lazy-open completion, `kXR_wait` absorb+retry, `kXR_redirect` follow-through, path-op audit, upstream→local fhandle translation, byte metrics, streaming `kXR_oksofar`/`kXR_status` partials, and final relay back to the client. Compiled standalone. |
 | `forward_relay_audit.c` | `proxy_write_path_audit()` — JSON audit line for path-mutation ops (`rm`/`mkdir`/`rmdir`/`mv`/`chmod`/`truncate`) including user identity and status. Compiled standalone. |
-| `forward_rewrite_helpers.c` | `proxy_rewrite_path()` (single-path strip/add prefix), `proxy_rewrite_prepare_payload()` (per-line rewrite for `kXR_prepare`), `proxy_translate_fh()` (1-byte local→upstream handle swap via `fh_map`). |
+| `forward_rewrite_helpers.c` | `proxy_rewrite_path()` (single-path strip/add prefix), `proxy_rewrite_mv()` (atomic two-path rewrite and wire-length update), `proxy_rewrite_prepare_payload()` (per-line rewrite for `kXR_prepare`), `proxy_translate_fh()` (1-byte local→upstream handle swap via `fh_map`). |
 | `forward_session_helpers.c` | `proxy_write_audit()` (per-handle close audit), `brix_proxy_wait_handler()` (retry timer), `brix_proxy_alloc_local_fh()` (free-slot scan), `brix_proxy_lazy_open()` (synthetic anonymous `kXR_open` for a bound-secondary handle published by its primary). |
 | `pool.c` | Worker-local idle-connection pool (`brix_proxy_pool_get/put/init`) keyed by upstream index + auth type + bearer-token MD5; `pool_get` does a *random-start* health-aware scan, `pool_put` evicts the oldest when full (`BRIX_PROXY_MAX_IDLE_CONNECTIONS`); idle-timeout keepalive timers (re-arm without ping — a sent-but-unread ping would leave a stray `kXR_ok` in the socket); a pool-safe read handler (`brix_proxy_pool_read_handler`) that evicts on a stray event; per-upstream health tracking (`up_status_init`/`up_mark_failed`/`up_mark_ok`). |
 | `directives.c` | nginx config parsers: `brix_proxy_upstream host[:port] [anonymous\|forward\|sss\|sss:<keyname>]`, `brix_proxy_auth`, `brix_proxy_login_user anonymous\|passthrough\|fixed:<name>`, `brix_proxy_path_rewrite /strip /add`, plus the static `proxy_parse_host_port()` (IPv6 `[addr]:port`, IPv4/hostname `host:port`, default port `1094`). First `brix_proxy_upstream` also back-fills the legacy single `proxy_host`/`proxy_port`. |
@@ -241,3 +241,8 @@ response (with the client's original streamid) and resumes the client read loop
 - `../../observability/metrics/README.md` — the `BRIX_PROXY_*` counter macros.
 - `../../protocols/root/protocol/README.md` — XRootD wire structs and opcode constants.
 - `../README.md` — master subsystem index.
+
+Finite forwarding contracts in `tests/test_proxy_forward_native.py` cover rename framing,
+audit truncation, opaque handles and allocation/event failures. Rename source lengths
+are validated before audit copying; prefix transforms apply to both paths atomically.
+Replaced request buffers are released by their caller.

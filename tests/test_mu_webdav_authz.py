@@ -92,16 +92,21 @@ def webdav_mutation_authz_env(lifecycle, cast, tmp_path):
     for sub in rules:
         directory = os.path.join(ports.MU.DATA_ROOT, sub)
         os.makedirs(directory, exist_ok=True)
+    _seed_mutation_targets()
+    authdb = tmp_path / "mutation-authdb"
+    authdb.write_text("".join(
+        f"u * /{path} {privs}\n" for path, privs in rules.items()))
+    return lifecycle.start(_spec(authdb))
+
+
+def _seed_mutation_targets():
+    """Populate delete and metadata fixtures with their expected payloads."""
     for sub in ("delete-write", "delete-allowed"):
         with open(os.path.join(ports.MU.DATA_ROOT, sub, "target.dat"), "wb") as target:
             target.write(b"retain-on-deny\n")
     for sub in ("prop-read", "prop-write", "acl-read", "acl-admin"):
         with open(os.path.join(ports.MU.DATA_ROOT, sub, "target.dat"), "wb") as target:
             target.write(b"metadata-target\n")
-    authdb = tmp_path / "mutation-authdb"
-    authdb.write_text("".join(
-        f"u * /{path} {privs}\n" for path, privs in rules.items()))
-    return lifecycle.start(_spec(authdb))
 
 
 def _proxy(name, vo=None):

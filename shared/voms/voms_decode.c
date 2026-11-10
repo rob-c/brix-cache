@@ -11,6 +11,7 @@
  *       values, DNs rendered one-line, times through ASN1_TIME_to_tm.
  */
 
+#include "auth/crypto/asn1_compat.h"
 #include "voms_ac.h"
 #include "voms_asn1.h"
 
@@ -126,7 +127,7 @@ brix_voms_carrier_at(X509 *leaf, STACK_OF(X509) *chain, int index,
         data = X509_EXTENSION_get_data(X509_get_ext(cert, idx));
 
         *der = ASN1_STRING_get0_data(data);
-        *len = ASN1_STRING_length(data);
+        *len = brix_crypto_asn1_length(data);
     }
     return cert;
 }
@@ -233,7 +234,7 @@ brix_voms_find_eec(X509 *leaf, STACK_OF(X509) *chain)
 static char *
 voms_strdup_asn1(const ASN1_STRING *s)
 {
-    int   n = ASN1_STRING_length(s);
+    int   n = brix_crypto_asn1_length(s);
     char *out = malloc((size_t) n + 1);
 
     if (out != NULL) {
@@ -340,9 +341,9 @@ voms_add_fqan(brix_voms_entry_t *e, const ASN1_STRING *value)
     char **grown;
 
     if (e->nfqans >= BRIX_VOMS_MAX_FQANS
-        || ASN1_STRING_length(value) >= BRIX_VOMS_MAX_FQAN
+        || brix_crypto_asn1_length(value) >= BRIX_VOMS_MAX_FQAN
         || !voms_fqan_is_wellformed(ASN1_STRING_get0_data(value),
-                                    ASN1_STRING_length(value)))
+                                    brix_crypto_asn1_length(value)))
     {
         return BRIX_VOMS_OK;   /* over the cap or malformed: skip, never truncate */
     }
@@ -372,7 +373,7 @@ voms_read_ietf_attr(brix_voms_entry_t *e, const ASN1_TYPE *type)
         return BRIX_VOMS_ERR_DECODE;
     }
     p = ASN1_STRING_get0_data(type->value.sequence);
-    attr = d2i_VOMS_IETF_ATTR(NULL, &p, ASN1_STRING_length(type->value.sequence));
+    attr = d2i_VOMS_IETF_ATTR(NULL, &p, brix_crypto_asn1_length(type->value.sequence));
     if (attr == NULL) {
         return BRIX_VOMS_ERR_DECODE;
     }
@@ -383,7 +384,7 @@ voms_read_ietf_attr(brix_voms_entry_t *e, const ASN1_TYPE *type)
         if (gn->type == GEN_URI) {
             (void) voms_split_policy_uri(e,
                 (const char *) ASN1_STRING_get0_data(gn->d.uniformResourceIdentifier),
-                (size_t) ASN1_STRING_length(gn->d.uniformResourceIdentifier));
+                (size_t) brix_crypto_asn1_length(gn->d.uniformResourceIdentifier));
         }
     }
     n = sk_VOMS_IETF_ATTR_VALUE_num(attr->values);

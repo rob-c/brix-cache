@@ -30,6 +30,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from brix_suite.settings import NGINX_BIN, HOST, BIND_HOST, TESTS_DIR
 from brix_suite.mesh.mesh_config import render
+from brix_suite.orphans import find_orphans, kill_orphans
 from server_launcher import launch_fleet_nginx
 
 # --------------------------------------------------------------------------- #
@@ -73,21 +74,24 @@ _XRD_ENV["XrdSecPROTOCOL"] = "unix"
 
 
 def stop_all():
-    """Tear down every mesh daemon reliably (process groups + cfg match + ports).
-
-    Order matters: kill nginx by process group first (catches orphaned workers),
-    then xrootd/cmsd by their config path, then sweep any survivor still holding
-    one of our ports, then block until the manager front doors are actually free
-    so a relaunch cannot race a lingering listener."""
-    _kill_mesh_pidfiles()
-    _kill_configured_daemons()
-    _kill_mesh_listeners()
+    """Reap the owned daemon tree before removing its pidfile evidence."""
+    # An empty child root can share the parent's port ladder. Its teardown
+    # has no authority over those listeners and must not wait for them either.
+    if not find_orphans(MESH_DIR):
+        return
+    survivors = kill_orphans(MESH_DIR)
+    if survivors:
+        raise RuntimeError(f"CMS mesh processes survived cleanup: {survivors}")
+    _clear_mesh_pidfiles()
     _wait_manager_ports_closed()
 
 
-def _kill_mesh_pidfiles():
+def _clear_mesh_pidfiles():
     for pidfile in glob.glob(os.path.join(MESH_DIR, "*", "run", "*.pid")):
-        _kill_pidfile_group(pidfile)
+        try:
+            os.remove(pidfile)
+        except FileNotFoundError:
+            pass
 
 
 def _kill_configured_daemons():
@@ -115,9 +119,11 @@ def _mesh_listener_pid(line):
 
 
 def _kill_mesh_listeners():
+    """Reap port-sweep survivors only when this mesh owns their processes."""
+    owned = {str(pid) for pid, _command in find_orphans(MESH_DIR)}
     for line in _list_listeners():
         pid = _mesh_listener_pid(line)
-        if pid:
+        if pid in owned:
             subprocess.run(["kill", "-9", pid], check=False)
 
 

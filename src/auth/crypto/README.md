@@ -44,6 +44,7 @@ store, deciding soft-fail policy, mapping results to `kXR_NotAuthorized` vs HTTP
 | File | Responsibility |
 |------|---------------|
 | `key_compat.h` | Version-neutral OpenSSL 1.1.1/3+ public-key equality and owned DH public-number/peer construction; borrowed inputs never change ownership. |
+| `asn1_compat.h` | Bounded ASN.1 byte lengths across OpenSSL 1.1.1 through 4.1; missing inputs and narrowing overflow fail closed. |
 | `jwk_compat.h` | Version-neutral RSA/P-256 import for JWT keys; provider and legacy implementations share owned-result and error-cleanup contracts. |
 | `tls_compat.h` | Typed DNS/IP peer-name binding across OpenSSL ABIs and GridFTP data-channel EOF option selection; trust and control-channel policy remain with their existing owners. |
 | `store_compat.h` | Explicit CA file/directory loaders across OpenSSL 1.1.1/3+, with no implicit trust-path expansion. |

@@ -184,7 +184,7 @@ def test_darwin_discovers_keg_only_openssl_metadata(
     if platform.system() != "Darwin":
         pytest.skip("Homebrew discovery requires a Darwin host")
     variables = _make_variables(makefile, HOST_ARCH="arm64", HOST_OS="Darwin")
-    assert "/openssl@3/" in variables["OPENSSL_CFLAGS"]
+    assert "/openssl@4/" in variables["OPENSSL_CFLAGS"]
 
 
 def test_darwin_client_discovers_keg_only_kerberos_metadata() -> None:
@@ -249,7 +249,7 @@ def test_shared_object_goals_resolve_with_the_archive_missing(goal: str) -> None
 
 @pytest.mark.parametrize("goal", ["aio-smoke", "aio-resil", "aio-waitresp",
                                   "aio-mfile", "ssi-client-smoke", "netfb",
-                                  "dirfanout", "forksafe", "nettmo"])
+                                  "dirfanout", "forksafe", "nettmo", "sd-s3-meta-smoke"])
 def test_optional_drivers_build_the_protocol_archive_on_a_clean_tree(goal):
     """An optional driver's link closure is also a normal build dependency."""
     rule = re.search(rf"^{re.escape(goal)}:.*$", MAKEFILE.read_text(), re.MULTILINE)

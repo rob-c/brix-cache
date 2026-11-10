@@ -273,6 +273,9 @@ brix_loop_want_rxtx(void)
 }
 
 
+/* WHAT: Create the async readiness loop and its worker.
+ * WHY: Partial initialization must release resources and preserve the failure.
+ * HOW: Initialize ownership before setup; report pthread's returned error code. */
 brix_loop *
 brix_loop_create(brix_status *st)
 {
@@ -291,8 +294,10 @@ brix_loop_create(brix_status *st)
     if (io_engine_setup(l, st) != 0) {
         return brix_loop_create_fail(l);
     }
-    if (pthread_create(&l->thread, NULL, loop_thread, l) != 0) {
-        brix_status_set(st, XRDC_ESOCK, errno, "pthread_create: %s", strerror(errno));
+    int thread_error = pthread_create(&l->thread, NULL, loop_thread, l);
+    if (thread_error != 0) {
+        brix_status_set(st, XRDC_ESOCK, thread_error,
+                        "pthread_create: %s", strerror(thread_error));
         return brix_loop_create_fail(l);
     }
     l->thread_ok = 1;
@@ -394,12 +399,12 @@ brix_aconn_set_resilience(brix_aconn *ac, int max_stall_ms,
     if (ac == NULL) {
         return;
     }
-    /* A negative value means "leave unchanged"; these scalars are read only by the
-     * loop thread, so a relaxed store from the caller thread is fine in practice
-     * (set before traffic starts in the expected usage). */
-    if (max_stall_ms >= 0) { ac->max_stall_ms = max_stall_ms; }
-    if (keepalive_ms >= 0) { ac->keepalive_ms = keepalive_ms; }
-    if (max_retries >= 0)  { ac->def_retries  = max_retries; }
+    /* Each independent policy field is shared with the loop thread. Readers
+     * take one atomic snapshot per decision; disabling keepalive must not
+     * change an in-progress idle comparison into a zero-interval heartbeat. */
+    if (max_stall_ms >= 0) { __atomic_store_n(&ac->max_stall_ms, max_stall_ms, __ATOMIC_RELAXED); }
+    if (keepalive_ms >= 0) { __atomic_store_n(&ac->keepalive_ms, keepalive_ms, __ATOMIC_RELAXED); }
+    if (max_retries >= 0)  { __atomic_store_n(&ac->def_retries, max_retries, __ATOMIC_RELAXED); }
 }
 
 
