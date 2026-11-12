@@ -2156,6 +2156,34 @@ checksums are under `dist/test-v2.0.0/`. Source-only test and validation-support
 overlays record changes made after the immutable package snapshot. No Git
 commit, tag or release was created.
 
+### GitHub coverage host isolation — 2026-11-12
+
+The coverage workflow checkpoints preparation, the complete ordinary suite,
+privileged contracts and standalone user-namespace contracts in separate steps.
+Preparation freezes the production inventory and resets counters once. Later
+steps reuse the same SDK and standalone counter directory. The final report
+requires every enabled phase to finish successfully as well as at least 90%
+line coverage; interrupted phases and partial high-coverage runs fail. The
+default local `tools/ci/coverage.py` command still performs all phases together.
+
+Each CI phase runs as the original test user in a separate systemd service and
+PID/proc namespace, with a memory ceiling of 75% of physical RAM and no swap.
+Networking remains shared for the Docker interoperability oracles. Only the
+selected test/build environment reaches the service. Build and suite checkpoint
+artifacts survive subsequent step failures; resource snapshots and systemd's
+memory/exit summary accompany the logs. Unused Android and .NET SDKs are removed
+only on the disposable hosted runner to reserve disk space for the instrumented
+SDK and XFS test image.
+
+The preceding GitHub run lost runner communication without leaving logs or a
+coverage report; its exact cause is unconfirmed. Local validation of this repair
+passes **97 coverage regressions on Ubuntu/GCC/LCOV**, including real captures
+across separate steps. A real systemd probe confirms private PIDs, shared
+networking, the invoking user's identity/environment, and propagation of a
+nonzero exit. A controlled memory exhaustion kills only its bounded test
+service while the supervising process survives. This is harness validation,
+not a fresh full-suite coverage measurement.
+
 ### Earlier diagnostic checkpoints
 
 Build eleven passes **1,517 focused native cases**, with three skips. The seven

@@ -37,6 +37,7 @@ from tools.logging_support import diagnostic as _brix_diagnostic
 #           absent; the workflow installs both before invoking it.
 
 import os
+import argparse
 import re
 import shlex
 import shutil
@@ -56,17 +57,24 @@ def run_or_abort(cmd, **kwargs) -> subprocess.CompletedProcess:
     return proc
 
 
-def main() -> int:
+def main(arguments=None) -> int:
     # ROOT from this script's location (tools/ci/ → repo root), like the other
     # guards: the runner must work regardless of the caller's cwd (the pytest
     # guard wrapper runs with cwd inside the test fleet root, not the repo).
+    parser = argparse.ArgumentParser(description='Collect production line coverage')
+    parser.add_argument('--stage', default='all',
+                        choices=('all', 'prepare', 'ordinary', 'privileged', 'userns', 'report'))
+    options = parser.parse_args(arguments)
     root, nginx_src, out_dir, test_cmd = _settings()
     reason = _skip_reason(nginx_src)
     if reason:
         print(reason)
         # An explicitly requested floor requires an actual measurement.
         return 1 if os.environ.get("COVERAGE_MIN") else 0
-    return _collect(root, nginx_src, out_dir, test_cmd)
+    if options.stage == 'all':
+        return _collect(root, nginx_src, out_dir, test_cmd)
+    from tools.ci import coverage_stages
+    return coverage_stages.run(options.stage, root, nginx_src, out_dir, test_cmd)
 
 
 def _settings():
@@ -98,19 +106,30 @@ def _skip_reason(nginx_src: str) -> str:
 
 
 def _collect(root: str, nginx_src: str, out_dir: str, test_cmd: str) -> int:
+    _build(root, out_dir)
+    return _run_and_capture(root, nginx_src, out_dir, test_cmd)
 
+
+def _build(root, out_dir):
     os.makedirs(out_dir, exist_ok=True)
-
     print("coverage: 1/4 building gcov-instrumented nginx + client…")
     run_or_abort(
         ["python3", "-m", "cmdscripts.operator_build", "build_coverage"],
         cwd=f"{root}/tests",
     )
-    return _run_and_capture(root, nginx_src, out_dir, test_cmd)
 
 
 def _run_and_capture(root: str, nginx_src: str, out_dir: str, test_cmd: str) -> int:
     """Measure one complete test command against the current instrumented build."""
+    directories, initial, unit_dir = _prepare_measurement(root, nginx_src, out_dir)
+    environment = _measurement_environment(root, nginx_src, unit_dir)
+    print("coverage: 2/4 running suite against the instrumented binary…")
+    print(f"          $COVERAGE_TEST_CMD = {test_cmd}")
+    suite_rc = _run_suites(root, test_cmd, environment)
+    return _report(root, out_dir, directories, initial, unit_dir, suite_rc)
+
+
+def _prepare_measurement(root, nginx_src, out_dir):
     # Freeze the production build's executable-line inventory before tests
     # compile extra harnesses or rebuild client objects with different options.
     initial = f"{out_dir}/coverage.initial.info"
@@ -119,14 +138,16 @@ def _run_and_capture(root: str, nginx_src: str, out_dir: str, test_cmd: str) -> 
     directories = [f"{nginx_src}/objs", f"{root}/client", f"{root}/shared"]
     _capture(root, directories, initial, initial=True)
     unit_dir = Path(tempfile.mkdtemp(prefix="unit-counters-", dir=out_dir))
-    environment = coverage_compiler.install(
+    _reset_counters(directories)
+    return directories, initial, unit_dir
+
+
+def _measurement_environment(root, nginx_src, unit_dir):
+    return coverage_compiler.install(
         Path(root), unit_dir, _build_environment(nginx_src, os.environ))
 
-    _reset_counters(directories)
 
-    print("coverage: 2/4 running suite against the instrumented binary…")
-    print(f"          $COVERAGE_TEST_CMD = {test_cmd}")
-    suite_rc = _run_suites(root, test_cmd, environment)
+def _report(root, out_dir, directories, initial, unit_dir, suite_rc):
     if suite_rc != 0:
         _brix_diagnostic('ERROR', 'tools/ci/coverage.py', '_collect', f"coverage: FAIL — test command exited {suite_rc}; "
               "capturing partial counters for diagnostics", file=sys.stderr)

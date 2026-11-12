@@ -27,9 +27,23 @@ jobs:
   coverage:
     # GFAL's native interop plugins are available in this LTS catalogue.
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    timeout-minutes: 360
+    env:
+      NGINX_SRC: /tmp/nginx-1.31.8
+      PYTHONPATH: tests
+      PYTHONUNBUFFERED: "1"
+      COVERAGE_MIN: 90
+      COVERAGE_PRIVILEGED: "1"
+      COVERAGE_USERNS_PROFILE: brix-coverage-userns-tests
+      BRIX_CVMFS_APPARMOR_PROFILE: brix-coverage-userns-tests
+      PYTEST_ADDOPTS: "-p no:brixtest -p no:platformdirs"
     steps:
       - uses: actions/checkout@v7.0.1
+      - name: Reserve disk space for the instrumented SDK and test filesystem
+        run: |
+          # This job uses neither SDK. Remove them only on this disposable host.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet
+          df -h /
       - name: Install build + coverage deps
         run: |
           sudo apt-get update
@@ -51,6 +65,8 @@ jobs:
           .venv-coverage/bin/pip install --only-binary=xrootd \
             -r requirements.txt -r requirements-optional.txt './brixtest[all]'
           .venv-coverage/bin/pip check
+          echo "$PWD/.venv-coverage/bin" >> "$GITHUB_PATH"
+          echo "$NGINX_SRC/objs" >> "$GITHUB_PATH"
           sudo modprobe fuse
           echo user_allow_other | sudo tee -a /etc/fuse.conf
       - name: Prepare disposable test hostname and filesystem
@@ -78,20 +94,57 @@ jobs:
         run: sudo apparmor_parser --add tools/ci/coverage_userns.apparmor
       - name: Fetch nginx source
         run: curl -fsSL https://nginx.org/download/nginx-1.31.8.tar.gz | tar -xz -C /tmp
-      - name: Build instrumented module, run suite, capture coverage
-        env:
-          NGINX_SRC: /tmp/nginx-1.31.8
-          PYTHONPATH: tests
-          COVERAGE_MIN: 90
-          COVERAGE_PRIVILEGED: "1"
-          COVERAGE_USERNS_PROFILE: brix-coverage-userns-tests
-          BRIX_CVMFS_APPARMOR_PROFILE: brix-coverage-userns-tests
-          PYTEST_ADDOPTS: "-p no:brixtest -p no:platformdirs"
+      - name: Build instrumented module and freeze the production inventory
+        id: prepare
         run: |
           set -o pipefail
-          export PATH="$NGINX_SRC/objs:$PWD/.venv-coverage/bin:$PATH"
           python3 tests/rpm/make_fixtures.py
-          tools/ci/coverage.py 2>&1 | tee /tmp/coverage-report.txt
+          python3 tools/ci/coverage_host.py prepare 2>&1 | tee /tmp/coverage-prepare.txt
+      - name: Upload build checkpoint
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: coverage-build-checkpoint
+          path: |
+            /tmp/coverage-prepare.txt
+            coverage/stages.json
+            coverage/coverage.initial.info
+      - name: Run the complete ordinary suite
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          python3 tools/ci/coverage_host.py ordinary 2>&1 | tee /tmp/coverage-ordinary.txt
+      - name: Upload ordinary suite checkpoint
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: coverage-ordinary-checkpoint
+          path: |
+            /tmp/coverage-ordinary.txt
+            coverage/stages.json
+      - name: Run privileged contracts
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          python3 tools/ci/coverage_host.py privileged 2>&1 | tee /tmp/coverage-privileged.txt
+      - name: Upload privileged suite checkpoint
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: coverage-privileged-checkpoint
+          path: |
+            /tmp/coverage-privileged.txt
+            coverage/stages.json
+      - name: Run standalone user namespace contracts
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          python3 tools/ci/coverage_host.py userns 2>&1 | tee /tmp/coverage-userns.txt
+      - name: Capture all counters and enforce the 90 percent floor
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          python3 tools/ci/coverage_host.py report 2>&1 | tee /tmp/coverage-report.txt
       - name: Remove the test user-namespace profile
         if: ${{ always() && steps.coverage_userns.outcome == 'success' }}
         run: sudo apparmor_parser --remove tools/ci/coverage_userns.apparmor
@@ -102,6 +155,8 @@ jobs:
           name: coverage-report
           path: |
             /tmp/coverage-report.txt
+            /tmp/coverage-*.txt
+            coverage/stages.json
             coverage/coverage.info
             coverage/html
       - name: Unmount the disposable test filesystem

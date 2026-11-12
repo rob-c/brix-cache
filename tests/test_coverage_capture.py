@@ -182,6 +182,20 @@ def test_corrupt_shared_counter_cannot_be_ignored(shared_build):
     assert failure.value.code != 0
 
 
+@pytest.mark.parametrize('success', [True, False])
+def test_real_capture_survives_separate_ci_steps(shared_build, monkeypatch, success):
+    from tools.ci import coverage_stages
+    root, binary = shared_build
+    command = shlex.join([str(binary), *(['success'] if success else [])])
+    arguments = (str(root), str(root / 'nginx'), str(root / 'report'), command)
+    monkeypatch.setattr(coverage, '_build', lambda *_args: None)
+    assert coverage_stages.run('prepare', *arguments) == 0
+    assert coverage_stages.run('ordinary', *arguments) == (0 if success else 7)
+    assert coverage_stages.run('report', *arguments) == (0 if success else 1)
+    report = root / 'report/coverage.info'
+    assert float(coverage_merge.line_rate(report)) > 0
+
+
 @pytest.mark.parametrize('relative,in_inventory', [
     ('tests/c/smoke.c', False), ('lib/tests/helper.c', True),
     ('apps/test_cli.c', True),
