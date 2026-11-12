@@ -4,8 +4,9 @@
 WHAT: minimizes every tests/fuzz harness's committed corpus with libFuzzer's
       `-merge=1` (keep only inputs that add coverage), replaces the committed
       corpus with that coverage-minimal set, and — only under --commit — git
-      commits the reduced corpora back so nightly fuzzing compounds coverage
-      instead of re-discovering the same inputs each run.
+      commits the reduced corpora so nightly fuzzing compounds coverage instead
+      of re-discovering the same inputs each run. CI uses --review-branch to
+      publish a reviewable update without writing protected main.
 
 WHY:  B-3 Fix 1 (smoke) and the nightly soak already run; Fix 2 ("corpus
       minimization committed back so coverage compounds") was deferred because it
@@ -29,7 +30,8 @@ HOW:  reuses cmdscripts.fuzz_all.BUILD_ARGS as the single build-recipe source of
 
 Usage:
     tools/ci/fuzz_corpus_writeback.py             # dry run: report deltas only
-    tools/ci/fuzz_corpus_writeback.py --commit    # minimize + git commit/push (CI)
+    tools/ci/fuzz_corpus_writeback.py --commit    # minimize + git commit/push
+    tools/ci/fuzz_corpus_writeback.py --commit --review-branch  # protected main
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import tempfile
+import os
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -115,7 +118,7 @@ def _staged_paths() -> list[str]:
     return [ln for ln in out.stdout.splitlines() if ln.strip()]
 
 
-def commit_corpora(changed_targets: list[str]) -> str:
+def commit_corpora(changed_targets: list[str], review_branch: bool = False) -> str:
     """Stage the corpus dirs of changed targets and commit/push them.
 
     Aborts (raising) if anything OUTSIDE tests/fuzz/corpus_* is staged — the bot
@@ -128,6 +131,8 @@ def commit_corpora(changed_targets: list[str]) -> str:
     if not staged:
         return "no corpus changes after staging — nothing to commit"
     _commit(staged, changed_targets)
+    if review_branch:
+        return _publish_review_branch()
     _push()
     return f"committed + pushed {len(staged)} corpus file change(s)"
 
@@ -168,13 +173,29 @@ def _push():
         raise SystemExit(f"push failed: {(push.stderr or push.stdout)[-800:]}")
 
 
+def _publish_review_branch():
+    """Publish a fresh bot branch without bypassing default-branch protection."""
+    run_id = os.environ.get("GITHUB_RUN_ID", "")
+    attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "")
+    if not run_id.isdecimal() or not attempt.isdecimal():
+        raise SystemExit("review-branch publication requires numeric GitHub run identity")
+    base = os.environ.get("GITHUB_REF_NAME", "")
+    if not base or base != os.environ.get("BRIX_FUZZ_BASE_BRANCH"):
+        raise SystemExit("refusing corpus publication outside the default branch")
+    branch = f"automation/fuzz-corpora-{run_id}-{attempt}"
+    result = _run(["git", "push", "origin", f"HEAD:refs/heads/{branch}"], cwd=REPO_ROOT)
+    if result.returncode:
+        raise SystemExit(f"corpus publication failed: {(result.stderr or result.stdout)[-800:]}")
+    return f"published corpus review branch: {branch}; open a pull request into {base}"
+
+
 def entry(argv: list[str]) -> int:
     commit = "--commit" in argv
     results, changed_targets = _minimize_all(commit)
     _print_results(results)
     if not all(ok for ok, _ in results):
         return 1
-    print(_completion_message(commit, changed_targets))
+    print(_completion_message(commit, changed_targets, "--review-branch" in argv))
     return 0
 
 
@@ -194,9 +215,9 @@ def _print_results(results):
         print(f"  {'ok  ' if ok else 'FAIL'} {msg}")
 
 
-def _completion_message(commit, changed_targets):
+def _completion_message(commit, changed_targets, review_branch=False):
     if commit:
-        return commit_corpora(changed_targets)
+        return commit_corpora(changed_targets, review_branch=review_branch)
     return (
         f"dry run: {len(changed_targets)} target(s) would change corpus "
         f"({', '.join(changed_targets) or 'none'}); pass --commit to write back"

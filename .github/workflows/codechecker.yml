@@ -49,7 +49,8 @@ jobs:
             clang clang-tools-extra \
             openssl-devel zlib-devel pcre2-devel \
             libcurl-devel sqlite-devel krb5-devel \
-            jansson-devel libxml2-devel librados-devel
+            jansson-devel libxml2-devel librados-devel \
+            pkgconf-pkg-config libzstd-devel brotli-devel bzip2-devel xz-devel lz4-devel
           clang --version
       - uses: actions/checkout@v7.0.1
       - name: Install CodeChecker
@@ -62,7 +63,9 @@ jobs:
             --with-http_ssl_module --with-http_dav_module --with-http_auth_request_module --with-threads \
             --add-module="$GITHUB_WORKSPACE"
       - name: Run CodeChecker ratchet (blocking on new findings vs baseline)
+        shell: bash
         run: |
+          set -o pipefail
           export PATH="$HOME/.local/bin:$PATH"
           NGX_BUILD=/tmp/nginx-1.31.8 \
             tools/ci/run_codechecker.py 2>&1 | tee /tmp/codechecker-report.txt

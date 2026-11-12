@@ -72,16 +72,16 @@ jobs:
             kldload -n fusefs
             sysctl vfs.usermount=1
             chown brixvalidate:brixvalidate /dev/fuse
+            # The contracts smoke also allocates the complete fleet ledger.
+            # Keep anonymous sockets above it in every disposable test VM.
+            sysctl net.inet.ip.portrange.first=32768
+            sysctl net.inet.ip.portrange.last=65535
             chmod 0600 /dev/fuse
             if [ '${{ inputs.test_level || 'contracts' }}' = full ]; then
               # GFAL's native interoperability plugins use real packaged APIs;
               # the isolated bootstrap below does not replace system libraries.
               pkg install -y glib json-c libuuid cryptopp openldap26-client \
                 nlohmann-json gsoap py312-boost-libs py312-setuptools py312-wheel
-              # Isolated test VM only: anonymous reference-daemon listeners
-              # must not draw from the named-and-mock fleet reservation.
-              sysctl net.inet.ip.portrange.first=32768
-              sysctl net.inet.ip.portrange.last=65535
               # Exercise real EXDEV commits rather than assume Linux /dev/shm.
               install -d -m 0700 -o brixvalidate -g brixvalidate /var/tmp/brix-cross-device-stage
               mount -t tmpfs -o size=512m,nosuid,uid=2100,gid=2100,mode=0700 \

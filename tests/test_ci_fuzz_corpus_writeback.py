@@ -122,6 +122,81 @@ def test_fuzz_workflow_writeback_job_gated():
     assert job["permissions"]["contents"] == "write"
     steps = " ".join(str(s.get("run", "")) for s in job["steps"])
     assert "fuzz_corpus_writeback.py --commit" in steps
+    assert "--review-branch" in steps
+    assert "github.event.repository.default_branch" in cond
+    assert "pull-requests" not in job["permissions"]
+
+
+def _publication_fixture(tmp_path, monkeypatch):
+    repo = _init_repo(tmp_path)
+    remote = tmp_path / "remote.git"
+    _git(repo, "init", "--bare", "-q", str(remote))
+    _git(repo, "remote", "add", "origin", str(remote))
+    _git(repo, "push", "origin", "HEAD:main")
+    monkeypatch.setattr(wb, "REPO_ROOT", repo)
+    monkeypatch.setattr(wb, "FUZZ_DIR", repo / "tests/fuzz")
+    for name, value in (("GITHUB_RUN_ID", "123"), ("GITHUB_RUN_ATTEMPT", "2"),
+                        ("GITHUB_REF_NAME", "main"), ("BRIX_FUZZ_BASE_BRANCH", "main")):
+        monkeypatch.setenv(name, value)
+    (repo / "tests/fuzz/corpus_demo/input").write_bytes(b"seed")
+    return repo, remote
+
+
+def _reject_pushes(remote, expression):
+    hook = remote / "hooks/update"
+    hook.write_text('#!/bin/sh\n' + expression + '\n')
+    hook.chmod(0o755)
+
+
+def _record_publication(monkeypatch):
+    original = wb._run
+    calls = []
+
+    def run(command, cwd):
+        calls.append(command)
+        return original(command, cwd)
+
+    monkeypatch.setattr(wb, "_run", run)
+    return calls
+
+
+def test_corpus_publication_leaves_protected_main_unchanged(tmp_path, monkeypatch):
+    repo, remote = _publication_fixture(tmp_path, monkeypatch)
+    initial = _git(remote, "rev-parse", "main").stdout
+    _reject_pushes(remote, '[ "$1" != refs/heads/main ]')
+    calls = _record_publication(monkeypatch)
+    message = wb.commit_corpora(["fuzz_demo"], review_branch=True)
+    assert "published corpus review branch" in message
+    assert _git(remote, "rev-parse", "main").stdout == initial
+    branch = "automation/fuzz-corpora-123-2"
+    assert _git(remote, "rev-parse", branch).stdout == _git(repo, "rev-parse", "HEAD").stdout
+    assert _git(remote, "diff", "--name-only", "main", branch).stdout.splitlines() == [
+        "tests/fuzz/corpus_demo/input"]
+    pushes = [call for call in calls if call[:2] == ['git', 'push']]
+    assert pushes == [["git", "push", "origin", f"HEAD:refs/heads/{branch}"]]
+
+
+def test_corpus_publication_stops_after_rejected_push(tmp_path, monkeypatch):
+    _, remote = _publication_fixture(tmp_path, monkeypatch)
+    _reject_pushes(remote, "exit 1")
+    calls = _record_publication(monkeypatch)
+    with pytest.raises(SystemExit, match="corpus publication failed"):
+        wb.commit_corpora(["fuzz_demo"], review_branch=True)
+    assert calls[-1][:2] == ['git', 'push']
+
+
+@pytest.mark.parametrize("variable,value", [
+    ("GITHUB_RUN_ID", ""), ("GITHUB_RUN_ATTEMPT", "../../main"),
+    ("GITHUB_REF_NAME", "untrusted-branch"), ("BRIX_FUZZ_BASE_BRANCH", ""),
+])
+def test_corpus_publication_refuses_untrusted_context(monkeypatch, variable, value):
+    for name, setting in (("GITHUB_RUN_ID", "123"), ("GITHUB_RUN_ATTEMPT", "1"),
+                          ("GITHUB_REF_NAME", "main"), ("BRIX_FUZZ_BASE_BRANCH", "main")):
+        monkeypatch.setenv(name, setting)
+    monkeypatch.setenv(variable, value)
+    monkeypatch.setattr(wb, "_run", lambda *args, **kwargs: pytest.fail("must not publish"))
+    with pytest.raises(SystemExit):
+        wb._publish_review_branch()
 
 
 # --- slow end-to-end: real minimization is a no-op on committed corpora ----- #

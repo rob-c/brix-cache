@@ -62,7 +62,8 @@ jobs:
           dnf -y install git gcc make python3 tar \
             openssl-devel zlib-devel pcre2-devel \
             libcurl-devel sqlite-devel krb5-devel \
-            jansson-devel libxml2-devel librados-devel
+            jansson-devel libxml2-devel librados-devel \
+            pkgconf-pkg-config libzstd-devel brotli-devel bzip2-devel xz-devel lz4-devel
           gcc --version
       - uses: actions/checkout@v7.0.1
       - name: Fetch and configure nginx with the module
@@ -73,7 +74,9 @@ jobs:
             --with-http_ssl_module --with-http_dav_module --with-http_auth_request_module --with-threads \
             --add-module="$GITHUB_WORKSPACE"
       - name: Run analyzer gate (blocking on any finding)
+        shell: bash
         run: |
+          set -o pipefail
           NGX_BUILD=/tmp/nginx-1.31.8 FANALYZER_RAW=/tmp/fanalyzer-raw.txt \
             tools/ci/run_fanalyzer.py 2>&1 | tee /tmp/fanalyzer-report.txt
       - name: Upload findings

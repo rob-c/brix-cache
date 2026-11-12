@@ -33,7 +33,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential lcov \
-            libssl-dev zlib1g-dev libpcre3-dev libpcre2-dev \
+            libssl-dev zlib1g-dev libpcre2-dev \
             libcurl4-openssl-dev libsqlite3-dev libkrb5-dev \
             libjansson-dev libxml2-dev librados-dev libseccomp-dev liburing-dev \
             libbz2-dev liblzma-dev libzstd-dev liblz4-dev libbrotli-dev \

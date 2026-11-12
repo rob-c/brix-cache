@@ -23,9 +23,10 @@ ARG NGINX_TARBALL_URL=https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz
 RUN dnf -y install 'dnf-command(config-manager)' \
     && dnf config-manager --set-enabled crb \
     && dnf -y install epel-release \
-    && dnf -y install gcc make perl tar gzip curl pkgconf-pkg-config \
+    && dnf -y swap curl-minimal curl \
+    && dnf -y install gcc make perl tar gzip pkgconf-pkg-config \
         pcre2-devel zlib-devel openssl-devel krb5-devel libxml2-devel \
-        libcurl-devel jansson-devel sqlite-devel libzstd-devel \
+        libcurl-devel jansson-devel sqlite-devel libzstd-devel brotli-devel \
     && (dnf -y install voms-devel liburing-devel fuse3-devel || true) \
     && dnf clean all
 
@@ -59,8 +60,9 @@ FROM ${BRIX_RUNTIME_IMAGE}
 RUN dnf -y install 'dnf-command(config-manager)' \
     && dnf config-manager --set-enabled crb \
     && dnf -y install epel-release \
+    && dnf -y swap curl-minimal curl \
     && dnf -y install pcre2 zlib openssl krb5-libs libxml2 libcurl jansson \
-        sqlite-libs libzstd curl procps-ng iproute \
+        sqlite-libs libzstd brotli procps-ng iproute \
     && (dnf -y install voms liburing fuse3-libs || true) \
     && dnf clean all
 

@@ -57,9 +57,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential clang \
-            libssl-dev zlib1g-dev libpcre3-dev libpcre2-dev \
+            libssl-dev zlib1g-dev libpcre2-dev pkg-config \
             libcurl4-openssl-dev libsqlite3-dev libkrb5-dev \
-            libjansson-dev libxml2-dev librados-dev
+            libjansson-dev libxml2-dev librados-dev \
+            libzstd-dev libbrotli-dev libbz2-dev liblzma-dev liblz4-dev
           pip install --user pytest pytest-xdist pytest-timeout
           pip install --user -e brixtest/
       - name: Fetch nginx source

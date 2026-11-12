@@ -29,6 +29,8 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0          # guards use `git ls-files`
+      - name: Install shim import dependencies
+        run: python3 -m pip install pytest
       - name: config coverage — every .c built or reasoned
         run: tools/ci/check_config_coverage.py
       - name: client build coverage — every client/shared .c built or reasoned

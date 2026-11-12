@@ -1,261 +1,41 @@
 name: Multi-Platform Build Verification
-
 on:
   push:
     branches: [main, develop]
-    paths:
-      - 'src/platform/**'
-      - 'config'
-      - 'Makefile'
-      - '.github/workflows/platform-builds.yml'
+    paths: ['src/platform/**', 'config', 'Makefile', '.github/actions/build-native/**', '.github/workflows/platform-builds.yml']
   pull_request:
     branches: [main, develop]
-    paths:
-      - 'src/platform/**'
-      - 'config'
-      - 'Makefile'
+    paths: ['src/platform/**', 'config', 'Makefile', '.github/actions/build-native/**', '.github/workflows/platform-builds.yml']
   workflow_dispatch:
-    inputs:
-      platform:
-        description: 'Platform to build (all, linux, darwin, windows)'
-        required: false
-        default: 'all'
-      architecture:
-        description: 'Architecture (all, x86_64, arm64)'
-        required: false
-        default: 'all'
 
 permissions:
   contents: read
 
 jobs:
-  # Linux x86_64 Build
-  linux-x86_64:
-    timeout-minutes: 30
-    runs-on: ubuntu-22.04
-    name: Linux x86_64
+  native:
+    name: ${{ matrix.platform }}
+    timeout-minutes: 60
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-24.04, platform: linux-x86_64}
+          - {os: ubuntu-24.04-arm, platform: linux-arm64}
+          - {os: macos-15-intel, platform: macos-x86_64}
+          - {os: macos-14, platform: macos-arm64}
     steps:
       - uses: actions/checkout@v7.0.1
-      
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            libssl-dev \
-            zlib1g-dev \
-            libpcre2-dev \
-            libxml2-dev \
-            libjansson-dev \
-            libkrb5-dev \
-            libcurl4-openssl-dev \
-            libsqlite3-dev \
-            libbz2-dev \
-            liblz4-dev \
-            libzstd-dev \
-            libbrotli-dev \
-            liblzma-dev
-      
-      - name: Download nginx source
-        run: |
-          cd /tmp
-          wget -q https://nginx.org/download/nginx-1.31.8.tar.gz
-          tar xzf nginx-1.31.8.tar.gz
-      
-      - name: Build PAL verification
-        run: |
-          chmod +x tools/ci/verify_platform_builds.sh
-          tools/ci/verify_platform_builds.sh --platform=linux --arch=x86_64
-      
-      - name: Build nginx module
-        run: |
-          cd /tmp/nginx-1.31.8
-          ./configure \
-            --with-stream \
-            --with-stream_ssl_module \
-            --with-threads \
-            --add-module=$GITHUB_WORKSPACE
-          make -j$(nproc)
-      
-      - name: Verify binary
-        run: |
-          file /tmp/nginx-1.31.8/objs/nginx
-          /tmp/nginx-1.31.8/objs/nginx -v
-      
-      - name: Run PAL seam check
-        run: |
-          chmod +x tools/ci/check_pal_seam.py
-          python3 tools/ci/check_pal_seam.py --directory=src --check-implementation
-      
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v7.0.2
-        if: success()
+      - uses: ./.github/actions/build-native
         with:
-          name: nginx-linux-x86_64
-          path: /tmp/nginx-1.31.8/objs/nginx
-          retention-days: 7
-
-  # Linux ARM64 Build (cross-compile)
-  linux-arm64:
-    timeout-minutes: 15
-    runs-on: ubuntu-22.04
-    name: Linux ARM64
-    steps:
-      - uses: actions/checkout@v7.0.1
-      
-      - name: Install cross-compiler
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            gcc-aarch64-linux-gnu \
-            g++-aarch64-linux-gnu
-      
-      - name: Build PAL verification (cross-compile)
-        run: |
-          chmod +x tools/ci/verify_platform_builds.sh
-          tools/ci/verify_platform_builds.sh --platform=linux --arch=arm64 || true
-        continue-on-error: true
-      
-      - name: Verify PAL source compiles
-        run: |
-          cd build/platform_verify
-          aarch64-linux-gnu-gcc \
-            -march=armv8-a \
-            -I$GITHUB_WORKSPACE \
-            -c $GITHUB_WORKSPACE/src/platform/platform_runtime.c \
-            -o platform.o
-          aarch64-linux-gnu-gcc \
-            -march=armv8-a \
-            -I$GITHUB_WORKSPACE \
-            -c $GITHUB_WORKSPACE/src/platform/linux/posix_wrapper.c \
-            -o posix_wrapper.o
-          echo "✅ ARM64 object files created successfully"
-
-  # macOS x86_64 Build
-  macos-x86_64:
-    timeout-minutes: 30
-    runs-on: macos-12
-    name: macOS x86_64
-    steps:
-      - uses: actions/checkout@v7.0.1
-      
-      - name: Install dependencies
-        run: |
-          brew install \
-            openssl@3 \
-            pcre2 \
-            libxml2 \
-            jansson \
-            krb5 \
-            curl \
-            sqlite \
-            bzip2 \
-            lz4 \
-            zstd \
-            brotli \
-            xz
-      
-      - name: Download nginx source
-        run: |
-          cd /tmp
-          curl -O https://nginx.org/download/nginx-1.31.8.tar.gz
-          tar xzf nginx-1.31.8.tar.gz
-      
-      - name: Build PAL verification
-        run: |
-          chmod +x tools/ci/verify_platform_builds.sh
-          tools/ci/verify_platform_builds.sh --platform=darwin --arch=x86_64
-      
-      - name: Build nginx module
-        run: |
-          cd /tmp/nginx-1.31.8
-          ./configure \
-            --with-stream \
-            --with-stream_ssl_module \
-            --with-threads \
-            --add-module=$GITHUB_WORKSPACE
-          make -j$(sysctl -n hw.ncpu)
-      
-      - name: Verify binary
-        run: |
-          file /tmp/nginx-1.31.8/objs/nginx
-          /tmp/nginx-1.31.8/objs/nginx -v
-      
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v7.0.2
-        if: success()
+          artifact-name: ${{ matrix.platform }}
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
         with:
-          name: nginx-macos-x86_64
-          path: /tmp/nginx-1.31.8/objs/nginx
-          retention-days: 7
-
-  # macOS ARM64 Build (Apple Silicon)
-  macos-arm64:
-    timeout-minutes: 30
-    runs-on: macos-14
-    name: macOS ARM64 (Apple Silicon)
-    steps:
-      - uses: actions/checkout@v7.0.1
-      
-      - name: Install dependencies
-        run: |
-          brew install \
-            openssl@3 \
-            pcre2 \
-            libxml2 \
-            jansson \
-            krb5 \
-            curl \
-            sqlite \
-            bzip2 \
-            lz4 \
-            zstd \
-            brotli \
-            xz
-      
-      - name: Download nginx source
-        run: |
-          cd /tmp
-          curl -O https://nginx.org/download/nginx-1.31.8.tar.gz
-          tar xzf nginx-1.31.8.tar.gz
-      
-      - name: Build PAL verification
-        run: |
-          chmod +x tools/ci/verify_platform_builds.sh
-          tools/ci/verify_platform_builds.sh --platform=darwin --arch=arm64
-      
-      - name: Build nginx module with optimizations
-        run: |
-          cd /tmp/nginx-1.31.8
-          BRIX_OPTIMIZE=apple_silicon ./configure \
-            --with-stream \
-            --with-stream_ssl_module \
-            --with-threads \
-            --add-module=$GITHUB_WORKSPACE
-          make -j$(sysctl -n hw.ncpu)
-      
-      - name: Verify binary
-        run: |
-          file /tmp/nginx-1.31.8/objs/nginx
-          /tmp/nginx-1.31.8/objs/nginx -v
-          # Verify ARM64 architecture
-          if ! file /tmp/nginx-1.31.8/objs/nginx | grep -q "arm64"; then
-            echo "❌ Binary is not ARM64!"
-            exit 1
-          fi
-          echo "✅ Binary is ARM64"
-      
-      - name: Run PAL seam check
-        run: |
-          chmod +x tools/ci/check_pal_seam.py
-          python3 tools/ci/check_pal_seam.py --directory=src --check-implementation
-      
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v7.0.2
-        if: success()
-        with:
-          name: nginx-macos-arm64
-          path: /tmp/nginx-1.31.8/objs/nginx
+          name: native-${{ matrix.platform }}
+          path: |
+            ${{ runner.temp }}/nginx-1.31.8/objs/nginx
+            test-results/
           retention-days: 7
 
   # Windows Cross-Compile (from Linux)
@@ -321,31 +101,25 @@ jobs:
           chmod +x tools/ci/check_vfs_seam.py
           python3 tools/ci/check_vfs_seam.py
 
-  # Build Matrix Summary
   summary:
     timeout-minutes: 5
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     name: Build Summary
-    needs: [linux-x86_64, linux-arm64, macos-x86_64, macos-arm64, windows-x86_64, pal-seam-check]
+    needs: [native, windows-x86_64, pal-seam-check]
     if: always()
     steps:
-      - name: Generate summary
+      - name: Report every job and propagate failures
+        env:
+          JOB_RESULTS: ${{ toJSON(needs) }}
         run: |
-          echo "## Multi-Platform Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Platform | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
-          
-          for job in linux-x86_64 linux-arm64 macos-x86_64 macos-arm64 windows-x86_64 pal-seam-check; do
-            status="${{ needs.$job.result }}"
-            if [ "$status" == "success" ]; then
-              echo "| $job | ✅ Success |" >> $GITHUB_STEP_SUMMARY
-            elif [ "$status" == "failure" ]; then
-              echo "| $job | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "| $job | ⚠️ $status |" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Build artifacts available in the Actions tab." >> $GITHUB_STEP_SUMMARY
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          results = json.loads(os.environ['JOB_RESULTS'])
+          with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a') as stream:
+              stream.write('| Job | Result |\n|---|---|\n')
+              for name, job in results.items():
+                  stream.write(f"| {name} | {job['result']} |\n")
+          raise SystemExit(any(job['result'] != 'success' for job in results.values()))
+          PY
