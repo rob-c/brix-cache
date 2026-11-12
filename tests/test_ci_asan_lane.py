@@ -75,6 +75,9 @@ asan = _load_asan()
         "src/fs/vfs/vfs_io_core.c:88:12: runtime error: signed integer overflow",
         "SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior vfs_io_core.c:88:12",
         "SUMMARY: AddressSanitizer: heap-buffer-overflow (/objs/nginx+0x...)",
+        "LeakSanitizer has encountered a fatal error",
+        "==36785==WARNING: ptrace appears to be blocked (is seccomp enabled?).",
+        "==36785==Child exited with signal 48.",
     ],
 )
 def test_scanner_flags_real_findings(tmp_path, body):
@@ -103,6 +106,13 @@ def test_scanner_ignores_clean_reports(tmp_path, body):
 
 def test_scanner_empty_dir_is_clean(tmp_path):
     assert asan._reports_with_findings(str(tmp_path)) == []
+
+
+def test_incomplete_leak_scan_fails_even_after_a_successful_workload(tmp_path):
+    (tmp_path / 'asan.shutdown').write_text(
+        'WARNING: ptrace appears to be blocked (is seccomp enabled?). '
+        'LeakSanitizer may hang.\nChild exited with signal 48.\n')
+    assert asan._verdict(str(tmp_path), 0) == 1
 
 
 # --- sanitizer env: findings are logged, not fatal; leaks are suppressed -----

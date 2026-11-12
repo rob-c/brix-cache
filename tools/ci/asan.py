@@ -77,6 +77,9 @@ ERROR_SIGNATURES = (
     "SUMMARY: AddressSanitizer",
     "SUMMARY: UndefinedBehaviorSanitizer",
     "SUMMARY: LeakSanitizer",
+    "LeakSanitizer has encountered a fatal error",
+    "WARNING: ptrace appears to be blocked",
+    "Child exited with signal",
 )
 
 
