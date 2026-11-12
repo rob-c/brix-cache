@@ -32,6 +32,11 @@ runs:
           sdk_paths="$(brew --prefix "$dependency")/lib/pkgconfig:$sdk_paths"
         done
         echo "PKG_CONFIG_PATH=$sdk_paths${PKG_CONFIG_PATH:-}" >> "$GITHUB_ENV"
+        openssl_prefix=$(brew --prefix openssl@4)
+        # nginx probes OpenSSL independently of pkg-config. Bind its headers and
+        # linker search to the same keg, ahead of any preinstalled OpenSSL SDK.
+        echo "BRIX_CI_SDK_CC_OPT=-I$openssl_prefix/include" >> "$GITHUB_ENV"
+        echo "BRIX_CI_SDK_LD_OPT=-L$openssl_prefix/lib -Wl,-rpath,$openssl_prefix/lib" >> "$GITHUB_ENV"
     - name: Install native test harness dependencies
       shell: bash
       run: python3 -m pip install './brixtest[crypto]' pytest-timeout requests PyYAML psutil
@@ -46,8 +51,8 @@ runs:
         import os
         from pathlib import Path
         data = json.loads(Path('/tmp/platform.json').read_text())
-        flags = []
-        link = []
+        flags = os.environ.get('BRIX_CI_SDK_CC_OPT', '').split()
+        link = os.environ.get('BRIX_CI_SDK_LD_OPT', '').split()
         if os.environ['APPLY_FEATURES'] == 'true':
             flags.extend(data['optimization_flags']['march'])
             flags.extend(data['optimization_flags']['mtune'])
