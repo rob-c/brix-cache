@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: platform-builds-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   native:
     name: ${{ matrix.platform }}
@@ -22,8 +26,8 @@ jobs:
         include:
           - {os: ubuntu-24.04, platform: linux-x86_64}
           - {os: ubuntu-24.04-arm, platform: linux-arm64}
-          - {os: macos-15-intel, platform: macos-x86_64}
-          - {os: macos-14, platform: macos-arm64}
+          - {os: macos-26-intel, platform: macos-x86_64}
+          - {os: macos-26, platform: macos-arm64}
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: ./.github/actions/build-native

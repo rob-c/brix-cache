@@ -31,6 +31,9 @@ jobs:
           fetch-depth: 0          # guards use `git ls-files`
       - name: Install shim import dependencies
         run: python3 -m pip install pytest
+      - name: Validate GitHub workflow syntax and runner labels
+        if: '!cancelled()'
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color=false -shellcheck= -pyflakes=
       - name: config coverage — every .c built or reasoned
         run: tools/ci/check_config_coverage.py
       - name: client build coverage — every client/shared .c built or reasoned
@@ -108,7 +111,7 @@ jobs:
       - name: python complexity cap (CCN 15, tests/utils/tools)
         if: '!cancelled()'
         run: |
-          pip install --quiet 'lizard>=1.25.0,<2'
+          pip install --quiet 'lizard==1.25.0'
           tools/ci/check_py_complexity.py
       # Two halves of one contract: CCN 15 for the native trees, and five
       # metrics for every Python tree. Neither has a backlog, so neither can be
@@ -119,7 +122,7 @@ jobs:
       - name: complexity gate — native, absolute CCN 15, no exemptions
         if: '!cancelled()'
         run: |
-          pip install --quiet 'lizard>=1.25.0,<2'
+          pip install --quiet 'lizard==1.25.0'
           tools/ci/check_complexity.py
       # Copy-paste detector over src/client/shared. No backlog: like the
       # complexity gates it cannot be made green by appending to a file, only
@@ -127,12 +130,12 @@ jobs:
       - name: duplication gate — copy-paste detector, no backlog
         if: '!cancelled()'
         run: |
-          pip install --quiet 'lizard>=1.25.0,<2'
+          pip install --quiet 'lizard==1.25.0'
           tools/ci/check_duplication.py
       - name: complexity gate — Python (CCN/cognitive/NPath/Halstead/nesting)
         if: '!cancelled()'
         run: |
-          pip install --quiet 'lizard>=1.25.0,<2' 'complexipy>=8.3.0,<9' 'radon>=6.0.1,<7'
+          pip install --quiet 'lizard==1.25.0' 'complexipy>=8.3.0,<9' 'radon>=6.0.1,<7'
           tools/ci/check_python_quality.py
       - name: "directive reference — generated registry is current (phase-105 W6)"
         if: '!cancelled()'

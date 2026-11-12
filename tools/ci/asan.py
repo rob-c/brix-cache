@@ -61,6 +61,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from tools.ci.coverage import _build_environment
+
 # Hard sanitizer signatures. A report file that contains any of these is a real
 # finding; a file holding only a suppression summary (should not occur — we set
 # print_suppressions=0) or benign noise is not. Kept explicit so the verdict is
@@ -224,6 +226,8 @@ def _fleet_env(settings, provided):
     if provided:
         env["NGINX_BIN"] = provided
         env["TEST_NGINX_BIN"] = provided
+    else:
+        env = _build_environment(settings["nginx_src"], env)
     return env
 
 

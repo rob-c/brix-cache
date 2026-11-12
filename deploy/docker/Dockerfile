@@ -24,6 +24,7 @@ RUN dnf -y install 'dnf-command(config-manager)' \
     && dnf config-manager --set-enabled crb \
     && dnf -y install epel-release \
     && dnf -y swap curl-minimal curl \
+    && dnf -y swap libcurl-minimal libcurl \
     && dnf -y install gcc make perl tar gzip pkgconf-pkg-config \
         pcre2-devel zlib-devel openssl-devel krb5-devel libxml2-devel \
         libcurl-devel jansson-devel sqlite-devel libzstd-devel brotli-devel \
@@ -61,6 +62,7 @@ RUN dnf -y install 'dnf-command(config-manager)' \
     && dnf config-manager --set-enabled crb \
     && dnf -y install epel-release \
     && dnf -y swap curl-minimal curl \
+    && dnf -y swap libcurl-minimal libcurl \
     && dnf -y install pcre2 zlib openssl krb5-libs libxml2 libcurl jansson \
         sqlite-libs libzstd brotli procps-ng iproute \
     && (dnf -y install voms liburing fuse3-libs || true) \

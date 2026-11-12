@@ -17,6 +17,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: platform-matrix-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   NGINX_VERSION: '1.31.8'
 
@@ -40,8 +44,8 @@ jobs:
           platforms = [
               {'os': 'ubuntu-24.04', 'platform': 'linux-x86_64'},
               {'os': 'ubuntu-24.04-arm', 'platform': 'linux-arm64'},
-              {'os': 'macos-15-intel', 'platform': 'macos-intel'},
-              {'os': 'macos-14', 'platform': 'macos-arm64'},
+              {'os': 'macos-26-intel', 'platform': 'macos-intel'},
+              {'os': 'macos-26', 'platform': 'macos-arm64'},
           ]
           selected = os.environ['SELECTED_PLATFORM']
           matrix = {'include': [row for row in platforms

@@ -138,6 +138,40 @@ def test_error_signatures_cover_all_three_sanitizers():
     assert "runtime error:" in joined  # UBSan's per-site form
 
 
+def _fleet_settings(source):
+    return {"nginx_src": str(source), "test_root": "/tmp/brix-asan-test",
+            "log_dir": "/tmp/brix-asan-test/sanitize", "supp": "tests/lsan.supp"}
+
+
+def test_fleet_selects_the_binary_and_sdk_it_just_built(tmp_path, monkeypatch):
+    source = tmp_path / "nginx-1.31.8"
+    monkeypatch.setenv("TEST_NGINX_BIN", "/stale/objs/nginx")
+    monkeypatch.setenv("NGX_SRC", "/stale")
+    monkeypatch.setenv("TEST_NGINX_LOAD_MODULES", "/stale/module.so")
+    environment = asan._fleet_env(_fleet_settings(source), "")
+    assert environment["TEST_NGINX_BIN"] == str(source / "objs/nginx")
+    assert environment["NGINX_BIN"] == environment["TEST_NGINX_BIN"]
+    assert environment["NGX_SRC"] == str(source)
+    assert environment["TEST_NGINX_OBJS"] == str(source / "objs")
+    assert environment["TEST_NGINX_LOAD_MODULES"] == ""
+
+
+def test_fleet_preserves_an_explicit_sanitized_binary_and_its_modules(tmp_path, monkeypatch):
+    monkeypatch.setenv("TEST_NGINX_LOAD_MODULES", "/provided/module.so")
+    provided = str(tmp_path / "provided/nginx")
+    environment = asan._fleet_env(_fleet_settings(tmp_path / "sdk"), provided)
+    assert environment["TEST_NGINX_BIN"] == provided
+    assert environment["NGINX_BIN"] == provided
+    assert environment["TEST_NGINX_LOAD_MODULES"] == "/provided/module.so"
+
+
+def test_fleet_source_paths_are_passed_without_shell_interpretation(tmp_path):
+    source = tmp_path / 'SDK $(touch unexpected) with spaces'
+    environment = asan._fleet_env(_fleet_settings(source), "")
+    assert environment["TEST_NGINX_BIN"] == str(source / "objs/nginx")
+    assert not (tmp_path / "unexpected").exists()
+
+
 # --- the workflow lane is wired -----------------------------------------------
 def test_asan_workflow_present_and_invokes_runner():
     wf = (Path(__file__).resolve().parents[1] / ".github/workflows/asan.yml").read_text()

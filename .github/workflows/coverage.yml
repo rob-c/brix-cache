@@ -25,7 +25,8 @@ concurrency:
 
 jobs:
   coverage:
-    runs-on: ubuntu-latest
+    # GFAL's native interop plugins are available in this LTS catalogue.
+    runs-on: ubuntu-24.04
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v7.0.1
@@ -43,7 +44,7 @@ jobs:
             xrootd-scitokens-plugins xrootd-voms-plugins \
             krb5-kdc krb5-admin-server krb5-user haproxy nghttp2-server \
             rpm dnf createrepo-c brotli lz4 zstd gnupg fail2ban iproute2 nftables \
-            gfal2-util-scripts gfal2-plugin-file gfal2-plugin-xrootd \
+            python3-gfal2-util gfal2-plugin-file gfal2-plugin-xrootd \
             gfal2-plugin-http gfal2-plugin-gridftp globus-gass-copy-progs
           python3 -m venv .venv-coverage
           .venv-coverage/bin/pip install --only-binary=xrootd \
