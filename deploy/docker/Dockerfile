@@ -39,6 +39,7 @@ COPY config /build/brix/config
 COPY src    /build/brix/src
 COPY shared /build/brix/shared
 COPY client /build/brix/client
+COPY tools/brix_config_migrate*.py tools/logging_support.py /build/brix/tools/
 
 # Same flag set as .github/workflows/build.yml and the RPM spec's
 # %nginx_modconfigure (minus =dynamic: the container links statically).
@@ -64,7 +65,7 @@ RUN dnf -y install 'dnf-command(config-manager)' \
     && dnf -y swap curl-minimal curl \
     && dnf -y swap libcurl-minimal libcurl \
     && dnf -y install pcre2 zlib openssl krb5-libs libxml2 libcurl jansson \
-        sqlite-libs libzstd brotli procps-ng iproute \
+        sqlite-libs libzstd brotli procps-ng iproute python3 \
     && (dnf -y install voms liburing fuse3-libs || true) \
     && dnf clean all
 

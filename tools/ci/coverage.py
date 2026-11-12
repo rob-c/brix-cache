@@ -220,7 +220,8 @@ def _build_environment(nginx_src, environment):
 
 def _capture(root: str, directories: list[str], output: str, *, initial=False) -> None:
     """Capture one counter source with the same production-source filter."""
-    if not initial and not _counter_files(directories):
+    populated = _capture_directories(directories, initial)
+    if not populated:
         # A standalone-only run legitimately has no server/client-process
         # counters. Its unit capture still supplies the measured execution.
         Path(output).write_text('')
@@ -229,24 +230,62 @@ def _capture(root: str, directories: list[str], output: str, *, initial=False) -
     command = ["lcov", "--capture", "--quiet"]
     if initial:
         command.append("--initial")
-    for directory in directories:
+    for directory in populated:
         command.extend(["--directory", directory])
     run_or_abort([*command, "--rc", "geninfo_unexecuted_blocks=1", "--output-file", raw])
-    run_or_abort(["lcov", "--quiet", "--extract", raw,
-                  f"{root}/src/*", f"{root}/client/*", "--output-file", output])
+    _extract_production(root, raw, output)
     _remove_test_drivers(root, output)
     Path(raw).unlink(missing_ok=True)
 
 
+def _capture_directories(directories, initial):
+    if initial:
+        return _populated_directories(directories, '*.gcno')
+    _counter_files(directories)
+    return _populated_directories(directories, '*.gcda')
+
+
+def _populated_directories(directories, suffix):
+    return [directory for directory in directories
+            if any(Path(directory).rglob(suffix))]
+
+
+def _record_sources(tracefile):
+    return [source for source, _rows in coverage_merge._records(Path(tracefile))]
+
+
+def _matching_sources(sources, prefix):
+    return [source for source in sources if source.startswith(prefix)]
+
+
+def _extract_production(root: str, raw: str, output: str) -> None:
+    """Use only matching patterns; an external-only capture has no project hits."""
+    sources = _record_sources(raw)
+    prefixes = (f'{root}/src/', f'{root}/client/')
+    patterns = [prefix + '*' for prefix in prefixes
+                if _matching_sources(sources, prefix)]
+    if not patterns:
+        Path(output).write_text('')
+        return
+    run_or_abort(['lcov', '--quiet', '--extract', raw, *patterns,
+                  '--output-file', output])
+
+
 def _remove_test_drivers(root: str, output: str) -> None:
-    """Remove fixture code while accepting a successfully extracted empty stream."""
+    """Remove fixture records only when the exclusion actually matches input."""
     # Optional client smoke targets leave their own notes beside production
     # objects. Their driver code is test infrastructure, not the shipped client.
     # Linking prebuilt production objects may instrument only the new test main
     # in this stream. A successful extract then produces an empty file; LCOV's
     # remove command rejects that valid empty input. Corrupt profiles still fail
     # during capture above, and the fixed initial inventory keeps unhit lines.
-    if Path(output).stat().st_size:
+    prefix = str(Path(root) / 'client/tests') + '/'
+    sources = _record_sources(output)
+    drivers = _matching_sources(sources, prefix)
+    if drivers == sources:
+        Path(output).write_text('')
+        return
+    if drivers:
         run_or_abort(["lcov", "--quiet", "--remove", output,
                       f"{root}/client/tests/*", "--output-file", output])
 

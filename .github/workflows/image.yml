@@ -76,3 +76,4 @@ jobs:
           docker run --rm -e BRIX_DEMO_PKI=1 \
             -v "$PWD/deploy/compose/standalone/nginx.conf:/etc/brix/nginx.conf:ro" \
             brix-cache:pr sh -c 'brix-pki-init && nginx -t -c /etc/brix/nginx.conf'
+          docker run --rm brix-cache:pr brix-config-migrate --help
