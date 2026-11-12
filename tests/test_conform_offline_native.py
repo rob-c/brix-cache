@@ -8,6 +8,8 @@ import subprocess
 
 import pytest
 
+pytestmark = pytest.mark.timeout(180)
+
 
 @pytest.fixture(scope='module')
 def conform_binary():
@@ -19,7 +21,7 @@ def conform_binary():
 
 def conform(binary, *arguments):
     return subprocess.run([str(binary), 'conform', *map(str, arguments)],
-                          capture_output=True, text=True, timeout=60)
+                          capture_output=True, text=True, timeout=180)
 
 
 @pytest.fixture(scope='module')

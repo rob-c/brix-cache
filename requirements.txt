@@ -44,8 +44,8 @@ PyYAML>=6.0.3,<7
 # --- repository-wide Python quality contract -------------------------------
 # tests/test_python_quality.py imports these analyzers for every full run.
 # Tokenization defines the duplication gate's contract; keep CI and native
-# validation on the same reviewed analyzer series.
-lizard>=1.25.0,<1.26
+# validation on the same reviewed tokenizer (patch releases also change it).
+lizard==1.25.0
 complexipy>=8.3.0,<9
 radon>=6.0.1,<7
 

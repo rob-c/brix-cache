@@ -210,14 +210,16 @@ def build_coverage(nginx_src: Path) -> list[tuple[bool, str]]:
     """Configure+build objs/nginx and the client with gcov instrumentation.
 
     Mirrors build_sanitizer: --coverage (== -fprofile-arcs -ftest-coverage) with
-    -O0 -g so line/branch mapping is accurate. The instrumented binary drops
+    -O0 -g so line/branch mapping is accurate. Atomic updates keep concurrent
+    event/worker threads from corrupting gcov branch counts. The binary drops
     .gcno next to each object at build time and .gcda at run time; tools/ci/
     coverage.sh drives lcov over both trees afterwards.
     """
     configure = nginx_src / "configure"
     if not configure.is_file() or not os.access(configure, os.X_OK):
         return [result(False, f"nginx source not found at {nginx_src}")]
-    failure = _run_build_steps(_coverage_steps(nginx_src, "--coverage -O0 -g"))
+    flags = "--coverage -O0 -g -fprofile-update=atomic"
+    failure = _run_build_steps(_coverage_steps(nginx_src, flags))
     if failure is not None:
         return [failure]
     return [result(True, f"coverage build complete: {nginx_src / 'objs' / 'nginx'} (gcov-instrumented)")]

@@ -8,6 +8,31 @@ import pytest
 from tools.ci import coverage, coverage_privileged
 
 
+@pytest.mark.parametrize('failure,calls', [(None, 4), (0, 1), (3, 4)])
+def test_main_coverage_build_uses_atomic_counters_and_retains_failures(
+        tmp_path, monkeypatch, failure, calls):
+    from cmdscripts import operator_build
+    configure = tmp_path / 'configure'
+    configure.write_text('#!/bin/sh\nexit 0\n')
+    configure.chmod(0o755)
+    commands = []
+
+    def run(argv, **_options):
+        commands.append(argv)
+        return SimpleNamespace(returncode=int(len(commands) - 1 == failure),
+                               stderr='build diagnostic', stdout='')
+
+    monkeypatch.setattr(operator_build, 'run', run)
+    results = operator_build.build_coverage(tmp_path)
+    assert len(commands) == calls
+    assert results[0][0] == (failure is None)
+    flags = '--coverage -O0 -g -fprofile-update=atomic'
+    assert '--with-cc-opt=' + flags in commands[0]
+    if failure != 0:
+        assert 'CFLAGS=' + flags in commands[-1]
+        assert ('LDFLAGS=-Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack ' + flags) in commands[-1]
+
+
 def test_coverage_selects_the_instrumented_binary_and_sdk(tmp_path):
     """A nondefault nginx build must be the one every test executes."""
     env = coverage._build_environment(tmp_path, {'KEEP': 'value'})

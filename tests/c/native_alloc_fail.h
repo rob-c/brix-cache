@@ -27,7 +27,7 @@ native_alloc_fails(const char *name)
     return 1;
 }
 
-static void
+static inline void
 native_alloc_arm(const char *kind, unsigned skip)
 {
     char count[32];
@@ -36,7 +36,7 @@ native_alloc_arm(const char *kind, unsigned skip)
     assert(setenv("BRIX_NATIVE_FAIL_ALLOC", kind, 1) == 0);
 }
 
-static void
+static inline void
 native_alloc_disarm(void)
 {
     assert(unsetenv("BRIX_NATIVE_FAIL_ALLOC") == 0);

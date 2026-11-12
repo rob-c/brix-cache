@@ -5,7 +5,8 @@ abi <abi/4.0>,
 profile brix-coverage-unshare /usr/bin/unshare flags=(unconfined) {
   userns,
 }
-# Only the standalone test process opts into this named profile with aa-exec.
+# The standalone namespace tests and the isolated CVMFS FUSE oracle explicitly
+# opt into this named profile (aa-exec / Docker --security-opt respectively).
 profile brix-coverage-userns-tests flags=(unconfined) {
   userns,
 }

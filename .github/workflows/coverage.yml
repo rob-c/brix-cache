@@ -36,7 +36,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends build-essential lcov \
             libssl-dev zlib1g-dev libpcre2-dev \
             libcurl4-openssl-dev libsqlite3-dev libkrb5-dev \
-            libjansson-dev libxml2-dev librados-dev libseccomp-dev liburing-dev \
+            libjansson-dev libxml2-dev librados-dev libradospp-dev libradosstriper-dev libcephfs-dev \
+            libseccomp-dev liburing-dev \
             libbz2-dev liblzma-dev libzstd-dev liblz4-dev libbrotli-dev \
             libfuse3-dev fuse3 libcap-dev libacl1-dev libattr1-dev attr \
             python3-venv python3-dev pkg-config rsync git sudo uidmap bubblewrap apparmor apparmor-utils \
@@ -44,7 +45,7 @@ jobs:
             xrootd-scitokens-plugins xrootd-voms-plugins \
             krb5-kdc krb5-admin-server krb5-user haproxy nghttp2-server \
             rpm dnf createrepo-c brotli lz4 zstd gnupg fail2ban iproute2 nftables \
-            python3-gfal2-util gfal2-plugin-file gfal2-plugin-xrootd \
+            xfsprogs python3-gfal2-util gfal2-util-scripts gfal2-plugin-file gfal2-plugin-xrootd \
             gfal2-plugin-http gfal2-plugin-gridftp globus-gass-copy-progs
           python3 -m venv .venv-coverage
           .venv-coverage/bin/pip install --only-binary=xrootd \
@@ -52,6 +53,26 @@ jobs:
           .venv-coverage/bin/pip check
           sudo modprobe fuse
           echo user_allow_other | sudo tee -a /etc/fuse.conf
+      - name: Prepare disposable test hostname and filesystem
+        run: |
+          # Azure's FQDN can exceed the 64-byte certificate CN limit. Globus
+          # also needs the local host name to resolve for parallel MODE E.
+          echo '127.0.0.1 brix-ci.test brix-ci' | sudo tee -a /etc/hosts
+          sudo hostname brix-ci.test
+          python3 -c 'import socket; name = socket.getfqdn(); assert len(name) <= 64, name; socket.gethostbyname(name)'
+          # ext4's aggregate xattr limit cannot hold the full wire contract.
+          # Only format this new sparse file on the disposable runner.
+          image="$RUNNER_TEMP/brix-coverage.xfs"
+          # Keep test data outside the runner's home so switched UIDs can
+          # traverse the parents of their own fixtures.
+          filesystem=/tmp/brix-coverage-fs
+          (set -o noclobber; : > "$image")
+          truncate -s 24G "$image"
+          sudo mkfs.xfs -q -f "$image"
+          mkdir "$filesystem"
+          sudo mount -o loop,nosuid,nodev "$image" "$filesystem"
+          sudo chown "$(id -u):$(id -g)" "$filesystem"
+          echo "TEST_ROOT=$filesystem/brix-cov" >> "$GITHUB_ENV"
       - name: Permit the test user-namespace launchers
         id: coverage_userns
         run: sudo apparmor_parser --add tools/ci/coverage_userns.apparmor
@@ -64,7 +85,7 @@ jobs:
           COVERAGE_MIN: 90
           COVERAGE_PRIVILEGED: "1"
           COVERAGE_USERNS_PROFILE: brix-coverage-userns-tests
-          TEST_ROOT: /tmp/brix-cov
+          BRIX_CVMFS_APPARMOR_PROFILE: brix-coverage-userns-tests
           PYTEST_ADDOPTS: "-p no:brixtest -p no:platformdirs"
         run: |
           set -o pipefail
@@ -83,3 +104,12 @@ jobs:
             /tmp/coverage-report.txt
             coverage/coverage.info
             coverage/html
+      - name: Unmount the disposable test filesystem
+        if: always()
+        run: |
+          filesystem=/tmp/brix-coverage-fs
+          if mountpoint -q "$filesystem"; then
+            # Reports are already captured. Idle test brokers can retain log
+            # descriptors until the runner reaps them during job cleanup.
+            sudo umount --lazy "$filesystem"
+          fi

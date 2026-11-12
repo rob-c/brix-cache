@@ -78,6 +78,38 @@ def test_corrupt_profile_is_not_treated_as_absent(production_inventory, tmp_path
     assert not output.exists()
 
 
+def test_main_build_flags_keep_concurrent_counters_exact(tmp_path):
+    """Exercise the selected build flags with real concurrent gcov updates."""
+    from cmdscripts import operator_build
+    commands = operator_build._coverage_steps(tmp_path, '--coverage -O0 -g -fprofile-update=atomic')
+    option = next(arg for arg in commands[0][0] if arg.startswith('--with-cc-opt='))
+    root = tmp_path / 'repo'
+    source = root / 'src/threads.c'
+    source.parent.mkdir(parents=True)
+    source.write_text('#include <pthread.h>\n#include <assert.h>\n'
+                      'static void *work(void *argument) {\n'
+                      '    volatile unsigned count = 0;\n'
+                      '    for (int i = 0; i < 100000; ++i) {\n'
+                      '        ++count;\n'
+                      '    }\n    assert(count == 100000);\n    return argument;\n}\n'
+                      'int main(void) {\n    pthread_t threads[8];\n'
+                      '    for (int i = 0; i < 8; ++i) {\n'
+                      '        assert(!pthread_create(&threads[i], 0, work, 0));\n'
+                      '    }\n    for (int i = 0; i < 8; ++i) {\n'
+                      '        assert(!pthread_join(threads[i], 0));\n'
+                      '    }\n    return 0;\n}\n')
+    objects = root / 'objects'
+    objects.mkdir()
+    binary = objects / 'threads'
+    subprocess.run(['gcc', *shlex.split(option.split('=', 1)[1]), '-fprofile-abs-path',
+                    '-pthread', str(source), '-o', str(binary)], check=True, capture_output=True)
+    subprocess.run([str(binary)], check=True)
+    report = tmp_path / 'threaded.info'
+    coverage._capture(str(root), [str(objects)], str(report))
+    assert 'DA:6,800000' in report.read_text().splitlines()
+    assert coverage_merge.line_rate(report) == '100.0'
+
+
 @pytest.mark.parametrize('relative', ['tests/driver.c', 'client/tests/driver.c'])
 def test_fixture_only_execution_cannot_raise_production_coverage(
         production_inventory, tmp_path, relative):

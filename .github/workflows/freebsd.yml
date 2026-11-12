@@ -30,7 +30,9 @@ permissions:
 
 concurrency:
   group: freebsd-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # ARM runs under emulation and spends hours building its SDK. Let it finish;
+  # GitHub coalesces pending updates to the newest commit in this group.
+  cancel-in-progress: false
 
 jobs:
   native:
