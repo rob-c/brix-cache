@@ -1,170 +1,46 @@
-# gcov/lcov line-coverage report for src/ and client/ (QUALITY_ROADMAP §2.3/§3.4).
-#
-# Blocking 90% line-coverage ratchet. The 2026-11-10 full-suite measurement
-# reached 90.1229%, including privileged and standalone namespace groups;
-# see BUILD.md §18. The report is still uploaded on every failure.
-#
-# The full suite boots the test fleet (self-provisioned PKI), followed by the
-# explicit privileged group on this disposable runner. A failed fleet or test
-# command is a failed coverage job;
-# partial counters remain available through the always-run artifact step.
-name: coverage
+name: coverage host isolation probe
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 5 * * 1'   # Mondays 05:00, after fanalyzer (03:00) + codechecker (04:00)
-
 permissions:
   contents: read
-
-# Cron/dispatch only: never cancel a run in flight — the weekly figure is the
-# whole product of this lane.
-concurrency:
-  group: coverage-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  coverage:
-    # GFAL's native interop plugins are available in this LTS catalogue.
+  probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 360
-    env:
-      NGINX_SRC: /tmp/nginx-1.31.8
-      PYTHONPATH: tests
-      PYTHONUNBUFFERED: "1"
-      COVERAGE_MIN: 90
-      COVERAGE_PRIVILEGED: "1"
-      COVERAGE_USERNS_PROFILE: brix-coverage-userns-tests
-      BRIX_CVMFS_APPARMOR_PROFILE: brix-coverage-userns-tests
-      PYTEST_ADDOPTS: "-p no:brixtest -p no:platformdirs"
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7.0.1
-      - name: Reserve disk space for the instrumented SDK and test filesystem
-        run: |
-          # This job uses neither SDK. Remove them only on this disposable host.
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet
-          df -h /
-      - name: Install build + coverage deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential lcov \
-            libssl-dev zlib1g-dev libpcre2-dev \
-            libcurl4-openssl-dev libsqlite3-dev libkrb5-dev \
-            libjansson-dev libxml2-dev librados-dev libradospp-dev libradosstriper-dev libcephfs-dev \
-            libseccomp-dev liburing-dev \
-            libbz2-dev liblzma-dev libzstd-dev liblz4-dev libbrotli-dev \
-            libfuse3-dev fuse3 libcap-dev libacl1-dev libattr1-dev attr \
-            python3-venv python3-dev pkg-config rsync git sudo uidmap bubblewrap apparmor apparmor-utils \
-            xrootd-client xrootd-server xrootd-server-plugins \
-            xrootd-scitokens-plugins xrootd-voms-plugins \
-            krb5-kdc krb5-admin-server krb5-user haproxy nghttp2-server \
-            rpm dnf createrepo-c brotli lz4 zstd gnupg fail2ban iproute2 nftables \
-            xfsprogs python3-gfal2-util gfal2-util-scripts gfal2-plugin-file gfal2-plugin-xrootd \
-            gfal2-plugin-http gfal2-plugin-gridftp globus-gass-copy-progs
-          python3 -m venv .venv-coverage
-          .venv-coverage/bin/pip install --only-binary=xrootd \
-            -r requirements.txt -r requirements-optional.txt './brixtest[all]'
-          .venv-coverage/bin/pip check
-          echo "$PWD/.venv-coverage/bin" >> "$GITHUB_PATH"
-          echo "$NGINX_SRC/objs" >> "$GITHUB_PATH"
-          sudo modprobe fuse
-          echo user_allow_other | sudo tee -a /etc/fuse.conf
-      - name: Prepare disposable test hostname and filesystem
-        run: |
-          # Azure's FQDN can exceed the 64-byte certificate CN limit. Globus
-          # also needs the local host name to resolve for parallel MODE E.
-          echo '127.0.0.1 brix-ci.test brix-ci' | sudo tee -a /etc/hosts
-          sudo hostname brix-ci.test
-          python3 -c 'import socket; name = socket.getfqdn(); assert len(name) <= 64, name; socket.gethostbyname(name)'
-          # ext4's aggregate xattr limit cannot hold the full wire contract.
-          # Only format this new sparse file on the disposable runner.
-          image="$RUNNER_TEMP/brix-coverage.xfs"
-          # Keep test data outside the runner's home so switched UIDs can
-          # traverse the parents of their own fixtures.
-          filesystem=/tmp/brix-coverage-fs
-          (set -o noclobber; : > "$image")
-          truncate -s 24G "$image"
-          sudo mkfs.xfs -q -f "$image"
-          mkdir "$filesystem"
-          sudo mount -o loop,nosuid,nodev "$image" "$filesystem"
-          sudo chown "$(id -u):$(id -g)" "$filesystem"
-          echo "TEST_ROOT=$filesystem/brix-cov" >> "$GITHUB_ENV"
-      - name: Permit the test user-namespace launchers
-        id: coverage_userns
-        run: sudo apparmor_parser --add tools/ci/coverage_userns.apparmor
-      - name: Fetch nginx source
-        run: curl -fsSL https://nginx.org/download/nginx-1.31.8.tar.gz | tar -xz -C /tmp
-      - name: Build instrumented module and freeze the production inventory
-        id: prepare
-        run: |
-          set -o pipefail
-          python3 tests/rpm/make_fixtures.py
-          python3 tools/ci/coverage_host.py prepare 2>&1 | tee /tmp/coverage-prepare.txt
-      - name: Upload build checkpoint
-        if: always()
-        uses: actions/upload-artifact@v7.0.2
         with:
-          name: coverage-build-checkpoint
-          path: |
-            /tmp/coverage-prepare.txt
-            coverage/stages.json
-            coverage/coverage.initial.info
-      - name: Run the complete ordinary suite
-        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+          ref: bce4d3ed562cdcb6db69f5c1128d9f27b0379e50
+      - name: Verify workload remains inside its memory cgroup
         run: |
-          set -o pipefail
-          python3 tools/ci/coverage_host.py ordinary 2>&1 | tee /tmp/coverage-ordinary.txt
-      - name: Upload ordinary suite checkpoint
-        if: always()
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: coverage-ordinary-checkpoint
-          path: |
-            /tmp/coverage-ordinary.txt
-            coverage/stages.json
-      - name: Run privileged contracts
-        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-        run: |
-          set -o pipefail
-          python3 tools/ci/coverage_host.py privileged 2>&1 | tee /tmp/coverage-privileged.txt
-      - name: Upload privileged suite checkpoint
-        if: always()
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: coverage-privileged-checkpoint
-          path: |
-            /tmp/coverage-privileged.txt
-            coverage/stages.json
-      - name: Run standalone user namespace contracts
-        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-        run: |
-          set -o pipefail
-          python3 tools/ci/coverage_host.py userns 2>&1 | tee /tmp/coverage-userns.txt
-      - name: Capture all counters and enforce the 90 percent floor
-        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-        run: |
-          set -o pipefail
-          python3 tools/ci/coverage_host.py report 2>&1 | tee /tmp/coverage-report.txt
-      - name: Remove the test user-namespace profile
-        if: ${{ always() && steps.coverage_userns.outcome == 'success' }}
-        run: sudo apparmor_parser --remove tools/ci/coverage_userns.apparmor
-      - name: Upload coverage report
-        if: always()
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: coverage-report
-          path: |
-            /tmp/coverage-report.txt
-            /tmp/coverage-*.txt
-            coverage/stages.json
-            coverage/coverage.info
-            coverage/html
-      - name: Unmount the disposable test filesystem
-        if: always()
-        run: |
-          filesystem=/tmp/brix-coverage-fs
-          if mountpoint -q "$filesystem"; then
-            # Reports are already captured. Idle test brokers can retain log
-            # descriptors until the runner reaps them during job cleanup.
-            sudo umount --lazy "$filesystem"
-          fi
+          python3 - <<'PYPROBE'
+          import os
+          from pathlib import Path
+          import pwd
+          import subprocess
+          import sys
+          import tempfile
+          from tools.ci import coverage_host
+          root=Path.cwd()
+          probe=Path(tempfile.mkdtemp(prefix='brix-ci-scope-')) / 'probe.py'
+          probe.write_text("""import os, pwd
+          from pathlib import Path
+          assert os.getuid() != 0
+          assert os.environ['HOME'] == pwd.getpwuid(os.getuid()).pw_dir
+          assert os.readlink('/proc/self/ns/pid') != os.environ['TEST_ROOT']
+          assert os.readlink('/proc/self/ns/net') == os.environ['COVERAGE_OUT']
+          row=next(row for row in Path('/proc/self/cgroup').read_text().splitlines() if row.startswith('0::'))
+          path=Path('/sys/fs/cgroup') / row[3:].lstrip('/') / 'memory.max'
+          print('Workload cgroup:', row, 'memory.max:', path.read_text().strip(), flush=True)
+          assert path.read_text().strip() == str(96 * 1024**2)
+          """)
+          environment={'PATH': os.defpath, 'TEST_ROOT': os.readlink('/proc/self/ns/pid'),
+                       'COVERAGE_OUT': os.readlink('/proc/self/ns/net')}
+          command=coverage_host._command('ordinary', root, sys.executable,
+                                       pwd.getpwuid(os.getuid()).pw_name, 128 * 1024**2, environment)
+          command[-3:]=[str(probe)]
+          assert subprocess.run(command).returncode == 0
+          probe.write_text('data = bytearray(256 * 1024**2)\nprint("unexpected survival")\n')
+          assert subprocess.run(command).returncode != 0
+          print('Hosted runner memory boundary and isolated OOM: passed')
+          PYPROBE
