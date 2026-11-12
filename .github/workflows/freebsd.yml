@@ -107,8 +107,11 @@ jobs:
           run: |
             set -eu
             fetch -o /var/tmp/nginx-1.30.6.tar.gz https://nginx.org/download/nginx-1.30.6.tar.gz
-            test "$(sha256 -q /var/tmp/nginx-1.30.6.tar.gz)" = \
-              '6c20565aa2325cb82216ae804f4a4ff1875179014759a381c42ddc8e11c4906d'
+            sdk_sha256=$(sha256 -q /var/tmp/nginx-1.30.6.tar.gz)
+            echo "nginx 1.30.6 SHA256: $sdk_sha256"
+            # Independently recorded in FreeBSD ports' www/nginx/distinfo.
+            test "$sdk_sha256" = \
+              '3cf46f5ed7504d460125866b7bea99fb357f31d887e2e63b35503310e9b8b6c8'
             tar -xzf /var/tmp/nginx-1.30.6.tar.gz -C /var/tmp
             chown -R brixvalidate:brixvalidate "$GITHUB_WORKSPACE"
             su -l brixvalidate -c '/usr/local/bin/python3.12 -m venv --system-site-packages /home/brixvalidate/test-python'
