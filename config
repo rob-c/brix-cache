@@ -293,17 +293,23 @@ if [ "$BRIX_ARCH_ARM64" = "1" ]; then
     esac
 # x86_64 optimization profiles
 elif [ "$BRIX_ARCH_X86_64" = "1" ]; then
+    brix_x86_profile() {
+        CFLAGS="$CFLAGS -O3 -march=$1"
+        if brix_cc_supports -fno-plt; then
+            CFLAGS="$CFLAGS -fno-plt"
+        fi
+    }
     case "${BRIX_OPTIMIZE:-v2}" in
         v2|yes|YES|1)
-            CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt"
+            brix_x86_profile x86-64-v2
             echo " + xrootd: performance profile = v2 (-O3 -march=x86-64-v2) [default]"
             ;;
         v3)
-            CFLAGS="$CFLAGS -O3 -march=x86-64-v3 -fno-plt"
+            brix_x86_profile x86-64-v3
             echo " + xrootd: performance profile = v3 (-O3 -march=x86-64-v3)"
             ;;
         native)
-            CFLAGS="$CFLAGS -O3 -march=native -fno-plt"
+            brix_x86_profile native
             echo " + xrootd: performance profile = native (-O3 -march=native)"
             ;;
         none|off|no|NO|0)
@@ -312,7 +318,7 @@ elif [ "$BRIX_ARCH_X86_64" = "1" ]; then
         *)
             echo "WARNING: unknown BRIX_OPTIMIZE='$BRIX_OPTIMIZE'"
             echo "         (use v2|v3|native|none); defaulting to v2" >&2
-            CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt"
+            brix_x86_profile x86-64-v2
             ;;
     esac
 else
