@@ -591,8 +591,19 @@ def _xrootd_argv(launcher, binary, config, log_path, host):
         config.read_text(encoding="utf-8"), str(log_path)
     )
     if run_as:
+        _prepare_xrootd_config_identity(config, run_as)
         argv.extend(("-R", run_as))
     return argv
+
+
+def _prepare_xrootd_config_identity(config, user):
+    """Permit the explicit reference UID to read only its generated config."""
+    from brix_suite.settings import TEST_ROOT
+
+    if not config.resolve().is_relative_to(Path(TEST_ROOT).resolve()):
+        raise ValueError('reference configuration must remain inside TEST_ROOT')
+    _open_ancestors_within_test_root(config)
+    shutil.chown(config, user=user)
 
 
 def _spawn_xrootd(argv, environment):

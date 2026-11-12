@@ -217,16 +217,20 @@ def test_privileged_lane_refuses_nonroot_or_root_builds(monkeypatch, tmp_path, u
     ("127.0.0.1", "v4", None), ("::1", "v6", None),  # net-literal-allow: explicit endpoint-family vectors, never dialled
     ("127.0.0.1", "v4", "reference-user"),  # net-literal-allow: IPv4 reference-listener argument vector
 ])
-def test_reference_listener_matches_its_declared_endpoint(tmp_path, host, family, user):
-    from brix_suite.launcher.start_operations import _xrootd_argv
+def test_reference_listener_matches_its_declared_endpoint(tmp_path, monkeypatch, host, family, user):
+    from brix_suite.launcher import start_operations
 
     config = tmp_path / "reference.cfg"
     config.write_text("all.export /\n")
     launcher = SimpleNamespace(_xrootd_runas_user=lambda config, log: user)
-    command = _xrootd_argv(launcher, "/installed/xrootd", config, tmp_path / "log", host)
+    delegated = []
+    monkeypatch.setattr(start_operations, '_prepare_xrootd_config_identity',
+                        lambda *args: delegated.append(args))
+    command = start_operations._xrootd_argv(launcher, "/installed/xrootd", config, tmp_path / "log", host)
     assert command[0] == "/installed/xrootd"
     assert command[command.index("-I") + 1] == family
     assert ("-R" in command) == bool(user)
+    assert delegated == ([(config, user)] if user else [])
 
 
 @pytest.mark.parametrize("level", ["contracts", "full"])

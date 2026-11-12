@@ -348,6 +348,7 @@ def test_broker_seccomp_confined_and_map_worker_hardened(harness):
         template="nginx_impersonate_gridmap_webdav.conf",
         protocol="http", data_root=export, readiness="tcp",
         template_values={
+            **H.worker_template_values(),
             "EXPORT": export, "SOCK": sock, "GRIDMAP": gridmap,
             "JWKS": ti.jwks_path, "ISSUER": H.ISSUER, "AUDIENCE": H.AUDIENCE,
             "DEFAULT_USER_LINE": "",

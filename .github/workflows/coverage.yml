@@ -54,7 +54,7 @@ jobs:
             libseccomp-dev liburing-dev \
             libbz2-dev liblzma-dev libzstd-dev liblz4-dev libbrotli-dev \
             libfuse3-dev fuse3 libcap-dev libacl1-dev libattr1-dev attr \
-            python3-venv python3-dev pkg-config rsync git sudo uidmap bubblewrap apparmor apparmor-utils \
+            python3-venv python3-dev pkg-config rsync git sudo uidmap bubblewrap tini apparmor apparmor-utils \
             xrootd-client xrootd-server xrootd-server-plugins \
             xrootd-scitokens-plugins xrootd-voms-plugins \
             krb5-kdc krb5-admin-server krb5-user haproxy nghttp2-server \

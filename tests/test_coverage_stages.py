@@ -125,9 +125,25 @@ def test_host_wrapper_bounds_memory_and_uses_a_private_pid_namespace():
     assert not any('secret' in arg or 'TOKEN' in arg for arg in command)
 
 
+def test_host_wrapper_uses_a_reaper_before_starting_the_test_identity():
+    command = coverage_host._command('ordinary', Path('/repo'), '/python', 'runner', 1024, {})
+    first = command.index('/usr/bin/tini')
+    assert command[first:first + 3] == ['/usr/bin/tini', '--', '/usr/sbin/runuser']
+
+
 def test_host_environment_passes_literal_values_without_a_shell():
     hostile = 'value with spaces; $(touch /tmp/should-not-exist)'
     assert coverage_host._environment({'TEST_ROOT': hostile}) == ['TEST_ROOT=' + hostile]
+
+
+@pytest.mark.parametrize('code,extra,expected', [
+    (25, '', ['/repo/src/*']), (2, '', ['/repo/src/*']),
+    (-9, '', []), (0, '', []), (2, '\ngeninfo: ERROR: corrupt counter', []),
+])
+def test_unused_filter_retry_never_masks_data_errors_or_signals(code, extra, expected):
+    error = "geninfo: ERROR: 'include' pattern '/repo/src/*' is unused."
+    result = SimpleNamespace(returncode=code, stderr=error + extra)
+    assert coverage._unused_capture_patterns(result, ['/repo/src/*']) == expected
 
 
 @pytest.mark.parametrize('code', [0, 7, 137])

@@ -248,15 +248,73 @@ def _capture(root: str, directories: list[str], output: str, *, initial=False) -
         Path(output).write_text('')
         return
     raw = output + ".raw"
+    # Filter before geninfo reads source: test SDK copies may already have
+    # been deleted. Missing production source and corrupt counters still fail.
     command = ["lcov", "--capture", "--quiet"]
     if initial:
         command.append("--initial")
     for directory in populated:
         command.extend(["--directory", directory])
-    run_or_abort([*command, "--rc", "geninfo_unexecuted_blocks=1", "--output-file", raw])
+    _capture_lcov([*command, '--rc', 'geninfo_unexecuted_blocks=1'],
+                  [f'{root}/src/*', f'{root}/client/*'], raw)
     _extract_production(root, raw, output)
     _remove_test_drivers(root, output)
     Path(raw).unlink(missing_ok=True)
+
+
+def _capture_error_lines(stderr):
+    return {line for line in stderr.splitlines() if 'ERROR:' in line}
+
+
+def _unused_capture_message(pattern):
+    return f"geninfo: ERROR: 'include' pattern '{pattern}' is unused."
+
+
+def _unused_capture_patterns(result, patterns):
+    """Recognize only LCOV2's exact unmatched-filter verdict, never data errors."""
+    # Perl's die() can retain the last errno (for example ENOTTY under pytest),
+    # so classify the exact diagnostic rather than assume one positive status.
+    if result.returncode <= 0:
+        return []
+    errors = _capture_error_lines(result.stderr)
+    unused = [pattern for pattern in patterns if _unused_capture_message(pattern) in errors]
+    if errors == set(map(_unused_capture_message, unused)):
+        return unused
+    return []
+
+
+def _capture_attempt(command, patterns, output):
+    Path(output).unlink(missing_ok=True)
+    includes = [value for pattern in patterns for value in ('--include', pattern)]
+    return subprocess.run([*command, *includes, '--output-file', output],
+                          capture_output=True, text=True)
+
+
+def _capture_succeeded(result):
+    if result.returncode:
+        return False
+    if result.stderr:
+        _brix_diagnostic('WARN', 'tools/ci/coverage.py', '_capture_lcov', result.stderr)
+    return True
+
+
+def _remaining_capture_filters(result, patterns):
+    unused = _unused_capture_patterns(result, patterns)
+    if not unused:
+        _brix_diagnostic('ERROR', 'tools/ci/coverage.py', '_capture_lcov', result.stderr)
+        raise SystemExit(result.returncode)
+    return [pattern for pattern in patterns if pattern not in unused]
+
+
+def _capture_lcov(command, patterns, output):
+    """Retry with only matched source filters; an external-only stream is empty."""
+    pending = list(patterns)
+    while pending:
+        result = _capture_attempt(command, pending, output)
+        if _capture_succeeded(result):
+            return
+        pending = _remaining_capture_filters(result, pending)
+    Path(output).write_text('')
 
 
 def _capture_directories(directories, initial):

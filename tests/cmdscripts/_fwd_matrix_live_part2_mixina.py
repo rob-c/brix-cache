@@ -32,6 +32,7 @@ from cmdscripts.fwd_matrix_live import _call, _curl_code  # noqa: E402
 from lib_py.util import find_xrd_sec_lib, wait_tcp
 from settings import BIND_HOST, CA_CERT, CA_DIR, CA_KEY, HOST, SERVER_CERT, SERVER_KEY
 from ephemeral_port import free_ports
+from cmdscripts.fwd_matrix_cell_a import stock_token_path
 
 def _expression_1(backend):
     return (
@@ -350,11 +351,12 @@ http {{
                     " -gridmap:none -gmapopt:10 -crl:0\n"
                     "sec.protbind * gsi")
         if cred == "token":
+            (d / 'data' / stock_token_path()).mkdir(exist_ok=True)
             (d / "scitokens.cfg").write_text(f"""[Global]
 audience = {TOK_AUD}
 [Issuer test]
 issuer = {self.tok_issuer}
-base_path = /
+base_path = /{stock_token_path()}
 default_user = fwduser
 """)
             return (f"xrd.tls   {cert} {key}\n"

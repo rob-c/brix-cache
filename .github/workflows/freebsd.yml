@@ -60,7 +60,7 @@ jobs:
               py312-pytest-timeout py312-requests py312-cryptography py312-pyjwt \
               py312-hypothesis py312-psutil py312-xattr py312-pyyaml py312-numpy \
               py312-lizard py312-boto3 py312-requests-aws4auth py312-brotli \
-              py312-zstandard py312-crc32c xrootd py312-xrootd rust git \
+              py312-zstandard py312-crc32c xrootd py312-xrootd git \
               haproxy minio minio-client nghttp2 squid varnish7 gcc lsof go \
               rpm4 dpkg py312-fail2ban
             pw useradd -n brixvalidate -u 2100 -m -s /bin/sh -w no
@@ -86,7 +86,7 @@ jobs:
             if [ '${{ inputs.test_level || 'contracts' }}' = full ]; then
               # GFAL's native interoperability plugins use real packaged APIs;
               # the isolated bootstrap below does not replace system libraries.
-              pkg install -y glib json-c libuuid cryptopp openldap26-client \
+              pkg install -y rust glib json-c libuuid cryptopp openldap26-client \
                 nlohmann-json gsoap py312-boost-libs py312-setuptools py312-wheel
               # Exercise real EXDEV commits rather than assume Linux /dev/shm.
               install -d -m 0700 -o brixvalidate -g brixvalidate /var/tmp/brix-cross-device-stage
@@ -117,7 +117,12 @@ jobs:
             tar -xzf /var/tmp/nginx-1.30.6.tar.gz -C /var/tmp
             chown -R brixvalidate:brixvalidate "$GITHUB_WORKSPACE"
             su -l brixvalidate -c '/usr/local/bin/python3.12 -m venv --system-site-packages /home/brixvalidate/test-python'
-            su -l brixvalidate -c '/home/brixvalidate/test-python/bin/python -m pip install "radon>=6.0.1,<7" "complexipy>=8.3.0,<9" "pytest-rerunfailures>=16.7,<17" "pyOpenSSL>=26.4.0,<27"'
+            su -l brixvalidate -c '/home/brixvalidate/test-python/bin/python -m pip install "pytest-rerunfailures>=16.7,<17" "pyOpenSSL>=26.4.0,<27"'
+            if [ '${{ inputs.test_level || 'contracts' }}' = full ]; then
+              # The contracts catalogue does not run Python metrics. Building
+              # their Rust extension under ARM emulation consumed hours.
+              su -l brixvalidate -c '/home/brixvalidate/test-python/bin/python -m pip install "radon>=6.0.1,<7" "complexipy>=8.3.0,<9"'
+            fi
             su -l brixvalidate -c 'env GOBIN=/tmp/gohep-bin go install go-hep.org/x/hep/xrootd/cmd/xrd-cp@v0.40.0 go-hep.org/x/hep/xrootd/cmd/xrd-ls@v0.40.0'
             install -d -o brixvalidate -g brixvalidate "$GITHUB_WORKSPACE/build/freebsd"
             env PYTHONPATH="$GITHUB_WORKSPACE/tests" \

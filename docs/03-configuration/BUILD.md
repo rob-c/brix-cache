@@ -2168,6 +2168,7 @@ default local `tools/ci/coverage.py` command still performs all phases together.
 
 Each CI phase runs as the original test user in a separate systemd service and
 PID/proc namespace, with a memory ceiling of 75% of physical RAM and no swap.
+Tini acts as namespace PID 1 and reaps exited descendants between test cases.
 Networking remains shared for the Docker interoperability oracles. Only the
 selected test/build environment reaches the service. Build and suite checkpoint
 artifacts survive subsequent step failures; resource snapshots and systemd's
@@ -2183,6 +2184,35 @@ networking, the invoking user's identity/environment, and propagation of a
 nonzero exit. A controlled memory exhaustion kills only its bounded test
 service while the supervising process survives. This is harness validation,
 not a fresh full-suite coverage measurement.
+
+The next hosted run completed all ordinary lanes: **58,648 passed and seven
+failed**, followed by nine passing standalone namespace cases. The privileged
+fleet could not start its reference daemon, and final capture encountered a
+removed temporary nginx SDK, so this run establishes no new coverage rate.
+The follow-up repairs wait for both access-log records, tolerate absent process
+metadata while retaining exact daemon ownership checks, and delegate only a
+generated reference configuration inside `TEST_ROOT` to its explicit runtime
+account. The stock token-forwarding oracle uses a named `/fwd` namespace;
+positive byte checks and denied-user/no-leaked-bytes checks use that same path.
+Privileged grid-map fixtures retain the explicit unprivileged worker and derive
+its primary group from the host account database. Listener-release and
+privilege-refusal controls reuse the existing bounded port-collision helpers.
+LCOV filters production sources before reading temporary SDK paths; missing
+production sources and malformed counters remain fatal. Local regression
+validation passes **192 Ubuntu tests**, all **37 live query-token cases**, all
+**six FUSE daemon cases**, and all **six supported forwarding cells**. The complete privileged group passes
+**385 cases** on the documented alternate port base (`TEST_PORT_START=2000`);
+the initial local replay encountered older disposable oracle listeners on the
+default mock-port band. The complete ten-case fault-proxy group also passes
+with the real fleet.
+
+FreeBSD contract jobs install the Rust-backed Python metric engine only for
+the full suite, which actually uses it. The unchanged 36-case contract catalogue
+has a finite 180-second pytest budget for native crypto fixture compilation on
+emulated ARM64, while its crypto subprocesses retain their 30-second timeout.
+This addresses the repeated runner's six-hour cancellation after dependency
+compilation consumed most of its execution window. Earlier x86_64 and ARM64
+native contract passes remain separate evidence from this follow-up.
 
 ### Earlier diagnostic checkpoints
 

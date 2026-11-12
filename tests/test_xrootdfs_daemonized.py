@@ -122,18 +122,23 @@ def remote_file(built):
         pass
 
 
+def _daemon_matches(process, mountpoint):
+    identities = process.info.get('uids')
+    if identities is None or identities.real != os.geteuid():
+        return False
+    if mountpoint not in (process.info.get('cmdline') or ()):
+        return False
+    return os.path.realpath(process.exe()) == os.path.realpath(XROOTDFS)
+
+
 def _owned_daemon(mountpoint):
     """Require the exact binary, UID and mount argument before owning a daemon."""
     candidates = []
     for process in psutil.process_iter(['uids', 'cmdline']):
         try:
-            if process.info['uids'].real != os.geteuid():
-                continue
-            if mountpoint not in process.info['cmdline']:
-                continue
-            if os.path.realpath(process.exe()) == os.path.realpath(XROOTDFS):
+            if _daemon_matches(process, mountpoint):
                 candidates.append(process)
-        except psutil.NoSuchProcess:
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
     assert len(candidates) == 1, f'expected one owned daemon for {mountpoint}'
     return candidates[0]

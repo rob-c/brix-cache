@@ -30,7 +30,8 @@ def _command(stage, root, python, username, memory_bytes, environment):
             '--property=MemorySwapMax=0', '--property=OOMPolicy=kill',
             '--property=Nice=5', f'--working-directory={root}',
             '/usr/bin/unshare', '--mount', '--pid', '--fork', '--kill-child',
-            '--mount-proc', '/usr/sbin/runuser', '-u', username, '--',
+            '--mount-proc', '/usr/bin/tini', '--',
+            '/usr/sbin/runuser', '-u', username, '--',
             '/usr/bin/env', *_environment(environment), python,
             str(root / 'tools/ci/coverage.py'), '--stage', stage]
 

@@ -78,6 +78,45 @@ def test_corrupt_profile_is_not_treated_as_absent(production_inventory, tmp_path
     assert not output.exists()
 
 
+@pytest.mark.parametrize('remove_production', [False, True])
+def test_deleted_test_sdk_is_filtered_before_source_validation(
+        production_inventory, tmp_path, remove_production):
+    root, source, objects, _initial = production_inventory
+    external = tmp_path / 'temporary-sdk.c'
+    external.write_text('int unused_sdk_function(void) { return 9; }\n')
+    binary = objects / 'mixed'
+    subprocess.run(['gcc', '--coverage', '-O0', '-fprofile-abs-path',
+                    str(source), str(external), '-o', str(binary)],
+                   check=True, capture_output=True)
+    assert subprocess.run([str(binary), 'success']).returncode == 0
+    external.unlink()
+    if remove_production:
+        source.unlink()
+        with pytest.raises(SystemExit):
+            coverage._capture(str(root), [str(objects)], str(tmp_path / 'must-fail.info'))
+        return
+    capture = tmp_path / 'production-only.info'
+    coverage._capture(str(root), [str(objects)], str(capture))
+    assert {path for path, _rows in coverage_merge._records(capture)} == {str(source)}
+
+
+def test_external_only_counters_do_not_supply_production_hits(tmp_path):
+    root, objects = tmp_path / 'repo', tmp_path / 'counters'
+    root.mkdir()
+    objects.mkdir()
+    source = tmp_path / 'temporary-sdk.c'
+    source.write_text('int main(void) { return 0; }\n')
+    binary = objects / 'external'
+    subprocess.run(['gcc', '--coverage', '-O0', '-fprofile-abs-path',
+                    str(source), '-o', str(binary)], check=True, capture_output=True)
+    assert subprocess.run([str(binary)]).returncode == 0
+    source.unlink()
+    capture = tmp_path / 'empty.info'
+    coverage._capture(str(root), [str(objects)], str(capture))
+    assert list(coverage_merge._records(capture)) == []
+    assert coverage._coverage_verdict(0, '0', '90') == 1
+
+
 def test_main_build_flags_keep_concurrent_counters_exact(tmp_path):
     """Exercise the selected build flags with real concurrent gcov updates."""
     from cmdscripts import operator_build
