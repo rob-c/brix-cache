@@ -608,17 +608,6 @@ def _prepare_xrootd_config_identity(config, user):
 
 def _spawn_xrootd(argv, environment, log_path):
     """Retain loader/startup errors before the reference opens its own log."""
-    if os.geteuid() == 0:
-        print('REFERENCE PROBE argv:', argv, flush=True)
-        for item in (log_path, *log_path.parents):
-            print(_reference_log_identity(item), flush=True)
-        import pwd
-        identity = pwd.getpwnam(os.environ.get('REF_RUNAS_USER', 'nobody'))
-        result = subprocess.run(['/usr/bin/python3', '-c',
-            'import os,sys; print("uid",os.getuid()); fd=os.open(sys.argv[1],os.O_WRONLY|os.O_APPEND); os.close(fd)', str(log_path)],
-            user=identity.pw_uid, group=identity.pw_gid, extra_groups=(),
-            capture_output=True, text=True, timeout=10)
-        print('REFERENCE PROBE append:', result.returncode, result.stdout, result.stderr, flush=True)
     with log_path.with_suffix('.bootstrap.log').open('ab') as bootstrap:
         return subprocess.Popen(
             argv,
@@ -652,23 +641,14 @@ def _reference_log_identity(path):
 def _track_xrootd(launcher, spec, endpoint, process):
     launcher._xrootd_procs[spec.name] = process
     try:
-        from lib_py.util import wait_tcp
-        if not wait_tcp(endpoint.host, endpoint.port, timeout=8):
-            raise RuntimeError('diagnostic reference listener not ready after eight seconds')
+        launcher._wait_ready(endpoint.host, endpoint.port, spec.readiness)
     except Exception as error:
         launcher._kill_xrootd(spec.name)
         logs = Path(endpoint.prefix) / 'logs'
-        trace = Path(os.environ['COVERAGE_OUT']) / 'reference-access.strace'
-        result = subprocess.run(['timeout', '-k', '2', '12', 'strace', '-f',
-            '-e', 'trace=%file,%creds', '-o', str(trace), *process.args],
-            capture_output=True, text=True, timeout=18)
-        print('REFERENCE TRACE status:', result.returncode, result.stderr[-4096:], flush=True)
-        if trace.exists():
-            print('REFERENCE TRACE denied:', '\n'.join(
-                row for row in trace.read_text().splitlines() if 'EACCES' in row), flush=True)
         tails = [_reference_log_tail(logs / name) for name in
                  ('xrootd.bootstrap.log', 'xrootd.log')]
-        identity = [_reference_log_identity(path) for path in (logs.parent, logs, logs / 'xrootd.log')]
+        identity = [_reference_log_identity(path) for path in
+                    (logs / 'xrootd.log', logs, *logs.parents)]
         raise RuntimeError(f'{error}\nReference startup logs:\n' + '\n'.join(tails + identity)) from error
     launcher._owned.append(spec)
 
