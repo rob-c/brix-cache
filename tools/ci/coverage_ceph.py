@@ -181,7 +181,7 @@ def _wait_stopped_mds(container):
     states = ['unknown']
     while time.monotonic() < deadline:
         result = _command(['docker', 'exec', container, 'sh', '-c',
-                           'ps -C ceph-mds -o stat=; code=$?; test "$code" -le 1'])
+                           'ps -L -C ceph-mds -o stat=; code=$?; test "$code" -le 1'])
         if result.stderr:
             raise RuntimeError('could not inspect the owned MDS: ' + result.stderr[-4096:])
         states = result.stdout.split()

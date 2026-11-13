@@ -78,11 +78,12 @@ def test_mds_inspection_error_cannot_authorize_reverse_migration(monkeypatch):
         coverage_ceph._wait_stopped_mds('owned-reference')
 
 
-def test_executing_mds_cannot_authorize_reverse_migration(monkeypatch):
+@pytest.mark.parametrize('states', ['Sl\n', 'Zl\nSl\n'])
+def test_executing_mds_cannot_authorize_reverse_migration(monkeypatch, states):
     times = iter([0, 0, 31])
     monkeypatch.setattr(coverage_ceph, 'time',
                         SimpleNamespace(monotonic=lambda: next(times), sleep=lambda _seconds: None))
     monkeypatch.setattr(coverage_ceph, '_command',
-                        lambda _arguments: SimpleNamespace(stdout='Sl\n', stderr=''))
-    with pytest.raises(RuntimeError, match='still has executing processes: Sl'):
+                        lambda _arguments: SimpleNamespace(stdout=states, stderr=''))
+    with pytest.raises(RuntimeError, match='still has executing processes'):
         coverage_ceph._wait_stopped_mds('owned-reference')
