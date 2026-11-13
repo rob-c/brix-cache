@@ -47,6 +47,9 @@ jobs:
       - name: Build and execute on FreeBSD 15.1
         uses: vmactions/freebsd-vm@c46abacb49f09938ca4e1702d15d836285d694cc
         with:
+          # rsync under ARM emulation failed both initial sync and copyback.
+          # Keep both transfers and native artifacts, using the supported tar path.
+          sync: tar
           release: '15.1'
           arch: ${{ matrix.arch }}
           mem: 8192
