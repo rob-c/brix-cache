@@ -2251,6 +2251,24 @@ reference container and private fixture keyrings; a failed setup, contract or
 missing phase remains fatal. The frozen production inventory and 90% floor
 are unchanged. Fresh end-to-end hosted validation is pending.
 
+The complete ordinary command now also runs `make -C ../client -j4 test`:
+the pytest client conformance lane does not execute that separate native unit
+target. All 27 self-contained client unit programs pass locally. The native
+MinIO oracle is built from the pinned official release source
+`v0.0.0-20251015172955-9e49d5e7a648`; the existing S3/STS/binding contracts pass
+all 57 cases on GitHub without relying on the unavailable image tags.
+
+Cache watermark fixtures reserve 3 GiB inside the disposable 24 GiB XFS image
+so eviction contracts meet their existing 10–96% usage precondition. The root
+selection also includes hardening, gateway and cache variants. Their fixtures
+reuse the existing account provisioner and the worker's real primary group;
+all 22 additional cases pass against the local seccomp-enabled SDK. CephFS
+bootstrap uses explicit administrator POSIX credentials only to assign fixture
+roots to the actual test user. Reverse migration waits for no executing MDS
+tasks, allowing an unreaped zombie while still rejecting live tasks or failed
+process inspection. Fresh complete hosted validation must still pass every
+phase and the unchanged 90% floor.
+
 ### Earlier diagnostic checkpoints
 
 Build eleven passes **1,517 focused native cases**, with three skips. The seven

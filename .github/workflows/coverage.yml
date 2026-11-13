@@ -41,6 +41,7 @@ jobs:
       COVERAGE_CEPH_IMAGE: quay.io/ceph/demo@sha256:2c5efcb089f5e50f9cd3213b995a6ad7428122b80ac140c41f2d4a780a3b7fc6
       COVERAGE_USERNS_PROFILE: brix-coverage-userns-tests
       BRIX_CVMFS_APPARMOR_PROFILE: brix-coverage-userns-tests
+      BRIX_MINIO_BIN: /tmp/brix-minio-bin/minio
       PYTEST_ADDOPTS: "-p no:brixtest -p no:platformdirs"
     steps:
       - uses: actions/checkout@v7.0.1
@@ -74,6 +75,13 @@ jobs:
           echo "$NGINX_SRC/objs" >> "$GITHUB_PATH"
           sudo modprobe fuse
           echo user_allow_other | sudo tee -a /etc/fuse.conf
+      - name: Build the independent S3 oracle from its pinned upstream release
+        timeout-minutes: 20
+        run: |
+          go version
+          CGO_ENABLED=0 GOBIN=/tmp/brix-minio-bin go install -p 4 \
+            github.com/minio/minio@v0.0.0-20251015172955-9e49d5e7a648
+          "$BRIX_MINIO_BIN" --version
       - name: Prepare disposable test hostname and filesystem
         run: |
           # Azure's FQDN can exceed the 64-byte certificate CN limit. Globus
@@ -93,6 +101,9 @@ jobs:
           mkdir "$filesystem"
           sudo mount -o loop,nosuid,nodev "$image" "$filesystem"
           sudo chown "$(id -u):$(id -g)" "$filesystem"
+          # Watermark eviction contracts require actual usage above 10%.
+          # Reserve space only in this newly created disposable filesystem.
+          fallocate -l 3G "$filesystem/.watermark-fixture-space"
           echo "TEST_ROOT=$filesystem/brix-cov" >> "$GITHUB_ENV"
       - name: Permit the test user-namespace launchers
         id: coverage_userns

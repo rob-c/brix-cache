@@ -86,15 +86,16 @@ def _settings():
 
 
 def _default_test_command() -> str:
-    """Include native C harness jobs while keeping build-mutating jobs separate."""
+    """Include server harness jobs and the separate native client unit target."""
     separate = (
         "tests/test_ci_guards.py::test_ci_analyzer_runner_green",
         "tests/test_ci_guards.py::test_ci_coverage_runner_green",
         "tests/test_ci_asan_lane.py::test_ci_asan_runner_green",
     )
-    return shlex.join(["python3", "-m", "cmdscripts.operator_runtime", "suite",
+    suite = shlex.join(["python3", "-m", "cmdscripts.operator_runtime", "suite",
                        "--include-suite-jobs", "--",
                        *(f"--deselect={node}" for node in separate)])
+    return suite + ' && ' + shlex.join(['make', '-C', '../client', '-j4', 'test'])
 
 
 def _skip_reason(nginx_src: str) -> str:
