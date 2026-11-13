@@ -126,6 +126,36 @@ jobs:
           coverage/stages.json
 
           '
+    - name: Capture privileged-only counters for gap diagnosis
+      run: 'python3 - <<''PYDIAG''
+
+        import json
+
+        from pathlib import Path
+
+        from tools.ci import coverage, coverage_merge
+
+        root=str(Path.cwd())
+
+        report=Path(''coverage'')
+
+        state=json.loads((report/''stages.json'').read_text())
+
+        units=report/state[''units'']
+
+        requests=report/''coverage.privileged-requests.info''
+
+        standalone=report/''coverage.privileged-units.info''
+
+        coverage._capture(root, [''/tmp/nginx-1.31.8/objs'', root+''/client'', root+''/shared''], str(requests))
+
+        coverage._capture(root, [str(units)], str(standalone))
+
+        coverage_merge.merge_execution(report/''coverage.initial.info'', [requests, standalone], report/''coverage.info'')
+
+        print(''Diagnostic privileged-only counters captured; this is NOT a complete coverage measurement.'')
+
+        PYDIAG'
     - name: Remove the test user-namespace profile
       if: ${{ always() && steps.coverage_userns.outcome == 'success' }}
       run: sudo apparmor_parser --remove tools/ci/coverage_userns.apparmor
