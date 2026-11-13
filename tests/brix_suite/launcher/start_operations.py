@@ -658,6 +658,14 @@ def _track_xrootd(launcher, spec, endpoint, process):
     except Exception as error:
         launcher._kill_xrootd(spec.name)
         logs = Path(endpoint.prefix) / 'logs'
+        trace = Path(os.environ['COVERAGE_OUT']) / 'reference-access.strace'
+        result = subprocess.run(['timeout', '-k', '2', '12', 'strace', '-f',
+            '-e', 'trace=%file,%creds', '-o', str(trace), *process.args],
+            capture_output=True, text=True, timeout=18)
+        print('REFERENCE TRACE status:', result.returncode, result.stderr[-4096:], flush=True)
+        if trace.exists():
+            print('REFERENCE TRACE denied:', '\n'.join(
+                row for row in trace.read_text().splitlines() if 'EACCES' in row), flush=True)
         tails = [_reference_log_tail(logs / name) for name in
                  ('xrootd.bootstrap.log', 'xrootd.log')]
         identity = [_reference_log_identity(path) for path in (logs.parent, logs, logs / 'xrootd.log')]

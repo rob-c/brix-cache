@@ -1,4 +1,4 @@
-name: coverage reference ancestry diagnosis
+name: coverage reference syscall diagnosis
 permissions:
   contents: read
 jobs:
@@ -32,12 +32,12 @@ jobs:
 
         '
     - name: Install build + coverage deps
-      run: "sudo apt-get update\nsudo apt-get install -y --no-install-recommends build-essential lcov \\\n  libssl-dev\
-        \ zlib1g-dev libpcre2-dev \\\n  libcurl4-openssl-dev libsqlite3-dev libkrb5-dev \\\n  libjansson-dev libxml2-dev\
-        \ librados-dev libradospp-dev libradosstriper-dev libcephfs-dev \\\n  libseccomp-dev liburing-dev \\\n \
-        \ libbz2-dev liblzma-dev libzstd-dev liblz4-dev libbrotli-dev \\\n  libfuse3-dev fuse3 libcap-dev libacl1-dev\
-        \ libattr1-dev attr \\\n  python3-venv python3-dev pkg-config rsync git sudo uidmap bubblewrap tini apparmor\
-        \ apparmor-utils \\\n  xrootd-client xrootd-server xrootd-server-plugins \\\n  xrootd-scitokens-plugins\
+      run: "sudo apt-get update\nsudo apt-get install -y --no-install-recommends build-essential lcov strace \\\n\
+        \  libssl-dev zlib1g-dev libpcre2-dev \\\n  libcurl4-openssl-dev libsqlite3-dev libkrb5-dev \\\n  libjansson-dev\
+        \ libxml2-dev librados-dev libradospp-dev libradosstriper-dev libcephfs-dev \\\n  libseccomp-dev liburing-dev\
+        \ \\\n  libbz2-dev liblzma-dev libzstd-dev liblz4-dev libbrotli-dev \\\n  libfuse3-dev fuse3 libcap-dev\
+        \ libacl1-dev libattr1-dev attr \\\n  python3-venv python3-dev pkg-config rsync git sudo uidmap bubblewrap\
+        \ tini apparmor apparmor-utils \\\n  xrootd-client xrootd-server xrootd-server-plugins \\\n  xrootd-scitokens-plugins\
         \ xrootd-voms-plugins \\\n  krb5-kdc krb5-admin-server krb5-user haproxy nghttp2-server \\\n  rpm dnf createrepo-c\
         \ brotli lz4 zstd gnupg fail2ban iproute2 nftables \\\n  xfsprogs python3-gfal2-util gfal2-util-scripts\
         \ gfal2-plugin-file gfal2-plugin-xrootd \\\n  gfal2-plugin-http gfal2-plugin-gridftp globus-gass-copy-progs\n\
