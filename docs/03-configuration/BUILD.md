@@ -2214,6 +2214,24 @@ This addresses the repeated runner's six-hour cancellation after dependency
 compilation consumed most of its execution window. Earlier x86_64 and ARM64
 native contract passes remain separate evidence from this follow-up.
 
+Fresh hosted FreeBSD validation now passes both architecture builds and serving
+smokes, with **35 contracts passed and one platform skip per architecture**.
+The next complete coverage attempt finishes strict capture at **88.3302%**,
+with **58,692 ordinary passes and four failures**; its root fleet still stops
+before tests, so the 90% requirement remains unmet. A pressure diagnostic
+reproduces those four routing failures: 512 unrelated shared-server connections
+fill the documented best-effort offload table, leaving byte-exact primary
+fallback available. Binding contracts now own a fresh single-worker subject on
+the existing serialized binding-family reservation. All **26 cases pass with
+the shared table saturated**, and all **29 binding/migration cases pass with
+four workers**. The constrained send buffer also exercises queued replies.
+
+Reference launchers retain pre-log startup diagnostics in a companion bootstrap
+file and surface bounded tails if readiness fails. The focused hosted bootstrap
+run passes **all 385 privileged cases**, after a real native serving smoke.
+This establishes that focused path; the next complete ordinary/privileged/
+namespace measurement must still pass every phase and the unchanged 90% floor.
+
 ### Earlier diagnostic checkpoints
 
 Build eleven passes **1,517 focused native cases**, with three skips. The seven

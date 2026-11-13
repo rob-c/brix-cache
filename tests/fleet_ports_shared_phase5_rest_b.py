@@ -481,6 +481,8 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
     # xdist_group("lc-bind-migration")): a dedicated 2-worker reuseport
     # instance — the shared fleet is 1-worker and cannot scatter binds.
     # Migrated from an inline self-managed config (registry-lint offender).
+    # test_session_bind.py shares this serial group and owns a fresh
+    # single-worker subject for deterministic response-offload capacity.
     #   METRICS_PORT  brix_io_offload_total witness
     "lc-bind-migration": {"port": 30953,
                           "extra": {"METRICS_PORT": 30954}},

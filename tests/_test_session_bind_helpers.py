@@ -288,11 +288,33 @@ def _recv_pgread_response(sock):
 
 @pytest.fixture(scope="module")
 def bind_nginx(test_env):
-    """Use the shared anonymous nginx endpoint for bind tests."""
+    """Own offload capacity and a bounded send buffer for routing assertions.
+
+    Unrelated shared-fleet sessions can fill the best-effort offload table,
+    which legally routes replies over the primary. This subject keeps the
+    eligible-secondary and queued-reply contracts deterministic. External
+    server runs retain their configured endpoint.
+    """
+    from settings import REMOTE_SERVER
+    from server_launcher import LifecycleHarness
+    from server_registry import NginxInstanceSpec
+
     global ANON_HOST, ANON_PORT
     ANON_HOST = test_env["server_host"]
-    ANON_PORT = test_env["anon_port"]
-    yield ANON_PORT
+    if REMOTE_SERVER:
+        ANON_PORT = test_env["anon_port"]
+        yield ANON_PORT
+        return
+    harness = LifecycleHarness()
+    try:
+        endpoint = harness.start(NginxInstanceSpec(
+            name="lc-bind-migration", template="nginx_session_bind.conf",
+            data_root=DATA_ROOT, protocol="root", readiness="root",
+            reason="Owned single-worker session binding and response offload"))
+        ANON_PORT = endpoint.port
+        yield ANON_PORT
+    finally:
+        harness.close()
 
 
 # ---------------------------------------------------------------------------

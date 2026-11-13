@@ -1,6 +1,7 @@
 """Slow logging and incomplete process metadata cannot weaken fixture ownership."""
 
 import os
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -121,6 +122,43 @@ def test_reference_identity_failure_aborts_startup(tmp_path, monkeypatch):
     monkeypatch.setattr(start_operations.shutil, 'chown', refused)
     with pytest.raises(PermissionError, match='cannot delegate'):
         start_operations._prepare_xrootd_config_identity(config, 'nobody')
+
+
+def test_reference_loader_error_is_retained_with_its_real_exit_status(tmp_path):
+    log = tmp_path / 'xrootd.log'
+    command = [sys.executable, '-c',
+               'import sys; sys.stderr.write("loader diagnostic\\n"); sys.exit(7)']
+    process = start_operations._spawn_xrootd(command, dict(os.environ), log)
+    assert process.wait(timeout=5) == 7
+    assert log.with_suffix('.bootstrap.log').read_text() == 'loader diagnostic\n'
+
+
+def test_reference_diagnostic_tail_is_bounded_and_handles_absence(tmp_path):
+    log = tmp_path / 'xrootd.log'
+    assert 'xrootd.log:' in start_operations._reference_log_tail(log)
+    log.write_bytes(b'x' * 8192 + b'last diagnostic')
+    tail = start_operations._reference_log_tail(log)
+    assert len(tail) == 4096 and tail.endswith('last diagnostic')
+
+
+@pytest.mark.parametrize('diagnostic', ['startup failed', 'READY'])
+def test_reference_start_failure_cannot_be_hidden_by_log_text(tmp_path, diagnostic):
+    logs = tmp_path / 'logs'
+    logs.mkdir()
+    (logs / 'xrootd.bootstrap.log').write_text(diagnostic)
+    killed = []
+
+    def never_ready(*_args):
+        raise RuntimeError('listener was not ready')
+
+    launcher = SimpleNamespace(_xrootd_procs={}, _owned=[], _wait_ready=never_ready,
+                               _kill_xrootd=lambda name: killed.append(name))
+    spec = SimpleNamespace(name='owned-reference', readiness='tcp')
+    endpoint = SimpleNamespace(host='127.0.0.1', port=12345, prefix=tmp_path)
+    with pytest.raises(RuntimeError, match='listener was not ready') as failure:
+        start_operations._track_xrootd(launcher, spec, endpoint, object())
+    assert diagnostic in str(failure.value)
+    assert killed == ['owned-reference'] and launcher._owned == []
 
 
 @pytest.mark.parametrize('credential,expected', [('token', 'fwd/object.bin'), ('gsi', 'object.bin')])

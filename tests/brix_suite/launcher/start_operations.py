@@ -606,23 +606,39 @@ def _prepare_xrootd_config_identity(config, user):
     shutil.chown(config, user=user)
 
 
-def _spawn_xrootd(argv, environment):
-    return subprocess.Popen(
-        argv,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-        env=environment,
-    )
+def _spawn_xrootd(argv, environment, log_path):
+    """Retain loader/startup errors before the reference opens its own log."""
+    with log_path.with_suffix('.bootstrap.log').open('ab') as bootstrap:
+        return subprocess.Popen(
+            argv,
+            stdout=subprocess.DEVNULL,
+            stderr=bootstrap,
+            start_new_session=True,
+            env=environment,
+        )
+
+
+def _reference_log_tail(path):
+    """Read at most four KiB of an owned reference log after failed startup."""
+    try:
+        with path.open('rb') as stream:
+            stream.seek(0, os.SEEK_END)
+            stream.seek(max(0, stream.tell() - 4096))
+            return stream.read(4096).decode('utf-8', 'replace')
+    except OSError as error:
+        return f'{path.name}: {error}'
 
 
 def _track_xrootd(launcher, spec, endpoint, process):
     launcher._xrootd_procs[spec.name] = process
     try:
         launcher._wait_ready(endpoint.host, endpoint.port, spec.readiness)
-    except Exception:
+    except Exception as error:
         launcher._kill_xrootd(spec.name)
-        raise
+        logs = Path(endpoint.prefix) / 'logs'
+        tails = [_reference_log_tail(logs / name) for name in
+                 ('xrootd.bootstrap.log', 'xrootd.log')]
+        raise RuntimeError(f'{error}\nReference startup logs:\n' + '\n'.join(tails)) from error
     launcher._owned.append(spec)
 
 
@@ -636,7 +652,7 @@ def start_xrootd(launcher, spec, namespace):
     _render_xrootd_config(spec, config, values, namespace)
     log_path = paths["logs"] / "xrootd.log"
     argv = _xrootd_argv(launcher, binary, config, log_path, endpoint.host)
-    process = _spawn_xrootd(argv, _process_environment(spec.env))
+    process = _spawn_xrootd(argv, _process_environment(spec.env), log_path)
     _track_xrootd(launcher, spec, endpoint, process)
 
 
@@ -677,5 +693,5 @@ def start_xrdhttp(launcher, spec, namespace):
     _render_xrootd_config(spec, config, values, namespace)
     log_path = paths["logs"] / "xrdhttp.log"
     argv = _xrootd_argv(launcher, binary, config, log_path, endpoint.host)
-    process = _spawn_xrootd(argv, _process_environment(spec.env))
+    process = _spawn_xrootd(argv, _process_environment(spec.env), log_path)
     _track_xrootd(launcher, spec, endpoint, process)
