@@ -36,11 +36,12 @@ typedef struct {
     ngx_pool_t  *pool;
 } acc_tok_t;
 
-enum { ACC_TOK_EOF = -1, ACC_TOK_EOR = 0, ACC_TOK_WORD = 1 };
+enum { ACC_TOK_ERROR = -2, ACC_TOK_EOF = -1, ACC_TOK_EOR = 0, ACC_TOK_WORD = 1 };
 
 /*
  * acc_tok_next — return the next word (ACC_TOK_WORD, *word set), an end-of-record
- * marker (ACC_TOK_EOR, at a non-continued newline), or ACC_TOK_EOF.  Whitespace
+ * marker (ACC_TOK_EOR, at a non-continued newline), ACC_TOK_EOF, or
+ * ACC_TOK_ERROR on allocation failure. Whitespace
  * separates words; `\` immediately before a newline continues the record; `#`
  * starts a comment to end of line.
  */

@@ -51,6 +51,7 @@ from brix_suite.mesh.cms_mesh_lib import (
 )
 from brix_suite.settings import BIND_HOST
 from brix_suite.mesh.mesh_config import render
+from brix_suite.orphans import find_orphans, kill_orphans
 from lib_py.reference_host import reference_listener_args
 
 # --------------------------------------------------------------------------- #
@@ -347,12 +348,21 @@ def _kill_pidfile_group(pidfile):
 
 
 def stop_all():
-    """Tear down every hybrid-mesh daemon (nginx groups, xrootd/cmsd by cfg,
-    then a port sweep), then wait for the front doors to clear."""
+    """Reap workers while their live parents still prove mesh ownership."""
+    # A different TEST_ROOT may use the same ladder; ports are not ownership.
+    if not find_orphans(MESH_DIR):
+        return
+    # Killing the master first loses the worker's sole ownership proof when
+    # nginx has cleared TEST_ROOT from its environment. The common reaper
+    # snapshots all owned children before sending any signal.
+    survivors = kill_orphans(MESH_DIR)
+    if survivors:
+        raise RuntimeError(f"hybrid mesh processes survived cleanup: {survivors}")
     for pidfile in glob.glob(os.path.join(MESH_DIR, "*", "run", "*.pid")):
-        _kill_pidfile_group(pidfile)
-    subprocess.run(["pkill", "-9", "-f", f"{MESH_DIR}/[^ ]*/cfg/"], check=False)
-    _kill_bound_processes(_socket_table())
+        try:
+            os.remove(pidfile)
+        except FileNotFoundError:
+            pass
     _wait_ports_closed()
 
 
@@ -366,9 +376,11 @@ def _socket_table():
 
 
 def _kill_bound_processes(table):
+    """Limit the listener sweep to processes owned by this mesh's directory."""
+    owned = {str(pid) for pid, _command in find_orphans(MESH_DIR)}
     for line in table.splitlines():
         pid = _bound_pid(line)
-        if pid is not None:
+        if pid in owned:
             subprocess.run(["kill", "-9", pid], check=False)
 
 

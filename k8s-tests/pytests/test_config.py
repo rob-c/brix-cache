@@ -54,8 +54,9 @@ def test_mega_config_folds_extras_into_one_server():
     text = mega_config.build()
     assert len(re.findall(r"(?m)^stream \{", text)) == 1
     assert len(re.findall(r"(?m)^http \{", text)) == 1
-    for port in (11094, 11095, 11097, 8443, 9100, 11102, 11104, 12988, 22017):
+    for port in (11094, 11095, 11097, 8443, 8445, 9100, 11102, 11104, 12980, 12988, 22017):
         assert f"listen {port}" in text
+    assert not re.search(r"\{[A-Z_]+\}", text)
 
 
 def test_committed_mega_config_matches_generator():

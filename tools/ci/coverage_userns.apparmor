@@ -1,0 +1,12 @@
+# Disposable Ubuntu coverage runner only. Permit the installroot tests' exact
+# user-namespace launcher without changing global namespace restrictions.
+# Load before the suite and remove afterward (see coverage.yml).
+abi <abi/4.0>,
+profile brix-coverage-unshare /usr/bin/unshare flags=(unconfined) {
+  userns,
+}
+# The standalone namespace tests and the isolated CVMFS FUSE oracle explicitly
+# opt into this named profile (aa-exec / Docker --security-opt respectively).
+profile brix-coverage-userns-tests flags=(unconfined) {
+  userns,
+}

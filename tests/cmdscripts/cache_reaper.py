@@ -10,7 +10,7 @@ import time
 from cmdscripts import run
 from cmdscripts.command_results import print_results
 from cmdscripts.c_regression_units import _gcov_flags, _sanitizer_flags
-from cmdscripts.compile_run import pal_xattr_addons
+from cmdscripts.compile_run import pal_storage_link_args, pal_xattr_addons
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, NGINX_BIN
 
@@ -106,6 +106,7 @@ int main(int argc, char **argv) {
     if missing:
         return False, "missing link object(s): " + ", ".join(missing), binary
     result = run(["cc", "-O", str(source), *map(str, objects),
+                  *pal_storage_link_args(),
                   *_gcov_flags(objects), *_sanitizer_flags(objects),
                   "-o", str(binary)])
     if result.returncode != 0:

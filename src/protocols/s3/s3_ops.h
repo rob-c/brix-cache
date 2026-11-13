@@ -70,6 +70,11 @@ void s3_etag(const struct stat *st, char *buf, size_t bufsz);
 void s3_build_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
     ngx_http_s3_loc_conf_t *cf, brix_vfs_ctx_t *vctx);
 
+/* Ensure the confined object's parent exists without mutating an existing
+ * directory. Shared by PUT and POST; NGX_ERROR preserves the VFS errno. */
+ngx_int_t s3_ensure_parent_dirs(ngx_http_request_t *r,
+    ngx_http_s3_loc_conf_t *cf, const char *fs_path);
+
 /* Phase-70 §5.1/§5.4: bind the request's captured forwardable credential
  * (raw bearer JWT and/or user-supplied full x509 proxy PEM, both lifted onto the
  * S3 req ctx at the auth gate) onto an already-cred-bound VFS ctx, using the

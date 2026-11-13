@@ -1,4 +1,5 @@
 usr/share/brix/tests
+usr/share/brix/brixtest
 usr/share/brix/conftest.py
 usr/share/brix/pytest.ini
 usr/share/brix/requirements.txt

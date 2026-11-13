@@ -238,11 +238,12 @@ pblock_staged_precond(const brix_sd_precond_t *pre,
 }
 
 /*
- * WHAT: Validate and, when necessary, remove a staged commit destination.
+ * WHAT: Validate and detach a staged commit destination's metadata.
  * WHY:  Lease, quota, precondition, and history rules form one namespace gate.
  * HOW:  Lookup once, admit the delta, evaluate the typed publish precondition
- *       (phase-107 C6) against the looked-up row, preserve history, then drop
- *       an overwrite.  The caller runs this inside BEGIN IMMEDIATE, so the
+ *       (phase-107 C6) against the looked-up row, preserve history, then detach
+ *       an overwrite while retaining its blocks until commit. The caller runs
+ *       this inside BEGIN IMMEDIATE, so the
  *       compare and the publish commit or roll back together — pblock's
  *       preconditions are ATOMIC at the catalog.
  */
@@ -267,7 +268,7 @@ pblock_staged_prepare_destination(pblock_state_t *pst, pblock_staged_t *ps,
         return 0;
     if (pst->versions > 0)
         (void) pblock_hist_version_push(pst, ps->final_path, previous);
-    return sd_pblock_drop_dst(pst, ps->final_path, previous) == NGX_OK ? 0 : -1;
+    return sd_pblock_detach_dst(pst, ps->final_path, previous) == NGX_OK ? 0 : -1;
 }
 
 /*
@@ -347,6 +348,29 @@ pblock_staged_record_commit(pblock_state_t *pst, pblock_staged_t *ps,
     }
 }
 
+/*
+ * WHAT: Materialize block zero before publishing an empty staged object.
+ * WHY:  Read opens require a real block-zero fd even when the logical size is
+ *       zero; a bodyless upload never enters the block writer.
+ * HOW:  Resolve the private blob path and create its empty block, propagating
+ *       failures before any destination catalog entry is replaced.
+ */
+static int
+pblock_staged_empty_block(pblock_staged_t *ps)
+{
+    char path[PATH_MAX];
+    int  fd;
+
+    if (ps->size != 0)
+        return 0;
+    if (pblock_block_path(ps->st, ps->blob_id, 0, path, sizeof(path)) != 0)
+        return -1;
+    fd = open(path, O_RDWR | O_CREAT, 0600);
+    if (fd < 0)
+        return -1;
+    return close(fd);
+}
+
 /* sd_pblock_staged_commit — publish the staged blocks atomically by inserting
  * the final catalog row pointing at the staged blob id (the blocks simply become
  * the final object — no copy or rename). On success the handle is consumed; on
@@ -359,6 +383,9 @@ sd_pblock_staged_commit(brix_sd_staged_t *st, brix_sd_precond_t *pre)
     pblock_meta      meta, dmeta;
     int              existed;
     int              err;
+
+    if (pblock_staged_empty_block(ps) != 0)
+        return NGX_ERROR;
 
     /* C6: one BEGIN IMMEDIATE spans the destination gate (lookup, lease,
      * quota, PRECONDITION, history, overwrite drop) and the publishing
@@ -401,6 +428,9 @@ sd_pblock_staged_commit(brix_sd_staged_t *st, brix_sd_precond_t *pre)
         (void) cat_exec(pst->cat, "ROLLBACK;");
         errno = EIO;
         return NGX_ERROR;
+    }
+    if (existed && !dmeta.is_dir) {
+        pblock_refs_release(pst, dmeta.blob_id, dmeta.size, dmeta.block_size);
     }
     if (pre != NULL && pre->kind != BRIX_SD_PRECOND_NONE) {
         pre->atomic = 1;            /* decided inside the transaction */
@@ -452,17 +482,8 @@ sd_pblock_staged_path(const brix_sd_staged_t *st)
         ps->part_path[0] = '\0';
         return NULL;
     }
-    if (ps->size == 0) {
-        /* A zero-byte stage has no block file yet (blocks materialise on the
-         * first write); the verify contract expects an openable path — give it
-         * the empty block 0, exactly what the posix .part is at this point. */
-        int fd = open(ps->part_path, O_RDWR | O_CREAT, 0600);
-
-        if (fd < 0) {
-            return NULL;
-        }
-        close(fd);
-    }
+    if (pblock_staged_empty_block(ps) != 0)
+        return NULL;
     return ps->part_path;
 }
 

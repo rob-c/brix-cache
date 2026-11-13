@@ -66,7 +66,7 @@ def test_a_missing_keg_leaves_pkg_config_path_alone(tmp_path):
 def test_openssl_keg_is_exposed_to_child_compilers_once(tmp_path):
     """Darwin's SDK has no OpenSSL headers; direct C harness builds inherit the
     Homebrew include/library paths without losing operator-provided entries."""
-    prefix = tmp_path / "openssl@3"
+    prefix = tmp_path / "openssl@4"
     (prefix / "include").mkdir(parents=True)
     (prefix / "lib" / "pkgconfig").mkdir(parents=True)
     with mock.patch.object(host_env.sys, "platform", "darwin"), \

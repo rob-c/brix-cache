@@ -12,7 +12,7 @@ PYTHON_TREES = ("src", "tests", "examples", "compat_tests", "tools")
 # packages deliberately never appear here.
 ALLOWED_EXTERNAL = {
     "botocore", "cryptography", "duckdb", "packaging", "pluggy", "pyarrow", "pytest",
-    "quality_paths", "xdist",
+    "quality_paths", "native_test_support", "xattr", "xdist",
 }
 FORBIDDEN_ADAPTER = "brix_" + "suite"
 

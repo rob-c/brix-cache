@@ -11,7 +11,9 @@ import sys
 
 import pytest
 
-from cmdscripts.compile_run import compile_binary, library_compile_args, platform_host_name
+from cmdscripts.compile_run import (
+    client_pal_host_sources, compile_binary, library_compile_args, platform_host_name,
+)
 from test_platform_linux_native import native_compile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -267,7 +269,7 @@ int main(int argc, char **argv) {
     pthread_mutex_destroy(&g_af.tab.mu);
     return 0;
 }
-''', extra=library_compile_args([
+''', sources=client_pal_host_sources('posix'), extra=library_compile_args([
             '-I' + str(Path(REPO) / 'client/lib'), *flags, '-UNDEBUG',
             '-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections', '-lpthread']),
         include_dirs=[Path(REPO), Path(REPO) / 'client/lib', Path(REPO) / 'shared'])

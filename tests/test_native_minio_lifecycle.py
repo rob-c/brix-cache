@@ -51,6 +51,39 @@ def test_native_minio_dead_child_cannot_borrow_health_from_another_service(monke
         lab._wait_minio(SimpleNamespace(poll=lambda: 1))
 
 
+def test_native_minio_waits_for_write_quorum_before_seeding(monkeypatch):
+    """A running HTTP listener may still refuse the first bucket mutation."""
+    import test_sts_minio_live as lab
+
+    replies, requests = iter((503, 200)), []
+
+    def health(method, url, headers):
+        requests.append((method, url, headers))
+        return next(replies), b''
+
+    monkeypatch.setattr(lab, '_http', health)
+    monkeypatch.setattr(lab.time, 'sleep', lambda _seconds: None)
+    lab._wait_minio(SimpleNamespace(poll=lambda: None))
+    assert requests == [('GET', lab.ENDPOINT + '/minio/health/cluster', {})] * 2
+
+
+def test_native_minio_live_without_write_quorum_cannot_be_ready(monkeypatch):
+    """Exhausted readiness remains an error even though the process is alive."""
+    import test_sts_minio_live as lab
+
+    requests = []
+
+    def health(method, url, headers):
+        requests.append(url)
+        return (503 if url.endswith('/cluster') else 200), b''
+
+    monkeypatch.setattr(lab, '_http', health)
+    monkeypatch.setattr(lab.time, 'sleep', lambda _seconds: None)
+    with pytest.raises(AssertionError, match='never became healthy'):
+        lab._wait_minio(SimpleNamespace(poll=lambda: None))
+    assert requests == [lab.ENDPOINT + '/minio/health/cluster'] * 80
+
+
 def test_native_minio_bad_explicit_binary_never_falls_back(monkeypatch):
     """Error: a bad explicit dependency never silently selects another binary."""
     import test_sts_minio_live as lab

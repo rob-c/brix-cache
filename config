@@ -293,17 +293,23 @@ if [ "$BRIX_ARCH_ARM64" = "1" ]; then
     esac
 # x86_64 optimization profiles
 elif [ "$BRIX_ARCH_X86_64" = "1" ]; then
+    brix_x86_profile() {
+        CFLAGS="$CFLAGS -O3 -march=$1"
+        if brix_cc_supports -fno-plt; then
+            CFLAGS="$CFLAGS -fno-plt"
+        fi
+    }
     case "${BRIX_OPTIMIZE:-v2}" in
         v2|yes|YES|1)
-            CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt"
+            brix_x86_profile x86-64-v2
             echo " + xrootd: performance profile = v2 (-O3 -march=x86-64-v2) [default]"
             ;;
         v3)
-            CFLAGS="$CFLAGS -O3 -march=x86-64-v3 -fno-plt"
+            brix_x86_profile x86-64-v3
             echo " + xrootd: performance profile = v3 (-O3 -march=x86-64-v3)"
             ;;
         native)
-            CFLAGS="$CFLAGS -O3 -march=native -fno-plt"
+            brix_x86_profile native
             echo " + xrootd: performance profile = native (-O3 -march=native)"
             ;;
         none|off|no|NO|0)
@@ -312,7 +318,7 @@ elif [ "$BRIX_ARCH_X86_64" = "1" ]; then
         *)
             echo "WARNING: unknown BRIX_OPTIMIZE='$BRIX_OPTIMIZE'"
             echo "         (use v2|v3|native|none); defaulting to v2" >&2
-            CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt"
+            brix_x86_profile x86-64-v2
             ;;
     esac
 else
@@ -684,6 +690,7 @@ ngx_addon_name=ngx_stream_brix_module
 # join rebuilt nothing at all and the change appeared to have no effect.  Name a
 # header here when you add one that is included beyond its own directory.
 ngx_brix_stream_deps="$ngx_addon_dir/src/auth/crypto/key_compat.h \
+                        $ngx_addon_dir/src/auth/crypto/asn1_compat.h \
                         $ngx_addon_dir/src/auth/crypto/name_compat.h \
                         $ngx_addon_dir/src/auth/crypto/jwk_compat.h \
                         $ngx_addon_dir/src/auth/crypto/tls_compat.h \
@@ -1022,6 +1029,7 @@ $ngx_addon_dir/src/fs/vfs/vfs_deleg.h \
                         $ngx_addon_dir/src/auth/token/token_cache.h \
                         $ngx_addon_dir/src/auth/token/worker_cache.h"
 ngx_brix_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
+                 $ngx_addon_dir/src/protocols/webdav/move_destination.h \
                  $ngx_addon_dir/src/protocols/shared/proto_exclusive.h \
                  $ngx_addon_dir/src/protocols/webdav/directives_storage.h \
                  $ngx_addon_dir/src/protocols/webdav/directives_net.h \
@@ -1524,6 +1532,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/frm/frm_zip.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm_arc.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm_arc_store.c \
+    $ngx_addon_dir/src/fs/backend/frm/sd_frm_arc_extract.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm_arc_seal.c \
     $ngx_addon_dir/src/fs/backend/meta_advisory.c \
     $ngx_addon_dir/src/fs/backend/meta_advisory_sd.c \
@@ -2318,6 +2327,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                  $ngx_addon_dir/src/protocols/webdav/put_body.c \
                  $ngx_addon_dir/src/protocols/webdav/put_body_digest.c \
                  $ngx_addon_dir/src/protocols/webdav/move.c \
+                 $ngx_addon_dir/src/protocols/webdav/move_destination.c \
                  $ngx_addon_dir/src/protocols/webdav/fs/copy_engine.c \
                  $ngx_addon_dir/src/protocols/webdav/methods/copy_conditionals.c \
                  $ngx_addon_dir/src/protocols/webdav/copy.c \

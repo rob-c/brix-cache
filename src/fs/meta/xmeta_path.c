@@ -269,7 +269,7 @@ xmeta_path_write_sidecar(const char *sc, const uint8_t *buf, size_t len)
         }
         put += (size_t) w;
     }
-    if (ftruncate(fd, (off_t) len) != 0 || fdatasync(fd) != 0) {
+    if (ftruncate(fd, (off_t) len) != 0 || brix_plat_fsync_data(fd) != 0) {
         close(fd);
         return BRIX_XMETA_ERR;
     }

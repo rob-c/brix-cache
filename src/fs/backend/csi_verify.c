@@ -424,8 +424,11 @@ csi_flush_mark_coverage(brix_xmeta_t *xm)
     }
 }
 
-int
-brix_csi_flush(brix_csi_t *c)
+/* WHAT: Flush one dirty handle, optionally bound to a live descriptor.
+ * WHY: SYNC may follow unlink or replacement; the old handle cannot tag the
+ * new pathname's inode. HOW: Compare inode identity before any record writes. */
+static int
+csi_flush(brix_csi_t *c, int bound_fd)
 {
     brix_xmeta_t xm;
     struct stat  st;
@@ -442,6 +445,16 @@ brix_csi_flush(brix_csi_t *c)
     fd = csi_flush_open_file(c, &st);
     if (fd < 0) {
         return BRIX_CSI_ERR;
+    }
+    if (bound_fd >= 0) {
+        struct stat bound;
+        if (fstat(bound_fd, &bound) != 0 || bound.st_dev != st.st_dev
+            || bound.st_ino != st.st_ino)
+        {
+            close(fd);
+            errno = ESTALE;
+            return BRIX_CSI_ERR;
+        }
     }
 
     lockfd = brix_xmeta_path_lock(c->path);
@@ -466,6 +479,31 @@ brix_csi_flush(brix_csi_t *c)
     close(fd);
     if (rc == BRIX_CSI_OK) {
         c->dirty = 0;
+        /* Later partial writes must recompute their edges, not reuse a full
+         * block CRC folded before this flush. */
+        if (c->local != NULL) {
+            memset(c->local, 0, (size_t) c->local_n * sizeof(*c->local));
+        }
     }
     return rc;
+}
+
+/* WHAT: Persist the legacy close-time record. WHY: Existing owners may have
+ * already closed their fd. HOW: Use the path-based backend contract. */
+int
+brix_csi_flush(brix_csi_t *c)
+{
+    return csi_flush(c, -1);
+}
+
+/* WHAT: Publish tags for a still-open file. WHY: A replacement pathname is not
+ * this handle. HOW: Require a descriptor and check its identity in the backend. */
+int
+brix_csi_flush_bound(brix_csi_t *c, int fd)
+{
+    if (fd < 0) {
+        errno = EINVAL;
+        return BRIX_CSI_ERR;
+    }
+    return csi_flush(c, fd);
 }

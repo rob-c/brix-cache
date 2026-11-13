@@ -34,6 +34,7 @@ import time
 import pytest
 
 from settings import HOST
+from _test_brix_fault_proxy_helpers import _spawn as _spawn_unprivileged, _ctl as _plain_ctl
 
 pytestmark = pytest.mark.timeout(120)
 
@@ -243,23 +244,9 @@ def test_strip_opt_degrades_gracefully(bfp, netns):
 # --------------------------------------------------------------------------- #
 def test_priv_refused_without_optin(bfp):
     """`priv` commands must report 'not enabled' unless --privileged was given."""
-    listen, ctl, tgt = _free_port(), _free_port(), _free_port()
-    proc = subprocess.Popen(
-        [bfp, "--listen", str(listen), "--target", f"{HOST}:{tgt}",
-         "--control", str(ctl), "--quiet"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc, _listen, ctl = _spawn_unprivileged(bfp, _free_port())
     try:
-        deadline = time.time() + 5
-        reply = ""
-        while time.time() < deadline:
-            try:
-                with socket.create_connection((HOST, ctl), timeout=0.3) as s:
-                    s.sendall(b"priv netem delay 10\n")
-                    reply = s.recv(768).decode()
-                    break
-            except OSError:
-                time.sleep(0.05)
-        assert "not enabled" in reply
+        assert "not enabled" in _plain_ctl(ctl, "priv netem delay 10")
     finally:
         proc.terminate()
         proc.wait(timeout=5)

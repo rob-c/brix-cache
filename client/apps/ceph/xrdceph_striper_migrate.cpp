@@ -79,6 +79,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -228,12 +229,16 @@ std::string dest_path(const std::string &soid)
     return g.dest + "/" + rel;
 }
 
-void mkparents(const std::string &path)
+int mkparents(const std::string &path)
 {
-    size_t slash = path.find_last_of('/');
-    if (slash != std::string::npos && slash != 0) {
-        ceph_mkdirs(g_cm, path.substr(0, slash).c_str(), 0755);
+    /* Concurrent files can share every parent. Accept an existing component
+     * individually, so another worker's mkdir cannot abort the remaining walk. */
+    for (size_t slash = path.find('/', 1); slash != std::string::npos;
+         slash = path.find('/', slash + 1)) {
+        int rc = ceph_mkdir(g_cm, path.substr(0, slash).c_str(), 0755);
+        if (rc < 0 && rc != -EEXIST) { return rc; }
     }
+    return 0;
 }
 
 /* read the whole migrated CephFS file and return its adler32; -1 on error. */

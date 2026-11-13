@@ -29,20 +29,14 @@
 #include "fs/vfs/vfs_policy.h"  /* brix_vfs_policy_from_write_enable — phase 105 */
 
 /* Map a WebDAV HTTP method to the XrdAcc operation it requires. */
+/* ---- Map standard HTTP methods to authorization operations ----
+ * WHAT: Return the operation for the request URI, including TPC direction.
+ * WHY: A pull destination requires CREATE even though COPY normally reads.
+ * HOW: Map nginx method constants and inspect Source only for COPY.
+ */
 static brix_acc_op_t
-webdav_method_aop(ngx_http_request_t *r)
+webdav_standard_method_aop(ngx_http_request_t *r)
 {
-    const brix_http_operation_t *op;
-
-    op = brix_http_operation_find(r, brix_webdav_operations,
-                                    brix_webdav_operations_count);
-    if (op != NULL && ngx_strcmp(op->name, "SEARCH") == 0) {
-        return BRIX_AOP_READDIR;
-    }
-    if (op != NULL && ngx_strcmp(op->name, "ACL") == 0) {
-        return BRIX_AOP_CHMOD;
-    }
-
     switch (r->method) {
     case NGX_HTTP_GET:
     case NGX_HTTP_HEAD:      return BRIX_AOP_READ;
@@ -66,6 +60,23 @@ webdav_method_aop(ngx_http_request_t *r)
     case NGX_HTTP_OPTIONS:   return BRIX_AOP_ANY;
     default:                 return BRIX_AOP_STAT;
     }
+}
+
+static brix_acc_op_t
+webdav_method_aop(ngx_http_request_t *r)
+{
+    const brix_http_operation_t *op;
+
+    op = brix_http_operation_find(r, brix_webdav_operations,
+                                    brix_webdav_operations_count);
+    if (op != NULL && ngx_strcmp(op->name, "SEARCH") == 0) {
+        return BRIX_AOP_READDIR;
+    }
+    if (op != NULL && ngx_strcmp(op->name, "ACL") == 0) {
+        return BRIX_AOP_CHMOD;
+    }
+
+    return webdav_standard_method_aop(r);
 }
 
 /* Map the request's public operation to native authdb privileges.  Native

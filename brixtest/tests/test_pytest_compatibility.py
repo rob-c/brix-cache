@@ -254,9 +254,11 @@ def test_xfail(run):
 @case(observe=[], keep="never")
 def test_setup_error(run, broken):
     pass
-""")
+""", extra=("--junitxml=" + str(tmp_path / "report.xml"),))
     assert result.returncode != 0
     combined = result.stdout + result.stderr
     assert "fixture setup trace" in combined
     assert ("1 failed" in combined or "1 error" in combined)
     assert "1 skipped" in combined and "1 xfailed" in combined
+    assert "INTERNALERROR" not in combined
+    assert (tmp_path / "report.xml").is_file()

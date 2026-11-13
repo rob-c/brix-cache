@@ -2,6 +2,12 @@ name: native packages
 
 on:
   workflow_dispatch:
+    inputs:
+      package_family:
+        description: Package family to validate
+        type: choice
+        default: all
+        options: [all, deb, rpm, nix, homebrew]
   release:
     types: [published]
 
@@ -10,6 +16,7 @@ permissions:
 
 jobs:
   deb:
+    if: github.event_name == 'release' || inputs.package_family == 'all' || inputs.package_family == 'deb'
     name: ${{ matrix.distro }} ARM64 debs
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
@@ -18,10 +25,10 @@ jobs:
       matrix:
         distro: [ubuntu24, ubuntu26]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Build distro-nginx packages
         run: packaging/deb/build-deb-container.sh -d "${{ matrix.distro }}" -f distro -o "dist/${{ matrix.distro }}"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: brix-cache-${{ matrix.distro }}-arm64
           path: dist/${{ matrix.distro }}/*.deb
@@ -32,6 +39,7 @@ jobs:
         run: gh release upload "${{ github.event.release.tag_name }}" dist/${{ matrix.distro }}/*.deb --clobber
 
   rpm:
+    if: github.event_name == 'release' || inputs.package_family == 'all' || inputs.package_family == 'rpm'
     name: ${{ matrix.distro }} ARM64 RPMs
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
@@ -48,22 +56,28 @@ jobs:
           - centos-stream9
           - centos-stream10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Build native-repository packages
         run: packaging/rpm/build-rpm-container.sh -d "${{ matrix.distro }}" -o "dist/${{ matrix.distro }}"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: brix-cache-${{ matrix.distro }}-arm64
           path: dist/${{ matrix.distro }}/*.rpm
       - name: Create a collision-free release bundle
-        if: github.event_name == 'release'
         run: |
           tar -C "dist/${{ matrix.distro }}" -czf \
-            "../brix-cache-${{ matrix.distro }}-arm64.tar.gz" .
+            "dist/brix-cache-${{ matrix.distro }}-arm64.tar.gz" .
           pushd dist
           sha256sum "brix-cache-${{ matrix.distro }}-arm64.tar.gz" > \
             "brix-cache-${{ matrix.distro }}-arm64.tar.gz.sha256"
           popd
+      - name: Preserve the release bundle and checksum
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: brix-cache-${{ matrix.distro }}-arm64-bundle
+          path: |
+            dist/brix-cache-${{ matrix.distro }}-arm64.tar.gz
+            dist/brix-cache-${{ matrix.distro }}-arm64.tar.gz.sha256
       - name: Attach packages to the GitHub release
         if: github.event_name == 'release'
         env:
@@ -74,11 +88,12 @@ jobs:
             "dist/brix-cache-${{ matrix.distro }}-arm64.tar.gz.sha256" --clobber
 
   nix:
+    if: github.event_name == 'release' || inputs.package_family == 'all' || inputs.package_family == 'nix'
     name: NixOS 26.05 ARM64 packages
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Evaluate and build the pinned flake
         run: |
           docker run --rm -v "$PWD:/src:ro" -w /src nixos/nix:2.32.1 \
@@ -86,18 +101,19 @@ jobs:
             flake check path:/src --print-build-logs
 
   homebrew:
+    if: github.event_name == 'release' || inputs.package_family == 'all' || inputs.package_family == 'homebrew'
     name: macOS ARM64 Homebrew bottle
-    runs-on: macos-14
+    runs-on: macos-26
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Install build dependencies
-        run: brew install brotli krb5 lz4 openssl@3 pkgconf xz zstd
+        run: brew install brotli krb5 lz4 openssl@4 pkgconf xz zstd
       - name: Build and test bottle
         env:
           BRIX_HOMEBREW_LOCAL_SOURCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
         run: packaging/homebrew/build-bottle.sh "${{ github.event.release.tag_name || 'v2.0.0' }}"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: brix-cache-homebrew-arm64
           path: dist/homebrew/*

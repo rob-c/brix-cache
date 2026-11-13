@@ -10,4 +10,4 @@
 # Bounds policy matches requirements.txt: lower AND upper, both reviewed.
 
 # --- static analysis lane: tools/ci/run_codechecker.py (needs clang-tidy) ----
-codechecker>=6.28.2,<7
+codechecker>=6.29.3,<7

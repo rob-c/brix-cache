@@ -16,6 +16,7 @@ from brixtest.errors import HelperProcessError
 from brixtest.evidence.trials import attempt_record, execute, measured_metrics
 from brixtest.metrics import MetricRecorder, build_case_record, publish_case_record
 from brixtest.pytest_plugin import _definition, _properties
+from brixtest.pytest_reports import _restored_reports
 from brixtest.pytest_runtime import (
     _budget_failures,
     _case_root,
@@ -260,36 +261,6 @@ def _valid_reports(payload) -> dict:
         if isinstance(row, dict) and row.get("when") in ("setup", "call", "teardown")
         and row.get("outcome") in ("passed", "failed", "skipped")
     }
-
-
-def _restored_reports(item, payload, timed_out: bool) -> dict:
-    reports = payload.get("serialized_reports", [])
-    if not isinstance(reports, list) or timed_out:
-        return {}
-    restored = {}
-    for data in reports:
-        report = _restore_report(item, data)
-        if report is not None:
-            restored[report.when] = report
-    return restored
-
-
-def _restore_report(item, data):
-    if not isinstance(data, dict):
-        return None
-    try:
-        report = item.config.hook.pytest_report_from_serializable(
-            config=item.config, data=data,
-        )
-    except Exception:
-        return None
-    if not isinstance(report, pytest.TestReport):
-        return None
-    if report.when not in ("setup", "call", "teardown"):
-        return None
-    if report.outcome not in ("passed", "failed", "skipped"):
-        return None
-    return report
 
 
 def _native_phases(

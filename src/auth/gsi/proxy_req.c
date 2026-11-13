@@ -19,6 +19,7 @@
  *   (pxr_fail) frees everything not yet handed to the caller; ownership-transferred
  *   fields are NULLed in the ctx first. */
 
+#include "auth/crypto/asn1_compat.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -96,7 +97,7 @@ pxr_parent_pathlen(X509 *parent)
             const unsigned char       *p =
                 ASN1_STRING_get0_data(X509_EXTENSION_get_data(e));
             int                        len =
-                ASN1_STRING_length(X509_EXTENSION_get_data(e));
+                brix_crypto_asn1_length(X509_EXTENSION_get_data(e));
             PROXY_CERT_INFO_EXTENSION *in = is_new
                 ? d2i_PROXY_CERT_INFO_EXTENSION(NULL, &p, len)
                 : NULL;

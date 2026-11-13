@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cmdscripts.compile_run import (REPO_ROOT, compile_binary, confined_open_link_args,
-                                    pal_host_addon, pal_xattr_sources,
+                                    pal_host_addon, pal_storage_link_args, pal_xattr_sources,
                                     result, run)
 from cmdscripts.command_results import print_results
 from cmdscripts.c_object_unit_results import (compile_failure, missing_objects,
@@ -64,6 +64,7 @@ SPECS: dict[str, ObjectUnitSpec] = {
             str(addon("cache/cinfo.o")),
             str(addon("meta/xmeta.o")),
             str(addon("meta/xmeta_path.o")),
+            *pal_storage_link_args(),
             str(addon("meta/xmeta_decode.o")),
             str(addon("meta/xmeta_encode.o")),
             str(addon("meta/xmeta_carrier.o")),

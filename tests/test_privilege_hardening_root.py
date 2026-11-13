@@ -31,6 +31,7 @@ from server_launcher import LifecycleHarness, launch_fleet_nginx
 from server_registry import NginxInstanceSpec, endpoint_for
 
 import impersonation_gridmap_helpers as H
+from test_impersonation_gridmap_root import _accounts  # noqa: F401
 from settings import BIND_HOST
 
 pytestmark = [
@@ -77,7 +78,7 @@ def _worker_pids(master: int) -> "list[int]":
 
 
 @pytest.fixture(scope="module")
-def harness():
+def harness(_accounts):
     os.makedirs(BASE, exist_ok=True)
     os.chmod(BASE, 0o755)
     H.make_world_traversable(BASE)
@@ -321,7 +322,7 @@ def test_http_only_worker_is_seccomp_filtered(harness):
         name="hard-http-seccomp",
         template="nginx_hardening_http_seccomp.conf",
         protocol="http", data_root=export, readiness="tcp",
-        template_values={"EXPORT": export}))
+        template_values={**H.worker_template_values(), "EXPORT": export}))
     workers = _worker_pids(_master(ep))
     assert workers, "no worker process found"
     st = _status(workers[0])
@@ -348,6 +349,7 @@ def test_broker_seccomp_confined_and_map_worker_hardened(harness):
         template="nginx_impersonate_gridmap_webdav.conf",
         protocol="http", data_root=export, readiness="tcp",
         template_values={
+            **H.worker_template_values(),
             "EXPORT": export, "SOCK": sock, "GRIDMAP": gridmap,
             "JWKS": ti.jwks_path, "ISSUER": H.ISSUER, "AUDIENCE": H.AUDIENCE,
             "DEFAULT_USER_LINE": "",

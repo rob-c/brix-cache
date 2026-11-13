@@ -173,7 +173,7 @@
 # carries the same three-slot delta.
 # 2026-10-27: 1302 -> 1303 for the shared TPC GSI no-store compatibility
 # control.  Every later lane carries the same one-slot delta.
-LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1303, 221
+LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1304, 221
 
 
 # 2026-08-19: 205 -> 211 for the six-port root_readonly_gateway block (origin +
@@ -219,7 +219,7 @@ LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1303, 221
 # groups ran concurrently; all fourteen listeners now have owned lane slots.
 # 2026-10-14: 230 -> 234 for metadata_live_ports.  Its four absolute listeners
 # overlapped the packed registry lane under the default TEST_PORT_START.
-CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1524, 234
+CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1525, 234
 # 2026-09-07: 1657 -> 1658, the running sum, for the F6 posix-origin slot in
 # the exclusive lane above (167 -> 168).
 # 2026-09-07: +2, the running sum, for the F8 plugin lab in the exclusive lane
@@ -246,7 +246,7 @@ CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1524, 234
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1758, 83
+CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1759, 83
 # 2026-09-07: 1740 -> 1741, the running sum, for the F6 posix-origin slot in
 # the exclusive lane above (167 -> 168).
 # 2026-09-07: +2, the running sum, for the F8 plugin lab in the exclusive lane
@@ -273,7 +273,7 @@ CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1758, 83
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1841, 23
+HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1842, 23
 # 2026-09-07: 1763 -> 1764, the running sum, for the F6 posix-origin slot in
 # the exclusive lane above (167 -> 168).
 # 2026-09-07: +2, the running sum, for the F8 plugin lab in the exclusive lane
@@ -300,7 +300,7 @@ HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1841, 23
 # verify_log failure, a malformed-CRL plane under `require`, and an
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
-PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1864, 2
+PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1865, 2
 
 # CVMFS conformance mock-Stratum-1 + nginx port blocks (cvmfs/conformance_common.py
 # PORT_BLOCKS): 26 files x a 20-port block. Anchored into the ladder so every
@@ -335,7 +335,7 @@ PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1864, 2
 # unreadable-CRL plane under `try`); the running sum re-applied to every
 # lane below.
 from cvmfs.conformance_ports import CONFORMANCE_WIDTH as CVMFS_CONFORMANCE_WIDTH
-CVMFS_CONFORMANCE_OFFSET = 1866
+CVMFS_CONFORMANCE_OFFSET = 1867
 
 # Differential-interop per-file fixed ports (official_interop_lib.worker_port):
 # one slot per distinct conformance base (65 today), anchored here so they stay

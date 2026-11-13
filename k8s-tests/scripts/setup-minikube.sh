@@ -54,7 +54,7 @@ Examples:
   $(basename "$0") --cluster-type minikube --nodes 2 --memory 8192
 
   # Kind with explicit version
-  $(basename "$0") --k8s-version v1.29.2
+  $(basename "$0") --k8s-version v1.37.2
 EOF
 }
 
@@ -136,7 +136,7 @@ case "$CLUSTER_TYPE" in
         CNI_ARGS=""
         if [[ "$NO_CNI" != "true" ]]; then
             echo "Installing Calico CNI (recommended for network policies)..."
-            kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml
+            kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/calico.yaml
             echo "Waiting for Calico to be ready..."
             kubectl wait --for=condition=ready pod -l k8s-app=calico-node \
                 --namespace=kube-system --timeout="${WAIT_SECS}s" || true

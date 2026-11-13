@@ -1,3 +1,5 @@
+# brix-remote-adapted
+# Filesystem fixtures and xattrs are accessed through klib.
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_fattr_query_helpers")
 
@@ -137,21 +139,7 @@ class TestFattr:
         status, _ = self.fs.set_xattr(self.xrd_path, [("checkmark", "pass")])
         assert status.ok
 
-        # Read directly from local filesystem
-        try:
-            import subprocess
-            result = subprocess.run(
-                ["getfattr", "-n", "user.U.checkmark", self.local_path],
-                capture_output=True, text=True
-            )
-            assert "pass" in result.stdout or result.returncode == 0
-        except FileNotFoundError:
-            # getfattr not installed — use Python os.getxattr
-            try:
-                val = os.getxattr(self.local_path, "user.U.checkmark")
-                assert val == b"pass"
-            except OSError:
-                pytest.skip("xattr not supported on test filesystem")
+        assert klib.svc_getxattr(SERVER_SVC, self.local_path, "user.U.checkmark") == b"pass"
 
     def test_fattr_gsi_endpoint(self) -> None:
         """Attributes work on the GSI-authenticated endpoint."""
@@ -228,10 +216,7 @@ class TestQueryXattr:
         self.xrd_path = make_file(self.fname)
         self.local_path = os.path.join(DATA_DIR, self.fname)
         # Pre-set an xattr directly so the query has something to return
-        try:
-            os.setxattr(self.local_path, "user.U.meta", b"info")
-        except OSError:
-            pass  # xattr not supported — tests will check gracefully
+        klib.svc_setxattr(SERVER_SVC, self.local_path, "user.U.meta", b"info")
 
     def teardown_method(self) -> None:
         rm_file(self.fname)

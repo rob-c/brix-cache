@@ -184,17 +184,21 @@ def _compile_and_run(binary: Path, argv: list[str]) -> tuple[bool, str]:
                  *_gcov_flags(objs), *_sanitizer_flags(objs)])
     if built.returncode != 0:
         return result(False, f"compile failed: {_tail(built)}")
-    # A gcov-instrumented harness would otherwise write .gcda beside the shared
-    # nginx objects and clobber the lcov lane's profile with a foreign timestamp.
-    ran = run([str(binary)], cwd=REPO_ROOT,
-              env={"GCOV_PREFIX": str(binary.parent), "GCOV_PREFIX_STRIP": "99",
-                   # An object-linked unit that inherits -fsanitize=address from a
-                   # contaminated tree would otherwise fail on LeakSanitizer's
-                   # exit-time report (the driver is not written to free); disable
-                   # only leak detection — real heap errors (double-free/UAF, which
-                   # the intentional-ASan units assert on) still abort.
-                   "ASAN_OPTIONS": "detect_leaks=0"})
+    ran = run([str(binary)], cwd=REPO_ROOT, env=_unit_runtime_environment(binary))
     return result(ran.returncode == 0, f"{binary.name} exited {ran.returncode}: {_tail(ran)}")
+
+
+def _unit_runtime_environment(binary: Path) -> dict[str, str]:
+    """Retain coverage-owned counters; quarantine ordinary unit-build profiles."""
+    # The coverage compiler gives each source compile its own persistent notes
+    # directory. Linked production objects retain their original matching notes.
+    # Redirecting either into pytest's disposable directory loses real execution.
+    collecting = bool(os.environ.get("BRIX_COVERAGE_COUNTERS"))
+    return {"GCOV_PREFIX": "" if collecting else str(binary.parent),
+            "GCOV_PREFIX_STRIP": "0" if collecting else "99",
+            # Legacy object units do not free every allocation; keep actual
+            # ASan/UBSan faults enabled while suppressing only leak detection.
+            "ASAN_OPTIONS": "detect_leaks=0"}
 
 
 DEADLETTER_STUB = r"""

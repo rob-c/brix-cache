@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import os
 import pwd
-import socket
 import stat
 import sys
 import time
@@ -33,6 +32,7 @@ from impersonation_gridmap_helpers import (
     _assert_no_network_socket, _assert_no_export_object,
 )
 from settings import BIND_HOST
+from lib_py.util import wait_tcp
 
 # The whole point of the suite is the root-only setfsuid broker.  Off a root host
 # there is nothing to prove — skip cleanly rather than fail.
@@ -92,14 +92,8 @@ def harness(_accounts):
 
 
 def _wait_tcp(host: str, port: int, deadline: float = 15.0) -> None:
-    end = time.time() + deadline
-    while time.time() < end:
-        try:
-            with socket.create_connection((host, port), timeout=0.5):
-                return
-        except OSError:
-            time.sleep(0.1)
-    raise RuntimeError(f"server did not become ready on {host}:{port}")
+    if not wait_tcp(host, port, timeout=deadline):
+        raise RuntimeError(f"server did not become ready on {host}:{port}")
 
 
 def _render_and_launch(harness, spec) -> object:
@@ -157,6 +151,7 @@ def _start_webdav(harness, name, entries, default_user):
         data_root=export,
         readiness="tcp",
         template_values={
+            **H.worker_template_values(),
             "EXPORT": export,
             "SOCK": os.path.join(run_dir, "impersonate.sock"),
             "GRIDMAP": gridmap,
@@ -208,6 +203,7 @@ def single_mode(harness):
         data_root=export,
         readiness="tcp",
         template_values={
+            **H.worker_template_values(),
             "EXPORT": export,
             "JWKS": ti.jwks_path,
             "ISSUER": H.ISSUER,
@@ -248,6 +244,7 @@ def s3_map(harness):
         data_root=export,
         readiness="tcp",
         template_values={
+            **H.worker_template_values(),
             "EXPORT": export,
             "SOCK": os.path.join(run_dir, "impersonate.sock"),
             "GRIDMAP": gridmap,
@@ -298,6 +295,7 @@ def root_gsi(harness):
         data_root=export,
         readiness="tcp",
         template_values={
+            **H.worker_template_values(),
             "EXPORT": export,
             "SOCK": os.path.join(run_dir, "impersonate.sock"),
             "GRIDMAP": gridmap,
@@ -574,6 +572,7 @@ def sealed_broker(harness):
         data_root=export,
         readiness="tcp",
         template_values={
+            **H.worker_template_values(),
             "EXPORT": export, "SOCK": sock, "GRIDMAP": gridmap,
             "JWKS": ti.jwks_path, "ISSUER": H.ISSUER, "AUDIENCE": H.AUDIENCE,
             "DEFAULT_USER_LINE": "",
@@ -667,6 +666,7 @@ def test_listener_is_released_when_the_master_stops(harness):
         data_root=export,
         readiness="tcp",
         template_values={
+            **H.worker_template_values(),
             "EXPORT": export, "SOCK": sock, "GRIDMAP": gridmap,
             "JWKS": ti.jwks_path, "ISSUER": H.ISSUER, "AUDIENCE": H.AUDIENCE,
             "DEFAULT_USER_LINE": "",

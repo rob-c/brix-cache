@@ -47,6 +47,11 @@ thread pool to the nginx event loop.
 4. The destination VFS context retains the confined export path, not a stripped
    storage key. Lock checks must reach the export root; backend/N2N key
    translation belongs to the VFS and happens after those policy gates.
+5. Completion metadata probes also retain that export path. A failed transfer
+   releases a plain descriptor or a storage-driver-owned descriptor exactly once;
+   handle cleanup remains responsible for the driver's descriptor. Failed pushes
+   preserve the source object, and partial-file removal retains the typed export
+   mutation gate.
 
 ## See also
 

@@ -65,11 +65,12 @@ from lib_py.worker_exec import require_worker_exec
 from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS
 from server_registry import NginxInstanceSpec
 from settings import HOST, TOKENS_DIR
+from _test_tpc_renew_tls import tls_knobs, tls_login
 from tokenforge import TokenForge
 from test_audit15c_tpc_token_exchange import (KXR_AUTH_FAILED, KXR_OK,
-                                              _arm_source, _drive_pull,
+                                              _drive_pull,
                                               _wait_file)
-from test_phase25_ratelimit import _xrd_login, _xrd_open, _xrd_recv_status
+from test_phase25_ratelimit import _xrd_open, _xrd_recv_status
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-p115-tpc-renew")]
@@ -172,12 +173,13 @@ def _auth_ztn(s, token):
     return _xrd_recv_status(s)
 
 
-def _arm_token_source(src_port, key, token):
+def _arm_token_source(src_port, key, token=None):
     """`_arm_source` for a token-authenticating source: login, ztn, then the
     tpc.key read-open that registers the rendezvous."""
-    s = _xrd_login(HOST, src_port)
-    status, body = _auth_ztn(s, token)
-    assert status == KXR_OK, ("arm ztn auth refused", status, body)
+    s = tls_login(src_port)
+    if token is not None:
+        status, body = _auth_ztn(s, token)
+        assert status == KXR_OK, ("arm ztn auth refused", status, body)
     status, body = _xrd_open(
         s, f"/src.bin?tpc.key={key}&tpc.dst=127.0.0.1&tpc.stage=placement")  # net-literal-allow: local TPC wire payload
     assert status == KXR_OK, ("TPC source arm open refused", status, body)
@@ -275,7 +277,7 @@ def renewlab(lifecycle, tmp_path, idp, request):
     base = f"http://{HOST}:{MOCK_PORT}"
     src_knobs = _indent(
         "brix_auth token;",
-        "brix_ztn_cleartext on;   # lab opt-in: raw cleartext ztn drivers",
+        *tls_knobs(),
         f"brix_token_jwks     {forge.jwks_path};",
         'brix_token_issuer   "https://test.example.com";',
         'brix_token_audience "nginx-xrootd";',
@@ -287,7 +289,8 @@ def renewlab(lifecycle, tmp_path, idp, request):
             template="nginx_p115_tpc_renew.conf",
             data_root=str(data),
             template_values={"BIND_HOST": HOST,
-                             "ROLE_KNOBS": _indent("brix_auth none;", *knobs)},
+                             "ROLE_KNOBS": _indent("brix_auth none;", *tls_knobs(),
+                                                   "brix_tpc_outbound_tls on;", *knobs)},
             reason="phase-115 W8.2 mid-transfer credential renewal"))
 
     src = lifecycle.start(NginxInstanceSpec(
@@ -333,8 +336,8 @@ def _pull(lab, dst, dest_path, mode="token-exchange", src=None):
     if src is None:
         arm = _arm_token_source(src_ep.port, key, _issuer().temporal(600))
     else:
-        arm = _arm_source(src_ep.port, key)
-    s = _xrd_login(HOST, lab[dst].port)
+        arm = _arm_token_source(src_ep.port, key)
+    s = tls_login(lab[dst].port)
     s.settimeout(60)
     try:
         status, body = _dst_open(s, dest_path, src_ep.port, key, mode)

@@ -20,6 +20,7 @@
 #include "http_mirror_internal.h"
 #include "core/http/http_body.h"
 #include "core/http/http_headers.h"
+#include "protocols/webdav/util/uri.h"
 
 /*
  * Rewrite a WebDAV Destination header URL so its host points at the shadow.
@@ -32,24 +33,22 @@ brix_http_mirror_rewrite_dest(ngx_pool_t *pool, ngx_str_t *dest,
     ngx_str_t *url_base)
 {
     ngx_str_t  result = *dest;
-    u_char    *p, *end, *path_start;
+    u_char    *p;
+    const u_char *path_start;
     size_t     path_len;
 
-    if (dest->len < 7
-        || (ngx_strncasecmp(dest->data, (u_char *) "http://", 7) != 0
-            && ngx_strncasecmp(dest->data, (u_char *) "https://", 8) != 0))
+    if (!((dest->len >= 7
+           && ngx_strncasecmp(dest->data, (u_char *) "http://", 7) == 0)
+          || (dest->len >= 8
+              && ngx_strncasecmp(dest->data, (u_char *) "https://", 8) == 0)))
     {
         return result;   /* not absolute — forward unchanged */
     }
-    p = ngx_strlchr(dest->data, dest->data + dest->len, '/');
-    if (p == NULL) { return result; }
-    p++;                                        /* skip first '/' of "://" */
-    p = ngx_strlchr(p, dest->data + dest->len, '/');
-    if (p == NULL) { return *url_base; }        /* scheme://host only */
-
-    path_start = p;
-    end        = dest->data + dest->len;
-    path_len   = (size_t) (end - path_start);
+    if (webdav_destination_extract_path(dest->data, dest->len,
+            &path_start, &path_len) != NGX_OK)
+    {
+        return *url_base;  /* scheme://host only */
+    }
 
     result.len  = url_base->len + path_len;
     result.data = ngx_pnalloc(pool, result.len);

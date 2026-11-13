@@ -84,7 +84,9 @@ _DEFS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 # Deliberate post-move API growth. The archive remains frozen; every added body
 # must be named here so the verbatim-move gate still rejects accidental drift.
 DECLARED_ADDITIONS = {
-    "_cachemx": {"Snap.cache_delta", "Snap.cache_delta_or_absent"},
+    "_cachemx": {"Snap.cache_delta", "Snap.cache_delta_or_absent",
+                 # Resolve selected native binaries at fixture invocation.
+                 "configured_client_path"},
     # Exact replacement bodies are additionally pinned in the baseline replay.
     "_cache_partial_helpers": {"_make_network_node", "_network_origin"},
 }

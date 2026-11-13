@@ -139,6 +139,28 @@ webdav_tpc_capture_remote(CURL *easy, tpc_ms_progress_t *progress,
     progress->remote_ready[idx] = 1;
 }
 
+/* ---- Validate a multi-stream write span ----
+ * WHAT: Return whether the callback fits its assigned Range and progress slot.
+ * WHY: Malformed responses must not write outside the reserved span.
+ * HOW: Check slot and offset bounds before comparing the remaining byte count.
+ */
+static int
+ms_write_span_valid(const ms_stream_ctx_t *ctx, size_t total)
+{
+    if (total == 0
+        || (ctx->progress != NULL
+            && ctx->stream_idx >= BRIX_TPC_MAX_STREAMS)
+        || ctx->cur_offset < 0 || ctx->cur_offset > ctx->end_offset
+        || (uint64_t) total
+           > (uint64_t) (ctx->end_offset - ctx->cur_offset) + 1
+        || (uint64_t) total > ctx->remaining)
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
 /* ---- Write one bounded multi-stream Range response into its assigned span ----
  *
  * WHAT: Writes exactly the callback bytes inside one stream's assigned Range
@@ -165,14 +187,7 @@ ms_write_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
         return 0;
     }
     total = size * nmemb;
-    if (total == 0
-        || (ctx->progress != NULL
-            && ctx->stream_idx >= BRIX_TPC_MAX_STREAMS)
-        || ctx->cur_offset < 0 || ctx->cur_offset > ctx->end_offset
-        || (uint64_t) total
-           > (uint64_t) (ctx->end_offset - ctx->cur_offset) + 1
-        || (uint64_t) total > ctx->remaining)
-    {
+    if (!ms_write_span_valid(ctx, total)) {
         return 0;
     }
 

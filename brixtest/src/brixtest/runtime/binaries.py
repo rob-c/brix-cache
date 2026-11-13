@@ -17,6 +17,7 @@ from brixtest.binary_runtime import (
     replay_runtime_files,
     runtime_file_digests,
 )
+from brixtest.runtime.binary_libraries import discover_libraries as _ldd_libraries
 from brixtest.design import Binary
 from brixtest.errors import SpecError
 
@@ -65,29 +66,6 @@ def _validate_binary_path(resolved: Path, raw: str, executable: bool) -> None:
         raise SpecError("binary path", raw, "does not resolve to a regular file")
     if executable and not os.access(str(resolved), os.X_OK):
         raise SpecError("binary path", raw, "is not executable")
-
-
-def _ldd_libraries(executable: Path) -> Tuple[Path, ...]:
-    try:
-        result = subprocess.run(
-            ["ldd", str(executable)], capture_output=True, text=True,
-            timeout=10.0, check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return ()
-    if result.returncode != 0:
-        return ()
-    paths = []
-    for raw in result.stdout.splitlines():
-        line = raw.strip()
-        candidate = ""
-        if "=>" in line:
-            candidate = line.split("=>", 1)[1].strip().split(" ", 1)[0]
-        elif line.startswith("/"):
-            candidate = line.split(" ", 1)[0]
-        if candidate and candidate != "not" and Path(candidate).is_file():
-            paths.append(Path(candidate))
-    return tuple(sorted(set(paths)))
 
 
 def _captured_path(value: object, field: str) -> Path:

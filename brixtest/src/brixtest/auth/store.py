@@ -14,10 +14,9 @@ from typing import Dict, Iterable, Mapping, Optional, Tuple
 
 from brixtest.auth.kerberos import KerberosRealm, create_realm
 from brixtest.auth.control import issue as issue_auth
-from brixtest.auth.control import record_availability
+from brixtest.auth.control import record_availability, write_token_state
 from brixtest.auth.control import revoke as revoke_auth
 from brixtest.auth.control import rotate as rotate_auth
-from brixtest.auth.control import write_token_state
 from brixtest.auth.models import AuthRecipe, KerberosAuth, TLSAuth, TokenAuth, VOMSAuth
 from brixtest.auth.oidc_service import serve as serve_oidc
 from brixtest.auth.pki import OpenSSL, create_pki
@@ -292,8 +291,9 @@ def _voms(root: Path, recipe: VOMSAuth) -> MaterializedAuth:
     argv = [
         fake, "-quiet", "-rfc", "-newformat", "-cert", str(files["client_cert"]),
         "-key", str(files["client_key"]), "-hostcert", str(files["voms_cert"]),
-        "-hostkey", str(files["voms_key"]), "-out", str(proxy),
-        "-uri", "%s:%d" % (recipe.hostname, recipe.port), "-voms", recipe.vo,
+        "-hostkey", str(files["voms_key"]), "-certdir", str(files["trust_dir"]),
+        "-out", str(proxy), "-voms", recipe.vo,
+        "-uri", "%s:%d" % (recipe.hostname, recipe.port),
     ]
     for fqan in recipe.fqans:
         argv.extend(("-fqan", fqan))

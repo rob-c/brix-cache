@@ -115,6 +115,8 @@ struct brix_aconn {
 
     /* resilience (M2) */
     aconn_state    state;
+    /* Caller updates and loop reads use relaxed atomics, with one snapshot
+     * of each field per decision. Initial values precede loop publication. */
     int            max_stall_ms;          /* reconnect patience budget */
     int            keepalive_ms;          /* idle-before-heartbeat (0=off) */
     int            def_retries;           /* default per-request retry budget */

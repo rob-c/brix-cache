@@ -22,6 +22,22 @@ import stat
 import subprocess
 import sys
 
+
+def reap_unmounted_process(proc, timeout=3):
+    """Let an unmounted owner's cleanup finish before signaling only that child."""
+    try:
+        proc.wait(timeout)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    proc.terminate()
+    try:
+        proc.wait(timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout)
+
+
 #: macFUSE's mount helper; present iff the macFUSE file system bundle is installed.
 MACFUSE_MOUNT = "/Library/Filesystems/macfuse.fs/Contents/Resources/mount_macfuse"
 #: FUSE-T (a kext-free macFUSE alternative) ships its own bundle.

@@ -136,14 +136,18 @@ POST_MOVE = {
         # The macOS port replaced a bare `ss -tlnp` with the portable listener
         # seam (lib_py.util.listener_table_lines: ss(8) on Linux, lsof-derived
         # on Darwin).  Same table, one host-specific command fewer.
-        "changed": {"_list_listeners"},
-        "added": frozenset(),
+        # Stop/sweep require exact mesh ownership, never just a shared port.
+        "changed": {"_list_listeners", "stop_all", "_kill_mesh_listeners"},
+        # Ownership-based termination happens before stale pidfiles are cleared.
+        "added": {"_clear_mesh_pidfiles"},
+        "removed": {"_kill_mesh_pidfiles"},
     },
     "hybrid_mesh_lib": {
         # `_socket_table`: the same listener-seam move as cms_mesh_lib_part3.
         # `launch_xrootd`: the same `-R <user>` transition as Mesh.brix_node —
         # this orchestrator launches the stock daemons too.
-        "changed": {"_socket_table", "launch_xrootd"},
+        "changed": {"_socket_table", "launch_xrootd", "stop_all",
+                    "_kill_bound_processes"},
         "added": frozenset(),
     },
     "wlcg_fleet": {
@@ -237,7 +241,7 @@ def _verbatim_drift(before, after, amendment):
     amendments the table declares — and the declared amendments that no
     longer hold.  Empty means the module is verbatim-plus-table."""
     changed = {k for k in before if k in after and before[k] != after[k]}
-    found = {"lost": sorted(set(before) - set(after)),
+    found = {"lost": _undeclared(set(before) - set(after), amendment.get("removed", ())),
              "added": _undeclared(set(after) - set(before), amendment["added"]),
              "changed": _undeclared(changed, amendment["changed"])}
     return {kind: names for kind, names in found.items() if names}
@@ -445,12 +449,23 @@ def test_the_old_hop_would_have_named_a_real_but_wrong_directory(module, expr, a
 def test_a_stale_amendment_row_cannot_hide_a_reverted_body(tmp_path):
     """The table is exact in both directions: a row that declares a change the
     module no longer carries fails, so a revert cannot ride on an old waiver
-    — and a lost definition is never an amendment at all."""
+    — and an undeclared lost definition remains an error."""
     (tmp_path / "a.py").write_text("def f():\n    return 1\ndef g():\n    return 2\n")
     (tmp_path / "b.py").write_text("def f():\n    return 1\n")
     problems = _verbatim_drift(_bodies(tmp_path / "a.py"), _bodies(tmp_path / "b.py"),
                                {"changed": {"f"}, "added": set()})
     assert problems == {"lost": ["g"], "changed": ["f"]}
+
+
+@pytest.mark.parametrize("after,removed,expected", [
+    ({}, {"old"}, {}),
+    ({}, set(), {"lost": ["old"]}),
+    ({"old": "body"}, {"old"}, {"lost": ["old"]}),
+])
+def test_removed_definitions_require_an_exact_amendment(after, removed, expected):
+    """A declared deletion must exist; missing or stale declarations fail."""
+    amendment = {"added": set(), "changed": set(), "removed": removed}
+    assert _verbatim_drift({"old": "body"}, after, amendment) == expected
 
 
 def test_no_module_reaches_a_name_it_never_binds():

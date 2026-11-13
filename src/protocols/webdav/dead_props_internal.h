@@ -8,8 +8,7 @@
  * here.
  */
 
-#ifndef _NGX_HTTP_BRIX_WEBDAV_DEAD_PROPS_INTERNAL_H_INCLUDED_
-#define _NGX_HTTP_BRIX_WEBDAV_DEAD_PROPS_INTERNAL_H_INCLUDED_
+#pragma once
 
 #include "webdav.h"
 
@@ -55,5 +54,3 @@ ngx_int_t webdav_dead_prop_attr_name(const char *ns, const char *local,
  */
 ngx_int_t webdav_dead_prop_decode_attr(ngx_pool_t *pool, const char *attr,
     char **ns_out, char **local_out);
-
-#endif /* _NGX_HTTP_BRIX_WEBDAV_DEAD_PROPS_INTERNAL_H_INCLUDED_ */

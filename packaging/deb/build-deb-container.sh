@@ -118,4 +118,4 @@ mkdir -p "$outdir"
 
 echo ""
 echo "==> Packages written to: ${outdir}"
-find "$outdir" -name "*.deb" -printf "    %f\n" | sort
+find "$outdir" -name "*.deb" -exec basename {} \; | sort | sed 's/^/    /'

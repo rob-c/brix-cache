@@ -216,7 +216,7 @@ brix_vfs_lock_walk_gate(brix_vfs_ctx_t *ctx, brix_vfs_mutation_op_t op,
     *clean = 1;
 
     w.path     = brix_vfs_ctx_path(ctx);
-    if (w.path == NULL) {
+    if (w.path == NULL || ctx->root_canon == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }

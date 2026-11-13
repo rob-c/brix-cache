@@ -627,8 +627,12 @@ class TestXrdAccOverASigV4Principal:
             f"{DEFECT37} s3_acc_check is no longer defined in auth_acc.c"
         acc = acc_src.split("s3_acc_check(ngx_http_request_t", 1)[1] \
                      .split("\n}", 1)[0]
-        assert "brix_identity_dn_cstr(id)" in acc, \
-            f"{DEFECT37} s3_acc_check no longer reads the DN"
+        assert "s3_acc_authorize_path(r, cf, id," in acc, \
+            "s3_acc_check no longer delegates its identity to the shared gate"
+        authorize = acc_src.split("s3_acc_authorize_path(ngx_http_request_t", 1)[1] \
+                           .split("\n}", 1)[0]
+        assert "brix_identity_dn_cstr(id)" in authorize, \
+            f"{DEFECT37} the shared XrdAcc gate no longer reads the DN"
         verify = (S3_SRC / "auth_sigv4_verify.c").read_text(encoding="utf-8")
         assert "brix_identity_set_subject(identity" in verify, \
             f"{DEFECT37} the SigV4 verifier no longer sets the subject"

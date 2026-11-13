@@ -170,7 +170,8 @@ def _start_ceph_container(container):
     started = _docker([
         "run", "-d", "--name", container, "--network", "host",
         "-e", f"MON_IP={mon}", "-e", f"CEPH_PUBLIC_NETWORK={net}",
-        "-e", "CEPH_DAEMON=demo", "-e", "DEMO_DAEMONS=mon,mgr,osd",
+        "-e", "CEPH_DAEMON=demo", "-e",
+        f"DEMO_DAEMONS={_env('CEPH_DEMO_DAEMONS', 'mon,mgr,osd')}",
         "-e", "RGW_NAME=localhost", ceph_image(),  # net-literal-allow: RGW's own hostname inside the demo container, not a dial target
     ])
     if started.returncode != 0:
@@ -238,7 +239,10 @@ def cmd_pool_reset() -> int:
 
 
 def cmd_stop() -> int:
-    _docker(["rm", "-f", ceph_container()])
+    result = _docker(["rm", "-f", ceph_container()])
+    if result.returncode:
+        print(f"ceph_harness: stop failed: {result.stderr}", file=sys.stderr)
+        return result.returncode
     print("ceph_harness: stopped")
     return 0
 

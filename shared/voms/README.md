@@ -131,7 +131,7 @@ cc -std=c11 -D_GNU_SOURCE -Wall -Wextra -Werror -I shared \
 ```
 
 On macOS with Homebrew OpenSSL add
-`-I/usr/local/opt/openssl@3/include -L/usr/local/opt/openssl@3/lib`.
+`-I/usr/local/opt/openssl@4/include -L/usr/local/opt/openssl@4/lib`.
 Exit 0 and the line `all checks passed` mean every pin holds.  The Python
 tier wraps the same build in `tests/test_voms_native_ac_unit.py`, and
 `tests/test_voms_native_ac.py` drives a live `brix_require_vo` server with

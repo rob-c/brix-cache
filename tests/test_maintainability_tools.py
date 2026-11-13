@@ -81,9 +81,38 @@ def test_coverage_verdict_requires_a_green_suite():
     assert cov._coverage_verdict(7, "99.9", "67") == 7
 
 
+def test_coverage_eighty_percent_gate_uses_the_unrounded_rate():
+    cov = _load("tools/ci/coverage.py", "cov_eighty")
+    assert cov._coverage_verdict(0, "80.0", "80") == 0
+    assert cov._coverage_verdict(0, "79.99", "80") == 1
+    assert cov._coverage_verdict(7, "85.0", "80") == 7
+
+
+def test_coverage_default_runs_native_harnesses_without_recursive_build_jobs():
+    import shlex
+    cov = _load("tools/ci/coverage.py", "cov_command")
+    command = shlex.split(cov._default_test_command())
+    assert "--include-suite-jobs" in command
+    assert "--fast" not in command
+    assert "--deselect=tests/test_ci_guards.py::test_ci_coverage_runner_green" in command
+    assert "--deselect=tests/test_ci_guards.py::test_ci_analyzer_runner_green" in command
+    assert "--deselect=tests/test_ci_asan_lane.py::test_ci_asan_runner_green" in command
+
+
 def test_coverage_preflight_skip():
     cov = _load("tools/ci/coverage.py", "cov_pf")
     assert cov._skip_reason("/definitely/not/a/real/nginx")
+
+
+def test_required_coverage_cannot_pass_without_its_build_or_collector(monkeypatch):
+    cov = _load("tools/ci/coverage.py", "cov_required")
+    monkeypatch.setattr(cov, "_skip_reason", lambda _source: "coverage: SKIP — missing input")
+    monkeypatch.delenv("COVERAGE_MIN", raising=False)
+    assert cov.main() == 0
+    monkeypatch.setenv("COVERAGE_MIN", "80")
+    assert cov.main() == 1
+    monkeypatch.setenv("COVERAGE_MIN", "0")
+    assert cov.main() == 1
 
 
 # --------------------------------------------------------------------------- #

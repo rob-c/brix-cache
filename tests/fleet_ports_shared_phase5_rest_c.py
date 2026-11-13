@@ -328,3 +328,8 @@ LIFECYCLE_SHARED_PORTS_PHASE5.update({
 LIFECYCLE_SHARED_PORTS_PHASE5.update({
     "lc-audit15h-tpcgsitls-nostore": {"port": 31350},
 })
+
+# The handoff wire family owns one short-lived listener per test.
+LIFECYCLE_SHARED_PORTS_PHASE5.update({
+    "lc-http-handoff": {"port": 31351},
+})

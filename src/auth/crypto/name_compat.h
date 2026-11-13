@@ -7,6 +7,7 @@
  */
 #pragma once
 
+#include "auth/crypto/asn1_compat.h"
 #include <openssl/bio.h>
 #include <openssl/crypto.h>
 #include <openssl/x509.h>
@@ -189,7 +190,7 @@ brix_crypto_name_backslashes(const ASN1_STRING *value, size_t *width)
         return -1;
     }
     type = ASN1_STRING_type(value);
-    length = ASN1_STRING_length(value);
+    length = brix_crypto_asn1_length(value);
     data = ASN1_STRING_get0_data(value);
     *width = type == V_ASN1_BMPSTRING ? 2 : type == V_ASN1_UNIVERSALSTRING ? 4 : 1;
     if (length < 0 || (size_t) length % *width != 0 || (length > 0 && data == NULL)) {
@@ -250,7 +251,7 @@ brix_crypto_name_quote_entry(X509_NAME_ENTRY *entry)
     if (count <= 0) {
         return count == 0;
     }
-    length = ASN1_STRING_length(value);
+    length = brix_crypto_asn1_length(value);
     data = ASN1_STRING_get0_data(value);
     expanded = (size_t) length + (size_t) count * width;
     if (expanded > INT_MAX) {

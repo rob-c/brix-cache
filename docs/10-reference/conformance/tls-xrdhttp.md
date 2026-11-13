@@ -111,25 +111,22 @@ Entry points:
 - **Requirement:** proxy certificates carry impersonation authority; a server must
   either validate them to the full RFC 3820 profile or not accept them for the
   connection identity.
-- **Ours:** the `davs://` path deliberately **does not accept proxies**. The
-  `client_purpose=1` argument suppresses `X509_V_FLAG_ALLOW_PROXY_CERTS`
-  (`gsi_verify.c:191-193`), so a proxy leaf presented over TLS fails standard path
-  validation rather than being treated as a delegated client identity. HTTPS clients
-  are expected to present an end-entity certificate; delegated authority on the HTTP
-  side is carried by bearer tokens, not TLS proxies. Where a proxy *is* in play
-  (native `root://`, `client_purpose=0`), the full RFC 3820 controls apply:
-  proxyCertInfo criticality/policy-language (`brix_proxy_pci_ok`,
-  `store_policy.c:493-518`) and limited→full monotonicity (`brix_proxy_chain_ok`,
-  `store_policy.c:355`).
+- **Ours:** the `davs://` and native `root://` paths accept valid RFC 3820
+  proxies through `brix_gsi_verify_chain`. Both apply the proxyCertInfo
+  criticality and policy-language checks and limited-to-full monotonicity
+  checks. `tests/test_wlcg_conformance_proxy.py` verifies HTTPS acceptance of
+  valid full and limited proxies, rejection of noncritical proxyCertInfo,
+  and rejection of privilege escalation below a limited proxy.
 - **XRootD v6.1.0:** `XrdHttp` extracts only the EEC DN
   (`EECname()`, `XrdHttpSecurity.cc:116`) and performs no proxy-profile validation
   on the HTTP path. Legacy Globus GT2/GT3 proxies (CN=proxy with no proxyCertInfo)
   are recognized by the native code (`XrdCryptosslX509.cc`) but not held to RFC 3820
   monotonicity.
-- **Verdict:** Divergent (by design) on acceptance — we refuse TLS proxies over
-  `davs://` (`client_purpose=1`); Stricter-than-XRootD on the `root://` proxy
-  controls. Legacy-proxy rejection is recorded in `tests/clauses/_decisions.py`
-  (PXY-004/005/025..030/072/073/113/114 → reject) and PXY-136 (bare CN=proxy EEC → accept).
+- **Verdict:** both BriX transports validate delegated proxy chains. Legacy
+  proxy rejection remains recorded in `tests/clauses/_decisions.py`
+  (PXY-004/005/025..030/072/073/113/114 → reject), while PXY-136 covers a bare
+  CN=proxy end-entity certificate.
+
 
 ### Weak-algorithm, key-strength, serial and DN-sanity policy (RFC 5280 §4.1.2; IGTF)
 

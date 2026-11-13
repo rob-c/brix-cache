@@ -42,6 +42,7 @@
 
 #include "core/compat/crc32c.h"
 #include "fs/backend/sd.h"   /* route the journal byte I/O through the SD seam */
+#include "platform/platform_api.h"  /* portable durable data flush */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -224,7 +225,7 @@ srq_rec_write(brix_stage_registry_t *reg, int64_t off, srq_rec_t *rec,
     if (srq_pwrite_all(reg->fd, rec, sizeof(*rec), (off_t) off, log) != NGX_OK) {
         return NGX_ERROR;
     }
-    if (fdatasync(reg->fd) != 0) {      /* body durable before the header (WAL) */
+    if (brix_plat_fsync_data(reg->fd) != 0) { /* body durable before header (WAL) */
         BRIX_LOG(NGX_LOG_ERR, log, ngx_errno, "stage-req: record fdatasync");
         return NGX_ERROR;
     }

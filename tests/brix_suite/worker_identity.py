@@ -44,7 +44,11 @@ def nginx_default_worker_group(nginx_bin: str) -> str:
     Emitting a one-argument nginx ``user`` directive makes nginx fall back to
     its compiled group name (usually ``nobody``), which need not exist.
     """
-    user = nginx_default_worker_user(nginx_bin)
+    return nginx_worker_primary_group(nginx_default_worker_user(nginx_bin))
+
+
+def nginx_worker_primary_group(user: str) -> str:
+    """Resolve the group for an explicit worker without changing its account."""
     fallback = os.environ.get("BRIX_WORKER_GROUP", user)
     try:
         return grp.getgrgid(pwd.getpwnam(user).pw_gid).gr_name

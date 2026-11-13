@@ -191,8 +191,8 @@ zw_write_local_header(brix_zip_writer *w, const zw_entry *e)
  * WHAT: copies exactly e->size bytes from fd to the sink in buffer-sized chunks.
  * WHY:  the archive stores files uncompressed, so the payload is the raw bytes
  *       already accounted for by the CRC pass — must match e->size exactly.
- * HOW:  streaming pread bounded by the remaining count; EINTR retried, a short
- *       read ends the copy; each chunk emitted via w_emit (latches w->err).
+ * HOW:  streaming pread bounded by the remaining count; EINTR retried, EOF
+ *       before the frozen size latches EIO; each chunk emitted via w_emit.
  * RETURNS: XRDC_ZIP_OK, or the latched w->err on a read/emit failure.
  */
 static int
@@ -211,7 +211,8 @@ zw_stream_deflate(brix_zip_writer *w, int fd, const zw_entry *e,
             return w->err;
         }
         if (n == 0) {
-            break;
+            w->err = XRDC_ZIP_EIO;
+            return w->err;
         }
         if (w_emit(w, buf, (size_t) n) != XRDC_ZIP_OK) {
             return w->err;

@@ -42,7 +42,7 @@ const tiers = [
     body: 'Boots before its manager exists, retries a failed CMS login, and registers via kYR_login the moment the redirector comes up — proving startup order is never a correctness dependency.',
     port: ':11168 · nginx_cluster_ds.conf',
   },
-];
+] as const;
 
 const runMeta = {
   nginx: { label: 'nginx · BriX-Cache', cls: 'run-nginx' },

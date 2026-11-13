@@ -132,14 +132,13 @@ def test_stat_dir_flags_match_stock(srv, path):
         f"OUR stat {path} Flags != stock: ours={o.get('Flags')!r} stock={f.get('Flags')!r}"
 
 
-def test_stat_file_fields_byte_parity(srv):
-    """Every Key/value the stock client prints for a file, our client must print
-    identically (Id, Size, Flags, Mode, Owner, Group, M/C/ATime)."""
+def test_stat_file_fields_value_parity(srv):
+    """Match every stat value, allowing older clients' omitted UTC offset."""
     o = _fields(ourfs(srv["off"], "stat", "/data.bin")[1])
     f = _fields(fs(srv["off"], "stat", "/data.bin")[1])
     for key in ("Path", "Id", "Size", "Flags", "Mode", "Owner", "Group",
                 "MTime", "CTime", "ATime"):
-        assert o.get(key) == f.get(key), \
+        assert _stat_field_value(key, o.get(key)) == _stat_field_value(key, f.get(key)), \
             f"stat field {key}: ours={o.get(key)!r} stock={f.get(key)!r}"
 
 

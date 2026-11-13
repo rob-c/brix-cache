@@ -58,10 +58,11 @@ brix_proxy_forward_open(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
     if (proxy->conf != NULL && proxy->conf->proxy.path_strip.len > 0
         && ctx->recv.cur_dlen > 0)
     {
+        u_char *original = *req;
         *req = proxy_rewrite_path(c, proxy->conf, *req, *total,
                                  XRD_REQUEST_HDR_LEN, ctx->recv.cur_dlen,
                                  total);
-        /* Recalculate cur_dlen for audit capture below */
+        if (*req != original) { ngx_free(original); }
     }
 
     /* Capture path from payload for audit log */
@@ -106,16 +107,15 @@ brix_proxy_pathop_audit(brix_proxy_ctx_t *proxy, uint16_t reqid,
     }
     case kXR_mv: {
         /* payload: src[arg1len] + ' ' + dst */
-        uint16_t arg1len_be;
-        size_t   src_len, dst_off, dst_len;
-        ngx_memcpy(&arg1len_be, req + 18, 2);
-        src_len = (size_t) ntohs(arg1len_be);
+        size_t src_len = proxy_mv_source_length(req, total);
+        if (src_len == 0) { break; }
+        size_t dst_off = XRD_REQUEST_HDR_LEN + src_len + 1;
+        size_t dst_len;
         if (src_len >= BRIX_PROXY_PATH_MAX) {
             src_len = BRIX_PROXY_PATH_MAX - 1;
         }
         ngx_memcpy(proxy->fwd_path, req + XRD_REQUEST_HDR_LEN, src_len);
         proxy->fwd_path[src_len] = '\0';
-        dst_off = XRD_REQUEST_HDR_LEN + src_len + 1; /* skip space */
         if (dst_off < total) {
             dst_len = total - dst_off;
             if (dst_len >= BRIX_PROXY_PATH_MAX) {
@@ -141,22 +141,35 @@ brix_proxy_pathop_audit(brix_proxy_ctx_t *proxy, uint16_t reqid,
  *       capture so the logged path matches what upstream sees.
  * HOW:  Strips the configured prefix from the payload path, then delegates to
  *       brix_proxy_pathop_audit() for the audit-buffer copies. *req and *total
- *       updated in place.
+ *       updated in place. Invalid rename framing or failed rewrites are rejected.
  */
-static void
+static ngx_int_t
 brix_proxy_forward_pathop(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
                           ngx_connection_t *c, uint16_t reqid,
                           u_char **req, size_t *total)
 {
+    if (reqid == kXR_mv && proxy_mv_source_length(*req, *total) == 0) {
+        return proxy_reject_request(ctx, c, *req, kXR_ArgInvalid,
+                                    "proxy: invalid rename paths");
+    }
     /* Path-based ops: rewrite the path payload if configured */
     proxy->fwd_local_fh   = -1;
     proxy->fwd_path_audit = 0;
     if (proxy->conf != NULL && proxy->conf->proxy.path_strip.len > 0
         && ctx->recv.cur_dlen > 0)
     {
-        *req = proxy_rewrite_path(c, proxy->conf, *req, *total,
-                                 XRD_REQUEST_HDR_LEN, ctx->recv.cur_dlen,
-                                 total);
+        u_char *original = *req;
+        if (reqid == kXR_mv) {
+            *req = proxy_rewrite_mv(c, proxy->conf, original, *total, total);
+            if (*req == NULL) {
+                return proxy_reject_request(ctx, c, original, kXR_IOError,
+                                            "proxy: cannot rewrite rename paths");
+            }
+        } else {
+            *req = proxy_rewrite_path(c, proxy->conf, original, *total,
+                                     XRD_REQUEST_HDR_LEN, ctx->recv.cur_dlen, total);
+        }
+        if (*req != original) { ngx_free(original); }
     }
     /* Capture path/dest for mutation-op audit log */
     if (proxy->conf != NULL
@@ -165,6 +178,7 @@ brix_proxy_forward_pathop(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
     {
         brix_proxy_pathop_audit(proxy, reqid, *req, *total);
     }
+    return NGX_OK;
 }
 
 /*
@@ -440,8 +454,7 @@ brix_proxy_translate_dispatch(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
         return NGX_OK;
     }
 
-    brix_proxy_forward_pathop(proxy, ctx, c, reqid, req, total);
-    return NGX_OK;
+    return brix_proxy_forward_pathop(proxy, ctx, c, reqid, req, total);
 }
 
 /*

@@ -8,15 +8,16 @@ class _OverlayScenario:
         self.env = env
         self.expected = expected
         self.checks = []
+        self.process = None
 
     def mount(self, arguments):
-        self.run.spawn([*arguments, "-o", "auto_unmount", "-f"], env=self.env)
+        self.process = self.run.spawn([*arguments, "-o", "auto_unmount", "-f"], env=self.env)
         _wait_mounted(self.mountpoint, timeout=15)
         time.sleep(1)
 
     def unmount(self):
-        _unmount(self.mountpoint)
-        time.sleep(1)
+        _unmount_owned(self.process, self.mountpoint)
+        self.process = None
 
     @staticmethod
     def write(path, text):
@@ -164,7 +165,7 @@ class _OverlayScenario:
             self.mounted_listing_and_reset()
             self.readonly_mount()
         finally:
-            _unmount(self.mountpoint)
+            self.unmount()
         return _checks(self.checks)
 
 

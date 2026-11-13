@@ -32,6 +32,7 @@ import pytest
 
 from lib_py.util import nologin_shell
 from lib_py import account_host
+from brix_suite.worker_identity import nginx_worker_primary_group
 
 # utils/ lives at the repo root, one level above tests/.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -68,6 +69,11 @@ def uid_of(name: str) -> int:
 
 def gid_of(name: str) -> int:
     return pwd.getpwnam(acct(name)).pw_gid
+
+
+def worker_template_values():
+    """Keep the explicit nobody worker and use its actual host primary group."""
+    return {'WORKER_GROUP': nginx_worker_primary_group('nobody')}
 
 
 def _tools_present() -> bool:
@@ -396,11 +402,11 @@ def assert_listener_released(host, port):
 
 def listener_release_control(case, host):
     """Prove release semantics against actual closed, active and TIME_WAIT sockets."""
-    from ephemeral_port import free_port
+    from ephemeral_port import bind_port
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind((host, free_port(host)))
+        bind_port(lambda port: server.bind((host, port)), host)
         server.listen(1)
         port = server.getsockname()[1]
         if case == 'active':

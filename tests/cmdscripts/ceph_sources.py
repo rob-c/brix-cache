@@ -35,12 +35,17 @@ def backend_sources(cephfs=False):
     return list(dict.fromkeys(sources))
 
 
-def driver_command(driver, output, cephfs=False):
+def driver_arguments(driver, output, cephfs=False):
     """Compile the real source closure with one consistent standalone shim."""
-    command = ["gcc", "-std=c11", "-D_GNU_SOURCE", "-D_FILE_OFFSET_BITS=64",
+    return ["gcc", "-std=c11", "-D_GNU_SOURCE", "-D_FILE_OFFSET_BITS=64",
                "-DBRIX_PLATFORM_HOST=linux",
                "-Wall", "-Wextra", "-Werror", "-DXRDPROTO_NO_NGX", "-DBRIX_HAVE_CEPH",
                "-I", "src", "-I", "src/fs/backend", "-I", "src/fs/backend/rados",
                "-include", "client/apps/ceph/ngx_shim.h", driver,
                *backend_sources(cephfs), "-lrados", "-o", output]
-    return "cd /work/repo && " + shlex.join(command)
+
+
+def driver_command(driver, output, cephfs=False):
+    """Retain the container operator's existing working-directory contract."""
+    return "cd /work/repo && " + shlex.join(
+        driver_arguments(driver, output, cephfs))

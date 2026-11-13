@@ -63,6 +63,7 @@ from settings import (
 )
 from lib_py.util import close_wait_on_ports
 from brix_suite.launcher import RegistryLauncher
+from _test_ha_health import wait_backend_states
 
 # The HA group is a standing registry fleet. Failover stops and restarts the
 # named member through its owner so the master, workers and prefix stay paired.
@@ -265,8 +266,9 @@ class TestHAFailover:
 
         launcher = RegistryLauncher()
         try:
+            wait_backend_states({"nginx1": "UP", "nginx2": "UP"})
             launcher.stop("ha-nginx1")
-            time.sleep(0.5)  # allow haproxy to detect the down backend
+            wait_backend_states({"nginx1": "DOWN", "nginx2": "UP"})
 
             # New connections through HAProxy must still succeed via nginx-2.
             dst1 = str(tmp_path / f"{name}_post")

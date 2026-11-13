@@ -22,17 +22,17 @@
         let
           pkgs = import nixpkgs { inherit system; };
           complexipyWheel = if system == "aarch64-linux" then {
-            name = "complexipy-7.0.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl";
-            url = "https://files.pythonhosted.org/packages/e5/e3/c86048d3fba3b3d6c888de45080fda26261f2c0599b9e323ea3255e79ddb/complexipy-7.0.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl";
-            hash = "sha256-hAErdDibC/DUgqUqnpj14whpB8DZYuupk133CXWUOfM=";
+            name = "complexipy-8.3.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl";
+            url = "https://files.pythonhosted.org/packages/81/1c/4034329a7b5b48f85f9b108c451c036bbaa39a5ebf1045ebe22541609057/complexipy-8.3.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl";
+            sha256 = "3fd160d7c9a4a265ec843831a824515c3366ca4e3a4761c2b90fb57c08be01d5";
           } else {
-            name = "complexipy-7.0.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl";
-            url = "https://files.pythonhosted.org/packages/db/85/bd15c109459a9b34050a5965c5b3fa5da40f010572c556796441eef99112/complexipy-7.0.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl";
-            hash = "sha256-zBKxlKNimb/Z9yoqr9pxjGA4ue50fzFtlWT6WOwPmCc=";
+            name = "complexipy-8.3.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl";
+            url = "https://files.pythonhosted.org/packages/3a/1d/c4a04505ade6e0c768b8725bf52ca90b7be0cf7858b528dcbd3c8028bdda/complexipy-8.3.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl";
+            sha256 = "e0faf8e2ddf619a1b36ec19f3d0be0dba7c38e88060c81f39485fcf72ea3ccb7";
           };
           complexipy = pkgs.python3Packages.buildPythonPackage {
             pname = "complexipy";
-            version = "7.0.1";
+            version = "8.3.0";
             format = "wheel";
             src = pkgs.fetchurl complexipyWheel;
             dependencies = with pkgs.python3Packages; [ tomli typer ];
@@ -42,17 +42,17 @@
           # interoperability baseline. Consume released binary wheels only;
           # the stock reference server remains the nixpkgs package below.
           xrootdWheel = if system == "aarch64-linux" then {
-            name = "xrootd-6.2.0-cp313-cp313-manylinux_2_28_aarch64.whl";
-            url = "https://files.pythonhosted.org/packages/da/a1/83796efd598a772227d1ab8a929d8e930ebda6193c5166574e6912f32211/xrootd-6.2.0-cp313-cp313-manylinux_2_28_aarch64.whl";
-            sha256 = "3232e95c2dcc5521334a792296c08cd5d27282c7fa3a32c1cd1a9a4c5017be11";
+            name = "xrootd-6.2.1-cp313-cp313-manylinux_2_28_aarch64.whl";
+            url = "https://files.pythonhosted.org/packages/aa/f7/25fe0ee6eb35a0caa5d54dc6828a2ded9350e150d7f9ed71d7afe2d50114/xrootd-6.2.1-cp313-cp313-manylinux_2_28_aarch64.whl";
+            sha256 = "28784fcef88b11ede359772a589bbe302d3f9bfa208d0c8ee978ff2491ce752d";
           } else {
-            name = "xrootd-6.2.0-cp313-cp313-manylinux_2_28_x86_64.whl";
-            url = "https://files.pythonhosted.org/packages/04/7e/8fbd5192bfdb0b411c2a1c1f3e55d3637c1c5af9d578665eee02511ec882/xrootd-6.2.0-cp313-cp313-manylinux_2_28_x86_64.whl";
-            sha256 = "b28ec3c7fb69c9a9e5b0a8444c2fc4334139211eec304fc139067275e2cacc10";
+            name = "xrootd-6.2.1-cp313-cp313-manylinux_2_28_x86_64.whl";
+            url = "https://files.pythonhosted.org/packages/ed/8c/6165e9e1ef67d2f4fe7dbda67a6b114ebc5e401bfac8b7860bd330728cae/xrootd-6.2.1-cp313-cp313-manylinux_2_28_x86_64.whl";
+            sha256 = "2144c7d42f9dbda29e814c09156d90dc3a82b70a9c36cf0e3be16e58ae198e25";
           };
           xrootdBindings = pkgs.python3Packages.buildPythonPackage {
             pname = "xrootd";
-            version = "6.2.0";
+            version = "6.2.1";
             format = "wheel";
             src = pkgs.fetchurl xrootdWheel;
             nativeBuildInputs = [ pkgs.autoPatchelfHook ];

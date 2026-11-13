@@ -30,6 +30,7 @@
  * null) is copied as its raw token text.  An object/array value is NOT copied
  * (returns 0) since it has no flat-string form.  The result is written
  * NUL-terminated into out[outsz], truncated to fit.
+ * Member keys longer than 127 decoded bytes are skipped without matching.
  *
  * Returns 1 if the key was found and a string/scalar value copied, 0 otherwise
  * (not found, value is object/array, malformed input, or out too small).

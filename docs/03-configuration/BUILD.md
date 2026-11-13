@@ -1682,3 +1682,963 @@ module-load and byte-exact transfer proofs also pass under the installed nginx
 package. The target guide records the tested scope and explicit limitations;
 it does not claim Linux capability/broker parity or a completed full-suite
 certification.
+
+
+## 16. Dependency refresh and macOS ARM64 build — 2026-11-06
+
+This refresh updates the Python requirement bounds, Astro/npm lock, GitHub
+Actions, nginx defaults, Kubernetes/Calico tools, GFAL2 source pin, immutable
+Python helper images, and the NixOS 26.05 lock. Compatibility-matrix targets
+(such as AlmaLinux 8/9/10/11 and Ubuntu 22/24/26) remain distinct targets;
+package-manager dependencies use their distribution's supported packages.
+The explicit old-nginx compatibility lane and the last available EL8 Ceph
+repository are retained. They are compatibility coverage, not default builds.
+BriXTest retains lower bounds for its supported older Python interpreters while
+allowing the current dependency majors. The main suite uses Python 3.14 because
+the released macOS XRootD 6.2.1 binary wheel is available for that interpreter.
+No XRootD source was consulted or built for this validation.
+
+### Device environment
+
+The native build uses macOS 27.2 ARM64, Apple Clang 21, nginx 1.31.8, OpenSSL
+4.1.0, curl 8.23.0, Python 3.14.10, pytest 9.2.0 and pytest-xdist 3.8.0.
+The website uses Node 26.13, Astro 7.4.7, `@astrojs/check` 0.9.12 and
+TypeScript 6.0.3. The checker supports TypeScript 5/6, so TypeScript 7 is
+held back by its peer dependency. Native dependency headers and
+libraries come from Homebrew. Install the build and local-test prerequisites:
+
+```sh
+brew install cmake ninja pkgconf nginx python@3.14 openssl@4 pcre2 \
+  jansson krb5 curl libxml2 zlib zstd brotli xz bzip2 lz4 sqlite \
+  xrootd haproxy nghttp2 go helm kubernetes-cli minikube llvm make
+python3.14 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install --upgrade --only-binary=xrootd \
+  -r requirements.txt -r requirements-optional.txt -r requirements-dev.txt \
+  './brixtest[all,dev]'
+.venv/bin/python -m pip check
+```
+
+The final Python audit leaves only upstream-constrained transitive updates:
+CodeChecker 6.29.3 requires setuptools/types-setuptools 80, SQLAlchemy 2.0 and
+portalocker 3; Radon 6 requires mando below 0.8; botocore requires python-
+dateutil below 3. The environment passes `pip check`.
+
+The Kubernetes tooling uses a separate virtual environment: Kubernetes 37 and
+botocore currently require incompatible python-dateutil major versions.
+
+```sh
+python3 -m venv build/k8s-venv
+build/k8s-venv/bin/python -m pip install -r k8s-tests/pytests/requirements.txt
+```
+
+Use Homebrew's nginx source archive and its configure arguments so the dynamic
+modules match the installed nginx ABI. In this run the source and logs live in
+`build/dependency-update/`, and `build/dependency-update/env.sh` selects the
+built server, both modules, Python paths, and the private test root. The source
+archive and configure arguments are installed under
+`$(brew --prefix nginx)/share/nginx/src/`; extract the archive into a fresh build
+directory and append `--with-threads --add-dynamic-module=<absolute-repo-path>`
+to those arguments. Include the Homebrew jansson, Kerberos and libxml2 headers,
+and provide their pkg-config paths along with OpenSSL, curl and SQLite. Build
+with `make -j8`. Build clients with:
+
+```sh
+make -C client -j8 HOMEBREW_OPENSSL_PREFIX="$(brew --prefix openssl@4)" all aio-smoke
+```
+
+The Homebrew nginx package links OpenSSL 4; compiling its dynamic modules
+against OpenSSL 3 does not produce a compatible module. The client Makefiles
+and Homebrew formula now default to OpenSSL 4 too.
+
+### Test runtime details
+
+Put Homebrew's OpenSSL, Kerberos tools and curl before the system tools on
+`PATH`. The stock Homebrew XRootD HTTP plugin otherwise loads the system curl
+and LibreSSL 3.3.6; selecting `DYLD_LIBRARY_PATH=$(brew --prefix curl)/lib` for
+the validation process fixes its TLS interoperability with the current stack.
+This does not disable certificate verification. Set `XRDNET_IDENTITY=localhost`
+for the stock client on macOS. Build the independent Go-HEP clients at v0.40.0
+and point `TEST_GOHEP_BIN` at the directory containing `xrd-cp` and `xrd-ls`.
+
+macOS has no Homebrew VOMS client formula. The validation environment provides
+`voms-proxy-fake` and `voms-proxy-info` through a local AlmaLinux 9 container
+with `voms-clients-cpp`. The wrappers stage only the disposable certificate
+fixture inputs under the repository, preserve private-key permissions, disable
+container networking, and use the fixture's own trust store. This staging avoids
+Docker Desktop access failures for pytest's private temporary directories. They live in `build/dependency-update/bin` for this device.
+
+The main suite loads its own harness: disable the separately installed BriXTest
+pytest entry point using `PYTEST_ADDOPTS='-p no:brixtest -p no:platformdirs'`.
+Run BriXTest separately from its subdirectory with
+`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`, an empty `PYTEST_ADDOPTS`, and explicit
+`-p xdist.plugin -p pytest_timeout`; its conftest loads the BriXTest plugin.
+Give these runs different `TEST_ROOT` values. Run full root-suite lanes alone;
+nightly build jobs manage a fleet and reconfigure their selected nginx tree.
+Keep `test_ci_asan_runner_green`, both analyzer cases and the coverage job in
+separate runs with separate build trees.
+Keep the device awake and powered throughout live tests. Use
+`caffeinate -is -w <test-process-pid>` as a sibling watcher: launching the test
+command through `/usr/bin/caffeinate` strips `DYLD_LIBRARY_PATH` and
+`DYLD_FRAMEWORK_PATH` under macOS SIP, hiding the extracted macFUSE SDK. The
+local `build/dependency-update/keep-awake.py` wrapper starts that watcher and
+executes the test command with its original environment. Clamshell sleep
+interrupted an earlier parallel run; its failures are not a clean result.
+
+pytest 9.2 replaced the private string node-ID storage with structured IDs.
+xdist 3.8 still writes the older field, silently losing `loadgroup` scheduling.
+The suite's existing grouping helper now updates both representations; its
+collection, fail-fast and live fixed-port tests verify the compatibility path.
+Other repairs cover macOS process ownership and xattrs, broker backlog,
+Mach-O library capture, certificate dates relative to the run date, isolated
+mock cleanup, UDP readiness, and the current stock `xrdfs stat` time format.
+The full-proxy cases now share one worker because their negative assertion
+reads a shared server log. The installed-library consumer selects its staged
+library through both ELF and Mach-O loader paths while preserving dependency
+SDK paths. A fresh six-worker run passed all **49 focused cases**, including
+these repairs, cluster/federation redirects, stock-client stress and MinIO STS.
+Mesh cleanup also checks exact directory ownership through the existing process
+inspection helper before stopping a mesh or sweeping its listeners. An empty
+child registry uses the same port ladder as its parent; the old port-only sweep
+killed the parent's CMS and hybrid meshes. The read-only diagnostic identified
+85 parent-owned targets and no child-owned processes. All **53 ownership and
+migration checks** pass, and the real child-teardown regression preserves the
+main listener and both meshes with clean fleet conservation and final teardown.
+The MinIO image registries denied anonymous pulls, so the test oracle was built
+from the same checksum-verified official release recorded in §14 using Go
+1.27.3. `env.sh` selects `BRIX_MINIO_IMAGE=brix-dependency-minio:20251015`;
+its fixed-port cases stay on one worker. All **three serial STS gateway cases**
+also pass, replacing their earlier missing-image skips.
+The client-conformance run passes **85 tests with one existing xfail** against
+both macOS XRootD 6.2.1 and EL9's packaged 5.9.8 binaries. Its timestamp
+comparison permits only the current client's explicit UTC suffix; **22
+regression cases** cover both native and Kubernetes helpers, preserving
+differences in times, nonzero offsets, malformed values and other fields.
+The Kubernetes lab reuses a healthy cluster only when its selected context,
+driver, node count and pinned version match, then waits for ready nodes. This
+avoids redundant `minikube start` calls fetching release metadata during every
+scenario. Authority pods now have HTTP readiness probes, and short-lived probe
+pods retain their logs until their exit status has been checked. Log EOF can
+precede the kubelet's final status update, so probes wait for the terminated
+state before reading the exit code; failed and missing status remain errors.
+All **88 Kubernetes tooling tests** pass.
+
+HAProxy health checks now perform the repo-defined root handshake, and the
+failover test waits for observed backend health transitions. The connection-only
+check on this device continued to report a stopped backend healthy. The repaired
+HA and token-authentication checks pass **26 tests**, with one Linux procfs skip.
+Expired-certificate fixtures use the shared date-relative certificate helpers;
+OpenSSL 4 no longer accepts their former zero-day certificate command.
+
+S3 POST now shares PUT's existing-parent probe before attempting parent creation.
+This preserves child writes under a depth-zero lock on an existing parent, while
+still rejecting writes to locked targets. Both root and nested parent cases fail
+against the previous build and pass with the fix. All **21 S3/cross-protocol lock
+checks** also pass against the rebuilt ASan/UBSan server. The **11 network-fault
+stream and client recovery checks** pass in an isolated run.
+
+Storage durability calls now use the existing `brix_plat_fsync_data` adapter.
+This keeps Linux's data-sync behavior and uses the Darwin adapter's full-sync
+operation with its fsync fallback. Upstream Clang rejects the former direct
+`fdatasync` calls against the macOS SDK. Hand-linked metadata tests use the same
+real PAL implementation as the module. The final native storage integration run
+passes **66 tests**, with one capability skip; the CSI scrub and cinfo native
+checks pass too.
+
+The SigV4 comparator initializes its encoded bytes explicitly for GCC's
+uninlined coverage build. The optimized native machine code is unchanged;
+all **36 presigned-request, authentication-oracle and canonicalizer checks**
+pass against the rebuilt ASan/UBSan server. The EL9 Ceph build uses the supported
+`rados_read_op_stat` API for version-only probes; it does not consume the
+timestamp, so the high-resolution variant is unnecessary. The Ceph path,
+metadata and client-build checks pass **44 tests**.
+
+### Validation evidence
+
+Logs and JUnit results are retained under `build/dependency-update/`. Validation
+completed on 2026-11-08: native nginx/modules and clients build; repeated incremental builds
+are no-ops; the six CMake tests and native client tests pass; the website check
+reports zero errors/warnings across 26 files, builds 15 pages, and npm audit
+reports no vulnerabilities. The site workflow now runs its declared check before
+building. All 111 focused harness checks,
+38 grouping checks, 23 live grouping tests, six stock-client WebDAV tests and
+88 Kubernetes tooling tests pass. All 15 Kubernetes end-to-end cases have passed,
+including the remote suite and all seven lab image builds. The final full run
+passed 14 cases; the fleet case passed separately after fixture teardown cleared
+a pending Helm upgrade left by an interrupted run. The Linux ARM64
+server image also builds.
+The initial guard run passed 156 tests with two capability skips.
+
+BriXTest completed with **1,253 passed and 10 skipped**. All 14 libFuzzer
+corpus dry runs passed using Homebrew LLVM; Apple Clang does not ship
+`libclang_rt.fuzzer_osx.a`. The macFUSE 5.5.0 package was verified against its
+Homebrew SHA-256 and its SDK extracted locally; no system driver was installed.
+`PKG_CONFIG_PATH`, `CPATH`, `DYLD_LIBRARY_PATH` and `DYLD_FRAMEWORK_PATH` in
+`env.sh` select its headers, libraries and MFMount framework. Both FUSE clients
+build and launch. OpenSSL 4.1 ASN.1 length compatibility preserves signed bounds;
+all 13 native crypto compatibility tests pass against both OpenSSL 3 and 4.
+The separate ASan/UBSan server and client builds pass a byte-exact transfer
+with no reports. The sanitizer orchestrator passes all 30 tests and its
+standing-fleet smoke performs a real read; Darwin explicitly disables the
+unsupported LeakSanitizer runtime while retaining address and UB checks.
+The full GCC 11 and supported Clang 21.1.8/CodeChecker 6.29.3 analyzer runs in
+the AlmaLinux 9 ARM64 build image both pass with **zero findings across 1,232
+source files**. The complete Ceph-enabled Linux server also compiles and links
+against EL9's real librados. The VFS storage probe now states
+its existing null-context precondition locally so separately analyzed helper
+paths preserve the public confinement guard's contract. An additional macOS
+LLVM 23.1.5 analysis reported 107 diagnostics before the include-guard repair,
+including third-party macro expansion and Darwin-specific reports; that extra
+analysis is not clean. Its reports are retained in
+`build/dependency-update/codechecker-portability-diagnostics/`. No analyzer
+baseline was expanded. gcov/lcov coverage runs separately from the native
+functional lanes. The Docker validation root must live on disk-backed XFS:
+Docker Desktop's overlay filesystem rejected a direct 4 KiB xattr write, while
+the protocol boundary check requires 64 KiB. A private sparse XFS image in a
+task-owned Docker volume accepts that boundary; no conformance assertion is
+relaxed. Standalone C tests now detect coverage runtimes in linked
+objects and archives, as they already did for sanitizer runtimes. This preserves
+the instrumented objects instead of failing on unresolved gcov symbols. Four
+native regression cases and the original Linux CVMFS link case pass.
+The complete instrumented fleet exceeded Docker Desktop's 8 GiB VM budget:
+the kernel recorded an OOM kill of a pytest worker. Coverage therefore uses a
+separate task-owned Lima VZ VM with 24 GiB RAM, eight CPUs and an 80 GiB disk,
+running the same AlmaLinux image with four test workers and private XFS storage.
+It selects that VM's Docker socket explicitly, leaving the user's Docker
+context and existing containers untouched. The failed run's partial coverage
+is diagnostic only; the required line-coverage floor remains 67%.
+Run this fleet and its build as the same unprivileged user. A root-launched
+nginx drops privileges, so it cannot write gcov counters into root-owned object
+directories or update owner-only test fixtures. The local validation image
+uses a dedicated `brixbuild` user and includes `iproute` and `lsof` for real
+connection-count observations. All **119 preflight checks** pass, including
+checksum backpressure, owner-only xattrs, CMS connection count, extended wire
+boundaries, native Linux PAL units, enforced/audited seccomp, rejected exec calls
+and purge-policy deadlines. The preflight also verifies worker-owned gcov output
+before zeroing counters for the complete run. The external reference bind
+adapter declares GNU feature support before its headers so glibc exposes
+`RTLD_NEXT`; all seven wildcard, loopback and forbidden-address checks pass.
+The native `wait41` timeout case now leases an unused test port instead of
+assuming port 12977 is closed. A full parallel run showed another worker had
+legitimately leased that port for its live TPC mock; readiness and timeout
+checks both pass with the infrastructure-assigned port.
+Install `libseccomp-devel` and `liburing-devel` before configuring the Linux
+coverage build (`libseccomp-dev` and `liburing-dev` on Ubuntu). The native PAL
+tests compile against both libraries, and live seccomp tests require an enabled
+filter implementation. A build without libseccomp correctly refuses to start
+enforced workers; installing the headers afterward requires reconfiguration and
+rebuilding. The coverage workflow now declares both development dependencies.
+
+The completed Linux coverage run exits **0**: **24,566 passed, 500 skipped,
+31 xfailed and 8 non-strict xpassed**, with **67.7% line coverage**
+(123,018/181,712 lines) and 75.4% function coverage. Its log is
+`build/dependency-update/coverage-linux-final.log`; the HTML report is
+`build/dependency-update/lima-share/linux-final-report/html/index.html`, and
+JUnit is under `lima-share/linux-final-observer/`. This result starts with
+zeroed counters and meets the unchanged 67% floor. The private XFS mount and
+loop device were released, and the Lima VM was stopped after validation;
+its build image and reports remain available for reuse.
+
+The standalone `tests/userns` suite has **7 passed and 2 skipped**; the two
+namespace end-to-end cases require Linux's `newuidmap`/`newgidmap`. For this
+standalone root, create `$TEST_ROOT/tmp` before invoking pytest; its conftest
+does not run the main suite's environment preparation.
+
+Additional Linux checks install `rpm-build`, `rpmdevtools`, `redhat-rpm-config`,
+`fail2ban-server`, `zstd` and `gnupg2`, and give the unprivileged test user a
+supplementary group. Those checks pass **210 tests** covering RPM creation and
+native mirroring, fail2ban patterns, group resolution and compression. The five
+DNF mirror cases then pass with the built nginx directory on `PATH`: installation,
+offline cache reads, cache hits, rejected writes, expired metadata and wrong-key
+signature rejection. Their private DNF install roots use `unshare -r`; the
+isolated VM container receives `SYS_ADMIN` for that namespace operation. Both
+supplemental runs exit 0. Logs are `linux-supplement-final.log` and
+`linux-rpm-mirror-final.log` under `build/dependency-update/`.
+
+The final native parallel run exits **0**, including fleet conservation and
+teardown. Both CMS and hybrid meshes are reachable in its pre-teardown snapshot,
+and the ownership check finds no remaining processes after shutdown. The final
+Linux test container exits 0 and the task-owned Lima VM is stopped; build images,
+environment scripts and reports remain available for reuse.
+
+| Completed lane | Result | Evidence under `build/dependency-update/` |
+|---|---|---|
+| Native parallel, six workers | 41,046 passed; 1,376 skipped; 45 xfailed; 8 non-strict xpassed | `native-clean-final.log`, `native-clean-observer/full-suite-65598.xml` |
+| Native serial | 5,853 passed; 403 skipped; 4 xfailed | `full-suite-43023.xml` |
+| Native destructive | 160 passed; 26 skipped | `full-suite-67241.xml` |
+| Client conformance | 1,034 passed | Final lane in `full-suite-isolated-final.log` |
+| BriXTest | 1,253 passed; 10 skipped | `brixtest-patches-final.log` |
+| Linux instrumented suite | 24,566 passed; 500 skipped; 31 xfailed; 8 non-strict xpassed; 67.7% line coverage | `coverage-linux-final.log` |
+| Additional Linux capability checks | 210 passed, followed by all five DNF mirror cases passing | `linux-supplement-final.log`, `linux-rpm-mirror-final.log` |
+| Kubernetes end-to-end | All 15 cases passed across the full run and isolated fleet rerun | `k8s-e2e-isolated-final.log`, `k8s-fleet-isolated-final.log` |
+
+Counts are per lane; focused and supplemental checks can overlap the full suite.
+The full project test workflow is complete with its declared skips and existing
+expected failures. Platform requirements such as an active macFUSE/FUSE-T mount
+and Linux-only kernel features remain capability-gated. The two analyzer cases,
+coverage job and ASan job that mutate build trees were validated separately,
+as required by the agent guide. Earlier interrupted and failing attempts are
+retained as diagnostics; the table identifies the completed validation evidence.
+
+## 17. Full-suite C coverage — 2026-11-08
+
+The coverage lane now runs the canonical parallel, serial, destructive and
+client-conformance phases, including standalone C jobs. The two analyzer cases,
+recursive coverage case and ASan case remain separate because they replace the
+build under measurement. `COVERAGE_PRIVILEGED=1` appends the Linux root contract
+group through noninteractive sudo; use it only on a disposable test host because
+the existing fixtures provision accounts and exercise network namespaces.
+
+Coverage means executable C lines under `src/` and `client/` in the instrumented
+production build. It does not measure Python coverage. An initial `.gcno`
+capture fixes the complete production denominator before testing, including
+unexecuted files. Standalone compiler wrappers retain counters outside temporary
+pytest directories, and the final merge applies their measured hits only to
+that initial inventory. Test harness lines and unit-only preprocessor branches
+cannot increase the measured scope. The floor compares the unrounded percentage;
+a failed suite, missing collector prerequisite or failed capture cannot pass it.
+
+New finite-process tests exercise the real fault-proxy control, relay and oracle
+implementations, and the impersonation broker's namespace, metadata, xattr and
+authorization paths. They exit normally so gcov can flush counters. Existing
+native C regression units now retain their counters through fixture cleanup.
+Success, syscall failure and security refusal cases all contribute real
+execution. The privileged tests exposed a worker initialization bug: capability
+bounding bits were dropped after `CAP_SETPCAP` had already been removed. The
+worker now clears and verifies the bounding set first, while preserving the
+current identity-transition capabilities until the existing de-escalation step.
+
+The local Linux environment uses the private `brixcov` Lima VM and a disposable
+AlmaLinux container with GCC 11, the updated nginx 1.31.8 build, the full Python
+requirements, reference clients, GFAL, Globus, FUSE 3, capability/seccomp/uring
+development libraries, and `iproute`, `iproute-tc` and `nftables`. An XFS test root
+supports the filesystem contract tests. The container receives `/dev/fuse` and
+`SYS_ADMIN`, `SYS_PTRACE`, `DAC_READ_SEARCH` and `NET_ADMIN`; its test accounts,
+mounts and network changes are isolated from the macOS host.
+
+Ubuntu's restriction on unprivileged user namespaces also applies to an
+otherwise unconfined container. The private VM uses a task-specific AppArmor
+profile selected only by the test container, with `userns` permitted. The CI
+workflow instead loads `tools/ci/coverage_userns.apparmor` for the exact
+`/usr/bin/unshare` launcher and removes it afterward. Neither setup changes the
+host's global user-namespace restriction. These launchers are required by the
+real DNF installroot test; FUSE mount/remount/cache/cleanup tests also pass in
+the selected container profile.
+
+On a prepared disposable Linux host, the permanent collector is invoked with:
+
+```sh
+export NGINX_SRC=/tmp/nginx-1.31.8
+export TEST_ROOT=/tmp/brix-cov
+export PYTHONPATH=tests
+export PYTEST_ADDOPTS='-p no:brixtest -p no:platformdirs'
+export PATH="$NGINX_SRC/objs:$PWD/.venv-coverage/bin:$PATH"
+python3 tests/rpm/make_fixtures.py
+COVERAGE_MIN=80 COVERAGE_PRIVILEGED=1 tools/ci/coverage.py
+```
+
+The full-suite measurement starts with zeroed counters. The ordinary and root
+groups then contribute to one report without a counter reset between them.
+Focused diagnostic merges from development are retained separately and are not
+the final full-suite evidence.
+
+### Completed measurement and validation
+
+The final result is **80.22951724137931% C line coverage**: **145,416 of 181,250
+lines**, across 1,709 production files. Function coverage is 89.6%
+(12,065/13,467); this run does not collect branch coverage. The initial and final
+production inventories match. The exact **80% floor passes**, and the completion
+runner exits **0**. `.github/workflows/coverage.yml` now enforces that floor;
+the hosted GitHub workflow itself was not dispatched from this device.
+
+| Phase | Result |
+|---|---|
+| Parallel, four workers | 42,229 passed; 395 skipped; 48 xfailed; 8 non-strict xpassed; two repository guard failures corrected and rechecked below |
+| Serial | 5,955 passed; 310 skipped; 4 xfailed |
+| Destructive | 183 passed; 3 skipped |
+| Client conformance | 1,034 passed |
+| Corrective guard and timezone rechecks | 33 passed |
+| Linux privileged group | 336 passed; no skips or failures |
+
+The parallel run identified an untracked coverage helper and a hard-coded host
+in the new timezone test. With explicit operator approval, only the four new
+coverage support files were staged; no commit was made. The timezone fixture
+now uses `settings.HOST`. Both guards and the timezone tests passed on macOS
+and inside the Linux container, then passed again immediately before the root
+group. No production source or binary changed during these corrections.
+
+The ordinary suite's original nonzero result and its 79.5895% report remain
+available. The completion runner audits all four ordinary JUnit reports,
+accepts only those two identified failures for corrective rechecking, and
+requires actual successful rechecks and root tests before the final verdict.
+It appends execution to the same zeroed-run counters without resetting them;
+the stopped container's build and counters were preserved in a disposable
+image for this continuation. This is full-suite validation with corrective
+rechecks, not a claim that the first invocation was entirely green.
+
+Evidence under `build/dependency-update/`:
+
+- `coverage80-final-v2.log`: the four ordinary phases and their original result.
+- `coverage80-complete.log`: report audit, successful rechecks, privileged tests
+  and the exact passing coverage verdict.
+- `lima-share/coverage80-final-v2-observer/`: per-phase JUnit, the original
+  failure records, `coverage80-corrective-rechecks.xml` and
+  `coverage80-privileged.xml`.
+- `lima-share/coverage80-final-v2-report/coverage.info` and `html/index.html`:
+  final LCOV and HTML reports. `coverage.ordinary.info` preserves the report
+  before the root group. The final LCOV SHA-256 is
+  `a5fb0f38cd295a28de267e09ac58a110a12869339b398f600e0cb8e8eced0158`.
+- `coverage80-native-smoke.log`: the updated native macOS build's `nginx -t`,
+  boot and byte-exact read smoke test passed.
+
+Both ordinary and privileged phases used the instrumented nginx SHA-256
+`f88fc97b4c6a9983b77283b5177c14296ed8ac97160e4862bad350999775f47d`.
+Counts are per phase; corrective and privileged checks can overlap tests
+selected earlier. Skips and existing expected failures are retained as such.
+
+The final native tooling/guard recheck passed 53 tests with four skips
+(`coverage80-final-static.log`). Workflow YAML, the configured 80% floor,
+documentation links and whitespace checks pass. All task-owned containers are
+stopped; the temporary AppArmor profile was removed, the XFS fixture filesystem
+unmounted, its loop device detached, and the private Lima VM shut down. Build
+images, the filesystem backing image, logs and reports remain available for reuse.
+
+## 18. 90% native coverage and v2.0.0 test packages — 2026-11-10
+
+Fresh passing validation covers **165,061 / 183,151 lines
+(90.12290405184793%)**, exceeding the requested 90% minimum. The inventory
+contains executable Linux C/C++ lines under `src/` and `client/`, matching the
+existing CI scope. It remains fixed throughout collection. These results use
+only the fresh passing captures below; failed or interrupted sweeps and the
+earlier focused-test checkpoint are excluded from the final rate.
+
+| Validation lane | Passed | Skipped | Expected failures | Non-strict unexpected passes |
+|---|---:|---:|---:|---:|
+| Parallel, four workers | 51,912 | 442 | 48 | 8 |
+| Privileged | 385 | 0 | 0 | 0 |
+| Serial | 6,100 | 308 | 4 | 0 |
+| Destructive/resilience | 183 | 3 | 0 | 0 |
+| Client conformance | 1,034 | 0 | 0 | 0 |
+| Standalone user namespaces | 9 | 0 | 0 | 0 |
+| Quiesced Ceph reverse recovery | 2 | 0 | 0 | 0 |
+
+All lanes exit zero. The ordinary, privileged and namespace groups alone
+cover **90.02407849260992%**; the separately quiesced Ceph recovery cases bring
+the final total to 90.1229%. The disposable MDS journal was flushed before
+those cases, and the MDS was restarted and confirmed active afterward.
+The instrumented nginx SHA-256 remains
+`364fa8efa448766835525be99b76d24d7e6a6e0be0e9f05e635a9683fd816e65`.
+All 2,843 production source/header files match the frozen v6 package snapshot.
+
+CI now enforces `COVERAGE_MIN=90`. Its enabled privileged coverage path also
+runs the standalone namespace suite as the invoking user, prepares private
+subordinate IDs without replacing existing mappings, and preserves counters
+through preparation and cleanup. Ubuntu uses a named AppArmor profile for
+that test process; global namespace restrictions remain unchanged. Focused
+Linux coverage-tool checks pass **92 tests** (four conditional skips), the
+new orchestration passes all **nine actual namespace tests**, and the scoped
+AppArmor profile permits a real unprivileged namespace. Python quality and
+runtime-dependency guards pass.
+
+All **24 v2.0.0 test package sets** are built and installation/runtime validated:
+ARM64 and x86_64 for AlmaLinux 8–10, CentOS Stream 9–10, Fedora 43/44/Rawhide,
+Ubuntu 24.04/26.04, NixOS 26.05 and macOS. AlmaLinux 8 and macOS contain client
+tools; the other 20 sets contain server and client tools. Linux Intel runtime
+checks used QEMU, macOS Intel used Rosetta, and ARM64 ran on this device's
+native architecture. Each target's manifest records its exact source identity
+and artifact hashes. This validates installation and selected runtime behavior
+on each target, rather than a complete suite on every target.
+
+Evidence is in `build/coverage90/{parallel17,completion14,userns19,reverse19}.log`
+and `build/dependency-update/lima-share/coverage90-dev-report/final90/`.
+Package bundles, installation instructions, full validation evidence and
+checksums are under `dist/test-v2.0.0/`. Source-only test and validation-support
+overlays record changes made after the immutable package snapshot. No Git
+commit, tag or release was created.
+
+### GitHub coverage host isolation — 2026-11-12
+
+The coverage workflow checkpoints preparation, the complete ordinary suite,
+privileged contracts and standalone user-namespace contracts in separate steps.
+Preparation freezes the production inventory and resets counters once. Later
+steps reuse the same SDK and standalone counter directory. The final report
+requires every enabled phase to finish successfully as well as at least 90%
+line coverage; interrupted phases and partial high-coverage runs fail. The
+default local `tools/ci/coverage.py` command still performs all phases together.
+
+Each CI phase runs as the original test user in a separate systemd service and
+PID/proc namespace, with a memory ceiling of 75% of physical RAM and no swap.
+Tini acts as namespace PID 1 and reaps exited descendants between test cases.
+Networking remains shared for the Docker interoperability oracles. Only the
+selected test/build environment reaches the service. Build and suite checkpoint
+artifacts survive subsequent step failures; resource snapshots and systemd's
+memory/exit summary accompany the logs. Unused Android and .NET SDKs are removed
+only on the disposable hosted runner to reserve disk space for the instrumented
+SDK and XFS test image.
+
+The preceding GitHub run lost runner communication without leaving logs or a
+coverage report; its exact cause is unconfirmed. Local validation of this repair
+passes **97 coverage regressions on Ubuntu/GCC/LCOV**, including real captures
+across separate steps. A real systemd probe confirms private PIDs, shared
+networking, the invoking user's identity/environment, and propagation of a
+nonzero exit. A controlled memory exhaustion kills only its bounded test
+service while the supervising process survives. This is harness validation,
+not a fresh full-suite coverage measurement.
+
+The next hosted run completed all ordinary lanes: **58,648 passed and seven
+failed**, followed by nine passing standalone namespace cases. The privileged
+fleet could not start its reference daemon, and final capture encountered a
+removed temporary nginx SDK, so this run establishes no new coverage rate.
+The follow-up repairs wait for both access-log records, tolerate absent process
+metadata while retaining exact daemon ownership checks, and delegate only a
+generated reference configuration inside `TEST_ROOT` to its explicit runtime
+account. The stock token-forwarding oracle uses a named `/fwd` namespace;
+positive byte checks and denied-user/no-leaked-bytes checks use that same path.
+Privileged grid-map fixtures retain the explicit unprivileged worker and derive
+its primary group from the host account database. Listener-release and
+privilege-refusal controls reuse the existing bounded port-collision helpers.
+LCOV filters production sources before reading temporary SDK paths; missing
+production sources and malformed counters remain fatal. Local regression
+validation passes **192 Ubuntu tests**, all **37 live query-token cases**, all
+**six FUSE daemon cases**, and all **six supported forwarding cells**. The complete privileged group passes
+**385 cases** on the documented alternate port base (`TEST_PORT_START=2000`);
+the initial local replay encountered older disposable oracle listeners on the
+default mock-port band. The complete ten-case fault-proxy group also passes
+with the real fleet.
+
+FreeBSD contract jobs install the Rust-backed Python metric engine only for
+the full suite, which actually uses it. The unchanged 36-case contract catalogue
+has a finite 180-second pytest budget for native crypto fixture compilation on
+emulated ARM64, while its crypto subprocesses retain their 30-second timeout.
+This addresses the repeated runner's six-hour cancellation after dependency
+compilation consumed most of its execution window. Earlier x86_64 and ARM64
+native contract passes remain separate evidence from this follow-up.
+
+Fresh hosted FreeBSD validation now passes both architecture builds and serving
+smokes, with **35 contracts passed and one platform skip per architecture**.
+The next complete coverage attempt finishes strict capture at **88.3302%**,
+with **58,692 ordinary passes and four failures**; its root fleet still stops
+before tests, so the 90% requirement remains unmet. A pressure diagnostic
+reproduces those four routing failures: 512 unrelated shared-server connections
+fill the documented best-effort offload table, leaving byte-exact primary
+fallback available. Binding contracts now own a fresh single-worker subject on
+the existing serialized binding-family reservation. All **26 cases pass with
+the shared table saturated**, and all **29 binding/migration cases pass with
+four workers**. The constrained send buffer also exercises queued replies.
+
+Reference launchers retain pre-log startup diagnostics in a companion bootstrap
+file and surface bounded tails if readiness fails. The focused hosted bootstrap
+run passes **all 385 privileged cases**, after a real native serving smoke.
+This establishes that focused path; the next complete ordinary/privileged/
+namespace measurement must still pass every phase and the unchanged 90% floor.
+
+The privileged-only counter probe passes all 385 cases but adds only 492 lines
+to the preceding ordinary/namespace execution. A real broker reproduction
+identifies a separate collection defect: after dropping DAC override, the
+broker cannot traverse a different user's private counter ancestor. The same
+four contracts pass in both layouts; the private layout records zero broker
+lines, while search-only traversal records 156. Hosted reports now live under
+`/tmp/brix-coverage-report`, and the standalone counter root permits search
+without granting listing or modification. Real capability-drop and unrelated
+UID regressions verify both recording and isolation.
+
+The hosted lane also requires a separate disposable Ceph phase. It reuses the
+existing Docker reference harness, seeds real CephFS bytes/xattrs/symlinks, and
+runs the existing native data, CephX denial, recovery and forward migration
+contracts in the host's instrumented build. Reverse migration runs only after
+the journal is flushed and the owned MDS stops. The phase owns a unique
+reference container and private fixture keyrings; a failed setup, contract or
+missing phase remains fatal. The frozen production inventory and 90% floor
+are unchanged. Fresh end-to-end hosted validation is pending.
+
+The complete ordinary command now also runs `make -C ../client -j4 test`:
+the pytest client conformance lane does not execute that separate native unit
+target. All 27 self-contained client unit programs pass locally. The native
+MinIO oracle is built from the pinned official release source
+`v0.0.0-20251015172955-9e49d5e7a648`; the existing S3/STS/binding contracts pass
+all 57 cases on GitHub without relying on the unavailable image tags.
+
+Cache watermark fixtures reserve 3 GiB inside the disposable 24 GiB XFS image
+so eviction contracts meet their existing 10–96% usage precondition. The root
+selection also includes hardening, gateway and cache variants. Their fixtures
+reuse the existing account provisioner and the worker's real primary group;
+all 22 additional cases pass against the local seccomp-enabled SDK. CephFS
+bootstrap uses explicit administrator POSIX credentials only to assign fixture
+roots to the actual test user. Reverse migration waits for no executing MDS
+tasks, allowing an unreaped zombie while still rejecting live tasks or failed
+process inspection. Fresh complete hosted validation must still pass every
+phase and the unchanged 90% floor.
+
+### Earlier diagnostic checkpoints
+
+Build eleven passes **1,517 focused native cases**, with three skips. The seven
+changed AIO/DNS source records were dropped completely before merging this
+fresh passing execution. All **47 selected native guards** pass; the example
+configuration guard requires unsandboxed macOS network sysctl reads. The
+**12 exact regressions** covering the prior CLI profiler collision and static
+checksum audit failure pass on the canonical Linux build. Sweep seven is running.
+
+Build ten includes the dependency refresh, retry/error normalization, HTTP
+Range handling, recursive-copy confinement, staging cleanup, TPC descriptor
+fixes, broker identity refusal, and FUSE publication fixes. The Linux build has
+nginx http_auth_request and the real Ceph striper SDK enabled. Both native
+macOS and Linux server/client incremental builds pass.
+
+The third complete sweep finished all ordinary phases but exited 1:
+
+| Phase | Result |
+|---|---|
+| Parallel, four workers | 44,482 passed; 450 skipped; 48 xfailed; 8 non-strict xpassed; 4 failed |
+| Serial | 6,096 passed; 309 skipped; 4 xfailed |
+| Destructive | 183 passed; 3 skipped |
+| Client conformance | 1,034 passed |
+
+Its four failures were corrected and passed focused rechecks. The fourth
+sweep's parallel phase then reported **45,376 passed, 442 skipped, 48 xfailed,
+8 non-strict xpassed and four failures**: two intermittent AIO deferred replies,
+a fixture address guard, and intermittent FUSE reopen reads. Its serial phase
+was stopped after forward Ceph migration timed out with the private MDS
+quiesced. Forward migration needs the MDS online; reverse recovery needs a
+separate quiesced phase. The task MDS is back online, and only the interrupted
+test's known striper objects were removed from its disposable pool.
+
+The AIO failures exposed a concurrent heartbeat-policy update: the loop could
+check a nonzero interval, then reread zero and send an immediate extra ping.
+Atomic field handoffs and one interval snapshot fix the race. A deterministic
+interleaving failed against the previous objects and now passes all seven
+cases; **200 parallel deferred-reply repetitions** pass. The native macOS
+AIO/snapshot selection passes **14 cases**. Executable snapshots now take the
+existing build writer's lock, preventing copies of a paused linker's nonempty
+but incomplete output; the snapshot/build/run helper selection passes 22 cases.
+
+FUSE reads exposed a second publication race: an updated file's persisted
+checksum record remained stale until asynchronous RELEASE closed the writer.
+Writable FLUSH now drains writes and sends remote SYNC. The server's VFS sync
+publishes CSI tags behind the carried mutation policy and checks the live fd
+against the pathname before publication. Successful flush clears folded CRCs
+so later partial writes recompute their edges. Tag persistence retains the
+existing close-time best-effort behavior. This adds a remote durability barrier
+per writable FUSE flush while keeping handles valid across dup/unlink.
+Four native cases failed against the old server; all **seven** now pass,
+including corruption, policy refusal, bad descriptors and replaced names.
+The combined FUSE/AIO selection passes **83 cases**, including **2,000 immediate
+close/reopen cycles**. The earlier failed traces are retained separately.
+
+Additional focused contracts include:
+
+| Family | Passing cases |
+|---|---:|
+| Recursive web transfer / root tree-copy policy | 35 / 42 |
+| FTP data / control framing / GSI delegation | 62 / 38 / 40 |
+| HTTP Range reads / persistent file retry / WebDAV metadata | 56 / 32 / 48 |
+| Remote tier factory / stack composition | 45 / 66 |
+| Retry/replay policy / page-write repair | 90 / 45 |
+| Upload commit / HTTP staged commit | 29 / 51 |
+| S3 staged/multipart commit / batch deletion | 67 / 38 |
+| DNS bridge / authorization endpoints | 37 / 37 |
+| Ceph errors / rename / striper SDK adapter | 84 / 53 / 48 |
+| HTTP body handling and decompression | 96 |
+| Broker lifecycle / proxy connect / page-read completion / directory AIO | 25 / 48 / 31 / 16 |
+| Packet-marking registry, mapping, DNS callbacks and allocation failures | 40 |
+| CMS forwarded namespace / frame correlation and manager retargeting | 72 / 39 |
+| Storage scanner HTTP / benchmark worker ownership | 57 / 33 |
+| Checksum manifests and cache metadata records | 65 |
+| SSS keytab administration / encrypted password exchange | 35 / 31 |
+| OCI HTTP copy and eStargz conversion integrity | 37 |
+| Tape REST batch authorization and lifecycle | 57 |
+| Native read/write compression and vector framing | 62 |
+| TLS framing, cancellation and whole-read deadlines | 45 |
+| ZIP copy/extraction ownership and output integrity | 43 |
+| Fault-proxy parsers, mutation bounds and PROXY wire headers | 114 |
+| HTTP/WebDAV/S3 diagnosis, signing failures and redaction | 51 |
+| Storage-report summaries and tape stage/poll requests | 31 |
+| VFS writer publication, integrity and spill ownership | 37 |
+| FUSE metadata retry, identity and read-only namespace policy | 23 |
+| AIO reconnect worker deadlines and completion handoff | 23 |
+| CSI geometry, checksum coverage and publication errors | 19 |
+| Cache digest policy, content-addressed verification and quarantine | 95 |
+| Staging writeback, namespace delegation and spool ownership | 34 |
+| Block deduplication and copy-on-write ownership under failure | 33 |
+| Async transport framing and accumulation failure | 37 |
+| Async manager ownership and lazy-stream fallback | 30 |
+| DNS prefetch ownership and hash-collision identity | 22 |
+| Persisted and binary checksum records | 49 |
+| HTTP peer-name wait completion and cancellation | 16 |
+| Durable stage-request journal and lock ownership | 25 |
+
+Build seven passed 584 native checks and the 47 unique CI/complexity guards.
+The latest native test files also pass their individual Python quality and C
+complexity limits. The new broker startup refusal was rebuilt and validated on
+both hosts. It rejects an unresolved worker account before idmap/socket/fork
+rather than disabling the peer-UID check.
+
+The scanner/keytab selection also passes **92 native macOS cases**, and the OCI
+HTTP transfer selection passes **37** there. The new Python families pass every
+repository complexity metric. Build nine passed the 47 unique native guards.
+
+The following production fixes are included in canonical Linux build ten.
+CMS numeric arguments now require a complete, representable integer: malformed
+truncate sizes previously became zero. Its parser unit and 72 forwarded-request
+cases pass against a private corrected parser. Automount shutdown now closes
+the self-pipe reader after joining the controller; nine lifecycle cases exposed
+the old descriptor leak, and all **18** pass with the private corrected object.
+The ZIP writer now fails when its input shrinks after the checksum pass,
+instead of completing a corrupt archive (**21** private writer cases pass).
+Worker I/O clears the reused job's checksum-mismatch output, and blocking
+page reads retry EINTR (**55** private worker cases pass).
+
+A deterministic live Ceph regression reproduces a source-version race in the
+forward migration tool: `get_last_version()` belongs to the I/O context, so a
+different worker's read can replace the version obtained by `stat`. Mapping
+now deep-copies that context before stat/copy/redirect. Copy, redirect and
+stale-version refusal all pass (**3** cases) in a separate disposable pool.
+The API's context ownership is documented in
+[Ceph's librados reference](https://docs.ceph.com/en/latest/rados/api/librados/#c.rados_get_last_version).
+Those private replacement objects were excluded from the production coverage
+union. The six changed production source records were removed completely
+before merging fresh build-ten execution.
+
+Sweep five finished against the frozen build-nine tree with the private Ceph
+MDS online. Its parallel phase finished with **45,917 passed, 442 skipped,
+48 xfailed, 8 non-strict xpassed and 1 failed**: the host-literal guard flagged
+four IPv6 parser literals. The vectors now use a documentation address; the
+guard and all 40 packet-marking cases pass. The serial phase exposed the Ceph
+version race described above: **6,095 passed, 309 skipped, 4 xfailed and
+1 failed**. The destructive phase passed **183 cases**, with three skips;
+client conformance passed **1,034 cases**. The run exited 1, and none of its
+counters were added to the passing union. The scanner and OCI HTTP tests
+now use the central host settings; all **94** pass on macOS. The 114 parser
+cases pass on both hosts, and the macOS incremental rebuild and configuration
+check pass with both project modules loaded. All **47 unique native CI
+guards** pass on the current source tree (`native-guards10.log`). New contracts and
+the later fixes are included in the next complete validation.
+
+The 82 new diagnostic HTTP cases also pass together on macOS. Their finite
+peer distinguishes an empty response from a TCP reset, and assertions cover
+wire methods, range fallback, signing scope, capacity totals, stage request
+bodies, refusal before network access, and response-body/credential redaction.
+Both new files pass all Python complexity metrics.
+
+The canonical Linux build-ten server/client rebuild and nginx configuration
+check pass. Its 24-file regression selection passes **967 cases**, including
+the original concurrent Ceph migration failure. The additional **25 VFS writer
+cases** pass against the same server objects: actual bytes, corruption removal,
+policy isolation, atomic abort, fd ownership, spill holes/overlaps/capacity and
+temporary-file cleanup are asserted. The native complexity guard passes.
+
+The writer selection now passes **37 cases**, adding allocation cleanup,
+interrupted source reads, fragment-array growth and the spill-fragment ceiling.
+Another **23 FUSE metadata cases** pass, checking retry deadlines, identity
+refusal, staged-file fallback and read-only WebDAV namespace operations.
+
+A new reconnect regression exposes lost callbacks when the first replayed
+request immediately loses its new transport: the remaining parked requests
+were detached from connection ownership. The correction retains the unissued
+tail on the connection and stops replay when its state changes. All **18**
+private corrected-object cases pass, including worker-start refusal, repeated
+disconnect and unsafe-request refusal. The native macOS client rebuild passes.
+The private replacement source is excluded from the production coverage union.
+Sweep six has finished, allowing the canonical Linux rebuild to proceed.
+
+Sweep six exited 1. Its parallel phase finished with **46,806 passed,
+442 skipped, 48 xfailed, 8 non-strict xpassed and 3 failed**. Two CLI golden
+failures come from incompatible profiler timestamps in an old optional smoke
+binary: each command produces exactly its expected hash with fresh private
+counters. The next build will relink the optional binaries. Golden expectations
+remain unchanged. The serial phase passed **6,100 cases**, with 308 skips and
+four expected failures. The destructive phase passed **183 cases**, with three
+skips. Client conformance passed **1,034 cases**. Report capture completed;
+none of this failed run's counters enter the passing coverage union.
+Its static checksum audit misclassifies a new
+`csi_mismatch = 0` reset as a read; the scanner now distinguishes literal set/reset
+assignments from actual reads, with **10 focused checks passing**. Runtime
+corruption assertions are unchanged. Current native complexity, duplication
+and Python quality guards pass (`complexity11.log`, `duplication11.log` and
+`python-quality11-current.log`).
+
+Further AIO regressions reproduce two errors: loop creation reported stale
+`errno` instead of the code returned by `pthread_create`, and a distant request
+deadline overflowed an `int` into a 1 ms polling interval. The corrected private
+objects pass **20 lifecycle cases** and **12 deadline cases**; the lifecycle
+cases include successful attachment, shutdown and allocation refusal. The
+native macOS client rebuild passes (`macos-client-rebuild11b.log`), and the
+current production complexity and duplication guards pass. These two source
+files, like the reconnect correction, await the next canonical Linux rebuild.
+No coverage from a private replacement implementation is counted.
+
+The **23 worker cases** run the real reconnect worker in a thread with finite
+clock/transport seams and check retry cadence, deadline clipping and one
+completion wakeup. The **19 CSI cases** use actual files and metadata records
+to check growth/shrink preservation, exact CRCs, read-after-write, allocation
+failures and bounded readback. All **95 cache verification cases** pass with
+real digest computation and staged files, including policy refusal, malformed
+or mutable content keys, corruption, missing files, symlinks and quarantine
+fallback. Their final Python and C complexity scores pass. Logs include
+`aio-worker11.log`, `aio-lifecycle-fixed11-v2.log`, `aio-deadline-fixed11.log`,
+`csi-record11.log` and `cache-verify11-v4.log`.
+
+Four new async dispatch regressions showed that failed reply accumulation could
+report a truncated reply as successful. Dispatch now removes and fails the
+request exactly once; late frames are ignored. All **37 transport cases** pass
+with the private corrected object, and **30 manager cases** pass against the
+canonical library. Their logs are `aio-accumulation-before11.log`,
+`aio-transport-fixed11.log` and `aio-manager11-v2.log`.
+
+DNS cache tests exposed equal-hash entries becoming unreachable after tree
+rotations. Both forward and reverse lookup now start at the first matching
+hash and inspect its successors, checking the full name/family or address.
+All **22 cases** pass with the private corrected objects, including every family
+insertion order and actual hostname/IPv6 CRC collisions. Evidence includes
+`dns-prefetch11-v2.log`, `dns-reverse-collision-before11.log` and
+`dns-prefetch-fixed11-v3.log`. Production complexity and duplication guards
+pass (`complexity11d.log`, `duplication11d.log`). These fixes await canonical
+build eleven; private replacement counters remain excluded.
+
+The native macOS build-eleven client/server rebuilds and `nginx -t` pass with
+both project modules loaded. The optional S3 metadata driver now declares the
+protocol archive dependency and its runner always relinks it before use;
+a failed build returns failure instead of accepting an old binary. The native
+build-graph/harness selection passes **58 cases** (`macos-build-graph11.log`).
+The next Linux preflight will relink every existing optional driver before
+resetting counters and running golden-output checks.
+
+The **49 integrity-record cases** pass using real xattrs, sidecars and locks;
+checks include stale timestamps/sizes, malformed binary lengths and failed
+persistence. The **16 HTTP peer-name cases** check inline/deferred completion,
+once-only resumption and cancellation before request-pool destruction. The
+**25 stage-registry cases** check real journal records, expiry, slot reuse,
+owner refusal and lock release through I/O faults. Their logs are
+`integrity-record11-v2.log`, `http-peer-name11.log` and `stage-registry11.log`.
+All three families pass the C and Python complexity limits.
+
+The **34 staging cases** verify real bytes, partial writes, flush retries,
+credential forwarding, namespace refusal and spool cleanup. The **33 block
+reference cases** verify that checksum collisions, failed repoints, hash-read
+errors and copy-on-write failures preserve object bytes and reference ownership.
+Their successful logs are `stage-writeback11-v7.log` and `pblock-refs11.log`.
+
+Evidence under `build/coverage90/` includes `linux-rebuild9.log`,
+`macos-rebuild9.log`, `aio-policy-before.log`, `aio-policy-after8.log`,
+`waitresp-after8.log`, `macos-aio-after8-retry.log`, `csi-sync-before.log`,
+`csi-sync-after9.log`, `rebuild9-fleet.log` and `pmark-runtime9.log`.
+Additional evidence is in `zip-transfer9-v2.log`, `zip-writer9.log`,
+`zip-writer-fixed9.log`, `ceph-version-before2.log`, `ceph-version-after.log`,
+`vfs-worker9-v2.log`, `vfs-worker-fixed9.log` and `macos-host-contract10.log`.
+`full-sweep3.log` and `full-sweep4.log` retain failed complete-run evidence.
+The fixed build-ten production inventory and its passing focused report are
+in `build/dependency-update/lima-share/coverage90-dev-report/rebuild10-focused/`.
+`build/coverage90/diagnostic-green.info` is the passing union quoted above.
+
+### Build nineteen checkpoint, 2026-11-09 18:24 UTC
+
+The production build remains unchanged during parallel sweep twelve. Sweep
+eleven's parallel lane failed after documented device sleep; none of its
+counters were merged. Its remaining lanes passed: **6,099 serial tests**
+(309 skipped, four expected failures), **183 destructive tests** (three
+skipped), and **1,034 client conformance tests**. The complete parallel lane
+is being repeated with the original selection and deadlines, followed by the
+privileged group. These are separate phase results, not a claim that sweep
+eleven passed.
+
+The current GCC analyzer passed all 1,232 translation units. The four changed
+server translation units also passed Clang analysis. Native macOS normal and
+ASan builds, configuration validation, physical-block catalog/driver units,
+and the five selected strict ASan runtime cases passed. Darwin LeakSanitizer
+is unavailable. Evidence includes `fanalyzer19.log`, `codechecker19.log`,
+`asan-write19.log`, `rebuild19-focused.log` (1,451 passing tests),
+`full-sweep11.log` and the ongoing `parallel12.log`.
+
+Additional passing native families cover origin bootstrap (57), cache-store
+dispatch and sparse reads (12), TPC source-open negotiation (27), proxy
+directives (56), cache eviction (13), and multi-block truncation (16).
+They preserve the production object graph and use finite fault injection at
+provider boundaries. The complete existing object-linked C contracts also
+pass (`object-units19.log`). The coverage inventory remains exactly 183,151
+production lines; unexecuted production lines remain in the denominator.
+
+The v2.0.0 test package matrix contains **24 platform/architecture sets**:
+ARM64 and x86_64 for AlmaLinux 8–10, CentOS Stream 9–10, Fedora 43/44/Rawhide,
+Ubuntu 24.04/26.04, NixOS 26.05, and macOS. AlmaLinux 8 and macOS provide
+client tools. At this checkpoint, **17 sets** have validated current binaries;
+seven Intel server sets remain pending. Linux validation includes package
+installation, module loading, exact local/remote reads, missing-file errors,
+and read-only refusal. This is not a full-suite run on each distribution.
+Artifacts and per-target evidence are under `dist/test-v2.0.0/` and
+`build/test-packages-v2.0.0/`. No release or tag has been published.
+
+The dedicated Intel package VM was temporarily suspended at critically low
+battery to preserve its running builds; the coverage VM remains active.
+Remaining work is completion of the ordinary and privileged suite, the
+separate quiesced Ceph reverse recovery phase, final coverage enforcement,
+the seven Intel package rebuilds, and final artifact manifests/checksums.
+
+### Validation recovery checkpoint, 2026-11-09 23:12 UTC
+
+The device rebooted after its battery was exhausted. Both task VMs were
+restarted, the existing XFS test volume was remounted, and the Ceph MDS was
+restarted. Power is now stable at 100% on AC. Sweep twelve was interrupted;
+its counters are excluded. Sweep thirteen exposed insufficient temporary
+disk capacity, so the coverage VM root filesystem was enlarged to 160 GiB
+and its existing XFS test volume to 96 GiB. Completed raw counter archives
+were compressed and hash-verified before reclaiming their original copies.
+The unchanged 200 MB transfer test, parser cases, and address-literal guard
+then passed together (65 tests).
+
+Sweep fifteen stopped with 23 failures, 43,560 passes, 411 skips, 43 expected
+failures and eight non-strict unexpected passes. All failures came from the
+new packed-block transform fixture. AddressSanitizer proved that gcov's
+shutdown allocator read a pointer to the fixture's expired main-stack state.
+The fixture now clears that pointer before returning; wrappers tolerate its
+absence. Seven related fixtures received the same lifetime cleanup. A fresh
+preflight using the full coverage compiler launchers passed **5,498 tests
+across all 126 server-object fixture families**. Production sources remain
+identical to the v6 package snapshot (2,843 files verified). Sweep fifteen's
+counters are excluded; sweep sixteen is running with the original selection.
+Evidence is `parallel15.log` and `fixture-preflight19.log`, with JUnit output
+under `coverage90-dev-report/fixture-preflight19/`.
+
+Current packages are validated for 21 of the 24 target sets. The remaining
+Intel builds are CentOS Stream 10, Fedora Rawhide and Fedora 43. RPM build
+helpers batch ELF candidate discovery while retaining the original distro
+RPATH policy worker. Equivalence checks cover valid and invalid ELF RPATHs,
+archives, text, truncated binaries and symlinks. Their exact helper manifest
+and validation logs are retained with the package build evidence.
+
+### UTC-boundary fixture correction, 2026-11-10 00:17 UTC
+
+macOS entered lid-triggered sleep after 23:27 UTC despite the task's wake
+assertion; the device returned to sustained AC operation after 00:05 UTC.
+The coverage sampler records gaps of 603, 1,063 and 595 seconds. Sweep
+sixteen was stopped with two failed proxy-positive cases, 19,716 passes,
+84 skips and 39 expected failures. Its counters are excluded.
+
+The failures exposed a fixture issue independent of production validation:
+the X.509 epoch was rounded down to the startup day's midnight, so one-day
+positive proxies expired precisely at the next midnight. The retained failed
+proxy's `notAfter` is `2026-11-10T00:00:00Z`. The same boundary also advanced
+future-dated controls into their validity window. The fixture now anchors
+day offsets to the actual run-start instant. Three deterministic cases cross
+midnight with valid, expired and future-dated proxies; the old implementation
+fails the valid and future cases. All three pass after the correction.
+The live WebDAV proxy acceptance/rejection checks and X.509 compatibility
+checks pass together (**18 tests**); the Python quality guard also passes.
+Evidence is `x509-epoch-before19.log`, `x509-epoch-after19.log`,
+`x509-epoch-native19.log` and `python-quality68.log`.
+
+Sweep seventeen repeats the complete parallel selection and privileged group
+with unchanged production sources. The complete remaining ordinary phases
+are queued after successful capture, followed by standalone namespace tests
+with a private subordinate-ID range. The package matrix now has **23 current
+validated sets**; Fedora 43 x86_64 is the remaining build. The source-only test
+supplement contains 69 verified updates relative to the frozen v6 snapshot.
+
+At 00:40 UTC, all **24 v2.0.0 package sets** have passed installation/runtime
+validation, including the final Fedora 43 x86_64 build. All 20 server sets use
+the current v6 snapshot; the four client-only sets retain identical sources
+(790 client/shared entries verified). The package output now contains 24
+bundles and an index that explicitly marks full-suite validation as pending.
+Independent verification passes for all bundle members, 917 global checksums,
+352 current server DEB/RPM artifacts and 69 source-only test updates. Evidence
+is `build/test-packages-v2.0.0/logs/artifact-verification24-pending.log`.
+The completed Intel package VM was shut down gracefully; the coverage VM
+continues the fresh suite.

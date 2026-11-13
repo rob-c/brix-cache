@@ -28,7 +28,7 @@ jobs:
       - name: Install checkout tools
         run: dnf install -y git tar gzip
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Install matching nginx SDK and build dependencies
         run: |
@@ -50,10 +50,10 @@ jobs:
           chown -R builder:builder "$GITHUB_WORKSPACE"
           runuser -u builder -- python3.12 -m venv "$GITHUB_WORKSPACE/build/test-venv"
           runuser -u builder -- "$GITHUB_WORKSPACE/build/test-venv/bin/python" -m pip install \
-            'pytest>=9.1.1,<10' 'pytest-xdist>=3.8.0,<4' \
-            'pytest-timeout>=2.4.0,<3' 'requests>=2.25,<3' \
-            'cryptography>=3.0,<49' 'PyYAML>=5.4,<7' \
-            'packaging>=22,<26' 'pluggy>=1.5,<2'
+            'pytest>=9.2.0,<10' 'pytest-xdist>=3.8.0,<4' \
+            'pytest-timeout>=2.4.0,<3' 'requests>=2.34.2,<3' \
+            'cryptography>=50.0.2,<51' 'PyYAML>=6.0.3,<7' \
+            'packaging>=26.3,<27' 'pluggy>=1.7.0,<2'
 
       - name: Test compatibility tooling
         run: |
@@ -72,7 +72,7 @@ jobs:
 
       - name: Upload exact versions, checksums and logs
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: nginx-compat-${{ matrix.target }}
           path: |

@@ -237,7 +237,9 @@ verify_one(int dirfd, const brix_conform_object *object,
         ssize_t n = read(fd, buffer, sizeof(buffer));
 
         if (n < 0 && errno == EINTR) continue;
-        if (n <= 0 || brix_conform_verify(key, offset, buffer, (size_t) n,
+        /* Valid generator bytes beyond the catalogue size are still invalid. */
+        if (n <= 0 || (uint64_t) n > object->size - offset
+            || brix_conform_verify(key, offset, buffer, (size_t) n,
                          NULL) != 0) {
             close(fd);
             errno = EIO;

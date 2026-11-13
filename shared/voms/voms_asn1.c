@@ -9,6 +9,7 @@
  *       original encoding (ASN1_SEQUENCE_enc) for signature verification.
  */
 
+#include "auth/crypto/asn1_compat.h"
 #include "voms_asn1.h"
 
 #include <openssl/objects.h>
@@ -160,7 +161,7 @@ voms_ext_decode(X509_EXTENSION *ext, const ASN1_ITEM *it)
         return NULL;
     }
     p = ASN1_STRING_get0_data(data);
-    return ASN1_item_d2i(NULL, &p, ASN1_STRING_length(data), it);
+    return ASN1_item_d2i(NULL, &p, brix_crypto_asn1_length(data), it);
 }
 
 VOMS_CERTS *

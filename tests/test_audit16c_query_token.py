@@ -63,11 +63,6 @@ def _assert_token_redacted(token, lines):
     assert not any(token in line for line in lines), "query token reached a log"
 
 
-def _request_lines(text, arm):
-    path = f"/{arm}/{SEED}"
-    return [line for line in text.splitlines() if path in line]
-
-
 pytestmark = [pytest.mark.timeout(300),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit16c-qtoken")]
@@ -370,11 +365,10 @@ class TestWhatEachArmLeavesInTheLog:
         """Transport policy changes the verdict, never the logging policy."""
         endpoint, issuer = qtoken
         token = _token(issuer, sub="botharms")
-        _get(endpoint, ON, params={"authz": token})
-        _get(endpoint, OFF, params={"authz": token})
-        text = _access_log(endpoint)
-        on_line = _request_lines(text, ON)
-        off_line = _request_lines(text, OFF)
+        assert _get(endpoint, ON, params={"authz": token}).status_code == 200
+        assert _get(endpoint, OFF, params={"authz": token}).status_code == 401
+        on_line = _log_lines_for(endpoint, f"/{ON}/{SEED}")
+        off_line = _log_lines_for(endpoint, f"/{OFF}/{SEED}")
         assert on_line and off_line
         _assert_token_redacted(token, on_line)
         _assert_token_redacted(token, off_line)

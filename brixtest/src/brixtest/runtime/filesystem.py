@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import os
+try:
+    from os import getxattr, setxattr, listxattr, removexattr
+except ImportError:
+    from xattr import getxattr, setxattr, listxattr, removexattr
 import shutil
 import stat as stat_module
 import tempfile
@@ -183,7 +187,7 @@ class NativeFilesystem:
 
     def getxattr(self, path: object, name: str) -> bytes:
         selected = self._path(path)
-        value = os.getxattr(selected, _xattr_name(name))
+        value = getxattr(selected, _xattr_name(name))
         self._record("getxattr", selected, mutation=False)
         return value
 
@@ -191,18 +195,18 @@ class NativeFilesystem:
         if not isinstance(value, bytes):
             raise SpecError("filesystem xattr value", type(value).__name__, "must be bytes")
         selected = self._mutable(path)
-        os.setxattr(selected, _xattr_name(name), value)
+        setxattr(selected, _xattr_name(name), value)
         self._record("setxattr", selected, mutation=True)
 
     def listxattr(self, path: object) -> tuple[str, ...]:
         selected = self._path(path)
-        value = tuple(sorted(os.listxattr(selected)))
+        value = tuple(sorted(listxattr(selected)))
         self._record("listxattr", selected, mutation=False)
         return value
 
     def removexattr(self, path: object, name: str) -> None:
         selected = self._mutable(path)
-        os.removexattr(selected, _xattr_name(name))
+        removexattr(selected, _xattr_name(name))
         self._record("removexattr", selected, mutation=True)
 
 

@@ -129,12 +129,12 @@ def test_nix_python_includes_optional_feature_bindings() -> None:
 
 def test_nix_python_reference_bindings_meet_the_declared_major_version() -> None:
     flake = (ROOT / "flake.nix").read_text()
-    assert 'version = "6.2.0";' in flake
+    assert 'version = "6.2.1";' in flake
     assert 'format = "wheel";' in flake
     assert "complexipy xrootdBindings" in flake
     assert "autoPatchelfHook" in flake
-    assert "xrootd-6.2.0-cp313-cp313-manylinux_2_28_aarch64.whl" in flake
-    assert "xrootd-6.2.0-cp313-cp313-manylinux_2_28_x86_64.whl" in flake
+    assert "xrootd-6.2.1-cp313-cp313-manylinux_2_28_aarch64.whl" in flake
+    assert "xrootd-6.2.1-cp313-cp313-manylinux_2_28_x86_64.whl" in flake
 
 
 def test_nix_source_package_excludes_appledouble_archive_metadata() -> None:

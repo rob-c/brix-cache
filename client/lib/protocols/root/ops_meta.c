@@ -99,6 +99,46 @@ brix_lstat(brix_conn *c, const char *path, brix_statinfo *out, brix_status *st)
     return stat_opt(c, path, (uint8_t) kXR_statNoFollow, out, st);
 }
 
+/* WHAT: Stat a connection-scoped open handle using the canonical wire codec.
+ * WHY: Staged and unlinked files have metadata even without a visible path.
+ * HOW: Send an empty path plus fhandle; decode the shared stat-line grammar.
+ * Reconnection belongs to brix_rfile_stat, which can reopen the handle. */
+int
+brix_file_stat(brix_conn *c, brix_file *f, brix_statinfo *out, brix_status *st)
+{
+    ClientStatRequest request;
+    xrdw_stat_req_t fields = {0};
+    uint16_t sid, status;
+    uint8_t *body = NULL;
+    uint32_t length = 0;
+    brix_resp_out reply = {&status, &body, &length};
+    char line[1024];
+
+    memset(&request, 0, sizeof(request));
+    request.requestid = htons(kXR_stat);
+    memcpy(fields.fhandle, f->fhandle, XRD_FHANDLE_LEN);
+    xrdw_stat_req_pack(&fields, ((ClientRequestHdr *) &request)->body);
+    if (brix_send(c, &request, NULL, &sid, st) != 0
+        || brix_recv(c, sid, &reply, st) != 0)
+    {
+        free(body);
+        return -1;
+    }
+    if (length == 0 || length >= sizeof(line)) {
+        free(body);
+        brix_status_set(st, XRDC_EPROTO, 0, "invalid handle stat reply length");
+        return -1;
+    }
+    memcpy(line, body, length);
+    line[length] = '\0';
+    free(body);
+    if (brix_statinfo_parse(line, out) != 0) {
+        brix_status_set(st, XRDC_EPROTO, 0, "invalid handle stat reply");
+        return -1;
+    }
+    return 0;
+}
+
 /* dirlist */
 /* Append n bytes to a growing heap buffer; returns 0 / -1. */
 static int

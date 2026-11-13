@@ -203,7 +203,9 @@ def _dispatch(state: _BrokerState, request: object) -> tuple[object, bool]:
 
 def _serve(address: str, token: bytes, session_dir: Path, parent_pid: int) -> None:
     _parent_death_signal()
-    listener = Listener(address, family="AF_UNIX", authkey=token)
+    # Workers register concurrently. A backlog of one rejects connections on
+    # Darwin while the broker is authenticating/serving another worker.
+    listener = Listener(address, family="AF_UNIX", authkey=token, backlog=128)
     state = _BrokerState(session_dir)
     try:
         closed = False

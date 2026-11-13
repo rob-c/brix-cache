@@ -14,6 +14,10 @@ _MAGIC = b"BRIXFS1\n"
 _AGENT = r'''
 import hashlib,json,os,shutil,stat,sys,tempfile
 from pathlib import Path
+try:
+    from os import getxattr,setxattr,listxattr,removexattr
+except ImportError:
+    from xattr import getxattr,setxattr,listxattr,removexattr
 
 MAGIC=b"BRIXFS1\n"
 request=json.loads(sys.argv[1])
@@ -88,10 +92,10 @@ def operate():
         resolved=target.resolve() if target.is_absolute() else (path.parent/target).resolve()
         if not inside(resolved): raise ValueError("symlink target must remain inside declared roots")
         path.symlink_to(target)
-    elif operation == "getxattr": output=os.getxattr(path,options["name"])
-    elif operation == "setxattr": os.setxattr(path,options["name"],payload)
-    elif operation == "listxattr": value=sorted(os.listxattr(path))
-    elif operation == "removexattr": os.removexattr(path,options["name"])
+    elif operation == "getxattr": output=getxattr(path,options["name"])
+    elif operation == "setxattr": setxattr(path,options["name"],payload)
+    elif operation == "listxattr": value=sorted(listxattr(path))
+    elif operation == "removexattr": removexattr(path,options["name"])
     else: raise ValueError("unknown filesystem operation")
     return output,{"ok":True,"value":value,**metadata(path)}
 

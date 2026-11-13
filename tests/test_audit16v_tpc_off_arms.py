@@ -343,6 +343,9 @@ class TestPerServerIndependence:
 # --------------------------------------------------------------------------- #
 # F — brix_tpc_require_source_size off: what an unverifiable copy is worth
 # --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("planes", ["cleartext-size-guard"], indirect=True,
+                         scope="module")
+@pytest.mark.usefixtures("planes")
 class TestTheSourceSizeArm:
 
     def test_a_clean_pull_completes_on_the_pulling_plane(self, planes,

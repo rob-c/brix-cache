@@ -20,7 +20,7 @@ CRYPTO = os.path.join(REPO, "src", "auth", "crypto")
 SOURCES = [os.path.join(CRYPTO, name)
            for name in ("legacy_proxy_unittest.c", "store_policy_conformance.c")]
 HOST = "darwin" if sys.platform == "darwin" else "linux"
-BREW_SSL = "/usr/local/opt/openssl@3"
+BREW_SSL = "/usr/local/opt/openssl@4"
 
 
 def _compile_args(cc):

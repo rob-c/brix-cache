@@ -72,8 +72,8 @@ brix_fuse_run(brix_pool *pool, int max_retries, int max_stall_ms,
          * change and had its reply lost to the sever. A benign "already in the
          * desired state" code (EEXIST for mkdir/symlink/link, ENOENT for
          * rm/rmdir/mv) then means success, not a spurious error. */
-        if (attempt > 0 && benign_errno != 0
-            && brix_kxr_to_errno(st) == benign_errno) {
+        if (attempt > 0 && benign_errno > 0
+            && brix_kxr_to_errno(st) == -benign_errno) {
             brix_status_clear(st);
             return 0;
         }

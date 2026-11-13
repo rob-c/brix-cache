@@ -69,8 +69,11 @@ def test_remote_transport_rejects_errors_and_escape_attempts(tmp_path):
 def test_remote_transport_rejects_unframed_backend_output(tmp_path):
     old_run = subprocess.run
     subprocess.run = lambda *args, **kwargs: subprocess.CompletedProcess(args, 1, b"not-a-frame", b"bad")
-    with pytest.raises(SpecError, match="invalid framing"):
-        _remote(tmp_path).read_bytes("payload")
+    try:
+        with pytest.raises(SpecError, match="invalid framing"):
+            _remote(tmp_path).read_bytes("payload")
+    finally:
+        subprocess.run = old_run
 
 
 def test_kubernetes_manifest_adds_a_restricted_shared_volume_sidecar():

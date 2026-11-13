@@ -27,7 +27,7 @@ SOURCES = [os.path.join(VOMS, name)
            for name in ("voms_ac_unittest.c", "voms_asn1.c", "voms_decode.c",
                         "voms_verify.c", "voms_lsc.c")]
 #: Homebrew OpenSSL on an Intel Mac; the system toolchain ships no headers.
-BREW_OPENSSL = "/usr/local/opt/openssl@3"
+BREW_OPENSSL = "/usr/local/opt/openssl@4"
 
 
 def _openssl_flags():

@@ -43,19 +43,14 @@ def _expression_2(expect_mounted, mnt, log):
 
 
 def _guard_pin_mount_1(proc):
-    if proc.poll() is None:
-        proc.terminate()
-        try:
-            proc.wait(3)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+    reap_unmounted_process(proc)
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import (BRIXMOUNT, PORT_BLOCKS, _unmount,
                                 _wait_mounted)  # noqa: E402
-from lib_py.fuse_host import FUSE_READY  # noqa: E402
+from lib_py.fuse_host import FUSE_READY, reap_unmounted_process  # noqa: E402
 from repo_forge import Dir, File, RepoForge  # noqa: E402
 from test_cvmfs_conformance_fuse_refresh_failover import publish_revision  # noqa: E402
 from settings import BIND_HOST, HOST

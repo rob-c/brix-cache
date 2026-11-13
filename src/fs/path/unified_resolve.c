@@ -115,8 +115,8 @@ brix_finish_resolved(const brix_resolve_ctx_t *ctx, const char *resolved_path,
  *       enforced on the existing parent instead. Taking ctx keeps this at three
  *       parameters while preserving the write-path confinement contract.
  *
- * HOW:  Copies into fixed PATH_MAX buffers with bounds checks; the lone-"/"
- *       parent and root-parent snprintf format selection are unchanged.
+ * HOW:  Copies into fixed PATH_MAX buffers with bounds checks; root parents
+ *       already carry the separator, while other parents need one appended.
  */
 brix_path_status_t
 brix_resolve_missing_tail(const brix_resolve_ctx_t *ctx, const char *candidate)
@@ -171,9 +171,8 @@ brix_resolve_missing_tail(const brix_resolve_ctx_t *ctx, const char *candidate)
         return BRIX_PATH_STATUS_INVALID;
     }
 
-    n = snprintf(rebuilt, sizeof(rebuilt),
-                 (strcmp(parent_canon, "/") == 0) ? "/%s" : "%s/%s",
-                 parent_canon, base_buf);
+    n = snprintf(rebuilt, sizeof(rebuilt), "%s%s%s", parent_canon,
+                 (strcmp(parent_canon, "/") == 0) ? "" : "/", base_buf);
     if (n < 0 || (size_t) n >= sizeof(rebuilt)) {
         return BRIX_PATH_STATUS_TOO_LONG;
     }

@@ -147,7 +147,7 @@ with XRootD unless noted). Tests column gives the pinning clause IDs.
 |---|---|---|---|---|---|
 | TLS-layer chain validation | RFC 5246, §6.1 | `ssl_verify_client` + `SSL_get_verify_result` (`auth_cert.c:458`) | `SSL_VERIFY_PEER` + `SSL_get_verify_result` | Conformant | CHN-001..010 (davs) |
 | Unified GSI chain verify on HTTP path | RFC 3820, IGTF/EACL | Full `brix_gsi_verify_chain` on `davs://` (`auth_cert.c:478`) | **None** — parses chain for DN only, never `Verify()` | Stricter | signing_policy + proxy families (davs run) |
-| Proxy certificates over TLS | RFC 3820 | **Refused** (`client_purpose=1` suppresses `ALLOW_PROXY_CERTS`, `gsi_verify.c:191`) | DN extracted, no proxy validation | Stricter (by design) | PXY-004/005…, 136 |
+| Proxy certificates over TLS | RFC 3820 | Valid RFC 3820 proxies accepted through `brix_gsi_verify_chain` | DN extracted, no proxy validation | Full proxy-profile validation | `test_wlcg_conformance_proxy.py` |
 
 ## Verdict rollup
 
@@ -208,7 +208,8 @@ Counting the **51 major clause/area rows** in the master matrix above:
   (`signing_policy.c` + `store_policy.c` + `brix_store_configure`) into
   `tests/c/x509_oracle.c` under `-Wall -Wextra -Werror`, and asserts every
   clause verdict matches the manifest. Exit 0 = full conformance. This is the bulk
-  verifier and covers the proxy (`PXY-`) family that the WebDAV wire refuses.
+  verifier and covers the proxy (`PXY-`) family; dedicated WebDAV tests also
+  verify valid proxies and malformed or escalating chains.
 - **Live davs matrix** — [`tests/test_wlcg_conformance_matrix.py`](../../../tests/test_wlcg_conformance_matrix.py):
   replays every `davs`-surface clause against a long-lived `ConformanceFleet`
   (one server per config-group over the shared multi-CA directory), proving the

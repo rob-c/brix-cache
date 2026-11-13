@@ -290,6 +290,8 @@ pblock_write_blocks(const pblock_state_t *st, const char *blob_id, int64_t bs,
     const char *bytes = buf;
     size_t      done = 0;
 
+    if (len == 0)
+        return 0;
     if (pblock_xform_active(&st->xform))
         return pblock_xform_write(st, blob_id, bs, buf, len, off);
     while (done < len) {

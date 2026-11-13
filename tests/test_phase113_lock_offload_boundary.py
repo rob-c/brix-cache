@@ -150,9 +150,9 @@ def test_expired_lock_cleanup_checks_the_mutation_policy_before_it_mutates():
 
 def test_the_lock_null_reap_unlinks_only_a_verified_empty_regular_file():
     """(security-negative) The reap removes a name a LOCK reserved. It must fire
-    only for a lock-null record, and only after a no-follow probe confirms a
-    regular, zero-length file — and it must unlink through the VFS seam, never a
-    bare syscall. Without the no-follow probe and the size/type checks, a client
+    only for a lock-null record, and only after metadata on a confined writable
+    handle confirms a regular, zero-length file. It must unlink through the VFS
+    seam, never a bare syscall. Without the handle and size/type checks, a client
     who replaced the reserved name with a symlink or a non-empty file could aim
     the unlink elsewhere.
     """
@@ -160,14 +160,14 @@ def test_the_lock_null_reap_unlinks_only_a_verified_empty_regular_file():
     fn = re.search(r"webdav_lock_reap_null\s*\([^)]*\)\s*\{(.*?)\n\}", body, re.S)
     assert fn, "webdav_lock_reap_null not found in lock.c"
     inner = fn.group(1)
-    for guard in ("is_null", "brix_vfs_probe", "is_regular", "size == 0",
+    for guard in ("is_null", "brix_vfs_open", "brix_vfs_file_stat", "is_regular", "size == 0",
                   "brix_vfs_unlink"):
         assert guard in inner, (
             f"webdav_lock_reap_null lost its `{guard}` guard — the reserved-name "
             "unlink is no longer confined to a verified empty regular file")
-    assert re.search(r"brix_vfs_probe\s*\([^,]+,\s*1\b", inner), (
-        "the reap's stat is not a no-follow probe — a symlink left at the "
-        "reserved name would be followed")
+    assert re.search(r"brix_vfs_open\s*\([^,]+,\s*BRIX_VFS_O_WRITE\b", inner), (
+        "the reap must acquire a confined mutation handle before inspecting metadata")
+    assert inner.index("brix_vfs_file_stat") < inner.index("brix_vfs_unlink")
     assert not re.search(r"(?<![\w.>])unlink\s*\(", inner), (
         "webdav_lock_reap_null calls a bare unlink() instead of brix_vfs_unlink "
         "— the removal escapes the confined VFS seam")

@@ -14,7 +14,7 @@
  *       kept separate from the hot byte path (sd_pblock_io.c), the object
  *       lifecycle (sd_pblock.c) and the staged-publish path (sd_pblock_staged.c).
  *       The functions are non-static because the driver descriptor names them;
- *       sd_pblock_drop_dst is additionally reused by staged-commit's replace.
+ *       sd_pblock_detach_dst is additionally reused by staged-commit's replace.
  *       Declarations live in sd_pblock_internal.h.
  *
  * HOW:  Every operation reaches the namespace through the catalog API
@@ -340,10 +340,14 @@ sd_pblock_setattr(brix_sd_instance_t *inst, const char *path,
            ? NGX_OK : NGX_ERROR;
 }
 
-/* sd_pblock_drop_dst — clear an existing rename/copy destination: reject a
- * non-empty directory, remove a file's blocks, then drop the catalog row. */
+/*
+ * WHAT: Remove destination metadata while retaining its physical blocks.
+ * WHY: A staged replacement must keep the original bytes until SQL commits;
+ *      rolling back a catalog cannot restore prematurely deleted block files.
+ * HOW: Reject non-empty directories, clear auxiliary metadata, remove the row.
+ */
 ngx_int_t
-sd_pblock_drop_dst(pblock_state_t *st, const char *dst,
+sd_pblock_detach_dst(pblock_state_t *st, const char *dst,
     const pblock_meta *dmeta)
 {
     if (dmeta->is_dir) {
@@ -356,10 +360,6 @@ sd_pblock_drop_dst(pblock_state_t *st, const char *dst,
             errno = ENOTEMPTY;
             return NGX_ERROR;
         }
-    } else {
-        /* F10-aware release (see sd_pblock_unlink). */
-        pblock_refs_release(st, dmeta->blob_id, dmeta->size,
-                            dmeta->block_size);
     }
     if (st->nearline) {                      /* F4: overwritten dst is replaced */
         pblock_nearline_drop(st, dst);

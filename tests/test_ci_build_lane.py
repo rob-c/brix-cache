@@ -73,7 +73,7 @@ def test_the_build_lane_actually_builds_both_halves() -> None:
         "build.yml must configure nginx WITH the module — that is the compile "
         "surface a bare nginx build never touches"
     )
-    assert "-C /tmp/nginx-1.28.3" in run, "build.yml no longer makes the module"
+    assert "-C /tmp/nginx-1.31.8" in run, "build.yml no longer makes the module"
     assert "-C client" in run, "build.yml no longer builds the client"
 
 

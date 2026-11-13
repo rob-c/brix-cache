@@ -23,7 +23,10 @@ chmod a+rwX /data /var/cache/brix /var/lib/brix/state /var/log/brix /run/brix
 # arrives root-owned 0755, so hand it to the `user` the config names (nginx's
 # default is nobody) before the master starts.
 if [ "$(id -u)" = 0 ]; then
-    worker_user="$(sed -n 's/^[[:space:]]*user[[:space:]]\{1,\}\([^[:space:];]*\).*/\1/p' "$BRIX_CONF" 2>/dev/null | head -1)"
+    worker_user=""
+    if [ -f "$BRIX_CONF" ] && [ -r "$BRIX_CONF" ]; then
+        worker_user="$(sed -n 's/^[[:space:]]*user[[:space:]]\{1,\}\([^[:space:];]*\).*/\1/p' "$BRIX_CONF" | head -1)"
+    fi
     chown "${worker_user:-nobody}" /var/lib/brix/creds
 fi
 chmod 0700 /var/lib/brix/creds

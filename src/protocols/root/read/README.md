@@ -66,6 +66,10 @@ and the global `allow_write` policy for write-mode opens.
 | `close.c` / `close.h` | `brix_handle_close()` — `kXR_close`: logs throughput before freeing, performs the POSC `fsync` + atomic `rename`, runs the write-through close-time flush (`brix_wt_flush_on_close`), flushes the write-recovery journal (`brix_wrts_flush`), releases the dashboard slot, and `brix_free_fhandle()`s the slot. |
 | `clone.c` / `clone.h` | `brix_handle_clone()` — `kXR_clone` (v5.2.0): batched server-side range copy (≤1024 `clone_item`s) from open source handles into one open destination handle via `brix_copy_range()` (`copy_file_range`/pread+pwrite fallback), validating each handle's read/write access. |
 
+Blocking page-read batches retry EINTR through the existing storage-driver
+seam, preserving their offsets and CRC framing. The native worker contracts in
+`tests/test_vfs_worker_io_native.py` cover interrupted reads and hard errors.
+
 ## Key types & data structures
 
 Read opens preserve directory intent from the CGI-stripped wire spelling.

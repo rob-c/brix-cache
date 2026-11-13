@@ -34,6 +34,18 @@
 
 /* path prefix rewriting */
 
+/* WHAT: Report whether a bounded path has the configured literal prefix.
+ * WHY: Rewrite planning and failed-allocation detection must agree.
+ * HOW: 1. Check lengths. 2. Compare the configured prefix bytes only. */
+static ngx_uint_t
+proxy_path_matches(ngx_stream_brix_srv_conf_t *conf,
+                   const u_char *path, size_t length)
+{
+    size_t prefix = conf->proxy.path_strip.len;
+    return prefix != 0 && length >= prefix
+           && ngx_strncmp(path, conf->proxy.path_strip.data, prefix) == 0;
+}
+
 /* proxy_rewrite_path — apply the strip/add prefix transform to a request payload
  * carrying one filesystem path (transparent proxy: client /data → upstream
  * /mnt/storage); same-length rewrites are in-place, longer results reallocate and
@@ -45,15 +57,13 @@ proxy_rewrite_path(ngx_connection_t *c,
                     size_t path_off, size_t path_len,
                     size_t *total_out)
 {
-    const u_char *strip = conf->proxy.path_strip.data;
     size_t        slen  = conf->proxy.path_strip.len;
     const u_char *add   = conf->proxy.path_add.data;
     size_t        alen  = conf->proxy.path_add.len;
     size_t        new_path_len, new_total;
     u_char       *new_req;
 
-    if (slen == 0 || path_len < slen
-        || ngx_strncmp(req + path_off, strip, slen) != 0)
+    if (!proxy_path_matches(conf, req + path_off, path_len))
     {
         *total_out = total;
         return req; /* no match — pass through unchanged */
@@ -90,6 +100,83 @@ proxy_rewrite_path(ngx_connection_t *c,
 
     *total_out = new_total;
     return new_req;
+}
+
+/* WHAT: Return the validated source byte length of a rename, or zero.
+ * WHY: Untrusted arg1len must never drive an out-of-bounds audit copy.
+ * HOW: 1. Decode the signed wire length. 2. Resolve zero-length autosplit.
+ *      3. Require a bounded, nonempty source and destination separated by space. */
+size_t
+proxy_mv_source_length(const u_char *req, size_t total)
+{
+    if (total <= XRD_REQUEST_HDR_LEN) { return 0; }
+    uint16_t encoded;
+    ngx_memcpy(&encoded, req + 18, sizeof(encoded));
+    size_t length = ntohs(encoded);
+    size_t payload_len = total - XRD_REQUEST_HDR_LEN;
+    const u_char *payload = req + XRD_REQUEST_HDR_LEN;
+    if (length == 0) {
+        const u_char *space = memchr(payload, ' ', payload_len);
+        if (space == NULL) { return 0; }
+        length = (size_t) (space - payload);
+    }
+    if (length == 0 || length > INT16_MAX || length >= payload_len - 1
+        || payload[length] != ' ')
+    {
+        return 0;
+    }
+    return length;
+}
+
+/* WHAT: Rewrite one owned slice, returning NGX_ERROR on allocation failure.
+ * WHY: A rename must apply both namespace transforms atomically.
+ * HOW: 1. Determine whether a resize is required. 2. Call the canonical path
+ *      helper. 3. Detect its unchanged-buffer failure and release replaced storage. */
+static ngx_int_t
+proxy_rewrite_owned_slice(ngx_connection_t *c,
+                          ngx_stream_brix_srv_conf_t *conf,
+                          u_char **req, size_t *total, ngx_str_t path)
+{
+    ngx_uint_t resize = conf->proxy.path_strip.len != conf->proxy.path_add.len
+                       && proxy_path_matches(conf, path.data, path.len);
+    u_char *next = proxy_rewrite_path(c, conf, *req, *total,
+                                     (size_t) (path.data - *req), path.len, total);
+    if (next == *req) { return resize ? NGX_ERROR : NGX_OK; }
+    ngx_free(*req);
+    *req = next;
+    return NGX_OK;
+}
+
+/* WHAT: Rewrite both rename paths and arg1len, returning a new owned request.
+ * WHY: Treating the two-path payload as one path corrupts its namespace and framing.
+ * HOW: 1. Validate and copy the original. 2. Rewrite destination then source using
+ *      the canonical helper. 3. Update arg1len; on error retain the caller's input. */
+u_char *
+proxy_rewrite_mv(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
+                 u_char *req, size_t total, size_t *total_out)
+{
+    size_t source_len = proxy_mv_source_length(req, total);
+    if (source_len == 0) { return NULL; }
+    u_char *copy = ngx_alloc(total, c->log);
+    if (copy == NULL) { return NULL; }
+    ngx_memcpy(copy, req, total);
+    size_t size = total, destination = XRD_REQUEST_HDR_LEN + source_len + 1;
+    ngx_str_t path = {total - destination, copy + destination};
+    if (proxy_rewrite_owned_slice(c, conf, &copy, &size, path) != NGX_OK) {
+        ngx_free(copy); return NULL;
+    }
+    if (size <= destination) { ngx_free(copy); return NULL; }
+    size_t tail = size - source_len;
+    path.data = copy + XRD_REQUEST_HDR_LEN; path.len = source_len;
+    if (proxy_rewrite_owned_slice(c, conf, &copy, &size, path) != NGX_OK
+        || size == tail || size - tail > INT16_MAX)
+    {
+        ngx_free(copy); return NULL;
+    }
+    uint16_t encoded = htons((uint16_t) (size - tail));
+    ngx_memcpy(copy + 18, &encoded, sizeof(encoded));
+    *total_out = size;
+    return copy;
 }
 
 /*

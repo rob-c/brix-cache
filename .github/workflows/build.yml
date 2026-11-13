@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       # The asan lane's dependency set plus libbz2-dev (the client's optional
       # bzip2 probe) — keep the two in step: a divergence shows up as "builds
@@ -53,23 +53,24 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential \
-            libssl-dev zlib1g-dev libpcre3-dev libpcre2-dev \
+            libssl-dev zlib1g-dev libpcre2-dev pkg-config \
             libcurl4-openssl-dev libsqlite3-dev libkrb5-dev \
-            libjansson-dev libxml2-dev librados-dev libbz2-dev
+            libjansson-dev libxml2-dev librados-dev libbz2-dev \
+            libzstd-dev libbrotli-dev liblzma-dev liblz4-dev
           pip install --user pytest
 
       - name: Fetch nginx source
-        run: curl -fsSL https://nginx.org/download/nginx-1.28.3.tar.gz | tar -xz -C /tmp
+        run: curl -fsSL https://nginx.org/download/nginx-1.31.8.tar.gz | tar -xz -C /tmp
 
       - name: Configure nginx with the module
         run: |
-          cd /tmp/nginx-1.28.3
+          cd /tmp/nginx-1.31.8
           ./configure --with-stream --with-stream_ssl_module \
             --with-http_ssl_module --with-http_dav_module --with-http_auth_request_module --with-threads \
             --add-module="$GITHUB_WORKSPACE"
 
       - name: Build the module (make -j)
-        run: make -j"$(nproc)" -C /tmp/nginx-1.28.3
+        run: make -j"$(nproc)" -C /tmp/nginx-1.31.8
 
       - name: Build the client + shared protocol core (make -j)
         run: make -j"$(nproc)" -C client
@@ -79,7 +80,7 @@ jobs:
       # phase-115 W1.3. Without the binary the guards lane only checks names.
       - name: Example configs parse with `nginx -t`
         env:
-          NGINX_SRC: /tmp/nginx-1.28.3
+          NGINX_SRC: /tmp/nginx-1.31.8
         run: tools/ci/check_example_configs.py
 
       # A second `make` that recompiles anything means a rule is always out of
@@ -89,7 +90,7 @@ jobs:
       - name: Re-running make must be a no-op
         run: |
           set -o pipefail
-          make -C /tmp/nginx-1.28.3 2>&1 | tee /tmp/remake-nginx.log
+          make -C /tmp/nginx-1.31.8 2>&1 | tee /tmp/remake-nginx.log
           make -C client            2>&1 | tee /tmp/remake-client.log
           if grep -qE '^[[:space:]]*(cc|gcc|clang|ar) ' /tmp/remake-nginx.log /tmp/remake-client.log; then
             echo "::error::a second make recompiled — some target is never up to date"
@@ -112,13 +113,13 @@ jobs:
       # pull a payload back through it with the client built above, byte-exact.
       - name: The built module serves a real root:// read
         env:
-          NGINX_SRC: /tmp/nginx-1.28.3
+          NGINX_SRC: /tmp/nginx-1.31.8
           BRIX_SMOKE_KEEP: "1"        # keep the scratch tree for the log upload below
         run: tools/ci/smoke.py
 
       - name: Upload the smoke's server logs on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: build-smoke-logs
           path: /tmp/brix-smoke-*/registry/*/logs/*.log

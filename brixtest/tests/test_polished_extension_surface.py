@@ -146,7 +146,7 @@ class _TextProvider:
 
 
 def test_packaged_extension_discovery_is_lazy_versioned_and_refreshable():
-    import brixtest.extensions.metadata as metadata_module
+    from brixtest.extensions import metadata as metadata_module
     from brixtest.extensions import ExtensionRegistry
 
     target = _RecordingExecutor()
@@ -172,7 +172,7 @@ def test_packaged_extension_discovery_is_lazy_versioned_and_refreshable():
 
 
 def test_packaged_extension_rejects_incompatible_or_malformed_metadata():
-    import brixtest.extensions.metadata as metadata_module
+    from brixtest.extensions import metadata as metadata_module
     from brixtest.extensions import ExtensionInfo, ExtensionRegistry
 
     target = _RecordingExecutor()

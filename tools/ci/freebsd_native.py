@@ -87,7 +87,10 @@ def validation_commands(build, level):
                          "--output", str(build / "test-results"), "--workers", "2",
                          "--include-suite-jobs"])
     else:
-        commands.append([sys.executable, "-m", "pytest", "-q", "-o",
+        # The native crypto fixture compiles real production kernels; a slow
+        # emulated ARM host can exceed the generic 30-second fixture budget.
+        commands.append([sys.executable, "-m", "pytest", "-q", "--timeout=180",
+            "-p", "no:rerunfailures", "-o",
             "cache_dir=" + str(build / "pytest-cache"),
             "--junitxml=" + str(build / "native-contracts.xml"),
             "tests/test_freebsd_native.py", "tests/test_openssl_key_compat.py",

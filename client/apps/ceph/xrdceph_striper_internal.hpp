@@ -61,7 +61,7 @@ unsigned long adler32_buf(const unsigned char *d, size_t n,
                           unsigned long seed = 1);
 long xattr_num(const std::string &oid, const char *name, long dflt);
 std::string dest_path(const std::string &soid);
-void mkparents(const std::string &path);
+int mkparents(const std::string &path);
 long cephfs_adler32(const std::string &cpath, long size);
 void detach_stubs(const std::string &soid, unsigned long long ino);
 

@@ -89,6 +89,7 @@ class Endpoint:
         """Full env to run a client against THIS endpoint (scrubbed + overlay)."""
         env = self.base_env()
         env.update(self._auth)
+        env["TZ"] = "UTC"
         return env
 
     # -- health -------------------------------------------------------------

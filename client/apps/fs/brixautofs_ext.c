@@ -376,6 +376,7 @@ af_run(void)
     af_teardown_children();
     close(g_af.sigpipe[1]);         /* control thread read() returns 0 → exits */
     pthread_join(ctl, NULL);
+    close(g_af.sigpipe[0]);         /* the joined reader no longer owns this end */
     if (have_idle) { pthread_cancel(idle); pthread_join(idle, NULL); }
     fuse_unmount(g_af.fuse);
     fuse_destroy(g_af.fuse);

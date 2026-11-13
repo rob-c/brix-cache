@@ -51,14 +51,14 @@ class TestTheMismatchErrorCode:
             in squashed
 
     def test_and_nothing_in_src_ever_reads_it(self):
-        """The defect itself: one write, zero reads, in the whole of ``src/``.
+        """The defect itself: reset/set writes, zero reads in ``src/``.
         The bit is set, documented as the mechanism for a specific mapping, and
         dropped on the floor."""
         writes, reads = _csi_mismatch_accesses()
         # File-scoped, not line-pinned: neighbouring edits move the write
         # without changing the finding.
         assert [w.rsplit(":", 1)[0] for w in writes] \
-            == ["src/fs/vfs/vfs_io_core.c"], writes
+            == ["src/fs/vfs/vfs_io_core.c"] * 2, writes
         assert reads == [], \
             ("DEFECT CANDIDATE #94 has been FIXED: something now reads "
              f"csi_mismatch.  Re-read §D and strike #94.  Readers: {reads}")
@@ -105,12 +105,30 @@ def _csi_mismatch_accesses_in(path):
 
 
 def _csi_mismatch_access_kind(line):
+    import re
+
     stripped = line.strip()
     if "csi_mismatch" not in stripped:
         return None
     if stripped.startswith(("*", "/*")) or "csi_mismatch:1;" in stripped:
         return None
-    return "write" if "csi_mismatch = 1" in stripped else "read"
+    tail = stripped.partition("csi_mismatch")[2]
+    return "write" if re.match(r"\s*=\s*[01]\s*;", tail) else "read"
+
+
+@pytest.mark.parametrize('source,expected', [
+    ('job->csi_mismatch = 0;', 'write'),
+    ('job->csi_mismatch=1;', 'write'),
+    ('job->csi_mismatch == 1;', 'read'),
+    ('if (job->csi_mismatch) {', 'read'),
+    ('return job->csi_mismatch;', 'read'),
+    ('job->csi_mismatch = job->csi_mismatch;', 'read'),
+    ('unsigned csi_mismatch:1;', None),
+    ('/* csi_mismatch is an output */', None),
+    ('job->io_errno = 0;', None),
+])
+def test_mismatch_access_classifier_distinguishes_reset_from_read(source, expected):
+    assert _csi_mismatch_access_kind(source) == expected
 
 
 # --------------------------------------------------------------------------- #

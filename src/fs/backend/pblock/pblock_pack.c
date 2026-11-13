@@ -336,7 +336,7 @@ pack_write_record(int segfd, const char *blob_id, const unsigned char *data,
     if (pack_pwrite_full(segfd, hdr, SEG_HDR + klen, off) != 0
         || pack_pwrite_full(segfd, data, (size_t) size,
                             off + (off_t) (SEG_HDR + klen)) != 0
-        || fdatasync(segfd) != 0)
+        || brix_plat_fsync_data(segfd) != 0)
     {
         int err = errno;
 

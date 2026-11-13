@@ -12,7 +12,7 @@ import subprocess
 
 def _expression_1(args):
     return (
-        [a for a in args if str(a).endswith(".o")
+        [a for a in args if str(a).endswith((".o", ".a"))
                     and Path(a if os.path.isabs(str(a)) else REPO_ROOT / a).exists()]
     )
 
@@ -57,13 +57,16 @@ def run(argv: list[str], *, cwd: Path | None = None, env: dict[str, str] | None 
 
 
 def sanitizer_link_flags(args: list[str]) -> list[str]:
-    """`-fsanitize=...` when a linked-in .o was built under a sanitizer.
+    """Link the runtimes required by instrumented objects and archives.
 
     An object compiled with -fsanitize=address/undefined/thread carries
     __asan_*/__ubsan_*/__tsan_* references, so linking it without the matching
     runtime dies at LD time with `undefined reference to __asan_*` — exactly the
     contaminated-nginx-object case (a tree built with -fsanitize whose objs/ the
-    object-linked units reuse).  One nm pass picks the right flags."""
+    object-linked units reuse). Coverage builds have the same requirement:
+    GCC's gcov and Clang's gcda symbols need the compiler's --coverage runtime.
+    One nm pass picks the right flags without changing ordinary unit builds.
+    """
     objs = _expression_1(args)
     if not objs:
         return []
@@ -73,6 +76,8 @@ def sanitizer_link_flags(args: list[str]) -> list[str]:
     _guard_sanitizer_link_flags_1(syms, flags)
     _guard_sanitizer_link_flags_2(syms, flags)
     _guard_sanitizer_link_flags_3(syms, flags)
+    if "__gcov_" in syms or "llvm_gcda_" in syms:
+        flags.append("--coverage")
     return flags
 
 
@@ -157,6 +162,22 @@ def module_shared_platform_sources() -> list[str]:
     if platform_host_name() in ('linux', 'freebsd'):
         return ['shared/cvmfs/platform/platform.c']
     return []
+
+
+def pal_storage_link_args() -> list[str]:
+    """Link the module's real anonymous-file and durable-sync PAL owner.
+
+    Small metadata/journal units need the same storage adapter as nginx even
+    when their entry point is linked from an existing module object.
+    """
+    sources = module_shared_platform_sources()
+    libraries = []
+    if not sources:
+        sources = pal_host_sources("posix_wrapper")
+        libraries = pal_host_libraries("posix_wrapper")
+    return [*PLATFORM_HOST_FLAGS, "-I", str(REPO_ROOT / "src"),
+            "-I", str(REPO_ROOT / "shared"),
+            *(str(REPO_ROOT / source) for source in sources), *libraries]
 
 
 def pal_xattr_sources(system: str | None = None) -> list[str]:

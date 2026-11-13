@@ -30,6 +30,13 @@ and resolved (and re-resolved on TTL expiry) from the worker's event loop.
 
 The dashboard panel lives in `observability/dashboard/api_snapshot_dns.c`.
 
+Both caches find the first equal hash key and inspect its successors before
+matching the full identity. Tree rotations can move equal keys into a left
+subtree, so following only right children loses existing entries. The shared
+lower-bound helper preserves hostname/family and PTR-address identity through
+these rotations. `tests/test_dns_prefetch_native.py` covers all family insertion
+orders, real CRC collisions, pending-fill ownership, TTL expiry and refusal.
+
 **Per-process statics.** The registry and cache are file-static, per-worker
 tables (the same justification as `protocols/cvmfs/origin_probe.c` and
 `protocols/webdav/proxy_pool.c`): addresses are process-local by nature — each

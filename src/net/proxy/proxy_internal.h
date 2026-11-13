@@ -512,6 +512,12 @@ void      proxy_write_audit(brix_proxy_ctx_t *proxy, int local_fh);
 u_char *proxy_rewrite_path(ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, u_char *req, size_t total,
     size_t path_off, size_t path_len, size_t *total_out);
+/* Validate the rename separator/length before audit or rewrite; zero is invalid. */
+size_t proxy_mv_source_length(const u_char *req, size_t total);
+/* Atomically rewrite both rename paths and arg1len. Returns new storage, leaving
+ * req owned by the caller; NULL rejects invalid framing or allocation failure. */
+u_char *proxy_rewrite_mv(ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, u_char *req, size_t total, size_t *total_out);
 /* Rewrite every newline-separated path in a kXR_prepare payload with the same prefix swap,
  * fixing up the dlen header; *total_out gets the new length. Returns req if nothing
  * matched (or OOM), else a NEW buffer — and in that case ngx_free()s the old req itself

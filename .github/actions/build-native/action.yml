@@ -1,0 +1,105 @@
+name: Build and exercise native BriX binaries
+description: Install the native SDK, build the server and client, and test the PAL and serving path.
+inputs:
+  detect-features:
+    description: Apply compiler-probed CPU and LTO recommendations.
+    default: 'false'
+  artifact-name:
+    description: Unique platform name for the native test report.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v7.1.0
+      with:
+        python-version: '3.12'
+    - name: Install Linux SDK
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config \
+          libssl-dev zlib1g-dev libpcre2-dev libxml2-dev libjansson-dev \
+          libkrb5-dev libcurl4-openssl-dev libsqlite3-dev libbz2-dev \
+          liblz4-dev libzstd-dev libbrotli-dev liblzma-dev
+    - name: Install macOS SDK
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        brew install openssl@4 pcre2 libxml2 jansson krb5 curl sqlite bzip2 lz4 zstd brotli xz pkgconf
+        sdk_paths=""
+        for dependency in openssl@4 krb5 curl libxml2 sqlite bzip2; do
+          sdk_paths="$(brew --prefix "$dependency")/lib/pkgconfig:$sdk_paths"
+        done
+        echo "PKG_CONFIG_PATH=$sdk_paths${PKG_CONFIG_PATH:-}" >> "$GITHUB_ENV"
+        openssl_prefix=$(brew --prefix openssl@4)
+        # nginx probes OpenSSL independently of pkg-config. Bind its headers and
+        # linker search to the same keg, ahead of any preinstalled OpenSSL SDK.
+        echo "BRIX_CI_SDK_CC_OPT=-I$openssl_prefix/include" >> "$GITHUB_ENV"
+        echo "BRIX_CI_SDK_LD_OPT=-L$openssl_prefix/lib -Wl,-rpath,$openssl_prefix/lib" >> "$GITHUB_ENV"
+    - name: Install native test harness dependencies
+      shell: bash
+      run: python3 -m pip install './brixtest[crypto]' pytest-timeout requests PyYAML psutil
+    - name: Detect platform features
+      shell: bash
+      env:
+        APPLY_FEATURES: ${{ inputs.detect-features }}
+      run: |
+        python3 tools/ci/detect_platform_features.py --output /tmp/platform.json
+        python3 - <<'PY'
+        import json
+        import os
+        from pathlib import Path
+        data = json.loads(Path('/tmp/platform.json').read_text())
+        flags = os.environ.get('BRIX_CI_SDK_CC_OPT', '').split()
+        link = os.environ.get('BRIX_CI_SDK_LD_OPT', '').split()
+        if os.environ['APPLY_FEATURES'] == 'true':
+            flags.extend(data['optimization_flags']['march'])
+            flags.extend(data['optimization_flags']['mtune'])
+            mode = data['recommendations']['enable_lto']
+            if mode in ('thin', 'full'):
+                option = '-flto=thin' if mode == 'thin' else '-flto'
+                flags.append(option)
+                link.append(option)
+        with Path(os.environ['GITHUB_ENV']).open('a') as stream:
+            stream.write('BRIX_CI_CC_OPT=' + ' '.join(flags) + '\n')
+            stream.write('BRIX_CI_LD_OPT=' + ' '.join(link) + '\n')
+        PY
+    - name: Build the server and client
+      shell: bash
+      run: |
+        nginx_source="$RUNNER_TEMP/nginx-1.31.8"
+        curl -fsSL https://nginx.org/download/nginx-1.31.8.tar.gz | tar -xz -C "$RUNNER_TEMP"
+        if [ "$RUNNER_OS" = macOS ]; then
+          jobs=$(sysctl -n hw.ncpu)
+        else
+          jobs=$(nproc)
+        fi
+        (
+          cd "$nginx_source"
+          ./configure --prefix="$RUNNER_TEMP/brix" \
+            --with-stream --with-stream_ssl_module --with-threads \
+            --with-http_ssl_module --with-http_dav_module --with-http_auth_request_module \
+            --with-cc-opt="$BRIX_CI_CC_OPT" --with-ld-opt="$BRIX_CI_LD_OPT" \
+            --add-module="$GITHUB_WORKSPACE"
+          make -j"$jobs"
+        )
+        make -C client -j"$jobs"
+        file "$nginx_source/objs/nginx"
+        "$nginx_source/objs/nginx" -V
+        echo "NGINX_SRC=$nginx_source" >> "$GITHUB_ENV"
+        echo "NGX_SRC=$nginx_source" >> "$GITHUB_ENV"
+        echo "NGX_BUILD=$nginx_source" >> "$GITHUB_ENV"
+    - name: Serve and verify a byte-exact root read
+      shell: bash
+      run: python3 tools/ci/smoke.py
+    - name: Run native PAL contracts
+      shell: bash
+      env:
+        REPORT_NAME: ${{ inputs.artifact-name }}
+        PYTEST_ADDOPTS: '-p no:brixtest'
+        PYTHONPATH: tests
+      run: |
+        python3 -m pytest tests/platform/test_pal_api.py \
+          --confcutdir=tests/platform -o addopts= -v \
+          --junitxml="test-results/pal-$REPORT_NAME.xml"

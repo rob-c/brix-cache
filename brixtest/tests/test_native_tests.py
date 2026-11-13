@@ -25,53 +25,9 @@ from brixtest.native_runtime import (
 )
 
 
-def _nested_pytest(tmp_path: Path, source: str, *extra: str):
-    test_file = tmp_path / "test_native_generated.py"
-    test_file.write_text(source)
-    package = Path(__file__).resolve().parents[1] / "src"
-    environment = {
-        key: value for key, value in os.environ.items()
-        if not key.startswith("BRIXTEST_")
-    }
-    environment.update({
-        "PYTHONPATH": str(package),
-        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
-        "PYTHONPYCACHEPREFIX": str(tmp_path / "pycache"),
-        "BRIXTEST_RUNS": str(tmp_path / "runs"),
-    })
-    return subprocess.run(
-        [
-            sys.executable, "-m", "pytest", str(test_file),
-            "-p", "brixtest.pytest_plugin", "-q", *extra,
-        ],
-        cwd=tmp_path, env=environment, capture_output=True, text=True,
-        timeout=90, check=False,
-    )
-
-
-def _write(tmp_path: Path, name: str, source: str) -> Path:
-    path = tmp_path / "c" / name
-    path.parent.mkdir(exist_ok=True)
-    path.write_text(source)
-    return path
-
-
-def _compiler(language: str = "c") -> str | None:
-    names = ("c++", "g++", "clang++") if language == "c++" else ("cc", "gcc", "clang")
-    return next((value for name in names if (value := shutil.which(name))), None)
-
-
-def _loopback_available() -> bool:
-    try:
-        handle = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    except OSError:
-        return False
-    handle.close()
-    return True
-
-
-def _tree_text(root: Path, pattern: str) -> str:
-    return "\n".join(path.read_text() for path in root.rglob(pattern))
+from native_test_support import (
+    _nested_pytest, _write, _compiler, _loopback_available, _tree_text,
+)
 
 
 def test_output_expectation_is_immutable_and_composable():
@@ -182,10 +138,13 @@ def test_captured_binary_can_supply_the_native_compiler():
     )
     old_which = native_runtime_module.shutil.which
     native_runtime_module.shutil.which = lambda value: value if value == "/captured/cc" else None
-    spec = _NativeSpec("captured", ("main.c",), compiler=(compiler,))
-    assert _available_compiler(SimpleNamespace(_manager=manager), spec, "c") == (
-        "/captured/cc",
-    )
+    try:
+        spec = _NativeSpec("captured", ("main.c",), compiler=(compiler,))
+        assert _available_compiler(SimpleNamespace(_manager=manager), spec, "c") == (
+            "/captured/cc",
+        )
+    finally:
+        native_runtime_module.shutil.which = old_which
 
 
 def test_kubernetes_bundle_includes_explicit_native_build_inputs(tmp_path):

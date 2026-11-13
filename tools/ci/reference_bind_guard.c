@@ -3,6 +3,9 @@
  * A dyld interpose descriptor is required on Darwin; LD_PRELOAD on ELF hosts.
  * This is not a sandbox against malicious code making direct system calls.
  */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE 1 /* glibc exposes RTLD_NEXT only with GNU extensions. */
+#endif
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <dlfcn.h>

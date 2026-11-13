@@ -1,4 +1,4 @@
-# server — the real nginx-xrootd (brix) module compiled against nginx 1.28.3.
+# server — the real nginx-xrootd (brix) module compiled against nginx 1.31.8.
 # Strategy A: self-contained in-image compile (no external RPM dependency).
 ARG BRIX_BASE_IMAGE=almalinux:9
 ARG BRIX_RUNTIME_IMAGE=almalinux:9
@@ -10,10 +10,11 @@ COPY k8s-tests/lib/el-target.sh /tmp/el-target.sh
 RUN bash /tmp/el-target.sh \
     && dnf install -y --allowerasing gcc make perl tar gzip which curl \
                       pcre2-devel zlib-devel openssl-devel krb5-devel \
-                      libxml2-devel libcurl-devel jansson-devel \
+                      libxml2-devel libcurl-devel jansson-devel libzstd-devel \
+                      brotli-devel sqlite-devel xz-devel bzip2-devel lz4-devel \
     && (dnf install -y voms-devel || true) \
     && dnf clean all
-ARG NGINX_VER=1.28.3
+ARG NGINX_VER=1.31.8
 WORKDIR /src
 RUN curl -fsSL "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" | tar xz
 COPY . /src/brix
@@ -30,7 +31,7 @@ ARG BRIX_CEPH_SIG_RELEASE=tentacle
 COPY k8s-tests/lib/el-target.sh /tmp/el-target.sh
 RUN bash /tmp/el-target.sh \
     && dnf install -y --allowerasing pcre2 zlib openssl krb5-libs libxml2 libcurl jansson \
-                      xrootd-client \
+                      xrootd-client libzstd brotli sqlite-libs xz-libs bzip2-libs lz4-libs \
     && (dnf install -y voms-libs || true) \
     && dnf clean all
 COPY --from=build /usr/local/nginx /usr/local/nginx

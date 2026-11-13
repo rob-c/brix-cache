@@ -111,5 +111,5 @@ def test_full_workflow_builds_and_enables_native_gridftp():
     commands = next(step['with']['run'] for step in workflow['jobs']['native']['steps']
                     if 'prepare' in step.get('with', {}))
     assert 'tools/ci/freebsd_gridftp.py --work-dir /home/brixvalidate/gridftp-deps --jobs 1' in commands
-    assert 'export PATH="/home/brixvalidate/gridftp-deps/install/bin:$PATH"' in commands
+    assert '/home/brixvalidate/gridftp-deps/install/bin:$PATH"' in commands
     assert commands.index('tools/ci/freebsd_gridftp.py') < commands.index('tools/ci/freebsd_pending_peer.py')

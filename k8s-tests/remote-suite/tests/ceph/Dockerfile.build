@@ -10,7 +10,7 @@
 # rebuild. nginx source is unpacked at /opt/nginx-src.
 FROM quay.io/ceph/demo:latest-reef
 
-ARG NGINX_VER=1.28.3
+ARG NGINX_VER=1.31.8
 
 # CRB (liburing-devel etc.) + EPEL (brotli) widen the dep set on CentOS Stream 9.
 RUN dnf -y install 'dnf-command(config-manager)' \

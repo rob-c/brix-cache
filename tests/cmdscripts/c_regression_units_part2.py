@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 
 from cmdscripts.compile_run import (REPO_ROOT, confined_open_link_args,
-                                    pal_host_sources, result, run)
+                                    pal_host_sources, pal_storage_link_args, result, run)
 from cmdscripts.compile_run import LZ4_LINK_FLAGS
 
 
@@ -378,6 +378,7 @@ def frm_stage_metrics(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool
             *_nginx_includes(ngx_src),
             str(TEST_C / "test_frm_stage_metrics.c"),
             str(mutate), str(subst), str(crc), str(crchw), str(ngxstr),
+            *pal_storage_link_args(),
             "-pthread",
         ],
     )

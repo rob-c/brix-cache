@@ -5,6 +5,7 @@
  * Split verbatim out of store_policy.c (see store_policy.h for the contract).
  * Depends only on OpenSSL + libc; no ngx symbols.
  */
+#include "auth/crypto/asn1_compat.h"
 #include "core/types/tunables.h"
 #include "auth/crypto/store_policy.h"
 #include "store_policy_internal.h"
@@ -89,7 +90,7 @@ brix_gt2_proxy_kind(X509 *cert)
         return BRIX_PX_NONE;
     }
     s = ASN1_STRING_get0_data(cn);
-    n = ASN1_STRING_length(cn);
+    n = brix_crypto_asn1_length(cn);
     if (n == 5 && strncasecmp((const char *) s, "proxy", 5) == 0) {
         return BRIX_PX_FULL;
     }
@@ -166,7 +167,7 @@ brix_dn_has_control_bytes(const X509_NAME *nm)
         const X509_NAME_ENTRY *e = X509_NAME_get_entry(nm, i);
         const ASN1_STRING     *v = X509_NAME_ENTRY_get_data(e);
         const unsigned char *s = ASN1_STRING_get0_data(v);
-        int                  len = ASN1_STRING_length(v);
+        int                  len = brix_crypto_asn1_length(v);
         int                  j;
         for (j = 0; j < len; j++) {
             if (s[j] < 0x20 || s[j] == 0x7f) {

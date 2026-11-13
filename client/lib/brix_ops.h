@@ -55,6 +55,9 @@ typedef struct {
     uint8_t write_codec;
 } brix_file;
 
+/* Metadata for this live handle, including staged or unlinked objects. */
+int brix_file_stat(brix_conn *c, brix_file *f, brix_statinfo *out, brix_status *st);
+
 int brix_file_open_read(brix_conn *c, const char *path, brix_file *f,
                         brix_status *st);
 /* force → truncate-on-open (overwrite); posc → persist-on-successful-close. */
@@ -238,6 +241,7 @@ int     brix_rfile_open_write(brix_conn *c, const char *path, int force, int pos
  * returns bytes read (0=EOF) or -1; pwrite returns 0/-1. */
 ssize_t brix_rfile_pread (brix_rfile *rf, int64_t off, void *buf, size_t len, brix_status *st);
 int     brix_rfile_pwrite(brix_rfile *rf, int64_t off, const void *buf, size_t len, brix_status *st);
+int     brix_rfile_stat(brix_rfile *rf, brix_statinfo *out, brix_status *st);
 int     brix_rfile_close (brix_rfile *rf, brix_status *st);
 
 /* Bounded streaming over an already-open resilient file.  The sink sees each

@@ -78,7 +78,8 @@ aconn_on_transport_error(brix_aconn *ac, const brix_status *st)
     ac->rx_direct = NULL;
     ac->rx_need   = 0;
 
-    if (ac->max_stall_ms <= 0) {   /* reconnect disabled — fail outright */
+    int max_stall_ms = __atomic_load_n(&ac->max_stall_ms, __ATOMIC_RELAXED);
+    if (max_stall_ms <= 0) {   /* reconnect disabled — fail outright */
         ac->state = ACONN_DEAD;
         aconn_drain_inflight(ac, st);
         aconn_pending_fail_all(ac, st);
@@ -87,7 +88,7 @@ aconn_on_transport_error(brix_aconn *ac, const brix_status *st)
 
     uint64_t now = brix_mono_ns();
     ac->state = ACONN_RECONNECTING;
-    ac->reconnect_deadline_ns = now + (uint64_t) ac->max_stall_ms * 1000000ULL;
+    ac->reconnect_deadline_ns = now + (uint64_t) max_stall_ms * 1000000ULL;
     ac->ping_inflight = 0;
     ac->tls_want_read_on_write = ac->tls_want_write_on_read = 0;
 
@@ -121,8 +122,11 @@ aconn_on_transport_error(brix_aconn *ac, const brix_status *st)
 }
 
 
-/* Loop-thread side of a successful reconnect: adopt the new socket and re-issue
- * every parked request. */
+/* WHAT: Adopt the reconnected socket and replay parked requests while alive.
+ * WHY: A replay write can lose the socket again; unissued requests must remain
+ *      owned by the connection so failure/reconnect cleanup can reach them.
+ * HOW: 1. Register the socket. 2. Pop one pending request before each issue.
+ *      3. Stop on another state transition, retaining the rest on the connection. */
 void
 aconn_reconnect_succeeded(brix_aconn *ac)
 {
@@ -146,19 +150,11 @@ aconn_reconnect_succeeded(brix_aconn *ac)
     ac->last_activity_ns = brix_mono_ns();
     ac->reconnect_deadline_ns = 0;
 
-    brix_areq *p = ac->pending;
-    ac->pending = NULL;
-    while (p != NULL) {
-        brix_areq *nx = p->pend_next;
-        p->pend_next = NULL;
-        aconn_issue_areq(ac, p);
-        if (ac->state != ACONN_ALIVE) {
-            /* a re-issue tripped another drop; the rest were re-parked or failed */
-            p = ac->pending;
-            ac->pending = NULL;
-            continue;
-        }
-        p = nx;
+    while (ac->state == ACONN_ALIVE && ac->pending != NULL) {
+        brix_areq *request = ac->pending;
+        ac->pending = request->pend_next;
+        request->pend_next = NULL;
+        aconn_issue_areq(ac, request);
     }
 }
 
@@ -205,11 +201,12 @@ aconn_ping_cb(void *ctx, int rc, uint16_t kxr, uint8_t *body, uint32_t blen,
 void
 aconn_maybe_ping(brix_aconn *ac)
 {
-    if (ac->state != ACONN_ALIVE || ac->keepalive_ms <= 0 || ac->ping_inflight) {
+    int keepalive_ms = __atomic_load_n(&ac->keepalive_ms, __ATOMIC_RELAXED);
+    if (ac->state != ACONN_ALIVE || keepalive_ms <= 0 || ac->ping_inflight) {
         return;
     }
     uint64_t now = brix_mono_ns();
-    if (now - ac->last_activity_ns < (uint64_t) ac->keepalive_ms * 1000000ULL) {
+    if (now - ac->last_activity_ns < (uint64_t) keepalive_ms * 1000000ULL) {
         return;
     }
     brix_areq *r = (brix_areq *) calloc(1, sizeof(*r));
@@ -222,7 +219,7 @@ aconn_maybe_ping(brix_aconn *ac)
     r->ctx = ac;
     r->is_ping = 1;
     r->retry_safe = 1;
-    r->retries_left = ac->def_retries;
+    r->retries_left = __atomic_load_n(&ac->def_retries, __ATOMIC_RELAXED);
     uint64_t dl = aconn_rto_ns(ac) * 4;
     if (dl < 2000000000ULL) { dl = 2000000000ULL; }
     if (dl > 10000000000ULL) { dl = 10000000000ULL; }
@@ -326,7 +323,8 @@ aconn_deadline_ns(brix_aconn *ac, int deadline_ms)
     if (deadline_ms > 0) {
         ms = (uint64_t) deadline_ms;
     } else {
-        uint64_t cap = (ac->max_stall_ms > 0) ? (uint64_t) ac->max_stall_ms : 60000;
+        int max_stall_ms = __atomic_load_n(&ac->max_stall_ms, __ATOMIC_RELAXED);
+        uint64_t cap = max_stall_ms > 0 ? (uint64_t) max_stall_ms : 60000;
         ms = (aconn_rto_ns(ac) / 1000000ULL) * 20;   /* ~20 RTOs of patience */
         if (ms < 5000) {
             ms = 5000;
@@ -370,12 +368,14 @@ aconn_submit_cmd(brix_aconn *ac, cmd *c)
     r->retry_safe   = c->retry_safe;
     r->dst          = c->dst;
     r->dst_cap      = c->dst_cap;
-    r->retries_left = (c->max_retries >= 0) ? c->max_retries : ac->def_retries;
+    r->retries_left = (c->max_retries >= 0) ? c->max_retries
+        : __atomic_load_n(&ac->def_retries, __ATOMIC_RELAXED);
     r->deadline_ns  = aconn_deadline_ns(ac, c->deadline_ms);
 
     if (ac->state == ACONN_RECONNECTING) {
         /* Give a parked request the full reconnect budget so it survives the drop. */
-        uint64_t stall = (ac->max_stall_ms > 0) ? (uint64_t) ac->max_stall_ms : 60000;
+        int max_stall_ms = __atomic_load_n(&ac->max_stall_ms, __ATOMIC_RELAXED);
+        uint64_t stall = max_stall_ms > 0 ? (uint64_t) max_stall_ms : 60000;
         r->deadline_ns = brix_mono_ns() + stall * 1000000ULL;
         r->pend_next = ac->pending;
         ac->pending = r;

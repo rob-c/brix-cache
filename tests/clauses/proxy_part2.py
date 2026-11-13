@@ -14,7 +14,7 @@ validation).  Where our current code is likely to diverge (path-length and
 limited→full monotonicity enforcement are commonly unimplemented) the row still
 asserts the standard's verdict; a later phase fixes the code, never the test.
 
-Validity note: the forge epoch is 2026-01-01 but path validation runs at real
+Validity note: the forge epoch is the current UTC day but path validation runs at real
 wall-clock time, so every "valid-now" cert is minted with a multi-year
 not_after; the expiry rows set a deliberately short/late window.
 """
@@ -231,10 +231,10 @@ add("RFC5280 §6.1.3", "proxy notAfter equal to EEC notAfter authenticates",
     "accept", _single_eec(eec_kw={"not_after_days": NEAR}, not_after_days=NEAR),
     "both valid at present time")
 add("RFC5280 §6.1.3", "expired proxy on a valid EEC rejected",
-    "reject", _single("rfc3820", not_after_days=1),
+    "reject", _single("rfc3820", not_before_days=-30, not_after_days=-1),
     "proxy validity window has passed")
 add("RFC5280 §6.1.3", "valid proxy on an expired EEC rejected",
-    "reject", _single_eec(eec_kw={"not_after_days": 1}),
+    "reject", _single_eec(eec_kw={"not_before_days": -30, "not_after_days": -1}),
     "an intermediate cert is expired")
 add("RFC5280 §6.1.3", "not-yet-valid proxy rejected",
     "reject", _single("rfc3820", not_before_days=FUTURE_NB,
@@ -248,15 +248,15 @@ add("RFC5280 §6.1.3", "deep chain, every cert valid, authenticates",
     "accept", _chain([{"kind": "rfc3820"}] * 4), "control for expiry rows")
 add("RFC5280 §6.1.3", "expired intermediate proxy in depth-3 chain rejected",
     "reject", _chain([{"kind": "rfc3820"},
-                      {"kind": "rfc3820", "not_after_days": 1},
+                      {"kind": "rfc3820", "not_before_days": -30, "not_after_days": -1},
                       {"kind": "rfc3820"}]),
     "middle proxy expired")
 add("RFC5280 §6.1.3", "expired leaf proxy in depth-2 chain rejected",
     "reject", _chain([{"kind": "rfc3820"},
-                      {"kind": "rfc3820", "not_after_days": 1}]),
+                      {"kind": "rfc3820", "not_before_days": -30, "not_after_days": -1}]),
     "leaf proxy expired")
 add("RFC5280 §6.1.3", "expired top proxy in depth-2 chain rejected",
-    "reject", _chain([{"kind": "rfc3820", "not_after_days": 1},
+    "reject", _chain([{"kind": "rfc3820", "not_before_days": -30, "not_after_days": -1},
                       {"kind": "rfc3820"}]),
     "first-delegated proxy expired")
 

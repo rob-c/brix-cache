@@ -66,6 +66,30 @@ def test_rootfs_rejects_preexisting_runtime_symlink(tmp_path, monkeypatch):
     assert calls == [] and list(victim.iterdir()) == []
 
 
+@pytest.mark.parametrize('profile', ['', 'brix-coverage-userns-tests'])
+def test_official_fuse_oracle_uses_only_an_explicit_test_profile(tmp_path, monkeypatch, profile):
+    from cmdscripts import cvmfs_official_client as official
+    calls = []
+    monkeypatch.setenv('BRIX_CVMFS_APPARMOR_PROFILE', profile)
+    monkeypatch.setattr(official.subprocess, 'run', lambda argv, **kw: calls.append((argv, kw)))
+    official._client_run('docker', tmp_path, 'mount-and-verify')
+    argv, options = calls[0]
+    assert argv[-2:] == ['-c', 'mount-and-verify']
+    assert argv[argv.index('--cap-add') + 1] == 'SYS_ADMIN'
+    assert f'{tmp_path}:/brix:ro,Z' in argv
+    assert '--privileged' not in argv and not options.get('shell')
+    assert ('--security-opt' in argv) == bool(profile)
+    if profile:
+        assert argv[argv.index('--security-opt') + 1] == 'apparmor=' + profile
+
+
+def test_official_fuse_oracle_preserves_a_mount_failure(tmp_path, monkeypatch):
+    from cmdscripts import cvmfs_official_client as official
+    failed = subprocess.CompletedProcess([], 7, '', 'mount denied')
+    monkeypatch.setattr(official.subprocess, 'run', lambda *args, **kw: failed)
+    assert official._client_run('docker', tmp_path, 'mount-and-verify') is failed
+
+
 def _truth_runtime(monkeypatch, create):
     """Record a synthetic pull/create/export transaction without a daemon."""
     payload = io.BytesIO()

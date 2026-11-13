@@ -16,10 +16,9 @@ repo is served: CAS, signed metadata, and geo alike. Contract:
   the directive absent or non-matching is exactly today's open behavior;
 * ``*`` gates every repo the location serves.
 
-Port block 13280-13299 (mocks 13280-13289, nginx 13290-13299).
+Uses the suite-relative srv_authz port block, shared by the CVMFS test group.
 """
 
-import itertools
 import os
 import shutil
 import ssl
@@ -58,19 +57,7 @@ pytestmark = [
 ]
 
 
-class _FixedBlock(PortBlock):
-    def __init__(self, mock_port: int, nginx_port: int):
-        super().__init__("srv_authz")
-        self._mp, self._np = mock_port, nginx_port
-
-    def mock(self) -> int:
-        return self._mp
-
-    def nginx(self) -> int:
-        return self._np
-
-
-_PAIRS = itertools.cycle([(13280 + i, 13290 + i) for i in range(10)])
+_BLOCK = PortBlock("srv_authz")
 
 
 @pytest.fixture(scope="module")
@@ -102,12 +89,11 @@ def mint(tmp_path_factory):
 @contextmanager
 def _srv(gate, cfg, tls=None, **kw):
     """cvmfs instance with brix_cvmfs_repo_authz `<gate> <cfg>`; TLS optional."""
-    mock_port, nginx_port = next(_PAIRS)
     if gate is not None:
         kw["extra_directives"] = f"brix_cvmfs_repo_authz {gate} {cfg};"
     if tls is not None:
         kw["ssl_cert"], kw["ssl_key"] = tls
-    with srv_instance(_FixedBlock(mock_port, nginx_port), objects=4, **kw) as srv:
+    with srv_instance(_BLOCK, objects=4, **kw) as srv:
         yield srv
 
 

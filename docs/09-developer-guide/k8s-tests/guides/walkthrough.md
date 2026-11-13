@@ -26,7 +26,7 @@ You also need `minikube`, `kubectl`, `docker`, and `jq`. Verify everything:
 ./tools/require-tools.sh      # prints "All required tools present." on success
 ```
 
-> **Note on minikube:** the lab pins Kubernetes to **v1.31.4**. A healthy
+> **Note on minikube:** the lab pins Kubernetes to **v1.37.2**. A healthy
 > `minikube` binary is ~90 MB; if `minikube version` crashes or hangs, reinstall it:
 > ```bash
 > curl -fsSLo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
@@ -45,7 +45,7 @@ You should see all suites pass.
 ## 3. Bring up the dev profile
 
 ```bash
-./xrd-lab up            # minikube start --kubernetes-version=v1.31.4 --nodes=1
+./xrd-lab up            # minikube start --kubernetes-version=v1.37.2 --nodes=1
 ./xrd-lab deploy dev    # builds brix-smoke:dev into the node, installs the dev profile
 ```
 

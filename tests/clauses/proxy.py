@@ -1,7 +1,7 @@
 """proxy — RFC 3820 proxy-certificate conformance family (id prefix PXY).
 
 Every row exercises the proxy-verification path that root:// GSI (and the C
-oracle with ALLOW_PROXY_CERTS) runs — WebDAV refuses proxies outright — so all
+oracle with ALLOW_PROXY_CERTS) runs — WebDAV accepts valid RFC 3820 proxies too — so all
 rows use surface='c-oracle' and group='sp_off_crl_off' (signing_policy + CRL
 disabled, to isolate pure chain/proxy semantics).
 
@@ -14,7 +14,7 @@ validation).  Where our current code is likely to diverge (path-length and
 limited→full monotonicity enforcement are commonly unimplemented) the row still
 asserts the standard's verdict; a later phase fixes the code, never the test.
 
-Validity note: the forge epoch is 2026-01-01 but path validation runs at real
+Validity note: the forge epoch is the current UTC day but path validation runs at real
 wall-clock time, so every "valid-now" cert is minted with a multi-year
 not_after; the expiry rows set a deliberately short/late window.
 """
@@ -33,7 +33,7 @@ S = "c-oracle"
 G = "sp_off_crl_off"
 VALID = 3650          # ~10y past the epoch → valid at real "now"
 LONG = 4200           # strictly beyond an EEC minted with not_after=VALID
-NEAR = 300            # ~2026-10-28: still valid now but earlier than VALID
+NEAR = 300            # still valid now but earlier than VALID
 FUTURE_NB = 3650      # notBefore far in the future → "not yet valid"
 FUTURE_NA = 3660
 

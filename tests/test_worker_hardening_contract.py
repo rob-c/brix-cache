@@ -31,9 +31,15 @@ def _function(source: str, name: str) -> str:
 def test_capset_failure_aborts_worker_hardening():
     body = _function(LIFECYCLE, "imp_worker_prepare_drop")
     failure = body[body.index("if (brix_plat_capset") :]
-    failure = failure[: failure.index("/* Best-effort bounding-set")]
     assert "return NGX_ERROR;" in failure
     assert "continuing" not in failure
+
+
+def test_bounding_set_is_sealed_before_setpcap_is_discarded():
+    body = _function(LIFECYCLE, "imp_worker_prepare_drop")
+    assert body.index("brix_imp_worker_drop_bounds") < body.index("brix_plat_capset")
+    refusal = body[body.index("if (brix_imp_worker_drop_bounds"):body.index("ngx_memzero")]
+    assert "return NGX_ERROR;" in refusal
 
 
 def test_terminal_shed_zeros_and_verifies_every_capability_word():

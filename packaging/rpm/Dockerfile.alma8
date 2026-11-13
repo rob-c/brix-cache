@@ -15,6 +15,7 @@
 #     Loading both ABIs into one nginx process is unsafe, so this target builds
 #     the native, co-installable client package only. Server RPMs start at EL9.
 #   - The resulting RPM carries the .el8 dist tag.
+#   - Intel builds use GCC Toolset 14: GCC 8 cannot name x86-64-v2.
 
 FROM almalinux:8 AS builder
 
@@ -54,6 +55,13 @@ RUN mkdir -p /opt/brix-openssl3-pkgconfig && \
 
 ENV PKG_CONFIG_PATH=/opt/brix-openssl3-pkgconfig:/usr/lib64/pkgconfig
 
+# Retain the project's x86-64-v2 baseline on EL8 without changing its runtime
+# libraries. The parallel toolset is a build dependency, not a package runtime.
+RUN if [ "$(uname -m)" = x86_64 ]; then \
+        dnf install -y gcc-toolset-14-gcc gcc-toolset-14-gcc-c++ \
+            gcc-toolset-14-annobin-plugin-gcc && dnf clean all; \
+    fi
+
 # Explicit override only; empty means "use the version baked into the
 # source" (BRIX_SERVER_VERSION_BARE in src/core/ident.h), derived below.
 ARG VERSION=""
@@ -61,7 +69,10 @@ ARG VERSION=""
 WORKDIR /build/src
 COPY . .
 
-RUN RPMBUILD_TOPDIR=/root/rpmbuild \
+RUN if [ -f /opt/rh/gcc-toolset-14/enable ]; then \
+        . /opt/rh/gcc-toolset-14/enable; \
+    fi && \
+    RPMBUILD_TOPDIR=/root/rpmbuild \
     RPM_SPEC=/build/src/packaging/rpm/brix-cache-client-el8.spec \
     packaging/rpm/build-rpm.sh "${VERSION}"
 

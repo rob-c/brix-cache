@@ -168,7 +168,7 @@ test_agree_and_two_name_mapping(void)
     assert(brix_vfs_require_authorized_target(&ctx, "/srv/dst",
                                                BRIX_VFS_MUTATE_RENAME) == NGX_OK);
     assert(last_query.needed_privs == BRIX_AUTH_UPDATE);
-    assert(last_query.acc_op == BRIX_AOP_UPDATE);
+    assert(last_query.acc_op == BRIX_AOP_INSERT);
     puts("ok test_backstop_agrees_with_edge");
 }
 

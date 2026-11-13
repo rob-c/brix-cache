@@ -93,24 +93,28 @@ def _ps_parse(line):
 
 
 def _ps_table():
-    """``{pid: (ppid, comm, argv, environ_tokens)}`` from one ``ps`` run.
+    """``{pid: (ppid, comm, argv, environ_tokens)}`` from a host snapshot.
 
-    ``ps -E`` appends ``KEY=VALUE`` environment tokens (own-uid processes
-    only) after the argv; both are whitespace-split, so a value containing a
-    space is lost — acceptable for the TEST_ROOT / harness-marker matches
-    this module makes.  Cached for ``_PS_TTL`` seconds because the reaper
-    asks about hundreds of pids per pass.
+    Native BSD/macOS APIs retain argument and environment boundaries: values
+    containing spaces must never impersonate a harness argument. Cached for
+    ``_PS_TTL`` seconds because the reaper asks about hundreds of pids per pass.
     """
     now = time.monotonic()
     if now - _PS_CACHE["at"] < _PS_TTL and _PS_CACHE["table"]:
         return _PS_CACHE["table"]
-    if sys.platform.startswith("freebsd"):
-        table = native_process_table()
-    else:
-        rows = (_ps_parse(line) for line in _ps_snapshot())
-        table = dict(row for row in rows if row is not None)
-    _PS_CACHE["at"], _PS_CACHE["table"] = now, table
+    table = _host_process_table()
+    # A busy host can take longer than the TTL to read. Start cache age after
+    # collection, or every PID lookup immediately repeats the whole snapshot.
+    _PS_CACHE["at"], _PS_CACHE["table"] = time.monotonic(), table
     return table
+
+
+def _host_process_table():
+    """Select the host reader separately from snapshot caching."""
+    if sys.platform == "darwin" or sys.platform.startswith("freebsd"):
+        return native_process_table()
+    rows = (_ps_parse(line) for line in _ps_snapshot())
+    return dict(row for row in rows if row is not None)
 
 
 def _cmdline(pid):

@@ -23,6 +23,7 @@
  *   not handed to the caller. The shared proxyCertInfo builder pxr_make_pci_ext()
  *   and the GSI OID constants come from proxy_req_internal.h. */
 
+#include "auth/crypto/asn1_compat.h"
 #include "core/types/tunables.h"
 #include "auth/crypto/store_policy.h"
 #include "auth/crypto/name_compat.h"
@@ -57,7 +58,7 @@ pxr_req_pathlen(X509_REQ *req)
             const unsigned char       *p =
                 ASN1_STRING_get0_data(X509_EXTENSION_get_data(e));
             int                        len =
-                ASN1_STRING_length(X509_EXTENSION_get_data(e));
+                brix_crypto_asn1_length(X509_EXTENSION_get_data(e));
             PROXY_CERT_INFO_EXTENSION *in =
                 d2i_PROXY_CERT_INFO_EXTENSION(NULL, &p, len);
 
@@ -130,7 +131,7 @@ sgn_copy_signer_exts(X509 *signer, X509 *proxy, int *indepth, int *haskeyusage)
             const unsigned char       *p =
                 ASN1_STRING_get0_data(X509_EXTENSION_get_data(e));
             int                        len =
-                ASN1_STRING_length(X509_EXTENSION_get_data(e));
+                brix_crypto_asn1_length(X509_EXTENSION_get_data(e));
             PROXY_CERT_INFO_EXTENSION *in =
                 d2i_PROXY_CERT_INFO_EXTENSION(NULL, &p, len);
 

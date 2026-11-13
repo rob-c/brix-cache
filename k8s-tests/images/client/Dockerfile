@@ -3,6 +3,7 @@
 # on python3.9 (where EPEL's python3-xrootd C extension is installed).
 ARG BRIX_BASE_IMAGE=almalinux:9
 FROM ${BRIX_BASE_IMAGE}
+ARG TARGETARCH
 ARG BRIX_OS_TARGET=alma9
 ARG BRIX_ENABLE_CEPH_SIG=0
 ARG BRIX_CEPH_SIG_RELEASE=tentacle
@@ -11,7 +12,7 @@ RUN bash /tmp/el-target.sh \
     && dnf install -y --allowerasing python3.12 python3.12-pip \
                       python3-xrootd xrootd-client openssl krb5-workstation \
     && alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 \
-    && curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/v1.31.4/bin/linux/amd64/kubectl" \
+    && curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/v1.37.2/bin/linux/${TARGETARCH}/kubectl" \
     && chmod +x /usr/local/bin/kubectl \
     && dnf clean all
 # kubernetes: the rewritten klib.py reaches server-side files via the k8s client

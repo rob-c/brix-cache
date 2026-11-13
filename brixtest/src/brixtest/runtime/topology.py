@@ -31,14 +31,7 @@ def injected_services(service_type, config: Optional[BrixTestConfig] = None) -> 
         service_type: The Service type to instantiate.
         config: Optional configuration. If not provided, reads from environment.
     """
-    try:
-        # Use config if provided, otherwise fall back to environment
-        if config is not None and config.shared_servers_json:
-            payload = json.loads(config.shared_servers_json)
-        else:
-            payload = json.loads(os.environ.get("BRIXTEST_SHARED_SERVERS_JSON", "{}"))
-    except (TypeError, ValueError) as exc:
-        raise SpecError("shared server manifest", "invalid JSON", str(exc)) from exc
+    payload = _shared_payload(config)
     rows = payload.get("services", {}) if isinstance(payload, dict) else {}
     if not isinstance(rows, dict):
         raise SpecError("shared server manifest", rows, "services must be an object")
@@ -48,6 +41,19 @@ def injected_services(service_type, config: Optional[BrixTestConfig] = None) -> 
             raise SpecError("shared server", name, "manifest entry must be an object")
         services[str(name)] = _injected_service(service_type, str(name), row)
     return services
+
+
+def _shared_payload(config: Optional[BrixTestConfig]):
+    """Decode the configured or inherited shared-service manifest."""
+    try:
+        # Use config if provided, otherwise fall back to environment
+        if config is not None and config.shared_servers_json:
+            payload = json.loads(config.shared_servers_json)
+        else:
+            payload = json.loads(os.environ.get("BRIXTEST_SHARED_SERVERS_JSON", "{}"))
+    except (TypeError, ValueError) as exc:
+        raise SpecError("shared server manifest", "invalid JSON", str(exc)) from exc
+    return payload
 
 
 def _dict_value(row: dict, name: str) -> dict:

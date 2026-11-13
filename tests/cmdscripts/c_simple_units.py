@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from cmdscripts.compile_run import REPO_ROOT, compile_binary, pal_xattr_sources, result, run
+from cmdscripts.compile_run import (REPO_ROOT, compile_binary, pal_storage_link_args,
+                                    pal_xattr_sources, result, run)
 from cmdscripts.command_results import print_results
 
 
@@ -17,6 +18,89 @@ class CUnitSpec:
 
 
 SPECS: dict[str, CUnitSpec] = {
+    "ssi_service": CUnitSpec(
+        "ssi_service", "test_ssi_service",
+        ("-O", "-Wall", "-Wextra", "-Werror", "-I", "src",
+         "src/protocols/ssi/ssi_service_unittest.c", "src/protocols/ssi/ssi_service.c"),
+    ),
+    "ssi_rrinfo": CUnitSpec(
+        "ssi_rrinfo", "test_ssi_rrinfo",
+        ("-O", "-Wall", "-Wextra", "-Werror", "-I", "src",
+         "src/protocols/ssi/ssi_rrinfo_unittest.c", "src/protocols/ssi/ssi_rrinfo.c"),
+    ),
+    "ssi_reply": CUnitSpec(
+        "ssi_reply", "test_ssi_reply",
+        ("-O", "-Wall", "-Wextra", "-Werror", "-I", "src",
+         "src/protocols/ssi/ssi_reply_unittest.c", "src/protocols/ssi/ssi_reply.c",
+         "src/protocols/ssi/ssi_rrinfo.c"),
+    ),
+    "ssi_session": CUnitSpec(
+        "ssi_session", "test_ssi_session",
+        ("-O", "-Wall", "-Wextra", "-Werror", "-I", "src", "-DSSI_UT_STANDALONE",
+         "src/protocols/ssi/session_unittest.c", "src/protocols/ssi/session.c"),
+    ),
+    "ssi_registry": CUnitSpec(
+        "ssi_registry", "test_ssi_registry",
+        ("-O", "-Wall", "-Wextra", "-Werror", "-I", "src", "-DSSI_UT_STANDALONE",
+         "src/protocols/ssi/registry_unittest.c", "src/protocols/ssi/registry.c"),
+    ),
+    "ssi_respbuf": CUnitSpec(
+        "ssi_respbuf", "test_ssi_respbuf",
+        ("-O", "-Wall", "-Wextra", "-Werror", "-I", "src", "-DSSI_UT_STANDALONE",
+         "src/protocols/ssi/respbuf_unittest.c", "src/protocols/ssi/respbuf.c"),
+    ),
+    "ssi_protobuf_wire": CUnitSpec(
+        "ssi_protobuf_wire", "test_ssi_protobuf_wire",
+        ("-O", "-Wall", "-Wextra", "-Werror", "-I", "src",
+         "src/protocols/ssi/svc_cta/pb_wire_unittest.c",
+         "src/protocols/ssi/svc_cta/pb_wire.c"),
+    ),
+    "ssi_cta_codec": CUnitSpec(
+        "ssi_cta_codec", "test_ssi_cta_codec",
+        ("-O", "-Wall", "-Wextra", "-Werror", "-I", "src",
+         "src/protocols/ssi/svc_cta/cta_pb_unittest.c",
+         "src/protocols/ssi/svc_cta/cta_pb.c", "src/protocols/ssi/svc_cta/pb_wire.c"),
+    ),
+    "root_wire_codec": CUnitSpec(
+        "root_wire_codec", "test_root_wire_codec",
+        ("-O", "-Wall", "-Wextra", "-Werror", "-I", "src",
+         "src/protocols/root/protocol/codec/wire_codec_unittest.c",
+         "src/protocols/root/protocol/codec/wire_codec_meta.c",
+         "src/protocols/root/protocol/codec/wire_codec_file.c",
+         "src/protocols/root/protocol/codec/wire_codec_ns.c",
+         "src/protocols/root/protocol/codec/wire_codec_session.c"),
+    ),
+    "cms_meter": CUnitSpec(
+        "cms_meter", "test_cms_meter",
+        ("-O", "-Wall", "-Wextra", "-Werror", "-I", "src", "-I", "shared",
+         "src/net/cms/meter_unittest.c", "src/net/cms/meter.c"),
+    ),
+    "cms_rrdata": CUnitSpec(
+        "cms_rrdata", "test_cms_rrdata",
+        ("-O", "-Wall", "-Wextra", "-Werror", "-I", "src",
+         "src/net/cms/rrdata_unittest.c", "src/net/cms/rrdata.c"),
+    ),
+    "cms_router": CUnitSpec(
+        "cms_router", "test_cms_router",
+        ("-O", "-Wall", "-Wextra", "-Werror", "-I", "src",
+         "src/net/cms/router_unittest.c", "src/net/cms/router.c"),
+    ),
+    "cms_node_ops": CUnitSpec(
+        "cms_node_ops", "test_cms_node_ops",
+        ("-O", "-Wall", "-Wextra", "-Werror", "-I", "src",
+         "src/net/cms/node_ops_unittest.c", "src/net/cms/node_ops.c"),
+    ),
+    "token_ini": CUnitSpec(
+        "token_ini", "test_token_ini",
+        ("-O", "-Wall", "-Wextra", "-Werror", "-I", "src",
+         "src/auth/token/ini_unittest.c", "src/auth/token/ini.c"),
+    ),
+    "metabench": CUnitSpec(
+        "metabench", "test_metabench",
+        ("-O", "-Wall", "-Wextra", "-Werror",
+         "client/lib/observability/metabench/metabench_unittest.c",
+         "client/lib/observability/metabench/metabench.c"),
+    ),
     "error_mapping": CUnitSpec(
         "error_mapping",
         "test_error_mapping",
@@ -66,6 +150,7 @@ SPECS: dict[str, CUnitSpec] = {
             "src/fs/backend/csi_verify.c",
             "src/fs/meta/xmeta.c",
             "src/fs/meta/xmeta_path.c",
+            *pal_storage_link_args(),
             "src/fs/meta/xmeta_decode.c",
             "src/fs/meta/xmeta_encode.c",
             "src/core/compat/crc32c.c",

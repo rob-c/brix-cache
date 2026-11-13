@@ -21,10 +21,17 @@ XRootD `authdb` semantics bit-for-bit.
 | Templates (`@=`), exclusive (`x`), compound (`=`/`s`) | no | yes |
 | Roles, orgs, netgroups, Unix groups | VO name (`g`), VOMS vorg (`v`) and VOMS role (`l`) — `v`+`l` matched as a positional pair; no netgroups, no OS groups | full (incl. OS `/etc/group` + NIS) |
 | Hot-reload (`authrefresh`), audit sink | no | yes |
-| Unparseable line | **refused at `nginx -t`**, naming file/line/byte (2.0 F20) | skipped, as stock XrdAcc does |
+| Unparseable line | **refused at `nginx -t`**, naming file/line/byte (2.0 F20) | rejects the entire new table generation |
 | Protocol coverage | root:// only | root:// + WebDAV + S3 |
 
 ## Files
+
+Database loading is atomic: malformed records, I/O errors, and token allocation
+failures reject the new generation. An allocation failure is a tokenizer error,
+never end-of-file; otherwise a partially read file could discard a later deny.
+The refresh path retains its previous tables when parsing fails.
+`tests/test_authfile_native.py` exercises grants, denials, invalid records, and
+allocation failures before and after an already parsed grant.
 
 | File | XrdAcc analogue | Role |
 |---|---|---|

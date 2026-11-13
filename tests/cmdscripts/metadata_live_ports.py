@@ -116,7 +116,11 @@ http {{ client_body_temp_path {run.root}/tmp; server {{ listen {BIND_HOST}:{port
     brix_webdav on; brix_storage_backend posix:{export}; brix_webdav_auth none; brix_allow_write on; }} }} }}
 """,
         )
-        dead = 999999
+        # A fixed PID can belong to the fleet after enough tests have spawned.
+        # Reap our own child before using its PID as an orphaned upload owner.
+        with subprocess.Popen([sys.executable, "-c", "pass"]) as owner:
+            owner.wait(timeout=10)
+            dead = owner.pid
         (export / f"a.bin.xrd-tmp.{dead}.111").write_text("dead1")
         (export / "sub" / f"c.bin.xrd-tmp.{dead}.222").write_text("dead2")
         live_name = f"b.bin.xrd-tmp.{os.getpid()}.333"
@@ -140,14 +144,21 @@ http {{ client_body_temp_path {run.root}/tmp; server {{ listen {BIND_HOST}:{port
         )
 
 
+def _build_s3_meta_smoke() -> bool:
+    """Relink the optional driver so it cannot retain an older library or SDK."""
+    built = client_make(REPO_ROOT / "client", "sd-s3-meta-smoke",
+                        capture_output=True, text=True)
+    if built.returncode:
+        print(built.stdout + built.stderr)
+        return False
+    return True
+
+
 def sd_s3_meta(nginx: Path | None = None) -> int:
     port = _PORTS[1]
     smoke = REPO_ROOT / "client/bin/sd_s3_meta_smoke"
-    if not smoke.exists():
-        built = client_make(REPO_ROOT / "client", "sd-s3-meta-smoke", capture_output=True, text=True)
-        if built.returncode:
-            print("SKIP: sd_s3_meta_smoke harness is unavailable")
-            return 0
+    if not _build_s3_meta_smoke():
+        return 1
     with LiveRun("sd_s3_meta", nginx) as run:
         s3root, logs = run.mkdir("s3root"), run.mkdir("logs")
         config = run.write(

@@ -40,3 +40,41 @@ a kernel inode reference. Directory cursors are encoded by libfuse itself.
 The kernel request's UID is passed explicitly to metadata and open operations.
 Per-caller SSS mounts disable shared attribute/entry and file-page caching;
 failed identity acquisition never uses the mount owner's connections.
+
+HTTP reads use the requested byte offset even when an origin ignores `Range`
+and returns a complete `200` representation. The reader skips the prefix,
+returns the requested slice, and drains the remainder before reusing the
+connection. Truncated prefixes fail without returning unrelated bytes; partial
+requested data remains resumable. A `416` response closes its connection because
+an error body may remain unread. Native response contracts live in
+`tests/test_webfile_io_native.py`.
+
+After a lost mutation reply, retry handling accepts a matching `EEXIST` or
+`ENOENT` as success only on reissue. The configured errno is positive; the
+status mapper returns negative errno values. Initial errors, authorization
+failures, and mismatched errors remain failures. The same rule applies to
+pooled FUSE metadata requests and the client request wrappers; native contracts
+are in `tests/test_resilience_policy_native.py`.
+
+Native FUSE create and truncate publish an empty file before replying to the
+kernel, then retain an update-in-place remote handle. Resumable origins stage
+create/truncate until remote close; FUSE release is asynchronous, so leaving
+publication to release can make an immediate reopen see ENOENT. Publishing at
+open adds one remote close and one update-open for creates/truncates. Existing
+update opens retain their handle, including across unlink. Live regressions are
+in `tests/test_xrootdfs_publication.py`.
+
+Writable FUSE FLUSH also sends remote SYNC after draining buffered writes.
+This adds one remote durability barrier per writable flush, allowing the origin
+to publish integrity tags before a subsequent OPEN snapshots them. The remote
+handle remains open for duplicated descriptors and operations after unlink.
+
+The CVMFS automount controller owns a signal self-pipe. Shutdown closes the
+writer, joins the control thread, and closes the reader before destroying the
+FUSE session. Native lifecycle contracts cover startup failures, child reaping,
+idle expiry, and both descriptor ends in `tests/test_autofs_lifecycle_native.py`.
+
+Recursive root copies reject absolute and parent-traversing names from server
+directory listings before copying or mirror deletion. Both paths use the shared
+`brix_rel_is_unsafe` check; `tests/test_root_recursive_native.py` also checks
+that local mirror deletion never follows symlinks outside the destination.

@@ -273,10 +273,8 @@ def fixture_command(hello, args):
         raise ValueError('fixture inspection requires xattrs/stat and exactly one path')
     path = values[-1]
     confined(path, args.fixture_root)
-    function = 'fixture_xattrs' if operation == 'xattrs' else 'fixture_stat'
-    code = ('import json,sys; from tools.ci.remote_reference_policy import ' + function + '; '
-            'print(json.dumps(' + function + '(sys.argv[1],sys.argv[2])))')
-    return [str(args.client_python), '-c', code, str(args.fixture_root), path]
+    return [str(args.client_python), str(Path(__file__).resolve()),
+            operation, str(args.fixture_root), path]
 
 
 def fixture_create_command(hello, args):
@@ -288,6 +286,28 @@ def fixture_create_command(hello, args):
     confined(path, args.fixture_root)
     if not mode.isdecimal() or not 0 <= int(mode) <= 0o777:
         raise ValueError('invalid fixture FIFO permission bits')
-    code = ('import json,sys; from tools.ci.remote_reference_policy import fixture_mkfifo; '
-            'print(json.dumps(fixture_mkfifo(sys.argv[1],sys.argv[2],int(sys.argv[3]))))')
-    return [str(args.client_python), '-c', code, str(args.fixture_root), path, mode]
+    return [str(args.client_python), str(Path(__file__).resolve()),
+            'mkfifo', str(args.fixture_root), path, mode]
+
+
+def main():
+    """Fixed fixture operations work from a private CWD without PYTHONPATH."""
+    import argparse
+    import json
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('operation', choices=('stat', 'xattrs', 'mkfifo'))
+    parser.add_argument('root')
+    parser.add_argument('path')
+    parser.add_argument('mode', nargs='?', type=int, default=0o600)
+    args = parser.parse_args()
+    if args.operation == 'mkfifo':
+        result = fixture_mkfifo(args.root, args.path, args.mode)
+    else:
+        inspector = fixture_stat if args.operation == 'stat' else fixture_xattrs
+        result = inspector(args.root, args.path)
+    print(json.dumps(result))
+
+
+if __name__ == '__main__':
+    main()

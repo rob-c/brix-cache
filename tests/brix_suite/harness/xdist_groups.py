@@ -65,6 +65,14 @@ def _marker_name(marker) -> str:
     return str(marker.kwargs.get("name", "default"))
 
 
+def set_item_nodeid(item, nodeid: str) -> None:
+    """Support pytest's structured IDs (9.2+) and older xdist string IDs."""
+    structured = getattr(item, "id", None)
+    if structured is not None:
+        item._id = type(structured).parse(nodeid)
+    item._nodeid = nodeid
+
+
 def materialize_xdist_group(item) -> None:
     """Write the final xdist group set into the node id used by the scheduler.
 
@@ -87,4 +95,4 @@ def materialize_xdist_group(item) -> None:
     # the parameter value or the remaining parametrization axes.
     head, closing, tail = item.nodeid.rpartition("]")
     base = head + closing + tail.split("@", 1)[0]
-    item._nodeid = f"{base}@{'_'.join(sorted(names))}"
+    set_item_nodeid(item, f"{base}@{'_'.join(sorted(names))}")

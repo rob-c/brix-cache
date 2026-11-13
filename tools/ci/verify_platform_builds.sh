@@ -149,7 +149,7 @@ verify_darwin_build() {
     log_info "Configuring BriX nginx from Homebrew's $($nginx_binary -v 2>&1) source and options"
     if ! (
         cd "$source_dir"
-        PKG_CONFIG_PATH="$brew_prefix/opt/openssl@3/lib/pkgconfig:$brew_prefix/opt/krb5/lib/pkgconfig:$brew_prefix/opt/sqlite/lib/pkgconfig:${PKG_CONFIG_PATH:-}" \
+        PKG_CONFIG_PATH="$brew_prefix/opt/openssl@4/lib/pkgconfig:$brew_prefix/opt/krb5/lib/pkgconfig:$brew_prefix/opt/sqlite/lib/pkgconfig:${PKG_CONFIG_PATH:-}" \
             ./configure "${configure_args[@]}" --with-threads \
                 --add-dynamic-module="$REPO_ROOT"
         make -j"$make_jobs"

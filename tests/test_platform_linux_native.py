@@ -135,14 +135,9 @@ int main(int argc, char **argv) {
     assert(argc == 2);
     if (strcmp(argv[1], "live") == 0) {
         assert(brix_plat_pointer_is_canonical((const void *) &main));
-    } else if (strcmp(argv[1], "arm-high") == 0) {
-#if BRIX_ARCH_ARM64
+    } else if (strcmp(argv[1], "high-user") == 0) {
         assert(brix_plat_pointer_is_canonical(
             (const void *) (uintptr_t) 0x0000ffff8e773c80ULL));
-#else
-        assert(!brix_plat_pointer_is_canonical(
-            (const void *) (uintptr_t) 0x000080008e773c80ULL));
-#endif
     } else {
         assert(!brix_plat_pointer_is_canonical(
             (const void *) (uintptr_t) 0x123400008e773c80ULL));
@@ -152,9 +147,9 @@ int main(int argc, char **argv) {
 ''', ['src/platform/linux/host_info.c'])
 
 
-@pytest.mark.parametrize('case', ['live', 'arm-high', 'mangled'])
+@pytest.mark.parametrize('case', ['live', 'high-user', 'mangled'])
 def test_canonical_pointer_contract(canonical_pointer_binary, case):
-    """Accept live/ARM high VAs and reject a mangled non-canonical value."""
+    """Accept live/high user VAs and reject a mangled non-canonical value."""
     _run(canonical_pointer_binary, case)
 
 

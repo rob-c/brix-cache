@@ -4,7 +4,8 @@
  *
  * WHAT: Implements the server_copy metadata-plane slots of
  *       brix_sd_pblock_driver: sd_pblock_server_copy_as (owner-parameterised)
- *       and sd_pblock_server_copy (the plain 0/0 service slot). A copy either
+ *       and sd_pblock_server_copy (the plain 0/0 service slot), plus shared
+ *       destination replacement cleanup. A copy either
  *       shares the source's blob copy-on-write (F10 refs) or physically
  *       duplicates every block under a fresh blob id, then publishes the
  *       destination catalog row owned by the copier.
@@ -56,6 +57,25 @@
 
 #include <sys/stat.h>
 #include <sys/types.h>
+
+/*
+ * WHAT: Remove an existing destination and release its old physical blocks.
+ * WHY: Ordinary namespace replacement owns cleanup after successful removal.
+ * HOW: Reuse metadata detachment, then release the old file's blob reference.
+ */
+ngx_int_t
+sd_pblock_drop_dst(pblock_state_t *st, const char *dst,
+    const pblock_meta *dmeta)
+{
+    if (sd_pblock_detach_dst(st, dst, dmeta) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (!dmeta->is_dir) {
+        pblock_refs_release(st, dmeta->blob_id, dmeta->size,
+                            dmeta->block_size);
+    }
+    return NGX_OK;
+}
 
 /* F10 CoW copy: dst shares src's blob — O(metadata), no bytes move; the first
  * write to either row breaks the share at open. The dst row is owned by

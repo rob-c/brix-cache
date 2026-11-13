@@ -119,6 +119,27 @@ test_trunc_size(void)
     CHECK(p.size == 1048576);
 }
 
+/* Malformed sizes/modes cannot silently become zero or a parsed prefix. */
+static void
+test_numeric_argument_validation(void)
+{
+    const char *bad[] = {"invalid", "17tail", "-1", "+1", " 1", "1\n",
+                         "999999999999999999999999999999999"};
+    const int codes[] = {K_CHMOD, K_MKDIR, K_MKPATH, K_TRUNC};
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        for (size_t j = 0; j < sizeof(codes) / sizeof(codes[0]); j++) {
+            CHECK(plan_rc(codes[j], "/protected", NULL, bad[i]) == -1);
+        }
+    }
+    CHECK(plan_rc(K_CHMOD, "/protected", NULL, "08") == -1);
+    CHECK(plan_rc(K_MKDIR, "/protected", NULL, "08") == -1);
+    CHECK(plan_rc(K_MKPATH, "/protected", NULL, "08") == -1);
+    CHECK(plan_rc(K_TRUNC, "/protected", NULL, "08") == 0);
+    CHECK(plan_ok(K_TRUNC, "/zero", NULL, "0", A_TRUNC).size == 0);
+    CHECK(plan_ok(K_CHMOD, "/zero", NULL, "0", A_CHMOD).mode == 0);
+    CHECK(plan_ok(K_CHMOD, "/mode", NULL, "07777", A_CHMOD).mode == 07777);
+}
+
 static void
 test_mv(void)
 {
@@ -206,6 +227,7 @@ main(void)
     test_chmod();
     test_chmod_requires_mode();
     test_trunc_size();
+    test_numeric_argument_validation();
     test_mv();
     test_mv_requires_two_paths();
     test_rm_and_rmdir();

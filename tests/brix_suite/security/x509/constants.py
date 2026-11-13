@@ -1,4 +1,4 @@
-"""Fixed epoch and the proxy-certificate OIDs, defined once.
+"""Run-start epoch and the proxy-certificate OIDs, defined once.
 
 The flat stack repeated these six assignments verbatim at the head of
 ``x509forge.py`` and both of its continuation shards -- the shards were
@@ -10,7 +10,9 @@ next shard to load, in load order, with no error anywhere.
 
 import datetime
 
-_EPOCH = datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc)
+# Use the run's actual start time: rounding down to midnight expires positive
+# one-day proxies and admits future controls when a run crosses UTC midnight.
+_EPOCH = datetime.datetime.now(datetime.timezone.utc)
 _DAY = datetime.timedelta(days=1)
 
 # Policy-language OIDs.

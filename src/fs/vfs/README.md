@@ -15,6 +15,11 @@ table, the layer diagram (`module → vfs_server → vfs → backend`), invarian
 and the seam-guard rules all live in [`../README.md`](../README.md) — read
 that first; this file is just the signpost.
 
+Worker jobs clear all result fields, including `csi_mismatch`, before each
+execution. The finite storage driver in `tests/test_vfs_worker_io_native.py`
+checks reused jobs, partial progress, hard failures, vector diagnostics and
+bounded read buffers against the configured server objects.
+
 ## Additional file
 
 | File | Responsibility |

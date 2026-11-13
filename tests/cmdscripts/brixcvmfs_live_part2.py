@@ -59,11 +59,12 @@ def negfilter_live(nginx: Path | None = None) -> int:
 
 
 def _negfilter_mount_probe(run, binary, mount, options, env):
+    process = None
     try:
-        run.spawn([binary, REPO, mount, "-o", options, "-f"], env=env)
+        process = run.spawn([binary, REPO, mount, "-o", options, "-f"], env=env)
         return _wait_mounted(mount), _read(mount / "hello"), not (mount / "nope").exists()
     finally:
-        _unmount(mount)
+        _unmount_owned(process, mount)
 
 
 def _tamper_sidecar(sidecar, side_ok):
@@ -120,8 +121,9 @@ def _require_atlas(stratum1, keys):
 
 
 def _mount_atlas(run, binary, mount, env):
+    process = None
     try:
-        run.spawn([binary, "atlas.cern.ch", mount, "-o", "noclever", "-f"], env=env)
+        process = run.spawn([binary, "atlas.cern.ch", mount, "-o", "noclever", "-f"], env=env)
         mounted = _wait_mounted(mount, timeout=20)
         listing = _listing(mount)
         print(f"== top-level (root catalog) ==\n{listing}")
@@ -131,7 +133,7 @@ def _mount_atlas(run, binary, mount, env):
         read_ok = _read_atlas_file(small, mount)
         return mounted, any("repo" in entry for entry in listing), read_ok
     finally:
-        _unmount(mount)
+        _unmount_owned(process, mount)
 
 
 def _read_atlas_file(path, mount):
@@ -202,9 +204,10 @@ def clever_live(nginx: Path | None = None) -> int:
         # NOTE: no BRIXCVMFS_CACHE (that would force non-clever). -o fresh,tls
         # exercises hardening; tls falls back to http against the mock server.
         env = _repo_env(run, port, pub)
+        process = None
         try:
             print("== clever mount (default; cache -> <mnt>/.brixcache), DPI hardening on ==")
-            run.spawn([brixcvmfs, REPO, mnt, "-o", "fresh,tls,retries=3,auto_unmount", "-f"], env=env)
+            process = run.spawn([brixcvmfs, REPO, mnt, "-o", "fresh,tls,retries=3,auto_unmount", "-f"], env=env)
             mounted = _wait_mounted(mnt, timeout=15)
             time.sleep(1)
             print("== while mounted: overlay hides .brixcache, shows cvmfs tree ==")
@@ -215,7 +218,7 @@ def clever_live(nginx: Path | None = None) -> int:
             got = _read(mnt / "hello")
         finally:
             print("== unmount ==")
-            _unmount(mnt)
+            _unmount_owned(process, mnt)
         time.sleep(1)
         print("== after unmount: .brixcache visible + populated + persists ==")
         cache_dir = mnt / ".brixcache"

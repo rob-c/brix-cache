@@ -148,11 +148,8 @@ class MonkeypatchScanner:
             'category': 'environment'
         }
     
-    def generate_report(self) -> str:
-        """Generate a summary report."""
-        report = ["# Monkeypatch Usage Report\n"]
-        
-        # Summary by type
+    def _finding_counts(self):
+        """Count findings by operation and category."""
         type_counts = defaultdict(int)
         category_counts = defaultdict(int)
         
@@ -162,6 +159,15 @@ class MonkeypatchScanner:
                 if 'category' in finding:
                     category_counts[finding['category']] += 1
         
+        return type_counts, category_counts
+
+    def generate_report(self) -> str:
+        """Generate a summary report."""
+        report = ["# Monkeypatch Usage Report\n"]
+
+        # Summary by type
+        type_counts, category_counts = self._finding_counts()
+
         report.append("## Summary by Type")
         for type_name, count in sorted(type_counts.items(), key=lambda x: -x[1]):
             report.append(f"- {type_name}: {count}")

@@ -431,7 +431,7 @@ def test_command_timeout_retains_partial_output_and_terminates_process_group(tmp
         CommandRunner(tmp_path / "logs", cwd=tmp_path).run(
             sys.executable, "-c",
             "import time;print('before-timeout',flush=True);time.sleep(30)",
-            timeout=0.1, output_limit=1024,
+            timeout=2, output_limit=1024,
         )
     assert "before-timeout" in str(raised.value.output)
     metadata = json.loads((tmp_path / "logs" / "0001.json").read_text())

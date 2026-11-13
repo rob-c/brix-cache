@@ -155,28 +155,29 @@ s3_put_try_folder_marker(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 
 
 /*
- * s3put_ensure_parent_dirs — create the object's parent prefix if absent.
+ * s3_ensure_parent_dirs — create the object's parent prefix if absent.
  *
  * WHAT: derives the parent directory of fs_path and ensures it exists via the
  *   confined VFS mkdir (with a probe fast-path for the hot "many objects into
  *   one prefix" case).
- * WHY: keeps the phase-46 W2a probe-then-mkdir optimization and its DAC-denied
- *   → 403 mapping in one focused helper, out of the top-level flow.
- * HOW: returns NGX_OK to continue; returns NGX_DONE after finalizing the
- *   request with an fs error (caller must return).
+ * WHY: PUT and POST must not mutate an existing parent: a depth-zero lock on
+ *   that directory permits child writes but correctly refuses mkdir on itself.
+ * HOW: resolve the leaf capabilities, probe the confined parent, and create
+ *   only a missing prefix. Return NGX_OK or NGX_ERROR with errno preserved.
  */
-static ngx_int_t
-s3put_ensure_parent_dirs(s3put_state_t *st)
+ngx_int_t
+s3_ensure_parent_dirs(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    const char *fs_path)
 {
     char   parent[PATH_MAX];
     char  *last_slash;
-    size_t flen = strlen((const char *) st->fs_path);
+    size_t flen = strlen(fs_path);
 
     if (flen >= sizeof(parent)) {
         return NGX_OK;
     }
 
-    memcpy(parent, st->fs_path, flen + 1);
+    memcpy(parent, fs_path, flen + 1);
     last_slash = strrchr(parent, '/');
     if (last_slash == NULL || last_slash == parent) {
         return NGX_OK;
@@ -191,8 +192,8 @@ s3put_ensure_parent_dirs(s3put_state_t *st)
          * caps gate would reject with EPERM, turning every first PUT into a
          * 403). Capability-driven, never scheme-driven. */
         brix_sd_instance_t *leaf = brix_vfs_ns_leaf(
-            brix_vfs_backend_resolve(st->cf->common.root_canon,
-                                     st->r->connection->log));
+            brix_vfs_backend_resolve(cf->common.root_canon,
+                                     r->connection->log));
 
         if (leaf != NULL && !(brix_sd_caps(leaf) & BRIX_SD_CAP_DIRS_WRITE)) {
             return NGX_OK;
@@ -210,7 +211,7 @@ s3put_ensure_parent_dirs(s3put_state_t *st)
          * mkdir. A symlink or a miss falls through to the confined vfs_mkdir,
          * which re-enforces confinement.
          */
-        s3_build_vfs_ctx(st->r, parent, st->cf, &pctx);
+        s3_build_vfs_ctx(r, parent, cf, &pctx);
         if (brix_vfs_probe(&pctx, 1 /* no-follow */, &pst) == NGX_OK
             && pst.is_directory)
         {
@@ -222,21 +223,38 @@ s3put_ensure_parent_dirs(s3put_state_t *st)
     {
         brix_vfs_ctx_t pvctx;
 
-        s3_build_vfs_ctx(st->r, parent, st->cf, &pvctx);
+        s3_build_vfs_ctx(r, parent, cf, &pvctx);
         if (brix_vfs_mkdir(&pvctx, 0755, 1 /* parents */) != NGX_OK
             && errno != EEXIST)
         {
-            int mk_errno = errno;  /* capture before logging clobbers it */
-            brix_log_safe_path(st->r->connection->log, NGX_LOG_ERR, mk_errno,
-                                 "s3: mkdirs_for(\"%s\") failed",
-                                 (const char *) st->fs_path);
-            /* DAC-denied create of a parent dir → 403, not 500. */
-            s3_put_finalize_fs_error(st->r, mk_errno);
-            return NGX_DONE;
+            return NGX_ERROR;
         }
     }
 
     return NGX_OK;
+}
+
+/* ---- Translate parent creation failure for the asynchronous PUT driver ----
+ * WHAT: Preserve PUT's filesystem error response and completion convention.
+ * WHY: POST shares the parent helper but finalizes its own response.
+ * HOW: Run the shared helper; capture errno before logging and finalization.
+ */
+static ngx_int_t
+s3put_ensure_parent_dirs(s3put_state_t *st)
+{
+    int mk_errno;
+
+    if (s3_ensure_parent_dirs(st->r, st->cf,
+                              (const char *) st->fs_path) == NGX_OK)
+    {
+        return NGX_OK;
+    }
+    mk_errno = errno;
+    brix_log_safe_path(st->r->connection->log, NGX_LOG_ERR, mk_errno,
+                       "s3: mkdirs_for(\"%s\") failed",
+                       (const char *) st->fs_path);
+    s3_put_finalize_fs_error(st->r, mk_errno);
+    return NGX_DONE;
 }
 
 

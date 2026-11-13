@@ -34,7 +34,7 @@ class MinikubeConfig:
     memory_mb: int = 4096
     server_image: str = (
         "alpine/socat@sha256:"
-        "d85531a29ef5ba99dfb4717485c239307e2902d522a1bc010992a2728c92cfad"
+        "466c8a0383e16463fabdb7df01008292fb78d07da60224a46cb5d3142ce122ed"
     )
 
     def __post_init__(self) -> None:

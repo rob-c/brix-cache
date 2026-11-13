@@ -21,6 +21,7 @@ import struct
 import subprocess
 
 import pytest
+from ephemeral_port import free_port
 
 from settings import BIND_HOST, NGINX_BIN
 from server_launcher import LifecycleHarness
@@ -28,7 +29,7 @@ from server_registry import NginxInstanceSpec
 
 
 ROOT = Path(__file__).resolve().parents[1]
-LEGITIMATE_PEER = "127.0.0.1"
+LEGITIMATE_PEER = BIND_HOST
 RACING_PEER = "127.0.0.2"
 EB_EOF = 0x40
 EB_EOD = 0x08
@@ -67,7 +68,7 @@ class _Control:
     def __init__(self, host, port):
         self.socket = socket.create_connection(
             (host, port), timeout=20,
-            source_address=(LEGITIMATE_PEER, 0),
+            source_address=(LEGITIMATE_PEER, free_port()),
         )
         self.socket.settimeout(20)
         self.reader = self.socket.makefile("rb")
@@ -120,17 +121,22 @@ def gateway():
     if not destination.startswith("127."):
         pytest.skip("peer-race regression requires the local IPv4 loopback range")
 
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        probe.bind((RACING_PEER, 0))
-    except OSError as error:
-        pytest.skip(f"secondary loopback source address unavailable: {error}")
-    finally:
-        probe.close()
+    _require_racing_peer()
 
     instance = _Gateway()
     yield instance
     instance.close()
+
+
+def _require_racing_peer():
+    """Require the secondary loopback address before starting the gateway."""
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.bind((RACING_PEER, free_port()))
+    except OSError as error:
+        pytest.skip(f"secondary loopback source address unavailable: {error}")
+    finally:
+        probe.close()
 
 
 def _pasv_endpoint(control):
@@ -147,7 +153,7 @@ def _connect_data(endpoint, source):
     """Connect one data socket from a selected loopback transport identity."""
     connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     connection.settimeout(20)
-    connection.bind((source, 0))
+    connection.bind((source, free_port()))
     connection.connect(endpoint)
     return connection
 

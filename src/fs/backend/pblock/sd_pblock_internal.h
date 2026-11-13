@@ -150,8 +150,11 @@ ngx_int_t sd_pblock_evict(brix_sd_instance_t *inst, const char *path,
     uint64_t *bytes_out);
 ngx_int_t sd_pblock_evict_cred(brix_sd_instance_t *inst, const char *path,
     uint64_t *bytes_out, const brix_sd_cred_t *cred);
-/* Clear a rename/copy destination; also called by staged-commit's replace. */
+/* Clear a rename/copy destination and release its old blocks. */
 ngx_int_t sd_pblock_drop_dst(pblock_state_t *st, const char *dst,
+    const pblock_meta *dmeta);
+/* Remove destination metadata, retaining blocks until the caller commits. */
+ngx_int_t sd_pblock_detach_dst(pblock_state_t *st, const char *dst,
     const pblock_meta *dmeta);
 ngx_int_t sd_pblock_rename(brix_sd_instance_t *inst, const char *src,
     const char *dst, int noreplace);

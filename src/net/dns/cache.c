@@ -98,33 +98,27 @@ dns_cache_key(const ngx_str_t *name, u_char *lower, size_t *len)
 }
 
 
+/* WHAT: Find the exact name/family entry among equal hash keys.
+ * WHY: Red-black rotations can move an equal-key entry into a left subtree;
+ * following only right children loses valid answers for other family policies.
+ * HOW: 1. Find the leftmost equal key. 2. Walk its equal-key successors.
+ * 3. Require both the canonical name and address-family policy to match. */
 static dns_cache_entry_t *
 dns_cache_find(uint32_t key, const u_char *lower, size_t len,
     brix_af_policy_t af)
 {
-    ngx_rbtree_node_t  *node = dns_cache.tree.root;
-    ngx_rbtree_node_t  *sentinel = dns_cache.tree.sentinel;
+    ngx_rbtree_node_t  *node;
 
-    while (node != sentinel) {
-        dns_cache_entry_t *e;
-
-        if (key < node->key) {
-            node = node->left;
-            continue;
-        }
-        if (key > node->key) {
-            node = node->right;
-            continue;
-        }
-        e = (dns_cache_entry_t *) node;
+    for (node = brix_dns_cache_first(&dns_cache.tree, key);
+         node != NULL && node->key == key;
+         node = ngx_rbtree_next(&dns_cache.tree, node))
+    {
+        dns_cache_entry_t *e = (dns_cache_entry_t *) node;
         if (e->len == len && e->af == af
             && ngx_memcmp(e->name, lower, len) == 0)
         {
             return e;
         }
-        /* same crc, different name: the tree is not a multimap, so walk
-         * the right subtree the way ngx_resolver does for its hash */
-        node = node->right;
     }
     return NULL;
 }

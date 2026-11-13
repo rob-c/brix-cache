@@ -16,16 +16,18 @@ ARG BRIX_RUNTIME_IMAGE=almalinux:9
 
 # ---------------------------------------------------------------- builder --
 FROM ${BRIX_BASE_IMAGE} AS builder
-ARG NGINX_VERSION=1.28.3
+ARG NGINX_VERSION=1.31.8
 ARG NGINX_TARBALL_URL=https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz
 
 # jansson-devel/liburing-devel live in CRB; voms-devel, fuse3-devel in EPEL.
 RUN dnf -y install 'dnf-command(config-manager)' \
     && dnf config-manager --set-enabled crb \
     && dnf -y install epel-release \
-    && dnf -y install gcc make perl tar gzip curl pkgconf-pkg-config \
+    && dnf -y swap curl-minimal curl \
+    && dnf -y swap libcurl-minimal libcurl \
+    && dnf -y install gcc make perl tar gzip pkgconf-pkg-config \
         pcre2-devel zlib-devel openssl-devel krb5-devel libxml2-devel \
-        libcurl-devel jansson-devel sqlite-devel libzstd-devel \
+        libcurl-devel jansson-devel sqlite-devel libzstd-devel brotli-devel \
     && (dnf -y install voms-devel liburing-devel fuse3-devel || true) \
     && dnf clean all
 
@@ -37,6 +39,7 @@ COPY config /build/brix/config
 COPY src    /build/brix/src
 COPY shared /build/brix/shared
 COPY client /build/brix/client
+COPY tools/brix_config_migrate*.py tools/logging_support.py /build/brix/tools/
 
 # Same flag set as .github/workflows/build.yml and the RPM spec's
 # %nginx_modconfigure (minus =dynamic: the container links statically).
@@ -59,8 +62,10 @@ FROM ${BRIX_RUNTIME_IMAGE}
 RUN dnf -y install 'dnf-command(config-manager)' \
     && dnf config-manager --set-enabled crb \
     && dnf -y install epel-release \
+    && dnf -y swap curl-minimal curl \
+    && dnf -y swap libcurl-minimal libcurl \
     && dnf -y install pcre2 zlib openssl krb5-libs libxml2 libcurl jansson \
-        sqlite-libs libzstd curl procps-ng iproute \
+        sqlite-libs libzstd brotli procps-ng iproute python3 \
     && (dnf -y install voms liburing fuse3-libs || true) \
     && dnf clean all
 

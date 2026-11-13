@@ -35,7 +35,6 @@ Coverage (success · error · security-negative):
                 destination file behind
 """
 
-import functools
 import json
 import os
 from pathlib import Path
@@ -51,6 +50,7 @@ from settings import (BIND_HOST, CA_CERT, CA_DIR, HOST, NGINX_BIN, SERVER_CERT,
                       SERVER_KEY, TOKENS_DIR, XRDCP_BIN, url_host)
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from brix_suite.security.x509.primitives import make_ca, make_eec
 
 REPO = Path(__file__).resolve().parents[1]
 XRD_BIN = os.environ.get("TEST_XRD_BIN", str(REPO / "client" / "bin" / "xrd"))
@@ -528,26 +528,19 @@ def test_read_only_token_cannot_write_at_the_destination(node):
 # --------------------------------------------------------------------------- #
 
 def _decoy_pki(tmp_path, leaf_days):
-    """A self-signed CA and one leaf it issued, valid for `leaf_days` days.
+    """Issue a decoy leaf using the shared date-relative certificate helpers.
 
-    `leaf_days=0` yields a zero-length validity window; callers wait past its
-    second-resolution boundary to obtain an expired certificate. This
-    is how the clock-step case is reproduced without touching the host clock.
-    Returns `(ca_pem, leaf_pem)` as strings."""
+    Negative `leaf_days` gives an already-expired certificate without changing
+    the host clock or relying on OpenSSL accepting a zero-day CLI duration.
+    Returns `(ca_pem, leaf_pem)` as strings.
+    """
     tmp_path.mkdir(parents=True, exist_ok=True)
-    ca_pem, ca_key = tmp_path / "ca.pem", tmp_path / "ca.key"
-    leaf_pem, leaf_key = tmp_path / "leaf.pem", tmp_path / "leaf.key"
-    csr = tmp_path / "leaf.csr"
-    run = functools.partial(subprocess.run, check=True, timeout=60,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
-         "-keyout", str(ca_key), "-out", str(ca_pem), "-days", "3650",
-         "-subj", "/CN=decoy-ca"])
-    run(["openssl", "req", "-newkey", "rsa:2048", "-nodes",
-         "-keyout", str(leaf_key), "-out", str(csr), "-subj", "/CN=decoy-host"])
-    run(["openssl", "x509", "-req", "-in", str(csr), "-CA", str(ca_pem),
-         "-CAkey", str(ca_key), "-set_serial", "1", "-days", str(leaf_days),
-         "-out", str(leaf_pem)])
+    ca = make_ca("/CN=decoy-ca", not_before_days=-30)
+    leaf = make_eec(ca, "/CN=decoy-host", not_before_days=-2,
+                    not_after_days=leaf_days)
+    ca_pem, leaf_pem = tmp_path / "ca.pem", tmp_path / "leaf.pem"
+    ca_pem.write_bytes(ca.pem)
+    leaf_pem.write_bytes(leaf.pem)
     return str(ca_pem), str(leaf_pem)
 
 
@@ -580,8 +573,7 @@ def test_tls_pki_fault_names_the_clock_when_the_window_is_wrong(monkeypatch,
     so. `openssl verify` reports it as a verification failure like any other, so
     an unclassified message would send the reader to look for a CA mismatch
     that is not there."""
-    ca, expired = _decoy_pki(tmp_path, leaf_days=0)
-    time.sleep(1.1)
+    ca, expired = _decoy_pki(tmp_path, leaf_days=-1)
     monkeypatch.setattr(sys.modules[__name__], "CA_CERT", ca)
     monkeypatch.setattr(sys.modules[__name__], "SERVER_CERT", expired)
 

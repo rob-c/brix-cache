@@ -7,6 +7,7 @@
  */
 
 #include "node_ops.h"
+#include <errno.h>
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -29,20 +30,41 @@ field_str(const unsigned char *p, size_t len)
     return (p != NULL && len > 0) ? (const char *) p : NULL;
 }
 
+/* WHAT: Decode one complete nonnegative wire number. WHY: strtoll without an
+ * end pointer turns malformed truncate sizes into destructive zero-length
+ * requests. HOW: Require an initial digit, complete consumption and no overflow. */
+static int
+node_parse_number(const char *text, int base, long long *value)
+{
+    char *end;
+    if (text[0] < '0' || text[0] > '9') {
+        return -1;
+    }
+    errno = 0;
+    *value = strtoll(text, &end, base);
+    return errno == ERANGE || *end != '\0' ? -1 : 0;
+}
+
 /* Plan the ops whose argument rides the Mode field (mkdir/mkpath/chmod/trunc).
- * Returns 0 with plan->action/mode/size set, -1 on a missing mandatory arg. */
+ * Returns 0 with plan->action/mode/size set, -1 on a missing or invalid arg. */
 static int
 node_plan_mode_op(unsigned char code, const char *mode,
                   brix_cms_node_plan_t *plan)
 {
+    long long value = XRDCMS_NODE_DEFAULT_DIR_MODE;
+    if (mode != NULL && node_parse_number(mode, code == K_TRUNC ? 10 : 8, &value) != 0) {
+        return -1;
+    }
+    if (code != K_TRUNC && (long long)(mode_t)value != value) {
+        return -1;
+    }
     switch (code) {
 
     case K_MKDIR:
     case K_MKPATH:
         plan->action = (code == K_MKDIR) ? XRDCMS_NACT_MKDIR
                                          : XRDCMS_NACT_MKPATH;
-        plan->mode = mode ? (mode_t) strtol(mode, NULL, 8)
-                          : (mode_t) XRDCMS_NODE_DEFAULT_DIR_MODE;
+        plan->mode = (mode_t) value;
         return 0;
 
     case K_CHMOD:
@@ -50,16 +72,16 @@ node_plan_mode_op(unsigned char code, const char *mode,
             return -1;
         }
         plan->action = XRDCMS_NACT_CHMOD;
-        plan->mode = (mode_t) strtol(mode, NULL, 8);
+        plan->mode = (mode_t) value;
         return 0;
 
     case K_TRUNC:
         /* fwdArgA reuses the Mode field to carry the truncate size (decimal). */
-        if (mode == NULL) {
+        if (mode == NULL || (long long)(off_t)value != value) {
             return -1;
         }
         plan->action = XRDCMS_NACT_TRUNC;
-        plan->size = strtoll(mode, NULL, 10);
+        plan->size = value;
         return 0;
 
     default:

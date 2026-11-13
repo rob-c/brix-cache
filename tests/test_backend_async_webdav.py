@@ -112,12 +112,16 @@ class _Server:
             self.authdb.write_text(xrdacc_rules)
         self.base = None
 
-    def start(self):
-        template = "nginx_lc_backend_async_webdav.conf"
+    def _template(self):
+        """Select the authentication-specific fixture configuration."""
         if self._token_auth:
-            template = "nginx_lc_backend_async_webdav_token.conf"
-        elif self._xrdacc_rules is not None:
-            template = "nginx_lc_backend_async_webdav_xrdacc.conf"
+            return "nginx_lc_backend_async_webdav_token.conf"
+        if self._xrdacc_rules is not None:
+            return "nginx_lc_backend_async_webdav_xrdacc.conf"
+        return "nginx_lc_backend_async_webdav.conf"
+
+    def start(self):
+        template = self._template()
         ep = self._lifecycle.start(NginxInstanceSpec(
             name=self._name,
             template=template,
@@ -437,7 +441,7 @@ def test_move_malformed_destination_fails_without_side_effects(make_server):
 
     response = requests.request(
         "MOVE", f"{srv.base}/move-source/bad-destination.txt",
-        headers={**_bearer(token), "Destination": "https://localhost"},
+        headers={**_bearer(token), "Destination": srv.base},
         verify=False, timeout=15)
 
     assert response.status_code == 400, response.text

@@ -7,6 +7,7 @@
 #include "xrdceph_striper_internal.hpp"
 
 #include <algorithm>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
@@ -43,22 +44,35 @@ static void dry_account(const std::string &soid, const std::string &cpath,
       while (l.total > prev && !dry_max_bytes.compare_exchange_weak(prev, l.total)) {} }
 }
 
+/* Set the complete layout atomically: changing object_size first can violate
+ * the inherited stripe_unit constraint, leaving a silently incorrect layout. */
+static int set_file_layout(int fd, const StriperLayout &l)
+{
+    char layout[192];
+    int n = snprintf(layout, sizeof(layout),
+        "stripe_unit=%ld stripe_count=%ld object_size=%ld pool=%lld",
+        l.su, l.sc, l.os, (long long) g_dst.get_id());
+    if (n < 0 || (size_t) n >= sizeof(layout)) { return -EINVAL; }
+    return ceph_fsetxattr(g_cm, fd, "ceph.file.layout", layout, (size_t) n, 0);
+}
+
 /* MDS: create the namespace entry with a matching layout; returns the new inode
  * (via *ino) or MIG_FAIL. */
 static Result create_namespace_entry(const std::string &soid, const std::string &cpath,
                                      const StriperLayout &l, unsigned long long *ino)
 {
-    mkparents(cpath);
+    int rc = mkparents(cpath);
+    if (rc < 0) { logline("FAIL " + soid + ": mkdir " + std::to_string(rc)); n_fail++; return MIG_FAIL; }
     int fd = ceph_open(g_cm, cpath.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0644);
     if (fd < 0) { logline("FAIL " + soid + ": ceph_open " + std::to_string(fd)); n_fail++; return MIG_FAIL; }
-    auto setlay = [&](const char *a, long v) {
-        char val[32]; snprintf(val, sizeof(val), "%ld", v);
-        ceph_fsetxattr(g_cm, fd, a, val, strlen(val), 0);
-    };
-    setlay("ceph.file.layout.object_size", l.os);
-    setlay("ceph.file.layout.stripe_unit", l.su);
-    setlay("ceph.file.layout.stripe_count", l.sc);
+    rc = set_file_layout(fd, l);
     ceph_close(g_cm, fd);
+    if (rc < 0) {
+        ceph_unlink(g_cm, cpath.c_str());
+        logline("FAIL " + soid + ": layout " + std::to_string(rc));
+        n_fail++;
+        return MIG_FAIL;
+    }
 
     struct ceph_statx stx;
     if (ceph_statx(g_cm, cpath.c_str(), &stx, CEPH_STATX_INO, 0) != 0) {
@@ -68,22 +82,29 @@ static Result create_namespace_entry(const std::string &soid, const std::string 
     return MIG_OK;
 }
 
-/* Map every data object of this soid into the CephFS object name — REDIRECT
- * (zero-move stub) or COPY (server-side copy_from). Returns the object count via
- * *nrekey or MIG_FAIL. */
+/* Map source objects into CephFS, preserving the version of each source read.
+ *
+ * WHAT: Emit redirects or owned copies; return the object count via *nrekey.
+ * WHY: get_last_version belongs to an IoCtx, so another worker's read must not
+ *      replace the version between this worker's stat and copy/redirect.
+ * HOW: Deep-copy the source context for this mapping operation. A C++ copy
+ *      constructor shares the underlying context and does not isolate it.
+ */
 static Result map_data_objects(const std::string &soid, unsigned long long ino,
                                int *nrekey)
 {
     *nrekey = 0;
     auto sit = g_src_index.find(soid);
     if (sit == g_src_index.end()) { return MIG_OK; }
+    librados::IoCtx source;
+    source.dup(g_src);
     for (uint32_t idx : sit->second) {
         char name[520];
         snprintf(name, sizeof(name), "%s.%016lx", soid.c_str(), (unsigned long) idx);
 
         uint64_t psize = 0; time_t pmt = 0;
-        if (g_src.stat(name, &psize, &pmt) < 0) { logline("FAIL " + soid + ": stat " + name); n_fail++; return MIG_FAIL; }
-        uint64_t ver = g_src.get_last_version();
+        if (source.stat(name, &psize, &pmt) < 0) { logline("FAIL " + soid + ": stat " + name); n_fail++; return MIG_FAIL; }
+        uint64_t ver = source.get_last_version();
 
         char dstname[64];
         snprintf(dstname, sizeof(dstname), "%llx.%08x", ino, idx);
@@ -91,11 +112,11 @@ static Result map_data_objects(const std::string &soid, unsigned long long ino,
         if (g.mode == MODE_REDIRECT) {
             { librados::ObjectWriteOperation cop; cop.create(false); g_dst.operate(dstname, &cop); }
             librados::ObjectWriteOperation rop;
-            rop.set_redirect(name, g_src, ver, 0);   /* no reference: rollback never GCs the source */
+            rop.set_redirect(name, source, ver, 0);   /* no reference: rollback never GCs the source */
             if (g_dst.operate(dstname, &rop) < 0) { logline("FAIL " + soid + ": set_redirect " + name); n_fail++; return MIG_FAIL; }
         } else {
             librados::ObjectWriteOperation op;
-            op.copy_from(name, g_src, ver, 0);
+            op.copy_from(name, source, ver, 0);
             if (g_dst.operate(dstname, &op) < 0) { logline("FAIL " + soid + ": copy_from " + name); n_fail++; return MIG_FAIL; }
             if (idx == 0) {
                 for (const char *j : { "striper.layout.object_size", "striper.layout.stripe_unit",

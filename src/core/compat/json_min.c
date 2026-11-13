@@ -391,17 +391,23 @@ jm_emit_value(const char *p, const char *end, char *out, size_t outsz)
     return 1;
 }
 
+/* ---- Extract one bounded top-level diagnostic value ----
+ * WHAT: Returns 1 with a terminated flat value, or 0 when it cannot be matched.
+ * WHY: Untrusted member lengths must never exceed the private key buffer.
+ * HOW: 1. Validate pointers. 2. Scan bounded member keys. 3. Emit or skip values.
+ */
 int
 brix_json_get_str(const char *json, size_t len, const char *key, char *out,
     size_t outsz)
 {
     const char *p = json;
-    const char *end = json + len;
+    const char *end;
     size_t      keylen;
 
     if (json == NULL || key == NULL || out == NULL || outsz == 0) {
         return 0;
     }
+    end = json + len;
     keylen = strlen(key);
 
     p = jm_skip_ws(p, end);
@@ -418,7 +424,9 @@ brix_json_get_str(const char *json, size_t len, const char *key, char *out,
             return 0;
         }
 
-        if (klen == keylen && memcmp(kbuf, key, keylen) == 0) {
+        /* jm_string reports the full decoded length even when kbuf truncates. */
+        if (klen < sizeof(kbuf) && klen == keylen
+            && memcmp(kbuf, key, keylen) == 0) {
             return jm_emit_value(p, end, out, outsz);
         }
 

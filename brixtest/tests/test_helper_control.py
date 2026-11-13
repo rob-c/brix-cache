@@ -10,7 +10,7 @@ import pytest
 
 from brixtest import SpecError
 from brixtest.helper_control import HelperHeartbeat
-from brixtest.pytest_runtime import _heartbeat_timeout, _wait_helper
+from brixtest.pytest_runtime import _heartbeat_expired, _heartbeat_timeout, _wait_helper
 from brixtest.testing import test_config
 
 
@@ -26,13 +26,20 @@ def test_helper_heartbeat_publishes_liveness_and_cancellation(tmp_path):
     cancel_path = tmp_path / "cancel.json"
     heartbeat = HelperHeartbeat(heartbeat_path, cancel_path, interval=0.02)
     heartbeat.start()
-    first = heartbeat_path.stat().st_mtime_ns
-    time.sleep(0.05)
-    assert heartbeat_path.stat().st_mtime_ns > first
-    cancel_path.write_text("{}")
-    time.sleep(0.05)
-    assert json.loads(heartbeat_path.read_text())["cancelled"] is True
-    heartbeat.close()
+    try:
+        first = heartbeat_path.stat().st_mtime_ns
+        _wait_for_heartbeat(lambda: heartbeat_path.stat().st_mtime_ns > first)
+        cancel_path.write_text("{}")
+        _wait_for_heartbeat(lambda: json.loads(heartbeat_path.read_text())["cancelled"])
+    finally:
+        heartbeat.close()
+
+
+def _wait_for_heartbeat(predicate):
+    deadline = time.monotonic() + 3
+    while not predicate():
+        assert time.monotonic() < deadline, 'helper heartbeat did not advance'
+        time.sleep(0.01)
 
 
 def test_missing_heartbeat_reaps_process_tree_and_writes_cancellation(tmp_path):
@@ -84,3 +91,30 @@ def test_invalid_heartbeat_timeout_is_rejected(value):
     config = test_config(heartbeat_timeout=value)
     with pytest.raises(SpecError, match="helper heartbeat timeout"):
         _heartbeat_timeout(30, config=config)
+
+
+def test_controller_marker_allows_bounded_cold_start(tmp_path):
+    path = tmp_path / "heartbeat.json"
+    path.write_text(json.dumps({"controller": os.getpid()}))
+    old = time.time() - 60
+    os.utime(path, (old, old))
+    assert not _heartbeat_expired(path, 1, time.monotonic() + 30)
+    assert _heartbeat_expired(path, 1, time.monotonic() - 1)
+
+
+@pytest.mark.parametrize("payload", [{"pid": 123}, {"controller": -1}, []])
+def test_startup_grace_never_masks_stale_helper_or_foreign_marker(tmp_path, payload):
+    path = tmp_path / "heartbeat.json"
+    path.write_text(json.dumps(payload))
+    old = time.time() - 60
+    os.utime(path, (old, old))
+    assert _heartbeat_expired(path, 1, time.monotonic() + 30)
+
+
+def test_startup_grace_cannot_extend_case_deadline(tmp_path):
+    path = tmp_path / "heartbeat.json"
+    cancellation = tmp_path / "cancel.json"
+    path.write_text(json.dumps({"controller": os.getpid()}))
+    process = _sleeper(30)
+    assert _wait_helper(process, 0.1, path, cancellation) == "deadline"
+    assert process.poll() is not None

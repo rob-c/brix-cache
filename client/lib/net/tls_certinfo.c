@@ -10,6 +10,7 @@
  * HOW:  Split verbatim out of tls.c to keep that translation unit under the
  *       file-size cap; see brix_tls_peer_cert_info() there historically.
  */
+#include "auth/crypto/asn1_compat.h"
 #include "brix.h"
 #include "auth/crypto/name_compat.h"
 
@@ -41,7 +42,7 @@ peer_collect_sans(X509 *cert, char *out, size_t outsz)
             continue;
         }
         dns = (const char *) ASN1_STRING_get0_data(g->d.dNSName);
-        len = ASN1_STRING_length(g->d.dNSName);
+        len = brix_crypto_asn1_length(g->d.dNSName);
         if (len <= 0 || off + (size_t) len + 2 >= outsz) {
             continue;
         }

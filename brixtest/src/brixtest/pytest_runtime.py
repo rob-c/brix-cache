@@ -163,10 +163,14 @@ def _heartbeat_timeout(timeout: float, config: Optional[BrixTestConfig] = None) 
     return min(10.0, max(2.0, timeout / 3.0))
 
 
-def _heartbeat_expired(path: Path, silence: float) -> bool:
+def _heartbeat_expired(path: Path, silence: float, startup_until: float = 0.0) -> bool:
     try:
+        if time.monotonic() < startup_until:
+            payload = json.loads(path.read_text())
+            if payload.get("controller") == os.getpid():
+                return False
         age = time.time() - path.stat().st_mtime
-    except OSError:
+    except (OSError, ValueError, AttributeError):
         return True
     return age > silence
 
@@ -188,6 +192,10 @@ def _wait_helper(
 ) -> str:
     deadline = time.monotonic() + timeout
     silence = _heartbeat_timeout(timeout, config=config)
+    # Importing pytest and the helper plugin can outlast one heartbeat window
+    # on a cold, busy host. Only the controller's initial marker gets this
+    # bounded startup grace; published heartbeats use the normal silence limit.
+    startup_until = min(deadline, time.monotonic() + 30.0)
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -197,7 +205,7 @@ def _wait_helper(
             process.wait(timeout=min(0.25, remaining))
             return ""
         except subprocess.TimeoutExpired:
-            if _heartbeat_expired(heartbeat_path, silence):
+            if _heartbeat_expired(heartbeat_path, silence, startup_until):
                 _terminate_helper(process, cancel_path, "heartbeat")
                 return "heartbeat"
 

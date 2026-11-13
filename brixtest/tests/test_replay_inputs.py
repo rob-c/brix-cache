@@ -91,10 +91,6 @@ def test_binary_store_recaptures_archived_runtime_files(tmp_path):
     old_env = os.environ.get(REPLAY_BINARIES_ENV)
     os.environ[REPLAY_BINARIES_ENV] = json.dumps(manifest)
 
-    captured = BinaryStore(tmp_path / "run", tmp_path).capture(
-        binary("tool", "/original/tool", discover_libraries=False),
-    )
-
     try:
         captured = BinaryStore(tmp_path / "run", tmp_path).capture(
             binary("tool", "/original/tool", discover_libraries=False),
@@ -141,12 +137,15 @@ def test_replay_identity_and_cli_transport_use_session_objects(tmp_path):
     old_call = rerun_module.subprocess.call
     rerun_module.subprocess.call = lambda argv, **options: seen.update(argv=argv, **options) or 0
 
-    assert _replay({"nodeid": "test_x.py::test_x", "replay": replay}) == 0
-    transported = json.loads(seen["env"][REPLAY_BINARIES_ENV])
-    assert transported["tool"]["path"] == str(executable)
-    assert transported["tool"]["libraries"][0]["path"] == str(library)
-    assert transported["tool"]["runtime_files"][0]["destination"] == "/etc/tool/runtime.conf"
-    assert seen["env"]["BRIXTEST_REPLAY_GRAPH_FINGERPRINT"] == "f" * 64
+    try:
+        assert _replay({"nodeid": "test_x.py::test_x", "replay": replay}) == 0
+        transported = json.loads(seen["env"][REPLAY_BINARIES_ENV])
+        assert transported["tool"]["path"] == str(executable)
+        assert transported["tool"]["libraries"][0]["path"] == str(library)
+        assert transported["tool"]["runtime_files"][0]["destination"] == "/etc/tool/runtime.conf"
+        assert seen["env"]["BRIXTEST_REPLAY_GRAPH_FINGERPRINT"] == "f" * 64
+    finally:
+        rerun_module.subprocess.call = old_call
 
 
 def _helper_payload(session, executable, library):

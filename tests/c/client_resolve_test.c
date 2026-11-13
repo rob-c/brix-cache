@@ -11,8 +11,8 @@
  *       executable (the static link binds resolve.c's calls here), so no
  *       resolv.conf, nameserver or network is involved and the call count
  *       is exact.
- * HOW:  `argv[1] == "nocache"` asserts the harness exported
- *       XRDC_RESOLVE_CACHE_S=0 and expects one libc call per brix_resolve();
+ * HOW:  `argv[1] == "nocache"` asserts the harness exported a nonpositive
+ *       XRDC_RESOLVE_CACHE_S and expects one libc call per brix_resolve();
  *       the default mode expects the 60 s cache to absorb the repeats.
  */
 #define _GNU_SOURCE 1
@@ -68,9 +68,9 @@ fake_ai(int family, const void *addr, int port, int socktype)
 }
 
 
-/* Interposed libc resolver: literals via inet_pton (AI_NUMERICHOST honoured),
- * "again.test" -> EAI_AGAIN, "two.test" -> two A records, anything else ->
- * EAI_NONAME.  Counts every call. */
+/* WHAT: Return controlled literal, transient, multi-address or malformed NSS replies.
+ * WHY: Resolver validation and cache assertions must not depend on external DNS.
+ * HOW: 1. Count the call. 2. Honor literal flags. 3. Select the named finite reply. */
 int
 getaddrinfo(const char *node, const char *service,
             const struct addrinfo *hints, struct addrinfo **res)
@@ -112,6 +112,20 @@ getaddrinfo(const char *node, const char *service,
     }
     if (strcmp(node, "again.test") == 0) {
         return EAI_AGAIN;
+    }
+    if (strcmp(node, "empty.test") == 0) {
+        return 0;
+    }
+    if (strcmp(node, "oversize.test") == 0 || strcmp(node, "nulladdr.test") == 0) {
+        inet_pton(AF_INET, "192.0.2.1", &a4);
+        *res = fake_ai(AF_INET, &a4, port, socktype);
+        if (strcmp(node, "oversize.test") == 0) {
+            (*res)->ai_addrlen = sizeof(struct sockaddr_storage) + 1;
+        } else {
+            free((*res)->ai_addr);
+            (*res)->ai_addr = NULL;
+        }
+        return 0;
     }
     if (strcmp(node, "two.test") == 0 && family != AF_INET6) {
         inet_pton(AF_INET, "10.1.1.1", &a4);
@@ -297,14 +311,62 @@ test_never_cached(void)
 }
 
 
+/* WHAT: Reject unusable NSS replies without altering caller address storage.
+ * WHY: Empty, missing and oversized records cannot become connect targets.
+ * HOW: 1. Seed canaries. 2. Resolve each malformed reply. 3. Check output and diagnostics. */
+static void
+test_unusable_replies(void)
+{
+    const char *names[] = {"empty.test", "oversize.test", "nulladdr.test"};
+    brix_resolve_addr output[2], before[2];
+    brix_resolve_err error;
+
+    memset(output, 0xa5, sizeof(output));
+    memcpy(before, output, sizeof(output));
+    for (size_t index = 0; index < sizeof(names) / sizeof(names[0]); index++) {
+        CHECK(brix_resolve(names[index], 80, AF_INET, SOCK_STREAM, 0,
+                           output, 2, &error) == 0);
+        CHECK(error.transient == 0 && strcmp(error.text, "no usable address") == 0);
+        CHECK(memcmp(output, before, sizeof(output)) == 0);
+        CHECK(brix_resolve(names[index], 80, AF_INET, SOCK_STREAM, 0,
+                           output, 2, NULL) == 0);
+    }
+}
+
+
+/* WHAT: Bound sockaddr formatting and port reads on invalid inputs.
+ * WHY: Short or unsupported addresses must not be dereferenced as complete IP records.
+ * HOW: 1. Supply valid and truncated records. 2. Exercise optional buffers. 3. Check canaries. */
+static void
+test_address_boundaries(void)
+{
+    struct sockaddr_in address = {.sin_family = AF_INET};
+    struct sockaddr unknown = {.sa_family = AF_UNSPEC};
+    char text[2] = {'X', 'Z'};
+
+    CHECK(strcmp(brix_resolve_ntop(NULL, 0, NULL, 1), "") == 0);
+    CHECK(strcmp(brix_resolve_ntop(NULL, 0, text, 0), "") == 0);
+    CHECK(text[0] == 'X');
+    CHECK(brix_resolve_ntop((struct sockaddr *) &address, sizeof(address), text, 1) == text);
+    CHECK(text[0] == 0 && text[1] == 'Z');
+    CHECK(strcmp(brix_resolve_ntop(&unknown, sizeof(unknown), text, sizeof(text)), "") == 0);
+    CHECK(strcmp(brix_resolve_ntop((struct sockaddr *) &address, 1, text, sizeof(text)), "") == 0);
+    CHECK(brix_resolve_port(&unknown, sizeof(unknown)) == -1);
+    CHECK(brix_resolve_port((struct sockaddr *) &address, 1) == -1);
+}
+
+
+/* WHAT: Run the client DNS contracts and return a failing status for any mismatch.
+ * WHY: Each cache regime needs its own process-local resolver state.
+ * HOW: 1. Validate the TTL regime. 2. Exercise every contract. 3. Report all failures. */
 int
 main(int argc, char **argv)
 {
     int          nocache = (argc > 1 && strcmp(argv[1], "nocache") == 0);
     const char  *env = getenv("XRDC_RESOLVE_CACHE_S");
 
-    if (nocache && (env == NULL || strcmp(env, "0") != 0)) {
-        fprintf(stderr, "nocache mode needs XRDC_RESOLVE_CACHE_S=0\n");
+    if (nocache && (env == NULL || strtol(env, NULL, 10) > 0)) {
+        fprintf(stderr, "nocache mode needs a nonpositive XRDC_RESOLVE_CACHE_S\n");
         return 2;
     }
     if (!nocache && env != NULL) {
@@ -316,6 +378,8 @@ main(int argc, char **argv)
     test_bad_args();
     test_cache(!nocache);
     test_never_cached();
+    test_unusable_replies();
+    test_address_boundaries();
 
     if (g_failures != 0) {
         fprintf(stderr, "client_resolve unittest: %d check(s) failed\n",

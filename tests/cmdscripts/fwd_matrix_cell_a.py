@@ -6,6 +6,15 @@ import re
 import time
 
 
+def stock_token_path(name=''):
+    """Use a named namespace accepted by the packaged stock token authorizer."""
+    return 'fwd/' + name if name else 'fwd'
+
+
+def _object_name(credential, name):
+    return stock_token_path(name) if credential == 'token' else name
+
+
 def _supported(harness, key, hop2, credential):
     verdict, reason = harness.feasibility_probe("A", hop2, credential)
     if verdict != "SUPPORTED":
@@ -103,6 +112,8 @@ def _prepare_cell(harness, key, wire, credential, hop1, hop2, namespace):
     if front_log is None:
         harness.record(key, "FAIL", "brix front start failed")
         return None
+    if credential == 'token':
+        (harness.prefix / f'afront_{wire}_{credential}/export' / stock_token_path()).mkdir()
     if credential == "gsi":
         harness.install_gsi_cred(credential_dir, front_log, front_hop, front_port)
     time.sleep(0.5)
@@ -111,13 +122,13 @@ def _prepare_cell(harness, key, wire, credential, hop1, hop2, namespace):
 
 def _positive_result(harness, wire, credential, front_hop, front_port):
     result = harness.front_put_get(
-        front_hop, credential, front_port, f"posA_{wire}.bin", "A"
+        front_hop, credential, front_port, _object_name(credential, f"posA_{wire}.bin"), "A"
     )
     if result.get_ok:
         return result
     time.sleep(0.4)
     return harness.front_put_get(
-        front_hop, credential, front_port, f"posA2_{wire}.bin", "A"
+        front_hop, credential, front_port, _object_name(credential, f"posA2_{wire}.bin"), "A"
     )
 
 
@@ -171,8 +182,9 @@ def _positive(
 
 def _negative(harness, key, wire, credential, front_hop, front_port):
     backend_dir = harness.prefix / f"obk_{wire}_{credential}/data"
+    object_name = _object_name(credential, f"negB_{wire}.bin")
     result = harness.front_put_get(
-        front_hop, credential, front_port, f"negB_{wire}.bin", "B"
+        front_hop, credential, front_port, object_name, "B"
     )
     protocol = "root" if front_hop == "root" else "https"
     if not harness.assert_denied(protocol, result):
@@ -181,7 +193,7 @@ def _negative(harness, key, wire, credential, front_hop, front_port):
             f"userB was NOT denied on backend leg (deny_obs={result.deny_obs})",
         )
         return
-    if (backend_dir / f"negB_{wire}.bin").is_file():
+    if (backend_dir / object_name).is_file():
         harness.record(key, "FAIL", "userB bytes reached the backend store")
         return
     harness.record(key, "PASS", "userA DN at backend, userB denied, no leak")

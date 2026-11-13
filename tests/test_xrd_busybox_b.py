@@ -1,4 +1,5 @@
 from split_continuation import reexport as _reexport
+from settings import NGINX_S3_PORT
 def _check_test_doctor_also_webdav_when_available_1(web):
     assert web and web[0]["reachable"] is True
 
@@ -168,13 +169,13 @@ def test_doctor_also_webdav_when_available(rw):
 
 
 def test_doctor_also_s3_when_available(rw):
-    """If the shared S3 endpoint (:9001) is up, --also runs the S3 battery."""
-    if not _port_up(HOST, 9001):
-        pytest.skip("no S3 server on :9001")
+    """Run the S3 battery against the shared fleet's registered endpoint."""
+    if not _port_up(HOST, NGINX_S3_PORT):
+        pytest.skip(f"no S3 server on :{NGINX_S3_PORT}")
     env = dict(os.environ, AWS_ACCESS_KEY_ID="testkey",
                AWS_SECRET_ACCESS_KEY="testsecret", AWS_DEFAULT_REGION="us-east-1")
     p = subprocess.run([XRD, "doctor", _url(rw), "--rw", "--insecure",
-                        "--also", f"s3://{HOST}:9001/testbucket", "--json"],
+                        "--also", f"s3://{HOST}:{NGINX_S3_PORT}/testbucket", "--json"],
                        capture_output=True, text=True, env=env, timeout=60)
     doc = json.loads(p.stdout)
     s3 = [t for t in doc["tests"] if t["protocol"] == "s3"]

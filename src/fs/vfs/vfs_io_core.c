@@ -371,6 +371,18 @@ static void
 brix_vfs_io_execute_sync(brix_vfs_job_t *job)
 {
     brix_sd_obj_t obj;
+    brix_csi_t *csi = job->csi;
+
+    /* A writer's checksum publication is an export mutation. Keep the carried
+     * policy gate before descriptor probing, tag I/O and the durability call. */
+    if (csi != NULL && csi->writable
+        && brix_vfs_require_carried_mutation(job->mutation_policy,
+                 BRIX_PROTO_ROOT, BRIX_VFS_MUTATE_SYNC) != NGX_OK)
+    {
+        job->nio = -1;
+        job->io_errno = errno;
+        return;
+    }
 
     if (job->fd == NGX_INVALID_FILE && job->obj.driver == NULL) {
         job->nio = -1;
@@ -385,6 +397,12 @@ brix_vfs_io_execute_sync(brix_vfs_job_t *job)
         return;
     }
 
+    /* Match close's best-effort tag persistence, but publish before a new
+     * reader snapshots the record. An unlinked/replaced name must not receive
+     * this descriptor's CRCs; the backend checks inode identity first. */
+    if (csi != NULL && csi->writable) {
+        (void) brix_csi_flush_bound(csi, job->fd);
+    }
     job->nio = 0;
 }
 
@@ -427,6 +445,7 @@ brix_vfs_io_reset_outputs(brix_vfs_job_t *job)
     job->crc32c = 0;
     job->io_errno = 0;
     job->short_io = 0;
+    job->csi_mismatch = 0;
     if (job->err_msg != NULL && job->err_msg_cap > 0) {
         job->err_msg[0] = '\0';
     }

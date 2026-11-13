@@ -23,6 +23,7 @@ import pytest
 
 from server_registry import NginxInstanceSpec
 from settings import HOST
+from test_phase22_health_check import _make_pki
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-tpc")]
@@ -45,25 +46,8 @@ def tls_nginx(lifecycle, tmp_path_factory):
     _require_tls_tools()
     base = tmp_path_factory.mktemp("tpctls")
     ca, certs, srv, sdata, ddata = _tls_directories(base)
-    fqdn = socket.getfqdn()
-
-    def osl(*a):
-        r = _run(["openssl", *a])
-        assert r.returncode == 0, f"openssl {a}: {r.stderr}"
-
-    osl("req", "-x509", "-nodes", "-newkey", "rsa:2048", "-days", "1",
-        "-subj", "/O=TpcTlsTest/CN=TpcTlsTest CA",
-        "-keyout", str(ca / "ca.key"), "-out", str(ca / "ca.pem"))
-    chash = _run(["openssl", "x509", "-in", str(ca / "ca.pem"),
-                  "-noout", "-hash"]).stdout.strip()
-    shutil.copy(ca / "ca.pem", certs / f"{chash}.0")
-
-    csr = base / "host.csr"
-    osl("req", "-nodes", "-newkey", "rsa:2048", "-subj", f"/O=TpcTlsTest/CN={fqdn}",
-        "-keyout", str(srv / "hostkey.pem"), "-out", str(csr))
-    osl("x509", "-req", "-in", str(csr), "-CA", str(ca / "ca.pem"),
-        "-CAkey", str(ca / "ca.key"), "-CAcreateserial", "-days", "1",
-        "-out", str(srv / "hostcert.pem"))
+    pki = _make_pki(base)
+    fqdn = pki["fqdn"]
 
     (sdata / "hello.txt").write_text("tpc-over-TLS gotoTLS pull works\n")
 

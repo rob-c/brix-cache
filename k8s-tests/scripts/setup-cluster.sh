@@ -79,7 +79,7 @@ elif [ "$CLUSTER_TYPE" = "minikube" ]; then
         --cpus="$CPUS" \
         --memory="${MEMORY}000" \
         --driver=docker \
-        --kubernetes-version=v1.28.3 || { echo "ERROR: Minikube start failed"; exit 1; }
+        --kubernetes-version=v1.37.2 || { echo "ERROR: Minikube start failed"; exit 1; }
 
     # Enable required addons
     minikube addons enable ingress 2>/dev/null || true

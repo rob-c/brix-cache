@@ -118,7 +118,8 @@ timeouts_scan_conn(brix_aconn *ac, uint64_t now, uint64_t *next)
  * WHY:  The sweep produces an absolute ns deadline; the event loop needs a
  *       relative, clamped millisecond budget for its next block.
  * HOW:  No deadline → the idle tick; otherwise round the remaining ns up by 1ms,
- *       clamp to [1, AIO_TICK_MS]. Byte-for-byte the original tail arithmetic. */
+ *       clamp to [1, AIO_TICK_MS] before narrowing to int, so long deadlines
+ *       cannot wrap into a tight polling interval. */
 static int
 timeouts_next_wait_ms(uint64_t next, uint64_t now)
 {
@@ -126,14 +127,11 @@ timeouts_next_wait_ms(uint64_t next, uint64_t now)
         return AIO_TICK_MS;
     }
     uint64_t dt_ns = (next > now) ? next - now : 0;
-    int ms = (int) (dt_ns / 1000000ULL) + 1;
+    uint64_t ms = dt_ns / 1000000ULL + 1;
     if (ms > AIO_TICK_MS) {
         ms = AIO_TICK_MS;
     }
-    if (ms < 1) {
-        ms = 1;
-    }
-    return ms;
+    return (int) ms;
 }
 
 /* Fail any request whose deadline has passed; a timed-out heartbeat ping is

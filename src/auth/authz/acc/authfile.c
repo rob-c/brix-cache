@@ -218,6 +218,9 @@ acc_tokenize_and_dispatch(acc_parse_ctx_t *pc, u_char *buf, size_t fsize)
         char  *w;
         tok_rc = acc_tok_next(&tok, &w);
 
+        if (tok_rc == ACC_TOK_ERROR) {
+            return NGX_ERROR;
+        }
         if (tok_rc == ACC_TOK_WORD) {
             char **slot = ngx_array_push(words);
             if (slot == NULL) { return NGX_ERROR; }

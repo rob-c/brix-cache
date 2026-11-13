@@ -273,13 +273,37 @@ replay_slot(brix_cta_queue_t *q, uint64_t id)
     return &q->slots[free_slot];
 }
 
+/* ---- Close the replay cursor ----
+ * WHAT: Return zero or the first replay I/O error.
+ * WHY: A later close must not hide a failed read.
+ * HOW: Inspect the stream before closing and restore the captured errno.
+ */
+static int
+journal_replay_close(FILE *f)
+{
+    int replay_error = 0;
+
+    if (f != NULL) {
+        if (ferror(f)) {
+            replay_error = errno != 0 ? errno : EIO;
+        }
+        if (fclose(f) != 0 && replay_error == 0) {
+            replay_error = errno != 0 ? errno : EIO;
+        }
+    }
+    if (replay_error != 0) {
+        errno = replay_error;
+        return -1;
+    }
+    return 0;
+}
+
 int
 cta_queue_open_journal(brix_cta_queue_t *q, const char *path)
 {
     FILE *f = fopen(path, "r");   /* replay cursor, separate from the append fd */
     char  line[CTA_JOURNAL_LINE_MAX];
     int   fd;
-    int   replay_error = 0;
 
     while (f != NULL && fgets(line, sizeof(line), f) != NULL) {
         unsigned long long id;
@@ -323,16 +347,7 @@ cta_queue_open_journal(brix_cta_queue_t *q, const char *path)
             q->next_id = (uint64_t) id + 1;
         }
     }
-    if (f != NULL) {
-        if (ferror(f)) {
-            replay_error = errno != 0 ? errno : EIO;
-        }
-        if (fclose(f) != 0 && replay_error == 0) {
-            replay_error = errno != 0 ? errno : EIO;
-        }
-    }
-    if (replay_error != 0) {
-        errno = replay_error;
+    if (journal_replay_close(f) != 0) {
         return -1;
     }
     /*

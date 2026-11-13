@@ -465,14 +465,12 @@ def _mount_environment(workdir, server_url, pubkey, cache, tmp, extra_env):
 
 
 def _terminate_mount(proc, mnt):
+    from lib_py.fuse_host import reap_unmounted_process
+
     _unmount(mnt)
-    if proc.poll() is not None:
-        return
-    proc.terminate()
-    try:
-        proc.wait(3)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    # Unmount wakes fuse_main, but its teardown (including profile writes) is
+    # asynchronous. Give the owner a normal exit before escalating signals.
+    reap_unmounted_process(proc)
 
 
 @contextmanager
