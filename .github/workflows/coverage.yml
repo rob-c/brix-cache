@@ -1,4 +1,4 @@
-name: coverage finite DNS lifecycle probe
+name: coverage full-width mixed storm probe
 permissions:
   contents: read
 jobs:
@@ -18,8 +18,8 @@ jobs:
       BRIX_CVMFS_APPARMOR_PROFILE: brix-coverage-userns-tests
       BRIX_MINIO_BIN: /tmp/brix-minio-bin/minio
       PYTEST_ADDOPTS: -p no:brixtest -p no:platformdirs
-      COVERAGE_TEST_CMD: python3 -m pytest --noconftest test_dns_driver_native.py -n0 -o addopts= -ra -q -p no:randomly
-        -p no:rerunfailures
+      COVERAGE_TEST_CMD: python3 -m pytest test_ultra_parallel_process.py test_ultra_parallel_mixed_storm.py test_no_hardcoded_hosts.py
+        -n0 -o addopts= -ra -q -s -p no:randomly -p no:rerunfailures
     steps:
     - uses: actions/checkout@v7.0.1
     - name: Reserve disk space for the instrumented SDK and test filesystem
@@ -116,7 +116,7 @@ jobs:
           /tmp/brix-coverage-report/coverage.initial.info
 
           '
-    - name: Run finite DNS lifecycle contracts
+    - name: Run full-width mixed storm and harness contracts
       if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
       run: 'set -o pipefail
 

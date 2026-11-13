@@ -254,7 +254,7 @@ def test_reference_start_failure_cannot_be_hidden_by_log_text(tmp_path, diagnost
     launcher = SimpleNamespace(_xrootd_procs={}, _owned=[], _wait_ready=never_ready,
                                _kill_xrootd=lambda name: killed.append(name))
     spec = SimpleNamespace(name='owned-reference', readiness='tcp')
-    endpoint = SimpleNamespace(host='127.0.0.1', port=12345, prefix=tmp_path)
+    endpoint = SimpleNamespace(host=settings.HOST, port=12345, prefix=tmp_path)
     with pytest.raises(RuntimeError, match='listener was not ready') as failure:
         start_operations._track_xrootd(launcher, spec, endpoint, object())
     assert diagnostic in str(failure.value)
