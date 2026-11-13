@@ -100,7 +100,11 @@ jobs:
           sudo mkfs.xfs -q -f "$image"
           mkdir "$filesystem"
           sudo mount -o loop,nosuid,nodev "$image" "$filesystem"
-          sudo chown "$(id -u):$(id -g)" "$filesystem"
+          # Storage fixtures make their own directories private. Keep the
+          # shared mount root owned by root so one identity cannot narrow
+          # traversal for the later namespace and switched-UID suites.
+          sudo chown root:root "$filesystem"
+          sudo chmod 1777 "$filesystem"
           # Watermark eviction contracts require actual usage above 10%.
           # Reserve space only in this newly created disposable filesystem.
           fallocate -l 3G "$filesystem/.watermark-fixture-space"

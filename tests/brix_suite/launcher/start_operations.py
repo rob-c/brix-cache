@@ -647,7 +647,8 @@ def _track_xrootd(launcher, spec, endpoint, process):
         logs = Path(endpoint.prefix) / 'logs'
         tails = [_reference_log_tail(logs / name) for name in
                  ('xrootd.bootstrap.log', 'xrootd.log')]
-        identity = [_reference_log_identity(path) for path in (logs.parent, logs, logs / 'xrootd.log')]
+        identity = [_reference_log_identity(path) for path in
+                    (logs / 'xrootd.log', logs, *logs.parents)]
         raise RuntimeError(f'{error}\nReference startup logs:\n' + '\n'.join(tails + identity)) from error
     launcher._owned.append(spec)
 

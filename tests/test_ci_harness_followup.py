@@ -179,6 +179,51 @@ def test_reference_log_identity_is_owned_and_private():
         assert log.read_text() == 'owned\n'
 
 
+@pytest.fixture
+def shared_fixture_anchor():
+    """Use /tmp's root-owned sticky contract for this disposable shared anchor."""
+    if sys.platform != 'linux' or os.geteuid() != 0:
+        pytest.skip('real shared-anchor access requires Linux root')
+    with tempfile.TemporaryDirectory(prefix='brix-shared-anchor-', dir='/tmp') as name:
+        anchor = Path(name)
+        anchor.chmod(0o1777)
+        yield anchor
+
+
+def _anchor_actor(username, code, path):
+    import pwd
+    identity = pwd.getpwnam(username)
+    return subprocess.run(['/usr/bin/python3', '-c', code, str(path)],
+                          user=identity.pw_uid, group=identity.pw_gid, extra_groups=(),
+                          capture_output=True, text=True, timeout=10)
+
+
+def test_shared_fixture_anchor_permits_private_owned_leaves(shared_fixture_anchor):
+    leaf = shared_fixture_anchor / 'owned'
+    result = _anchor_actor('nobody',
+        'import os,sys; os.mkdir(sys.argv[1],0o700); open(sys.argv[1]+"/data","w").write("fixture")', leaf)
+    assert result.returncode == 0, result.stderr
+    assert (leaf / 'data').read_text() == 'fixture'
+    assert leaf.stat().st_uid != shared_fixture_anchor.stat().st_uid == 0
+    assert leaf.stat().st_mode & 0o777 == 0o700
+
+
+def test_shared_fixture_anchor_cannot_be_narrowed_by_fixture_user(shared_fixture_anchor):
+    result = _anchor_actor('nobody', 'import os,sys; os.chmod(sys.argv[1],0o700)',
+                           shared_fixture_anchor)
+    assert result.returncode != 0 and 'PermissionError' in result.stderr
+    assert shared_fixture_anchor.stat().st_mode & 0o7777 == 0o1777
+
+
+def test_shared_fixture_anchor_rejects_foreign_leaf_removal(shared_fixture_anchor):
+    leaf = shared_fixture_anchor / 'owned'
+    created = _anchor_actor('nobody', 'import os,sys; os.mkdir(sys.argv[1],0o700)', leaf)
+    assert created.returncode == 0, created.stderr
+    removed = _anchor_actor('daemon', 'import os,sys; os.rmdir(sys.argv[1])', leaf)
+    assert removed.returncode != 0 and 'PermissionError' in removed.stderr
+    assert leaf.is_dir()
+
+
 def test_reference_loader_error_is_retained_with_its_real_exit_status(tmp_path):
     log = tmp_path / 'xrootd.log'
     command = [sys.executable, '-c',

@@ -208,13 +208,15 @@ ngx_uint_t brix_dns_resolve_sync(const brix_dns_policy_t *policy,
     const char *host, in_port_t port, brix_af_policy_t af, int socktype,
     brix_dns_addr_t *addrs, ngx_uint_t max, char *err, size_t errsz);
 
-/* Copy a diagnostic into the caller's optional error buffer (err may be
- * NULL or empty; "" clears it).  Shared by every sync/probe entry point. */
+/* WHAT: Copy a diagnostic, terminating every nonempty destination.
+ * WHY: A truncated resolver error must remain safe for string consumers.
+ * HOW: 1. Ignore absent buffers. 2. Format within capacity. 3. Seal the last byte. */
 static ngx_inline void
 brix_dns_set_err(char *err, size_t errsz, const char *msg)
 {
     if (err != NULL && errsz > 0) {
         (void) ngx_snprintf((u_char *) err, errsz, "%s%Z", msg);
+        err[errsz - 1] = '\0';
     }
 }
 

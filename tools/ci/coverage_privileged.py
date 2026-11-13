@@ -28,7 +28,10 @@ def _selection():
         'test_impersonation_finite_native.py', 'test_coverage_compiler.py',
         'test_privilege_hardening_root.py', 'test_stage_default_gateway.py',
         'test_cvmfs_cold_tier.py', 'test_cvmfs_global_cas.py',
-        'test_ci_harness_followup.py::test_reference_log_identity_is_owned_and_private')]
+        'test_ci_harness_followup.py::test_reference_log_identity_is_owned_and_private',
+        'test_ci_harness_followup.py::test_shared_fixture_anchor_permits_private_owned_leaves',
+        'test_ci_harness_followup.py::test_shared_fixture_anchor_cannot_be_narrowed_by_fixture_user',
+        'test_ci_harness_followup.py::test_shared_fixture_anchor_rejects_foreign_leaf_removal')]
     return list(map(str, selected))
 
 
