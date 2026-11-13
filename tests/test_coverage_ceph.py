@@ -4,6 +4,7 @@ import ctypes.util
 import os
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -61,3 +62,27 @@ def test_missing_private_cephfs_config_fails_before_connecting(tmp_path, monkeyp
     with pytest.raises(RuntimeError, match='could not load the private CephFS configuration'):
         coverage_ceph._migration_root(tmp_path / 'missing.conf')
     assert os.environ['CEPH_CONF'] == '/must-not-be-used'
+
+
+@pytest.mark.parametrize('state', ['', 'Z\n', 'Z\nZl\n'])
+def test_mds_without_executing_tasks_is_quiesced(monkeypatch, state):
+    monkeypatch.setattr(coverage_ceph, '_command',
+                        lambda _arguments: SimpleNamespace(stdout=state, stderr=''))
+    coverage_ceph._wait_stopped_mds('owned-reference')
+
+
+def test_mds_inspection_error_cannot_authorize_reverse_migration(monkeypatch):
+    monkeypatch.setattr(coverage_ceph, '_command',
+                        lambda _arguments: SimpleNamespace(stdout='', stderr='permission denied'))
+    with pytest.raises(RuntimeError, match='could not inspect the owned MDS'):
+        coverage_ceph._wait_stopped_mds('owned-reference')
+
+
+def test_executing_mds_cannot_authorize_reverse_migration(monkeypatch):
+    times = iter([0, 0, 31])
+    monkeypatch.setattr(coverage_ceph, 'time',
+                        SimpleNamespace(monotonic=lambda: next(times), sleep=lambda _seconds: None))
+    monkeypatch.setattr(coverage_ceph, '_command',
+                        lambda _arguments: SimpleNamespace(stdout='Sl\n', stderr=''))
+    with pytest.raises(RuntimeError, match='still has executing processes: Sl'):
+        coverage_ceph._wait_stopped_mds('owned-reference')

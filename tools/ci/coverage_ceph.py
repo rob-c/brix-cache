@@ -175,6 +175,22 @@ def _tests(root, names):
     return subprocess.run(command, cwd=root, check=False).returncode
 
 
+def _wait_stopped_mds(container):
+    """Require no executing MDS; an unreaped zombie cannot mutate metadata."""
+    deadline = time.monotonic() + 30
+    states = ['unknown']
+    while time.monotonic() < deadline:
+        result = _command(['docker', 'exec', container, 'sh', '-c',
+                           'ps -C ceph-mds -o stat=; code=$?; test "$code" -le 1'])
+        if result.stderr:
+            raise RuntimeError('could not inspect the owned MDS: ' + result.stderr[-4096:])
+        states = result.stdout.split()
+        if all(state.startswith('Z') for state in states):
+            return
+        time.sleep(1)
+    raise RuntimeError('owned MDS still has executing processes: ' + ' '.join(states))
+
+
 def run(root, report):
     """Own the complete lab lifetime and retain a failed test or setup result."""
     sys.path.insert(0, str(root / 'tests'))
@@ -195,9 +211,7 @@ def run(root, report):
             return result
         _ceph(container, 'tell', 'mds.*', 'flush', 'journal')
         _command(['docker', 'exec', container, 'pkill', '-TERM', '-x', 'ceph-mds'])
-        _command(['docker', 'exec', container, 'sh', '-c',
-                  'for attempt in $(seq 1 30); do '
-                  'pgrep -x ceph-mds >/dev/null || exit 0; sleep 1; done; exit 1'])
+        _wait_stopped_mds(container)
         os.environ['TEST_CEPHFS_QUIESCED'] = '1'
         return _tests(root, ['test_ceph_reverse_migration_native.py'])
     finally:
