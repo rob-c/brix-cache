@@ -17,7 +17,8 @@ import sys
 def _environment(environment):
     names = ('PATH', 'PYTHONPATH', 'PYTHONUNBUFFERED', 'CI', 'GITHUB_ACTIONS',
              'NGINX_SRC', 'TEST_ROOT', 'COVERAGE_OUT', 'COVERAGE_MIN',
-             'COVERAGE_PRIVILEGED', 'COVERAGE_TEST_CMD', 'COVERAGE_USERNS_PROFILE',
+             'COVERAGE_PRIVILEGED', 'COVERAGE_CEPH', 'COVERAGE_CEPH_IMAGE',
+             'COVERAGE_TEST_CMD', 'COVERAGE_USERNS_PROFILE',
              'BRIX_CVMFS_APPARMOR_PROFILE', 'PYTEST_ADDOPTS')
     return [f'{name}={environment[name]}' for name in names if name in environment]
 
@@ -43,7 +44,7 @@ def _snapshot():
 
 def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('stage', choices=('prepare', 'ordinary', 'privileged', 'userns', 'report'))
+    parser.add_argument('stage', choices=('prepare', 'ordinary', 'privileged', 'userns', 'ceph', 'report'))
     options = parser.parse_args(arguments)
     if sys.platform != 'linux' or os.getuid() == 0:
         raise RuntimeError('coverage host wrapper requires an unprivileged Linux caller')

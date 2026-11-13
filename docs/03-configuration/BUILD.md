@@ -2232,6 +2232,25 @@ run passes **all 385 privileged cases**, after a real native serving smoke.
 This establishes that focused path; the next complete ordinary/privileged/
 namespace measurement must still pass every phase and the unchanged 90% floor.
 
+The privileged-only counter probe passes all 385 cases but adds only 492 lines
+to the preceding ordinary/namespace execution. A real broker reproduction
+identifies a separate collection defect: after dropping DAC override, the
+broker cannot traverse a different user's private counter ancestor. The same
+four contracts pass in both layouts; the private layout records zero broker
+lines, while search-only traversal records 156. Hosted reports now live under
+`/tmp/brix-coverage-report`, and the standalone counter root permits search
+without granting listing or modification. Real capability-drop and unrelated
+UID regressions verify both recording and isolation.
+
+The hosted lane also requires a separate disposable Ceph phase. It reuses the
+existing Docker reference harness, seeds real CephFS bytes/xattrs/symlinks, and
+runs the existing native data, CephX denial, recovery and forward migration
+contracts in the host's instrumented build. Reverse migration runs only after
+the journal is flushed and the owned MDS stops. The phase owns a unique
+reference container and private fixture keyrings; a failed setup, contract or
+missing phase remains fatal. The frozen production inventory and 90% floor
+are unchanged. Fresh end-to-end hosted validation is pending.
+
 ### Earlier diagnostic checkpoints
 
 Build eleven passes **1,517 focused native cases**, with three skips. The seven

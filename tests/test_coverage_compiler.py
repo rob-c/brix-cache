@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 
 import pytest
 
@@ -155,3 +156,57 @@ def test_regression_runner_retains_real_counters_and_exit_status(tmp_path, monke
     shutil.rmtree(binary.parent)
     assert list(output.rglob("*.gcno"))
     assert list(output.rglob("*.gcda"))
+
+
+@pytest.mark.skipif(sys.platform != 'linux' or os.geteuid() != 0,
+                    reason='real capability-confined counter writes require Linux root')
+@pytest.mark.parametrize('ancestor_mode,recorded', [(0o711, True), (0o700, False)])
+def test_capability_confined_process_records_only_accessible_counters(ancestor_mode, recorded):
+    """A successful native exit must retain profiles after dropping DAC override."""
+    with tempfile.TemporaryDirectory(prefix='brix-gcov-access-', dir='/tmp') as name:
+        base = Path(name)
+        root, ancestor = base / 'repo', base / 'invoking-user'
+        root.mkdir()
+        ancestor.mkdir(mode=ancestor_mode)
+        os.chown(ancestor, 65534, 65534)
+        output = ancestor / 'counters'
+        output.mkdir()
+        os.chown(output, 65534, 65534)
+        environment = install(root, output, dict(os.environ))
+        source = root / 'confined.c'
+        source.write_text('#include <sys/capability.h>\n'
+                          'int main(void) {\n'
+                          '    cap_t empty = cap_init();\n'
+                          '    if (!empty || cap_set_proc(empty) != 0) return 7;\n'
+                          '    return cap_free(empty) != 0;\n}\n')
+        binary = base / 'confined'
+        build = subprocess.run(['gcc', str(source), '-lcap', '-o', str(binary)],
+                               env=environment, capture_output=True, text=True)
+        assert build.returncode == 0, build.stderr
+        result = subprocess.run([str(binary)], capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+        assert bool(list(output.rglob('*.gcda'))) == recorded, result.stderr
+        assert ('profiling:' in result.stderr) != recorded
+
+
+@pytest.mark.skipif(sys.platform != 'linux' or os.geteuid() != 0,
+                    reason='counter isolation is checked with a real unrelated UID')
+def test_counter_search_permission_does_not_grant_listing_or_writes():
+    """Search-only traversal must retain the counter directory's privacy."""
+    with tempfile.TemporaryDirectory(prefix='brix-gcov-private-', dir='/tmp') as name:
+        base = Path(name)
+        base.chmod(0o755)
+        output = base / 'counters'
+        install(base / 'repo', output, dict(os.environ))
+        command = [sys.executable, '-c',
+                   'import os, sys\n'
+                   'os.setgid(65534); os.setuid(65534)\n'
+                   'for operation in (lambda: os.listdir(sys.argv[1]),\n'
+                   '                  lambda: open(sys.argv[1] + "/injected", "w")):\n'
+                   '    try: operation()\n'
+                   '    except PermissionError: pass\n'
+                   '    else: raise AssertionError("counter directory exposed")\n',
+                   str(output)]
+        result = subprocess.run(command, capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+        assert not (output / 'injected').exists()

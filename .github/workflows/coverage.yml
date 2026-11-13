@@ -33,7 +33,12 @@ jobs:
       PYTHONPATH: tests
       PYTHONUNBUFFERED: "1"
       COVERAGE_MIN: 90
+      # Capability-confined brokers cannot traverse the runner's private home.
+      COVERAGE_OUT: /tmp/brix-coverage-report
       COVERAGE_PRIVILEGED: "1"
+      COVERAGE_CEPH: "1"
+      # Official Reef demo image, matching the installed Ceph SDK generation.
+      COVERAGE_CEPH_IMAGE: quay.io/ceph/demo@sha256:2c5efcb089f5e50f9cd3213b995a6ad7428122b80ac140c41f2d4a780a3b7fc6
       COVERAGE_USERNS_PROFILE: brix-coverage-userns-tests
       BRIX_CVMFS_APPARMOR_PROFILE: brix-coverage-userns-tests
       PYTEST_ADDOPTS: "-p no:brixtest -p no:platformdirs"
@@ -107,8 +112,8 @@ jobs:
           name: coverage-build-checkpoint
           path: |
             /tmp/coverage-prepare.txt
-            coverage/stages.json
-            coverage/coverage.initial.info
+            /tmp/brix-coverage-report/stages.json
+            /tmp/brix-coverage-report/coverage.initial.info
       - name: Run the complete ordinary suite
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
         run: |
@@ -121,7 +126,7 @@ jobs:
           name: coverage-ordinary-checkpoint
           path: |
             /tmp/coverage-ordinary.txt
-            coverage/stages.json
+            /tmp/brix-coverage-report/stages.json
       - name: Run privileged contracts
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
         run: |
@@ -134,12 +139,26 @@ jobs:
           name: coverage-privileged-checkpoint
           path: |
             /tmp/coverage-privileged.txt
-            coverage/stages.json
+            /tmp/brix-coverage-report/stages.json
       - name: Run standalone user namespace contracts
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
         run: |
           set -o pipefail
           python3 tools/ci/coverage_host.py userns 2>&1 | tee /tmp/coverage-userns.txt
+      - name: Run disposable Ceph data, credential and migration contracts
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        timeout-minutes: 30
+        run: |
+          set -o pipefail
+          python3 tools/ci/coverage_host.py ceph 2>&1 | tee /tmp/coverage-ceph.txt
+      - name: Upload Ceph suite checkpoint
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: coverage-ceph-checkpoint
+          path: |
+            /tmp/coverage-ceph.txt
+            /tmp/brix-coverage-report/stages.json
       - name: Capture all counters and enforce the 90 percent floor
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
         run: |
@@ -156,9 +175,9 @@ jobs:
           path: |
             /tmp/coverage-report.txt
             /tmp/coverage-*.txt
-            coverage/stages.json
-            coverage/coverage.info
-            coverage/html
+            /tmp/brix-coverage-report/stages.json
+            /tmp/brix-coverage-report/coverage.info
+            /tmp/brix-coverage-report/html
       - name: Unmount the disposable test filesystem
         if: always()
         run: |

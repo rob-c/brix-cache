@@ -24,7 +24,8 @@ def _identity(root, nginx_src, test_cmd):
     return {'root': str(Path(root).resolve()),
             'nginx_src': str(Path(nginx_src).resolve()), 'test_cmd': test_cmd,
             'floor': os.environ.get('COVERAGE_MIN'),
-            'privileged': os.environ.get('COVERAGE_PRIVILEGED') == '1'}
+            'privileged': os.environ.get('COVERAGE_PRIVILEGED') == '1',
+            'ceph': os.environ.get('COVERAGE_CEPH') == '1'}
 
 
 def _prepare(path, identity, out_dir):
@@ -54,7 +55,8 @@ def _load(path, identity):
 
 
 def _phases(identity):
-    return ('ordinary', 'privileged', 'userns') if identity['privileged'] else ('ordinary',)
+    phases = ('ordinary', 'privileged', 'userns') if identity['privileged'] else ('ordinary',)
+    return (*phases, 'ceph') if identity.get('ceph') else phases
 
 
 def _phase_verdict(state):
@@ -71,6 +73,8 @@ def _execute(stage, identity, units):
                               env=environment).returncode
     if stage == 'userns':
         return coverage._run_userns_group(root, environment)
+    if stage == 'ceph':
+        return coverage._run_ceph_group(root, environment)
     helper = str(Path(root) / 'tools/ci/coverage_privileged.py')
     return subprocess.run(['sudo', '-n', '-E', sys.executable, helper],
                           cwd=root, env=environment).returncode

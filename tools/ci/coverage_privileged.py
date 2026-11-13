@@ -25,7 +25,7 @@ def _selection():
         'test_chkpoint_recover_export.py', 'mu_authz_lib/test_accounts_selftest.py',
         'test_fault_proxy_privileged.py', 'test_worker_bounding_native.py',
         'test_fault_privileged_finite.py',
-        'test_impersonation_finite_native.py')]
+        'test_impersonation_finite_native.py', 'test_coverage_compiler.py')]
     return list(map(str, selected))
 
 

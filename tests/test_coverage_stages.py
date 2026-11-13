@@ -17,6 +17,7 @@ def measurement(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setenv('COVERAGE_PRIVILEGED', '1')
     monkeypatch.setenv('COVERAGE_MIN', '90')
+    monkeypatch.delenv('COVERAGE_CEPH', raising=False)
     monkeypatch.setattr(coverage, '_build', lambda *args: calls.append('build'))
 
     def prepare(*_args):
@@ -36,6 +37,20 @@ def test_stages_keep_one_inventory_and_all_counters(measurement):
     assert measurement.calls == ['build', 'reset', 'ordinary', 'privileged', 'userns']
     state = json.loads((measurement.report / 'stages.json').read_text())
     assert state['results'] == dict.fromkeys(('ordinary', 'privileged', 'userns'), 0)
+
+
+@pytest.mark.parametrize('ceph_result', [0, 7])
+def test_live_ceph_phase_is_required_and_keeps_its_verdict(measurement, monkeypatch, ceph_result):
+    """A missing lab or a native contract failure cannot satisfy the floor."""
+    monkeypatch.setenv('COVERAGE_CEPH', '1')
+    monkeypatch.setattr(stages, '_execute',
+                        lambda phase, *_args: {'ceph': ceph_result}.get(phase, 0))
+    stages.run('prepare', *measurement.args)
+    for phase in ('ordinary', 'privileged', 'userns'):
+        stages.run(phase, *measurement.args)
+    assert stages.run('report', *measurement.args) == 1
+    assert stages.run('ceph', *measurement.args) == ceph_result
+    assert stages.run('report', *measurement.args) == (1 if ceph_result else 0)
 
 
 @pytest.mark.parametrize('phase', ['ordinary', 'privileged', 'userns'])
@@ -70,7 +85,8 @@ def test_a_phase_cannot_run_twice_or_out_of_order(measurement):
         stages.run('ordinary', *measurement.args)
 
 
-@pytest.mark.parametrize('variable,value', [('COVERAGE_MIN', '0'), ('COVERAGE_PRIVILEGED', '0')])
+@pytest.mark.parametrize('variable,value', [('COVERAGE_MIN', '0'), ('COVERAGE_PRIVILEGED', '0'),
+                                          ('COVERAGE_CEPH', '1')])
 def test_floor_and_required_groups_cannot_change_mid_measurement(
         measurement, monkeypatch, variable, value):
     stages.run('prepare', *measurement.args)
