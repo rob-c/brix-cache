@@ -27,7 +27,8 @@ def _selection():
         'test_fault_privileged_finite.py',
         'test_impersonation_finite_native.py', 'test_coverage_compiler.py',
         'test_privilege_hardening_root.py', 'test_stage_default_gateway.py',
-        'test_cvmfs_cold_tier.py', 'test_cvmfs_global_cas.py')]
+        'test_cvmfs_cold_tier.py', 'test_cvmfs_global_cas.py',
+        'test_ci_harness_followup.py::test_reference_log_identity_is_owned_and_private')]
     return list(map(str, selected))
 
 

@@ -1,14 +1,17 @@
 """Slow logging and incomplete process metadata cannot weaken fixture ownership."""
 
 import os
+from pathlib import Path
+import subprocess
 import sys
+import tempfile
 from types import SimpleNamespace
 
 import pytest
 
 from tests import test_audit16c_query_token as audit
 from tests import test_xrootdfs_daemonized as daemon
-from brix_suite.launcher import start_operations
+from brix_suite.launcher import internal_operations, start_operations
 from brix_suite import settings
 from cmdscripts import fwd_matrix_cell_a as forwarding
 
@@ -122,6 +125,58 @@ def test_reference_identity_failure_aborts_startup(tmp_path, monkeypatch):
     monkeypatch.setattr(start_operations.shutil, 'chown', refused)
     with pytest.raises(PermissionError, match='cannot delegate'):
         start_operations._prepare_xrootd_config_identity(config, 'nobody')
+
+
+@pytest.mark.parametrize('mask', [0, 0o022, 0o077])
+def test_reference_logs_have_deterministic_private_access(tmp_path, mask):
+    """A permissive caller cannot leave the reference's log exposed or unwritable."""
+    log = tmp_path / 'logs/reference.log'
+    script = ('import os, pwd, sys\n'
+              'from brix_suite.launcher.internal_operations import _prepare_log\n'
+              '_prepare_log(sys.argv[1], pwd.getpwuid(os.geteuid()).pw_name)\n')
+    result = subprocess.run([sys.executable, '-c', script, str(log)],
+                            cwd=Path(__file__).resolve().parents[1],
+                            capture_output=True, text=True, umask=mask, timeout=15)
+    assert result.returncode == 0, result.stderr
+    assert log.stat().st_mode & 0o777 == 0o600
+    assert log.parent.stat().st_mode & 0o777 == 0o700
+    assert log.stat().st_uid == log.parent.stat().st_uid == os.geteuid()
+    with log.open('a') as stream:
+        stream.write('runtime append\n')
+    assert log.read_text() == 'runtime append\n'
+
+
+def test_reference_log_path_error_cannot_truncate_a_foreign_file(tmp_path):
+    occupied = tmp_path / 'occupied'
+    occupied.write_text('preserved')
+    with pytest.raises(FileExistsError):
+        internal_operations._prepare_log(occupied / 'reference.log', 'nobody')
+    assert occupied.read_text() == 'preserved'
+
+
+@pytest.mark.skipif(sys.platform != 'linux' or os.geteuid() != 0,
+                    reason='real alternate-UID log access requires Linux root')
+def test_reference_log_identity_is_owned_and_private():
+    """The selected reference UID can write; an unrelated UID cannot read it."""
+    import pwd
+    reference, unrelated = pwd.getpwnam('nobody'), pwd.getpwnam('daemon')
+    with tempfile.TemporaryDirectory(prefix='brix-reference-log-', dir='/tmp') as name:
+        root = Path(name)
+        root.chmod(0o755)
+        log = root / 'logs/reference.log'
+        internal_operations._prepare_log(log, reference.pw_name)
+        writer = subprocess.run(['/usr/bin/python3', '-c',
+                                 'import sys; open(sys.argv[1], "a").write("owned\\n")', str(log)],
+                                user=reference.pw_uid, group=reference.pw_gid, extra_groups=(),
+                                capture_output=True, text=True, timeout=10)
+        assert writer.returncode == 0, writer.stderr
+        reader = subprocess.run(['/usr/bin/python3', '-c',
+                                 'import sys; open(sys.argv[1]).read()', str(log)],
+                                user=unrelated.pw_uid, group=unrelated.pw_gid, extra_groups=(),
+                                capture_output=True, text=True, timeout=10)
+        assert reader.returncode != 0 and 'PermissionError' in reader.stderr
+        assert str(log) in reader.stderr
+        assert log.read_text() == 'owned\n'
 
 
 def test_reference_loader_error_is_retained_with_its_real_exit_status(tmp_path):
