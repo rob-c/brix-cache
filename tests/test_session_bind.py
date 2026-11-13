@@ -2,6 +2,9 @@ from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_session_bind_helpers")
 _reexport(globals(), "_test_session_bind_helpers_b")
 
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-bind-migration")]
+
 class TestBindValid:
     """Verify that a bind request with a valid primary session ID succeeds."""
 
