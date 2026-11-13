@@ -22,6 +22,10 @@ def install(root: Path, output: Path, environment: dict[str, str]) -> dict[str, 
     """Return a child environment with launchers for the available GCC drivers."""
     directory = output / "bin"
     directory.mkdir(parents=True, exist_ok=True)
+    # A root broker retains only SETUID/SETGID capabilities. It must traverse
+    # the invoking user's counter root to reach its own private compile dir.
+    # Permit search only; unrelated users cannot list or modify profiles.
+    output.chmod(0o711)
     launcher = Path(__file__).resolve()
     search_path = _compiler_search_path(environment)
     for name in ("gcc", "cc", "g++", "c++"):

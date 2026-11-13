@@ -63,7 +63,7 @@ def main(arguments=None) -> int:
     # guard wrapper runs with cwd inside the test fleet root, not the repo).
     parser = argparse.ArgumentParser(description='Collect production line coverage')
     parser.add_argument('--stage', default='all',
-                        choices=('all', 'prepare', 'ordinary', 'privileged', 'userns', 'report'))
+                        choices=('all', 'prepare', 'ordinary', 'privileged', 'userns', 'ceph', 'report'))
     options = parser.parse_args(arguments)
     root, nginx_src, out_dir, test_cmd = _settings()
     reason = _skip_reason(nginx_src)
@@ -193,14 +193,28 @@ def _run_suites(root: str, test_cmd: str, environment: dict[str, str]) -> int:
             return ready.returncode
     result = subprocess.run(test_cmd, shell=True, cwd=f'{root}/tests',
                             env=environment)
-    if result.returncode or not privileged:
+    if result.returncode:
         return result.returncode
+    if not privileged:
+        return (_run_ceph_group(root, environment)
+                if environment.get('COVERAGE_CEPH') == '1' else 0)
     helper = str(Path(root) / 'tools/ci/coverage_privileged.py')
     result = subprocess.run(['sudo', '-n', '-E', sys.executable, helper],
                             cwd=root, env=environment)
     if result.returncode:
         return result.returncode
-    return _run_userns_group(root, environment)
+    result = _run_userns_group(root, environment)
+    if result or environment.get('COVERAGE_CEPH') != '1':
+        return result
+    return _run_ceph_group(root, environment)
+
+
+def _run_ceph_group(root, environment):
+    """Append required live Ceph execution without rebuilding or resetting."""
+    helper = str(Path(root) / 'tools/ci/coverage_ceph.py')
+    environment = {**environment,
+                   'COVERAGE_OUT': environment.get('COVERAGE_OUT') or str(Path(root) / 'coverage')}
+    return subprocess.run([sys.executable, helper], cwd=root, env=environment).returncode
 
 
 def _run_userns_group(root, environment):
