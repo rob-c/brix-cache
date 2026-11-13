@@ -19,7 +19,7 @@ def _environment(environment):
              'NGINX_SRC', 'TEST_ROOT', 'COVERAGE_OUT', 'COVERAGE_MIN',
              'COVERAGE_PRIVILEGED', 'COVERAGE_CEPH', 'COVERAGE_CEPH_IMAGE',
              'COVERAGE_TEST_CMD', 'COVERAGE_USERNS_PROFILE',
-             'BRIX_CVMFS_APPARMOR_PROFILE', 'PYTEST_ADDOPTS')
+             'BRIX_CVMFS_APPARMOR_PROFILE', 'BRIX_MINIO_BIN', 'PYTEST_ADDOPTS')
     return [f'{name}={environment[name]}' for name in names if name in environment]
 
 

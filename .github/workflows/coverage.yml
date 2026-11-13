@@ -1,4 +1,4 @@
-name: coverage live Ceph bootstrap probe
+name: coverage native S3 and binding probe
 permissions:
   contents: read
 jobs:
@@ -12,12 +12,14 @@ jobs:
       COVERAGE_MIN: 90
       COVERAGE_OUT: /tmp/brix-coverage-report
       COVERAGE_PRIVILEGED: '0'
-      COVERAGE_CEPH: '1'
+      COVERAGE_CEPH: '0'
       COVERAGE_CEPH_IMAGE: quay.io/ceph/demo@sha256:2c5efcb089f5e50f9cd3213b995a6ad7428122b80ac140c41f2d4a780a3b7fc6
       COVERAGE_USERNS_PROFILE: brix-coverage-userns-tests
       BRIX_CVMFS_APPARMOR_PROFILE: brix-coverage-userns-tests
+      BRIX_MINIO_BIN: /tmp/brix-minio-bin/minio
       PYTEST_ADDOPTS: -p no:brixtest -p no:platformdirs
-      COVERAGE_TEST_CMD: python3 ../tools/ci/smoke.py
+      COVERAGE_TEST_CMD: python3 -m pytest test_session_bind.py test_s3_store_native_live.py test_sts_minio_live.py
+        test_sts_runtime_e2e.py -n0 -o addopts= -ra -q -p no:randomly -p no:rerunfailures
     steps:
     - uses: actions/checkout@v7.0.1
     - name: Reserve disk space for the instrumented SDK and test filesystem
@@ -42,6 +44,10 @@ jobs:
         \ -r requirements-optional.txt './brixtest[all]'\n.venv-coverage/bin/pip check\necho \"$PWD/.venv-coverage/bin\"\
         \ >> \"$GITHUB_PATH\"\necho \"$NGINX_SRC/objs\" >> \"$GITHUB_PATH\"\nsudo modprobe fuse\necho user_allow_other\
         \ | sudo tee -a /etc/fuse.conf\n"
+    - name: Build the independent S3 oracle from its pinned upstream release
+      timeout-minutes: 20
+      run: "go version\nCGO_ENABLED=0 GOBIN=/tmp/brix-minio-bin go install -p 4 \\\n  github.com/minio/minio@v0.0.0-20251015172955-9e49d5e7a648\n\
+        \"$BRIX_MINIO_BIN\" --version\n"
     - name: Prepare disposable test hostname and filesystem
       run: '# Azure''s FQDN can exceed the 64-byte certificate CN limit. Globus
 
@@ -106,7 +112,7 @@ jobs:
           /tmp/brix-coverage-report/coverage.initial.info
 
           '
-    - name: Verify native serving smoke before live Ceph contracts
+    - name: Run focused native S3, STS and binding contracts
       if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
       run: 'set -o pipefail
 
@@ -123,24 +129,6 @@ jobs:
           /tmp/brix-coverage-report/stages.json
 
           '
-    - name: Run disposable Ceph data, credential and migration contracts
-      if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-      timeout-minutes: 30
-      run: 'set -o pipefail
-
-        python3 tools/ci/coverage_host.py ceph 2>&1 | tee /tmp/coverage-ceph.txt
-
-        '
-    - name: Upload Ceph suite checkpoint
-      if: always()
-      uses: actions/upload-artifact@v7.0.2
-      with:
-        name: coverage-ceph-checkpoint
-        path: '/tmp/coverage-ceph.txt
-
-          /tmp/brix-coverage-report/stages.json
-
-          '
     - name: Capture focused counters for gap diagnosis
       if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
       run: 'python3 - <<''PYDIAG''
@@ -151,17 +139,11 @@ jobs:
 
         from tools.ci import coverage, coverage_merge
 
-        root=str(Path.cwd())
+        root=str(Path.cwd()); report=Path(os.environ[''COVERAGE_OUT''])
 
-        report=Path(os.environ[''COVERAGE_OUT''])
+        state=json.loads((report/''stages.json'').read_text()); units=report/state[''units'']
 
-        state=json.loads((report/''stages.json'').read_text())
-
-        units=report/state[''units'']
-
-        requests=report/''coverage.focused-requests.info''
-
-        standalone=report/''coverage.focused-units.info''
+        requests=report/''coverage.focused-requests.info''; standalone=report/''coverage.focused-units.info''
 
         coverage._capture(root, [''/tmp/nginx-1.31.8/objs'', root+''/client'', root+''/shared''], str(requests))
 
@@ -169,7 +151,7 @@ jobs:
 
         coverage_merge.merge_execution(report/''coverage.initial.info'', [requests, standalone], report/''coverage.info'')
 
-        print(''Diagnostic live Ceph counters captured; NOT a complete coverage measurement.'')
+        print(''Diagnostic S3/STS/binding counters captured; NOT a complete coverage measurement.'')
 
         PYDIAG
 
