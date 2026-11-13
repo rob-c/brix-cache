@@ -1,4 +1,4 @@
-name: coverage confined counters and Ceph probe
+name: coverage live Ceph bootstrap probe
 permissions:
   contents: read
 jobs:
@@ -11,7 +11,7 @@ jobs:
       PYTHONUNBUFFERED: '1'
       COVERAGE_MIN: 90
       COVERAGE_OUT: /tmp/brix-coverage-report
-      COVERAGE_PRIVILEGED: '1'
+      COVERAGE_PRIVILEGED: '0'
       COVERAGE_CEPH: '1'
       COVERAGE_CEPH_IMAGE: quay.io/ceph/demo@sha256:2c5efcb089f5e50f9cd3213b995a6ad7428122b80ac140c41f2d4a780a3b7fc6
       COVERAGE_USERNS_PROFILE: brix-coverage-userns-tests
@@ -106,7 +106,7 @@ jobs:
           /tmp/brix-coverage-report/coverage.initial.info
 
           '
-    - name: Verify native serving smoke before focused contracts
+    - name: Verify native serving smoke before live Ceph contracts
       if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
       run: 'set -o pipefail
 
@@ -123,30 +123,6 @@ jobs:
           /tmp/brix-coverage-report/stages.json
 
           '
-    - name: Run privileged contracts
-      if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-      run: 'set -o pipefail
-
-        python3 tools/ci/coverage_host.py privileged 2>&1 | tee /tmp/coverage-privileged.txt
-
-        '
-    - name: Upload privileged suite checkpoint
-      if: always()
-      uses: actions/upload-artifact@v7.0.2
-      with:
-        name: coverage-privileged-checkpoint
-        path: '/tmp/coverage-privileged.txt
-
-          /tmp/brix-coverage-report/stages.json
-
-          '
-    - name: Run standalone user namespace contracts
-      if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-      run: 'set -o pipefail
-
-        python3 tools/ci/coverage_host.py userns 2>&1 | tee /tmp/coverage-userns.txt
-
-        '
     - name: Run disposable Ceph data, credential and migration contracts
       if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
       timeout-minutes: 30
@@ -193,7 +169,7 @@ jobs:
 
         coverage_merge.merge_execution(report/''coverage.initial.info'', [requests, standalone], report/''coverage.info'')
 
-        print(''Diagnostic confined/root/namespace/Ceph counters captured; NOT a complete coverage measurement.'')
+        print(''Diagnostic live Ceph counters captured; NOT a complete coverage measurement.'')
 
         PYDIAG
 

@@ -101,27 +101,48 @@ def _require_zero(result, message):
         raise RuntimeError(f'{message} ({result})')
 
 
+def _bootstrap_permissions(library, mount):
+    """Use explicit admin POSIX credentials only while owning fixture roots."""
+    _require_zero(library.ceph_init(mount), 'could not initialize the private CephFS client')
+    permissions = library.ceph_userperm_new(0, 0, 0, None)
+    if not permissions:
+        raise MemoryError('could not allocate bootstrap CephFS credentials')
+    try:
+        _require_zero(library.ceph_mount_perms_set(mount, permissions),
+                      'could not select bootstrap CephFS credentials')
+    finally:
+        library.ceph_userperm_destroy(permissions)
+
+
 def _migration_root(configuration):
     """Own the private CephFS migration directory as the actual test identity."""
     library = ctypes.CDLL('libcephfs.so.2')
     pointer = ctypes.c_void_p
     arguments = {'ceph_create': [ctypes.POINTER(pointer), ctypes.c_char_p],
                  'ceph_conf_read_file': [pointer, ctypes.c_char_p],
+                 'ceph_init': [pointer], 'ceph_mount_perms_set': [pointer, pointer],
+                 'ceph_userperm_new': [ctypes.c_uint, ctypes.c_uint, ctypes.c_int,
+                                       ctypes.POINTER(ctypes.c_uint)],
+                 'ceph_userperm_destroy': [pointer],
                  'ceph_mount': [pointer, ctypes.c_char_p],
                  'ceph_mkdirs': [pointer, ctypes.c_char_p, ctypes.c_uint],
                  'ceph_chown': [pointer, ctypes.c_char_p, ctypes.c_uint, ctypes.c_uint],
                  'ceph_unmount': [pointer], 'ceph_release': [pointer]}
     for name, types in arguments.items():
         getattr(library, name).argtypes = types
+    library.ceph_userperm_new.restype = pointer
     mount = pointer()
     _require_zero(library.ceph_create(ctypes.byref(mount), b'admin'),
                   'could not create the private CephFS client')
     try:
         _require_zero(library.ceph_conf_read_file(mount, os.fsencode(configuration)),
                       'could not load the private CephFS configuration')
+        _bootstrap_permissions(library, mount)
         _require_zero(library.ceph_mount(mount, b'/'),
                       'could not mount the private CephFS client')
         try:
+            _require_zero(library.ceph_chown(mount, b'/', os.getuid(), os.getgid()),
+                          'could not own the disposable CephFS root')
             path = b'/brix-coverage-migration'
             _require_zero(library.ceph_mkdirs(mount, path, 0o700),
                           'could not create the private CephFS migration root')
@@ -136,13 +157,13 @@ def _migration_root(configuration):
 
 def _seed(root, directory, container):
     """Reuse the existing byte/xattr/symlink fixture and flush its real metadata."""
+    _migration_root(directory / 'ceph.conf')
     for name in ('cephfs_seed', 'cephfs_seed2'):
         binary = directory / name
         _command(['gcc', '-D_FILE_OFFSET_BITS=64', root / 'tests/ceph' / f'{name}.c',
                   '-lcephfs', '-o', binary])
         result = _command([binary])
         print(result.stdout, end='', flush=True)
-    _migration_root(directory / 'ceph.conf')
     _ceph(container, 'tell', 'mds.*', 'flush', 'journal')
 
 
