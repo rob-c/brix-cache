@@ -25,6 +25,7 @@ from pathlib import Path
 import pytest
 
 from cmdscripts.c_regression_units import run_checks
+from test_xrd_dispatch_native import compile_client_contract
 
 pytestmark = [pytest.mark.timeout(180),
               pytest.mark.xdist_group("p116-client-resolve")]
@@ -78,6 +79,28 @@ def test_c_unit_with_the_answer_cache_disabled(tmp_path):
                        env=env, timeout=60, cwd=REPO)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "cache off" in r.stdout, r.stdout
+
+
+@pytest.fixture(scope='module')
+def archived_client_resolver(tmp_path_factory):
+    """Exercise the shipped client objects as well as the standalone build."""
+    return compile_client_contract(REPO, tmp_path_factory.mktemp('resolver-archive'),
+                                    'tests/c/client_resolve_test.c', ())
+
+
+@pytest.mark.parametrize('cache_seconds', [None, '0', '-1'])
+def test_client_archive_preserves_resolver_boundaries(archived_client_resolver, cache_seconds):
+    """Keep malformed NSS data and short sockaddr buffers outside connect targets."""
+    environment = dict(os.environ)
+    environment.pop('XRDC_RESOLVE_CACHE_S', None)
+    arguments = [str(archived_client_resolver)]
+    if cache_seconds is not None:
+        environment['XRDC_RESOLVE_CACHE_S'] = cache_seconds
+        arguments.append('nocache')
+    result = subprocess.run(arguments, capture_output=True, text=True,
+                            env=environment, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'all checks passed' in result.stdout
 
 
 def test_client_and_shared_trees_have_one_resolver_call_site():

@@ -12,13 +12,17 @@ the same admission path, worker loops and fd budget.  The contract adds one
 clause on top of the graceful-degradation contract the helpers encode:
 NEITHER client class may be starved to zero while the other is served.
 
-Every rung releases n clients through one barrier: 1 in 4 runs a full
+Every rung releases n clients through one global gate: 1 in 4 runs a full
 FTS-shaped transfer (login+stat+open+read 64KiB+close, byte-verified), the
 rest run r/o metadata loops (login + 2x ULTRA_MIX_META_OPS stats).  Client
 threads use small stacks and spread their SOURCE address over 127.0.0.2-9 so
 16k-wide rungs exhaust neither thread memory nor the local 4-tuple space;
 the fd soft limit is raised per rung (a low hard limit clamps the ladder
 rather than failing it).
+
+The widest rungs divide these same client threads across owned Python
+processes. This keeps a single interpreter's GIL and barrier wakeup queue
+from becoming the measured bottleneck; every job and verdict stays the same.
 
 The comparison test runs the identical mixed ladder against an official
 `xrootd` daemon on the same payloads and asserts BriX breaks no earlier
@@ -120,13 +124,10 @@ def _mix_outcome(port, idx, spread=True, heavy=False):
 # Mixed rungs                                                                  #
 # --------------------------------------------------------------------------- #
 
-def _mix_worker(port, barrier, out, idx, spread, jobs, heavy):
+def _mixed_client_result(idx, port, spread, jobs, heavy):
+    """Keep the identical job and outcome contract in either scheduling domain."""
     res = U._empty_rung(0)
     res["served_meta"] = res["served_xfer"] = 0
-    try:
-        barrier.wait(timeout=300)
-    except threading.BrokenBarrierError:
-        pass
     for _ in range(jobs):
         cls, (kind, lat, detail) = _mix_outcome(port, idx, spread, heavy)
         res[kind] += 1
@@ -135,14 +136,27 @@ def _mix_worker(port, barrier, out, idx, spread, jobs, heavy):
             res["served_" + cls] += 1
         elif kind == "errored" and len(res["err"]) < 3:
             res["err"].append(detail)
-    out[idx] = res
+    return res
+
+
+def _mix_worker(port, barrier, out, idx, spread, jobs, heavy):
+    try:
+        barrier.wait(timeout=300)
+    except threading.BrokenBarrierError:
+        pass
+    out[idx] = _mixed_client_result(idx, port, spread, jobs, heavy)
 
 
 def _spawn_mix(port, n, out, spread, jobs, heavy):
-    """Spawn n small-stack workers behind one barrier and join them.  A
+    """Release n small-stack workers together and join their owned runtimes. A
     client-side thread-limit failure marks the REMAINING slots unspawned
     (not the server's fault) and aborts the barrier so started workers
     release immediately."""
+    if n > 4096:
+        from _test_ultra_parallel_process import spawn_grouped
+        spawn_grouped(_mixed_client_result, (port, spread, jobs, heavy), out,
+                      stack=STACK, operation_budget=U.OP_TIMEOUT * (jobs + 2) + 300)
+        return
     barrier = threading.Barrier(n)
     old = threading.stack_size(STACK)
     threads = []
