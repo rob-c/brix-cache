@@ -186,6 +186,7 @@ def shared_build(tmp_path, monkeypatch):
     subprocess.run(['gcc', '--coverage', '-O0', '-fprofile-abs-path', str(source),
                     '-o', str(binary)], check=True, capture_output=True)
     monkeypatch.setenv('COVERAGE_PRIVILEGED', '0')
+    monkeypatch.setenv('COVERAGE_CEPH', '0')
     monkeypatch.setenv('COVERAGE_MIN', '0')
     return root, binary
 

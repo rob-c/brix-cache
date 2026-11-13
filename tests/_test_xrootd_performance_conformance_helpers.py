@@ -358,7 +358,11 @@ def _copy_process(base_url: str, remote: str, dest: Path, expected_md5: str) -> 
     assert results[0]["status"].ok, (
         f"CopyProcess job failed for {base_url}: {results[0]['status'].message}"
     )
-    assert _file_md5(dest) == expected_md5
+    actual_md5 = _file_md5(dest)
+    assert actual_md5 == expected_md5, (
+        f"CopyProcess bytes differ for {base_url}{remote}: "
+        f"size={dest.stat().st_size}, md5={actual_md5}, expected={expected_md5}"
+    )
     return elapsed
 
 

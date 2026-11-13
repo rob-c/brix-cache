@@ -74,7 +74,8 @@ def _check_minio_sts_lab_1(healthy):
     assert healthy, "MinIO never became healthy"
 
 def _check_minio_sts_lab_2(hdr, uri):
-    assert _http("PUT", ENDPOINT + uri, hdr, b"")[0] == 200, "bucket create"
+    status, response = _http("PUT", ENDPOINT + uri, hdr, b"")
+    assert status == 200, f"bucket create: {status} {response[:1024]!r}"
 
 def _check_minio_sts_lab_3(hdr, uri):
     assert _http("PUT", ENDPOINT + uri, hdr, BODY)[0] == 200, "object put"
@@ -268,12 +269,12 @@ def _container_minio(port=PORT):
 
 
 def _wait_minio(process, endpoint=ENDPOINT):
-    """A dead native child cannot borrow an unrelated service's health proof."""
+    """Require write quorum before seeding; a live listener is insufficient."""
     for _ in range(80):
         if process is not None and process.poll() is not None:
             raise RuntimeError("native MinIO exited during readiness; see minio.log")
         try:
-            if _http("GET", f"{endpoint}/minio/health/live", {})[0] == 200:
+            if _http("GET", f"{endpoint}/minio/health/cluster", {})[0] == 200:
                 return
         except OSError:
             pass

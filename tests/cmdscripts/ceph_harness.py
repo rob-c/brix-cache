@@ -239,7 +239,10 @@ def cmd_pool_reset() -> int:
 
 
 def cmd_stop() -> int:
-    _docker(["rm", "-f", ceph_container()])
+    result = _docker(["rm", "-f", ceph_container()])
+    if result.returncode:
+        print(f"ceph_harness: stop failed: {result.stderr}", file=sys.stderr)
+        return result.returncode
     print("ceph_harness: stopped")
     return 0
 
