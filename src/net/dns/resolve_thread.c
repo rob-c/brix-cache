@@ -62,9 +62,9 @@ dns_libc_result(int rc)
 }
 
 
-/* The libc resolver — the one getaddrinfo() call in src/ (the DNS seam).
- * Answers carry `port`; *result is the BRIX_DNS_RESULT_* class of the
- * outcome, and every call is counted once in brix_dns_lookups_total. */
+/* WHAT: Return bounded libc addresses or zero with a terminated diagnostic.
+ * WHY: The single DNS seam must preserve result classification and safe errors.
+ * HOW: 1. Query NSS. 2. Copy fitting answers. 3. Release the reply and record its class. */
 static ngx_uint_t
 dns_libc_resolve(const char *host, in_port_t port, brix_af_policy_t af,
     int socktype, brix_dns_addr_t *addrs, ngx_uint_t max, char *err,
@@ -83,11 +83,8 @@ dns_libc_resolve(const char *host, in_port_t port, brix_af_policy_t af,
 
     rc = getaddrinfo(host, portstr, &hints, &res);
     if (rc != 0 || res == NULL) {
-        if (err != NULL && errsz > 0) {
-            (void) ngx_snprintf((u_char *) err, errsz, "%s%Z",
-                                rc == EAI_SYSTEM ? strerror(errno)
-                                                 : gai_strerror(rc));
-        }
+        brix_dns_set_err(err, errsz, rc == EAI_SYSTEM ? strerror(errno)
+                                                    : gai_strerror(rc));
         *result = dns_libc_result(rc);
         brix_dns_lookup_note(*result);
         return 0;
@@ -101,8 +98,8 @@ dns_libc_resolve(const char *host, in_port_t port, brix_af_policy_t af,
         n++;
     }
     freeaddrinfo(res);
-    if (n == 0 && err != NULL && errsz > 0) {
-        (void) ngx_snprintf((u_char *) err, errsz, "no usable address%Z");
+    if (n == 0) {
+        brix_dns_set_err(err, errsz, "no usable address");
     }
     *result = n > 0 ? BRIX_DNS_RESULT_OK : BRIX_DNS_RESULT_ERROR;
     brix_dns_lookup_note(*result);
@@ -127,6 +124,9 @@ dns_sync_req_init(brix_dns_req_t *req, const brix_dns_policy_t *policy,
 }
 
 
+/* WHAT: Copy at most the caller's address capacity, returning zero on failure.
+ * WHY: Cached failures need the same bounded diagnostic contract as NSS failures.
+ * HOW: 1. Validate the answer. 2. Copy its diagnostic or bounded address list. */
 static ngx_uint_t
 dns_sync_copy(const brix_dns_req_t *req, brix_dns_addr_t *addrs,
     ngx_uint_t max, char *err, size_t errsz)
@@ -134,10 +134,7 @@ dns_sync_copy(const brix_dns_req_t *req, brix_dns_addr_t *addrs,
     ngx_uint_t  i, n = ngx_min(req->naddrs, max);
 
     if (req->rc != NGX_OK || n == 0) {
-        if (err != NULL && errsz > 0) {
-            (void) ngx_snprintf((u_char *) err, errsz, "%s%Z",
-                                req->error ? req->error : "no usable address");
-        }
+        brix_dns_set_err(err, errsz, req->error ? req->error : "no usable address");
         return 0;
     }
     for (i = 0; i < n; i++) {
