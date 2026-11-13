@@ -96,7 +96,9 @@ jobs:
           # traverse the parents of their own fixtures.
           filesystem=/tmp/brix-coverage-fs
           (set -o noclobber; : > "$image")
-          truncate -s 24G "$image"
+          # Parallel conformance captures and private native builds can exceed
+          # 24 GiB before worker teardown releases their retained artifacts.
+          truncate -s 64G "$image"
           sudo mkfs.xfs -q -f "$image"
           mkdir "$filesystem"
           sudo mount -o loop,nosuid,nodev "$image" "$filesystem"
@@ -107,7 +109,7 @@ jobs:
           sudo chmod 1777 "$filesystem"
           # Watermark eviction contracts require actual usage above 10%.
           # Reserve space only in this newly created disposable filesystem.
-          fallocate -l 3G "$filesystem/.watermark-fixture-space"
+          fallocate -l 8G "$filesystem/.watermark-fixture-space"
           echo "TEST_ROOT=$filesystem/brix-cov" >> "$GITHUB_ENV"
       - name: Permit the test user-namespace launchers
         id: coverage_userns
