@@ -181,7 +181,7 @@ def _wait_stopped_mds(container):
     states = ['unknown']
     while time.monotonic() < deadline:
         result = _command(['docker', 'exec', container, 'sh', '-c',
-                           'ps -C ceph-mds -o stat=; code=$?; test "$code" -le 1'])
+                           'ps -L -C ceph-mds -o stat=; code=$?; test "$code" -le 1'])
         if result.stderr:
             raise RuntimeError('could not inspect the owned MDS: ' + result.stderr[-4096:])
         states = result.stdout.split()
@@ -210,7 +210,10 @@ def run(root, report):
         if result:
             return result
         _ceph(container, 'tell', 'mds.*', 'flush', 'journal')
-        _command(['docker', 'exec', container, 'pkill', '-TERM', '-x', 'ceph-mds'])
+        # A single MDS can wait for handoff after TERM. All fixture clients
+        # have exited and the journal is flushed; stop only this owned daemon
+        # before examining every thread and authorizing offline mutation.
+        _command(['docker', 'exec', container, 'pkill', '-KILL', '-x', 'ceph-mds'])
         _wait_stopped_mds(container)
         os.environ['TEST_CEPHFS_QUIESCED'] = '1'
         return _tests(root, ['test_ceph_reverse_migration_native.py'])

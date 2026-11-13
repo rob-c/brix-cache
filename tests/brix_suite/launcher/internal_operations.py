@@ -36,11 +36,14 @@ def _prepare_local_root(launcher, config):
 
 
 def _prepare_log(log_path, user):
+    """Give only the explicit runtime identity its generated log directory."""
     log_dir = os.path.dirname(log_path)
     Path(log_dir).mkdir(parents=True, exist_ok=True)
-    os.chmod(log_dir, 0o777)
+    shutil.chown(log_dir, user)
+    os.chmod(log_dir, 0o700)
     Path(log_path).write_text("", encoding="utf-8")
     shutil.chown(log_path, user)
+    os.chmod(log_path, 0o600)
 
 
 def _open_pki_directories(launcher, pki_dir):

@@ -629,6 +629,15 @@ def _reference_log_tail(path):
         return f'{path.name}: {error}'
 
 
+def _reference_log_identity(path):
+    """Retain access metadata, never file contents outside the bounded log tail."""
+    try:
+        info = path.stat()
+        return f'{path}: uid={info.st_uid} gid={info.st_gid} mode={stat.S_IMODE(info.st_mode):04o}'
+    except OSError as error:
+        return f'{path}: {error}'
+
+
 def _track_xrootd(launcher, spec, endpoint, process):
     launcher._xrootd_procs[spec.name] = process
     try:
@@ -638,7 +647,8 @@ def _track_xrootd(launcher, spec, endpoint, process):
         logs = Path(endpoint.prefix) / 'logs'
         tails = [_reference_log_tail(logs / name) for name in
                  ('xrootd.bootstrap.log', 'xrootd.log')]
-        raise RuntimeError(f'{error}\nReference startup logs:\n' + '\n'.join(tails)) from error
+        identity = [_reference_log_identity(path) for path in (logs.parent, logs, logs / 'xrootd.log')]
+        raise RuntimeError(f'{error}\nReference startup logs:\n' + '\n'.join(tails + identity)) from error
     launcher._owned.append(spec)
 
 
